@@ -629,7 +629,7 @@ export class ChatListWidget extends Disposable {
 				allowNonCollapsibleParents: true,
 				renderIndentGuides: RenderIndentGuides.None,
 				findWidgetEnabled: false,
-				accessibilityProvider: this.instantiationService.createInstance(ChatAccessibilityProvider),
+				accessibilityProvider: this.instantiationService.createInstance(ChatAccessibilityProvider, () => this._renderer.responseIdentity),
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: (e: ChatTreeItem) =>
 						isRequestVM(e) ? e.message : isResponseVM(e) ? e.response.value : ''
@@ -1335,7 +1335,11 @@ export class ChatListWidget extends Disposable {
 	private _withPersistedAutoScroll(fn: () => void): void {
 		const wasScrolledToBottom = !this.isAutoScrollHeld && this.isScrolledToBottom;
 		const scrollTop = this._tree.scrollTop;
-		fn();
+		if (wasScrolledToBottom) {
+			this._tree.withScrollAnchorAtBottom(fn);
+		} else {
+			fn();
+		}
 		this.updateBottomPadding(scrollTop);
 		if (wasScrolledToBottom) {
 			this.revealLastItem();

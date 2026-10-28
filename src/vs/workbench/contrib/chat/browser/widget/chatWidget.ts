@@ -91,7 +91,7 @@ import { ILanguageModelToolsService, isToolSet } from '../../common/tools/langua
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, handleModeSwitch } from '../actions/chatActions.js';
-import { ChatTreeItem, ChatViewPaneTarget, IChatAcceptInputOptions, IChatAccessibilityService, IChatBackgroundActivityPillSections, IChatCodeBlockInfo, IChatFileTreeInfo, IChatFindController, IChatListItemRendererOptions, IChatPasteTargetService, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, IChatWidgetViewState, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
+import { ChatTreeItem, ChatViewPaneTarget, IChatAcceptInputOptions, IChatAccessibilityService, IChatBackgroundActivityPillSections, IChatCodeBlockInfo, IChatFileTreeInfo, IChatFindController, IChatListItemRendererOptions, IChatPasteTargetService, IChatRespondent, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, IChatWidgetViewState, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
 import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js';
@@ -490,6 +490,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _pendingFirstRenderSessionResource: URI | undefined;
 
 	// Coding agent locking state
+	private _respondent: { readonly resource: URI; readonly respondent: IChatRespondent } | undefined;
+	private _appliedInputPlaceholder = false;
+	private _hasResponseIdentity = false;
 	private _lockedAgent?: {
 		id: string;
 		name: string;
@@ -3080,6 +3083,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			this.clearGettingStartedTip();
 			this.viewModel = undefined;
+			// No chat is bound, so nothing is revalidated: the outgoing chat keeps its own model.
+			this._respondent = undefined;
+			this.inputPart.setModelSessionTypeOverride(undefined, undefined, { revalidate: false });
+			this._setResponseIdentity(undefined);
 			this.updateWorkingProgressBorder();
 			this.onDidChangeItems();
 			this._hasPendingRequestsContextKey.set(false);
@@ -3096,6 +3103,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		logChangesToStateModel(model.inputModel, `ChatWidget.setModel new ${model.sessionResource.toString()}, old ${this.viewModel?.sessionResource.toString()}`, model.inputModel.state.get(), currentInputModel, this.logService);
+		// A respondent belongs to the chat it was set for: one set ahead for the incoming chat applies,
+		// any other is dropped (the host sets one again for the next chat).
+		const respondent = this._respondent && isEqual(this._respondent.resource, model.sessionResource) ? this._respondent.respondent : undefined;
+		if (!respondent && this._respondent) {
+			// The outgoing chat is still bound here: dropping its pool must not revalidate it against another.
+			this._respondent = undefined;
+			this.inputPart.setModelSessionTypeOverride(undefined, undefined, { revalidate: false });
+		}
+		this._setResponseIdentity(respondent);
 
 		if (this.viewModel?.editing) {
 			this.finishedEditing();
@@ -3128,16 +3144,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// outgoing model was torn down cannot consume it.
 		this._pendingFirstRenderSessionResource = model.sessionResource;
 
-		if (this._lockedAgent) {
-			let placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder;
-			if (!placeholder) {
-				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);
-			}
-			this.viewModel.setInputPlaceholder(placeholder);
-			this._updateInputPlaceholder(placeholder);
-		} else if (this.viewModel.inputPlaceholder) {
-			this._updateInputPlaceholder(this.viewModel.inputPlaceholder);
-		}
+		this._applyInputPlaceholder();
 
 		this.viewModelDisposables.add(Event.runAndSubscribe(Event.accumulate(this.viewModel.onDidChange), (events => {
 			if (!this.viewModel || this._store.isDisposed) {
@@ -3298,6 +3305,75 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	setInputPlaceholder(placeholder: string): void {
 		this.viewModel?.setInputPlaceholder(placeholder);
+	}
+
+	/**
+	 * Presents the bound chat as answered by `respondent`, an agent other than the one its session
+	 * type serves, or restores that agent's presentation. The input placeholder, response identity
+	 * and selectable models follow the respondent; requests still go to the session type's agent.
+	 */
+	setRespondent(respondent: IChatRespondent | undefined, resource: URI | undefined = this.viewModel?.sessionResource): void {
+		const next = respondent && resource ? { resource, respondent } : undefined;
+		const previous = this._respondent;
+		if (!next && previous && resource && !isEqual(previous.resource, resource)) {
+			// Another chat having none says nothing about this one's; binding that chat drops it.
+			return;
+		}
+		if (!!previous === !!next && isEqual(previous?.resource, next?.resource) && previous?.respondent.label === next?.respondent.label
+			&& previous?.respondent.modelSessionType === next?.respondent.modelSessionType && previous?.respondent.icon.id === next?.respondent.icon.id) {
+			return;
+		}
+		this._respondent = next;
+		const bound = this.viewModel?.sessionResource;
+		// Set ahead of binding (`resource` not yet bound), the pool applies from the chat's first model validation;
+		// only a change for the bound chat revalidates it, so replacing the outgoing chat's pool never does.
+		const forBound = !!bound && isEqual(next?.resource ?? previous?.resource, bound);
+		this.inputPart.setModelSessionTypeOverride(next ? { sessionType: next.respondent.modelSessionType } : undefined, next?.resource ?? previous?.resource, { revalidate: forBound });
+		if (!isEqual(next?.resource, bound) && !isEqual(previous?.resource, bound)) {
+			return;
+		}
+		const boundRespondent = next && isEqual(next.resource, bound) ? next.respondent : undefined;
+		this._setResponseIdentity(boundRespondent);
+		if (previous && !boundRespondent) {
+			this.viewModel?.resetInputPlaceholder();
+		}
+		this._applyInputPlaceholder();
+		this.rerenderListIfConnected();
+	}
+
+	private _setResponseIdentity(respondent: IChatRespondent | undefined): void {
+		// Only a change reaches the list, so chats that never have a respondent never touch its options.
+		if (!respondent && !this._hasResponseIdentity) {
+			return;
+		}
+		this._hasResponseIdentity = !!respondent;
+		this.listWidget.updateRendererOptions({ responseIdentity: respondent ? { label: respondent.label, icon: respondent.icon } : undefined });
+	}
+
+	private _applyInputPlaceholder(): void {
+		if (!this.viewModel) {
+			return;
+		}
+		let placeholder: string | undefined;
+		if (this._respondent && isEqual(this._respondent.resource, this.viewModel.sessionResource)) {
+			placeholder = localize('chat.input.placeholder.respondent', "Chat with {0}", this._respondent.respondent.label);
+		} else if (this._lockedAgent) {
+			placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder
+				|| localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);
+		}
+		// Routed through `_updateInputPlaceholder`, so a host-supplied placeholder still wins.
+		if (placeholder) {
+			this.viewModel.setInputPlaceholder(placeholder);
+			this._updateInputPlaceholder(placeholder);
+			this._appliedInputPlaceholder = true;
+		} else if (this.viewModel.inputPlaceholder) {
+			this._updateInputPlaceholder(this.viewModel.inputPlaceholder);
+			this._appliedInputPlaceholder = true;
+		} else if (this._appliedInputPlaceholder) {
+			// Clear only a placeholder this widget set, so a widget that never had one stays untouched.
+			this._updateInputPlaceholder(undefined);
+			this._appliedInputPlaceholder = false;
+		}
 	}
 
 	resetInputPlaceholder(): void {

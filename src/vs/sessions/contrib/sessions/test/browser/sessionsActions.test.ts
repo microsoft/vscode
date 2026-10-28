@@ -40,7 +40,7 @@ import { CloseEditorTabAction } from '../../../../../workbench/browser/parts/edi
 import { NAVIGATE_VIEW_COMMANDS } from '../../../../../workbench/browser/actions/navigationActions.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus, SessionHeaderMenus } from '../../../../browser/menus.js';
 import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../browser/sessionConversationGroups.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { createSessionsPartTestHarness, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
@@ -524,7 +524,7 @@ suite('Sessions - Actions', () => {
 			[CLOSE_SESSION_COMMAND_ID, 'sessions.chatCompositeBar.toggleMaximize', Menus.SessionGridLayout.id],
 			[MARK_SESSION_UNREAD_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID],
 			[TOGGLE_PIN_SESSION_COMMAND_ID],
-			['sessions.sessionHeader.rename'],
+			[MenuId.ChatViewMode.id, 'sessions.sessionHeader.rename'],
 		];
 
 		assert.deepStrictEqual({
@@ -708,6 +708,23 @@ suite('Sessions - Actions', () => {
 			chatsWhen: 'sessionActiveChatHasSideChats && sessionIsCreated && !sessionIsArchived',
 			hasNewNestedSession: false,
 		});
+	});
+
+	test('shares View Mode between session header menus with AI hiding', () => {
+		assert.deepStrictEqual(SessionHeaderMenus.map(menu => {
+			const item = MenuRegistry.getMenuItems(menu).filter(isISubmenuItem).find(item => item.submenu === MenuId.ChatViewMode);
+			return {
+				title: item && (typeof item.title === 'string' ? item.title : item.title.value),
+				group: item?.group,
+				order: item?.order,
+				when: item?.when?.serialize(),
+			};
+		}), SessionHeaderMenus.map(() => ({
+			title: 'View Mode',
+			group: 'secondary/4_manage',
+			order: 10,
+			when: ChatContextKeys.enabled.serialize(),
+		})));
 	});
 
 	test('contributes chat tab presentation to the session header overflow', async () => {

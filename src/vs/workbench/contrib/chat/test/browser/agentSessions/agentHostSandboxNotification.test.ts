@@ -26,7 +26,7 @@ import { SessionConfigKey } from '../../../../../../platform/agentHost/common/se
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
-import { createSessionState, SessionState, SessionStatus, StateComponents, type ChatState, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { createSessionState, SessionState, SessionStatus, StateComponents, type ChatState, type ComponentToState, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -46,6 +46,7 @@ import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ChatInputNotificationWidget } from '../../../browser/widget/input/chatInputNotificationWidget.js';
+import { ChatProvidersConfigKey } from '../../../../../../platform/agentHost/common/agentHostChatProviders.js';
 
 suite('AgentHostSandboxNotification', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -100,6 +101,7 @@ suite('AgentHostSandboxNotification', () => {
 		});
 		dispatched = [];
 		localHost = new class extends mock<IAgentHostService>() {
+			override readonly initializeResult = constObservable(undefined);
 			override dispatch(...args: Parameters<IAgentConnection['dispatch']>): void {
 				dispatched.push(args);
 			}
@@ -111,6 +113,7 @@ suite('AgentHostSandboxNotification', () => {
 			connectionAuthority: 'custom-host',
 			backendSession: URI.parse('custom-host://opaque/session'),
 			connection: new class extends mock<IAgentConnection>() {
+				override readonly initializeResult = constObservable(undefined);
 				override dispatch(...args: Parameters<IAgentConnection['dispatch']>): void {
 					dispatched.push(args);
 				}
@@ -263,6 +266,7 @@ suite('AgentHostSandboxNotification', () => {
 			resolution = {
 				...resolution,
 				connection: new class extends mock<IAgentConnection>() {
+					override readonly initializeResult = constObservable(undefined);
 					override readonly sandboxCertificateRemovalSupported = constObservable(supported);
 					override readonly sandboxCertificateInstallationSupported = constObservable(true);
 					override removeSandboxCertificate = remove;
@@ -282,6 +286,7 @@ suite('AgentHostSandboxNotification', () => {
 			resolution = {
 				...resolution,
 				connection: new class extends mock<IAgentConnection>() {
+					override readonly initializeResult = constObservable(undefined);
 					override readonly sandboxCertificateRotationSupported = constObservable(supported);
 					override readonly sandboxCertificateInstallationSupported = constObservable(true);
 					override rotateSandboxCertificate = rotate;
@@ -1549,7 +1554,7 @@ suite('AgentHostSandboxNotification', () => {
 		});
 	}
 
-	test('turns off the sandboxing of its chat, which the chat set for itself', async () => {
+	test('turns off the sandboxing of the default chat through its session, never writing the default chat itself', async () => {
 		await configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
 		const chat = 'ahp-chat://default/opaque';
 		const subscription = store.add(new TestSubscription());
@@ -1567,6 +1572,13 @@ suite('AgentHostSandboxNotification', () => {
 		resolution = {
 			...resolution!,
 			connection: new class extends mock<IAgentConnection>() {
+				override readonly initializeResult = constObservable(undefined);
+				// A host that applies session writes to its default chat.
+				override readonly rootState = (() => {
+					// A host whose chats may use their own agents applies session writes to its default chat.
+					const value: RootState = { agents: [], config: { schema: { type: 'object', properties: { [ChatProvidersConfigKey.Enabled]: { type: 'boolean', title: 'Multiple Chat Providers' } } }, values: { [ChatProvidersConfigKey.Enabled]: true } } };
+					return { value, verifiedValue: value, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
+				})();
 				override dispatch(...args: Parameters<IAgentConnection['dispatch']>): void {
 					dispatched.push(args);
 				}
@@ -1581,7 +1593,8 @@ suite('AgentHostSandboxNotification', () => {
 		createNotification(resource, subscription, service);
 		await instantiationService.invokeFunction(CommandsRegistry.getCommand(getDisableCommand(service))!.handler);
 
-		assert.deepStrictEqual(dispatched, [[chat, { type: ActionType.ChatConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.Off } }]]);
+		// The session's config is its default chat's: the host applies the session write to that chat.
+		assert.deepStrictEqual(dispatched, [[resolution!.backendSession.toString(), { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.Off } }]]);
 	});
 
 	test('does not send a redundant session update when sandboxing is already off', async () => {

@@ -14,7 +14,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from './session.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionCreationTarget, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionCreationTarget, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason, ICreateNewChatOptions } from './sessionsProvider.js';
 
 export interface IManagedSessionWorktree extends IAgentHostManagedWorktree {
 	readonly providerId: string;
@@ -148,7 +148,7 @@ export interface ICreateNewSessionOptions {
 /**
  * Options for {@link ISessionsManagementService.createNewChatInSession}.
  */
-export interface ICreateNewChatInSessionOptions {
+export interface ICreateNewChatInSessionOptions extends ICreateNewChatOptions {
 	/**
 	 * Always create a fresh chat instead of reusing an existing untitled one.
 	 * Used to reset the composer right after a background send, where the

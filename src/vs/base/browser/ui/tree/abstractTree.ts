@@ -3043,6 +3043,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.view.layout(height, width);
 	}
 
+	withScrollAnchorAtBottom(fn: () => void): void {
+		this.view.withScrollAnchorAtBottom(fn);
+	}
+
 	style(styles: IListStyles): void {
 		const suffix = `.${this.view.domId}`;
 		const content: string[] = [];

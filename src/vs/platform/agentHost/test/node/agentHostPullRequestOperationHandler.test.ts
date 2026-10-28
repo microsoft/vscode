@@ -373,6 +373,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 	}() : gitHubClient;
 	const providerService = new class extends mock<IAgentHostProviderService>() {
 		override getProviderForSession() { return undefined; }
+		override getProviderForChat() { return undefined; }
 	}();
 	const utilityModelService = new AgentHostUtilityModelService(true, configurationService, copilotApiService, new NullByokLmBridgeRegistry(), providerService, stateManager, authenticationService, gitHubEndpointService, logService, createTestChatOwnershipService(stateManager), new class extends mock<IAgentHostSessionStateStore>() { override peek() { return undefined; } }());
 	return {

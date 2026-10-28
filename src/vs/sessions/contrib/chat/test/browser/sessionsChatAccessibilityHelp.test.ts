@@ -45,6 +45,29 @@ import { getCloudSandboxPreparationAccessibilityHelp } from '../../../../../work
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const { aiDisabled, hidden } of [{ aiDisabled: false, hidden: false }, { aiDisabled: true, hidden: false }, { aiDisabled: false, hidden: true }]) {
+		test(`documents View Mode only when AI is visible (disabled: ${aiDisabled}, hidden: ${hidden})`, () => {
+			const instantiation = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ 'chat.disableAIFeatures': aiDisabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiation.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiation, configuration);
+			instantiation.stub(IChatEntitlementService, { sentiment: { hidden } });
+			instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const help = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+			assert.deepStrictEqual({
+				modes: help.includes('View Mode to select Compact, Verbose, or Conversation'),
+				checked: help.includes('The active mode is checked'),
+				setting: help.includes('Selecting a mode updates chat.persistentProgressVerbosity'),
+				thinking: help.includes('only when a live section finishes with its header in view'),
+				noBackfill: help.includes('Opening a chat, returning to it, scrolling or expanding existing sections never generates titles'),
+			}, { modes: !aiDisabled && !hidden, checked: !aiDisabled && !hidden, setting: !aiDisabled && !hidden, thinking: !aiDisabled && !hidden, noBackfill: !aiDisabled && !hidden });
+		});
+	}
+
 	for (const remotesEnabled of [false, true]) {
 		for (const manageEnabled of [undefined, false, true]) {
 			test(`documents Manage only when available (remotes: ${remotesEnabled}, manage: ${manageEnabled})`, () => {
