@@ -58,6 +58,7 @@ export type McpAppLoadState =
 
 /** Dimensions supplied by the latest view attached to an MCP App. */
 export interface IMcpAppLayout {
+	readonly targetWindow: ReturnType<typeof dom.getWindow>;
 	readonly maxHeight: IObservable<number>;
 	readonly currentWidth: IObservable<number>;
 	/** Element the app overlay is clipped to; defaults to the nearest scrollable element. */
@@ -86,11 +87,12 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 	private readonly _originStore: WebviewOriginStore;
 
 	private readonly _webview: IOverlayWebview;
-	private readonly _layout = observableValue<IMcpAppLayout | undefined>(this, undefined);
+	private readonly _layout = observableValue<Pick<IMcpAppLayout, 'maxHeight' | 'currentWidth'> | undefined>(this, undefined);
 	private _attachment: { readonly container: HTMLElement; readonly clippingContainer?: HTMLElement; visible: boolean } | undefined;
 	private _overlayWindow: ReturnType<typeof dom.getWindow> | undefined;
 	private _webviewClaimed = false;
 	private _webviewContextAlive = false;
+	private _hiddenRetentionEnabled = true;
 	private readonly _appDisposables = this._register(new DisposableStore());
 	private _hasAttached = false;
 	private _appInitialized = false;
@@ -246,7 +248,7 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 		const attachment = { container, clippingContainer: layout.clippingContainer, visible: false };
 		this._attachment = attachment;
 		this._layout.set(layout, undefined);
-		const targetWindow = dom.getWindow(container);
+		const targetWindow = layout.targetWindow;
 		const overlay = this._webview;
 		this._releaseWebview();
 		const observer = this._createIntersectionObserver(entries => {
@@ -315,10 +317,18 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 	}
 
 	private _setTools(tools: readonly MCP.Tool[]): void {
-		if (this._updateRetention(tools.length > 0)) {
+		if (this._updateRetention(this._hiddenRetentionEnabled && tools.length > 0)) {
 			this._resetApp();
 		} else {
 			this._tools.set(tools, undefined);
+		}
+	}
+
+	/** Updates hidden-frame eligibility without interrupting a visible app or disposing its view model. */
+	public setHiddenRetentionEnabled(enabled: boolean): void {
+		this._hiddenRetentionEnabled = enabled;
+		if (this._updateRetention(enabled && this._tools.get().length > 0)) {
+			this._resetApp();
 		}
 	}
 

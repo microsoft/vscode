@@ -16,6 +16,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService, IAgentHostSessionIdentity } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { readAgentToolOrigin } from '../../../../../../platform/agentHost/common/meta/agentToolDefinitionMeta.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { AgentHostMcpAppToolsService, IAgentHostMcpAppToolProvider } from '../../../browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { ILanguageModelToolsService, IToolData, IToolImpl, IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
@@ -102,7 +103,7 @@ suite('AgentHostMcpAppToolsService', () => {
 		store.add(service.registerApp(otherSession, new TestApp([appTool('app.lookup', { title: 'Other Lookup' })])));
 
 		assert.deepStrictEqual({
-			definitions: definitions.get().map(tool => ({ name: tool.name, title: tool.title, description: tool.description, inputSchema: tool.inputSchema })),
+			definitions: definitions.get().map(tool => ({ name: tool.name, title: tool.title, description: tool.description, inputSchema: tool.inputSchema, origin: readAgentToolOrigin(tool) })),
 			otherDefinitions: otherDefinitions.get().map(tool => ({ name: tool.name, title: tool.title })),
 			metadata: [...toolsService.registered.values()].map(({ data }) => ({
 				internal: data.source.type,
@@ -111,9 +112,9 @@ suite('AgentHostMcpAppToolsService', () => {
 			})),
 		}, {
 			definitions: [
-				{ name: 'app.lookup', title: 'Lookup', description: 'Look up an item', inputSchema: { type: 'object' } },
-				{ name: 'annotated', title: 'Annotated Tool', description: 'Annotated Tool', inputSchema: { type: 'object' } },
-				{ name: '', title: '', description: '', inputSchema: { type: 'object' } },
+				{ name: 'app.lookup', title: 'Lookup', description: 'Look up an item', inputSchema: { type: 'object' }, origin: 'mcpApp' },
+				{ name: 'annotated', title: 'Annotated Tool', description: 'Annotated Tool', inputSchema: { type: 'object' }, origin: 'mcpApp' },
+				{ name: '', title: '', description: '', inputSchema: { type: 'object' }, origin: 'mcpApp' },
 			],
 			otherDefinitions: [{ name: 'app.lookup', title: 'Other Lookup' }],
 			metadata: [session, session, session, otherSession].map(sessionResource => ({ internal: 'internal', sessionResource: sessionResource.toString(), canRequestPreApproval: undefined })),

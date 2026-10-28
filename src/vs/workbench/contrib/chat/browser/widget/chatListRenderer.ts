@@ -676,8 +676,8 @@ const forceVerboseLayoutTracing = false
 
 export interface IChatRendererDelegate {
 	container: HTMLElement;
-	/** Clips list content overlays, such as MCP app webviews, so they do not cover floating UI such as the sticky header. */
-	readonly overlayClippingContainer?: HTMLElement;
+	/** Lazily provides an anchor that clips content overlays below floating UI such as the sticky header. */
+	readonly getOverlayClippingContainer?: () => HTMLElement;
 	getListLength(): number;
 	currentChatMode(): ChatModeKind;
 	isStickyScrollEnabled(): boolean;
@@ -2818,7 +2818,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				contentIndex: contentIndex,
 				content: content,
 				container: templateData.rowContainer,
-				overlayClippingContainer: this.delegate.overlayClippingContainer,
+				getOverlayClippingContainer: this.delegate.getOverlayClippingContainer,
 				editorPool: this._editorPool,
 				diffEditorPool: this._diffEditorPool,
 				currentWidth: this._currentLayoutWidth,
@@ -3578,7 +3578,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				backgroundActivityPillSections: this.rendererOptions.backgroundActivityPillSections,
 				onWillCollapse: this.delegate.preserveScrollPosition,
 				container: templateData.rowContainer,
-				overlayClippingContainer: this.delegate.overlayClippingContainer,
+				getOverlayClippingContainer: this.delegate.getOverlayClippingContainer,
 				editorPool: this._editorPool,
 				diffEditorPool: this._diffEditorPool,
 				currentWidth: this._currentLayoutWidth,

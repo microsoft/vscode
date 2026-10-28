@@ -390,7 +390,7 @@ export class ChatListWidget extends Disposable {
 	private readonly _userToggleResizeTrackers = this._register(new DisposableMap<ChatTreeItem, UserToggleResizeTracker>());
 
 	private readonly _container: HTMLElement;
-	private readonly _overlayClippingContainer = dom.$('.chat-list-overlay-clip');
+	private _overlayClippingContainer: HTMLElement | undefined;
 	private readonly _scrollDownButton: Button;
 	private readonly _lastItemIdContextKey: IContextKey<string[]>;
 
@@ -552,7 +552,7 @@ export class ChatListWidget extends Disposable {
 			getListLength: () => this._tree.getListRenderCount(null),
 			onDidScroll: this.onDidScroll,
 			container: this._container,
-			overlayClippingContainer: this._overlayClippingContainer,
+			getOverlayClippingContainer: () => this.getOverlayClippingContainer(),
 			currentChatMode: options.currentChatMode ?? (() => ChatModeKind.Ask),
 			isStickyScrollEnabled: () => this.isTreeStickyScrollEnabled(),
 			isScrolledToBottom: () => this.isScrolledToBottom,
@@ -659,18 +659,6 @@ export class ChatListWidget extends Disposable {
 				}
 			}
 		));
-		this._tree.getHTMLElement().appendChild(this._overlayClippingContainer);
-		const updateOverlayClip = () => {
-			this._overlayClippingContainer.style.top = `${this._tree.stickyScrollDomNode?.offsetHeight ?? 0}px`;
-		};
-		const overlayClipObserver = this._register(new dom.DisposableResizeObserver('ChatListWidget.overlayClip', updateOverlayClip, dom.getWindow(this._container)));
-		const stickyScrollObservation = this._register(new MutableDisposable<IDisposable>());
-		const observeStickyScroll = (node: HTMLElement | undefined) => {
-			stickyScrollObservation.value = node ? overlayClipObserver.observe(node) : undefined;
-			updateOverlayClip();
-		};
-		this._register(this._tree.onDidChangeStickyScrollDomNode(observeStickyScroll));
-		observeStickyScroll(this._tree.stickyScrollDomNode);
 		if (options.tabIndex !== undefined) {
 			this._tree.getHTMLElement().tabIndex = options.tabIndex;
 		}
@@ -784,6 +772,25 @@ export class ChatListWidget extends Disposable {
 	}
 
 	//#region Internal event handlers
+
+	protected getOverlayClippingContainer(): HTMLElement {
+		if (!this._overlayClippingContainer) {
+			// Even an empty positioned anchor changes text compositing, so only attach it for overlays.
+			const container = this._overlayClippingContainer = dom.append(this._tree.getHTMLElement(), dom.$('.chat-list-overlay-clip'));
+			const updateOverlayClip = () => {
+				container.style.top = `${this._tree.stickyScrollDomNode?.offsetHeight ?? 0}px`;
+			};
+			const overlayClipObserver = this._register(new dom.DisposableResizeObserver('ChatListWidget.overlayClip', updateOverlayClip, dom.getWindow(this._container)));
+			const stickyScrollObservation = this._register(new MutableDisposable<IDisposable>());
+			const observeStickyScroll = (node: HTMLElement | undefined) => {
+				stickyScrollObservation.value = node ? overlayClipObserver.observe(node) : undefined;
+				updateOverlayClip();
+			};
+			this._register(this._tree.onDidChangeStickyScrollDomNode(observeStickyScroll));
+			observeStickyScroll(this._tree.stickyScrollDomNode);
+		}
+		return this._overlayClippingContainer;
+	}
 
 	/**
 	 * Rewrites the rich-text flavor of a copied selection so links that only resolve here

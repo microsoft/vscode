@@ -1316,7 +1316,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * holds a reference; the shared watcher stays alive while any reference
 	 * remains and is disposed only when the last one is released.
 	 */
-	private readonly _inputNeededWatchers = new Map<string, { readonly store: DisposableStore; readonly refs: Set<string>; readonly sessionResource: URI }>();
+	private readonly _inputNeededWatchers = new Map<string, { readonly store: DisposableStore; readonly refs: Set<string> }>();
 	/**
 	 * Backend session each open resource's {@link _inputNeededWatchers}
 	 * reference belongs to, recorded when the reference is installed. Teardown
@@ -3056,7 +3056,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const sessionSub = this._ensureSessionSubscription(sessionKey);
 		const state = observableFromSubscription(this, sessionSub);
 		const store = new DisposableStore();
-		this._inputNeededWatchers.set(sessionKey, { store, refs: new Set([sessionResource.toString()]), sessionResource });
+		this._inputNeededWatchers.set(sessionKey, { store, refs: new Set([sessionResource.toString()]) });
 
 		// Requests that we own should be 'invoked' when pending confirmation immediately because
 		// we handle showing their UI directly. For simplicity in later tool call flows, rewrite them.
@@ -3299,7 +3299,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _getClientToolOwner(backendSession: URI, sessionResource: URI): { sessionResource: URI; toolSessionResource: URI } {
-		const owner = this._inputNeededWatchers.get(backendSession.toString())?.sessionResource ?? sessionResource;
+		const references = this._inputNeededWatchers.get(backendSession.toString())?.refs;
+		const owner = references
+			? [...references].map(resource => URI.parse(resource)).find(resource => this._activeClientEntries.has(resource)) ?? sessionResource
+			: sessionResource;
 		return { sessionResource: owner, toolSessionResource: this._mcpAppToolsService.getToolSessionResource(owner) };
 	}
 

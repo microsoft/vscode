@@ -58,6 +58,7 @@ suite('ChatMcpAppModel', () => {
 		const messages: MCP.JSONRPCMessage[] = [];
 		const operations: string[] = [];
 		const anchors: [HTMLElement, HTMLElement | undefined][] = [];
+		const observerWindows: ReturnType<typeof dom.getWindow>[] = [];
 		let owner: object | undefined;
 		let contextWindow: ReturnType<typeof dom.getWindow> | undefined;
 		let hasContext = false;
@@ -163,7 +164,8 @@ suite('ChatMcpAppModel', () => {
 			resourceUri: 'ui://verification/app', sessionResource, input: '{}',
 		};
 		const observers = new Map<Element, { callback: IntersectionObserverCallback; observer: IntersectionObserver }>();
-		const createIntersectionObserver = (callback: IntersectionObserverCallback): IntersectionObserver => {
+		const createIntersectionObserver = (callback: IntersectionObserverCallback, targetWindow: ReturnType<typeof dom.getWindow>): IntersectionObserver => {
+			observerWindows.push(targetWindow);
 			const observed = new Set<Element>();
 			const observer = upcastPartial<IntersectionObserver>({
 				observe: element => {
@@ -190,6 +192,7 @@ suite('ChatMcpAppModel', () => {
 		store.add(toDisposable(() => container.remove()));
 		const currentWidth = observableValue('currentWidth', 800);
 		const attachment = store.add(model.attach(container, {
+			targetWindow: dom.getWindow(container),
 			maxHeight: observableValue('maxHeight', 600),
 			currentWidth,
 			clippingContainer,
@@ -203,11 +206,12 @@ suite('ChatMcpAppModel', () => {
 		const send = (message: McpApps.AppMessage) => onMessage.fire({ message });
 		const listRequests = () => messages.filter((message): message is MCP.ListToolsRequest => hasKey(message, { method: true }) && message.method === 'tools/list');
 		return {
-			model, html, messages, operations, anchors, container, attachment, send, listRequests, readsBeforeAttach, setVisible, currentWidth,
+			model, html, messages, operations, anchors, observerWindows, container, attachment, send, listRequests, readsBeforeAttach, setVisible, currentWidth,
 			onDidOverlayOperation: onDidOverlayOperation.event,
 			onDidPostMessage: onDidPostMessage.event,
 			get reads() { return reads; },
 			get context() { return { alive: hasContext, creations: contextCreations, disposals: contextDisposals, retaining: !!webview.options.retainContextWhenHidden }; },
+			get contextWindow() { return contextWindow; },
 			get initiallyRetaining() { return initiallyRetaining; },
 			get registered() { return registered; },
 			async initialize(tools = true) {
@@ -514,7 +518,7 @@ suite('ChatMcpAppModel', () => {
 		await fixture.initialize(false);
 		const width = observableValue('replacementWidth', 900);
 		const maxHeight = observableValue('replacementHeight', 500);
-		const attachment = store.add(fixture.model.attach(dom.$('div'), { currentWidth: width, maxHeight }));
+		const attachment = store.add(fixture.model.attach(dom.$('div'), { targetWindow: dom.getWindow(fixture.container), currentWidth: width, maxHeight }));
 		const beforeOldDetach = fixture.operations.length;
 		fixture.attachment.dispose();
 		const oldDetachOperations = fixture.operations.slice(beforeOldDetach);
@@ -600,7 +604,7 @@ suite('ChatMcpAppModel', () => {
 		container.style.cssText = 'width: 100px; height: 100px;';
 		document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
-		store.add(fixture.model.attach(container, { maxHeight: constObservable(600), currentWidth: constObservable(800) }));
+		store.add(fixture.model.attach(container, { targetWindow: dom.getWindow(container), maxHeight: constObservable(600), currentWidth: constObservable(800) }));
 		fixture.setVisible(true, container);
 		assert.deepStrictEqual({ hidden, reattached: fixture.context, reads: fixture.reads, htmlCount: fixture.html.length, tools: fixture.model.tools.get().map(tool => tool.name) }, {
 			hidden: { alive: true, creations: 1, disposals: 0, retaining: true },
@@ -631,6 +635,37 @@ suite('ChatMcpAppModel', () => {
 		await fixture.initialize();
 		await fixture.respondTools([]);
 	});
+
+	for (const visible of [false, true]) {
+		test(`changing hidden retention eligibility preserves the model and visible apps (visible: ${visible})`, async () => {
+			const fixture = createFixture(McpServerStatus.Ready);
+			const tools: MCP.Tool[] = [{ name: 'app.tool', inputSchema: { type: 'object' } }];
+			await fixture.initialize();
+			await fixture.respondTools(tools);
+			if (!visible) {
+				fixture.setVisible(false);
+			}
+			fixture.model.setHiddenRetentionEnabled(false);
+			const afterPolicyChange = { context: fixture.context, tools: fixture.model.tools.get() };
+			fixture.setVisible(false);
+			const hidden = { context: fixture.context, tools: fixture.model.tools.get() };
+			fixture.setVisible(true);
+			await fixture.initialize();
+			await fixture.respondTools(tools);
+			const reappeared = { context: fixture.context, tools: fixture.model.tools.get() };
+			fixture.model.setHiddenRetentionEnabled(true);
+			fixture.setVisible(false);
+			assert.deepStrictEqual({ afterPolicyChange, hidden, reappeared, eligibleAgain: fixture.context, reads: fixture.reads }, {
+				afterPolicyChange: visible
+					? { context: { alive: true, creations: 1, disposals: 0, retaining: false }, tools }
+					: { context: { alive: false, creations: 1, disposals: 1, retaining: false }, tools: [] },
+				hidden: { context: { alive: false, creations: 1, disposals: 1, retaining: false }, tools: [] },
+				reappeared: { context: { alive: true, creations: 2, disposals: 1, retaining: false }, tools },
+				eligibleAgain: { alive: true, creations: 2, disposals: 1, retaining: true },
+				reads: 1,
+			});
+		});
+	}
 
 	for (const providesTools of [false, true]) {
 		test(`reinitializing a hidden provider destroys its iframe and does not restore stale protocol state (tools capability: ${providesTools})`, async () => {
@@ -685,15 +720,18 @@ suite('ChatMcpAppModel', () => {
 		assert.ok(frame.contentDocument?.body);
 		const container = dom.$('div');
 		container.style.cssText = 'width: 100px; height: 100px;';
+		const targetWindow = dom.getWindow(frame.contentDocument.body);
+		store.add(fixture.model.attach(container, { targetWindow, maxHeight: constObservable(600), currentWidth: constObservable(800) }));
+		const observerWindow = fixture.observerWindows.at(-1);
 		frame.contentDocument.body.appendChild(container);
-		store.add(fixture.model.attach(container, { maxHeight: constObservable(600), currentWidth: constObservable(800) }));
 		fixture.setVisible(true, container);
 		await cancelled;
 		const claimed = fixture.context;
 		const resetTools = fixture.model.tools.get();
 		await fixture.initialize();
 		await fixture.respondTools([{ name: 'new.tool', inputSchema: { type: 'object' } }]);
-		assert.deepStrictEqual({ claimed, resetTools, initialized: fixture.context, tools: fixture.model.tools.get().map(tool => tool.name), reads: fixture.reads }, {
+		assert.deepStrictEqual({ observerInDestination: observerWindow === targetWindow, claimedInDestination: fixture.contextWindow === targetWindow, claimed, resetTools, initialized: fixture.context, tools: fixture.model.tools.get().map(tool => tool.name), reads: fixture.reads }, {
+			observerInDestination: true, claimedInDestination: true,
 			claimed: { alive: true, creations: 2, disposals: 1, retaining: false },
 			resetTools: [],
 			initialized: { alive: true, creations: 2, disposals: 1, retaining: true },

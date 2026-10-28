@@ -18,6 +18,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { withAgentToolOrigin } from '../../../../../../platform/agentHost/common/meta/agentToolDefinitionMeta.js';
 import type { ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -53,7 +54,7 @@ export const MCP_APP_KEEP_ALIVE_APP_COUNT = 3;
 export interface IAgentHostMcpAppToolsService {
 	readonly _serviceBrand: undefined;
 
-	/** Shares models across recycled views, retaining tool providers from the latest request and the three most recent apps. */
+	/** Shares view models and retains hidden tool providers from the latest request and the three most recent apps. */
 	acquire(renderData: IMcpAppRenderData, toolCallId: string, create: () => ChatMcpAppModel): IReference<ChatMcpAppModel>;
 
 	/**
@@ -158,10 +159,12 @@ export class AgentHostMcpAppToolsService extends Disposable implements IAgentHos
 		if (!entry) {
 			entry = new McpAppEntry(create(), this._chatService.getSession(renderData.sessionResource)?.onDidDispose ?? Event.None, () => this._entries.deleteAndDispose(key));
 			this._entries.set(key, entry);
+			entry.references++;
+			this._watchRetention(key, entry, renderData, toolCallId);
+		} else {
+			entry.references++;
 		}
 		const acquired = entry;
-		acquired.references++;
-		acquired.retention.clear();
 		return Object.assign(toDisposable(() => {
 			if (this._entries.get(key) !== acquired || --acquired.references > 0) {
 				return;
@@ -170,25 +173,40 @@ export class AgentHostMcpAppToolsService extends Disposable implements IAgentHos
 		}), { object: acquired.model });
 	}
 
-	private _retainOrDispose(key: string, entry: McpAppEntry, renderData: IMcpAppRenderData, toolCallId: string): void {
+	private _watchRetention(key: string, entry: McpAppEntry, renderData: IMcpAppRenderData, toolCallId: string): void {
 		const chatModel = this._chatService.getSession(renderData.sessionResource);
-		const canRetain = () => renderData.kind === 'agentHost'
-			&& entry.model.tools.get().length > 0
-			&& !!chatModel && getRetainableMcpAppToolCallIds(chatModel).has(toolCallId);
-		const reevaluate = () => {
-			if (!canRetain()) {
-				this._entries.deleteAndDispose(key);
-			}
-		};
-		if (!canRetain() || !chatModel) {
-			this._entries.deleteAndDispose(key);
-			return;
+		const reevaluate = () => this._retainOrDispose(key, entry, renderData, toolCallId);
+		if (chatModel) {
+			const responses = entry.retention.add(new DisposableStore());
+			const watchResponses = () => {
+				responses.clear();
+				for (const request of chatModel.getRequests()) {
+					if (request.response) {
+						responses.add(request.response.onDidChange(reevaluate));
+					}
+				}
+				reevaluate();
+			};
+			entry.retention.add(chatModel.onDidChange(watchResponses));
+			watchResponses();
 		}
-		entry.retention.add(chatModel.onDidChange(reevaluate));
 		entry.retention.add(autorun(reader => {
 			entry.model.tools.read(reader);
 			reevaluate();
 		}));
+	}
+
+	private _retainOrDispose(key: string, entry: McpAppEntry, renderData: IMcpAppRenderData, toolCallId: string): void {
+		if (this._entries.get(key) !== entry) {
+			return;
+		}
+		const chatModel = this._chatService.getSession(renderData.sessionResource);
+		const eligible = renderData.kind === 'agentHost'
+			&& !!chatModel && getRetainableMcpAppToolCallIds(chatModel).has(toolCallId);
+		entry.model.setHiddenRetentionEnabled(eligible);
+		if (entry.references === 0 && (!eligible || entry.model.tools.get().length === 0)) {
+			this._entries.deleteAndDispose(key);
+		}
 	}
 
 	registerApp(sessionResource: URI, provider: IAgentHostMcpAppToolProvider): IDisposable {
@@ -272,7 +290,7 @@ export class AgentHostMcpAppToolsService extends Disposable implements IAgentHos
 					invoke: (invocation, _countTokens, _progress, token) => this._invokeTool(sessionResource, name, data.id, invocation, token),
 				});
 			}
-			definitions.set(sessionResource, [...published].map(([name, tool]) => ({ ...toolDataToDefinition(tool.data), name })));
+			definitions.set(sessionResource, [...published].map(([name, tool]) => withAgentToolOrigin({ ...toolDataToDefinition(tool.data), name }, 'mcpApp')));
 		}
 		this._definitions.set(definitions, undefined);
 	}

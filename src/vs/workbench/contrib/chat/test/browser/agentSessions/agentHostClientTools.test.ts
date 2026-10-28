@@ -3538,7 +3538,8 @@ suite('AgentHostClientTools', () => {
 			connection: MockAgentHostConnection,
 			peerFirst = false,
 			toolInPeer = false,
-		): Promise<{ sessionResource: URI; peerResource: URI; chat: string }> {
+			prepareTools = false,
+		): Promise<{ sessionResource: URI; peerResource: URI; chat: string; closeFirst: () => void }> {
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
 			const peerResource = URI.from({ scheme: 'agent-host-copilot', path: '/session-1', fragment: 'peer-1' });
 			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
@@ -3585,8 +3586,14 @@ suite('AgentHostClientTools', () => {
 			});
 
 			// Only the chat carrying the tool call claims it; the other observer renders an empty chat.
+			let closeFirst: (() => void) | undefined;
 			for (const resource of peerFirst ? [peerResource, sessionResource] : [sessionResource, peerResource]) {
-				await handler.provideChatSessionContent(resource, CancellationToken.None);
+				const session = disposables.add(await handler.provideChatSessionContent(resource, CancellationToken.None));
+				closeFirst ??= () => session.dispose();
+				if (prepareTools) {
+					assert.ok(session.prepareForClientTools);
+					await session.prepareForClientTools(CancellationToken.None);
+				}
 			}
 
 			applyRunningClientExecution(connection, chat, 'turn-1', {
@@ -3597,7 +3604,39 @@ suite('AgentHostClientTools', () => {
 				toolInput: '{"task":"build"}',
 			});
 			await timeout(5001);
-			return { sessionResource, peerResource, chat };
+			return { sessionResource, peerResource, chat, closeFirst: closeFirst! };
+		}
+
+		for (const peerFirst of [false, true]) {
+			test(`closing the watcher creator preserves the surviving sibling's session tool precedence (peer first: ${peerFirst})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const root = URI.parse('agent-host-copilot:/session-1');
+				const peer = root.with({ fragment: 'peer-1' });
+				const appTool: IToolData = { ...testRunTaskTool, id: 'mcpApp.tool.colliding', toolReferenceName: undefined, sessionResource: root };
+				const { handler, connection, toolsService, activeClientService, appTools, appToolsBySession } = createHandlerWithMocks(disposables, [testRunTaskTool, appTool]);
+				appToolsBySession.set(root, new Map([['runTask', appTool]]));
+				appTools.set([{ name: 'runTask', title: 'App Task' }], undefined);
+				activeClientService.setSessionTools(root, [testRunTaskTool.id]);
+				activeClientService.setSessionTools(peer, [testRunTaskTool.id]);
+				const { closeFirst } = await openSiblingResourcesWithClaimedClientTool(handler, connection, peerFirst, false, true);
+				closeFirst();
+				const backend = AgentSession.uri('copilot', 'session-1').toString();
+				const survivingChat = peerFirst ? buildDefaultChatUri(backend) : buildChatUri(backend, 'peer-1');
+				applyRunningClientExecution(connection, survivingChat, 'turn-after-close', {
+					toolCallId: 'after-close', toolName: 'runTask', displayName: 'Run Task', invocationMessage: 'Run Task', toolInput: '{}',
+				});
+				await timeout(5001);
+				assert.deepStrictEqual({
+					published: connection.dispatchedActions.flatMap(({ action }) => action.type === ActionType.SessionActiveClientSet
+						? action.activeClient.tools.filter(tool => tool.name === 'runTask').map(tool => tool.title) : []).at(-1),
+					invoked: toolsService.invokedToolCalls.map(call => ({ id: call.toolId, scope: call.toolSessionResource?.toString() })),
+				}, {
+					published: 'Run Task',
+					invoked: [
+						{ id: testRunTaskTool.id, scope: root.toString() },
+						{ id: testRunTaskTool.id, scope: root.toString() },
+					],
+				});
+			}));
 		}
 
 		test('two sibling resources on one backend session execute a client tool exactly once', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

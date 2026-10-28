@@ -103,7 +103,7 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		this._downloadContainer = dom.$('div.mcp-app-downloads');
 		this.domNode.appendChild(this._downloadContainer);
 
-		const targetWindow = dom.getWindow(this.domNode);
+		const targetWindow = dom.getWindow(context.container);
 		const getMaxHeight = () => maxWebviewHeightPct * targetWindow.innerHeight;
 		const maxHeight = observableValue(this, getMaxHeight());
 		this._register(dom.addDisposableListener(targetWindow, 'resize', () => maxHeight.set(getMaxHeight(), undefined)));
@@ -112,7 +112,7 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		this._model = this._renderData.kind === 'agentHost'
 			? this._register(appToolsService.acquire(this._renderData, toolInvocation.toolCallId, createModel)).object
 			: this._register(createModel());
-		this._register(this._model.attach(this._webviewContainer, { maxHeight, currentWidth: context.currentWidth, clippingContainer: context.overlayClippingContainer }));
+		this._register(this._model.attach(this._webviewContainer, { targetWindow, maxHeight, currentWidth: context.currentWidth, clippingContainer: context.getOverlayClippingContainer?.() }));
 
 		// Update container height from model
 		this._updateContainerHeight();

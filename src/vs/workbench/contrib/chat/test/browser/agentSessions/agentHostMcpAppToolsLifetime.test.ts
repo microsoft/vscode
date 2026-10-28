@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -16,7 +17,7 @@ import { AgentHostMcpAppToolsService, MCP_APP_KEEP_ALIVE_APP_COUNT } from '../..
 import { ChatMcpAppModel } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatMcpAppModel.js';
 import { IMcpAppRenderData } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatMcpAppSubPart.js';
 import { type ChatMcpAppData, IChatService, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
-import type { IChatChangeEvent, IChatModel, IChatRequestModel, IChatResponseModel, IResponse } from '../../../common/model/chatModel.js';
+import type { ChatResponseModelChangeReason, IChatChangeEvent, IChatModel, IChatRequestModel, IChatResponseModel, IResponse } from '../../../common/model/chatModel.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 
 suite('AgentHostMcpAppToolsService lifetime', () => {
@@ -26,6 +27,7 @@ suite('AgentHostMcpAppToolsService lifetime', () => {
 
 	function createFixture(initialRequests: readonly (readonly string[])[] = [['call']], chatExists = true) {
 		const onDidChange = store.add(new Emitter<IChatChangeEvent>());
+		const onDidChangeResponse = store.add(new Emitter<ChatResponseModelChangeReason>());
 		const onDidDispose = store.add(new Emitter<void>());
 		const mcpAppData: ChatMcpAppData = {
 			kind: 'agentHost', serverId: 'server', serverName: 'server', channel: 'mcp://channel',
@@ -36,6 +38,7 @@ suite('AgentHostMcpAppToolsService lifetime', () => {
 			getRequests: () => requests.map((toolCallIds, index) => upcastPartial<IChatRequestModel>({
 				id: `request${index}`,
 				response: upcastPartial<IChatResponseModel>({
+					onDidChange: onDidChangeResponse.event,
 					response: upcastPartial<IResponse>({
 						value: toolCallIds.map(toolCallId => upcastPartial<IChatToolInvocationSerialized>({
 							kind: 'toolInvocationSerialized', toolCallId,
@@ -48,13 +51,20 @@ suite('AgentHostMcpAppToolsService lifetime', () => {
 			onDidDispose: onDidDispose.event,
 		});
 		const chatService = upcastPartial<IChatService>({ getSession: () => chatExists ? chatModel : undefined });
-		const service = store.add(new AgentHostMcpAppToolsService(upcastPartial<ILanguageModelToolsService>({}), new NullLogService(), chatService, upcastPartial<IAgentHostConnectionsService>({ onDidChangeSessionResolution: Event.None })));
+		const service = store.add(new AgentHostMcpAppToolsService(upcastPartial<ILanguageModelToolsService>({ registerTool: () => Disposable.None }), new NullLogService(), chatService, upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeSessionResolution: Event.None,
+			resolveSessionResourceIdentity: () => undefined,
+		})));
 		const renderData: IMcpAppRenderData = { ...mcpAppData, sessionResource, input: '{}' };
 		return {
 			service, renderData,
 			setRequests(updatedRequests: readonly (readonly string[])[]) {
 				requests = updatedRequests;
 				onDidChange.fire({ kind: 'setSessionCost' });
+			},
+			setResponseApps(updatedRequests: readonly (readonly string[])[]) {
+				requests = updatedRequests;
+				onDidChangeResponse.fire({ reason: 'other' });
 			},
 			disposeChat: () => onDidDispose.fire(),
 		};
@@ -63,11 +73,33 @@ suite('AgentHostMcpAppToolsService lifetime', () => {
 	function createModel(initialTools: readonly MCP.Tool[] = [tool]) {
 		const tools = observableValue<readonly MCP.Tool[]>('appTools', initialTools);
 		let disposals = 0;
-		const model = upcastPartial<ChatMcpAppModel>({ tools, dispose: () => { disposals++; } });
-		return { model, tools, get disposals() { return disposals; } };
+		let visible = true;
+		let hiddenRetentionEnabled = true;
+		const releaseHiddenContext = () => {
+			if (!visible && !hiddenRetentionEnabled && tools.get().length > 0) {
+				tools.set([], undefined);
+			}
+		};
+		const model = upcastPartial<ChatMcpAppModel>({
+			tools,
+			setHiddenRetentionEnabled: enabled => {
+				hiddenRetentionEnabled = enabled;
+				releaseHiddenContext();
+			},
+			dispose: () => { disposals++; },
+		});
+		return {
+			model, tools,
+			get disposals() { return disposals; },
+			get hiddenRetentionEnabled() { return hiddenRetentionEnabled; },
+			setVisible(value: boolean) {
+				visible = value;
+				releaseHiddenContext();
+			},
+		};
 	}
 
-	test('reacquires the same retained model and cancels its retention watchers', () => {
+	test('reacquires the same retained model without disposing referenced views on retention changes', () => {
 		const fixture = createFixture();
 		const app = createModel();
 		let creations = 0;
@@ -176,6 +208,60 @@ suite('AgentHostMcpAppToolsService lifetime', () => {
 		fixture.setRequests([['a', 'b', 'c', 'd'], [], ['e']]);
 		assert.deepStrictEqual({ initialDisposals, afterEmptyRequest, afterNewApp: apps.map(app => app.disposals) }, {
 			initialDisposals: [0, 0, 0, 0], afterEmptyRequest: [1, 0, 0, 0], afterNewApp: [1, 1, 0, 0],
+		});
+	});
+
+	test('evicts hidden tool contexts while views remain referenced and preserves their reappearance', () => {
+		const fixture = createFixture([['a', 'b', 'c', 'd']]);
+		const apps = ['a', 'b', 'c', 'd'].map(toolCallId => {
+			const app = createModel([{ ...tool, name: toolCallId }]);
+			const reference = store.add(fixture.service.acquire(fixture.renderData, toolCallId, () => app.model));
+			store.add(fixture.service.registerApp(sessionResource, app.model));
+			app.setVisible(false);
+			return { app, reference };
+		});
+		const definitions = () => fixture.service.getToolDefinitions(sessionResource).get().map(tool => tool.name);
+		const initial = definitions();
+		fixture.setRequests([['a', 'b', 'c', 'd'], []]);
+		const afterEmptyRequest = { tools: definitions(), disposals: apps.map(({ app }) => app.disposals) };
+		const first = apps[0];
+		first.app.setVisible(true);
+		first.app.tools.set([{ ...tool, name: 'a' }], undefined);
+		const reference = store.add(fixture.service.acquire(fixture.renderData, 'a', () => { throw new Error('Unexpected model creation'); }));
+		const reappeared = { sameModel: reference.object === first.reference.object, tools: definitions() };
+		first.app.setVisible(false);
+		reference.dispose();
+		first.reference.dispose();
+		assert.deepStrictEqual({ initial, afterEmptyRequest, reappeared, hiddenAgain: definitions(), disposals: apps.map(({ app }) => app.disposals) }, {
+			initial: ['a', 'b', 'c', 'd'],
+			afterEmptyRequest: { tools: ['b', 'c', 'd'], disposals: [0, 0, 0, 0] },
+			reappeared: { sameModel: true, tools: ['b', 'c', 'd', 'a'] },
+			hiddenAgain: ['b', 'c', 'd'], disposals: [1, 0, 0, 0],
+		});
+	});
+
+	test('updates referenced apps on streamed response changes and counts tool-less apps in the budget', () => {
+		const fixture = createFixture([['a', 'b', 'c', 'd'], []]);
+		const apps = ['a', 'b', 'c', 'd'].map(toolCallId => {
+			const app = createModel(toolCallId === 'b' || toolCallId === 'd' ? [] : [tool]);
+			store.add(fixture.service.acquire(fixture.renderData, toolCallId, () => app.model));
+			app.setVisible(false);
+			return app;
+		});
+		const initial = apps.map(app => ({ eligible: app.hiddenRetentionEnabled, tools: app.tools.get().length }));
+		fixture.setResponseApps([['a', 'b', 'c', 'd'], ['e', 'f']]);
+		const afterStreaming = apps.map(app => ({ eligible: app.hiddenRetentionEnabled, tools: app.tools.get().length, disposals: app.disposals }));
+		fixture.setRequests([['a', 'b', 'c', 'd']]);
+		assert.deepStrictEqual({ initial, afterStreaming, restoredLatest: apps.map(app => app.hiddenRetentionEnabled) }, {
+			initial: [
+				{ eligible: false, tools: 0 }, { eligible: true, tools: 0 },
+				{ eligible: true, tools: 1 }, { eligible: true, tools: 0 },
+			],
+			afterStreaming: [
+				{ eligible: false, tools: 0, disposals: 0 }, { eligible: false, tools: 0, disposals: 0 },
+				{ eligible: false, tools: 0, disposals: 0 }, { eligible: true, tools: 0, disposals: 0 },
+			],
+			restoredLatest: [true, true, true, true],
 		});
 	});
 

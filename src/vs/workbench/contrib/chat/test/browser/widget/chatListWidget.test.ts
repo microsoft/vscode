@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
+import { OverlayLayoutElement } from '../../../../../../base/browser/overlayLayoutElement.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
@@ -62,6 +63,12 @@ import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../common/promptTim
 import { katexContainerClassName } from '../../../../markdown/common/markedKatexExtension.js';
 import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import '../../../browser/widget/media/chat.css';
+
+class TestChatListWidget extends ChatListWidget {
+	override getOverlayClippingContainer(): HTMLElement {
+		return super.getOverlayClippingContainer();
+	}
+}
 
 function nextFrame(): Promise<void> {
 	return new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
@@ -323,7 +330,7 @@ suite('ChatListWidget', () => {
 		disposables.add(toDisposable(() => container.remove()));
 
 		const editorOptions = disposables.add(instantiationService.createInstance(ChatEditorOptions, undefined, 'foreground', 'chat.requestEditor.background', 'chat.responseEditor.background'));
-		const widget = disposables.add(instantiationService.createInstance(ChatListWidget, container, {
+		const widget = disposables.add(instantiationService.createInstance(TestChatListWidget, container, {
 			currentChatMode: () => ChatModeKind.Agent,
 			location: ChatAgentLocation.Chat,
 			editorOptions,
@@ -1656,8 +1663,61 @@ suite('ChatListWidget', () => {
 			};
 		}
 
+		test('does not attach an MCP clipping anchor for a transcript without apps', async () => {
+			const { container, widget } = await createTranscript();
+			const pinned = container.querySelector('.chat-list-overlay-clip');
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				pinned,
+				unpinned: container.querySelector('.chat-list-overlay-clip'),
+			}, { pinned: null, unpinned: null });
+		});
+
+		test('lazily attaches one clipping anchor without hiding or collapsing the overlay', async () => {
+			const { container, widget } = await createTranscript();
+			const clip = widget.getOverlayClippingContainer();
+			const overlay = store.add(new OverlayLayoutElement());
+			mainWindow.document.body.appendChild(overlay.root);
+			overlay.setAnchorElement(container, { clippingContainer: clip });
+			await nextFrame();
+
+			const clipBounds = clip.getBoundingClientRect();
+			const overlayBounds = overlay.root.getBoundingClientRect();
+			const hitX = clipBounds.left + clipBounds.width / 2;
+			const hitY = clipBounds.top + clipBounds.height / 2;
+			const hitTarget = mainWindow.document.elementFromPoint(hitX, hitY);
+			assert.deepStrictEqual({
+				sameClip: widget.getOverlayClippingContainer() === clip,
+				clipCount: container.querySelectorAll('.chat-list-overlay-clip').length,
+				clipVisibility: mainWindow.getComputedStyle(clip).visibility,
+				overlayVisibility: mainWindow.getComputedStyle(overlay.content).visibility,
+				overlayHitTestable: hitTarget === overlay.content,
+				hasGeometry: clipBounds.width > 0 && clipBounds.height > 0,
+				inset: {
+					top: Math.round(overlayBounds.top - clipBounds.top),
+					right: Math.round(clipBounds.right - overlayBounds.right),
+					bottom: Math.round(clipBounds.bottom - overlayBounds.bottom),
+					left: Math.round(overlayBounds.left - clipBounds.left),
+				},
+				clipPath: mainWindow.getComputedStyle(overlay.root).clipPath,
+				stickyInset: getOverlayClipBounds(container).top,
+			}, {
+				sameClip: true,
+				clipCount: 1,
+				clipVisibility: 'visible',
+				overlayVisibility: 'visible',
+				overlayHitTestable: true,
+				hasGeometry: true,
+				inset: { top: 0, right: 0, bottom: 0, left: 0 },
+				clipPath: 'content-box',
+				stickyInset: widget.stickyScrollDomNode!.offsetHeight,
+			});
+		});
+
 		test('clips MCP app overlays below appearing, resized and hidden sticky prompts', async () => {
 			const { container, widget } = await createTranscript('Keep the MCP app visible.');
+			widget.getOverlayClippingContainer();
 			const stickyNode = widget.stickyScrollDomNode;
 			assert.ok(stickyNode);
 			const pinnedScrollTop = widget.scrollTop;
@@ -1714,6 +1774,7 @@ suite('ChatListWidget', () => {
 
 		test('rebinds MCP app overlay clipping after sticky scroll toggles and preserves scrolling to the first prompt', async () => {
 			const { container, widget, viewModel, instantiationService } = await createTranscript();
+			widget.getOverlayClippingContainer();
 			const configurationService = instantiationService.get(IConfigurationService);
 			assert.ok(configurationService instanceof TestConfigurationService);
 			const originalStickyNode = widget.stickyScrollDomNode;
