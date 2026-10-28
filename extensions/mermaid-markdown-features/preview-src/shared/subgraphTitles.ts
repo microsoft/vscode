@@ -25,11 +25,19 @@ const diagramPadding = 8;
 /** Clearance kept between a subgraph title and the edges and edge labels around it. */
 const titleClearance = 4;
 
+/**
+ * Space between a title's line box and its text, above and below. Edges that cannot avoid a title are
+ * hidden over its line box less this.
+ */
+const titleLeading = 2;
+
 /** Height assumed for each line of an SVG `<text>` title, which carries no size attributes. */
 const textTitleLineHeight = 20;
 
 /** Number of line segments used to approximate each curve of an edge path. */
 const curveSegments = 8;
+
+const svgNamespace = 'http://www.w3.org/2000/svg';
 
 interface Point {
 	readonly x: number;
@@ -51,6 +59,7 @@ interface Range {
 interface Obstacles {
 	readonly edges: readonly (readonly Point[])[];
 	readonly labels: readonly Box[];
+	readonly arrowheads: readonly Box[];
 }
 
 interface Cluster {
@@ -86,7 +95,8 @@ export function placeSubgraphTitlesInSvgMarkup(svgMarkup: string): string {
 /**
  * Keeps flowchart subgraph titles at the top center of their subgraph, where Mermaid puts them,
  * unless an edge or edge label crosses them there, as edges entering the subgraph usually do. Such a
- * title moves to the top left, the top right, or into the closest gap between edges instead.
+ * title moves to the top left, the top right, or into the closest gap between edges instead. Edges
+ * that cross a title wherever it goes pass behind it, the way they pass behind edge labels.
  *
  * Subgraphs too narrow to keep the title clear of their sides are widened first.
  *
@@ -106,15 +116,23 @@ export function placeSubgraphTitles(svg: SVGSVGElement): boolean {
 
 	let changed = makeRoomForTitles(svg, clusters);
 	const obstacles = collectObstacles(svg);
+	const crossedTitles: Box[] = [];
 	for (const { label, origin, labelPosition, title, box } of clusters) {
-		const blocked = getBlockedRanges(obstacles, origin.y + labelPosition.y - titleClearance, origin.y + labelPosition.y + title.height + titleClearance);
-		const x = chooseTitleX({ start: box.left, end: box.right }, title.width, blocked) - origin.x;
-		if (Math.abs(x - labelPosition.x) > 0.01) {
-			label.setAttribute('transform', `translate(${x}, ${labelPosition.y})`);
+		let top = origin.y + labelPosition.y;
+		const blocked = getBlockedRanges(obstacles, top, top + title.height);
+		const { x, clear } = chooseTitleX({ start: box.left, end: box.right }, title.width, blocked);
+		if (!clear) {
+			// Edges will pass behind the title, so keep arrowheads just below it out of its line box.
+			const below = obstacles.arrowheads.filter(arrowhead => arrowhead.left < x + title.width + titleClearance && arrowhead.right > x - titleClearance && arrowhead.bottom > top);
+			top = Math.max(box.top, Math.min(top, ...below.map(arrowhead => arrowhead.top - title.height)));
+			crossedTitles.push({ left: x - titleClearance, top: top + titleLeading, right: x + title.width + titleClearance, bottom: top + title.height - titleLeading });
+		}
+		if (Math.abs(x - origin.x - labelPosition.x) > 0.01 || Math.abs(top - origin.y - labelPosition.y) > 0.01) {
+			label.setAttribute('transform', `translate(${x - origin.x}, ${top - origin.y})`);
 			changed = true;
 		}
 	}
-	return changed;
+	return clipEdgesBehindTitles(svg, crossedTitles, obstacles.arrowheads) || changed;
 }
 
 function collectClusters(svg: SVGSVGElement): Cluster[] {
@@ -207,12 +225,12 @@ function getNestedMargin(drawnMargin: number): number {
  * padding.
  */
 function growViewBox(svg: SVGSVGElement, boxes: readonly Box[]): void {
-	const viewBox = svg.getAttribute('viewBox')?.trim().split(/[\s,]+/).map(parseFloat);
-	if (!boxes.length || viewBox?.length !== 4 || !viewBox.every(Number.isFinite)) {
+	const viewBox = readViewBox(svg);
+	if (!boxes.length || !viewBox) {
 		return;
 	}
 
-	const [x, y, width, height] = viewBox;
+	const { x, y, width, height } = viewBox;
 	const left = Math.min(x, ...boxes.map(box => box.left - diagramPadding));
 	const right = Math.max(x + width, ...boxes.map(box => box.right + diagramPadding));
 	const growth = right - left - width;
@@ -231,20 +249,69 @@ function growViewBox(svg: SVGSVGElement, boxes: readonly Box[]): void {
 	}
 }
 
+function readViewBox(element: Element): { x: number; y: number; width: number; height: number } | undefined {
+	const values = element.getAttribute('viewBox')?.trim().split(/[\s,]+/).map(parseFloat);
+	if (values?.length !== 4 || !values.every(Number.isFinite)) {
+		return undefined;
+	}
+	const [x, y, width, height] = values;
+	return { x, y, width, height };
+}
+
+/**
+ * Hides edges where they pass behind `titles`, boxes in root coordinates, by clipping each group of
+ * edges to everything but those boxes. Arrowheads stay whole even where they reach into a box.
+ *
+ * @returns Whether any edges were clipped.
+ */
+function clipEdgesBehindTitles(svg: SVGSVGElement, titles: readonly Box[], arrowheads: readonly Box[]): boolean {
+	const viewBox = readViewBox(svg);
+	if (!titles.length || !viewBox || !/^[\w-]+$/.test(svg.id)) {
+		return false;
+	}
+
+	// Generously covers the diagram, so that only the holes for the titles clip anything.
+	const area: Box = { left: viewBox.x - viewBox.width, top: viewBox.y - viewBox.height, right: viewBox.x + 2 * viewBox.width, bottom: viewBox.y + 2 * viewBox.height };
+	const kept = arrowheads.filter(arrowhead => titles.some(title => arrowhead.left < title.right && arrowhead.right > title.left && arrowhead.top < title.bottom && arrowhead.bottom > title.top));
+	let clipped = false;
+	svg.querySelectorAll('.edgePaths').forEach((group, index) => {
+		const origin = getOrigin(group, svg);
+		if (!origin || group.hasAttribute('clip-path')) {
+			return;
+		}
+
+		// Under the nonzero rule, the counterclockwise holes cancel the clockwise area, and the clockwise
+		// arrowheads restore it.
+		const clockwise = ({ left, top, right, bottom }: Box) => `M${left - origin.x},${top - origin.y}H${right - origin.x}V${bottom - origin.y}H${left - origin.x}Z`;
+		const counterclockwise = ({ left, top, right, bottom }: Box) => `M${left - origin.x},${top - origin.y}V${bottom - origin.y}H${right - origin.x}V${top - origin.y}Z`;
+		const path = svg.ownerDocument.createElementNS(svgNamespace, 'path');
+		path.setAttribute('d', [clockwise(area), ...titles.map(counterclockwise), ...kept.map(clockwise)].join(''));
+		const clipPath = svg.ownerDocument.createElementNS(svgNamespace, 'clipPath');
+		clipPath.id = `${svg.id}-subgraph-titles-${index}`;
+		clipPath.append(path);
+		group.before(clipPath);
+		group.setAttribute('clip-path', `url(#${clipPath.id})`);
+		clipped = true;
+	});
+	return clipped;
+}
+
 /**
  * Picks the title's left x: centered, left-aligned or right-aligned, whichever is clear first.
  * Otherwise the clear position closest to left-aligned, where the title may come as close as
- * {@link minTitleInset} to the border. Falls back to centered when nothing is clear.
+ * {@link minTitleInset} to the border. When nothing is clear, the edges will pass behind the title, so
+ * it goes where they cross it closest to one of its ends, preferring left-aligned.
  */
-function chooseTitleX(cluster: Range, titleWidth: number, blocked: readonly Range[]): number {
+function chooseTitleX(cluster: Range, titleWidth: number, blocked: readonly Range[]): { x: number; clear: boolean } {
 	const center = (cluster.start + cluster.end - titleWidth) / 2;
 	const left = cluster.start + titleInset;
 	const right = cluster.end - titleInset - titleWidth;
-	const isClear = (x: number) => blocked.every(range => range.end <= x - titleClearance || range.start >= x + titleWidth + titleClearance);
+	// How far obstacles reach into the title from its nearer end, including the clearance.
+	const getIntrusion = (x: number) => Math.max(0, ...blocked.map(range => Math.min(range.end - x + titleClearance, x + titleWidth + titleClearance - range.start)));
 
 	for (const x of [center, left, right]) {
-		if (isClear(x)) {
-			return x;
+		if (getIntrusion(x) <= 0) {
+			return { x, clear: true };
 		}
 	}
 
@@ -257,34 +324,48 @@ function chooseTitleX(cluster: Range, titleWidth: number, blocked: readonly Rang
 	}
 	gaps.push({ start, end });
 
-	let x = center;
-	let distance = Infinity;
+	let closestClear: number | undefined;
 	for (const gap of gaps.filter(gap => gap.start <= gap.end)) {
-		const closest = Math.min(Math.max(left, gap.start), gap.end);
-		if (Math.abs(closest - left) < distance) {
-			x = closest;
-			distance = Math.abs(closest - left);
+		const x = Math.min(Math.max(left, gap.start), gap.end);
+		if (closestClear === undefined || Math.abs(x - left) < Math.abs(closestClear - left)) {
+			closestClear = x;
 		}
 	}
-	return x;
+	if (closestClear !== undefined) {
+		return { x: closestClear, clear: true };
+	}
+
+	let x = left;
+	for (const candidate of [center, right]) {
+		if (getIntrusion(candidate) < getIntrusion(x) - 0.5) {
+			x = candidate;
+		}
+	}
+	return { x, clear: false };
 }
 
 /**
- * Collects the horizontal ranges that edges and edge labels occupy between `top` and `bottom`.
+ * Collects the horizontal ranges blocked for a title whose line box spans `top` to `bottom`: by edges
+ * and edge labels within the title clearance of it, and by arrowheads that reach its text.
  */
 function getBlockedRanges(obstacles: Obstacles, top: number, bottom: number): Range[] {
 	const ranges: Range[] = [];
 	for (const edge of obstacles.edges) {
 		for (let i = 1; i < edge.length; i++) {
-			const range = clipSegmentToBand(edge[i - 1], edge[i], top, bottom);
+			const range = clipSegmentToBand(edge[i - 1], edge[i], top - titleClearance, bottom + titleClearance);
 			if (range) {
 				ranges.push(range);
 			}
 		}
 	}
 	for (const label of obstacles.labels) {
-		if (label.top < bottom && label.bottom > top) {
+		if (label.top < bottom + titleClearance && label.bottom > top - titleClearance) {
 			ranges.push({ start: label.left, end: label.right });
+		}
+	}
+	for (const arrowhead of obstacles.arrowheads) {
+		if (arrowhead.top < bottom - titleLeading && arrowhead.bottom > top + titleLeading) {
+			ranges.push({ start: arrowhead.left, end: arrowhead.right });
 		}
 	}
 	return ranges;
@@ -301,16 +382,23 @@ function clipSegmentToBand(a: Point, b: Point, top: number, bottom: number): Ran
 }
 
 /**
- * Collects every edge as polylines and every HTML edge label as a box, in the root SVG's coordinates.
+ * Collects every edge as polylines, and every HTML edge label and every arrowhead as a box, in the
+ * root SVG's coordinates.
  */
 function collectObstacles(svg: SVGSVGElement): Obstacles {
 	const edges: Point[][] = [];
+	const arrowheads: Box[] = [];
 	for (const path of svg.querySelectorAll('.edgePaths path')) {
 		const origin = getOrigin(path, svg);
 		const data = path.getAttribute('d');
-		if (origin && data) {
-			edges.push(...flattenPathData(data, origin));
-		}
+		const polylines = origin && data ? flattenPathData(data, origin) : [];
+		edges.push(...polylines);
+
+		const first = polylines[0];
+		const last = polylines[polylines.length - 1];
+		const start = first && getMarkerBox(svg, path, 'marker-start', first[0], getDirection(first[0], first.slice(1)));
+		const end = last && getMarkerBox(svg, path, 'marker-end', last[last.length - 1], getDirection(last[last.length - 1], last.slice(0, -1).reverse(), -1));
+		arrowheads.push(...[start, end].filter(box => box !== undefined));
 	}
 
 	const labels: Box[] = [];
@@ -322,7 +410,90 @@ function collectObstacles(svg: SVGSVGElement): Obstacles {
 			labels.push({ left: origin.x, top: origin.y, right: origin.x + width, bottom: origin.y + height });
 		}
 	}
-	return { edges, labels };
+	return { edges, labels, arrowheads };
+}
+
+/**
+ * The unit direction from `vertex` to the first of `points` apart from it, times `sign`.
+ */
+function getDirection(vertex: Point, points: readonly Point[], sign = 1): Point | undefined {
+	for (const point of points) {
+		const length = Math.hypot(point.x - vertex.x, point.y - vertex.y);
+		if (length > 0.01) {
+			return { x: sign * (point.x - vertex.x) / length, y: sign * (point.y - vertex.y) / length };
+		}
+	}
+	return undefined;
+}
+
+/**
+ * The box covered by the marker that `path` draws at `vertex`, where the path runs along `direction`.
+ * Mermaid's class diagram markers have viewports far larger than their shapes, so the box follows
+ * the marker's shapes.
+ */
+function getMarkerBox(svg: SVGSVGElement, path: Element, attribute: 'marker-start' | 'marker-end', vertex: Point, direction: Point | undefined): Box | undefined {
+	const id = path.getAttribute(attribute)?.match(/^url\(#(?<id>[\w-]+)\)$/)?.groups?.id;
+	const marker = id ? svg.querySelector(`marker[id="${id}"]`) : null;
+	const content = marker && getShapesBox(marker);
+	if (!marker || !content || !direction) {
+		return undefined;
+	}
+
+	const viewBox = readViewBox(marker);
+	const width = readNumber(marker, 'markerWidth') ?? 3;
+	const height = readNumber(marker, 'markerHeight') ?? 3;
+	const scale = viewBox && viewBox.width > 0 && viewBox.height > 0 ? Math.min(width / viewBox.width, height / viewBox.height) : 1;
+	const refX = readNumber(marker, 'refX') ?? 0;
+	const refY = readNumber(marker, 'refY') ?? 0;
+	const orient = marker.getAttribute('orient') ?? '0';
+	const angle = orient === 'auto' ? Math.atan2(direction.y, direction.x)
+		: orient === 'auto-start-reverse' ? Math.atan2(direction.y, direction.x) + (attribute === 'marker-start' ? Math.PI : 0)
+			: (parseFloat(orient) || 0) * Math.PI / 180;
+
+	const xs: number[] = [];
+	const ys: number[] = [];
+	for (const x of [content.left, content.right]) {
+		for (const y of [content.top, content.bottom]) {
+			const along = (x - refX) * scale;
+			const across = (y - refY) * scale;
+			xs.push(vertex.x + along * Math.cos(angle) - across * Math.sin(angle));
+			ys.push(vertex.y + along * Math.sin(angle) + across * Math.cos(angle));
+		}
+	}
+	return { left: Math.min(...xs), top: Math.min(...ys), right: Math.max(...xs), bottom: Math.max(...ys) };
+}
+
+/**
+ * The box around the paths, polygons and circles in `element`, in its own coordinates.
+ */
+function getShapesBox(element: Element): Box | undefined {
+	const points: Point[] = [];
+	for (const shape of element.querySelectorAll('path, polygon, polyline, circle')) {
+		if (shape.localName === 'path') {
+			points.push(...flattenPathData(shape.getAttribute('d') ?? '', { x: 0, y: 0 }).flat());
+		} else if (shape.localName === 'circle') {
+			const cx = readNumber(shape, 'cx') ?? 0;
+			const cy = readNumber(shape, 'cy') ?? 0;
+			const r = readNumber(shape, 'r') ?? 0;
+			points.push({ x: cx - r, y: cy - r }, { x: cx + r, y: cy + r });
+		} else {
+			const values = (shape.getAttribute('points') ?? '').trim().split(/[\s,]+/).map(parseFloat);
+			for (let i = 0; i + 1 < values.length; i += 2) {
+				points.push({ x: values[i], y: values[i + 1] });
+			}
+		}
+	}
+
+	const valid = points.filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+	if (!valid.length) {
+		return undefined;
+	}
+	return {
+		left: Math.min(...valid.map(point => point.x)),
+		top: Math.min(...valid.map(point => point.y)),
+		right: Math.max(...valid.map(point => point.x)),
+		bottom: Math.max(...valid.map(point => point.y)),
+	};
 }
 
 /**

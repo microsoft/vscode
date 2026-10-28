@@ -17,8 +17,8 @@ import { renderMermaidEditorHtml } from '../src/markdownEditor/editorHtml.ts';
 const extensionDir = path.join(import.meta.dirname, '..');
 
 const themes = {
-	light: '--vscode-editor-background: #ffffff; --vscode-editorWidget-background: #f8f8f8; --vscode-editor-foreground: #3b3b3b; --vscode-errorForeground: #f85149; color-scheme: light;',
-	dark: '--vscode-editor-background: #1f1f1f; --vscode-editorWidget-background: #202020; --vscode-editor-foreground: #cccccc; --vscode-errorForeground: #f85149; color-scheme: dark;',
+	light: '--vscode-editor-background: #ffffff; --vscode-editorWidget-background: #f8f8f8; --vscode-editor-foreground: #3b3b3b; --vscode-chart-line: #ff0000; --vscode-errorForeground: #f85149; color-scheme: light;',
+	dark: '--vscode-editor-background: #1f1f1f; --vscode-editorWidget-background: #202020; --vscode-editor-foreground: #cccccc; --vscode-chart-line: #ff0000; --vscode-errorForeground: #f85149; color-scheme: dark;',
 };
 
 it('renders diagrams at their natural size in the VS Code theme, and follows edits, theme changes, and errors', async () => {
@@ -128,6 +128,47 @@ it('renders diagrams at their natural size in the VS Code theme, and follows edi
 			children: { centered: true, crossedByEdge: false },
 			long: { insetLeft: 12, insetRight: 12 },
 		});
+
+		// An edge that cannot avoid a title passes behind it: no pixel of the (red) edge shows over the title's
+		// text where the edge crosses it, while the edge's arrowhead below the title stays whole.
+		await page.evaluate(() => window.mermaidTest.setText('flowchart TD\n A[Source] --> B\n subgraph Long[A subgraph title that is much wider than its content]\n  B[Step]\n end'));
+		await frame.locator('svg').filter({ hasText: 'much wider' }).waitFor();
+		const crossing = await frame.evaluate(() => {
+			const title = document.querySelector('.cluster-label foreignObject')!.getBoundingClientRect();
+			const path = document.querySelector<SVGPathElement>('.edgePaths path')!;
+			const toScreen = path.getScreenCTM()!;
+			const middle = (title.top + title.bottom) / 2;
+			let closest = { distance: Infinity, x: 0 };
+			for (let length = 0; length <= path.getTotalLength(); length++) {
+				const point = path.getPointAtLength(length).matrixTransform(toScreen);
+				if (Math.abs(point.y - middle) < closest.distance) {
+					closest = { distance: Math.abs(point.y - middle), x: point.x };
+				}
+			}
+			const x = Math.round(closest.x) - 2;
+			const end = path.getPointAtLength(path.getTotalLength()).matrixTransform(toScreen);
+			return {
+				text: { x, y: Math.round(title.top) + 4, width: 5, height: Math.round(title.height) - 8 },
+				aboveTitle: { x, y: Math.round(title.top) - 16, width: 5, height: 4 },
+				arrowhead: { x: Math.round(end.x) - 2, y: Math.round(end.y) + 1, width: 5, height: 2 },
+			};
+		});
+		const countRedPixels = async (clip: { x: number; y: number; width: number; height: number }) => page.evaluate(async base64 => {
+			const image = await createImageBitmap(await (await fetch(`data:image/png;base64,${base64}`)).blob());
+			const context = new OffscreenCanvas(image.width, image.height).getContext('2d')!;
+			context.drawImage(image, 0, 0);
+			const { data } = context.getImageData(0, 0, image.width, image.height);
+			let count = 0;
+			for (let i = 0; i < data.length; i += 4) {
+				count += data[i] - Math.max(data[i + 1], data[i + 2]) > 40 ? 1 : 0;
+			}
+			return count;
+		}, (await page.screenshot({ clip })).toString('base64'));
+		assert.deepEqual({
+			edgeOverText: await countRedPixels(crossing.text) > 0,
+			edgeAboveTitle: await countRedPixels(crossing.aboveTitle) > 0,
+			arrowhead: await countRedPixels(crossing.arrowhead) > 0,
+		}, { edgeOverText: false, edgeAboveTitle: true, arrowhead: true });
 		assert.deepEqual(errors, []);
 	} finally {
 		await browser.close();
