@@ -119,6 +119,7 @@ import { ChatSystemNotificationContentPart } from './chatContentParts/chatSystem
 import { ChatTextEditContentPart } from './chatContentParts/chatTextEditContentPart.js';
 import { ChatThinkingContentPart, getEffectiveThinkingDisplayMode } from './chatContentParts/chatThinkingContentPart.js';
 import { ChatThinkingTitleController } from './chatThinkingTitleController.js';
+import { ChatLayoutTrace, ChatLayoutTraceMethod } from './chatLayoutTrace.js';
 import { aggregateChatEditDiffs, ChatEditStatsButton } from './chatContentParts/chatEditStatsButton.js';
 import { ChatSubagentContentPart } from './chatContentParts/chatSubagentContentPart.js';
 import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
@@ -675,6 +676,12 @@ const forceVerboseLayoutTracing = false
 	// || Boolean("TRUE") // causes a linter warning so that it cannot be pushed
 	;
 
+interface IPendingChatItemHeightUpdate extends IDisposable {
+	readonly element: ChatTreeItem;
+	remeasure: boolean;
+	initialHeight?: number;
+}
+
 export interface IChatRendererDelegate {
 	container: HTMLElement;
 	getListLength(): number;
@@ -943,6 +950,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private readonly _inlineTextModels: InlineTextModelCollection;
 	private readonly _thinkingTitles: ChatThinkingTitleController;
+	private readonly layoutTrace: ChatLayoutTrace;
+	private readonly pendingHeightUpdates = this._register(new DisposableMap<IChatListItemTemplate, IPendingChatItemHeightUpdate>());
 
 	/** Whether we have already logged the incremental-rendering telemetry event for this renderer instance. */
 	private _incrementalRenderingTelemetryLogged = false;
@@ -976,6 +985,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
+		this.layoutTrace = this._register(new ChatLayoutTrace(() => performance.now(), logService));
 		this.persistentBackgroundActivityTracker.value = viewModel ? new PersistentBackgroundActivityTracker(viewModel, () => this.updateWorkingProgressForBackgroundActivity()) : undefined;
 
 		this.chatContentMarkdownRenderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
@@ -1039,21 +1049,26 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 
 
-	private traceLayout(method: string, message: string) {
+	private traceLayout(method: ChatLayoutTraceMethod, message: () => string, index?: number) {
 		if (forceVerboseLayoutTracing) {
-			this.logService.info(`ChatListItemRenderer#${method}: ${message}`);
+			this.logService.info(`ChatListItemRenderer#${method}: ${message()}`);
 		} else {
-			this.logService.trace(`ChatListItemRenderer#${method}: ${message}`);
+			this.layoutTrace.trace(method, message, index);
 		}
 	}
 
-	private fireItemHeightChange(template: IChatListItemTemplate, measuredHeight?: number): void {
-		if (!template.currentElement || !template.rowContainer.isConnected) {
-			return;
+	private fireItemHeightChange(template: IChatListItemTemplate, measuredHeight?: number): boolean {
+		if (this._store.isDisposed || !template.currentElement || !template.rowContainer.isConnected) {
+			return false;
 		}
 
 		if (dom.findParentWithClass(template.rowContainer, 'monaco-tree-sticky-row')) {
-			return;
+			return false;
+		}
+
+		const pending = this.pendingHeightUpdates.get(template);
+		if (template.currentElement === this._elementBeingRendered && pending?.element === template.currentElement && pending.remeasure) {
+			return false;
 		}
 
 		if (isRequestVM(template.currentElement)) {
@@ -1062,7 +1077,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const height = measuredHeight ?? template.rowContainer.getBoundingClientRect().height;
 		if (height === 0 || !height) {
-			return;
+			return false;
 		}
 
 		template.lastMeasuredHeight = height;
@@ -1078,24 +1093,39 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		element.currentRenderedHeight = update.nextRenderedHeight;
 
 		if (update.kind === 'fire') {
+			this.pendingHeightUpdates.deleteAndDispose(template);
 			this._onDidChangeItemHeight.fire({ element, height: update.height });
+			return true;
 		} else if (update.kind === 'scheduleInitial') {
-			const scheduledHeight = update.height;
-			dom.scheduleAtNextAnimationFrame(dom.getWindow(template.rowContainer), () => {
-				if (template.currentElement !== element || element.currentRenderedHeight !== scheduledHeight) {
+			this.scheduleItemHeightChange(template, element, update.height);
+		} else if (update.kind === 'deferReMeasure') {
+			this.scheduleItemHeightChange(template, element);
+		}
+		return false;
+	}
+
+	private scheduleItemHeightChange(template: IChatListItemTemplate, element: ChatTreeItem, initialHeight?: number): void {
+		let pending = this.pendingHeightUpdates.get(template);
+		if (!pending || pending.element !== element) {
+			const store = new DisposableStore();
+			pending = { element, remeasure: false, dispose: () => store.dispose() };
+			this.pendingHeightUpdates.set(template, pending);
+			const update = pending;
+			store.add(dom.scheduleAtNextAnimationFrame(dom.getWindow(template.rowContainer), () => {
+				this.pendingHeightUpdates.deleteAndDispose(template);
+				if (template.currentElement !== element || !template.rowContainer.isConnected) {
 					return;
 				}
-				this._onDidChangeItemHeight.fire({ element, height: scheduledHeight });
-			});
-		} else if (update.kind === 'deferReMeasure') {
-			// The measurement arrived synchronously during this row's render. Re-measure on the
-			// next frame (once the render pass is over) so the grown height reliably reaches the
-			// tree without a re-entrant notification.
-			dom.scheduleAtNextAnimationFrame(dom.getWindow(template.rowContainer), () => {
-				if (template.currentElement === element && element !== this._elementBeingRendered) {
-					this.fireItemHeightChange(template);
+				const notified = update.remeasure && this.fireItemHeightChange(template);
+				if (!notified && update.initialHeight !== undefined && element.currentRenderedHeight === update.initialHeight && element !== this._elementBeingRendered) {
+					this._onDidChangeItemHeight.fire({ element, height: update.initialHeight });
 				}
-			});
+			}));
+		}
+		if (initialHeight === undefined) {
+			pending.remeasure = true;
+		} else {
+			pending.initialHeight = initialHeight;
 		}
 	}
 
@@ -1680,11 +1710,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderChatTreeItem(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {
+		const pendingHeightUpdate = this.pendingHeightUpdates.get(templateData);
+		// Rebuilding the same row must still deliver its pending initial height.
+		if (pendingHeightUpdate && pendingHeightUpdate.element !== element) {
+			this.pendingHeightUpdates.deleteAndDispose(templateData);
+		}
 		const readOnly = !!this.rendererOptions.readOnly;
 		const persistentProgress = this.rendererOptions.renderStyle !== 'minimal' && this.isPersistentProgressEnabled();
 		const progressVerbosity = persistentProgress ? this.getPersistentProgressVerbosity() : undefined;
 		if (templateData.currentElement && (templateData.currentElement.id !== element.id || templateData.renderedReadOnly !== readOnly || templateData.renderedPersistentProgress !== persistentProgress || templateData.renderedProgressVerbosity !== progressVerbosity)) {
-			this.traceLayout('renderChatTreeItem', `Rendering a different element or presentation state into the template, index=${index}`);
+			this.traceLayout('renderChatTreeItem', () => `Rendering a different element or presentation state into the template, index=${index}`, index);
 			const mappedTemplateData = this.templateDataByRequestId.get(templateData.currentElement.id);
 			if (mappedTemplateData && (mappedTemplateData.currentElement?.id !== templateData.currentElement.id)) {
 				this.templateDataByRequestId.delete(templateData.currentElement.id);
@@ -1721,7 +1756,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			isResponseVM(element) ? 'response' :
 				isPendingDividerVM(element) ? 'pendingDivider' :
 					'welcome';
-		this.traceLayout('renderElement', `${kind}, index=${index}`);
+		this.traceLayout('renderElement', () => `${kind}, index=${index}`, index);
 
 		ChatContextKeys.isResponse.bindTo(templateData.contextKeyService).set(isResponseVM(element));
 		ChatContextKeys.itemId.bindTo(templateData.contextKeyService).set(element.id);
@@ -1978,7 +2013,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		//   - Or, we previously started a progressive rendering of this element (if the element is complete, we will finish progressive rendering with a very fast rate)
 		const incrementalRendering = this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering);
 		if (isResponseVM(element) && isStickyScrollTargetItem && (!element.isComplete || element.renderData)) {
-			this.traceLayout('renderElement', `start progressive render, index=${index}`);
+			this.traceLayout('renderElement', () => `start progressive render, index=${index}`, index);
 
 			if (incrementalRendering && !element.renderData) {
 				// Incremental rendering: event-driven flow, no timer.
@@ -3293,17 +3328,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		if (element.isCanceled) {
-			this.traceLayout('doNextProgressiveRender', `canceled, index=${index}`);
+			this.traceLayout('doNextProgressiveRender', () => `canceled, index=${index}`, index);
 			element.renderData = undefined;
 			this.renderChatResponseBasic(element, index, templateData);
 			return true;
 		}
 
 		templateData.rowContainer.classList.toggle('chat-response-loading', true);
-		this.traceLayout('doNextProgressiveRender', `START progressive render, index=${index}`);
+		this.traceLayout('doNextProgressiveRender', () => `START progressive render, index=${index}`, index);
 		const contentForThisTurn = this.getNextProgressiveRenderContent(element, templateData);
 		if (element.isComplete && !contentForThisTurn.moreContentAvailable) {
-			this.traceLayout('doNextProgressiveRender', `END progressive render, index=${index} and clearing renderData, response is complete`);
+			this.traceLayout('doNextProgressiveRender', () => `END progressive render, index=${index} and clearing renderData, response is complete`, index);
 			element.renderData = undefined;
 			this.renderChatResponseBasic(element, index, templateData);
 			return true;
@@ -3317,7 +3352,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 			if (contentForThisTurn.moreContentAvailable) {
 				// The content that we want to render in this turn is already rendered, but there is more content to render on the next tick
-				this.traceLayout('doNextProgressiveRender', 'not rendering any new content this tick, but more available');
+				this.traceLayout('doNextProgressiveRender', () => 'not rendering any new content this tick, but more available');
 				return false;
 			} else if (this.isWorkingProgressDebouncePending(element, contentForThisTurn.content)) {
 				// Caught up to the streamed markdown, but still within the working
@@ -3332,7 +3367,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		// Do an actual progressive render
-		this.traceLayout('doNextProgressiveRender', `doing progressive render, ${partsToRender.length} parts to render`);
+		this.traceLayout('doNextProgressiveRender', () => `doing progressive render, ${partsToRender.length} parts to render`);
 		this.renderChatContentDiff(partsToRender, contentForThisTurn.content, element, index, templateData);
 
 		return false;
@@ -4034,7 +4069,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const responseContent = annotateSpecialMarkdownContent(element.response.value);
 		const renderableResponse = element.isComplete ? moveResponseOutcomeToolsAfterFinalResponse(responseContent) : responseContent;
 
-		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender} at ${data.rate} words/s, counting...`);
+		this.traceLayout('getNextProgressiveRenderContent', () => `Want to render ${data.numWordsToRender} at ${data.rate} words/s, counting...`);
 		let numNeededWords = data.numWordsToRender;
 		const partsToRender: IChatRendererContent[] = [];
 
@@ -4047,7 +4082,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const part = renderableResponse[i];
 			if (part.kind === 'markdownContent' && !incrementalRendering) {
 				const wordCountResult = getNWords(part.content.value, numNeededWords);
-				this.traceLayout('getNextProgressiveRenderContent', `  Chunk ${i}: Want to render ${numNeededWords} words and found ${wordCountResult.returnedWordCount} words. Total words in chunk: ${wordCountResult.totalWordCount}`);
+				this.traceLayout('getNextProgressiveRenderContent', () => `  Chunk ${i}: Want to render ${numNeededWords} words and found ${wordCountResult.returnedWordCount} words. Total words in chunk: ${wordCountResult.totalWordCount}`);
 				numNeededWords -= wordCountResult.returnedWordCount;
 
 				if (wordCountResult.isFullString) {
@@ -4090,7 +4125,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const lastWordCount = element.contentUpdateTimings?.lastWordCount ?? 0;
 		const newRenderedWordCount = data.numWordsToRender - numNeededWords;
 		const bufferWords = lastWordCount - newRenderedWordCount;
-		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender} words. Rendering ${newRenderedWordCount} words. Buffer: ${bufferWords} words`);
+		this.traceLayout('getNextProgressiveRenderContent', () => `Want to render ${data.numWordsToRender} words. Rendering ${newRenderedWordCount} words. Buffer: ${bufferWords} words`);
 		if (newRenderedWordCount > 0 && newRenderedWordCount !== element.renderData?.renderedWordCount) {
 			// Only update lastRenderTime when we actually render new content
 			element.renderData = { lastRenderTime: Date.now(), renderedWordCount: newRenderedWordCount, renderedParts: partsToRender };
@@ -5908,7 +5943,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
-		this.traceLayout('disposeElement', `Disposing element, index=${index}`);
+		this.traceLayout('disposeElement', () => `Disposing element, index=${index}`, index);
+		this.pendingHeightUpdates.deleteAndDispose(templateData);
 		this.pendingWorkingProgressUpdates.delete(templateData);
 		templateData.elementDisposables.clear();
 		const ownsElementMappings = this.templateDataByRequestId.get(node.element.id) === templateData;
@@ -5964,6 +6000,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	disposeTemplate(templateData: IChatListItemTemplate): void {
+		this.pendingHeightUpdates.deleteAndDispose(templateData);
 		this.pendingWorkingProgressUpdates.delete(templateData);
 		this.clearRenderedParts(templateData);
 		templateData.templateDisposables.dispose();

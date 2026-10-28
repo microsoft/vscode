@@ -423,7 +423,7 @@ app.on('ready', async () => {
 		}
 	});
 
-	ipcMain.handle('vscode:test-file-resource', async (_event, requestUrl, roots) => {
+	ipcMain.handle('vscode:test-file-resource', async (_event, requestUrl, roots, includeHeaders = false, sampleStack = false) => {
 		const [{ ProtocolMainService }, { URI }] = await Promise.all([
 			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/platform/protocol/electron-main/protocolMainService.js`)).href),
 			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/base/common/uri.js`)).href),
@@ -431,8 +431,8 @@ app.on('ready', async () => {
 		// Preserve the production root registration and guard; replace only protocol registration and file transport.
 		class TestProtocolMainService extends ProtocolMainService {
 			handleProtocols() { }
-			async createFileResponse(_request, filePath) {
-				return new Response(filePath);
+			async createFileResponse(_request, filePath, headers) {
+				return new Response(filePath, { headers });
 			}
 		}
 		/** @type {string[]} */
@@ -444,7 +444,43 @@ app.on('ready', async () => {
 		);
 		try {
 			const response = await service.handleResourceRequest(new Request(requestUrl));
-			return { status: response.status, path: response.ok ? await response.text() : undefined, errors };
+			let stack;
+			if (sampleStack) {
+				const stackSession = session.fromPartition(`stack-sampling-test-${Date.now()}`);
+				stackSession.protocol.handle('vscode-file', request => service.handleResourceRequest(request));
+				const stackWindow = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false, session: stackSession } });
+				const readyChannel = `vscode:test-stack-ready-${stackWindow.id}`;
+				let signalReady;
+				let readyTimeout;
+				const ready = new Promise((resolve, reject) => {
+					signalReady = resolve;
+					readyTimeout = setTimeout(() => reject(new Error('The stack sampling probe did not start')), 5000);
+				});
+				const onReady = event => {
+					if (event.sender === stackWindow.webContents) {
+						signalReady();
+					}
+				};
+				ipcMain.on(readyChannel, onReady);
+				try {
+					await stackWindow.loadURL(requestUrl);
+					const execution = stackWindow.webContents.executeJavaScript(`(function stackSamplingProbe() {
+						require('electron').ipcRenderer.send(${JSON.stringify(readyChannel)});
+						const end = performance.now() + 1000;
+						while (performance.now() < end) { }
+					})()`);
+					[, stack] = await Promise.all([execution, (async () => {
+						await ready;
+						return stackWindow.webContents.mainFrame.collectJavaScriptCallStack();
+					})()]);
+				} finally {
+					clearTimeout(readyTimeout);
+					ipcMain.removeListener(readyChannel, onReady);
+					stackWindow.destroy();
+					stackSession.protocol.unhandle('vscode-file');
+				}
+			}
+			return { status: response.status, path: response.ok ? await response.text() : undefined, errors, ...(includeHeaders ? { headers: Object.fromEntries(response.headers) } : {}), ...(sampleStack ? { stack } : {}) };
 		} finally {
 			service.dispose();
 		}

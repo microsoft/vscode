@@ -2242,6 +2242,105 @@ suite('ChatListRenderer', () => {
 		return { disposables, instantiationService, configurationService, model, viewModel, request, response, container, renderer, template, node };
 	}
 
+	suite('deferred row height updates', () => {
+		async function createHeightFixture() {
+			const fixture = createPersistentProgressRenderer();
+			fixture.model.acceptResponseProgress(fixture.request, { kind: 'markdownContent', content: new MarkdownString('Height measurement content') });
+			fixture.request.response!.complete();
+			fixture.renderer.renderElement(fixture.node, 0, fixture.template);
+			const nextFrame = () => new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(dom.getWindow(fixture.container), () => resolve()));
+			await nextFrame();
+			await nextFrame();
+			const height = Math.ceil(fixture.template.rowContainer.getBoundingClientRect().height);
+			assert.ok(height > 1);
+			const events: number[] = [];
+			fixture.disposables.add(fixture.renderer.onDidChangeItemHeight(event => events.push(event.height)));
+			const privateRenderer = fixture.renderer as unknown as {
+				_elementBeingRendered: ChatTreeItem | undefined;
+				fireItemHeightChange: ChatListItemRenderer['fireItemHeightChange'];
+				clearRenderedParts: ChatListItemRenderer['clearRenderedParts'];
+			};
+			return { ...fixture, privateRenderer, height, events, nextFrame };
+		}
+
+		test('coalesces a thousand render-time measurements without losing the final height', async () => {
+			const { privateRenderer, template, response, height, events, nextFrame } = await createHeightFixture();
+			const measurements = sinon.spy(template.rowContainer, 'getBoundingClientRect');
+			response.currentRenderedHeight = height - 1;
+			privateRenderer._elementBeingRendered = response;
+			for (let index = 0; index < 1000; index++) {
+				privateRenderer.fireItemHeightChange(template);
+			}
+			const duringRender = { measurements: measurements.callCount, events: [...events], stored: response.currentRenderedHeight };
+			privateRenderer._elementBeingRendered = undefined;
+			await nextFrame();
+			assert.deepStrictEqual({ duringRender, measurements: measurements.callCount, events, stored: response.currentRenderedHeight }, {
+				duringRender: { measurements: 1, events: [], stored: height - 1 },
+				measurements: 2, events: [height], stored: height,
+			});
+		});
+
+		test('preserves the initial notification when a coalesced remeasure returns to that height', async () => {
+			const { privateRenderer, template, response, height, events, nextFrame } = await createHeightFixture();
+			response.currentRenderedHeight = undefined;
+			template.allocatedHeight = height - 1;
+			privateRenderer.fireItemHeightChange(template, height);
+			privateRenderer._elementBeingRendered = response;
+			privateRenderer.fireItemHeightChange(template, height + 1);
+			privateRenderer._elementBeingRendered = undefined;
+			await nextFrame();
+			assert.deepStrictEqual({ events, stored: response.currentRenderedHeight }, { events: [height], stored: height });
+		});
+
+		test('preserves an unacknowledged initial height across rebuilding the same row', async () => {
+			const { renderer, privateRenderer, template, node, response, height, events, nextFrame } = await createHeightFixture();
+			response.currentRenderedHeight = undefined;
+			template.allocatedHeight = height - 1;
+			privateRenderer.fireItemHeightChange(template, height);
+			privateRenderer.clearRenderedParts(template);
+			renderer.renderElement(node, 0, template);
+			await nextFrame();
+			assert.deepStrictEqual({ events, stored: response.currentRenderedHeight }, { events: [height], stored: height });
+		});
+
+		test('drops queued height work when the row is virtualized', async () => {
+			const { renderer, privateRenderer, template, node, response, height, events, nextFrame } = await createHeightFixture();
+			response.currentRenderedHeight = height - 1;
+			privateRenderer._elementBeingRendered = response;
+			privateRenderer.fireItemHeightChange(template);
+			privateRenderer._elementBeingRendered = undefined;
+			renderer.disposeElement(node, 0, template);
+			await nextFrame();
+			assert.deepStrictEqual(events, []);
+		});
+
+		test('rebinding a template only delivers height updates for its new row', async () => {
+			const { disposables, model, viewModel, renderer, privateRenderer, template, node, response, height, nextFrame } = await createHeightFixture();
+			const elementIds: string[] = [];
+			disposables.add(renderer.onDidChangeItemHeight(event => elementIds.push(event.element.id)));
+			response.currentRenderedHeight = height - 1;
+			privateRenderer._elementBeingRendered = response;
+			privateRenderer.fireItemHeightChange(template);
+			privateRenderer._elementBeingRendered = undefined;
+			const text = 'Another request';
+			const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] }, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Another response with different content.') });
+			request.response!.complete();
+			const nextResponse = viewModel.getItems().find(item => isResponseVM(item) && item.requestId === request.id);
+			assert.ok(nextResponse);
+			nextResponse.currentRenderedHeight = height - 1;
+			renderer.renderElement({ ...node, element: nextResponse }, 0, template);
+			privateRenderer._elementBeingRendered = nextResponse;
+			privateRenderer.fireItemHeightChange(template);
+			privateRenderer._elementBeingRendered = undefined;
+			await nextFrame();
+			await nextFrame();
+			assert.deepStrictEqual({ oldNotified: elementIds.includes(response.id), newNotified: elementIds.includes(nextResponse.id) }, {
+				oldNotified: false, newNotified: true,
+			});
+		});
+	});
+
 	suite('single-tool completed response collapse', () => {
 		async function addCompletionResponse({ model, request }: ReturnType<typeof createPersistentProgressRenderer>, serialized: boolean): Promise<void> {
 			for (const id of ['initial-work', 'follow-up-work', 'final-bookkeeping']) {
