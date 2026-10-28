@@ -31,8 +31,28 @@ function savedResponseHeaders(headers: Iterable<[string, string]>): Record<strin
 	return result;
 }
 
-/** Request headers that a browser sends without a CORS preflight, or that only the browser sets. */
-const corsSafelistedHeaderPattern = /^(accept|accept-language|content-language|content-type|origin|referer|user-agent|sec-.*|dnt)$/i;
+/**
+ * Request headers that the browser leaves out of a preflight's `Access-Control-Request-Headers`:
+ * forbidden and browser-controlled headers by name, and CORS-safelisted headers by name and value.
+ */
+const forbiddenRequestHeaderPattern = /^(:|accept-charset$|accept-encoding$|access-control-request-|connection$|content-length$|cookie2?$|date$|dnt$|expect$|host$|keep-alive$|origin$|referer$|te$|trailer$|transfer-encoding$|upgrade$|via$|proxy-|sec-|user-agent$)/i;
+const corsSafelistedContentTypes = new Set(['application/x-www-form-urlencoded', 'multipart/form-data', 'text/plain']);
+
+function isCorsSafelistedOrForbiddenHeader(name: string, value: string): boolean {
+	if (forbiddenRequestHeaderPattern.test(name)) {
+		return true;
+	}
+	switch (name.toLowerCase()) {
+		case 'accept':
+		case 'accept-language':
+		case 'content-language':
+			return value.length <= 128;
+		case 'content-type':
+			return value.length <= 128 && corsSafelistedContentTypes.has(value.split(';')[0].trim().toLowerCase());
+		default:
+			return false;
+	}
+}
 
 /** How many distinct failed gallery URLs are probed from Node per test. */
 const maxGalleryProbes = 10;
@@ -490,17 +510,19 @@ export class UITest {
 	private async replayGalleryPreflight(request: Request, page: Page): Promise<GalleryPreflightProbe[]> {
 		const pageUrl = new URL(page.url());
 		const headers = await request.allHeaders().catch(() => request.headers());
-		const requestHeaderNames = Object.keys(headers)
-			.map(name => name.toLowerCase())
-			.filter(name => !corsSafelistedHeaderPattern.test(name) && !unreplayedHeaderPattern.test(name))
+		const requestHeaderNames = Object.entries(headers)
+			.filter(([name, value]) => !isCorsSafelistedOrForbiddenHeader(name, value))
+			.map(([name]) => name.toLowerCase())
 			.sort();
 		if (requestHeaderNames.length === 0) {
 			return [];
 		}
 
+		// After a cross-origin redirect (gallery to gallerycdn) Fetch sends `Origin: null`, so prefer the request's own value.
+		const origin = headers['origin'] ?? `${pageUrl.protocol}//${pageUrl.host}`;
 		const args = [
 			'-sS', '-i', '--max-time', '30', '-X', 'OPTIONS',
-			'-H', `Origin: ${pageUrl.protocol}//${pageUrl.host}`,
+			'-H', `Origin: ${origin}`,
 			'-H', `Access-Control-Request-Method: ${request.method()}`,
 			'-H', `Access-Control-Request-Headers: ${requestHeaderNames.join(',')}`,
 		];
