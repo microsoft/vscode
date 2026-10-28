@@ -1790,7 +1790,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatMicrosoftAuthenticationEnabledSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.microsoftAuthentication.enabled', "When enabled, sign-in dialogs offer \"Continue with Microsoft\". Signing in with Microsoft exchanges your Microsoft account for the GitHub access your organization has linked to it. The resulting GitHub sign-in lasts for the current window session only and is not saved."),
+			markdownDescription: nls.localize('chat.microsoftAuthentication.enabled', "When enabled, general GitHub Copilot sign-in dialogs offer \"Continue with Microsoft\". Signing in exchanges your Microsoft account for the GitHub access your organization has linked to it; the GitHub sign-in lasts only for the current window session. Native Microsoft 365 Copilot agent sign-in offers Microsoft directly without a GitHub exchange."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],

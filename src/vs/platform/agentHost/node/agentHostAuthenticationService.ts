@@ -9,6 +9,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ILogService } from '../../log/common/log.js';
 import type { AuthenticateParams, AuthenticateResult, IAgent, IAgentHostAuthTokenRequest } from '../common/agent.js';
+import { isNativeEntraTokenReply } from '../common/meta/nativeLoki.js';
 
 export interface IAgentHostAuthTokenChangeEvent {
 	readonly resource: string;
@@ -36,6 +37,7 @@ interface IStoredAuthToken {
 	readonly scopes: readonly string[];
 	readonly token: string;
 	readonly expiresAt: number | undefined;
+	readonly _meta?: Record<string, unknown>;
 }
 
 export class AgentHostAuthenticationService extends Disposable implements IAgentHostAuthenticationService, IAgentHostAuthenticationController {
@@ -98,6 +100,9 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				);
 			}
 		}
+		if (isNativeEntraTokenReply(params)) {
+			return { authenticated };
+		}
 		const scopes = this._normalizeScopes(params.scopes);
 		const key = this._key(params.resource, scopes);
 		const previousToken = this._tokens.get(key)?.token;
@@ -109,7 +114,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			// while clearing its own live state.
 			this._tokens.delete(key);
 		} else if (authenticated) {
-			this._tokens.set(key, { resource: params.resource, scopes, token: params.token, expiresAt });
+			this._tokens.set(key, { resource: params.resource, scopes, token: params.token, expiresAt, ...(params._meta ? { _meta: params._meta } : {}) });
 		}
 		const token = this._tokens.get(key)?.token;
 		if (previousToken !== token) {
@@ -127,7 +132,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				continue;
 			}
 			const expiresIn = getRemainingTimeInSeconds(stored.expiresAt, now);
-			const params: AuthenticateParams = { resource: stored.resource, scopes: stored.scopes, token: stored.token, expiresIn };
+			const params: AuthenticateParams = { resource: stored.resource, scopes: stored.scopes, token: stored.token, expiresIn, ...(stored._meta ? { _meta: stored._meta } : {}) };
 			if (protectedResources.has(stored.resource)) {
 				try {
 					await provider.authenticate(stored.resource, stored.token, expiresIn);

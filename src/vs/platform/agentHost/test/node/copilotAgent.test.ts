@@ -7,6 +7,7 @@ import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemet
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { NATIVE_EMU_PROTECTED_RESOURCE, NATIVE_LOKI_PROTECTED_RESOURCE } from '../../common/meta/nativeLoki.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import * as fs from 'fs/promises';
 import * as os from 'os';
@@ -1744,6 +1745,46 @@ suite('CopilotAgent', () => {
 			await disposeAgent(agent);
 		}
 	});
+
+	for (const enableEmu of [false, true]) {
+		test(`local native runtime advertises only enabled Microsoft scopes and fails closed without a catalog (EMU: ${enableEmu})`, async () => {
+			const key = 'VSCODE_AGENT_HOST_NATIVE_LOKI_RUNTIME';
+			const dualKey = 'VSCODE_NATIVE_LOKI_DUAL_PROVIDER';
+			const previous = process.env[key];
+			const previousDual = process.env[dualKey];
+			process.env[key] = '/local/runtime';
+			if (enableEmu) {
+				process.env[dualKey] = '1';
+			} else {
+				delete process.env[dualKey];
+			}
+			const agent = createTestAgent(disposables);
+			try {
+				assert.deepStrictEqual({
+					resources: agent.getProtectedResources(),
+					acceptsGitHub: await agent.authenticate('https://api.github.com', 'github-token'),
+					models: agent.models.get(),
+				}, {
+					resources: enableEmu ? [NATIVE_LOKI_PROTECTED_RESOURCE, NATIVE_EMU_PROTECTED_RESOURCE] : [NATIVE_LOKI_PROTECTED_RESOURCE],
+					acceptsGitHub: false,
+					models: [],
+				});
+				await assert.rejects(agent['_validateModelSelection']({ id: 'auto' }), /not available/);
+			} finally {
+				if (previous === undefined) {
+					delete process.env[key];
+				} else {
+					process.env[key] = previous;
+				}
+				if (previousDual === undefined) {
+					delete process.env[dualKey];
+				} else {
+					process.env[dualKey] = previousDual;
+				}
+				await disposeAgent(agent);
+			}
+		});
+	}
 
 	test('installs client identity and the GitHub telemetry callback in CopilotClientOptions', async () => {
 		const client = new TestCopilotClient([]);

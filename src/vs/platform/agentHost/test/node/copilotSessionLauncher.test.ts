@@ -109,7 +109,7 @@ const noopSessionOpenTelemetry: IAgentHostSessionOpenTelemetry = {
 	sdkResumeFallbackCreated: () => { },
 };
 
-function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Partial<Record<CopilotCliConfigKey, unknown>> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService): CopilotSessionLauncher {
+function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Partial<Record<CopilotCliConfigKey, unknown>> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService, nativeLoki?: ConstructorParameters<typeof CopilotSessionLauncher>[0]): CopilotSessionLauncher {
 	const configurationService = configuration ?? {
 		getRootValue: (_schema: unknown, key: CopilotCliConfigKey) => rootValues[key],
 		getSessionConfigValues: () => undefined,
@@ -117,6 +117,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 		setSessionSandboxPolicy: () => { },
 	} as Partial<IAgentConfigurationService> as IAgentConfigurationService;
 	return new CopilotSessionLauncher(
+		nativeLoki,
 		configurationService,
 		{ permissions: managedSettingsPermissions ?? {} } as IAgentHostManagedSettingsService,
 		{} as IAgentHostTerminalManager,
@@ -137,7 +138,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 suite('CopilotSessionLauncher sandbox policy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(kind: 'create' | 'resume', reportPolicy = true, enforced = false) {
+	function setup(kind: 'create' | 'resume', reportPolicy = true, enforced = false, nativeLoki?: ConstructorParameters<typeof CopilotSessionLauncher>[0]) {
 		const manager = store.add(new AgentHostStateManager(new NullLogService()));
 		const configuration = store.add(new AgentConfigurationService(manager, new NullLogService()));
 		const owner = 'copilot:/sess-1';
@@ -177,11 +178,30 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			? { ...shared, kind, model: undefined }
 			: { ...shared, kind, fallback: { model: undefined } };
 		const logService = new CapturingLogService();
-		const launcher = createTestLauncher(undefined, {}, logService, noopSessionOpenTelemetry, configuration);
+		const launcher = createTestLauncher(undefined, {}, logService, noopSessionOpenTelemetry, configuration, nativeLoki);
 		return { configuration, owner, updates, launcher, plan, logService, get disconnected() { return disconnected; }, get captured() { return captured; } };
 	}
 
 	for (const kind of ['create', 'resume'] as const) {
+		for (const fails of [false, true]) {
+			test(`${kind} ${fails ? 'fails closed on native Loki preparation failure' : 'prepares the native Loki session before it can send'}`, async () => {
+				const prepared: string[] = [];
+				const fixture = setup(kind, true, false, {
+					prepareSession: async session => {
+						prepared.push(session.sessionId);
+						if (fails) {
+							throw new Error('Native Loki unavailable');
+						}
+					},
+				});
+				if (fails) {
+					await assert.rejects(fixture.launcher.launch(fixture.plan, testRuntime), /Native Loki unavailable/);
+				} else {
+					store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+				}
+				assert.deepStrictEqual({ prepared, disconnected: fixture.disconnected }, { prepared: ['sess-1'], disconnected: fails });
+			});
+		}
 		for (const selection of ['on', 'off']) {
 			test(`${kind} applies SDK sandbox ${selection} when the custom terminal tool is enabled`, async () => {
 				const fixture = setup(kind);
@@ -485,7 +505,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		// The launcher's other dependencies are unused by the BYOK path and
 		// resolve to `undefined` under the non-strict InstantiationService.
 		const instantiationService = store.add(new InstantiationService(services));
-		return instantiationService.createInstance(CopilotSessionLauncher);
+		return instantiationService.createInstance(CopilotSessionLauncher, undefined);
 	}
 
 	test('memoizes the handle, and disposeByokProxyHandle releases it so the next launch mints a fresh nonce', async () => {
@@ -1428,7 +1448,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		// The launcher's other dependencies are unused by this path and resolve
 		// to `undefined` under the non-strict InstantiationService.
 		const instantiationService = store.add(new InstantiationService(services));
-		return instantiationService.createInstance(CopilotSessionLauncher);
+		return instantiationService.createInstance(CopilotSessionLauncher, undefined);
 	}
 
 	/** Invokes the private config builder with a minimal resume plan. */

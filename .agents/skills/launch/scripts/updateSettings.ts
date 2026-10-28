@@ -8,9 +8,10 @@ import * as fs from 'node:fs';
 const settingsFile = process.argv[2];
 const sessionTitle = process.argv[3]?.replace(/\s+/g, ' ').trim().replaceAll('$', '\uFF04');
 const sourceSettingsFile = process.argv[4];
+const settingsOverrides = process.argv[5];
 
 if (!settingsFile) {
-	throw new Error('Usage: updateSettings.ts <settings-file> [session-title] [source-settings-file]');
+	throw new Error('Usage: updateSettings.ts <settings-file> [session-title] [source-settings-file] [settings-overrides-json]');
 }
 
 let settingsStat;
@@ -45,6 +46,18 @@ if (sessionTitle) {
 		'window.title',
 		`${sessionTitle}\${separator}\${rootName}\${separator}\${appName}`
 	);
+}
+if (settingsOverrides) {
+	const overrides: Record<string, unknown> = JSON.parse(settingsOverrides);
+	if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) {
+		throw new Error('Settings overrides must be a JSON object.');
+	}
+	for (const [key, value] of Object.entries(overrides)) {
+		if (!key || (typeof value !== 'boolean' && typeof value !== 'string')) {
+			throw new Error(`Invalid settings override: ${key}`);
+		}
+		text = setJsoncProperty(text, key, value);
+	}
 }
 
 fs.writeFileSync(settingsFile, text);
