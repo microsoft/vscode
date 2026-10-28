@@ -169,6 +169,28 @@ it('renders diagrams at their natural size in the VS Code theme, and follows edi
 			edgeAboveTitle: await countRedPixels(crossing.aboveTitle) > 0,
 			arrowhead: await countRedPixels(crossing.arrowhead) > 0,
 		}, { edgeOverText: false, edgeAboveTitle: true, arrowhead: true });
+
+		// Class diagram namespaces get the same treatment as subgraphs. The edge entering this one runs just
+		// inside the left-aligned position, so the title moves a little closer to the border instead.
+		await page.evaluate(() => window.mermaidTest.setText('classDiagram\n namespace Rendering {\n  class Renderer\n }\n Client --> Renderer'));
+		await frame.locator('svg').filter({ hasText: 'Rendering' }).waitFor();
+		const namespaceTitle = await frame.evaluate(() => {
+			const cluster = document.querySelector('g.cluster')!;
+			const rect = cluster.querySelector('rect')!;
+			const box = rect.getBoundingClientRect();
+			const title = cluster.querySelector('.cluster-label foreignObject')!.getBoundingClientRect();
+			const scale = box.width / rect.width.baseVal.value;
+			const path = document.querySelector<SVGPathElement>('.edgePaths path')!;
+			const toScreen = path.getScreenCTM()!;
+			let crossedByEdge = false;
+			for (let length = 0; length <= path.getTotalLength(); length++) {
+				const point = path.getPointAtLength(length).matrixTransform(toScreen);
+				crossedByEdge ||= point.x >= title.left && point.x <= title.right && point.y >= title.top && point.y <= title.bottom;
+			}
+			const insetLeft = (title.left - box.left) / scale;
+			return { nearLeft: insetLeft >= 4 && insetLeft <= 12, insetTop: Math.round((title.top - box.top) / scale), crossedByEdge };
+		});
+		assert.deepEqual(namespaceTitle, { nearLeft: true, insetTop: 8, crossedByEdge: false });
 		assert.deepEqual(errors, []);
 	} finally {
 		await browser.close();

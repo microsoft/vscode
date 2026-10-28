@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Gives flowchart subgraph titles their own band above the subgraph's nodes, for Mermaid's
- * `flowchart.subGraphTitleMargin`. Mermaid's dagre layout grows each subgraph by these margins and
- * moves the title down by `top`; ELK reserves a title band of its own that is tall enough for `top`.
+ * Gives subgraph titles, and class diagram namespace titles, their own band above the subgraph's
+ * nodes, for Mermaid's `flowchart.subGraphTitleMargin`. Mermaid's dagre layout grows each subgraph by
+ * these margins and moves the title down by `top`; ELK reserves a title band of its own that is tall
+ * enough for `top`.
  */
 export const subgraphTitleMargin: Readonly<{ top: number; bottom: number }> = { top: 8, bottom: 8 };
 
@@ -19,7 +20,7 @@ const titleInset = 12;
 /** Smallest horizontal inset a title gets when a smaller inset is what keeps it clear of an edge. */
 const minTitleInset = 4;
 
-/** Space Mermaid leaves around a flowchart inside its viewBox (`flowchart.diagramPadding`). */
+/** Space Mermaid leaves around flowcharts and class diagrams inside their viewBox. */
 const diagramPadding = 8;
 
 /** Clearance kept between a subgraph title and the edges and edge labels around it. */
@@ -93,19 +94,20 @@ export function placeSubgraphTitlesInSvgMarkup(svgMarkup: string): string {
 }
 
 /**
- * Keeps flowchart subgraph titles at the top center of their subgraph, where Mermaid puts them,
- * unless an edge or edge label crosses them there, as edges entering the subgraph usually do. Such a
- * title moves to the top left, the top right, or into the closest gap between edges instead. Edges
- * that cross a title wherever it goes pass behind it, the way they pass behind edge labels.
+ * Keeps the titles of flowchart subgraphs and class diagram namespaces at the top center of their box,
+ * where Mermaid puts them, unless an edge or edge label crosses them there, as edges entering the box
+ * usually do. Such a title moves to the top left, the top right, or into the closest gap between edges
+ * instead. Edges that cross a title wherever it goes pass behind it, the way they pass behind edge
+ * labels.
  *
- * Subgraphs too narrow to keep the title clear of their sides are widened first.
+ * Boxes too narrow to keep the title clear of their sides are widened first.
  *
  * Only reads SVG attributes, so it also works on detached markup that has not been laid out.
  *
  * @returns Whether the SVG changed.
  */
 export function placeSubgraphTitles(svg: SVGSVGElement): boolean {
-	if (!svg.getAttribute('aria-roledescription')?.startsWith('flowchart')) {
+	if (!/^(flowchart|class)/.test(svg.getAttribute('aria-roledescription') ?? '')) {
 		return false;
 	}
 
