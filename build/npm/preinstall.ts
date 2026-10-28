@@ -8,6 +8,7 @@ import * as child_process from 'child_process';
 import * as os from 'os';
 import { isUpToDate, forceInstallMessage } from './installStateHash.ts';
 import { isCloudSandbox } from './cloudSandbox.ts';
+import { installNodeGypHeaders } from '../lib/nodeGypHeaders.ts';
 
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	// Get the running Node.js version
@@ -130,22 +131,20 @@ function installHeaders() {
 
 	// The node gyp package got installed using the above npm command using the gyp/package.json
 	// file checked into our repository. So from that point it is safe to construct the path
-	// to that executable
-	const node_gyp = process.platform === 'win32'
-		? path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
-		: path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
+	// to its entry point
+	const nodeGypScript = path.join(import.meta.dirname, 'gyp', 'node_modules', 'node-gyp', 'bin', 'node-gyp.js');
 
 	const local = getHeaderInfo(path.join(import.meta.dirname, '..', '..', '.npmrc'));
 	const remote = getHeaderInfo(path.join(import.meta.dirname, '..', '..', 'remote', '.npmrc'));
 
 	if (local !== undefined) {
 		// Both disturl and target come from a file checked into our repository
-		child_process.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target], { shell: true });
+		installNodeGypHeaders(nodeGypScript, local.disturl, local.target);
 	}
 
 	if (remote !== undefined) {
 		// Both disturl and target come from a file checked into our repository
-		child_process.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target], { shell: true });
+		installNodeGypHeaders(nodeGypScript, remote.disturl, remote.target);
 	}
 
 	// Overlay any custom headers shipped in build/npm/gyp/custom-headers on top of
