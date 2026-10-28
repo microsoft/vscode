@@ -35,8 +35,8 @@ export class AutomationCronInput extends Disposable {
 	constructor(container: HTMLElement, expression: string, private readonly timeZone: string, contextViewService: IContextViewService) {
 		super();
 		this.group = DOM.append(container, DOM.$('.automation-cron-segments', { role: 'group', 'aria-label': localize('cron.expression', "Cron expression") }));
-		this.hint = DOM.append(container, DOM.$('.automation-form-hint', { id: 'automation-cron-hint' }));
-		this.error = DOM.append(container, DOM.$('.automation-form-hint.automation-form-cron-error', { id: 'automation-cron-error', 'aria-live': 'polite' }));
+		this.hint = DOM.append(container, DOM.$('.automation-cron-hint', { id: 'automation-cron-hint' }));
+		this.error = DOM.append(container, DOM.$('.automation-cron-hint.automation-form-cron-error', { id: 'automation-cron-error', 'aria-live': 'polite' }));
 		const parts = expression.trim().split(/\s+/);
 		for (const [index, field] of fields.entries()) {
 			const segment = DOM.append(this.group, DOM.$('.automation-cron-segment'));

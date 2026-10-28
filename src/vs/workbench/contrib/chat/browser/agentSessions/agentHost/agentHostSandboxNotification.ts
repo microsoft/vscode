@@ -33,7 +33,7 @@ import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IChatWidgetService } from '../../chat.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationAction, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
 
 type CertificateOperation = 'install' | 'rotate' | 'remove';
 
@@ -228,12 +228,19 @@ export class AgentHostSandboxNotification extends Disposable {
 			this._notificationService.deleteNotification(this._certificateId);
 			return;
 		}
+		const learnMore = new MarkdownString().appendLink(
+			'https://aka.ms/vscode-sandboxing-certtrust',
+			localize('agentHost.sandboxCertificateWhyTrust', "Learn more"),
+		);
 		const description = new MarkdownString();
-		description.appendText(this._certificateOperation === 'remove'
+		description.appendMarkdown(this._certificateOperation === 'remove'
 			? localize('agentHost.sandboxCertificateRemovingDetail', "Removing trust from the agent host's operating system trust store. The stored certificate authority is kept.")
 			: this._certificateOperation === 'rotate'
 				? localize('agentHost.sandboxCertificateRotatingDetail', "Replacing the certificate authority and establishing operating system trust. Running sandboxed tools may need to restart.")
-				: localize('agentHost.sandboxCertificateMissingDetail', "Some tools in this session's sandbox might require the sandbox certificate authority (CA) to be trusted by the agent host's operating system. Install it in the OS trust store to enable those tools to connect securely."));
+				: localize({
+					key: 'agentHost.sandboxCertificateMissingDetail',
+					comment: ['{0} is a Markdown link labeled "Learn more" that opens certificate trust documentation.'],
+				}, "Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. {0}.", learnMore.value));
 		this._notificationService.setNotification({
 			id: this._certificateId,
 			inputUri,
@@ -244,7 +251,7 @@ export class AgentHostSandboxNotification extends Disposable {
 					? localize('agentHost.sandboxCertificateRotating', "Rotating sandbox certificate")
 					: this._certificateOperation === 'install'
 						? localize('agentHost.sandboxCertificateInstalling', "Installing sandbox certificate")
-						: localize('agentHost.sandboxCertificateMissing', "Sandbox trusted CA is not installed"),
+						: localize('agentHost.sandboxCertificateMissing', "Sandbox trusted CA is not installed (optional)"),
 			description,
 			actions: canInstall && !this._certificateBusy ? [{
 				kind: ChatInputNotificationActionKind.Command,
@@ -388,30 +395,37 @@ export class AgentHostSandboxNotification extends Disposable {
 			this._notificationService.deleteNotification(this._id);
 			return;
 		}
-		const description = new MarkdownString('', { isTrusted: { enabledCommands: localNetworkMessage ? [OPEN_SETTINGS_COMMAND] : canDisable ? [this._disableCommandId] : [] } });
-		if (localNetworkMessage) {
-			description.appendMarkdown(localNetworkMessage);
-		} else if (reasons) {
-			description.appendText(reasons[0]);
-			description.appendText(' ');
-			description.appendLink('https://aka.ms/vscode-sandboxing-troubleshoot', localize('agentHost.sandboxTroubleshooting', "Troubleshooting Guide"));
+		const actions: IChatInputNotificationAction[] = [];
+		if (reasons) {
+			actions.push({
+				kind: ChatInputNotificationActionKind.Command,
+				label: localize('agentHost.sandboxTroubleshooting', "Troubleshooting Guide"),
+				commandId: 'vscode.open',
+				commandArgs: ['https://aka.ms/vscode-sandboxing-troubleshoot'],
+				primary: false,
+				filled: true,
+				keepOpen: true,
+			});
 			if (canDisable) {
-				description.appendText(' | ');
-				description.appendLink(
-					createCommandUri(this._disableCommandId).toString(),
-					localize('agentHost.disableSandboxing', "Disable Sandboxing"),
-					localize('agentHost.disableSandboxingDetail', "Disable sandboxing for this session and in settings. Terminal commands may run without sandbox restrictions. Organization policy still applies."),
-				);
+				actions.push({
+					kind: ChatInputNotificationActionKind.Command,
+					label: localize('agentHost.disableSandboxing', "Disable Sandboxing"),
+					tooltip: localize('agentHost.disableSandboxingDetail', "Disable sandboxing for this session and in settings. Terminal commands may run without sandbox restrictions. Organization policy still applies."),
+					commandId: this._disableCommandId,
+					primary: false,
+					filled: true,
+					keepOpen: true,
+				});
 			}
 		}
 		this._notificationService.setNotification({
 			id: this._id,
 			severity: localNetworkMessage ? ChatInputNotificationSeverity.Info : ChatInputNotificationSeverity.Warning,
 			message: localNetworkMessage
-				? description
+				? new MarkdownString(localNetworkMessage, { isTrusted: { enabledCommands: [OPEN_SETTINGS_COMMAND] } })
 				: localize('agentHost.sandboxMayNotWorkAsExpected', "Sandboxing might not work as expected"),
-			description: localNetworkMessage ? undefined : description,
-			actions: [],
+			description: reasons?.[0],
+			actions,
 			dismissible: true,
 			onDismiss: () => {
 				this._dismissedSessions.add(this._sessionResource);

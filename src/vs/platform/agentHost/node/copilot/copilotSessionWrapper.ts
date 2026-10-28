@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, NamedProviderConfig, ProviderModelConfig, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
+import type { CopilotSession, NamedProviderConfig, ProviderModelConfig, SessionConfig, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -86,6 +86,8 @@ export class CopilotSessionWrapper extends Disposable {
 		readonly launchByokConfig: ICopilotByokSessionConfig,
 		readonly launchImageGenerationEnabled: boolean,
 		readonly launchImageGenerationWatermark: boolean,
+		/** The trust the SDK session was created with for its working directory; `undefined` for a resume or no grant. */
+		readonly launchWorkingDirectoryTrust: SessionConfig['trustWorkingDirectory'],
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();

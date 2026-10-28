@@ -153,6 +153,22 @@ suite('ModelCard', () => {
 		return Array.from(card.element.querySelectorAll('[role="radio"][aria-checked="true"]'), option => option.textContent ?? '');
 	}
 
+	test('an unspecified effort remains unchecked until the user chooses it', async () => {
+		let accepted = new DeferredPromise<void>();
+		const model = createModel({ configurationSchema: { properties: { reasoningEffort: { type: 'string', group: 'navigation', enum: ['low', 'high'], enumItemLabels: ['Low', 'High'] } } } });
+		const fixture = createCard({}, { model, onDidAccept: () => accepted.complete() });
+		const before = { selected: selectedOptions(fixture.card), value: fixture.card.element.querySelector('.chat-model-card-section-value')?.textContent };
+		element(fixture.card.element, '[role="radio"]').click();
+		await accepted.p;
+		const after = selectedOptions(fixture.card);
+		accepted = new DeferredPromise<void>();
+		element(fixture.card.element, '[aria-label="Reset to Default"]').click();
+		await accepted.p;
+		assert.deepStrictEqual({ before, after, reset: selectedOptions(fixture.card), writes: fixture.writes }, {
+			before: { selected: [], value: 'Model default' }, after: ['Low'], reset: [], writes: [{ reasoningEffort: 'low' }, { reasoningEffort: undefined }],
+		});
+	});
+
 	/** The option labels of the first segmented control, split where a row break sits. */
 	function segmentRows(card: ModelCard): string[][] {
 		const rows: string[][] = [[]];
@@ -197,7 +213,7 @@ suite('ModelCard', () => {
 					name: 'Copilot Fusion',
 					detail,
 					autoModelDiscountPercent: undefined,
-					autoModelFusion: { balanceUsesHydraFusion: false },
+					autoModelFusion: true,
 					...(promotions.length && { autoModelTierPromotions: promotions }),
 					tooltip: ILanguageModelChatMetadata.getAutoModelDescription(true),
 					configurationSchema: {
@@ -224,7 +240,7 @@ suite('ModelCard', () => {
 			chip: card.element.querySelector('.chat-model-card-badge')?.textContent,
 			discount: card.element.querySelector<HTMLElement>('.chat-model-card-discount-description:not([hidden])')?.textContent,
 			tier: card.element.querySelector<HTMLElement>('.chat-model-card-tier-description:not([hidden])')?.textContent,
-			promotions: Array.from(card.element.querySelectorAll('.chat-model-card-tier-promotion'), banner => banner.textContent?.replace(/\. Ends .*|\. Starts .*/, '.')),
+			promotions: Array.from(card.element.querySelectorAll('.chat-model-card-tier-promotion'), banner => banner.textContent),
 		});
 
 		test('the chip follows the tier shown as selected, naming a running promotion\'s discount only on the tiers it covers', () => {
@@ -248,9 +264,8 @@ suite('ModelCard', () => {
 			assert.deepStrictEqual(read(card), { chip: '30% discount', discount: undefined, tier: 'Prioritizes capable models for challenging tasks and deeper reasoning.', promotions: [] });
 		});
 
-		test('a running promotion is announced with its end date, and promotions outside their window or with unparsable dates are not shown', () => {
+		test('a running promotion is announced in the service\'s words, and promotions outside their window or with unparsable dates are not shown', () => {
 			const running = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(-day), iso(day))], '30% discount') }).card;
-			const endsAt = new Date(Date.now() + day).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 			const upcoming = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(day), iso(2 * day))]) }).card;
 			const ended = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(-2 * day), iso(-day))]) }).card;
 			const malformed = createCard({ tier: 'balance' }, { model: createFusionModel([promotion('not a date', iso(day))]) }).card;
@@ -260,7 +275,7 @@ suite('ModelCard', () => {
 				ended: read(ended),
 				malformed: read(malformed),
 			}, {
-				running: `Get 30% off Fusion usage. Ends ${endsAt}.`,
+				running: 'Get 30% off Fusion usage.',
 				upcoming: { chip: '', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: [] },
 				ended: { chip: '', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: [] },
 				malformed: { chip: '', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: [] },
@@ -682,6 +697,49 @@ suite('ModelCard', () => {
 			});
 		}
 	}
+
+	for (const contextTiers of [['long_context', 'default'], ['long_context'], ['default']]) {
+		test(`named context tiers use their own prices regardless of enum order: ${contextTiers.join(', ')}`, async () => {
+			const model = createModel({
+				cacheCost: 4, cacheWriteCost: 8,
+				longContextOutputCost: 400, longContextCacheCost: 8, longContextCacheWriteCost: 16,
+				configurationSchema: {
+					properties: {
+						contextTier: {
+							type: 'string', group: 'tokens', enum: contextTiers, default: contextTiers[0],
+							enumItemLabels: contextTiers.map(tier => tier === 'long_context' ? '1M' : '264K'),
+						},
+					},
+				},
+			});
+			const accepted = new DeferredPromise<void>();
+			const { card, writes } = createCard({}, { model, onDidAccept: () => accepted.complete() });
+			const read = () => ({
+				selected: selectedOptions(card),
+				prices: Array.from(card.element.querySelectorAll('.chat-model-card-pricing-value'), element => element.textContent),
+			});
+			const initial = read();
+			const standardPrices = ['40', '200', '4', '8'];
+			const longPrices = ['80', '400', '8', '16'];
+			if (contextTiers.length > 1) {
+				element(card.element, '[role="radio"]:last-child').click();
+				await accepted.p;
+			}
+			assert.deepStrictEqual({ initial, after: read(), writes }, {
+				initial: contextTiers[0] === 'long_context' ? { selected: ['1M'], prices: longPrices } : { selected: ['264K'], prices: standardPrices },
+				after: contextTiers.length === 1 && contextTiers[0] === 'long_context' ? { selected: ['1M'], prices: longPrices } : { selected: ['264K'], prices: standardPrices },
+				writes: contextTiers.length > 1 ? [{ contextTier: 'default' }] : [],
+			});
+		});
+	}
+
+	test('numeric context windows retain their existing tier pricing and missing-rate fallback', () => {
+		const prices = [264000, 1000000].map(context => {
+			const { card } = createCard({ context });
+			return Array.from(card.element.querySelectorAll('.chat-model-card-pricing-value'), element => element.textContent);
+		});
+		assert.deepStrictEqual(prices, [['40', '200'], ['80', '200']]);
+	});
 
 	test('the pricing pill stays with its disclosure heading when collapsed and expanded', () => {
 		const { card } = createCard();

@@ -20,6 +20,7 @@ import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { IActiveSession, inheritableSessionTarget, ISendRequestOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
 import { INewSessionComposerService } from './newSessionComposerService.js';
+import { ChatRequestQueueKind } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 
 export async function prepareNewVoiceSession(
 	text: string,
@@ -133,17 +134,21 @@ export class SessionsVoiceBridgeContribution extends Disposable implements IWork
 			const widget = expectedSessionId
 				? this.chatWidgetService.getWidgetBySessionResource(URI.parse(expectedSessionId))
 				: this._activeSessionWidget() ?? this.chatWidgetService.lastFocusedWidget;
-			if (expectedSessionId && widget?.viewModel?.sessionResource.toString() !== expectedSessionId) {
+			const viewModel = widget?.viewModel;
+			if (expectedSessionId && viewModel?.sessionResource.toString() !== expectedSessionId) {
 				return false;
 			}
-			if (widget?.viewModel) {
-				if (widget.viewModel.editing) {
+			if (widget && viewModel) {
+				if (viewModel.editing) {
 					// Let the user review edited input before submitting.
 					widget.input.setValue(text, false);
 					return false;
 				} else {
 					// Preserve any text the user already typed in the input.
-					return widget.acceptInput(combineVoiceInput(widget.getInput(), text), { preserveFocus: true });
+					return widget.acceptInput(combineVoiceInput(widget.getInput(), text), {
+						preserveFocus: true,
+						...(viewModel.model?.requestInProgress?.get() === true ? { queue: ChatRequestQueueKind.Steering } : {}),
+					});
 				}
 			}
 			return false;

@@ -7,7 +7,7 @@ import { ApiRequestOptions } from '../client/request.js';
 import { pathSegment, repositoryPath, withQuery } from '../client/routing.js';
 import { parse, SchemaError } from '../client/schema.js';
 import { RepositoryRef } from '../client/types.js';
-import { AutomationDetail, AutomationSummary, AutomationToolDefinition, AutomationToolGroup, AutomationTriggerDefinition, AutomationTriggerFieldDefinition, CreateAutomationRequest, CreateAutomationTaskRequest, CreateAutomationTaskResponse, EditAutomationRequest, GetAutomationOptions, IAutomationsClient, ListAutomationsOptions, ListRepoAutomationsResponse } from './automations.js';
+import { AutomationDetail, AutomationRepositoryConfiguration, AutomationSummary, AutomationToolDefinition, AutomationToolGroup, AutomationTriggerDefinition, AutomationTriggerFieldDefinition, CreateAutomationRequest, CreateAutomationTaskRequest, CreateAutomationTaskResponse, EditAutomationRequest, GetAutomationOptions, IAutomationsClient, ListAutomationsOptions, ListRepoAutomationsResponse } from './automations.js';
 import { PaginatedResponse } from './missionControl.js';
 import { MissionControlClient, paginated, parseUser } from './missionControlClient.js';
 import { ListTasksResponse, TaskListOptions } from './tasks.js';
@@ -47,6 +47,16 @@ export class AutomationsClient implements IAutomationsClient {
 			expectedStatus: 200,
 			options: requestOptions,
 		}, signal, response => parseAutomationDetail(response.data, automationId));
+	}
+
+	getConfiguration(repository: RepositoryRef, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutomationRepositoryConfiguration> {
+		return this._client.request({
+			domain: 'automations',
+			method: 'GET',
+			path: `${repositoryPath(repository)}/automations/configuration`,
+			expectedStatus: 200,
+			options,
+		}, signal, response => parseAutomationRepositoryConfiguration(response.data));
 	}
 
 	create(repository: RepositoryRef, request: CreateAutomationRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutomationDetail> {
@@ -144,6 +154,13 @@ export class AutomationsClient implements IAutomationsClient {
 function automationPath(repository: RepositoryRef, automationId: string): string {
 	return `${repositoryPath(repository)}/automations/${pathSegment(automationId)}`;
 }
+
+const parseAutomationRepositoryConfiguration = parse.object<AutomationRepositoryConfiguration>({
+	automations_enabled: parse.boolean,
+	can_manage_automations: parse.boolean,
+	allow_read_access_triggers: parse.boolean,
+	require_trigger_scoped_writes: parse.boolean,
+});
 
 const parseOwnership = parse.oneOf('user', 'repository');
 const parseWriteScope = parse.oneOf('trigger', 'repository');

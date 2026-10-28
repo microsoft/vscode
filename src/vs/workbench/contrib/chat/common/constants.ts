@@ -47,6 +47,7 @@ export enum ChatConfiguration {
 	ExtraMarketplaces = 'chat.plugins.extraMarketplaces',
 	EnabledPlugins = 'chat.plugins.enabledPlugins',
 	AgentEnabled = 'chat.agent.enabled',
+	AgentsPickerInAttachContextMenu = 'sessions.chat.experimental.agentsPickerInAttachContextMenu',
 	PlanAgentDefaultModel = 'chat.planAgent.defaultModel',
 	ExploreAgentDefaultModel = 'chat.exploreAgent.defaultModel',
 	UtilityModel = 'chat.utilityModel',
@@ -60,6 +61,7 @@ export enum ChatConfiguration {
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
 	MigrateLegacyCopilotCliSessions = 'chat.agentSessions.migrateLegacyCopilotCli',
 	ShowExternalAgentSessions = 'chat.agentSessions.showExternal',
+	OpenSessionsInEditor = 'chat.agentSessions.openInEditor',
 	UnifiedWorkspacePicker = 'sessions.chat.unifiedWorkspacePicker.enabled',
 	AutoMarkAsDoneMergedSessionsAfterDays = 'chat.agentSessions.autoMarkAsDoneMergedSessionsAfterDays',
 	AutoDeleteMarkedAsDoneMergedSessionsAfterDays = 'chat.agentSessions.autoDeleteMarkedAsDoneMergedSessionsAfterDays',
@@ -118,6 +120,7 @@ export enum ChatConfiguration {
 	WelcomePageAgentsWindowGraphic = 'chat.welcomePage.agentsWindowGraphic',
 	WelcomePageAgentsWindowSectionStyle = 'chat.welcomePage.agentsWindowSectionStyle',
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
+	TitleBarOpenInAgentsWindowRichHover = 'chat.titleBar.openInAgentsWindow.richHover',
 	OpenInAgentsWindowTransferDraft = 'chat.experimental.openInAgentsWindow.transferDraft',
 	AgentsParallelWorkBannerEnabled = 'chat.agentsParallelWorkBanner.enabled',
 	AgentsWindowBannerEnabled = 'chat.agentsWindowBanner.enabled',
@@ -207,6 +210,34 @@ export function getAgentsWindowGraphicVariant(configurationService: IConfigurati
 			return variant;
 		default:
 			return AgentsWindowGraphicVariant.None;
+	}
+}
+
+/**
+ * What hovering or focusing the title bar's Agents window button shows to users who are new to the Agents window.
+ * Each hover card is named after the graphic it shows, like the values of {@link AgentsWindowGraphicVariant}.
+ */
+export const enum OpenInAgentsTitleBarHoverVariant {
+	/** A simple tooltip, and the button grows to show its label. */
+	None = 'none',
+	/** A hover card with the {@link AgentsWindowGraphicVariant.ManyWindowsToOne} graphic, and the button stays an icon. */
+	ManyWindowsToOne = 'manyWindowsToOne',
+	/** A hover card with the {@link AgentsWindowGraphicVariant.WindowComparison} graphic, and the button stays an icon. */
+	WindowComparison = 'windowComparison',
+}
+
+/**
+ * Reads the graphic of the hover card that the title bar's Agents window button shows to users who are new to the Agents window,
+ * or `undefined` for a simple tooltip, the setting's default {@link OpenInAgentsTitleBarHoverVariant.None}.
+ */
+export function getOpenInAgentsTitleBarHoverCardDesign(configurationService: IConfigurationService): AgentsWindowGraphicVariant.ManyWindowsToOne | AgentsWindowGraphicVariant.WindowComparison | undefined {
+	switch (configurationService.getValue<OpenInAgentsTitleBarHoverVariant>(ChatConfiguration.TitleBarOpenInAgentsWindowRichHover)) {
+		case OpenInAgentsTitleBarHoverVariant.ManyWindowsToOne:
+			return AgentsWindowGraphicVariant.ManyWindowsToOne;
+		case OpenInAgentsTitleBarHoverVariant.WindowComparison:
+			return AgentsWindowGraphicVariant.WindowComparison;
+		default:
+			return undefined;
 	}
 }
 
@@ -345,6 +376,7 @@ export enum ChatProgressAnimation {
 export enum ChatProgressVerbosity {
 	Verbose = 'verbose',
 	Compact = 'compact',
+	Conversation = 'conversation',
 }
 
 export enum CollapsedToolsDisplayMode {

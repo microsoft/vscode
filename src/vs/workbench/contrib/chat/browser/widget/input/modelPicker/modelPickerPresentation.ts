@@ -53,10 +53,15 @@ export function getRoutingModelBadge(metadata: ILanguageModelChatMetadata, tier:
 	if (!metadata.autoModelFusion) {
 		return metadata.detail;
 	}
-	const discountPercent = ILanguageModelChatMetadata.getAutoTierDiscountPercent(metadata, tier);
+	const discountPercent = getFusionDiscountPercent(metadata, tier);
 	return discountPercent !== undefined
 		? localize('chat.modelPicker.fusionTierDiscountBadge', "{0}% discount", discountPercent)
 		: undefined;
+}
+
+/** The discount Copilot Fusion offers at the given effort level, if any. Undefined for other models. */
+export function getFusionDiscountPercent(metadata: ILanguageModelChatMetadata, tier: unknown): number | undefined {
+	return metadata.autoModelFusion ? ILanguageModelChatMetadata.getAutoTierDiscountPercent(metadata, tier) : undefined;
 }
 
 /** Whether the plan offers built-in HydraFusion only as an upgrade, never as a choice. */

@@ -656,6 +656,8 @@ export interface IChatThinkingPart {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	metadata?: { readonly [key: string]: any };
 	generatedTitle?: string;
+	/** Epoch milliseconds when the reasoning interval started, persisted so the span survives reload. */
+	reasoningStartedAt?: number;
 	/** Elapsed reasoning time in milliseconds, persisted so the duration survives reload. */
 	reasoningDurationMs?: number;
 }
@@ -941,6 +943,10 @@ export interface IChatToolInvocation {
 	readonly icon?: ThemeIcon;
 	readonly state: IObservable<IChatToolInvocation.State>;
 	readonly summary?: ChatToolInvocationSummary;
+	/** Epoch milliseconds when the invocation appeared in the response. */
+	readonly startedAt?: number;
+	/** Epoch milliseconds when the invocation completed or was cancelled. */
+	readonly completedAt?: number;
 	generatedTitle?: string;
 	isAttachedToThinking: boolean;
 
@@ -1244,6 +1250,10 @@ export interface IChatToolInvocationSerialized {
 	source: ToolDataSource | undefined; // undefined on pre-1.104 versions
 	readonly subAgentInvocationId?: string;
 	readonly summary?: ChatToolInvocationSummary;
+	/** Epoch milliseconds when the invocation appeared in the response. */
+	readonly startedAt?: number;
+	/** Epoch milliseconds when the invocation completed or was cancelled. */
+	readonly completedAt?: number;
 	generatedTitle?: string;
 	isAttachedToThinking?: boolean;
 	kind: 'toolInvocationSerialized';
@@ -2029,6 +2039,8 @@ export interface IRemotePendingRequest {
 	readonly agentHostMessageOrigin?: MessageOrigin;
 	readonly metadata?: Record<string, unknown>;
 	readonly isSystemInitiated?: boolean;
+	readonly requestSource?: IChatRequestModel['requestSource'];
+	readonly artifactRequest?: IChatRequestModel['artifactRequest'];
 	readonly systemInitiatedLabel?: string;
 }
 

@@ -266,6 +266,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }
 				override readonly onDidCommitSession = Event.None;
 				override readonly onDidChangeInProgress = Event.None;
 				override sessionSupportsFork() { return false; }
+				override sessionSupportsSideChat() { return false; }
 				override supportsDelegationForSessionType() { return false; }
 				override getOptionGroupsForSessionType() { return undefined; }
 				override getCustomAgentTargetForSessionType() { return Target.Undefined; }

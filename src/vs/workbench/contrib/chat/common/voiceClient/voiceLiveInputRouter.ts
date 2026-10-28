@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
-import { IVoiceDispatchResult, IVoicePendingQuestion, IVoiceSessionContext, IVoiceToolCall } from './voiceClientService.js';
+import { IVoiceDispatchResult, IVoicePendingQuestion, IVoiceSessionContext, IVoiceSessionPending, IVoiceToolCall } from './voiceClientService.js';
+import { formatQuestionPromptTitle } from './voicePendingNarration.js';
 import { IBackendQuestionAnswer } from './voiceQuestionAnswers.js';
 
 type VoiceSession = IVoiceSessionContext['sessions'][number];
@@ -221,9 +222,10 @@ function resolveAnswer(question: IVoicePendingQuestion, text: string, language: 
 		: undefined;
 }
 
-function questionPrompt(question: IVoicePendingQuestion, guidance: string): string {
+function questionPrompt(question: IVoicePendingQuestion, guidance: string, pending: IVoiceSessionPending, questionIndex: number): string {
 	const options = question.options.map((option, index) => `${index + 1}. ${option.label}`).join(' ');
-	return [localize('voice.live.questionPrompt', "{0} {1}", question.title, options).trim(), guidance].filter(Boolean).join(' ');
+	const prompt = formatQuestionPromptTitle(question, pending.message, questionIndex, pending.questions?.length);
+	return [localize('voice.live.questionPrompt', "{0} {1}", prompt, options).trim(), guidance].filter(Boolean).join(' ');
 }
 
 /** Routes only explicit, deterministic replies to captured, still-current pending occurrences, never model guesses. Ambiguous replies cannot authorize actions, and forms submit only when complete or explicitly skipped. */
@@ -286,8 +288,10 @@ export class VoiceLiveInputRouter {
 
 	getQuestionPrompt(sessionId: string, pendingId: string): string | undefined {
 		const session = this._context.sessions.find(candidate => candidate.id === sessionId && candidate.pending?.pending_id === pendingId);
-		const question = session?.pending?.questions?.[this._answers.get(this._key(session))?.answers.length ?? 0];
-		return question ? questionPrompt(question, this.getQuestionReplyGuidance()) : undefined;
+		const index = session ? this._answers.get(this._key(session))?.answers.length ?? 0 : 0;
+		const pending = session?.pending;
+		const question = pending?.questions?.[index];
+		return question && pending ? questionPrompt(question, this.getQuestionReplyGuidance(), pending, index) : undefined;
 	}
 
 	captureTarget(): IVoiceLiveInputTarget {
@@ -354,15 +358,15 @@ export class VoiceLiveInputRouter {
 			if (!answer) {
 				return {
 					clarification: question.allow_freeform
-						? localize('voice.live.chooseOrCustomAnswer', "Please say an exact choice or its number, or say other followed by a custom answer. {0}", questionPrompt(question, this.getQuestionReplyGuidance()))
-						: localize('voice.live.chooseAnswer', "Please say an exact choice or its number. {0}", questionPrompt(question, this.getQuestionReplyGuidance()))
+						? localize('voice.live.chooseOrCustomAnswer', "Please say an exact choice or its number, or say other followed by a custom answer. {0}", questionPrompt(question, this.getQuestionReplyGuidance(), pending, answers.length))
+						: localize('voice.live.chooseAnswer', "Please say an exact choice or its number. {0}", questionPrompt(question, this.getQuestionReplyGuidance(), pending, answers.length))
 				};
 			}
 			answers.push(answer);
 			this._answers.set(key, { schema: JSON.stringify(pending), answers });
 			const next = pending.questions?.[answers.length];
 			if (next) {
-				return { clarification: questionPrompt(next, this.getQuestionReplyGuidance()) };
+				return { clarification: questionPrompt(next, this.getQuestionReplyGuidance(), pending, answers.length) };
 			}
 			response = { type: 'answer', answers };
 		}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -650,5 +650,60 @@ suite('Session Artifact Removal', () => {
 		const { service, session, stateManager, meta } = await createFixture(database);
 		await assert.rejects(service.removeSessionArtifact(session, ' '), /artifactId must be a non-empty string/);
 		assert.deepStrictEqual(stateManager.getSessionState(session.toString())?._meta, meta);
+	});
+
+	test('a hold waits for the change in progress and holds off later ones until it is released', async () => {
+		const database = new TestSessionDatabase();
+		const { session, stateManager, artifactAccessor } = await createFixture(database);
+		const events: string[] = [];
+		const finishPersisting = new DeferredPromise<void>();
+		const beforePersisting = new DeferredPromise<void>();
+		const artifactsOf = (label: string) => new SessionArtifacts(stateManager, session.toString(), buildDefaultChatUri(session), async (target, entries) => {
+			events.push(`${label} persisting`);
+			if (label === 'before') {
+				beforePersisting.complete();
+			}
+			await finishPersisting.p;
+			await artifactAccessor.persist(target, entries);
+		});
+		const add = (label: string) => artifactsOf(label).mutate(collection => collection.addOrPromoteArtifact({ type: SessionArtifactType.Website, label, isArtifact: false, link: `https://example.com/${label}` }, () => label))
+			.then(() => events.push(`${label} recorded`));
+
+		const inProgress = add('before');
+		await beforePersisting.p;
+		const hold = SessionArtifacts.hold(stateManager, [session.toString(), 'ahp-session:/other']).then(held => {
+			events.push('held');
+			return held;
+		});
+		events.push('persisted');
+		finishPersisting.complete();
+		const held = await hold;
+		const later = add('during');
+		// The held change must not start: everything it would run before persisting is microtasks, which one macrotask drains.
+		await timeout(0);
+		events.push('released');
+		held.dispose();
+		await Promise.all([inProgress, later]);
+
+		assert.deepStrictEqual(events, ['before persisting', 'persisted', 'before recorded', 'held', 'released', 'during persisting', 'during recorded']);
+	});
+
+	test('a change a chat queues while its session is held applies to the session that owns the chat when it runs', async () => {
+		const database = new TestSessionDatabase();
+		const { service, session, stateManager, artifactAccessor } = await createFixture(database);
+		const target = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+		const chat = buildDefaultChatUri(session);
+		const held = await SessionArtifacts.hold(stateManager, [session.toString()]);
+		const queued = new SessionArtifacts(stateManager, session.toString(), chat, artifactAccessor.persist).mutate(collection => collection.addOrPromoteArtifact({ type: SessionArtifactType.Website, label: 'Queued', isArtifact: false, link: 'https://example.com/queued' }, () => 'queued'));
+
+		// The session moves under `target` with its chat and ends, as a nest does.
+		stateManager.transferSession(session.toString(), target.toString(), [chat], undefined, true);
+		held.dispose();
+		await queued;
+
+		assert.deepStrictEqual({
+			sourceEnded: stateManager.getSessionState(session.toString()) === undefined,
+			target: readSessionArtifacts(stateManager.getSessionState(target.toString())?._meta).filter(artifact => artifact.chat === chat).map(artifact => artifact.id),
+		}, { sourceEnded: true, target: ['queued'] });
 	});
 });

@@ -8,6 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
@@ -16,15 +17,20 @@ import { CoreClient } from '../../../../../platform/github/common/core/coreClien
 import { PullRequestsClient } from '../../../../../platform/github/common/core/pullRequestsClient.js';
 import { createTestPullRequestResponse, FixtureApiRequestProvider } from '../../../../../platform/github/test/common/githubClientTestUtils.js';
 import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
+import { GitHubCredential } from '../../../../../platform/github/common/githubCredentialService.js';
+import { PullRequestCore, PullRequestFragment, PullRequestSnapshot, PullRequestSubscription } from '../../../../../platform/github/common/githubPullRequestService.js';
+import { IGitHubClient } from '../../../../../platform/github/common/githubService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { GitHubPRCIFetcher, computeOverallCIStatus } from '../../browser/fetchers/githubPRCIFetcher.js';
+import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
+import { GitHubPRCIFetcher } from '../../browser/fetchers/githubPRCIFetcher.js';
+import { PullRequestChecksSource } from '../../browser/fetchers/githubPRChecksSource.js';
 import { GitHubPRFetcher, computeMergeability } from '../../browser/fetchers/githubPRFetcher.js';
 import { GitHubPullRequestContextFetcher } from '../../browser/fetchers/githubPullRequestContextFetcher.js';
 import { GitHubPullRequestsFetcher } from '../../browser/fetchers/githubPullRequestsFetcher.js';
 import { GitHubRecentUserWorkFetcher } from '../../browser/fetchers/githubRecentUserWorkFetcher.js';
 import { GitHubRepositoryFetcher } from '../../browser/fetchers/githubRepositoryFetcher.js';
 import { GitHubApiClient } from '../../browser/githubApiClient.js';
-import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubPullRequest, IGitHubPullRequestReview, MergeBlockerKind } from '../../common/types.js';
+import { GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubPullRequest, IGitHubPullRequestReview, MergeBlockerKind } from '../../common/types.js';
 
 class MockApiClient extends mock<GitHubApiClient>() {
 	override readonly onDidChange = Event.None;
@@ -38,6 +44,7 @@ class MockApiClient extends mock<GitHubApiClient>() {
 	private readonly account = upcastPartial<IGitHubAccountClient>({
 		repositories: upcastPartial<IGitHubAccountClient['repositories']>({
 			listForAuthenticatedUser: (_signal, options) => this.respond('repositories.listForAuthenticatedUser', options),
+			compare: (repository, base, head, _signal, options) => this.respond('repositories.compare', repository, base, head, options),
 		}),
 		users: upcastPartial<IGitHubAccountClient['users']>({
 			getAuthenticated: () => this.respond('users.getAuthenticated'),
@@ -742,6 +749,65 @@ suite('GitHubPRFetcher', () => {
 		});
 	}
 
+	test('getChanges diffs the changed files from the merge base to the head commit', async () => {
+		const pullRequest = { title: 'Open changes', base: { ref: 'main', sha: 'base-tip' }, head: { sha: 'head-sha' }, changed_files: 1 };
+		mockApi.setResponses(
+			pullRequest,
+			{ merge_base_commit: { sha: 'merge-base' } },
+			[{ filename: 'src/new.ts', previous_filename: 'src/old.ts', status: 'renamed', additions: 1, deletions: 2 }],
+			pullRequest,
+		);
+
+		const changes = await fetcher.getChanges('owner', 'repo', 7);
+
+		assert.deepStrictEqual({
+			changes,
+			calls: mockApi.calls.map(call => call.method === 'repositories.compare' ? call : { method: call.method }),
+			mutableRequestOptions: mockApi.calls.filter(call => call.method !== 'repositories.compare').map(call => call.args.at(-1)),
+		}, {
+			changes: {
+				title: 'Open changes',
+				baseRef: 'main',
+				baseSha: 'merge-base',
+				headSha: 'head-sha',
+				totalFileCount: 1,
+				files: [{ filename: 'src/new.ts', previous_filename: 'src/old.ts', status: 'renamed', additions: 1, deletions: 2, patch: undefined }],
+			},
+			calls: [
+				{ method: 'pullRequests.get' },
+				{ method: 'repositories.compare', args: [{ owner: 'owner', repo: 'repo' }, 'base-tip', 'head-sha', { query: { per_page: 1 } }] },
+				{ method: 'pullRequests.listFiles' },
+				{ method: 'pullRequests.get' },
+			],
+			mutableRequestOptions: [
+				{ noCache: true },
+				{ noCache: true, query: { page: 1, per_page: 100 }, maxPages: 100 },
+				{ noCache: true },
+			],
+		});
+	});
+
+	for (const change of ['head', 'base', 'baseRef'] as const) {
+		test(`getChanges rejects a file list loaded while the pull request's ${change} changes`, async () => {
+			const pullRequest = { title: 'Open changes', base: { ref: 'main', sha: 'base-tip' }, head: { sha: 'head-1' }, changed_files: 1 };
+			mockApi.setResponses(
+				pullRequest,
+				{ merge_base_commit: { sha: 'merge-base' } },
+				[{ filename: 'new-head-file.ts', status: 'added', additions: 1, deletions: 0 }],
+				{
+					...pullRequest,
+					head: { sha: change === 'head' ? 'head-2' : pullRequest.head.sha },
+					base: {
+						ref: change === 'baseRef' ? 'release' : pullRequest.base.ref,
+						sha: change === 'base' ? 'new-base-tip' : pullRequest.base.sha,
+					},
+				},
+			);
+
+			await assert.rejects(fetcher.getChanges('owner', 'repo', 7), /Pull request #7 changed while loading its files/);
+		});
+	}
+
 	test('computeMergeability detects draft blocker', () => {
 		const pr = makePR({ state: GitHubPullRequestState.Open, isDraft: true, mergeable: true, mergeableState: 'clean' });
 		const result = computeMergeability(pr, []);
@@ -936,44 +1002,44 @@ suite('GitHubPRCIFetcher', () => {
 	});
 });
 
-suite('computeOverallCIStatus', () => {
+suite('PullRequestChecksSource', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('returns neutral for empty checks', () => {
-		assert.strictEqual(computeOverallCIStatus([]), GitHubCIOverallStatus.Neutral);
-	});
+	test('rereads the pull request before its checks until the shared resources have seen the subscribed head', async () => {
+		const withHead = (headSha: string) => upcastPartial<PullRequestSnapshot>({ core: upcastPartial<PullRequestSnapshot['core']>({ value: upcastPartial<PullRequestCore>({ headSha }) }) });
+		const snapshot = observableValue('snapshot', withHead('before-push'));
+		const refreshes: { fragment: PullRequestFragment | undefined; authoritative: boolean | undefined }[] = [];
+		const subscription = upcastPartial<PullRequestSubscription>({
+			resource: { ref: { host: 'github.com', accountId: '1', owner: 'o', repo: 'r', number: 1 }, snapshot },
+			refresh: async (fragment, _token, options) => {
+				refreshes.push({ fragment, authoritative: options?.authoritative });
+				if (fragment === 'core') {
+					snapshot.set(withHead('after-push'), undefined);
+				}
+			},
+			dispose: () => { },
+		});
+		const client = upcastPartial<IGitHubClient>({
+			credentials: upcastPartial<IGitHubClient['credentials']>({ getCredential: async () => upcastPartial<GitHubCredential>({ account: { host: 'github.com', accountId: '1' } }) }),
+			pullRequests: upcastPartial<IGitHubClient['pullRequests']>({ subscribePullRequest: () => subscription }),
+		});
+		const gitHubService = new class extends mock<IWorkbenchGitHubService>() {
+			override async acquireDefaultAccountClient() {
+				return { object: client, dispose: () => { } };
+			}
+		}();
 
-	test('returns success when all completed successfully', () => {
-		const checks = [
-			makeCheck({ status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Success }),
-			makeCheck({ status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Neutral }),
-		];
-		assert.strictEqual(computeOverallCIStatus(checks), GitHubCIOverallStatus.Success);
-	});
+		const checks = await new PullRequestChecksSource(gitHubService).subscribe('o', 'r', 1, 'after-push', new AbortController().signal);
+		await checks.refresh(false);
+		await checks.refresh(true);
+		checks.dispose();
 
-	test('returns failure when any check failed', () => {
-		const checks = [
-			makeCheck({ status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Success }),
-			makeCheck({ status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Failure }),
-		];
-		assert.strictEqual(computeOverallCIStatus(checks), GitHubCIOverallStatus.Failure);
-	});
-
-	test('returns pending when any check is in progress', () => {
-		const checks = [
-			makeCheck({ status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Success }),
-			makeCheck({ status: GitHubCheckStatus.InProgress, conclusion: undefined }),
-		];
-		assert.strictEqual(computeOverallCIStatus(checks), GitHubCIOverallStatus.Pending);
-	});
-
-	test('failure takes precedence over pending', () => {
-		const checks = [
-			makeCheck({ status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Failure }),
-			makeCheck({ status: GitHubCheckStatus.InProgress, conclusion: undefined }),
-		];
-		assert.strictEqual(computeOverallCIStatus(checks), GitHubCIOverallStatus.Failure);
+		assert.deepStrictEqual(refreshes, [
+			{ fragment: 'core', authoritative: false },
+			{ fragment: 'checks', authoritative: false },
+			{ fragment: 'checks', authoritative: true },
+		]);
 	});
 });
 
@@ -1094,21 +1160,6 @@ function makeGraphQLReviewComment(overrides: Partial<{
 			login: 'reviewer',
 			avatarUrl: 'https://example.com/avatar',
 		},
-	};
-}
-
-function makeCheck(overrides: {
-	status: GitHubCheckStatus;
-	conclusion: GitHubCheckConclusion | undefined;
-}): { id: number; name: string; status: GitHubCheckStatus; conclusion: GitHubCheckConclusion | undefined; startedAt: string | undefined; completedAt: string | undefined; detailsUrl: string | undefined } {
-	return {
-		id: 1,
-		name: 'test-check',
-		status: overrides.status,
-		conclusion: overrides.conclusion,
-		startedAt: undefined,
-		completedAt: undefined,
-		detailsUrl: undefined,
 	};
 }
 

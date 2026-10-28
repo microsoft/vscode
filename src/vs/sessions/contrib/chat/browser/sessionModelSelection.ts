@@ -66,6 +66,7 @@ export const ISessionModelSelection = createDecorator<ISessionModelSelection>('s
 
 export interface ISessionModelSelection {
 	readonly comparison?: IModelPickerComparison;
+	readonly comparisonBusy?: IObservable<boolean>;
 	readonly _serviceBrand: undefined;
 	readonly state: IObservable<ISessionModelSelectionState>;
 	readonly modelConfiguration?: IModelConfigurationAccess;
@@ -96,6 +97,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	readonly state: IObservable<ISessionModelSelectionState> = this._state;
 	readonly modelConfiguration: IModelConfigurationAccess | undefined;
 	readonly comparison: IModelPickerComparison | undefined;
+	readonly comparisonBusy: IObservable<boolean> | undefined;
 
 	private readonly _providerListener = this._register(new MutableDisposable());
 	private readonly _modelConfigurationListener = this._register(new MutableDisposable());
@@ -128,6 +130,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			readonly modelConfiguration?: boolean;
 			readonly fallbackModelConfiguration?: IModelConfigurationAccess;
 			readonly comparison?: IModelPickerComparison;
+			readonly comparisonBusy?: IObservable<boolean>;
 		},
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -136,6 +139,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	) {
 		super();
 		this.comparison = options.comparison;
+		this.comparisonBusy = options.comparisonBusy;
 		const configurationAccess = () => this._modelConfigurationAccess ?? options.fallbackModelConfiguration;
 		this.modelConfiguration = options.modelConfiguration ? {
 			getModelConfiguration: modelId => configurationAccess()?.getModelConfiguration(modelId),

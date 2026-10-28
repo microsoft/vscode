@@ -77,10 +77,13 @@ export interface IChatContentPartRenderContext {
 	/** Whether the response-level progress indicator owns progress animation for this render. */
 	readonly suppressProgressShimmer?: boolean;
 	readonly progressMessageAction?: IChatListItemRendererOptions['progressMessageAction'];
+	readonly backgroundActivityPillSections?: IChatListItemRendererOptions['backgroundActivityPillSections'];
 	/** Reserves scroll space before an automatic collapse, not a user toggle. */
 	readonly onWillCollapse?: (target: HTMLElement) => void;
 	/** A tool group, separate from reasoning, in the persistent progress layout. */
 	readonly isToolChain?: boolean;
+	/** Reasoning and tool calls share one collapsed section in the Conversation persistent progress layout. */
+	readonly isConversation?: boolean;
 	/**
 	 * The part is hosted by the tool confirmation carousel above the chat input rather than by a
 	 * transcript row, so it renders the confirmation that transcript copies defer to it.

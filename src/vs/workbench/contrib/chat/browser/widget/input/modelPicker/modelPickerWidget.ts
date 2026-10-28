@@ -27,12 +27,11 @@ import { ICommandService } from '../../../../../../../platform/commands/common/c
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
-import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, isCopilotHydraFusionModelId } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
-import { SessionType } from '../../../../common/chatSessionsService.js';
+import { getAddModelsUnavailableReason, SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
@@ -43,6 +42,7 @@ import { GitHubPaths, IDefaultAccountService } from '../../../../../../../platfo
 import { IUpdateService } from '../../../../../../../platform/update/common/update.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 import { getCompactCodicon } from '../../../chatIcons.js';
 import { renderChatInputPickerSplit } from '../chatInputPickerActionItem.js';
 import { createManageModelsAction, getModelPickerControlModels, shouldShowManageModelsAction } from './modelPickerItems.js';
@@ -51,7 +51,7 @@ import { renderModelConfigurationButton } from './modelPickerConfiguration.js';
 import { getCompactModelPickerIcon } from './modelProviderIcons.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from './modelPickerTabbedWidget.js';
 import { IModelPickerOpenTrigger, ModelPickerTelemetrySession } from './modelPickerTelemetry.js';
-import { getModelConfigProperty, MODEL_CONFIG_GROUP_EFFORT, setModelConfigValues, whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
+import { getModelConfigProperty, MODEL_CONFIG_GROUP_EFFORT, whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
 import { IModelPickerProviderPlaceholder } from './modelPickerTabs.js';
 import { getOrganizationDefaultDescription, getOrganizationDefaultModel } from './modelPickerBadges.js';
 import { formatLocalModelOnDeviceName, ILocalModelPickerActionEvent, isLocalModelDirectRow, ModelPickerLocalModels } from './modelPickerLocalModelItems.js';
@@ -204,11 +204,13 @@ export class ModelPickerWidget extends Disposable {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		if (this._delegate.comparison) {
 			this._register(autorun(reader => {
 				this._delegate.comparison?.summary.read(reader);
+				this._delegate.comparisonBusy?.read(reader);
 				if (!this._delegate.comparison?.available.read(reader)) {
 					this._tabbedPicker.value?.hide();
 				}
@@ -327,7 +329,7 @@ export class ModelPickerWidget extends Disposable {
 				?? models.find(model => !isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService))
 				?? model;
 		}
-		return this._normalizeHydraFusionTier(model, models) ?? this._normalizeAutoHydraFusionTier(model, models) ?? this._normalizeFusionHigh(model, models);
+		return this._normalizeHydraFusionTier(model, models) ?? this._normalizeAutoHydraFusionTier(model, models) ?? model;
 	}
 
 	/**
@@ -357,50 +359,19 @@ export class ModelPickerWidget extends Disposable {
 			return undefined;
 		}
 		// Only a Fusion the picker offers can take the chat.
-		const runnable = this._isRunnable(models);
+		const runnable = this._getRunnablePredicate(models);
 		const fusion = models.find(candidate => candidate.metadata.autoModelFusion && runnable(candidate));
 		const tier = fusion && getModelConfigProperty(fusion, scopedConfiguration, MODEL_CONFIG_GROUP_EFFORT);
+		// Where Fusion offers no effort level, as in inline chat, Fusion stands in for the HydraFusion levels it would offer.
+		if (fusion && !tier && getFusionTierLabel(fusion.metadata, model.metadata.id)) {
+			return fusion;
+		}
 		const index = tier ? tier.schema.enum?.indexOf(model.metadata.id) ?? -1 : -1;
 		if (!fusion || !tier || index < 0 || tier.schema.enumItemDisabled?.[index] || tier.schema.readOnly) {
 			return undefined;
 		}
 		scopedConfiguration.presentModelConfiguration(fusion.identifier, { [tier.key]: model.metadata.id });
 		return fusion;
-	}
-
-	/** Fusion's High is HydraFusion when it routes there and its own tier otherwise, so a chat on the other moves. */
-	private _normalizeFusionHigh(model: ILanguageModelChatMetadataAndIdentifier, models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier {
-		const routing = this._getFusionRouting(models);
-		if (!routing) {
-			return model;
-		}
-		const { fusion, hydraFusion } = routing;
-		const configurationAccess = this._delegate.modelConfiguration ?? this._languageModelsService;
-		const tier = getModelConfigProperty(fusion, configurationAccess, MODEL_CONFIG_GROUP_EFFORT);
-		const onHydraFusion = model.identifier === hydraFusion.identifier;
-		if (!tier?.schema.enum?.includes('intelligence') || (!onHydraFusion && (model.identifier !== fusion.identifier || tier.value !== 'intelligence'))) {
-			return model;
-		}
-		if (onHydraFusion) {
-			const scopedConfiguration = this._delegate.modelConfiguration;
-			if (scopedConfiguration?.presentModelConfiguration) {
-				scopedConfiguration.presentModelConfiguration(fusion.identifier, { [tier.key]: 'intelligence' });
-			} else {
-				setModelConfigValues(fusion, configurationAccess, { [tier.key]: 'intelligence' }).catch(onUnexpectedError);
-			}
-			return fusion;
-		}
-		return model;
-	}
-
-	/** Fusion and the HydraFusion its High can route to, when routing it there can make a difference. */
-	private _getFusionRouting(models: readonly ILanguageModelChatMetadataAndIdentifier[]): { readonly fusion: ILanguageModelChatMetadataAndIdentifier; readonly hydraFusion: ILanguageModelChatMetadataAndIdentifier } | undefined {
-		if (isHydraFusionUpgradeOnly(this._entitlementService.entitlement)) {
-			return undefined;
-		}
-		const fusion = models.find(model => model.metadata.autoModelFusion && !isUserProvidedModel(model, this._languageModelsService));
-		const hydraFusion = models.find(model => model.metadata.id === COPILOT_HYDRA_FUSION_MODEL_ID && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService));
-		return fusion && hydraFusion ? { fusion, hydraFusion } : undefined;
 	}
 
 	/**
@@ -411,7 +382,7 @@ export class ModelPickerWidget extends Disposable {
 		if (!isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService)) {
 			return undefined;
 		}
-		const runnable = this._isRunnable(models);
+		const runnable = this._getRunnablePredicate(models);
 		const fusion = models.find(candidate => candidate.metadata.autoModelFusion && runnable(candidate));
 		if (fusion) {
 			const label = getFusionTierLabel(fusion.metadata, model.metadata.id);
@@ -425,8 +396,8 @@ export class ModelPickerWidget extends Disposable {
 			: undefined;
 	}
 
-	/** Whether the picker offers a built-in model: one this build can run, as the picker only offers those. */
-	private _isRunnable(models: readonly ILanguageModelChatMetadataAndIdentifier[]): (candidate: ILanguageModelChatMetadataAndIdentifier) => boolean {
+	/** Returns a predicate that tests whether the picker offers a built-in model: one this build can run, as the picker only offers those. */
+	private _getRunnablePredicate(models: readonly ILanguageModelChatMetadataAndIdentifier[]): (candidate: ILanguageModelChatMetadataAndIdentifier) => boolean {
 		const controlModels = getModelPickerControlModels(this._languageModelsService.getModelsControlManifest(), this._entitlementService.entitlement, models);
 		return candidate => !isUserProvidedModel(candidate, this._languageModelsService) && !requiresNewerVSCode(candidate, controlModels, this._productService.version);
 	}
@@ -794,6 +765,7 @@ export class ModelPickerWidget extends Disposable {
 		const presentation = this._delegate.getPresentationOptions();
 		const canShowManageModelsAction = presentation.showManageModelsAction && shouldShowManageModelsAction(this._entitlementService);
 		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService, this._delegate.getSessionType?.()) : undefined;
+		const manageModelsDisabledReason = manageModelsAction ? getAddModelsUnavailableReason(this._delegate.getSessionType?.(), this._environmentService.remoteAuthority) : undefined;
 		const logModelPickerInteraction = (interaction: ChatModelPickerInteraction) => {
 			this._telemetryService.publicLog2<ChatModelPickerInteractionEvent, ChatModelPickerInteractionClassification>('chat.modelPickerInteraction', { interaction });
 		};
@@ -837,6 +809,7 @@ export class ModelPickerWidget extends Disposable {
 			configurationAccess: this._delegate.modelConfiguration ?? this._languageModelsService,
 			isUBB: !!this._entitlementService.quotas.usageBasedBilling,
 			showManageModels: !!manageModelsAction && !restrictedMode,
+			manageModelsDisabledReason,
 			providerPlaceholders: placeholders,
 			unavailableContext: {
 				show: presentation.showUnavailableFeatured,
@@ -893,6 +866,7 @@ export class ModelPickerWidget extends Disposable {
 
 		models ??= this._delegate.getModels();
 		const comparisonSummary = this._delegate.comparison?.summary.get();
+		const comparisonBusy = !!comparisonSummary && (this._delegate.comparisonBusy?.get() ?? false);
 		const routingTier = !comparisonSummary && this._selectedModel ? this._getRoutingTier(this._selectedModel, models) : undefined;
 		const shownModel = routingTier?.shownModel ?? this._selectedModel;
 		const displayName = shownModel ? getLanguageModelDisplayNameWithSubscriptionSource(shownModel) : undefined;
@@ -913,7 +887,7 @@ export class ModelPickerWidget extends Disposable {
 		const nameChildren: (HTMLElement | string)[] = [];
 		const compact = this._compact?.get() ?? false;
 		const minimal = this._minimal?.get() ?? false;
-		const modelIcon = comparisonSummary ? Codicon.compare : shownModel
+		const modelIcon = comparisonBusy ? Codicon.loadingCompact : comparisonSummary ? Codicon.compare : shownModel
 			? (this._delegate.getPresentationOptions().showModelIcon
 				? getCompactModelPickerIcon(shownModel)
 				: shownModel.metadata.statusIcon ? getCompactCodicon(shownModel.metadata.statusIcon) : undefined)
@@ -955,6 +929,7 @@ export class ModelPickerWidget extends Disposable {
 		// icon to collapse to, the name keeps its label and stays a regular chip.
 		this._domNode.classList.toggle('compact', compact && !showModelLabel);
 		this._domNode.classList.toggle('icon-only', !showModelLabel && !configVisible);
+		this._domNode.classList.toggle('comparison-busy', comparisonBusy);
 
 		// Aria — name the control "Models" to match the visible label; the comma
 		// separates the control name from its current value / state.

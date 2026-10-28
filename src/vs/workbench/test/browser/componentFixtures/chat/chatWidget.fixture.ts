@@ -20,7 +20,7 @@ import { IMenuItem, IMenuService, MenuId, MenuItemAction } from '../../../../../
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
-import { ChatModel, ChatRequestModel, ChatRequestSource, IChatRequestModeInfo } from '../../../../contrib/chat/common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestSource, IChatRequestModeInfo, IChatRequestModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../contrib/chat/browser/widget/chatListWidget.js';
 import { chatFloatingPersistentContentClass, chatPersistentContentHeightVariable } from '../../../../contrib/chat/browser/widget/chatWidget.js';
@@ -51,7 +51,7 @@ import { IChatResponseFileChangesService, IChatResponseFileEdit } from '../../..
 import { MockChatService } from '../../../../contrib/chat/test/common/chatService/mockChatService.js';
 import { TestFileService } from '../../../common/workbenchTestServices.js';
 import { MockChatEditingSession } from '../../../../contrib/chat/test/common/mockChatEditingSession.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration, waitForFixtureDomCondition } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices, registerSubagentFixtureServices } from './chatFixtureUtils.js';
 import { IDetachedXTermOptions, ITerminalChatService, ITerminalConfigurationService, ITerminalService } from '../../../../contrib/terminal/browser/terminal.js';
 import { createFakeDetachedTerminal } from '../../../../contrib/terminal/test/browser/chatTerminalMirrorTestUtils.js';
@@ -103,6 +103,7 @@ export interface IFixtureMessage {
 	/** Whether the request is a host-initiated turn rendered with its specialized presentation. */
 	readonly isSystemInitiated?: boolean;
 	readonly requestSource?: ChatRequestSource;
+	readonly artifactRequest?: IChatRequestModel['artifactRequest'];
 	/** Whether the request half of the turn stays out of the transcript. */
 	readonly requestHidden?: boolean;
 	/**
@@ -446,6 +447,10 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			undefined,
 			message.requestHidden,
 			message.requestSource,
+			undefined,
+			undefined,
+			undefined,
+			message.artifactRequest,
 		);
 		const response = request.response!;
 		if (message.fileChanges) {
@@ -1321,13 +1326,10 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		}
 		const output = messages.flatMap(message => message.assistant ?? []).find(part => part.kind === 'terminal')?.output;
 		const firstLine = output?.split(/\r?\n/)[0];
-		const renderedOutput = () => response.querySelector('.xterm-rows')?.textContent?.replace(/\u00a0/g, ' ');
-		for (let attempt = 0; attempt < 25 && !renderedOutput()?.includes(firstLine ?? ''); attempt++) {
-			await timeout(20);
-		}
-		if (!firstLine || !renderedOutput()?.includes(firstLine)) {
+		if (!firstLine) {
 			throw new Error('The terminal output did not render');
 		}
+		await waitForFixtureDomCondition(response, () => response.querySelector('.xterm-rows')?.textContent?.replace(/\u00a0/g, ' ').includes(firstLine) === true, context.disposableStore);
 	}
 	const terminalParts = messages.flatMap(message => message.assistant ?? []).filter(part => part.kind === 'terminal');
 	const terminalWidgets = [...context.container.querySelectorAll('.chat-tool-invocation-part')].filter(part => part.querySelector('.chat-terminal-content-part, .chat-terminal-thinking-collapsible'));
@@ -1676,7 +1678,18 @@ async function renderPersistentToolPreview(context: ComponentFixtureContext, sta
 	}
 }
 
-async function renderPersistentVerbosityComparison(context: ComponentFixtureContext, verbosity: ChatProgressVerbosity, complete: boolean): Promise<void> {
+interface IVerbosityComparisonOptions {
+	/** Opens the conversation section. */
+	readonly expand?: boolean;
+	/** Names the running tool call with a file link, which renders beside the section's header button. */
+	readonly linkedTitle?: boolean;
+	/** Ends the running response with reasoning that has a summary heading. */
+	readonly reasoningLast?: boolean;
+}
+
+async function renderPersistentVerbosityComparison(context: ComponentFixtureContext, verbosity: ChatProgressVerbosity, complete: boolean, options: IVerbosityComparisonOptions = {}): Promise<void> {
+	const patchComplete = complete || !!options.reasoningLast;
+	const runningPatchMessage = options.linkedTitle ? 'Updating [progress.ts](file:///workspace/src/progress.ts)' : 'Updating the progress renderer...';
 	await renderChatWidget(context, {
 		width: 620,
 		height: 340,
@@ -1692,12 +1705,20 @@ async function renderPersistentVerbosityComparison(context: ComponentFixtureCont
 				{ kind: 'thinking', text: '**Reviewing the progress renderer**\nCheck the tool and reasoning paths before making changes.' },
 				{ kind: 'tool', toolId: 'read_file', displayName: 'Read file', invocationMessage: 'Read `src/progress.ts`', complete: true },
 				{ kind: 'tool', toolId: 'search_workspace', displayName: 'Search workspace', invocationMessage: 'Found 12 progress renderer tests', complete: true },
-				{ kind: 'tool', toolId: 'apply_patch', displayName: 'Apply patch', invocationMessage: complete ? 'Updated the progress renderer' : 'Updating the progress renderer...', complete },
+				{ kind: 'tool', toolId: 'apply_patch', displayName: 'Apply patch', invocationMessage: patchComplete ? 'Updated the progress renderer' : runningPatchMessage, complete: patchComplete },
+				...(options.reasoningLast ? [{ kind: 'thinking' as const, text: '**Checking the related tests**\nConfirm the tests cover the tool and reasoning paths.' }] : []),
 				...(complete ? [{ kind: 'markdown' as const, text: 'Updated the progress renderer and checked the related tests.' }] : []),
 			],
 			responseComplete: complete,
 		}],
 	});
+	if (options.expand) {
+		const button = context.container.querySelector<HTMLElement>('.chat-thinking-conversation > .chat-used-context-label .monaco-button');
+		if (!button) {
+			throw new Error('Conversation progress must render a collapsible section');
+		}
+		button.click();
+	}
 }
 
 async function renderToolFailures(context: ComponentFixtureContext, grouped: boolean, progress = ChatProgressAnimation.Draw, withDenied = false): Promise<void> {
@@ -2719,6 +2740,11 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			VerboseCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Verbose, true) }),
 			CompactStreaming: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Compact, false) }),
 			CompactCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Compact, true) }),
+			ConversationStreaming: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false) }),
+			ConversationStreamingLinkedTitle: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { linkedTitle: true }) }),
+			ConversationStreamingReasoning: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { reasoningLast: true }) }),
+			ConversationCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, true) }),
+			ConversationExpanded: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, true, { expand: true }) }),
 		}),
 		CollapseHandoff: defineThemedFixtureGroup({
 			ThinkingToMarkdown: defineComponentFixture({ labels: { kind: 'animated' }, virtualTime: { enabled: false }, render: context => renderPersistentProgressHandoff(context, true) }),

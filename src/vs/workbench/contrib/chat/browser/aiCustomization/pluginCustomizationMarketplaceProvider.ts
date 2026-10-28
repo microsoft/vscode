@@ -11,16 +11,18 @@ import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceMed
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { DEFAULT_PLUGIN_MARKETPLACE, IMarketplaceReference, parseMarketplaceReference } from '../../common/plugins/marketplaceReference.js';
+import { DEFAULT_PLUGIN_MARKETPLACE, IMarketplaceReference, parseMarketplaceReference, parseProviderMarketplaceReference } from '../../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IPluginMarketplaceService, MarketplaceType, PluginSourceKind } from '../../common/plugins/pluginMarketplaceService.js';
 
-const defaultMarketplaceId = parseMarketplaceReference(DEFAULT_PLUGIN_MARKETPLACE)!.canonicalId;
+const defaultMarketplaceReference = parseMarketplaceReference(DEFAULT_PLUGIN_MARKETPLACE)!;
+const defaultMarketplaceId = defaultMarketplaceReference.canonicalId;
 const pluginMarketplaceSourceInfo: ICustomizationMarketplaceSourceInfo = {
 	...CustomizationMarketplaceSources.PluginMarketplaces,
 	configurationDependencies: [
 		ChatConfiguration.PluginsEnabled,
 		ChatConfiguration.PluginMarketplaces,
 		ChatConfiguration.ExtraMarketplaces,
+		CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
 	],
 };
 const allMarketplaceTypes = new Set([MarketplaceType.Claude, MarketplaceType.Copilot, MarketplaceType.OpenPlugin]);
@@ -36,7 +38,7 @@ export function getPluginCustomizationMarketplaceSourceId(reference: IMarketplac
 }
 
 export function getPluginCustomizationMarketplaceNavigationSourceId(configurationService: IConfigurationService, reference: IMarketplaceReference, githubFeedAvailable: boolean): string {
-	return isPluginMarketplaceReferenceAvailableInDiscover(configurationService, reference, githubFeedAvailable)
+	return isPluginMarketplaceAvailableInDiscover(configurationService, reference, githubFeedAvailable)
 		? getPluginCustomizationMarketplaceSourceId(reference)
 		: CustomizationMarketplaceSources.AgentFinderPublicFeed.id;
 }
@@ -52,10 +54,12 @@ export function getPluginCustomizationMarketplaceSourceIdFromIdentifier(identifi
 	}
 }
 
-export function isPluginMarketplaceReferenceAvailableInDiscover(configurationService: IConfigurationService, reference: IMarketplacePlugin['marketplaceReference'], githubFeedAvailable: boolean): boolean {
+export function isPluginMarketplaceAvailableInDiscover(configurationService: IConfigurationService, marketplace: IMarketplaceReference | string, githubFeedAvailable: boolean): boolean {
+	const reference = typeof marketplace === 'string' ? parseProviderMarketplaceReference(marketplace) : marketplace;
 	return !githubFeedAvailable ||
+		configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true ||
 		configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) !== true ||
-		reference.canonicalId !== defaultMarketplaceId;
+		reference?.githubRepo?.toLowerCase() !== defaultMarketplaceReference.githubRepo;
 }
 
 export function getPluginCustomizationMarketplaceSourceInfos(
@@ -67,7 +71,7 @@ export function getPluginCustomizationMarketplaceSourceInfos(
 		return [];
 	}
 	return marketplaceService.getMarketplaceReferences()
-		.filter(reference => isPluginMarketplaceReferenceAvailableInDiscover(configurationService, reference, githubFeedAvailable))
+		.filter(reference => isPluginMarketplaceAvailableInDiscover(configurationService, reference, githubFeedAvailable))
 		.map(toPluginCustomizationMarketplaceSourceInfo);
 }
 
@@ -85,7 +89,7 @@ export function createPluginCustomizationMarketplaceProviders(
 	githubFeedAvailable: boolean,
 ): readonly ICustomizationMarketplaceProvider[] {
 	return marketplaceService.getMarketplaceReferences()
-		.filter(reference => isPluginMarketplaceReferenceAvailableInDiscover(configurationService, reference, githubFeedAvailable))
+		.filter(reference => isPluginMarketplaceAvailableInDiscover(configurationService, reference, githubFeedAvailable))
 		.map(reference => {
 			const id = getPluginCustomizationMarketplaceSourceId(reference);
 			return createLazyCustomizationMarketplaceProvider(

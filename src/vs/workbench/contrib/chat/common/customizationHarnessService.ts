@@ -132,7 +132,17 @@ export interface ICustomizationMarketplaceRefreshResult {
 }
 
 export interface ICustomizationMarketplaceManagementProvider {
+	/**
+	 * Fires when provider state that may affect the marketplace list changes. Consumers should
+	 * list marketplaces again and treat an identical list as unchanged, because this also fires
+	 * for unrelated customization activity such as MCP server status changes.
+	 */
 	readonly onDidChange: Event<void>;
+	/**
+	 * Fires when marketplace contents may have changed even if the marketplace list is identical,
+	 * for example after a marketplace is added, removed, or refreshed.
+	 */
+	readonly onDidChangeMarketplaces: Event<void>;
 	list(sessionResource: URI): Promise<readonly ICustomizationMarketplaceInfo[]>;
 	add(sessionResource: URI, source: string): Promise<ICustomizationMarketplaceInfo>;
 	queryMarketplace(sessionResource: URI, marketplace: ICustomizationMarketplaceInfo, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
@@ -142,6 +152,10 @@ export interface ICustomizationMarketplaceManagementProvider {
 
 export interface ICustomizationMcpConfigurationProvider {
 	addGlobal(name: string, config: IMcpServerConfiguration): Promise<void>;
+}
+
+export interface ICustomizationPluginInstallProvider {
+	installFromSource(sessionResource: URI, source: string): Promise<void>;
 }
 
 /**
@@ -229,6 +243,8 @@ export interface IHarnessDescriptor {
 	readonly mcpServerMigrationProvider?: ICustomizationMcpServerMigrationProvider;
 	/** Provisionally routes harness-owned global MCP configuration. */
 	readonly mcpConfigurationProvider?: ICustomizationMcpConfigurationProvider;
+	/** Installs plugin sources through the harness instead of VS Code's plugin configuration. */
+	readonly pluginInstallProvider?: ICustomizationPluginInstallProvider;
 	/** Supplies authoritative installation inventory and mutations for this harness. */
 	readonly marketplaceInstallProvider?: ICustomizationMarketplaceInstallProvider;
 	/** Supplies a harness-native replacement for the public customization catalog. */
@@ -288,6 +304,14 @@ export interface ICustomizationAgentRef {
 	readonly description?: string;
 }
 
+export type AgentFileToolAvailability = 'available' | 'unavailable' | 'disabled';
+
+export interface IAgentFileToolInventoryEntry {
+	readonly name: string;
+	readonly description?: string;
+	readonly availability: AgentFileToolAvailability;
+}
+
 export function isPluginCustomizationItem(item: { readonly type: string }): boolean {
 	return item.type === 'plugin' || item.type === AICustomizationManagementSection.Plugins;
 }
@@ -335,6 +359,12 @@ export interface ICustomizationItemProvider {
 	 *   this session.
 	 */
 	provideCustomAgents?(sessionResource: URI, token: CancellationToken): Promise<readonly ICustomAgent[]>;
+
+	/**
+	 * Provides the tools accepted by custom agent files for this harness session.
+	 * `undefined` means the dynamic inventory is not authoritative yet and must not be used for unknown-value diagnostics.
+	 */
+	provideAgentFileTools?(sessionResource: URI, token: CancellationToken): Promise<readonly IAgentFileToolInventoryEntry[] | undefined>;
 
 	/**
 	 * Provide the directories where new customization files of the given
@@ -482,9 +512,9 @@ export interface ICustomizationHarnessService {
 	/**
 	 * Returns the best session resource to use for a harness lookup.
 	 * Implementations should prefer the most recently used session for the
-	 * given session type and fall back to an untitled session resource.
+	 * given harness and fall back to an untitled session resource.
 	 */
-	getSessionResourceForHarness(sessionType: string): URI;
+	getSessionResourceForHarness(harnessId: string): URI;
 }
 
 /**
@@ -767,12 +797,16 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		return undefined;
 	}
 
-	getSessionResourceForHarness(sessionType: string): URI {
-		if (sessionType === SessionType.Local) {
+	getSessionResourceForHarness(harnessId: string): URI {
+		const activeSessionResource = this._activeSessionResource?.get();
+		if (activeSessionResource && getChatSessionType(activeSessionResource) === harnessId) {
+			return activeSessionResource;
+		}
+		if (harnessId === SessionType.Local) {
 			return LocalChatSessionUri.getNewSessionUri();
 		}
 
-		return URI.from({ scheme: sessionType, path: '/untitled-2' });
+		return URI.from({ scheme: harnessId, path: '/untitled-2' });
 	}
 }
 

@@ -287,6 +287,7 @@ export class MenuId {
 	static readonly ChatInputAttachmentToolbar = new MenuId('ChatInputAttachmentToolbar');
 	static readonly ChatEditingWidgetModifiedFilesToolbar = new MenuId('ChatEditingWidgetModifiedFilesToolbar');
 	static readonly ChatInputResourceAttachmentContext = new MenuId('ChatInputResourceAttachmentContext');
+	static readonly ChatImageContext = new MenuId('ChatImageContext');
 	static readonly ChatInputSymbolAttachmentContext = new MenuId('ChatInputSymbolAttachmentContext');
 	static readonly ChatInlineResourceAnchorContext = new MenuId('ChatInlineResourceAnchorContext');
 	static readonly ChatInlineSymbolAnchorContext = new MenuId('ChatInlineSymbolAnchorContext');
@@ -576,6 +577,8 @@ export class SubmenuItemAction extends SubmenuAction {
 
 export interface IMenuItemHide {
 	readonly isHidden: boolean;
+	/** Whether the visibility differs from the menu item's default (e.g. a hidden-by-default item that is shown). */
+	readonly isModifiedFromDefault: boolean;
 	readonly hide: IAction;
 	readonly toggle: IAction;
 }

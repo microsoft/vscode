@@ -11,7 +11,6 @@ import { URI } from '../../../base/common/uri.js';
 import { ChatMoveConfigKey, chatMoveRootConfigSchema, isChatMovable, isChatStructurallyMovable, type IChatMoveStructuralEligibility } from '../common/agentHostChatMove.js';
 import type { ISessionStateChange, ISessionStateSnapshot } from '../common/agentHostSessionStateStore.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
-import { readAgentMergeFolderStates } from '../common/agentMerge.js';
 import { readSessionMovable, withSessionMovable } from '../common/meta/agentHostSessionMoveMeta.js';
 import { ActionType, type StateAction } from '../common/state/sessionActions.js';
 import { ChatOriginKind, isSessionStatusArchived, readSessionWorkspaceless, type ChatSummary, type URI as ProtocolURI } from '../common/state/sessionState.js';
@@ -49,8 +48,6 @@ interface ISourceSessionContext {
 	readonly folders: readonly string[];
 	/** The additional worktrees the session records, each with the chat it was created for. */
 	readonly additionalWorktrees: readonly ISessionAdditionalWorktree[];
-	/** Chats that run Agent Merge for a folder of the session. */
-	readonly agentMergeChats: ReadonlySet<string>;
 	/** The session's chats by resource. */
 	readonly summaries: Map<ProtocolURI, ChatSummary>;
 	/** The chats working in each scratch folder of the session (by working directory key), built on first use. */
@@ -84,7 +81,6 @@ function subtreeOf(children: ReadonlyMap<ProtocolURI, readonly ProtocolURI[]>, c
 /** Session actions after which a session's chats may become movable or not. */
 const SESSION_INPUT_ACTIONS: ReadonlySet<StateAction['type']> = new Set([
 	ActionType.SessionIsArchivedChanged,
-	ActionType.SessionConfigChanged,
 	ActionType.SessionMetaChanged,
 	ActionType.SessionWorkingDirectorySet,
 	ActionType.SessionWorkingDirectoryRemoved,
@@ -216,10 +212,17 @@ export class AgentHostChatMovability extends Disposable {
 				} else {
 					this.update(action.chat);
 				}
+			} else if (action.type === ActionType.ChatTurnStarted || action.type === ActionType.ChatTruncated || action.type === ActionType.ChatTurnsLoaded) {
+				this._registrationPass = undefined;
+				this.update(envelope.channel);
 			} else if (action.type === ActionType.ChatWorkingDirectorySet || action.type === ActionType.ChatWorkingDirectoryRemoved) {
 				this._registrationPass = undefined;
 				this.update(envelope.channel);
 			}
+		}));
+		this._register(_stateManager.onDidResolveChatState(chat => {
+			this._registrationPass = undefined;
+			this.update(chat);
 		}));
 		this._register(_sources.conversions.onDidChangePending(chat => {
 			this._registrationPass = undefined;
@@ -313,9 +316,15 @@ export class AgentHostChatMovability extends Disposable {
 			// Worktrees are shared by moves (Block 5): only a chat's own one that a staying chat also uses keeps it (D2).
 			// Asked for another owner, this checks that owner's list, so it may miss D2; `planWorktreeMove` refuses it.
 			worktreeFolder: this._worktreeUsers(context, currentContext).sharedOwnOf(subtree, folders) !== undefined,
-			agentMergeOwner: [...subtree].some(candidate => context.agentMergeChats.has(candidate)),
 			legacyCatalog: context.legacyCatalog,
+			// A chat whose state isn't loaded was restored, so it has a conversation; a move reads its state and checks again.
+			notStarted: this._isNotStarted(chat),
 		});
+	}
+
+	private _isNotStarted(chat: ProtocolURI): boolean {
+		const state = this._stateManager.getChatState(chat);
+		return !!state && state.turns.length === 0 && state.activeTurn === undefined;
 	}
 
 	/**
@@ -456,12 +465,6 @@ export class AgentHostChatMovability extends Disposable {
 				siblings.push(chat.resource);
 			}
 		}
-		const agentMergeChats = new Set<string>();
-		for (const folder of readAgentMergeFolderStates(state.config?.values, folders[0] === undefined ? undefined : getWorkingDirectoryKey(folders[0])).values()) {
-			if (folder.enabled && folder.chat !== undefined) {
-				agentMergeChats.add(folder.chat);
-			}
-		}
 		return {
 			archived: isSessionStatusArchived(state.status),
 			workspaceless: readSessionWorkspaceless(state._meta),
@@ -470,7 +473,6 @@ export class AgentHostChatMovability extends Disposable {
 			legacyCatalog: this._sources.catalogs.isParked(session) && snapshot?.authority !== 2,
 			folders,
 			additionalWorktrees: parseSessionAdditionalWorktrees(snapshot?.values.get(ADDITIONAL_WORKTREES_METADATA_KEY)),
-			agentMergeChats,
 			summaries: summaries ?? new Map(state.chats.map(chat => [chat.resource, chat])),
 			scratchFolderUsers: undefined,
 			children,

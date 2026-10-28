@@ -33,7 +33,7 @@ import { IUriIdentityService } from '../../../../../../../../platform/uriIdentit
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../../../platform/workspace/common/workspaceTrust.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService, TestWorkspaceTrustManagementService } from '../../../../../../../test/common/workbenchTestServices.js';
-import { IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
+import { IModelConfigurationAccess, withoutFusionEffortLevel } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ModelPickerTelemetrySession } from '../../../../../browser/widget/input/modelPicker/modelPickerTelemetry.js';
 import { ModelPickerWidget } from '../../../../../browser/widget/input/modelPicker/modelPickerWidget.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelPinTelemetryContext, IModelsControlManifest } from '../../../../../common/languageModels.js';
@@ -81,7 +81,7 @@ suite('ModelPickerTelemetry', () => {
 		},
 	});
 
-	function createPicker(selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel], entitlement = ChatEntitlement.Pro, supportsProgrammaticSelection = true, showAutoModel = true, controlManifest: IModelsControlManifest = { free: {}, paid: {} }, presentsConfiguration = true) {
+	function createPicker(selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel], entitlement = ChatEntitlement.Pro, supportsProgrammaticSelection = true, showAutoModel = true, controlManifest: IModelsControlManifest = { free: {}, paid: {} }, presentsConfiguration = true, presentConfiguration = (access: IModelConfigurationAccess) => access) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const events: { name: string; data: unknown }[] = [];
 		const pickerEvents: { name: string; data: unknown }[] = [];
@@ -312,7 +312,7 @@ suite('ModelPickerTelemetry', () => {
 				showManageModelsAction: false, showUnavailableFeatured: true,
 				showAutoModel, showModelIcon: false,
 			}),
-			modelConfiguration: configurationAccess,
+			modelConfiguration: presentConfiguration(configurationAccess),
 		}));
 		picker.setSelectedModel(selectedModel);
 		picker.show(container);
@@ -445,7 +445,7 @@ suite('ModelPickerTelemetry', () => {
 	});
 
 	test('the input shows a HydraFusion tier as Fusion with that tier, or as HydraFusion with its own tier', () => {
-		const fusion: ILanguageModelChatMetadataAndIdentifier = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Copilot Fusion', autoModelFusion: { balanceUsesHydraFusion: false }, autoModelProviderTiers: true, configurationSchema: { properties: { tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'], default: 'balance' } } } } };
+		const fusion: ILanguageModelChatMetadataAndIdentifier = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Copilot Fusion', autoModelFusion: true, autoModelProviderTiers: true, configurationSchema: { properties: { tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'], default: 'balance' } } } } };
 		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' }, configurationSchema: undefined });
 		const max = createModel('hydrafusion-max', { name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' }, configurationSchema: undefined });
 		const input = (picker: ReturnType<typeof createPicker>) => {
@@ -487,27 +487,6 @@ suite('ModelPickerTelemetry', () => {
 		});
 	});
 
-	test('showing HydraFusion as Fusion\'s High is not a selection', async () => {
-		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
-		const fusion = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Copilot Fusion', autoModelFusion: { balanceUsesHydraFusion: false } } };
-		const result = createPicker(hydraFusion, undefined, [fusion, hydraFusion, model]);
-		await timeout(0);
-
-		assert.deepStrictEqual({
-			selected: result.picker.selectedModel?.identifier,
-			tier: result.configurations.get(fusion.identifier)?.tier,
-			savedConfigurations: result.savedConfigurations,
-			delegateSelections: result.delegateSelections,
-			programmaticDelegateSelections: result.programmaticDelegateSelections,
-		}, {
-			selected: fusion.identifier,
-			tier: 'intelligence',
-			savedConfigurations: [],
-			delegateSelections: [],
-			programmaticDelegateSelections: [fusion.identifier],
-		});
-	});
-
 	test('a chat on Auto at a HydraFusion tier Auto no longer offers moves to that HydraFusion model, unless it is not published', async () => {
 		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
 		const max = createModel('hydrafusion-max', { name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' } });
@@ -537,7 +516,7 @@ suite('ModelPickerTelemetry', () => {
 			const fusion = {
 				...autoModel,
 				metadata: {
-					...autoModel.metadata, name: 'Copilot Fusion', autoModelFusion: { balanceUsesHydraFusion: false },
+					...autoModel.metadata, name: 'Copilot Fusion', autoModelFusion: true,
 					configurationSchema: {
 						properties: {
 							tier: {
@@ -563,6 +542,30 @@ suite('ModelPickerTelemetry', () => {
 			unavailable: { selected: max.identifier, tier: undefined, savedConfigurations: [] },
 			withoutChatConfiguration: { selected: max.identifier, tier: undefined, savedConfigurations: [] },
 		});
+	});
+
+	test('in inline chat, where the host pins Fusion\'s tier, a chat on a HydraFusion level moves to Fusion without one', async () => {
+		const max = createModel('hydrafusion-max', { name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' } });
+		const fusion = {
+			...autoModel,
+			metadata: {
+				...autoModel.metadata, name: 'Copilot Fusion', autoModelFusion: true, autoModelFusionInlineChatTier: 'fast',
+				configurationSchema: {
+					properties: {
+						tier: { type: 'string' as const, group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'], default: 'balance' },
+					},
+				},
+			},
+		};
+		const models = [fusion, max, model];
+		const result = createPicker(max, undefined, models, undefined, undefined, undefined, undefined, undefined, access => withoutFusionEffortLevel(access, id => models.find(candidate => candidate.identifier === id)?.metadata));
+		await timeout(0);
+		assert.deepStrictEqual({
+			selected: result.picker.selectedModel?.identifier,
+			programmatic: result.programmaticDelegateSelections,
+			tier: result.configurations.get(fusion.identifier)?.tier,
+			savedConfigurations: result.savedConfigurations,
+		}, { selected: fusion.identifier, programmatic: [fusion.identifier], tier: undefined, savedConfigurations: [] });
 	});
 
 	test('the input readout opens details directly and restores the invoking control', () => {

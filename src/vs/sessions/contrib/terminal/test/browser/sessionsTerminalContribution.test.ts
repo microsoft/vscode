@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { constObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { IAgentHostTerminalCreateOptions, IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
-import { ITerminalProfileService, TerminalCommandId } from '../../../../../workbench/contrib/terminal/common/terminal.js';
+import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace } from '../../../../common/agentHostSessionWorkspace.js';
@@ -38,7 +38,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../../common/chatLayout.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { IsAuxiliaryWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActivePanelContext, IsAuxiliaryWindowContext, PanelVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { TerminalContextKeys } from '../../../../../workbench/contrib/terminal/common/terminalContextKey.js';
 import { Menus, SessionActivityBarGroup } from '../../../../browser/menus.js';
 import '../../../../browser/layoutActions.js';
@@ -2367,6 +2367,7 @@ suite('Sessions Terminal - Session Activity Bar', () => {
 		const evaluate = (expression: ContextKeyExpression | undefined, values: Record<string, ContextKeyValue>) => expression?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;
 		const terminalAvailable: Record<string, ContextKeyValue> = { [TerminalContextKeys.processSupported.key]: true };
 		const terminalState = (values: Record<string, ContextKeyValue>) => ({ shows: evaluate(terminal?.when, values), enabled: evaluate(terminal?.command.precondition, values) });
+		const checked = (values: Record<string, ContextKeyValue>) => evaluate(terminal?.command.toggled as ContextKeyExpression | undefined, values);
 
 		assert.deepStrictEqual({
 			// The panel toggle registers Show and Hide alternates under the same command, one shown at a time.
@@ -2379,6 +2380,12 @@ suite('Sessions Terminal - Session Activity Bar', () => {
 				unavailable: terminalState({}),
 				auxiliaryWindow: terminalState({ ...terminalAvailable, [IsAuxiliaryWindowContext.key]: true }),
 				customView: terminalState({ ...terminalAvailable, [CustomViewVisibleContext.key]: true }),
+			},
+			// Checked while the panel shows the terminal, so activating the entry hides the panel.
+			checked: {
+				panelShowsTerminal: checked({ [PanelVisibleContext.key]: true, [ActivePanelContext.key]: TERMINAL_VIEW_ID }),
+				panelShowsOtherView: checked({ [PanelVisibleContext.key]: true, [ActivePanelContext.key]: 'workbench.panel.output' }),
+				panelHidden: checked({ [PanelVisibleContext.key]: false, [ActivePanelContext.key]: TERMINAL_VIEW_ID }),
 			},
 		}, {
 			items: [
@@ -2394,6 +2401,7 @@ suite('Sessions Terminal - Session Activity Bar', () => {
 				auxiliaryWindow: { shows: false, enabled: true },
 				customView: { shows: true, enabled: false },
 			},
+			checked: { panelShowsTerminal: true, panelShowsOtherView: false, panelHidden: false },
 		});
 	});
 

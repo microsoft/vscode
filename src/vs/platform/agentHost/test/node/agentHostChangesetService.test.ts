@@ -22,6 +22,7 @@ import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agent
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, ChatOriginKind, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
+import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { createFileEditDiscardRecord, readFileEditRevertSteps, spanFileEditRevertSteps } from '../../node/fileEditDiscard.js';
 import { createFileEditAcceptRecord } from '../../node/fileEditAccept.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
@@ -108,22 +109,25 @@ class TestAgentHostChangesetService extends AgentHostChangesetService {
 	readonly stateStore: IAgentHostSessionStateStore;
 	readonly provider: IAgent;
 	readonly storedTurnEdits: Emitter<{ readonly chat: URI; readonly turnIds: readonly string[] }>;
+	readonly fileEditCoordinator: AgentHostFileEditCoordinator;
 
-	constructor(...args: WithoutLastThree<WithoutLastThree<ConstructorParameters<typeof AgentHostChangesetService>>>) {
+	constructor(...args: WithoutLast<WithoutLastThree<WithoutLastThree<ConstructorParameters<typeof AgentHostChangesetService>>>>) {
 		const mirrorStore = createTestSessionStateStore(new AgentHostDatabase(':memory:'), args[2]);
 		const storedTurnEdits = new Emitter<{ readonly chat: URI; readonly turnIds: readonly string[] }>();
 		const provider = new class extends mock<IAgent>() {
 			override readonly onDidStoreTurnEdits = storedTurnEdits.event;
 			override waitForTurnEdits = async (_chat: URI, _turnId: string): Promise<void> => { };
 		};
+		const fileEditCoordinator = new AgentHostFileEditCoordinator();
 		super(...args, TEST_GIT_STATE_SERVICE, new NullAgentHostWorktreeIsolation(), {
 			_serviceBrand: undefined, setRead: async () => { }, setArchived: async () => { },
 			...createLegacyChatMetadataPersistence(args[2]),
 		}, createTestChatOwnershipService(args[0]),
-			mirrorStore, { ...createTestAgentHostProviderService(() => provider), getProviders: () => [provider] });
+			mirrorStore, { ...createTestAgentHostProviderService(() => provider), getProviders: () => [provider] }, fileEditCoordinator);
 		this.stateStore = mirrorStore;
 		this.provider = provider;
 		this.storedTurnEdits = this._register(storedTurnEdits);
+		this.fileEditCoordinator = this._register(fileEditCoordinator);
 		settleServices.add(this);
 	}
 }
@@ -2174,6 +2178,92 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				{ path: '/repo/pending.txt', diff: { added: 1, removed: 0 } },
 			],
 			unsubscribedChat: undefined,
+		});
+	});
+
+	test('a subscribed Working Set follows each edit while a turn runs, publishing file nonces and marking the ones an agent is writing', async () => {
+		const edit = (turnId: string, toolCallId: string, path: string, before: string, after: string) => ({ turnId, toolCallId, filePath: path, kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString(before), afterContent: encodeString(after) });
+		const db = new TestSessionDatabase();
+		db.addEdit(edit('turn-1', 'tc1', '/repo/pending.txt', 'c', 'c\nd'));
+		const workingSet = buildWorkingSetChangesetUri(sessionStr);
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db, subscriptions: [workingSet] });
+		const files = () => stateManager.getChangesetState(workingSet)?.files.map(file => ({ path: URI.parse(file.id).path, nonce: file.nonce, isEditing: file.isEditing, meta: file._meta }));
+		svc.refreshWorkingSetChangeset(sessionStr);
+		await waitForChangesetReady(stateManager, workingSet);
+		const initial = files();
+
+		// The agent edits the file again while its turn runs; the Working Set follows without waiting for the turn.
+		db.addEdit(edit('turn-2', 'tc2', '/repo/pending.txt', 'c\nd', 'c\nd\ne'));
+		svc.onToolCallEditsApplied(sessionStr, 'turn-2');
+		await waitForChangesetReady(stateManager, workingSet);
+		const afterEdit = files();
+
+		const writing = disposables.add(await svc.fileEditCoordinator.beginEdit(URI.file('/repo/pending.txt')));
+		const whileWriting = files();
+		writing.dispose();
+		const awaitingRefresh = files();
+		await waitForChangesetReady(stateManager, workingSet);
+
+		assert.deepStrictEqual({ initial, afterEdit, whileWriting, awaitingRefresh, afterWriting: files() }, {
+			initial: [{ path: '/repo/pending.txt', nonce: 'tc1', isEditing: false, meta: undefined }],
+			afterEdit: [{ path: '/repo/pending.txt', nonce: 'tc2', isEditing: false, meta: undefined }],
+			whileWriting: [{ path: '/repo/pending.txt', nonce: 'tc2', isEditing: true, meta: undefined }],
+			awaitingRefresh: [{ path: '/repo/pending.txt', nonce: 'tc2', isEditing: true, meta: undefined }],
+			afterWriting: [{ path: '/repo/pending.txt', nonce: 'tc2', isEditing: false, meta: undefined }],
+		});
+	});
+
+	test('a Working Set clears the editing mark with the recorded version, not an older in-flight computation', async () => {
+		const staleRead = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+		const freshRead = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+		const db = new class extends TestSessionDatabase {
+			gate: typeof staleRead | undefined;
+			override async getAllFileEdits() {
+				const edits = [...await super.getAllFileEdits()];
+				const gate = this.gate;
+				this.gate = undefined;
+				if (gate) {
+					gate.started.complete();
+					await gate.release.p;
+				}
+				return edits;
+			}
+		}();
+		const record = (toolCallId: string, before: string, after: string) => db.addEdit({
+			turnId: 'turn-1', toolCallId, filePath: '/repo/pending.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined, beforeContent: encodeString(before), afterContent: encodeString(after),
+		});
+		record('tc1', 'a', 'a\nb');
+		const workingSet = buildWorkingSetChangesetUri(sessionStr);
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db, subscriptions: [workingSet] });
+		svc.refreshWorkingSetChangeset(sessionStr);
+		await waitForChangesetReady(stateManager, workingSet);
+
+		const published: { nonce: string | undefined; editing: boolean }[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === workingSet) {
+				const files = envelope.action.type === ActionType.ChangesetContentChanged ? envelope.action.files
+					: envelope.action.type === ActionType.ChangesetFileSet ? [envelope.action.file] : [];
+				published.push(...files.map(file => ({ nonce: file.nonce, editing: file.isEditing === true })));
+			}
+		}));
+		const writing = disposables.add(await svc.fileEditCoordinator.beginEdit(URI.file('/repo/pending.txt')));
+		db.gate = staleRead;
+		svc.refreshWorkingSetChangeset(sessionStr);
+		await staleRead.started.p;
+		record('tc2', 'a\nb', 'a\nb\nc');
+		svc.onToolCallEditsApplied(sessionStr, 'turn-1');
+		writing.dispose();
+		db.gate = freshRead;
+		staleRead.release.complete();
+		await freshRead.started.p;
+		const awaitingFreshResult = [...published];
+		freshRead.release.complete();
+		await waitForChangesetReady(stateManager, workingSet);
+
+		assert.deepStrictEqual({ awaitingFreshResult, published }, {
+			awaitingFreshResult: [{ nonce: 'tc1', editing: true }],
+			published: [{ nonce: 'tc1', editing: true }, { nonce: 'tc2', editing: false }],
 		});
 	});
 

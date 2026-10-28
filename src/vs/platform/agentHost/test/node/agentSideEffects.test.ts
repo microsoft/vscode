@@ -84,6 +84,9 @@ import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/loca
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
+import { AgentHostArtifactEventService, IAgentHostArtifactEventService } from '../../node/artifactIntegrations/agentHostArtifactRuntime.js';
+import { AgentHostArtifactIntegrationDirectory, IAgentHostArtifactIntegrationDirectory } from '../../node/artifactIntegrations/agentHostArtifactIntegrationDirectory.js';
+import { ArtifactIntegrationRegistry } from '../../../artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
@@ -314,6 +317,8 @@ function createTestSideEffects(
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);
+	services.set(IAgentHostArtifactEventService, disposables.add(new AgentHostArtifactEventService()));
+	services.set(IAgentHostArtifactIntegrationDirectory, disposables.add(new AgentHostArtifactIntegrationDirectory(disposables.add(new ArtifactIntegrationRegistry()))));
 	services.set(IAgentHostSessionPromptService, {
 		_serviceBrand: undefined,
 		startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),

@@ -18,6 +18,7 @@ import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { IAgentHostProcessExitEvent } from './agentHostProcessExit.js';
 import type { CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
+import type { IChatSurfaceMeta } from './meta/agentChatSurfaceMeta.js';
 import type { IAgentChatUsage } from './meta/agentUsageMeta.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import type { AuthenticateTarget, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
@@ -291,6 +292,35 @@ export interface IAgentPluginUninstallRequest {
 	readonly directSourceId?: string;
 }
 
+/** Provider-owned persisted installation, not a session-effective or client-provided plugin. */
+export interface IAgentPluginInstallation extends IAgentPluginUninstallRequest {
+	readonly version?: string;
+	readonly description?: string;
+	readonly verifiedSource?: { readonly repository: string; readonly revision: string };
+	readonly iconUrl?: string;
+}
+
+export type AgentExtensionMode = 'disabled' | 'load_only' | 'load_and_augment' | 'unknown';
+export type AgentExtensionSource = 'user' | 'project' | 'plugin';
+export type AgentExtensionStatus = 'running' | 'disabled' | 'failed' | 'starting' | 'unknown';
+
+/** One executable extension discovered from the provider's persisted or session-effective inventory. */
+export interface IAgentExtensionInfo {
+	readonly id: string;
+	readonly name: string;
+	readonly resource?: URI;
+	readonly source: AgentExtensionSource;
+	/** Persisted enabled entries use `unknown`; only a live session can report `running`, `failed`, or `starting`. */
+	readonly status: AgentExtensionStatus;
+	readonly pluginName?: string;
+}
+
+/** Host-scoped extension inventory and the provider's effective loading mode. */
+export interface IAgentExtensionInventory {
+	readonly mode: AgentExtensionMode;
+	readonly extensions: readonly IAgentExtensionInfo[];
+}
+
 export type AgentCanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'unknown';
 
 /** One canvas declaration available to an initialized provider chat. */
@@ -377,6 +407,7 @@ export interface IAgentCustomizationMarketplaceSearchItem {
 	readonly catalogIdentity?: string;
 	readonly iconUrl?: string;
 	readonly categories?: readonly string[];
+	readonly compatibilityTags?: readonly string[];
 	readonly kind: 'skill' | 'mcp' | 'plugin';
 	readonly displayName: string;
 	readonly description?: string;
@@ -389,6 +420,7 @@ export interface IAgentCustomizationMarketplaceSearchItem {
 	readonly repository?: string;
 	readonly path?: string;
 	readonly connectorIds?: readonly string[];
+	readonly installCount?: number;
 	readonly installable: boolean;
 	readonly unavailableMessage?: string;
 }
@@ -834,6 +866,12 @@ export interface IAgentChatContext {
 	readonly sendStageRecorder?: IAgentProviderSendStageRecorder;
 	/** Whether the current turn is an automated Agent Merge repair turn. */
 	readonly agentMergeTurn?: boolean;
+	/**
+	 * The VS Code chat surface the owning session was created for, from its surface
+	 * metadata. Supplied at each operation, so a runtime that replaces the chat's
+	 * keeps the surface's behavior. Absent for sessions no such surface created.
+	 */
+	readonly chatSurface?: IChatSurfaceMeta['surface'];
 }
 
 export type AgentChatOperationContext = URI | IAgentChatContext;
@@ -913,6 +951,11 @@ export interface IAgentCreateChatOptions {
 	 */
 	readonly hasScopedEditSurface?: boolean;
 	/**
+	 * Whether the owning chat surface is an inline chat (editor or terminal), where
+	 * latency matters more than routing depth, so Copilot Fusion runs at its fast tier.
+	 */
+	readonly isInlineChatSurface?: boolean;
+	/**
 	 * Authoritative initial title supplied to host creation. When present, it
 	 * takes precedence over a generated fork placeholder; explicit provenance
 	 * determines whether automatic title replacement is allowed.
@@ -941,6 +984,14 @@ export interface IAgentCreateChatOptions {
 	 * is forked from the source so it can continue independently.
 	 */
 	readonly fork?: IAgentCreateChatForkSource;
+}
+
+/** The surface-scoped {@link IAgentCreateChatOptions} for a chat whose owning session `surface` created. */
+export function getChatSurfaceOptions(surface: IChatSurfaceMeta['surface'] | undefined): Pick<IAgentCreateChatOptions, 'hasScopedEditSurface' | 'isInlineChatSurface'> {
+	return {
+		...(surface === 'editorInline' ? { hasScopedEditSurface: true } : {}),
+		...(surface === 'editorInline' || surface === 'terminal' ? { isInlineChatSurface: true } : {}),
+	};
 }
 
 /**
@@ -1686,11 +1737,18 @@ export interface IAgent {
 	/** Optional refresh for providers whose model catalog can change at runtime. */
 	refreshModels?(): Promise<void>;
 
+	/** Discovers models using only the requesting connection's credentials, without changing the shared catalog. */
+	getModelsForCredentials?(credentials: IAgentHostCredentialSource, token?: CancellationToken): Promise<readonly IAgentModelInfo[]>;
+
 	/** Refresh live Connector state, optionally reinitializing only the named Connector. */
 	refreshConnectorSessions?(forceConnectorName?: string): Promise<void>;
 
+	/** List SDK-owned installations, excluding runtime-only and client-provided plugins. */
+	listPluginInstallations?(session?: URI, chat?: URI): Promise<readonly IAgentPluginInstallation[]>;
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
+	/** Persists enablement for an installed plugin identified by its marketplace spec or direct source ID. */
+	setPluginEnabled?(plugin: string, enabled: boolean): Promise<void>;
 
 	/** List canvas declarations available to one initialized provider chat. After returning `undefined`, publish {@link ActionType.ChatCanvasesChanged} when an authoritative snapshot is available. */
 	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot>;
@@ -1745,6 +1803,15 @@ export interface IAgent {
 	 * @see https://github.com/github/copilot-agent-runtime/issues/26495
 	 */
 	addMcpServerConfiguration?(name: string, config: IMcpServerConfiguration): Promise<void>;
+
+	/** Discover executable extensions from the provider's persisted inventory. */
+	listAgentExtensions?(session?: URI, chat?: URI): Promise<IAgentExtensionInventory>;
+
+	/**
+	 * Persist User/Plugin enablement and reconcile one exact live chat when supplied.
+	 * Project entries are inventory-only; Project and Session mutation are unsupported.
+	 */
+	setAgentExtensionEnabled?(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void>;
 
 	/** Capture the current account without allowing a later account to relabel an in-flight turn. */
 	getTelemetryContext?(): IAgentTelemetryContext;

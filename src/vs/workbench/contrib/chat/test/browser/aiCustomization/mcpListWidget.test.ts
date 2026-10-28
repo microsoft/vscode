@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { Button, unthemedButtonStyles } from '../../../../../../base/browser/ui/button/button.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
@@ -20,7 +21,7 @@ import { CustomizationEnablementKind, McpAuthRequiredReason, McpServerStatus, ty
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceIconUri, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { ContributionEnablementState } from '../../../common/enablement.js';
+import { ContributionEnablementState, EnablementModel } from '../../../common/enablement.js';
 import { createCustomizationMarketplaceInstallationSnapshot, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -29,6 +30,7 @@ import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
@@ -38,9 +40,9 @@ import { IMcpWorkspaceInstallTargetService, McpWorkspaceInstallTargetService } f
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IMcpRegistry } from '../../../../mcp/common/mcpRegistryTypes.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
-import { CustomizationMcpServerCompatibilityKind, ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
+import { CustomizationMcpServerCompatibilityKind, ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, IMcpSamplingService, IWorkbenchMcpServer, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionProvenance, McpConnectionState, McpServerDefinition, McpServerInstallState, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
 import { DisableMcpServerForWorkspaceAction, DisableMcpServerGloballyAction, EnableMcpServerForWorkspaceAction, EnableMcpServerGloballyAction } from '../../../../mcp/browser/mcpServerActions.js';
 import { McpCommandIds } from '../../../../mcp/common/mcpCommandIds.js';
@@ -869,6 +871,137 @@ suite('mcpListWidget', () => {
 		});
 	});
 
+	function createSameNameMcpFixture(agentHost: boolean) {
+		const widgetStore = disposables.add(new DisposableStore());
+		const storage = disposables.add(new TestStorageService());
+		const readKeys: string[] = [];
+		const enablement = disposables.add(new class extends EnablementModel {
+			override readEnabled(key: string, reader?: IReader): ContributionEnablementState {
+				readKeys.push(key);
+				return super.readEnabled(key, reader);
+			}
+		}('mcp.enablement', storage));
+		const localServers = [0, 1].map(index => new class extends mock<IWorkbenchMcpServer>() {
+			override readonly id = `mcp.config.ws${index}.shared`;
+			override readonly name = 'shared';
+			override readonly label = 'shared';
+			override readonly description = '';
+			override readonly local = new class extends mock<IWorkbenchLocalMcpServer>() {
+				override readonly scope = LocalMcpServerScope.Workspace;
+				override readonly mcpResource = URI.file(`/folder-${index}/.vscode/mcp.json`);
+			}();
+		}());
+		const runtime = new class extends mock<IMcpServer>() {
+			override readonly definition = new class extends mock<McpServerDefinition>() {
+				override readonly id = localServers[1].id;
+				override readonly label = 'shared';
+			}();
+			override readonly enablement = derived(reader => enablement.readEnabled(this.definition.id, reader));
+		}();
+		const hostServer = createAgentHostServer({ id: 'session/shared', name: 'shared', isClientBundled: true });
+		const mcpService = new class extends mock<IMcpService>() {
+			override readonly servers = constObservable([runtime]);
+			override readonly enablementModel = enablement;
+		}();
+		const widget = Object.assign(Object.create(McpListWidget.prototype) as {
+			installedEntries: { entry: IMcpInstalledEntry }[];
+			galleryCts?: CancellationTokenSource;
+			queryMcpSearch(): Promise<void>;
+			filterServers(render: boolean): void;
+			isInstalledEntryEnabled(entry: IMcpInstalledEntry): boolean;
+			setInstalledEntryEnabled(entry: IMcpInstalledEntry, enabled: boolean): void;
+		}, {
+			_store: widgetStore,
+			searchQuery: '',
+			element: document.createElement('div'),
+			installedEntryOrder: new Map<string, number>(),
+			installedEntryEnablementListener: widgetStore.add(new MutableDisposable()),
+			_onDidChangeItemCount: widgetStore.add(new Emitter<number>()),
+			mcpService,
+			mcpWorkbenchService: new class extends mock<IMcpWorkbenchService>() {
+				override readonly local = localServers;
+			}(),
+			mcpRegistry: new class extends mock<IMcpRegistry>() {
+				override readonly collections = constObservable([]);
+			}(),
+			agentHostCustomizationService: new class extends mock<IAgentHostCustomizationService>() {
+				override getMcpServers() { return agentHost ? [hostServer] : []; }
+			}(),
+			customizationHarnessService: new class extends mock<ICustomizationHarnessService>() {
+				override readonly activeSessionResource = constObservable(URI.parse('test:///session'));
+				override getActiveDescriptor() { return new class extends mock<IHarnessDescriptor>() { }(); }
+			}(),
+			marketplaceInstallService: new class extends mock<ICustomizationMarketplaceInstallService>() {
+				override readonly installations = constObservable(emptyCustomizationMarketplaceInstallationSnapshot);
+			}(),
+			isConnectorsEnabled: () => false,
+		});
+		widgetStore.add({ dispose: () => widget.galleryCts?.dispose(true) });
+		return { widget, widgetStore, storage, enablement, localServers, hostServer, readKeys };
+	}
+
+	for (const agentHost of [false, true]) {
+		test(`keeps same-named workspace MCP enablement independent in ${agentHost ? 'Agent Host' : 'Local'} customizations`, () => {
+			const { widget, storage, localServers, hostServer } = createSameNameMcpFixture(agentHost);
+			const counts: number[] = [];
+			disposables.add(widget._onDidChangeItemCount.event(count => counts.push(count)));
+			widget.filterServers(false);
+			const entries = widget.installedEntries.map(({ entry }) => {
+				assert.strictEqual(entry.type, 'server-item');
+				return entry;
+			});
+			const associations = entries.map(entry => ({
+				id: entry.server.id,
+				runtimeId: entry.localServer?.definition.id,
+				hostId: entry.activeSessionServer?.id,
+			}));
+			widget.setInstalledEntryEnabled(entries[1], false);
+			const afterDisablingSecond = entries.map(entry => widget.isInstalledEntryEnabled(entry));
+			const reloaded = disposables.add(new EnablementModel('mcp.enablement', storage));
+			const afterReload = localServers.map(server => reloaded.readProfileEnabled(server.id));
+			widget.setInstalledEntryEnabled(entries[0], false);
+			widget.setInstalledEntryEnabled(entries[1], true);
+
+			assert.deepStrictEqual({
+				associations,
+				afterDisablingSecond,
+				afterReload,
+				afterDisablingFirst: entries.map(entry => widget.isInstalledEntryEnabled(entry)),
+				counts,
+			}, {
+				associations: [
+					{ id: localServers[0].id, runtimeId: undefined, hostId: undefined },
+					{ id: localServers[1].id, runtimeId: localServers[1].id, hostId: agentHost ? hostServer.id : undefined },
+				],
+				afterDisablingSecond: [true, false],
+				afterReload: [true, false],
+				afterDisablingFirst: [false, true],
+				counts: [2, 1, 0, 1],
+			});
+		});
+	}
+
+	test('late gallery search completion does not retain a disposed widget', async () => {
+		const { widget, widgetStore, enablement, localServers, readKeys } = createSameNameMcpFixture(false);
+		const result = new DeferredPromise<IWorkbenchMcpServer[]>();
+		Object.assign(widget, {
+			searchQuery: 'shared',
+			mcpAccessEnabled: true,
+			isGalleryDiscoveryEnabled: () => false,
+			queryLegacyGallery: () => result.p,
+			renderFilteredServers: () => { },
+		});
+
+		const search = widget.queryMcpSearch();
+		widgetStore.dispose();
+		await result.complete([]);
+		await search;
+		readKeys.length = 0;
+		enablement.setEnabled(localServers[0].id, ContributionEnablementState.DisabledProfile);
+
+		assert.deepStrictEqual(readKeys, []);
+	});
+
 	test('classifies active-session-only MCP servers as built-in entries', () => {
 		const server = createAgentHostServer({ name: 'node_repl' });
 
@@ -1363,6 +1496,101 @@ suite('mcpListWidget', () => {
 		});
 	});
 
+	suite('MCP enablement routing for a server with a local twin', () => {
+		const sessionResource = URI.parse('vscode-agent-session:///session-1');
+		const localServerId = 'copilot.null.github';
+
+		function exercise(mcpService: IMcpService, agentHostService: IAgentHostCustomizationService, activeSessionServer: AgentHostMcpServer | undefined) {
+			const shownEnabled = isPrimaryMcpServerEnabled(mcpService, localServerId, activeSessionServer);
+			setPrimaryMcpServerEnablement(mcpService, agentHostService, sessionResource, localServerId, activeSessionServer, false);
+			const menu = trackActions(disposables, getBuiltinMcpServerEnablementActions(mcpService, localServerId, false, agentHostService, createAgentPluginService(), sessionResource, activeSessionServer));
+			menu.forEach(runAction);
+			const serverItemMenu = getServerItemContextMenuActions(
+				[trackActions(disposables, [
+					new Action(DisableMcpServerGloballyAction.ID, 'Disable (Globally)'),
+					new Action(DisableMcpServerForWorkspaceAction.ID, 'Disable (Workspace)'),
+				])],
+				activeSessionServer,
+				undefined,
+				[],
+			);
+			return {
+				shownEnabled,
+				menu: menu.map(action => action.label),
+				serverItemLocalMenu: serverItemMenu.filter(action => !(action instanceof Separator)).map(action => action.label),
+			};
+		}
+
+		test('routes a host-discovered Copilot-home server to the agent host', () => {
+			// The buggy flow left a window-local disable on the twin that the host never saw.
+			const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.DisabledProfile);
+			const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
+			const server = createAgentHostServer({
+				id: 'github',
+				name: 'github',
+				source: 'user',
+				isPluginProvided: false,
+				isClientBundled: false,
+			});
+
+			assert.deepStrictEqual({ ...exercise(mcpService, agentHostService, server), localCalls, agentHostCalls }, {
+				shownEnabled: true,
+				menu: ['Disable (Globally)', 'Disable (Workspace)', 'Disable (Session)'],
+				serverItemLocalMenu: [],
+				localCalls: [],
+				agentHostCalls: [
+					[sessionResource, 'github', undefined, CustomizationEnablementKind.Global, false],
+					[sessionResource, 'github', undefined, CustomizationEnablementKind.Global, false],
+					[sessionResource, 'github', undefined, CustomizationEnablementKind.Workspace, false],
+					[sessionResource, 'github', undefined, CustomizationEnablementKind.Session, false],
+				],
+			});
+		});
+
+		test('keeps the client-owned global decision for a client-forwarded server', () => {
+			const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.EnabledProfile);
+			const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
+			const server = createAgentHostServer({
+				id: 'github',
+				name: 'github',
+				isPluginProvided: true,
+				isClientBundled: true,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+			});
+
+			assert.deepStrictEqual({ ...exercise(mcpService, agentHostService, server), localCalls, agentHostCalls }, {
+				shownEnabled: true,
+				menu: ['Disable (Globally)', 'Disable (Workspace)', 'Disable (Session)'],
+				serverItemLocalMenu: ['Disable (Globally)'],
+				localCalls: [
+					[localServerId, ContributionEnablementState.DisabledProfile],
+					[localServerId, ContributionEnablementState.DisabledProfile],
+				],
+				agentHostCalls: [
+					[sessionResource, 'github', server.enablement, CustomizationEnablementKind.Workspace, false],
+					[sessionResource, 'github', server.enablement, CustomizationEnablementKind.Session, false],
+				],
+			});
+		});
+
+		test('uses local enablement without an active agent-host session', () => {
+			const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.EnabledProfile);
+			const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
+
+			assert.deepStrictEqual({ ...exercise(mcpService, agentHostService, undefined), localCalls, agentHostCalls }, {
+				shownEnabled: true,
+				menu: ['Disable (Globally)', 'Disable (Workspace)'],
+				serverItemLocalMenu: ['Disable (Globally)', 'Disable (Workspace)'],
+				localCalls: [
+					[localServerId, ContributionEnablementState.DisabledProfile],
+					[localServerId, ContributionEnablementState.DisabledProfile],
+					[localServerId, ContributionEnablementState.DisabledWorkspace],
+				],
+				agentHostCalls: [],
+			});
+		});
+	});
+
 	test('distinguishes membership changes from state-only changes', () => {
 		const getMembershipSignature = (sourceUri: URI | undefined, source?: AgentHostMcpServer['source'], displayName?: string) => {
 			const widget = Object.create(McpListWidget.prototype);
@@ -1503,7 +1731,7 @@ suite('mcpListWidget', () => {
 			assert.deepStrictEqual(calls, [[sessionResource, 'plugin-1', pluginEnablement, CustomizationEnablementKind.Session, true]]);
 		});
 
-		test('enables a client-published plugin globally through the client', () => {
+		test('enables a client-published plugin globally through the client', async () => {
 			const { service, calls: hostCalls } = createAgentHostCustomizations();
 			const clientCalls: unknown[][] = [];
 			const pluginUri = URI.file('/plugins/plugin-1');
@@ -1521,8 +1749,15 @@ suite('mcpListWidget', () => {
 				},
 			});
 
-			const [action] = trackActions(disposables, getAgentHostMcpServerEnablementActions(service, createAgentPluginService(clientCalls), sessionResource, server));
-			runAction(action);
+			const pluginService = createAgentPluginService(clientCalls);
+			const [action] = trackActions(disposables, getAgentHostMcpServerEnablementActions(service, {
+				...pluginService,
+				plugins: constObservable([new class extends mock<IAgentPlugin>() {
+					override readonly uri = pluginUri;
+				}()]),
+			}, sessionResource, server));
+			assert.ok(action);
+			await action.run();
 
 			assert.deepStrictEqual({ clientCalls, hostCalls }, {
 				clientCalls: [[pluginUri.toString(), ContributionEnablementState.EnabledProfile]],
@@ -1558,6 +1793,8 @@ suite('mcpListWidget', () => {
 		test('replaces the VS Code workspace action with agent-host workspace and session actions', () => {
 			const { service, calls } = createAgentHostCustomizations();
 			const server = createAgentHostServer({
+				isPluginProvided: true,
+				isClientBundled: true,
 				enabled: false,
 				enablement: [
 					{ kind: CustomizationEnablementKind.Session, enabled: false },
@@ -1594,6 +1831,27 @@ suite('mcpListWidget', () => {
 			]);
 		});
 
+		test('adds agent-host enablement actions once when several groups hold local enablement actions', () => {
+			const { service } = createAgentHostCustomizations();
+			const server = createAgentHostServer({ isPluginProvided: true, isClientBundled: true });
+			const agentHostActions = trackActions(disposables, getAgentHostMcpServerEnablementActions(service, createAgentPluginService(), sessionResource, server, ['workspace', 'session']));
+			const actions = getServerItemContextMenuActions(
+				[
+					trackActions(disposables, [new Action(DisableMcpServerGloballyAction.ID, 'Disable (Globally)')]),
+					trackActions(disposables, [new Action(DisableMcpServerForWorkspaceAction.ID, 'Disable (Workspace)')]),
+				],
+				server,
+				undefined,
+				agentHostActions,
+			);
+
+			assert.deepStrictEqual(actions.filter(action => !(action instanceof Separator)).map(action => action.label), [
+				'Disable (Globally)',
+				'Disable (Workspace)',
+				'Disable (Session)',
+			]);
+		});
+
 		test('keeps the VS Code-owned enablement set without an active agent-host session', () => {
 			const localActions = trackActions(disposables, [
 				new Action(EnableMcpServerGloballyAction.ID, 'Enable'),
@@ -1623,6 +1881,8 @@ suite('mcpListWidget', () => {
 				const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.EnabledProfile);
 				const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
 				const server = createAgentHostServer({
+					isPluginProvided: true,
+					isClientBundled: true,
 					enabled: false,
 					enablement: [
 						{ kind: CustomizationEnablementKind.Global, enabled: false },
@@ -2507,6 +2767,32 @@ suite('mcpListWidget', () => {
 			return { server, workbenchServer, connectionState, enablement, outputCalls, startCalls };
 		}
 
+		for (const isSessionsWindow of [false, true]) {
+			test(`updates a shadowed server's scoped status and ARIA label in the ${isSessionsWindow ? 'Agents' : 'editor'} window`, () => {
+				const ctx = createRenderer(createAgentHostServer(), isSessionsWindow);
+				disposables.add(ctx.store);
+				const localEnablement = observableValue('localEnablement', ContributionEnablementState.EnabledProfile);
+				ctx.render({ type: 'server-item', server: nativeServer().workbenchServer, localEnablement });
+				const observed = [
+					ContributionEnablementState.DisabledWorkspace,
+					ContributionEnablementState.DisabledProfile,
+					ContributionEnablementState.EnabledProfile,
+				].map(state => {
+					localEnablement.set(state, undefined);
+					return {
+						disabled: ctx.templateData.container.classList.contains('disabled'),
+						ariaLabel: ctx.read().ariaLabel,
+					};
+				});
+
+				assert.deepStrictEqual(observed, [
+					{ disabled: true, ariaLabel: 'Native, Disabled (Workspace)' },
+					{ disabled: true, ariaLabel: 'Native, Disabled (Globally)' },
+					{ disabled: false, ariaLabel: 'Native' },
+				]);
+			});
+		}
+
 		test('local built-in rows can start from stopped and error states', async () => {
 			const ctx = createRenderer(createAgentHostServer(), false);
 			disposables.add(ctx.store);
@@ -2637,7 +2923,7 @@ suite('mcpListWidget', () => {
 					logSessions: ctx.shownLogSessions,
 				}, {
 					checkedAfterSnapshot: 'false', currentToggle: true, currentMore: true, focused: true,
-					scopeLabels: kind === 'matched' ? ['Disable (Session)'] : ['Enable', 'Disable (Session)'],
+					scopeLabels: ['Enable', 'Disable (Session)'],
 					starts: ['latest'],
 					hostEnablement: [[ctx.activeSessionResource.get(), server.id, enablement, CustomizationEnablementKind.Global, true]],
 					localEnablement: [], logs: [server.id], logSessions: [ctx.activeSessionResource.get().toString()],
@@ -2772,6 +3058,27 @@ suite('mcpListWidget', () => {
 				afterReplacement: 'Replacement error',
 				afterStaleUpdate: 'Replacement error',
 			});
+		});
+
+		test('detail diagnostics follow a runtime first appearing for a shadowed source', () => {
+			const ctx = createRenderer(createAgentHostServer(), false);
+			disposables.add(ctx.store);
+			const native = nativeServer();
+			const other = new class extends mock<IMcpServer>() {
+				override readonly definition = { ...native.server.definition, id: 'other-source' };
+				override readonly enablement = constObservable(ContributionEnablementState.EnabledProfile);
+				override readonly connectionState = observableValue<McpConnectionState>('connectionState', { state: McpConnectionState.Kind.Error, message: 'Other source error' });
+			}();
+			ctx.setRuntimeServers([other]);
+			const error = ctx.detailInput({ type: 'server-item', server: native.workbenchServer }).error!;
+			const observed: (string | undefined)[] = [];
+			disposables.add(autorun(reader => { observed.push(error.read(reader)); }));
+
+			ctx.setRuntimeServers([native.server]);
+			ctx.setRuntimeServers([other]);
+			other.connectionState.set({ state: McpConnectionState.Kind.Error, message: 'Unrelated update' }, undefined);
+
+			assert.deepStrictEqual(observed, [undefined, 'Native connection failed', undefined]);
 		});
 
 		test('installed rows use compact density', () => {

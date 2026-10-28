@@ -1467,11 +1467,33 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background: var(--vscode-button-hoverBackground);
 }
 
-/* A host-provided label (for example "Run 3 Attempts") sits before the button. */
+/* A host-provided label (for example "Run 3 Attempts") shares the button surface. */
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button.labeled {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
+	padding-left: var(--vscode-spacing-size80);
+
+	&:not(.disabled) {
+		background-color: var(--vscode-button-background);
+		box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-contrastBorder, transparent);
+
+		> .chat-submit-button-label {
+			color: var(--vscode-button-foreground);
+		}
+
+		> .action-label {
+			background: transparent;
+		}
+
+		&:is(:hover, .hovered, :focus-within) {
+			background-color: var(--vscode-button-hoverBackground);
+
+			> .action-label {
+				background: transparent;
+			}
+		}
+	}
 }
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .chat-submit-button-label {
@@ -1502,6 +1524,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: column;
 	gap: 2px;
 	overflow: hidden;
+}
+
+.monaco-workbench .interactive-session .chat-input-stack-input-focused > .chat-editing-session.chat-input-stack-continues > .chat-session-working-set {
+	border-inline-color: var(--vscode-focusBorder);
+}
+
+.monaco-workbench .interactive-session .chat-input-stack-input-focused.chat-input-stack-input-working > .chat-editing-session.chat-input-stack-continues > .chat-session-working-set {
+	border-inline-color: color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
 }
 
 .interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar {
@@ -3377,7 +3407,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.interactive-session .chat-summary-list .monaco-list .monaco-list-row:hover {
+.interactive-session .chat-summary-list .monaco-list .monaco-list-row:hover:not(.selected):not(.focused) {
 	background-color: var(--vscode-list-hoverBackground) !important;
 }
 
@@ -3488,7 +3518,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-shrink: 0;
 }
 
-.chat-collapsible-hover-chevron {
+.chat-collapsible-hover-chevron,
+.chat-working-activities .chat-pill-chevron {
 	font-size: var(--vscode-codiconFontSize-compact);
 	opacity: 0;
 	transform: rotate(0deg);
@@ -3509,12 +3540,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .monaco-reduce-motion .chat-collapsible-hover-chevron,
-.monaco-workbench.monaco-reduce-motion .chat-collapsible-hover-chevron {
+.monaco-workbench.monaco-reduce-motion .chat-collapsible-hover-chevron,
+.monaco-reduce-motion .chat-working-activities .chat-pill-chevron {
 	transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.chat-collapsible-hover-chevron {
+	.chat-collapsible-hover-chevron,
+	.chat-working-activities .chat-pill-chevron {
 		transition: none;
 	}
 }
@@ -3595,13 +3628,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 
 		& > p {
-			color: var(--vscode-descriptionForeground);
-			font-size: var(--vscode-chat-font-size-body-s);
-			margin: 0;
-			/* Fixed-width digits so a streaming count (e.g. "84 lines") doesn't jitter as it changes. */
-			font-variant-numeric: tabular-nums;
-			font-feature-settings: "tnum";
-
 			code {
 				font-size: var(--vscode-chat-font-size-body-xs);
 			}
@@ -3612,12 +3638,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 	}
 
+	.rendered-markdown.progress-step > p,
+	.chat-working-activities .chat-pill-label {
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-chat-font-size-body-s);
+		margin: 0;
+		/* Fixed-width digits so a streaming count (e.g. "84 lines") doesn't jitter as it changes. */
+		font-variant-numeric: tabular-nums;
+		font-feature-settings: "tnum";
+	}
+
 	/* Ordinary shimmer rows use the text as their progress affordance. */
 	&.shimmer-progress:where(:not(.chat-working-progress)) > .codicon {
 		display: none;
 	}
 
 	/* shimmer animation for shimmer progress */
+	&.shimmer-progress .chat-working-activities .chat-pill-label,
 	&.shimmer-progress .rendered-markdown.progress-step:not(.chat-progress-partial-shimmer) > p,
 	&.shimmer-progress .rendered-markdown.progress-step.chat-progress-partial-shimmer .chat-progress-shimmer-text {
 		background: linear-gradient(90deg,
@@ -3634,11 +3671,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		will-change: background-position;
 	}
 
+	&.shimmer-progress.chat-progress-shimmer-paused .chat-working-activities .chat-pill-label,
 	&.shimmer-progress.chat-progress-shimmer-paused .rendered-markdown.progress-step:not(.chat-progress-partial-shimmer) > p,
 	&.shimmer-progress.chat-progress-shimmer-paused .rendered-markdown.progress-step.chat-progress-partial-shimmer .chat-progress-shimmer-text {
 		animation-play-state: paused;
 	}
 
+	&.shimmer-progress.chat-progress-animation .chat-working-activities .chat-pill-label,
 	&.shimmer-progress.chat-progress-animation .rendered-markdown.progress-step:not(.chat-progress-partial-shimmer) > p,
 	&.shimmer-progress.chat-progress-animation .rendered-markdown.progress-step.chat-progress-partial-shimmer .chat-progress-shimmer-text {
 		animation-timing-function: linear;
@@ -3649,6 +3688,71 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .hc-black .interactive-item-container .progress-container .progress-step .chat-progress-origin,
 .hc-light .interactive-item-container .progress-container .progress-step .chat-progress-origin {
 	opacity: 1;
+}
+
+.chat-working-progress-has-activities > .rendered-markdown.progress-step {
+	display: none;
+}
+
+.chat-working-activities {
+	--chat-pill-background: transparent;
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+}
+
+.chat-working-activities .monaco-action-bar .chat-dropdown-pill {
+	max-width: 100%;
+	flex-shrink: 1;
+	min-width: 0;
+}
+
+.chat-working-activities .chat-pill-item .monaco-button.chat-pill-button.secondary {
+	display: flex;
+	padding: 0;
+	gap: var(--vscode-spacing-size20);
+	font-size: inherit;
+	line-height: inherit;
+	max-width: 100%;
+	border: none;
+	border-radius: 0;
+	background-image: none;
+
+	&:is(:hover, .hovered, :focus) {
+		background-image: none;
+	}
+
+	&:focus {
+		outline: none;
+	}
+
+	&:focus-visible .chat-pill-label {
+		text-decoration: underline;
+		text-decoration-color: var(--vscode-focusBorder);
+		text-underline-offset: var(--vscode-spacing-size20);
+	}
+}
+
+.chat-working-activities .chat-pill-button .chat-pill-chevron.codicon {
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	margin: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+	transform: rotate(-90deg);
+}
+
+.chat-working-activities .chat-pill-button:is(:hover, .hovered, :focus-visible, [aria-expanded="true"]) .chat-pill-chevron {
+	opacity: 1;
+}
+
+.chat-working-activities .chat-pill-button[aria-expanded="true"] .chat-pill-chevron {
+	transform: rotate(0deg);
+}
+
+.chat-working-activities .chat-pill-item .chat-pill-button .chat-pill-icon.codicon {
+	display: none;
 }
 
 .interactive-item-container .progress-container > .chat-working-progress-icon-stable {
@@ -3673,6 +3777,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Reduced motion: render the shimmer text as static, solid progress text. */
+.monaco-reduce-motion .interactive-item-container .progress-container.shimmer-progress .chat-working-activities .chat-pill-label,
 .monaco-reduce-motion .interactive-item-container .progress-container.shimmer-progress .rendered-markdown.progress-step:not(.chat-progress-partial-shimmer) > p,
 .monaco-reduce-motion .interactive-item-container .progress-container.shimmer-progress .rendered-markdown.progress-step.chat-progress-partial-shimmer .chat-progress-shimmer-text {
 	animation: none;
