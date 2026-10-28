@@ -214,7 +214,19 @@ export class LabelService extends Disposable implements ILabelService {
 		this.resolveRemoteEnvironment();
 	}
 
+	/**
+	 * The memento holds whatever JSON was stored, which can be a corrupt non-object such as `null`.
+	 * It is updated in place, so such a cache can neither be read nor updated by this window.
+	 */
+	private hasUsableStoredFormatters(): boolean {
+		return !!this.storedFormatters && typeof this.storedFormatters === 'object';
+	}
+
 	private sanitizeStoredFormatters(): ResourceLabelFormatter[] {
+		if (!this.hasUsableStoredFormatters()) {
+			return [];
+		}
+
 		const stored = this.storedFormatters.formatters;
 		if (stored === undefined) {
 			return [];
@@ -229,6 +241,10 @@ export class LabelService extends Disposable implements ILabelService {
 	}
 
 	private reloadCachedFormatters(): void {
+		if (!this.hasUsableStoredFormatters()) {
+			return;
+		}
+
 		const previous = this.cachedFormatters;
 		this.storedFormattersMemento.reloadMemento(StorageScope.PROFILE);
 		this.cachedFormatters = this.sanitizeStoredFormatters();
@@ -564,6 +580,10 @@ export class LabelService extends Disposable implements ILabelService {
 	}
 
 	registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable {
+		if (!this.hasUsableStoredFormatters()) {
+			return this.registerFormatter(formatter);
+		}
+
 		const list = this.storedFormatters.formatters ??= [];
 
 		let replace = list.findIndex(f => f.scheme === formatter.scheme && f.authority === formatter.authority);

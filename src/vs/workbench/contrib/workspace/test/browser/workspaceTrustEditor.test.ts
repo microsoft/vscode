@@ -621,6 +621,39 @@ suite('WorkspaceTrustedUrisTable', () => {
 			assert.deepStrictEqual(trustService.getTrustedUris().map(uri => uri.path), ['/home/a']);
 		});
 
+		function normalizeTrailingSeparator(): void {
+			trustService.canonicalize = uri => uri.with({ path: uri.path.replace(/(?<last>.)\/$/, '$<last>') });
+		}
+
+		test('edits the saved form of an edited folder that the service normalizes', async () => {
+			const labelService = createTableWithUris([hostA, hostB]);
+			store.add(labelService.registerFormatter(formatter('ssh-remote+*', 'SSH')));
+			normalizeTrailingSeparator();
+			const gate = new DeferredPromise<void>();
+			trustService.completionGate = gate.p;
+
+			table.acceptEdit({ uri: hostB, parentOfWorkspaceItem: false }, hostB.with({ path: '/home/b2/' }));
+			const editing = table.edit({ uri: hostB, parentOfWorkspaceItem: false });
+			gate.complete();
+			await editing;
+
+			assert.deepStrictEqual(Array.from(container.querySelectorAll('.path.input-mode')).map(element => element.querySelector('input')!.value), ['/home/b2']);
+		});
+
+		test('deletes the saved form of an edited folder that the service normalizes', async () => {
+			createTableWithUris([hostA, hostB]);
+			normalizeTrailingSeparator();
+			const gate = new DeferredPromise<void>();
+			trustService.completionGate = gate.p;
+
+			table.acceptEdit({ uri: hostB, parentOfWorkspaceItem: false }, hostB.with({ path: '/home/b2/' }));
+			const deletion = table.delete({ uri: hostB, parentOfWorkspaceItem: false });
+			gate.complete();
+			await deletion;
+
+			assert.deepStrictEqual(trustService.getTrustedUris().map(uri => uri.path), ['/home/a']);
+		});
+
 		test('opens the editor of the latest edit only, after all queued saves', async () => {
 			const hostC = URI.parse('vscode-remote://ssh-remote+hostC/home/c');
 			const labelService = createTableWithUris([hostA, hostB, hostC]);
