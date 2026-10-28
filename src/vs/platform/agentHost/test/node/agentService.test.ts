@@ -11686,6 +11686,53 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('archiving a side chat detaches its private folder without completing its parent or sibling', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot', {
+				multipleChats: { fork: true },
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/workspace/primary');
+			const privateFolder = URI.file('/workspace/side');
+			const siblingFolder = URI.file('/workspace/sibling');
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary] });
+			const side = buildChatUri(session, 'side');
+			const sibling = URI.parse(buildChatUri(session, 'sibling'));
+			await svc.addSessionWorkingDirectoryForChat(session, privateFolder, { isolation: 'folder' });
+			const stateManager = getStateManager(svc);
+			stateManager.addChat(session.toString(), side, creationTimeChatStorageResource(session.toString(), side, buildDefaultChatUri(session)), {
+				origin: { kind: ChatOriginKind.SideChat, chat: buildDefaultChatUri(session), turnId: 'turn' },
+				workingDirectories: [privateFolder.toString()],
+			});
+			await svc.createChat(session, sibling, { workingDirectories: [await svc.addSessionWorkingDirectoryForChat(session, siblingFolder, { isolation: 'folder' })] });
+
+			svc.dispatchAction(side, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 1);
+			await whenArchivedChatWorkspaceUpdatesSettled(svc, session);
+			const afterArchive = stateManager.getSessionSummary(session.toString())?.workingDirectories;
+			svc.dispatchAction(side, { type: ActionType.ChatIsArchivedChanged, isArchived: false }, 'client', 2);
+			await whenArchivedChatWorkspaceUpdatesSettled(svc, session);
+
+			assert.deepStrictEqual({
+				afterArchive,
+				afterRestore: stateManager.getSessionSummary(session.toString())?.workingDirectories,
+				sideFolders: stateManager.getChatState(side)?.workingDirectories,
+				parentArchived: isSessionStatusArchived(stateManager.getSessionState(session.toString())?.status),
+				siblingArchived: isSessionStatusArchived(stateManager.getChatState(sibling.toString())?.status),
+			}, {
+				afterArchive: [primary.toString(), siblingFolder.toString()],
+				afterRestore: [primary.toString(), siblingFolder.toString(), privateFolder.toString()],
+				sideFolders: [privateFolder.toString()],
+				parentArchived: false,
+				siblingArchived: false,
+			});
+		});
+
 		test('subagents of unarchived chats keep only their spawning chat\'s folders attached when a peer chat is archived', async () => {
 			class MultiChatAgent extends MockAgent {
 				override async createChat(): Promise<IAgentCreateChatResult> {
