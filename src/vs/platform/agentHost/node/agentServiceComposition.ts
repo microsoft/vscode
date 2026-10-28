@@ -309,7 +309,7 @@ export function createAgentServiceComposition(
 		const artifactRuntime = owned.add(new AgentHostArtifactRuntime(
 			options.rootConfigResource ? joinPath(dirname(options.rootConfigResource), 'artifact-integrations.json') : undefined,
 			{
-				postNotice: (chat, part) => callbackAdapter.value.postChatNotice(chat, part),
+				postNotice: (chat, part, merge) => callbackAdapter.value.postChatNotice(chat, part, merge),
 				// Unloading a session is not deletion; only deleting its data removes its artifact bindings.
 				onDidDeleteSession: Event.map(sessionDataService.onWillDeleteSessionData, event => event.session.toString()),
 				acquire: async (resource, owner) => {

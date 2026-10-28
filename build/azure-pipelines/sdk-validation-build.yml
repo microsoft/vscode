@@ -167,6 +167,13 @@ extends:
           - repository: vscode_loc
       tsa:
         enabled: false
+      # BinSkim still scans and reports, but does not break this build. The 1ES
+      # templates only break on BinSkim results when a pipeline is not official
+      # with TSA enabled. The product build is, so it files these results in TSA
+      # instead, while this never-shipping build has TSA off and would fail on
+      # existing findings in the server's native modules.
+      binskim:
+        break: false
       codeql:
         compiled:
           enabled: false

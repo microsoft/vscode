@@ -13,6 +13,7 @@ import sodium from 'libsodium-wrappers';
 import { lstat, mkdir, mkdtemp, opendir, readFile, readdir, rm, symlink, writeFile } from 'fs/promises';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { AgentHostWorktreeDiskUsageService } from '../../node/worktreeDiskUsage.js';
+import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { dirname, join, parse } from '../../../../base/common/path.js';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
@@ -39,7 +40,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { mock } from '../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { FileType } from '../../../files/common/files.js';
+import { createFileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
@@ -96,6 +97,7 @@ import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaK
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentHostChatOwnershipService, IAgentHostChatOwnershipService, type IChatOwnerResolution } from '../../node/agentHostChatOwnershipService.js';
 import { EmptyOwnershipDatabase, createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { FileSystemResources } from '../../node/resourceProviders/fileSystemResources.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
@@ -234,10 +236,10 @@ class TestHandlerChatOwnership extends AgentHostChatOwnershipService {
 class MockAgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
 	sessionWorktreeCleanup?: IAgentService['sessionWorktreeCleanup'];
-	private readonly _worktreeDiskUsage = this._register(new AgentHostWorktreeDiskUsageService());
+	private readonly _worktreeDiskUsage = this._register(new AgentHostWorktreeDiskUsageService(undefined, new class extends mock<IAgentHostDatabase>() { }(), new class extends mock<AgentHostStateManager>() { }()));
 
-	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined> {
-		return this._worktreeDiskUsage.measure(root, token);
+	measureWorktreeDiskUsage(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined> {
+		return this._worktreeDiskUsage.measure(root, token, session);
 	}
 	readonly handledActions: (SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction)[] = [];
 	readonly handledClientTypes: (AgentHostClientType | undefined)[] = [];
@@ -2323,6 +2325,38 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	suite('resource resolution', () => {
+		for (const [fileErrorCode, protocolErrorCode] of [
+			[FileSystemProviderErrorCode.FileNotFound, AhpErrorCodes.NotFound],
+			[FileSystemProviderErrorCode.NoPermissions, AhpErrorCodes.PermissionDenied],
+			[FileSystemProviderErrorCode.Unavailable, JSON_RPC_INTERNAL_ERROR],
+			[FileSystemProviderErrorCode.Unknown, JSON_RPC_INTERNAL_ERROR],
+		] as const) {
+			test(`preserves filesystem error classification across the protocol (${fileErrorCode})`, async () => {
+				const resources = disposables.add(new FileSystemResources(new class extends mock<IFileService>() {
+					override async stat(): Promise<never> {
+						throw createFileSystemProviderError('Stat failed', fileErrorCode);
+					}
+				}));
+				agentService.resourceResolve = params => resources.resolve(params);
+				const transport = disposables.add(connectClient('resource-resolution'));
+				const response = waitForResponse(transport, 20);
+				const uri = 'file:///repo.worktrees/session';
+				transport.simulateMessage(request(20, 'resourceResolve', { channel: 'ahp-root://', uri, followSymlinks: false }));
+				assert.deepStrictEqual(await response, {
+					jsonrpc: '2.0',
+					id: 20,
+					error: {
+						code: protocolErrorCode,
+						message: fileErrorCode === FileSystemProviderErrorCode.FileNotFound ? `Resource not found: ${uri}`
+							: fileErrorCode === FileSystemProviderErrorCode.NoPermissions ? `Permission denied: ${uri}`
+								: `Failed to resolve resource: ${uri}: Stat failed`,
+					},
+				});
+			});
+		}
+	});
+
 	suite('worktree disk usage', () => {
 		let root: string;
 		let allocatedBytes: number;
@@ -2371,6 +2405,21 @@ suite('ProtocolServerHandler', () => {
 			assert.deepStrictEqual(await response, { jsonrpc: '2.0', id: 20, result: { sizeBytes: allocatedBytes } });
 		});
 
+		test('routes the advertised session identity to the host size cache', async () => {
+			const sessions: (string | undefined)[] = [];
+			agentService.measureWorktreeDiskUsage = async (_root, _token, session) => {
+				sessions.push(session?.toString());
+				return allocatedBytes;
+			};
+			const transport = connectClient('worktree-cache');
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/measureWorktreeDiskUsage', {
+				uri: URI.file(root).toString(), requestId: 'cached', session: 'other-host:/opaque/session',
+			}));
+			await response;
+			assert.deepStrictEqual(sessions, ['other-host:/opaque/session']);
+		});
+
 		test('allows a protocol measurement to finish after thirty seconds', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			agentService.measureWorktreeDiskUsage = async (_uri, token) => {
 				await raceCancellationError(timeout(30_000), token);
@@ -2409,7 +2458,7 @@ suite('ProtocolServerHandler', () => {
 						active--;
 					}
 				},
-			}));
+			}, new class extends mock<IAgentHostDatabase>() { }(), stateManager));
 			agentService.measureWorktreeDiskUsage = (uri, token) => sharedMeasurements.measure(uri, token);
 			const secondServer = disposables.add(new MockProtocolServer());
 			disposables.add(new ProtocolServerHandler(

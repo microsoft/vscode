@@ -700,6 +700,8 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 			return { kind: 'systemNotification', content: markdown, icon: Codicon.circleSlash, renderInlineTiming: true };
 		case AgentSystemNotificationKind.AgentMergePullRequestMerged:
 			return { kind: 'systemNotification', content: markdown, icon: Codicon.gitMerge, renderInlineTiming: true };
+		case AgentSystemNotificationKind.AgentMergeBlocked:
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.warning, renderInlineTiming: true };
 		default:
 			return { kind: 'systemNotification', content: markdown };
 	}

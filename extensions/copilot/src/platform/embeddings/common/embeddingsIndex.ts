@@ -31,7 +31,6 @@ export enum RemoteCacheType {
 	Commands = 'commands',
 	Api = 'api',
 	Extensions = 'extensions',
-	ProjectTemplates = 'project-templates',
 	Tools = 'tools'
 }
 

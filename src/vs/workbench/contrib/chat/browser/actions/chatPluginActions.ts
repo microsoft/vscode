@@ -30,7 +30,7 @@ import { type IMarketplaceReference, IPluginMarketplaceService, MarketplaceRefer
 import { InstalledAgentPluginsViewId } from '../chat.js';
 import { isAgentFinderPublicFeedAvailable } from '../aiCustomization/customizationMarketplaceConfiguration.js';
 import { getProviderMarketplaceSourceId } from '../aiCustomization/customizationMarketplaceWorkbenchService.js';
-import { getPluginCustomizationMarketplaceNavigationSourceId } from '../aiCustomization/pluginCustomizationMarketplaceProvider.js';
+import { getPluginCustomizationMarketplaceNavigationSourceId, isPluginMarketplaceAvailableInDiscover } from '../aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 export class ManagePluginsAction extends Action2 {
@@ -268,8 +268,12 @@ export class ManagePluginMarketplacesAction extends Action2 {
 		const notificationService = accessor.get(INotificationService);
 		const customizationHarnessService = accessor.get(ICustomizationHarnessService);
 		const commandService = accessor.get(ICommandService);
+		const configurationService = accessor.get(IConfigurationService);
+		const marketplaceService = accessor.get(IPluginMarketplaceService);
 		const sessionResource = customizationHarnessService.activeSessionResource.get();
-		const marketplaceManagementProvider = customizationHarnessService.getDescriptorForSession(sessionResource)?.marketplaceManagementProvider;
+		const descriptor = customizationHarnessService.getDescriptorForSession(sessionResource);
+		const marketplaceManagementProvider = descriptor?.marketplaceManagementProvider;
+		const githubFeedAvailable = () => isAgentFinderPublicFeedAvailable(marketplaceService, !!descriptor?.marketplaceSearchProvider);
 		if (marketplaceManagementProvider) {
 			const dialogService = accessor.get(IDialogService);
 			if (options?.addMarketplace) {
@@ -288,14 +292,13 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				marketplaceManagementProvider,
 				sessionResource,
 				commandService,
+				marketplace => isPluginMarketplaceAvailableInDiscover(configurationService, marketplace.source, githubFeedAvailable()),
 			);
 			return;
 		}
 
-		const configurationService = accessor.get(IConfigurationService);
 		const pluginRepositoryService = accessor.get(IAgentPluginRepositoryService);
 		const fileService = accessor.get(IFileService);
-		const marketplaceService = accessor.get(IPluginMarketplaceService);
 
 		if (options?.addMarketplace) {
 			const { effectiveValues } = readConfiguredMarketplaces(configurationService);
@@ -310,7 +313,8 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				reference.canonicalId,
 				{ reference },
 			]));
-			const refs = [...configuredMarketplaces.values()];
+			const refs = [...configuredMarketplaces.values()]
+				.filter(({ reference }) => isPluginMarketplaceAvailableInDiscover(configurationService, reference, githubFeedAvailable()));
 			const policyCanonicalIds = new Set(parseMarketplaceReferences(extraValues).map(reference => reference.canonicalId));
 			const defaultCanonicalIds = new Set(parseMarketplaceReferences(
 				configurationService.inspect<readonly unknown[]>(ChatConfiguration.PluginMarketplaces)?.defaultValue ?? []
@@ -372,7 +376,12 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				return;
 			}
 			if (selected.kind === 'add') {
-				const result = await this.addLocalMarketplace(quickInputService, notificationService, configurationService, refs.map(({ reference }) => reference));
+				const result = await this.addLocalMarketplace(
+					quickInputService,
+					notificationService,
+					configurationService,
+					[...configuredMarketplaces.values()].map(({ reference }) => reference),
+				);
 				if (result === 'back') {
 					continue;
 				}
@@ -439,9 +448,11 @@ export class ManagePluginMarketplacesAction extends Action2 {
 		provider: ICustomizationMarketplaceManagementProvider,
 		sessionResource: URI,
 		commandService: ICommandService,
+		isMarketplaceVisible: (marketplace: ICustomizationMarketplaceInfo) => boolean,
 	): Promise<void> {
 		while (true) {
 			const marketplaces = await provider.list(sessionResource);
+			const visibleMarketplaces = marketplaces.filter(isMarketplaceVisible);
 			const items: QuickPickInput<IProviderMarketplaceQuickPickItem>[] = [{
 				id: 'addMarketplace',
 				label: localize('addMarketplace', "{0} Add Marketplace...", '$(add)'),
@@ -455,9 +466,9 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				kind: 'browse',
 				alwaysShow: true,
 			}];
-			if (marketplaces.length > 0) {
+			if (visibleMarketplaces.length > 0) {
 				items.push({ type: 'separator', label: localize('configuredMarketplaces', "Configured Marketplaces") });
-				items.push(...marketplaces.map(marketplace => ({
+				items.push(...visibleMarketplaces.map(marketplace => ({
 					id: marketplace.name,
 					label: marketplace.name,
 					description: [
@@ -473,7 +484,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 			}
 			const selected = await quickInputService.pick(items, {
 				title: localize('managePluginMarketplacesQuickPick', "Manage Plugin Marketplaces"),
-				placeHolder: marketplaces.length === 0
+				placeHolder: visibleMarketplaces.length === 0
 					? localize('noMarketplaces', "No plugin marketplaces configured")
 					: localize('selectMarketplace', "Select a plugin marketplace"),
 				prompt: localize('marketplaceTrustPrompt', "Only add marketplaces you trust."),

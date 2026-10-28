@@ -644,6 +644,51 @@ suite('AgentHostCatalogSyncService', () => {
 		assert.deepStrictEqual(central.calls, ['get']);
 	});
 
+	test('keeps the central adoption of a write only if session.db takes it, also across generation retries', async () => {
+		// Scripts what session.db answers to the generation transitions; afterwards, they run for real.
+		const synchronizeWithTransitions = async (transitions: SessionCatalogSyncTransitionResult[]) => {
+			class ScriptedTransitionDatabase extends RecordingSessionDatabase {
+				override async transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncTransitionResult> {
+					return transitions.shift() ?? super.transitionMetadataValuesAndCatalogSyncSnapshot(values, expectedSessionGeneration, snapshot, validate);
+				}
+			}
+			const local = new ScriptedTransitionDatabase();
+			// A receipt of an older generation makes the synchronization transition it
+			const encoded = encodeAgentHostCatalogPayload(data('Original'));
+			if (!encoded.ok) {
+				throw new Error(encoded.error);
+			}
+			const receipt = { sessionGeneration: 'older-generation', sourceRevision: 0, projectionVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, payloadHash: encoded.value.payloadHash };
+			await local.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Original' }, { ...receipt, payload: encoded.value.payload, state: 'pending' });
+			await local.acknowledgeCatalogSyncSnapshot(receipt);
+			const central = store.add(new RecordingCatalogDatabase());
+			await central.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			const sessionDataService = createSessionDataService(local);
+			const sessionStateStore = store.add(createTestSessionStateStore(central, sessionDataService));
+			const service = new AgentHostCatalogSyncService(sessionDataService, central, sessionStateStore, new NullLogService());
+			// A loaded session synchronizes through central state, which adopts the request's values
+			await sessionStateStore.load(session);
+
+			const result = await service.synchronize(session, { data: data('Superseded'), legacyMetadata: { customTitle: 'Superseded' } });
+			const centralTitle = sessionStateStore.legacyMetadata(session, ['customTitle']).values.customTitle;
+			await sessionStateStore.whenIdle(session);
+			return { status: result.status, reason: result.status === 'pending' ? result.reason : undefined, centralTitle, localTitle: await local.getMetadata('customTitle') };
+		};
+
+		assert.deepStrictEqual({
+			applied: await synchronizeWithTransitions([]),
+			cancelled: await synchronizeWithTransitions(['cancelled']),
+			mismatchedThenCancelled: await synchronizeWithTransitions(['generationMismatch', 'cancelled']),
+			mismatchedOnEveryRetry: await synchronizeWithTransitions(['generationMismatch', 'generationMismatch', 'generationMismatch']),
+		}, {
+			applied: { status: 'acknowledged', reason: undefined, centralTitle: 'Superseded', localTitle: 'Superseded' },
+			cancelled: { status: 'pending', reason: 'cancelled', centralTitle: 'Original', localTitle: 'Original' },
+			// The retry starts from the original values, not from the adoption of the mismatched attempt
+			mismatchedThenCancelled: { status: 'pending', reason: 'cancelled', centralTitle: 'Original', localTitle: 'Original' },
+			mismatchedOnEveryRetry: { status: 'pending', reason: 'generationMismatch', centralTitle: 'Original', localTitle: 'Original' },
+		});
+	});
+
 	test('retains the pending payload when the central upsert fails', async () => {
 		const { local, central, service } = await createHarness();
 		central.upsertError = new Error('central unavailable');

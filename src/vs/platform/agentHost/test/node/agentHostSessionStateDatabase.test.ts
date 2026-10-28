@@ -247,12 +247,15 @@ suite('AgentHostDatabase session state', () => {
 
 	for (const [cleanup, remove] of [
 		['tombstone', (database: AgentHostDatabase, session: string) => database.tombstoneAndUnregisterSession(session)],
+		['hide', (database: AgentHostDatabase, session: string) => database.hideSession(session, 'copilotcli')],
 		['exclusion', async (database: AgentHostDatabase, session: string) => { await database.excludeSessionV2({ provider: 'copilotcli', session, reason: 'backing', fingerprint: 'f' }, { identity: await database.getSessionV2Registration(session), catalog: undefined }); }],
 		['runtime unregistration', (database: AgentHostDatabase, session: string) => database.unregisterRuntimeSession(session)],
 		['sessions_v2 unregistration', (database: AgentHostDatabase, session: string) => database.unregisterSessionV2(session)],
 		['provider-absent exclusion', async (database: AgentHostDatabase, session: string) => { await database.excludeSessionV2({ provider: 'copilotcli', session, reason: 'providerAbsent', fingerprint: 'f' }, { identity: await database.getSessionV2Registration(session), catalog: undefined }); }],
 	] as const) {
-		test(`${cleanup} ${cleanup === 'provider-absent exclusion' ? 'keeps' : 'removes'} every session state row and marker`, async () => {
+		// A hidden session is live, and a provider-absent one may return: both keep their state.
+		const keeps = cleanup === 'hide' || cleanup === 'provider-absent exclusion';
+		test(`${cleanup} ${keeps ? 'keeps' : 'removes'} every session state row and marker`, async () => {
 			const database = await open();
 			const session = 'copilotcli:/removed';
 			const other = 'copilotcli:/kept';
@@ -264,7 +267,7 @@ suite('AgentHostDatabase session state', () => {
 			await database.close();
 			const counts = await withRaw(path, async raw => ({ removed: await sessionStateRowCounts(raw, session), other: await sessionStateRowCounts(raw, other) }));
 			const full = { ...FULL_STATE_ROWS };
-			assert.deepStrictEqual(counts, { removed: cleanup === 'provider-absent exclusion' ? full : Object.fromEntries(Object.keys(full).map(key => [key, 0])), other: full });
+			assert.deepStrictEqual(counts, { removed: keeps ? full : Object.fromEntries(Object.keys(full).map(key => [key, 0])), other: full });
 		});
 	}
 
@@ -315,6 +318,42 @@ suite('AgentHostDatabase session state', () => {
 			write: await database.writeSessionState(session, 1, { values: {}, folders: [], chats: [], markPayloadDirty: false }),
 			rowMirror: await database.writeChatRowMirror(session, 'ahp-chat://peer/d', 'draft', '{}'),
 		}, { import: 'tombstoned', write: { status: 'tombstoned' }, rowMirror: 'tombstoned' });
+	});
+
+	test('hidden sessions import and accept writes without becoming session state garbage', async () => {
+		const database = await open();
+		const hidden = 'copilotcli:/hidden';
+		const deleted = 'copilotcli:/deleted';
+		await database.tombstoneAndUnregisterSession(hidden);
+		await database.hideSession(hidden, 'copilotcli');
+		await database.tombstoneAndUnregisterSession(deleted);
+		const write = async (session: string) => ({
+			import: await database.importSessionState(session, importData(session, 'ahp-chat://default/h', 'ahp-chat://peer/h')),
+			write: await database.writeSessionState(session, 1, { values: { isArchived: 'true' }, folders: [], chats: [], markPayloadDirty: false }),
+			rowMirror: await database.writeChatRowMirror(session, 'ahp-chat://peer/h', 'draft', '{}'),
+		});
+		assert.deepStrictEqual({
+			hidden: await database.isSessionHidden(hidden),
+			tombstoned: await database.isSessionTombstoned(hidden),
+			suppressed: await database.isSessionSuppressed(hidden),
+			results: [await write(hidden), await write(deleted)],
+			garbage: await database.listSessionStateGarbage(10),
+			deleteHidden: await database.deleteSessionStateGarbage(hidden),
+			value: (await database.readSessionState(hidden))?.values.find(entry => entry.key === 'isArchived')?.value,
+		}, {
+			hidden: true, tombstoned: false, suppressed: true,
+			results: [
+				{ import: 'imported', write: { status: 'applied', revision: 2 }, rowMirror: 'applied' },
+				{ import: 'tombstoned', write: { status: 'tombstoned' }, rowMirror: 'tombstoned' },
+			],
+			garbage: [], deleteHidden: false, value: 'true',
+		});
+		await database.tombstoneAndUnregisterSession(hidden);
+		assert.deepStrictEqual({
+			hidden: await database.isSessionHidden(hidden),
+			tombstoned: await database.isSessionTombstoned(hidden),
+			results: await write(hidden),
+		}, { hidden: true, tombstoned: true, results: { import: 'tombstoned', write: { status: 'tombstoned' }, rowMirror: 'tombstoned' } });
 	});
 
 	test('the compatibility database stores session state in storage spelling and reads it in runtime spelling', async () => {

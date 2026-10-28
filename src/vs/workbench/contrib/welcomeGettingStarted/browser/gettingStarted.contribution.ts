@@ -259,14 +259,6 @@ registerAction2(class extends Action2 {
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: 'welcome.newWorkspaceChat',
-	handler: (accessor, stepID: string) => {
-		const commandService = accessor.get(ICommandService);
-		commandService.executeCommand('workbench.action.chat.open', { mode: 'agent', query: '#new ', isPartialQuery: true });
-	}
-});
-
 export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | 'webworker' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote or serverless contexts may be different from the platform of the UI"));
 class WorkspacePlatformContribution {
 
@@ -357,4 +349,3 @@ registerWorkbenchContribution2(StartupPageEditorResolverContribution.ID, Startup
 registerWorkbenchContribution2(StartupPageRunnerContribution.ID, StartupPageRunnerContribution, WorkbenchPhase.AfterRestored);
 
 AccessibleViewRegistry.register(new GettingStartedAccessibleView());
-

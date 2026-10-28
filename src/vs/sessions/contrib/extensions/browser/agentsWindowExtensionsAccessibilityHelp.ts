@@ -32,15 +32,17 @@ export class AgentsWindowExtensionsAccessibilityHelp implements IAccessibleViewI
 		}
 		const focused = DOM.getActiveElement();
 		const hasSuggestedGroup = accessor.get(IAgentsWindowExtensionSuggestionsService).suggestedExtensions.get().length > 0;
-		const autoEnables = accessor.get(IConfigurationService).getValue<boolean>(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE) === true;
+		const autoEnable = accessor.get(IConfigurationService).getValue<unknown>(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE);
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.AgentsWindowExtensions,
 			{ type: AccessibleViewType.Help },
 			() => [
 				localize('agentsWindowExtensions.help.overview', "You are in the Extensions section of Agent Customizations. It lists the extensions installed in VS Code and whether each one runs in the Agents window. Enabling or disabling an extension here only affects the Agents window."),
 				localize('agentsWindowExtensions.help.groups', "Extensions that support the Agents window are listed under Supported and are enabled by default. Other extensions are listed under Other Extensions and are disabled by default because they might not work as expected."),
-				...(hasSuggestedGroup ? [localize('agentsWindowExtensions.help.suggested', "Extensions listed under Suggested haven't declared support for the Agents window but could be useful there, for example because they add tools, MCP servers, or syntax highlighting. Like other extensions, they are disabled by default.")] : []),
-				...(autoEnables ? [localize('agentsWindowExtensions.help.autoEnabled', "Extensions that could be useful in the Agents window and don't rely on views, debugging, or other features that it doesn't have are enabled automatically instead. You can disable them like any other extension.")] : []),
+				...(hasSuggestedGroup ? [localize('agentsWindowExtensions.help.aiFeatures', "Extensions listed under AI Features haven't declared support for the Agents window but add AI features, such as tools, MCP servers, or skills, which are read as part of the extension. Like other extensions, they are disabled by default.")] : []),
+				...(autoEnable === true ? [localize('agentsWindowExtensions.help.autoEnabled', "Extensions that add AI features and don't rely on views, debugging, or other features that are unavailable in the Agents window are enabled automatically instead. You can disable them like any other extension.")] : []),
+				...(Array.isArray(autoEnable) && autoEnable.length > 0 ? [localize('agentsWindowExtensions.help.autoEnabledListed', "Some extensions that haven't declared support for the Agents window are enabled automatically instead. You can disable them like any other extension.")] : []),
+				localize('agentsWindowExtensions.help.warnings', "Extensions that haven't declared support for the Agents window and contribute views, debuggers, status bar items, or walkthroughs, which are not supported in the Agents window, have a warning, which is read as part of the extension."),
 				localize('agentsWindowExtensions.help.navigation', "Use the search box to filter extensions by name, identifier, publisher, or description. Press Tab to move to the list, use the Up and Down Arrow keys to move between extensions, and press Space or Enter to enable or disable the focused extension. Use the Left and Right Arrow keys on a group to collapse or expand it."),
 				localize('agentsWindowExtensions.help.restart', "When a change requires restarting extensions or reloading the window, the extension is marked as requiring a restart and a Restart Extensions or Reload Window button appears next to the section title."),
 			].join('\n\n'),
