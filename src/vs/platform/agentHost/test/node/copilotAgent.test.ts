@@ -48,6 +48,7 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentHostProxyResolver, IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import type { IAgentHostClientProxyConnection } from '../../common/agentHostClientProxyChannel.js';
 import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
@@ -1467,6 +1468,7 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@IByokLmBridgeRegistry byokBridgeRegistry: IByokLmBridgeRegistry,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
+		@IAgentHostClientConnectionService clientConnections: IAgentHostClientConnectionService,
 		@ICopilotApiService copilotApiService: ICopilotApiService,
 		@IFileService fileService: IFileService,
 		@IAgentHostWorktreeIsolation worktreeIsolation: IAgentHostWorktreeIsolation,
@@ -1476,7 +1478,7 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@IAgentHostSessionStateStore sessionStateStore: IAgentHostSessionStateStore,
 		@ICopilotHomeService copilotHomeService: ICopilotHomeService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance, byokLmProxyService, localModelSetupService, sessionStateStore, copilotHomeService);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, clientConnections, fileService, worktreeIsolation, startupPerformance, byokLmProxyService, localModelSetupService, sessionStateStore, copilotHomeService);
 	}
 
 	protected override _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -1515,6 +1517,7 @@ class TestableCopilotAgent extends CopilotAgent {
 		@IByokLmBridgeRegistry byokBridgeRegistry: IByokLmBridgeRegistry,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
+		@IAgentHostClientConnectionService clientConnections: IAgentHostClientConnectionService,
 		@ICopilotApiService copilotApiService: ICopilotApiService,
 		@IFileService fileService: IFileService,
 		@IAgentHostWorktreeIsolation worktreeIsolation: IAgentHostWorktreeIsolation,
@@ -1524,7 +1527,7 @@ class TestableCopilotAgent extends CopilotAgent {
 		@IAgentHostSessionStateStore sessionStateStore: IAgentHostSessionStateStore,
 		@ICopilotHomeService copilotHomeService: ICopilotHomeService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance, byokLmProxyService, localModelSetupService, sessionStateStore, copilotHomeService);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, clientConnections, fileService, worktreeIsolation, startupPerformance, byokLmProxyService, localModelSetupService, sessionStateStore, copilotHomeService);
 		this._now = now;
 	}
 
@@ -1631,6 +1634,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(IAgentHostOTelService, options?.otelService ?? NullAgentHostOTelService);
 	services.set(IAgentHostCompletions, disposables.add(new AgentHostCompletions(logService, stateManager)));
 	services.set(IAgentHostProxyResolver, options?.proxyResolver ?? new TestProxyResolver());
+	services.set(IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService()));
 	const worktreeIsolation = options?.worktreeIsolation ?? new NullAgentHostWorktreeIsolation();
 	services.set(IAgentHostWorktreeIsolation, worktreeIsolation);
 	services.set(IAgentHostCustomizationEnablementService, options?.customizationEnablementService
@@ -14241,6 +14245,35 @@ suite('CopilotAgent', () => {
 					stopCallCount: 1,
 					noProxy: '127.0.0.1,localhost',
 					lowercaseNoProxy: undefined,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('registers a fallback Kerberos callback backed by client connections', async () => {
+			const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]) });
+			const connections = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostClientConnectionService));
+			const request = { spn: 'HTTP/custom' };
+			const calls: typeof request[] = [];
+			disposables.add(connections.registerSource({
+				hasSeenClient: () => true,
+				isClientConnected: () => true,
+				isLocalClient: () => false,
+				usesLegacyChatUris: () => false,
+				getConnectedClientTransportCounts: () => new Map(),
+				requestWorkspaceTrust: async () => false,
+				requestMcpAuthentication: async () => false,
+				lookupKerberosAuthorization: async value => {
+					calls.push(value);
+					return 'ticket';
+				},
+			}));
+			try {
+				await agent.listChatsToMigrate();
+				const callback = getCreatedClientOptions(agent).at(-1)?.kerberosAuth;
+				assert.deepStrictEqual({ mode: callback?.mode, token: await callback?.callback(request), calls }, {
+					mode: 'fallback', token: 'ticket', calls: [request],
 				});
 			} finally {
 				await disposeAgent(agent);

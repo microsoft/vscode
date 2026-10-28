@@ -402,6 +402,17 @@ export interface IAgentHostMcpAuthenticationRequest {
 	readonly auth: McpAuthRequirement;
 }
 
+/** Host → client: requests a fresh Kerberos token for a service principal; sent only to clients advertising `vscode.kerberosAuth`. */
+export const LookupKerberosAuthExtensionMethod = 'vscode/lookupKerberosAuthorization';
+
+/** A Kerberos service principal in the platform-independent `service/host[@REALM]` form. */
+export interface IAgentHostKerberosAuthRequest {
+	readonly spn: string;
+}
+
+export const kerberosAuthRequestValidator = vObj({ spn: vString() });
+export const kerberosAuthResultValidator = vObj({ kerberosToken: vOptionalProp(vString()) });
+
 export interface IAgentHostExtensionServerCommandMap {
 	[LoadClientCertificatesExtensionMethod]: { params: Record<string, never>; result: ValidatorType<typeof loadClientCertificatesResultValidator> };
 	[RequestAgentHostWorkspaceTrustExtensionMethod]: {
@@ -415,5 +426,9 @@ export interface IAgentHostExtensionServerCommandMap {
 	[RequestAgentHostMcpAuthenticationExtensionMethod]: {
 		params: IAgentHostMcpAuthenticationRequest;
 		result: { authenticated: boolean };
+	};
+	[LookupKerberosAuthExtensionMethod]: {
+		params: IAgentHostKerberosAuthRequest;
+		result: { kerberosToken?: string };
 	};
 }

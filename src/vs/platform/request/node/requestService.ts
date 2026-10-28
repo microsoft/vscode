@@ -155,12 +155,17 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 }
 
 export async function lookupKerberosAuthorization(urlStr: string, spnConfig: string | undefined, logService: ILogService, logPrefix: string) {
-	const importKerberos = await import('kerberos');
-	const kerberos = importKerberos.default || importKerberos;
 	const url = new URL(urlStr);
 	const spn = spnConfig
 		|| (process.platform === 'win32' ? `HTTP/${url.hostname}` : `HTTP@${url.hostname}`);
 	logService.debug(`${logPrefix} Kerberos authentication lookup`, `proxyURL:${url}`, `spn:${spn}`);
+	return lookupKerberosToken(spn);
+}
+
+/** Returns a base64 initial Kerberos token for `spn`, in the syntax of the current platform's Kerberos API. */
+export async function lookupKerberosToken(spn: string): Promise<string> {
+	const importKerberos = await import('kerberos');
+	const kerberos = importKerberos.default || importKerberos;
 	const client = await kerberos.initializeClient(spn);
 	return client.step('');
 }

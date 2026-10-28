@@ -22,8 +22,9 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { ArtifactIntegrationRequest, ArtifactIntegrationUpdate } from '../../../artifactIntegrations/common/artifactIntegrationProtocol.js';
 import { ArtifactIntegrationsSettingId, type ArtifactIntegrationDescriptor } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
+import { AgentHostKerberosAuthCapabilityMetaKey } from '../../common/meta/agentHostKerberosAuthMeta.js';
 import { WebPubSubRelayTransport, type IWebSocketLike } from '../../browser/webPubSubRelayTransport.js';
-import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, LookupKerberosAuthExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 import { AgentPolicyError, AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
@@ -4145,6 +4146,61 @@ suite('AgentHostProtocolClient', () => {
 		const rejected = assertRemoteProtocolError(resultPromise, { code: -32000, message: 'Connection closed: test.example:1234' });
 		transport.fireClose();
 		await rejected;
+	});
+
+	suite('reverse Kerberos authentication', () => {
+		function createKerberosClient(calls: { spn: string }[]) {
+			const transport = disposables.add(new TestProtocolTransport());
+			const trust = createWorkspaceTrustServices();
+			const client = disposables.add(new AgentHostProtocolClient('wsl-test', transport, {
+				kerberosAuth: async request => {
+					calls.push(request);
+					return 'ticket';
+				},
+			}, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trust.management, trust.request, defaultAccountService));
+			return { client, transport };
+		}
+
+		test('advertises and forwards Windows credentials only when a callback was supplied', async () => {
+			const calls: { spn: string }[] = [];
+			const { client, transport } = createKerberosClient(calls);
+			await connectClient(client, transport);
+			const initialize = transport.sentMessages[0] as JsonRpcRequest;
+			const request = { spn: 'HTTP/intranet.example@EXAMPLE.COM' };
+			transport.fireExtensionRequest(51, LookupKerberosAuthExtensionMethod, request);
+			await timeout(0);
+			assert.deepStrictEqual({
+				advertised: (initialize.params as { _meta: Record<string, unknown> })._meta[AgentHostKerberosAuthCapabilityMetaKey],
+				calls,
+				result: transport.sentMessages.at(-1),
+			}, {
+				advertised: true, calls: [request],
+				result: { jsonrpc: '2.0', id: 51, result: { kerberosToken: 'ticket' } },
+			});
+		});
+
+		test('rejects non-HTTP service principals without invoking the callback', async () => {
+			const calls: { spn: string }[] = [];
+			const { client, transport } = createKerberosClient(calls);
+			await connectClient(client, transport);
+			const spns = ['cifs/fileserver.example', 'ldap/directory.example', 'HTTP@proxy.example', 'HTTP/', 'HTTP/proxy example', ''];
+			const errors: string[] = [];
+			for (const [index, spn] of spns.entries()) {
+				transport.fireExtensionRequest(60 + index, LookupKerberosAuthExtensionMethod, { spn });
+				await timeout(0);
+				errors.push((transport.sentMessages.at(-1) as { error: { message: string } }).error.message);
+			}
+			assert.deepStrictEqual({ calls, errors }, { calls: [], errors: Array(spns.length).fill('Unsupported Kerberos service principal') });
+		});
+
+		test('rejects Kerberos requests on ordinary remote connections', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			transport.fireExtensionRequest(51, LookupKerberosAuthExtensionMethod, { spn: 'HTTP/proxy.example' });
+			await timeout(0);
+			const result = transport.sentMessages.at(-1) as { error: { message: string } };
+			assert.strictEqual(result.error.message, 'This client does not provide Kerberos credentials');
+		});
 	});
 
 	suite('reverse MCP authentication', () => {

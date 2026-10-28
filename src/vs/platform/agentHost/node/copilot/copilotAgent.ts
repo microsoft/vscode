@@ -72,6 +72,7 @@ import { CopilotCustomizationInstallations } from './customizations/copilotCusto
 import { ISessionDataService, SESSION_DB_FILENAME, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import { writeUserDataCertificatesFile } from '../../../request/node/certificates.js';
+import { IAgentHostClientConnectionService } from '../agentHostClientConnectionService.js';
 import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
@@ -1308,6 +1309,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@IAgentHostProxyResolver private readonly _proxyResolver: IAgentHostProxyResolver,
+		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
 		@IFileService private readonly _fileService: IFileService,
 		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
 		@IAgentHostStartupPerformance private readonly _startupPerformance: IAgentHostStartupPerformance,
@@ -4324,6 +4326,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			const clientOptions: CopilotClientOptions = {
+				// Native lookup runs first; only clients advertising `vscode.kerberosAuth` (the Windows client of a WSL agent host) can supply fallback credentials.
+				kerberosAuth: {
+					mode: 'fallback',
+					callback: request => this._clientConnections.lookupKerberosAuthorization(request),
+				},
 				useLoggedInUser: false,
 				gitHubToken,
 				...(scoped ? {
