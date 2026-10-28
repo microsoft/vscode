@@ -93,6 +93,7 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 
 	private inlineEditItem: ITrustedUriItem | undefined;
 	private pendingLabelRefresh = false;
+	private pendingTrustUpdate: Promise<void> | undefined;
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -205,13 +206,11 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 
 		// Host labels can change after the table was rendered, e.g. when a remote
 		// extension registers its label formatter. Re-rendering would discard an
-		// in-progress path edit, so defer the refresh until the edit ends.
+		// in-progress path edit, or show a half-updated list while an accepted edit
+		// is being saved, so defer the refresh until both are done.
 		this._register(this.labelService.onDidChangeFormatters(() => {
-			if (this.inlineEditItem) {
-				this.pendingLabelRefresh = true;
-			} else {
-				this.updateTable();
-			}
+			this.pendingLabelRefresh = true;
+			this.refreshLabelsIfIdle();
 		}));
 	}
 
@@ -395,7 +394,14 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 			trustedFolders[index] = uri;
 		}
 
-		this.workspaceTrustManagementService.setTrustedUris(trustedFolders);
+		const update = this.pendingTrustUpdate = this.workspaceTrustManagementService.setTrustedUris(trustedFolders);
+		const onDidUpdate = () => {
+			if (this.pendingTrustUpdate === update) {
+				this.pendingTrustUpdate = undefined;
+				this.refreshLabelsIfIdle();
+			}
+		};
+		update.then(onDidUpdate, onDidUpdate);
 		this._onDidAcceptEdit.fire(item);
 		this.endInlineEdit();
 	}
@@ -407,7 +413,11 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 
 	private endInlineEdit(): void {
 		this.inlineEditItem = undefined;
-		if (this.pendingLabelRefresh) {
+		this.refreshLabelsIfIdle();
+	}
+
+	private refreshLabelsIfIdle(): void {
+		if (this.pendingLabelRefresh && !this.inlineEditItem && !this.pendingTrustUpdate && !this._store.isDisposed) {
 			this.updateTable();
 		}
 	}
@@ -600,6 +610,12 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 
 	renderElement(item: ITrustedUriItem, index: number, templateData: ITrustedUriPathColumnTemplateData): void {
 		templateData.renderDisposables.clear();
+
+		// Re-rendering resets the input, so it ends any edit shown in this template.
+		if (templateData.element.classList.contains('input-mode')) {
+			templateData.element.classList.remove('input-mode');
+			templateData.element.parentElement!.style.paddingLeft = '5px';
+		}
 
 		this.currentItem = item;
 		templateData.renderDisposables.add(this.table.onEdit(async (e) => {

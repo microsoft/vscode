@@ -97,6 +97,14 @@ class FakeWorkspaceTrustManagementService extends TestWorkspaceTrustManagementSe
 		return (this.canonicalize?.(uri) ?? uri).with({ query: null, fragment: null });
 	}
 
+	/** Like the real service: the list is cleared before canonicalization is awaited, and the change event fires once saved. */
+	override async setTrustedUris(uris: URI[]): Promise<void> {
+		this.entries = [];
+		await this.completionGate;
+		this.entries = uris.map(uri => this.getCanonicalUri(uri));
+		this._onDidChangeTrustedFoldersEmitter.fire();
+	}
+
 	addExternally(uri: URI): void {
 		this.entries.push(uri);
 		this._onDidChangeTrustedFoldersEmitter.fire();
@@ -487,6 +495,48 @@ suite('WorkspaceTrustedUrisTable', () => {
 				inputFound: true,
 				editingB: { inputMode: true, focused: true, hosts: ['SSH: hostA', 'SSH'] },
 				afterEdit: ['SSH: hostA', 'SSH: hostB'],
+			});
+		});
+
+		test('a table rebuild ends the edit of a row that is kept', async () => {
+			const labelService = createTableWithUris([hostA, hostB]);
+			store.add(labelService.registerFormatter(formatter('ssh-remote+*', 'SSH')));
+			startEditing(hostB);
+			await timeout(0);
+
+			trustService.addExternally(URI.parse('vscode-remote://ssh-remote+hostC/home/c'));
+			const afterRebuild = Array.from(container.querySelectorAll('.path.input-mode')).length;
+			store.add(labelService.registerFormatter(formatter('ssh-remote+hostB', 'SSH: hostB')));
+
+			assert.deepStrictEqual({ afterRebuild, hosts: getHostState().map(row => row.host) }, {
+				afterRebuild: 0,
+				hosts: ['SSH', 'SSH: hostB', 'SSH'],
+			});
+		});
+
+		test('keeps a deferred refresh until an accepted edit is saved', async () => {
+			const labelService = createTableWithUris([hostA, hostB]);
+			store.add(labelService.registerFormatter(formatter('ssh-remote+*', 'SSH')));
+			const input = startEditing(hostB);
+			await timeout(0);
+			store.add(labelService.registerFormatter(formatter('ssh-remote+hostA', 'SSH: hostA')));
+			const gate = new DeferredPromise<void>();
+			trustService.completionGate = gate.p;
+
+			input.value = '/home/edited';
+			input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			input.dispatchEvent(new FocusEvent('blur'));
+			const whileSaving = { rows: getHostState().length, selected: getRow(hostB)?.getAttribute('aria-selected') };
+
+			gate.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual({ whileSaving, after: getHostState() }, {
+				whileSaving: { rows: 2, selected: 'true' },
+				after: [
+					{ host: 'SSH: hostA', ariaLabel: '/home/a on SSH: hostA, trusted' },
+					{ host: 'SSH', ariaLabel: '/home/edited on SSH, trusted' },
+				],
 			});
 		});
 	});
