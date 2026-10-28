@@ -215,11 +215,11 @@ export class LabelService extends Disposable implements ILabelService {
 	}
 
 	/**
-	 * The memento holds whatever JSON was stored, which can be a corrupt non-object such as `null`.
+	 * The memento holds whatever JSON was stored, which can be corrupt, such as `null` or an array.
 	 * It is updated in place, so such a cache can neither be read nor updated by this window.
 	 */
 	private hasUsableStoredFormatters(): boolean {
-		return !!this.storedFormatters && typeof this.storedFormatters === 'object';
+		return !!this.storedFormatters && typeof this.storedFormatters === 'object' && !Array.isArray(this.storedFormatters);
 	}
 
 	private sanitizeStoredFormatters(): ResourceLabelFormatter[] {

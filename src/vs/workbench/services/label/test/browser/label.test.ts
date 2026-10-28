@@ -793,22 +793,25 @@ suite('cached label formatters', () => {
 		});
 	});
 
-	test('tolerates a cache that is not an object', () => {
-		storageService.store(CACHE_KEY, 'null', StorageScope.PROFILE, StorageTarget.MACHINE);
-		const labelService = createLabelService();
-		const live = labelService.registerCachedFormatter(exact('hostA', 'SSH: hostA'));
-		const withLive = hostLabels(labelService, 'hostA', 'hostB');
+	for (const [name, value] of [['null', 'null'], ['an array', '[]']]) {
+		test(`tolerates a cache that is ${name}`, () => {
+			storageService.store(CACHE_KEY, value, StorageScope.PROFILE, StorageTarget.MACHINE);
+			const labelService = createLabelService();
+			const live = labelService.registerCachedFormatter(exact('hostA', 'SSH: hostA'));
+			const withLive = hostLabels(labelService, 'hostA', 'hostB');
 
-		writeExternally({ formatters: [exact('hostB', 'SSH: hostB')] });
-		const afterExternalWrite = hostLabels(labelService, 'hostA', 'hostB');
-		live.dispose();
+			writeExternally({ formatters: [exact('hostB', 'SSH: hostB')] });
+			const afterExternalWrite = hostLabels(labelService, 'hostA', 'hostB');
+			live.dispose();
 
-		assert.deepStrictEqual({ withLive, afterExternalWrite, after: hostLabels(labelService, 'hostA') }, {
-			withLive: { hostA: 'SSH: hostA', hostB: 'SSH' },
-			afterExternalWrite: { hostA: 'SSH: hostA', hostB: 'SSH' },
-			after: { hostA: 'SSH' },
+			assert.deepStrictEqual({ withLive, afterExternalWrite, after: hostLabels(labelService, 'hostA'), stored: stored()?.map(f => f.authority) }, {
+				withLive: { hostA: 'SSH: hostA', hostB: 'SSH' },
+				afterExternalWrite: { hostA: 'SSH: hostA', hostB: 'SSH' },
+				after: { hostA: 'SSH' },
+				stored: [host('hostB')],
+			});
 		});
-	});
+	}
 
 	test('ignores malformed cache entries', () => {
 		const labelService = createLabelService();
