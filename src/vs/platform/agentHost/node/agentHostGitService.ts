@@ -2161,9 +2161,10 @@ function parseFetchRemotes(remotesOutput: string | undefined): { name: string; u
 	}
 	const candidates: { name: string; url: string }[] = [];
 	for (const rawLine of remotesOutput.split(/\r?\n/)) {
-		const match = /^(\S+)\s+(\S+)\s+\(fetch\)$/.exec(rawLine.trim());
-		if (match) {
-			candidates.push({ name: match[1], url: match[2] });
+		// Partial clones append the object filter, e.g. `origin <url> (fetch) [blob:none]`.
+		const match = /^(?<name>\S+)\s+(?<url>\S+)\s+\(fetch\)(?:\s+\[[^\]]*\])?$/.exec(rawLine.trim());
+		if (match?.groups) {
+			candidates.push({ name: match.groups.name, url: match.groups.url });
 		}
 	}
 	return candidates;
