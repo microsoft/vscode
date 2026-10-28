@@ -125,6 +125,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: nls.localize('sessions.chat.unifiedWorkspacePicker.enabled', "Controls whether the Agents Window uses the unified workspace picker, which combines GitHub and remote workspaces, provides search, and, when supported, allows creating sessions with no workspace."),
 			experiment: { mode: 'auto' },
 		},
+		[ChatConfiguration.OpenInEditorPreserveHiddenChat]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			description: nls.localize('chat.experimental.openInEditor.preserveHiddenChat', "Controls whether opening a session from the Agents Window preserves a hidden Chat view when reusing an existing editor window."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
 		[ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays]: {
 			type: 'integer',
 			minimum: 0,

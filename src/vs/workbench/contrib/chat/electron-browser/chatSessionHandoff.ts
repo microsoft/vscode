@@ -1,0 +1,59 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import type { URI } from '../../../../base/common/uri.js';
+import type { IChatWidget, IChatWidgetService } from '../browser/chat.js';
+
+/** Preserves hidden chat state after a session has been handed off to this editor window. */
+export class ChatSessionHandoffController {
+
+	private readonly openedSessions = new ResourceSet();
+	private readonly pendingOpens = new ResourceMap<Promise<void>>();
+
+	constructor(
+		private readonly chatWidgetService: IChatWidgetService,
+		private readonly preserveHiddenChat: () => boolean,
+		private readonly isChatViewWidget: (widget: IChatWidget) => boolean,
+		private readonly openSession: (sessionResource: URI) => Promise<boolean>,
+	) { }
+
+	async open(sessionResource: URI): Promise<void> {
+		if (!this.preserveHiddenChat()) {
+			await this.openSession(sessionResource);
+			return;
+		}
+
+		const pendingOpen = this.pendingOpens.get(sessionResource);
+		if (pendingOpen) {
+			return pendingOpen;
+		}
+
+		const existingWidget = this.chatWidgetService.getAllWidgets().find(widget =>
+			this.isChatViewWidget(widget)
+			&& !!widget.viewModel?.sessionResource
+			&& isEqual(widget.viewModel.sessionResource, sessionResource)
+		);
+		if (this.openedSessions.has(sessionResource) && existingWidget && !existingWidget.visible) {
+			// Window routing focuses the target workbench before sending this IPC handoff.
+			return;
+		}
+
+		const open = this.doOpen(sessionResource);
+		this.pendingOpens.set(sessionResource, open);
+		try {
+			await open;
+		} finally {
+			this.pendingOpens.delete(sessionResource);
+		}
+	}
+
+	private async doOpen(sessionResource: URI): Promise<void> {
+		if (await this.openSession(sessionResource)) {
+			this.openedSessions.add(sessionResource);
+		}
+	}
+}
