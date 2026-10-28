@@ -14,7 +14,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IProductService } from '../../../product/common/productService.js';
-import type { IAgentChatContext, IAgentChatMetadata, IAgentCreateChatResult, IAgentResolveChatConfigParams, IAgentSpawnChatEvent } from '../../common/agent.js';
+import type { IAgent, IAgentChatContext, IAgentChatMetadata, IAgentCreateChatResult, IAgentResolveChatConfigParams, IAgentSpawnChatEvent } from '../../common/agent.js';
 import { ChatMoveConfigKey } from '../../common/agentHostChatMove.js';
 import { ChatProvidersConfigKey } from '../../common/agentHostChatProviders.js';
 import { AgentHostCodexEnabledConfigKey } from '../../common/agentHostSchema.js';
@@ -610,6 +610,29 @@ suite('AgentService - chats with their own agent', () => {
 		seedMultipleChatProvidersFromEnvironment(getTestAgentServiceComposition(service).configurationService, { [AgentHostMultipleChatProvidersEnabledEnvVar]: 'true' });
 		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 		assert.deepStrictEqual({ before, after: service.multipleChatProvidersEnabled, created: await rejection(service.createChat(session, URI.parse(buildChatUri(session, 'second')), { provider: 'second' })) }, { before: false, after: true, created: undefined });
+	});
+
+	test('a fork of a restored, unloaded chat of another session keeps that chat\'s agent; with chats with their own agents off it uses its new session\'s agent', async () => {
+		const { service, copilot } = createService(true);
+		const { session, chat } = await createSessionWithSecondChat(service);
+		const native = URI.parse(buildChatUri(session, 'native'));
+		await service.createChat(session, native);
+		await timeout(10);
+		const stateManager = getTestAgentStateManager(service);
+		stateManager.deleteSession(session.toString());
+		await service.restoreSession(session);
+		const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+		const resolver = service as unknown as { _resolveCreateChatProvider(session: URI, sessionProvider: IAgent, options: { fork: { source: URI; turnId: string } }): IAgent };
+		const forkAgent = (source: URI) => resolver._resolveCreateChatProvider(target, copilot, { fork: { source, turnId: 't' } }).id;
+		const on = { unloaded: !stateManager.getChatState(chat.toString()), ownAgent: forkAgent(chat), sessionAgent: forkAgent(native) };
+		getTestAgentServiceComposition(service).configurationService.updateRootConfig({ [ChatProvidersConfigKey.Enabled]: false });
+		const off = { ownAgent: forkAgent(chat), sessionAgent: forkAgent(native), unknown: forkAgent(URI.parse(buildChatUri(session, 'unknown'))) };
+
+		assert.deepStrictEqual({ on, off }, {
+			on: { unloaded: true, ownAgent: 'second', sessionAgent: 'copilot' },
+			// A chat that already uses its own agent keeps it; any other fork uses its new session's agent, as before.
+			off: { ownAgent: 'second', sessionAgent: 'copilot', unknown: 'copilot' },
+		});
 	});
 
 	test('a stale record naming the session\'s own agent is ignored and deleted on restore: the chat follows its session', async () => {
