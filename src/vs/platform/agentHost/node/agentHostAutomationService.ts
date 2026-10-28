@@ -521,7 +521,11 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			let failure: unknown;
 			const sessions = await this._enqueueMutation(() => Promise.resolve(this._historyDeletions.get(resource)?.sessions ?? []));
 			if (sessions.length === 0) {
-				return this._enqueueMutation(() => this._completeHistoryDeletion(resource));
+				const completed = await this._enqueueMutation(() => this._completeHistoryDeletion(resource));
+				if (completed !== undefined) {
+					return completed;
+				}
+				continue;
 			}
 			for (const entry of sessions) {
 				try {
@@ -573,10 +577,13 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		await this._persist(this._requireCatalog(), this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations, deletions);
 	}
 
-	private async _completeHistoryDeletion(resource: string): Promise<readonly string[]> {
+	private async _completeHistoryDeletion(resource: string): Promise<readonly string[] | undefined> {
 		const deletion = this._historyDeletions.get(resource);
-		if (!deletion || deletion.sessions.length > 0) {
+		if (!deletion) {
 			return [];
+		}
+		if (deletion.sessions.length > 0) {
+			return undefined;
 		}
 		const deleted = deletion.deletedSessions ?? [];
 		const deletions = new Map(this._historyDeletions);

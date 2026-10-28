@@ -644,6 +644,69 @@ suite('AgentHostAutomationService', () => {
 		});
 	});
 
+	test('drains members added between an empty snapshot and completion', async () => {
+		const automation = createAction().resource;
+		const run: AutomationRunState = {
+			resource: 'ahp-automation-run:/completion-race',
+			automation,
+			origin: { kind: AutomationRunOriginKind.Manual },
+			lifecycle: { status: AutomationRunStatus.Completed, createdAt: new Date(0).toISOString(), startedAt: new Date(0).toISOString(), completedAt: new Date(0).toISOString() },
+			sessions: ['ahp-session:/first'],
+			primarySession: 'ahp-session:/first',
+		};
+		storageService.set('automations', {
+			catalog: { automations: [{ resource: automation, definition: definition(), runs: [], operations: [], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }] },
+			runs: [run],
+			runProviders: { [run.resource]: 'codex' },
+		});
+		await storageService.whenIdle();
+		const deleted: string[] = [];
+		let injectMember = false;
+		const service = createService({
+			getRecoverableSessionProvider: async (_session, provider) => provider ?? 'codex',
+			deleteSession: async session => {
+				deleted.push(session.toString());
+				if (session.toString() === 'ahp-session:/first') {
+					injectMember = true;
+				}
+			},
+		});
+		await service.handleConfigurationChanged();
+		const internal = service as unknown as {
+			_enqueueMutation<T>(mutation: () => Promise<T>): Promise<T>;
+		};
+		const originalEnqueue = internal._enqueueMutation.bind(service);
+		let second: Promise<readonly string[]> | undefined;
+		const injected = new DeferredPromise<void>();
+		internal._enqueueMutation = <T>(mutation: () => Promise<T>) => originalEnqueue(async () => {
+			const result = await mutation();
+			if (injectMember && Array.isArray(result) && result.length === 0) {
+				injectMember = false;
+				queueMicrotask(() => {
+					second = service.deleteAutomation(automation, true, [URI.parse('ahp-session:/second')], 'request-second');
+					injected.complete();
+				});
+			}
+			return result;
+		});
+
+		const first = service.deleteAutomation(automation, true, [], 'request-first');
+		await injected.p;
+		const [firstResult, secondResult] = await Promise.all([first, second!]);
+
+		assert.deepStrictEqual({
+			deleted,
+			firstResult,
+			secondResult,
+			entries: stateManager.getAutomationCatalogState()?.entries,
+		}, {
+			deleted: ['ahp-session:/first', 'ahp-session:/second'],
+			firstResult: ['ahp-session:/first', 'ahp-session:/second'],
+			secondResult: ['ahp-session:/first', 'ahp-session:/second'],
+			entries: [],
+		});
+	});
+
 	test('history deletion does not block unrelated Automation mutations', async () => {
 		const automation = createAction().resource;
 		const session = URI.parse('ahp-session:/slow-delete');
