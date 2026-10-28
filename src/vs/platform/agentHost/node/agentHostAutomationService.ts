@@ -119,6 +119,8 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	private readonly _resumesAfterWake = new Map<string, { readonly session: string; readonly turnId: string; readonly error: ErrorInfo }>();
 	/** Runs already resumed after a wake; another failure ends them. */
 	private readonly _resumedAfterWake = new Set<string>();
+	/** Pending runs that a Run Now request reused; like manual runs, they start without waiting for scheduled work to be ready. */
+	private readonly _manuallyRequestedRuns = new Set<string>();
 	private _didRecoverRuns = false;
 	private readonly _customizations: AgentHostAutomationCustomizations;
 	private readonly _startup: Promise<void>;
@@ -507,12 +509,15 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._executionAvailabilityWatcher.value = autorun(reader => {
 			const available = catalog.entries.filter(automation => this._execution.isSessionTemplateAvailable(getExecutionSessionTemplate(automation.definition), reader));
 			this._scheduleTimer.clear();
-			// Work started while the machine sleeps or is in a background wake stalls when it
-			// sleeps again, so due schedules and pending runs wait until it is fully awake.
-			if (!this._isAutomationsEnabled() || !this._systemWake.isFullyAwake.read(reader)) {
+			if (!this._isAutomationsEnabled()) {
 				return;
 			}
-			this._startPendingRuns(available);
+			// Scheduled work waits until the machine is fully awake and reconnected; manual runs are never held.
+			const readyForScheduledWork = this._systemWake.isReadyForScheduledWork.read(reader);
+			this._startPendingRuns(available, readyForScheduledWork);
+			if (!readyForScheduledWork) {
+				return;
+			}
 			const timestamps = available
 				.filter(automation => automation.definition.enabled
 					&& automation.operations.includes(AutomationOperation.Run)
@@ -536,7 +541,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 	private async _claimDueRuns(): Promise<readonly { readonly run: AutomationRunState; readonly definition: AutomationDefinition }[]> {
 		const catalog = this._requireAvailableCatalog();
-		if (!this._systemWake.isFullyAwake.get()) {
+		if (!this._systemWake.isReadyForScheduledWork.get()) {
 			return [];
 		}
 		const now = new Date();
@@ -637,9 +642,12 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 	}
 
-	private _startPendingRuns(availableAutomations: readonly AutomationEntry[]): void {
+	private _startPendingRuns(availableAutomations: readonly AutomationEntry[], includeScheduledRuns: boolean): void {
 		for (const run of this._runs.values()) {
 			if (run.lifecycle.status !== AutomationRunStatus.Pending) {
+				continue;
+			}
+			if (!includeScheduledRuns && run.origin.kind !== AutomationRunOriginKind.Manual && !this._manuallyRequestedRuns.has(run.resource)) {
 				continue;
 			}
 			const automation = availableAutomations.find(candidate => candidate.resource === run.automation);
@@ -673,7 +681,12 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._requireOperation(automation, AutomationOperation.Run);
 		const activeRun = this._activeRunFor(automation.resource);
 		if (activeRun) {
-			return { run: activeRun };
+			if (activeRun.lifecycle.status !== AutomationRunStatus.Pending) {
+				return { run: activeRun };
+			}
+			// Run Now is never held, so it also starts a pending scheduled run that it reuses.
+			this._manuallyRequestedRuns.add(activeRun.resource);
+			return { run: activeRun, definition: automation.definition };
 		}
 		const createdAt = new Date().toISOString();
 		const run = this._createRunState(automation.resource, { kind: AutomationRunOriginKind.Manual }, createdAt);
@@ -1045,6 +1058,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			this._sleptRuns.delete(run.resource);
 			this._resumesAfterWake.delete(run.resource);
 			this._resumedAfterWake.delete(run.resource);
+			this._manuallyRequestedRuns.delete(run.resource);
 			this._scheduleNext();
 		}
 	}

@@ -43,6 +43,7 @@ import { AgentPluginManager } from '../../node/agentPluginManager.js';
 import { AUTOMATION_ACTIVE_CLIENT_ID, toAgentHostFileUri } from '../../common/agentPluginManager.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostSystemWakeService } from '../../node/agentHostSystemWakeService.js';
+import { SCHEDULED_WORK_WAKE_NETWORK_CAP_MS, SCHEDULED_WORK_WAKE_SETTLE_MS } from '../../common/agentHostWakeNetworkMonitor.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason, McpServerStatus, type Customization, type McpAuthRequirement } from '../../common/state/protocol/channels-session/state.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
@@ -62,6 +63,7 @@ suite('AgentHostAutomationService', () => {
 	let storageService: AgentHostStorageService;
 	let writeFailures: number;
 	let writeAttempts: number;
+	let writeGate: Promise<void> | undefined;
 	let telemetry: RecordingAutomationTelemetry;
 	let fileService: FileService;
 	let pluginManager: AgentPluginManager;
@@ -95,6 +97,7 @@ suite('AgentHostAutomationService', () => {
 		});
 		writeFailures = 0;
 		writeAttempts = 0;
+		writeGate = undefined;
 		telemetry = new RecordingAutomationTelemetry();
 		fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
@@ -104,6 +107,7 @@ suite('AgentHostAutomationService', () => {
 			mkdir: async () => { },
 			writeFile: async () => {
 				writeAttempts++;
+				await writeGate;
 				if (writeFailures > 0) {
 					writeFailures--;
 					throw new Error('storage unavailable');
@@ -1933,6 +1937,239 @@ suite('AgentHostAutomationService', () => {
 		await started.p;
 
 		assert.strictEqual(stateManager.getAutomationRunState(run.resource)?.lifecycle.status, AutomationRunStatus.Running);
+	});
+
+	suite('scheduled work after a wake', () => {
+		const wokeAt = Date.UTC(2026, 0, 1, 1, 30);
+
+		/** Creates an hourly Automation while the machine sleeps through its 01:00 occurrence until 01:30. */
+		async function sleepThroughHourlySchedule(execution: Partial<IAgentHostAutomationExecution>): Promise<AgentHostAutomationService> {
+			systemWake.setFullyAwake(false);
+			const service = createService(execution);
+			await service.handleCreate({
+				...createAction(),
+				definition: {
+					...definition(),
+					triggers: [{ id: 'hourly', kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 * * * *', timeZone: 'UTC' } }],
+				},
+			});
+			await timeout(wokeAt - Date.now());
+			return service;
+		}
+
+		function runs() {
+			return stateManager.getAutomationCatalogState()?.entries[0].runs.map(run => ({ origin: run.origin.kind, createdAt: run.lifecycle.createdAt })) ?? [];
+		}
+
+		function startRecorder(name: string) {
+			const started = new DeferredPromise<void>();
+			return {
+				started,
+				execution: {
+					createSession: async () => URI.parse(`copilotcli:/${name}`),
+					startSession: async () => { await started.complete(); },
+				} satisfies Partial<IAgentHostAutomationExecution>,
+			};
+		}
+
+		test('a due schedule waits for the network to settle after a wake', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 30), maxTaskCount: 100 }, async () => {
+			const { started, execution } = startRecorder('after-settle');
+			await sleepThroughHourlySchedule(execution);
+
+			systemWake.setFullyAwake(true);
+			await timeout(SCHEDULED_WORK_WAKE_SETTLE_MS - 1);
+			const settling = runs();
+			await started.p;
+
+			assert.deepStrictEqual({ settling, settled: runs() }, {
+				settling: [],
+				settled: [{ origin: AutomationRunOriginKind.Trigger, createdAt: '2026-01-01T01:30:15.000Z' }],
+			});
+		}));
+
+		test('a due schedule waits while the network is offline after a wake, until it is back', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 30), maxTaskCount: 100 }, async () => {
+			const { started, execution } = startRecorder('after-offline');
+			await sleepThroughHourlySchedule(execution);
+
+			systemWake.setFullyAwake(true);
+			systemWake.setNetworkOnline(false);
+			await timeout(60_000);
+			const offline = runs();
+			systemWake.setNetworkOnline(true);
+			await started.p;
+
+			assert.deepStrictEqual({ offline, online: runs() }, {
+				offline: [],
+				online: [{ origin: AutomationRunOriginKind.Trigger, createdAt: '2026-01-01T01:31:00.000Z' }],
+			});
+		}));
+
+		test('a due schedule starts at the cap after a wake while the network stays offline', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 30), maxTaskCount: 100 }, async () => {
+			const { started, execution } = startRecorder('after-cap');
+			await sleepThroughHourlySchedule(execution);
+
+			systemWake.setFullyAwake(true);
+			systemWake.setNetworkOnline(false);
+			await timeout(SCHEDULED_WORK_WAKE_NETWORK_CAP_MS - 1);
+			const offline = runs();
+			await started.p;
+
+			assert.deepStrictEqual({ offline, capped: runs() }, {
+				offline: [],
+				capped: [{ origin: AutomationRunOriginKind.Trigger, createdAt: '2026-01-01T01:32:00.000Z' }],
+			});
+		}));
+
+		test('sleeping while the network settles cancels the wait, and the next wake starts a fresh one', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 30), maxTaskCount: 100 }, async () => {
+			const { started, execution } = startRecorder('after-second-wake');
+			await sleepThroughHourlySchedule(execution);
+
+			systemWake.setFullyAwake(true);
+			await timeout(5_000);
+			systemWake.setFullyAwake(false);
+			await timeout(5_000);
+			systemWake.setFullyAwake(true);
+			await started.p;
+
+			assert.deepStrictEqual(runs(), [{ origin: AutomationRunOriginKind.Trigger, createdAt: '2026-01-01T01:30:25.000Z' }]);
+		}));
+
+		test('Run Now starts immediately while scheduled work is held after a wake', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 30), maxTaskCount: 100 }, async () => {
+			const starts = [new DeferredPromise<void>(), new DeferredPromise<void>()];
+			const [manualStarted, scheduledStarted] = starts;
+			const service = await sleepThroughHourlySchedule({
+				createSession: async () => URI.parse(`copilotcli:/run-now-${starts.length}`),
+				startSession: async () => { await starts.shift()?.complete(); },
+			});
+
+			systemWake.setFullyAwake(true);
+			systemWake.setNetworkOnline(false);
+			await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: 'run-now-while-held' });
+			await manualStarted.p;
+			const held = runs();
+			systemWake.setNetworkOnline(true);
+			await scheduledStarted.p;
+
+			assert.deepStrictEqual({ held, released: runs() }, {
+				held: [{ origin: AutomationRunOriginKind.Manual, createdAt: '2026-01-01T01:30:00.000Z' }],
+				released: [
+					{ origin: AutomationRunOriginKind.Trigger, createdAt: '2026-01-01T01:30:15.000Z' },
+					{ origin: AutomationRunOriginKind.Manual, createdAt: '2026-01-01T01:30:00.000Z' },
+				],
+			});
+		}));
+
+		test('a deferred Run Now starts when its provider becomes available while scheduled work is held', () => runWithFakedTimers({ useFakeTimers: true, startTime: wokeAt, maxTaskCount: 100 }, async () => {
+			const available = observableValue('available', false);
+			const { started, execution } = startRecorder('deferred-run-now');
+			systemWake.setFullyAwake(false);
+			const service = createService({ ...execution, isSessionTemplateAvailable: (_template, reader) => available.read(reader) });
+			await enableAndCreate(service);
+			systemWake.setFullyAwake(true);
+			const run = await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: 'deferred-run-now' });
+			await timeout(0);
+			const deferred = stateManager.getAutomationRunState(run.resource)?.lifecycle.status;
+
+			available.set(true, undefined);
+			await started.p;
+
+			assert.deepStrictEqual({ deferred, startedAfterWakeMs: Date.now() - wokeAt }, { deferred: AutomationRunStatus.Pending, startedAfterWakeMs: 0 });
+		}));
+
+		for (const providerAvailable of [true, false]) {
+			test(`Run Now starts the pending scheduled run it reuses while scheduled work is held${providerAvailable ? '' : ', once its provider is available'}`, () => runWithFakedTimers({ useFakeTimers: true, startTime: wokeAt, maxTaskCount: 100 }, async () => {
+				const scheduledRun: AutomationRunState = {
+					resource: 'ahp-automation-run:/scheduled',
+					automation: 'ahp-automation:/review-changes',
+					origin: { kind: AutomationRunOriginKind.Trigger, triggerId: 'hourly', scheduledFor: '2026-01-01T01:00:00.000Z' },
+					lifecycle: { status: AutomationRunStatus.Pending, createdAt: '2026-01-01T01:00:00.000Z' },
+					sessions: [],
+				};
+				storageService.set('automations', {
+					catalog: {
+						automations: [{
+							resource: scheduledRun.automation,
+							definition: {
+								...definition(),
+								triggers: [{ id: 'hourly', kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 * * * *', timeZone: 'UTC' } }],
+							},
+							nextRunAt: '2026-01-01T02:00:00.000Z',
+							runs: [],
+							operations: [AutomationOperation.Update, AutomationOperation.Run],
+							createdAt: '2026-01-01T00:00:00.000Z',
+							modifiedAt: '2026-01-01T00:00:00.000Z',
+							_meta: { 'vscode.scheduleCursors': { hourly: '2026-01-01T02:00:00.000Z' } },
+						}],
+					},
+					runs: [scheduledRun],
+					manualRunRequests: [],
+				});
+				await storageService.whenIdle();
+				const available = observableValue('available', providerAvailable);
+				const { started, execution } = startRecorder('reused-scheduled-run');
+				systemWake.setFullyAwake(false);
+				systemWake.setFullyAwake(true);
+				systemWake.setNetworkOnline(false);
+				const service = createService({ ...execution, isSessionTemplateAvailable: (_template, reader) => available.read(reader) });
+				await timeout(5_000);
+				const held = stateManager.getAutomationRunState(scheduledRun.resource)?.lifecycle.status;
+
+				const reused = await service.runAutomation({ channel: 'ahp-automations://', automation: scheduledRun.automation, requestId: 'reuse-scheduled-run' });
+				available.set(true, undefined);
+				await started.p;
+
+				assert.deepStrictEqual({ held, reused: reused.resource, startedAfterWakeMs: Date.now() - wokeAt }, {
+					held: AutomationRunStatus.Pending, reused: scheduledRun.resource, startedAfterWakeMs: 5_000,
+				});
+			}));
+		}
+
+		test('a due schedule whose claim waits behind another change still waits for readiness', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 59), maxTaskCount: 100 }, async () => {
+			const { started, execution } = startRecorder('queued-claim');
+			const service = createService(execution);
+			await service.handleCreate({
+				...createAction(),
+				definition: {
+					...definition(),
+					triggers: [{ id: 'hourly', kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 * * * *', timeZone: 'UTC' } }],
+				},
+			});
+			const writes = new DeferredPromise<void>();
+			writeGate = writes.p;
+			const blockedChange = service.handleCreate(createAction('ahp-automation:/blocking-change'));
+			// The schedule comes due while the change still holds the mutation queue, and the machine sleeps before the claim runs.
+			await timeout(60_000);
+			systemWake.setFullyAwake(false);
+			writeGate = undefined;
+			await writes.complete();
+			await blockedChange;
+			await timeout(1_000);
+			const asleep = runs();
+
+			systemWake.setFullyAwake(true);
+			await started.p;
+
+			assert.deepStrictEqual({ asleep, awake: runs() }, {
+				asleep: [],
+				awake: [{ origin: AutomationRunOriginKind.Trigger, createdAt: '2026-01-01T01:00:16.000Z' }],
+			});
+		}));
+
+		test('a due schedule starts without delay when no wake is reported, even if the network was reported offline', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 59), maxTaskCount: 100 }, async () => {
+			const { started, execution } = startRecorder('no-wake-reporter');
+			systemWake.setNetworkOnline(false);
+			const service = createService(execution);
+			await service.handleCreate({
+				...createAction(),
+				definition: {
+					...definition(),
+					triggers: [{ id: 'hourly', kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 * * * *', timeZone: 'UTC' } }],
+				},
+			});
+			await started.p;
+
+			assert.deepStrictEqual(runs(), [{ origin: AutomationRunOriginKind.Trigger, createdAt: '2026-01-01T01:00:00.000Z' }]);
+		}));
 	});
 
 	test('coalesces simultaneously-due schedule triggers on one Automation into a single run', async () => {
