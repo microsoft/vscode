@@ -1283,88 +1283,88 @@ suite('McpWorkbenchService', () => {
 		});
 	});
 
-		for (const enabled of [false, undefined]) {
-			test(`MCP search preserves Extensions search and focus when Browse is ${enabled}`, async () => {
-				const { service, configurationService, marketplaceTargets, extensionSearches } = await createFixture([]);
-				await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, enabled);
-				await service.openSearch('figma', true);
-				assert.deepStrictEqual({ targets: marketplaceTargets, searches: extensionSearches }, {
-					targets: [],
-					searches: [{ searchValue: '@mcp figma', preserveFocus: true }],
-				});
-			});
-		}
-
-		test('opening gallery details respects changes to Browse enablement', async () => {
-			const { service, configurationService, galleryService, openedEditors, marketplaceTargets } = await createFixture([]);
-			const gallery = createGallery('com.figma.mcp/mcp');
-			galleryService.queryItems = [gallery];
-			const server = await service.getMcpServerFromGallery(gallery.name);
-			assert.ok(server);
-			await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
-			await service.open(server);
-			await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
-			await service.open(server, { preserveFocus: true });
-			assert.deepStrictEqual({ editors: openedEditors.map(editor => editor.mcpServer.gallery), targets: marketplaceTargets }, {
-				editors: [gallery],
-				targets: [{ section: AICustomizationManagementSection.McpServers, mcpServer: { name: gallery.name, registryUrl: undefined }, preserveFocus: true }],
-			});
-		});
-
-		test('disabling Browse during a link lookup preserves the legacy editor', async () => {
-			const { service, configurationService, galleryService, openedEditors, marketplaceTargets } = await createFixture([]);
-			const opening = service.handleURL(URI.parse('vscode-insiders:mcp/by-name/io.github.netdata/mcp-server'));
-			const request = await galleryService.nextRequest();
-			await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
-			const gallery = createGallery('io.github.netdata/mcp-server');
-			await complete(request, new Map([[gallery.name, found(gallery)]]));
-			await opening;
-			assert.deepStrictEqual({ editors: openedEditors.map(editor => editor.mcpServer.gallery), targets: marketplaceTargets }, {
-				editors: [gallery],
+	for (const enabled of [false, undefined]) {
+		test(`MCP search preserves Extensions search and focus when Browse is ${enabled}`, async () => {
+			const { service, configurationService, marketplaceTargets, extensionSearches } = await createFixture([]);
+			await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, enabled);
+			await service.openSearch('figma', true);
+			assert.deepStrictEqual({ targets: marketplaceTargets, searches: extensionSearches }, {
 				targets: [],
+				searches: [{ searchValue: '@mcp figma', preserveFocus: true }],
 			});
 		});
+	}
 
-		test('missing and obsolete links never open Customizations when Browse is disabled', async () => {
-			const { service, configurationService, galleryService, marketplaceTargets, extensionSearches, warnings } = await createFixture([]);
-			await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
-			galleryService.autoResolve = true;
-			await service.handleURL(URI.parse('vscode:mcp/by-name/missing'));
-			await service.handleURL(URI.parse('vscode:mcp/registry.example.test/obsolete'));
-			await service.handleURL(URI.parse('vscode:mcp/by-name/'));
-			assert.deepStrictEqual({ targets: marketplaceTargets, searches: extensionSearches, warnings: warnings.length }, {
-				targets: [],
-				searches: Array.from({ length: 2 }, () => ({ searchValue: '@mcp ', preserveFocus: undefined })),
-				warnings: 3,
-			});
+	test('opening gallery details respects changes to Browse enablement', async () => {
+		const { service, configurationService, galleryService, openedEditors, marketplaceTargets } = await createFixture([]);
+		const gallery = createGallery('com.figma.mcp/mcp');
+		galleryService.queryItems = [gallery];
+		const server = await service.getMcpServerFromGallery(gallery.name);
+		assert.ok(server);
+		await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+		await service.open(server);
+		await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+		await service.open(server, { preserveFocus: true });
+		assert.deepStrictEqual({ editors: openedEditors.map(editor => editor.mcpServer.gallery), targets: marketplaceTargets }, {
+			editors: [gallery],
+			targets: [{ section: AICustomizationManagementSection.McpServers, mcpServer: { name: gallery.name, registryUrl: undefined }, preserveFocus: true }],
 		});
+	});
 
-		test('by-name link explains a missing gallery instead of reporting a missing server when Browse is disabled', async () => {
-			const { service, configurationService, galleryService, manifestService, openedEditors, marketplaceTargets, warnings } = await createFixture([]);
-			await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
-			galleryService.enabled = false;
-			galleryService.autoResolve = true;
-			manifestService.manifest = null;
-			await service.handleURL(URI.parse('vscode:mcp/by-name/com.figma.mcp/mcp'));
-			assert.deepStrictEqual({ opened: openedEditors.length, targets: marketplaceTargets, warnings }, {
-				opened: 0,
-				targets: [],
-				warnings: ['The MCP gallery is not configured. Configure \'chat.mcp.gallery.serviceUrl\' to open MCP server details.'],
-			});
+	test('disabling Browse during a link lookup preserves the legacy editor', async () => {
+		const { service, configurationService, galleryService, openedEditors, marketplaceTargets } = await createFixture([]);
+		const opening = service.handleURL(URI.parse('vscode-insiders:mcp/by-name/io.github.netdata/mcp-server'));
+		const request = await galleryService.nextRequest();
+		await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+		const gallery = createGallery('io.github.netdata/mcp-server');
+		await complete(request, new Map([[gallery.name, found(gallery)]]));
+		await opening;
+		assert.deepStrictEqual({ editors: openedEditors.map(editor => editor.mcpServer.gallery), targets: marketplaceTargets }, {
+			editors: [gallery],
+			targets: [],
 		});
+	});
 
-		test('failed link lookup reports a retryable warning without redirecting when Browse is disabled', async () => {
-			const { service, configurationService, galleryService, marketplaceTargets, warnings, errors } = await createFixture([]);
-			await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
-			const opening = service.handleURL(URI.parse('vscode:mcp/by-name/com.figma.mcp/mcp'));
-			await complete(await galleryService.nextRequest(), new Map([['com.figma.mcp/mcp', failed()]]));
-			await opening;
-			assert.deepStrictEqual({ targets: marketplaceTargets, warnings, errors }, {
-				targets: [],
-				warnings: ['The MCP registry could not be reached. Check your connection or sign-in, then try this link again.'],
-				errors: [],
-			});
+	test('missing and obsolete links never open Customizations when Browse is disabled', async () => {
+		const { service, configurationService, galleryService, marketplaceTargets, extensionSearches, warnings } = await createFixture([]);
+		await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+		galleryService.autoResolve = true;
+		await service.handleURL(URI.parse('vscode:mcp/by-name/missing'));
+		await service.handleURL(URI.parse('vscode:mcp/registry.example.test/obsolete'));
+		await service.handleURL(URI.parse('vscode:mcp/by-name/'));
+		assert.deepStrictEqual({ targets: marketplaceTargets, searches: extensionSearches, warnings: warnings.length }, {
+			targets: [],
+			searches: Array.from({ length: 2 }, () => ({ searchValue: '@mcp ', preserveFocus: undefined })),
+			warnings: 3,
 		});
+	});
+
+	test('by-name link explains a missing gallery instead of reporting a missing server when Browse is disabled', async () => {
+		const { service, configurationService, galleryService, manifestService, openedEditors, marketplaceTargets, warnings } = await createFixture([]);
+		await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+		galleryService.enabled = false;
+		galleryService.autoResolve = true;
+		manifestService.manifest = null;
+		await service.handleURL(URI.parse('vscode:mcp/by-name/com.figma.mcp/mcp'));
+		assert.deepStrictEqual({ opened: openedEditors.length, targets: marketplaceTargets, warnings }, {
+			opened: 0,
+			targets: [],
+			warnings: ['The MCP gallery is not configured. Configure \'chat.mcp.gallery.serviceUrl\' to open MCP server details.'],
+		});
+	});
+
+	test('failed link lookup reports a retryable warning without redirecting when Browse is disabled', async () => {
+		const { service, configurationService, galleryService, marketplaceTargets, warnings, errors } = await createFixture([]);
+		await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+		const opening = service.handleURL(URI.parse('vscode:mcp/by-name/com.figma.mcp/mcp'));
+		await complete(await galleryService.nextRequest(), new Map([['com.figma.mcp/mcp', failed()]]));
+		await opening;
+		assert.deepStrictEqual({ targets: marketplaceTargets, warnings, errors }, {
+			targets: [],
+			warnings: ['The MCP registry could not be reached. Check your connection or sign-in, then try this link again.'],
+			errors: [],
+		});
+	});
 
 	test('preserves explicit configuration editing for installed gallery servers', async () => {
 		const local = createLocal('configured');
