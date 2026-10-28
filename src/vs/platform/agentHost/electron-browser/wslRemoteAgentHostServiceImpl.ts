@@ -6,7 +6,6 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { localize } from '../../../nls.js';
 import { isWindows } from '../../../base/common/platform.js';
-import { INativeHostService } from '../../native/common/native.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable, observableFromEvent } from '../../../base/common/observable.js';
 import { ILogService } from '../../log/common/log.js';
@@ -25,6 +24,7 @@ import { ReconnectingRelayTransport } from '../common/relayTransport.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError } from '../common/state/sessionTransport.js';
 import { AgentHostProtocolClient } from '../browser/agentHostProtocolClient.js';
 import { agentsWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
+import { CopilotProxyKerberosAuth } from './copilotProxyKerberosAuth.js';
 import {
 	IWSLRemoteAgentHostService,
 	WSL_REMOTE_AGENT_HOST_CHANNEL,
@@ -54,7 +54,6 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@IRequestService private readonly _requestService: IRequestService,
-		@INativeHostService private readonly _nativeHostService: INativeHostService,
 	) { }
 
 	createClient(mainService: IWSLRemoteAgentHostMainService, connectionId: string, address: string, connection: IWSLConnectResult, remoteAgentHostCommand: string | undefined, onRelayReplaced?: (connectionId: string) => void): AgentHostProtocolClient {
@@ -132,14 +131,16 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 				AgentHostClientConnectionKind.WSL,
 			);
 		};
+		// Windows tickets are only offered for the GitHub Copilot proxy of a WSL agent host.
+		const kerberosAuth = isWindows ? this._instantiationService.createInstance(CopilotProxyKerberosAuth) : undefined;
 		return this._instantiationService.createInstance(AgentHostProtocolClient, address, transportFactory, {
 			clientInfo: agentsWindowAgentHostClientInfo,
 			clientCertificates: {
 				isEnabled: () => this._configurationService.getValue<boolean>('http.systemCertificates') !== false,
 				loadCertificates: () => this._requestService.loadCertificates(),
 			},
-			...(isWindows ? {
-				kerberosAuth: ({ spn }) => this._nativeHostService.lookupKerberosToken(spn),
+			...(kerberosAuth ? {
+				kerberosAuth: request => kerberosAuth.lookup(request),
 			} : {}),
 			onDispose: () => {
 				disposed = true;
