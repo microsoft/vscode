@@ -84,6 +84,7 @@ import { ILabelService } from '../../../platform/label/common/label.js';
 import { ILayoutOffsetInfo } from '../../../platform/layout/browser/layoutService.js';
 import { IListService } from '../../../platform/list/browser/listService.js';
 import { ILoggerService, ILogService, NullLogService } from '../../../platform/log/common/log.js';
+import { TestClipboardService } from '../../../platform/clipboard/test/common/testClipboardService.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../platform/markdown/browser/markdownRenderer.js';
 import { IMarkerService } from '../../../platform/markers/common/markers.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
@@ -375,7 +376,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IListService, new TestListService());
 	instantiationService.stub(IContextViewService, disposables.add(instantiationService.createInstance(ContextViewService)));
 	instantiationService.stub(IContextMenuService, disposables.add(instantiationService.createInstance(ContextMenuService)));
-	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, layoutService, NullOpenerService)));
+	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, layoutService, NullOpenerService, new TestClipboardService(), new NullLogService())));
 	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
 	instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
 	instantiationService.stub(IWorkspaceTrustRequestService, disposables.add(new TestWorkspaceTrustRequestService(false)));

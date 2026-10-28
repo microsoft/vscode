@@ -14,6 +14,7 @@ import { unthemedProgressBarOptions } from '../../../../base/browser/ui/progress
 import { unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IAction, toAction } from '../../../../base/common/actions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
@@ -42,7 +43,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { IThemeService } from '../../../theme/common/themeService.js';
 import { TestThemeService } from '../../../theme/test/common/testThemeService.js';
 import { QuickInputController } from '../../browser/quickInputController.js';
-import { IQuickPick, IQuickPickItem } from '../../common/quickInput.js';
+import { IQuickInputButton, IQuickPick, IQuickPickItem, QuickInputButtonLocation } from '../../common/quickInput.js';
 
 /**
  * Real blur/focus events only fire while the test document has focus. The main
@@ -56,13 +57,14 @@ async function setWebContentsFocus(focused: boolean): Promise<void> {
 	await changed;
 }
 
-function createQuickInputController(instantiationService: TestInstantiationService, container: HTMLElement, ignoreFocusOut: () => boolean): QuickInputController {
+function createQuickInputController(instantiationService: TestInstantiationService, container: HTMLElement, ignoreFocusOut: () => boolean, textInputContextMenuActions: (() => readonly IAction[]) | undefined): QuickInputController {
 	return instantiationService.createInstance(
 		QuickInputController,
 		{
 			container,
 			idPrefix: 'testQuickInput',
 			ignoreFocusOut,
+			textInputContextMenuActions,
 			returnFocus() { },
 			backKeybindingLabel() { return undefined; },
 			setContextKey() { return undefined; },
@@ -97,7 +99,7 @@ function createQuickInputController(instantiationService: TestInstantiationServi
 	);
 }
 
-suite('QuickInput focus out with context menus', () => { // https://github.com/microsoft/vscode/issues/153267
+suite('QuickInput hosts its context menus', () => { // https://github.com/microsoft/vscode/issues/153267
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let fixture: HTMLElement;
 	let editor: HTMLButtonElement;
@@ -106,6 +108,24 @@ suite('QuickInput focus out with context menus', () => { // https://github.com/m
 	let contextMenuService: ContextMenuService;
 	let ignoreFocusOut: boolean;
 	let controller: QuickInputController;
+	let input: HTMLInputElement;
+
+	const textInputActions: IAction[] = [
+		toAction({
+			id: 'harmlessPaste', label: 'Paste', run: () => {
+				const start = input.selectionStart ?? 0;
+				const end = input.selectionEnd ?? 0;
+				input.value = `${input.value.substring(0, start)}T10-pasted${input.value.substring(end)}`;
+				input.selectionStart = input.selectionEnd = start + 'T10-pasted'.length;
+			}
+		}),
+		toAction({ id: 'selectAll', label: 'Select All', run: () => input.select() }),
+	];
+
+	function setupController(withTextInputActions = true): void {
+		controller = store.add(createQuickInputController(instantiationService, fixture, () => ignoreFocusOut, withTextInputActions ? () => textInputActions : undefined));
+		controller.layout({ height: 400, width: 800 }, 0);
+	}
 
 	setup(async () => {
 		await setWebContentsFocus(true);
@@ -148,170 +168,272 @@ suite('QuickInput focus out with context menus', () => { // https://github.com/m
 		instantiationService.stub(IContextMenuService, contextMenuService);
 
 		ignoreFocusOut = false;
-		controller = store.add(createQuickInputController(instantiationService, fixture, () => ignoreFocusOut));
-		controller.layout({ height: 200, width: 400 }, 0);
 	});
 
 	teardown(async () => {
 		await setWebContentsFocus(true);
 	});
 
-	function showPicker(): { picker: IQuickPick<IQuickPickItem>; input: HTMLInputElement } {
+	function showPicker(buttons: IQuickInputButton[] = []): IQuickPick<IQuickPickItem> {
 		editor.focus();
 		const picker = store.add(controller.createQuickPick());
 		picker.items = [{ label: 'item' }];
+		picker.buttons = buttons;
 		picker.show();
-		const input = fixture.querySelector<HTMLInputElement>('.quick-input-widget input')!;
+		input = fixture.querySelector<HTMLInputElement>('.quick-input-widget input')!;
 		picker.value = 'T10 harmless';
 		input.setSelectionRange(4, 7);
-		return { picker, input };
+		return picker;
 	}
 
-	function openContextMenu(input: HTMLInputElement, actions: IAction[] = [
-		toAction({
-			id: 'harmlessPaste', label: 'Paste', run: () => {
-				const start = input.selectionStart ?? 0;
-				const end = input.selectionEnd ?? 0;
-				input.value = `${input.value.substring(0, start)}T10-pasted${input.value.substring(end)}`;
-				input.selectionStart = input.selectionEnd = start + 'T10-pasted'.length;
-			}
-		})
-	]): void {
-		contextMenuService.showContextMenu({
-			getAnchor: () => input,
-			getActions: () => actions,
-			getActionsContext: () => input,
-		});
+	function widget(): HTMLElement {
+		return fixture.querySelector<HTMLElement>('.quick-input-widget')!;
 	}
 
-	function menuElement(): HTMLElement | null {
-		return mainWindow.document.querySelector<HTMLElement>('.context-view .monaco-menu');
+	function rightClickInput(): MouseEvent {
+		const rect = input.getBoundingClientRect();
+		const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: rect.left + 10, clientY: rect.top + 5 });
+		input.dispatchEvent(event);
+		return event;
 	}
 
-	function keydown(target: Element, key: string, keyCode: number): void {
-		target.dispatchEvent(new KeyboardEvent('keydown', { key, code: key, keyCode, bubbles: true, cancelable: true }));
+	/** The open context view's menu, looking into shadow roots. */
+	function openMenu(): { menu: HTMLElement; host: Element } | undefined {
+		const view = instantiationService.get(IContextViewService).getContextViewElement();
+		const menu = view.querySelector<HTMLElement>('.monaco-menu');
+		if (!view.isConnected || !menu || view.style.display === 'none') {
+			return undefined;
+		}
+		const root = view.getRootNode();
+		return { menu, host: root instanceof ShadowRoot ? root.host : view };
+	}
+
+	function keydown(target: Element, key: string, keyCode: number, init: KeyboardEventInit = {}): void {
+		target.dispatchEvent(new KeyboardEvent('keydown', { key, code: key, keyCode, bubbles: true, cancelable: true, ...init }));
+	}
+
+	function activeElementDeep(): Element | null {
+		let element = mainWindow.document.activeElement;
+		while (element?.shadowRoot?.activeElement) {
+			element = element.shadowRoot.activeElement;
+		}
+		return element;
 	}
 
 	async function settle(): Promise<void> {
-		// focus tracker blur and the quick input reconciliation both run on a timeout
-		await timeout(0);
 		await timeout(0);
 		await timeout(0);
 	}
 
-	function state(picker: IQuickPick<IQuickPickItem>, input: HTMLInputElement) {
+	function state(picker: IQuickPick<IQuickPickItem>) {
 		const activeElement = mainWindow.document.activeElement;
+		const menu = openMenu();
 		return {
 			visible: controller.currentQuickInput === picker,
-			focus: activeElement === input ? 'input' : activeElement === editor ? 'editor' : activeElement === outside ? 'outside' : activeElement?.closest('.context-view') ? 'menu' : 'other',
-			menu: !!menuElement(),
+			focus: activeElement === input ? 'input' : activeElement === editor ? 'editor' : activeElement === outside ? 'outside' : widget().contains(activeElement) ? 'widget' : 'other',
+			menu: menu ? (widget().contains(menu.host) ? 'hosted' : 'outside widget') : 'none',
 			value: input.value,
 			selection: [input.selectionStart, input.selectionEnd],
 		};
 	}
 
-	test('focus moving outside without a context menu hides the picker', async () => {
-		const { picker, input } = showPicker();
-		outside.focus();
+	test('right-clicking the input opens a hosted menu and keeps the picker', async () => {
+		setupController();
+		const picker = showPicker();
+		const event = rightClickInput();
 		await settle();
-		assert.deepStrictEqual(state(picker, input), { visible: false, focus: 'outside', menu: false, value: 'T10 harmless', selection: [4, 7] });
+		assert.deepStrictEqual({ defaultPrevented: event.defaultPrevented, focusInMenu: !!activeElementDeep()?.closest('.monaco-menu'), ...state(picker) }, {
+			defaultPrevented: true, focusInMenu: true, visible: true, focus: 'widget', menu: 'hosted', value: 'T10 harmless', selection: [4, 7]
+		});
 	});
 
-	test('escaping the context menu after focus out keeps the picker, focus and selection', async () => {
-		const { picker, input } = showPicker();
-		openContextMenu(input);
+	test('escaping the hosted menu keeps the picker, focus and selection', async () => {
+		setupController();
+		const picker = showPicker();
+		rightClickInput();
 		await settle();
-		const opened = state(picker, input);
-		keydown(mainWindow.document.activeElement!, 'Escape', 27);
+		keydown(activeElementDeep()!, 'Escape', 27);
 		await settle();
-		assert.deepStrictEqual([opened, state(picker, input)], [
-			{ visible: true, focus: 'menu', menu: true, value: 'T10 harmless', selection: [4, 7] },
-			{ visible: true, focus: 'input', menu: false, value: 'T10 harmless', selection: [4, 7] },
-		]);
+		assert.deepStrictEqual(state(picker), { visible: true, focus: 'input', menu: 'none', value: 'T10 harmless', selection: [4, 7] });
 	});
 
-	test('closing the context menu before focus out is processed keeps the picker and the original focus to return to', async () => {
-		const { picker, input } = showPicker();
-		openContextMenu(input);
-		keydown(mainWindow.document.activeElement!, 'Escape', 27); // synchronously, before the blur timeout
+	test('running a hosted menu action keeps the picker; hiding returns focus to the editor', async () => {
+		setupController();
+		const picker = showPicker();
+		rightClickInput();
 		await settle();
-		const afterMenu = state(picker, input);
+		keydown(activeElementDeep()!, 'ArrowDown', 40);
+		keydown(activeElementDeep()!, 'Enter', 13);
+		await settle();
+		const afterPaste = state(picker);
 		picker.hide();
-		assert.deepStrictEqual([afterMenu, state(picker, input).focus], [
-			{ visible: true, focus: 'input', menu: false, value: 'T10 harmless', selection: [4, 7] },
+		assert.deepStrictEqual([afterPaste, state(picker).focus], [
+			{ visible: true, focus: 'input', menu: 'none', value: 'T10 T10-pastedmless', selection: [14, 14] },
 			'editor',
 		]);
 	});
 
-	test('running a context menu action keeps the picker and returns focus to the input', async () => {
-		const { picker, input } = showPicker();
-		openContextMenu(input);
-		await settle();
-		keydown(mainWindow.document.activeElement!, 'ArrowDown', 40);
-		keydown(mainWindow.document.activeElement!, 'Enter', 13);
-		await settle();
-		const afterPaste = state(picker, input);
-		picker.hide();
-		assert.deepStrictEqual([afterPaste, state(picker, input).focus], [
-			{ visible: true, focus: 'input', menu: false, value: 'T10 T10-pastedmless', selection: [14, 14] },
-			'editor',
-		]);
-	});
+	for (const location of [QuickInputButtonLocation.Title, QuickInputButtonLocation.Inline]) {
+		test(`toolbar overflow menu (${QuickInputButtonLocation[location]}) is hosted; Escape and actions keep the picker`, async () => {
+			setupController();
+			const triggered: string[] = [];
+			const button: IQuickInputButton = { iconClass: Codicon.gear.id, tooltip: 'T10 secondary', secondary: true, location };
+			const picker = showPicker([button]);
+			store.add(picker.onDidTriggerButton(b => triggered.push(b.tooltip!)));
+			const more = widget().querySelector<HTMLElement>(location === QuickInputButtonLocation.Title ? '.quick-input-right-action-bar .codicon-toolbar-more' : '.quick-input-inline-action-bar .codicon-toolbar-more')!;
 
-	test('clicking outside an open context menu hides menu and picker', async () => {
-		const { picker, input } = showPicker();
-		openContextMenu(input);
+			more.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+			more.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+			await settle();
+			const opened = state(picker);
+			keydown(activeElementDeep()!, 'Escape', 27);
+			await settle();
+			const escaped = state(picker);
+
+			more.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+			more.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+			await settle();
+			keydown(activeElementDeep()!, 'ArrowDown', 40);
+			keydown(activeElementDeep()!, 'Enter', 13);
+			await settle();
+			assert.deepStrictEqual([opened.visible, opened.menu, escaped.visible, escaped.menu, state(picker).visible, triggered], [true, 'hosted', true, 'none', true, ['T10 secondary']]);
+		});
+	}
+
+	test('clicking outside an open hosted menu hides menu and picker', async () => {
+		setupController();
+		const picker = showPicker();
+		rightClickInput();
 		await settle();
-		const block = mainWindow.document.querySelector<HTMLElement>('.context-view-block')!;
+		const block = openMenu()!.menu.closest('.context-view')!.querySelector<HTMLElement>('.context-view-block')!;
 		block.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-		(mainWindow.document.activeElement as HTMLElement).blur(); // default action of clicking the non focusable block
+		(activeElementDeep() as HTMLElement).blur(); // default action of clicking the non focusable block
 		await settle();
-		assert.deepStrictEqual(state(picker, input), { visible: false, focus: 'other', menu: false, value: 'T10 harmless', selection: [4, 7] });
+		assert.deepStrictEqual([state(picker).visible, state(picker).menu], [false, 'none']);
 	});
 
-	test('focus moving from the context menu to outside hides the picker', async () => {
-		const { picker, input } = showPicker();
-		openContextMenu(input);
-		await settle();
+	test('focus moving outside without a context menu hides the picker', async () => {
+		setupController();
+		const picker = showPicker();
 		outside.focus();
 		await settle();
-		const result = state(picker, input);
-		assert.deepStrictEqual([result.visible, result.focus], [false, 'outside']);
+		assert.deepStrictEqual([state(picker).visible, state(picker).focus], [false, 'outside']);
 	});
 
-	test('an empty context menu does not defer a later focus out', async () => {
-		const { picker, input } = showPicker();
-		openContextMenu(input, []);
+	test('hiding the picker closes its hosted input and toolbar menus; the next picker opens cleanly', async () => {
+		setupController();
+		const results = [];
+
+		let picker = showPicker();
+		rightClickInput();
 		await settle();
-		const afterEmptyMenu = state(picker, input);
-		outside.focus();
+		picker.hide();
+		results.push({ menu: openMenu() ? 'open' : 'none', inertContainsMenu: !!fixture.querySelector('.quick-input-widget[inert] .shadow-root-host') });
+
+		picker = showPicker([{ iconClass: Codicon.gear.id, tooltip: 'T10 secondary', secondary: true }]);
+		const more = widget().querySelector<HTMLElement>('.quick-input-right-action-bar .codicon-toolbar-more')!;
+		more.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+		more.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
 		await settle();
-		assert.deepStrictEqual([afterEmptyMenu.visible, afterEmptyMenu.focus, state(picker, input).visible], [true, 'input', false]);
+		const toolbarMenuOpened = !!openMenu();
+		picker.hide();
+		results.push({ menu: openMenu() ? 'open' : 'none', inertContainsMenu: false });
+
+		picker = showPicker();
+		rightClickInput();
+		await settle();
+		assert.deepStrictEqual([toolbarMenuOpened, results, state(picker).visible, state(picker).menu], [
+			true,
+			[{ menu: 'none', inertContainsMenu: false }, { menu: 'none', inertContainsMenu: false }],
+			true,
+			'hosted'
+		]);
 	});
 
-	test('hiding the picker while focus out is deferred does not affect the next picker', async () => {
-		const first = showPicker();
-		openContextMenu(first.input);
-		await settle();
-		first.picker.hide();
-		keydown(mainWindow.document.activeElement!, 'Escape', 27);
-		await settle();
-
-		const second = showPicker();
-		await settle();
-		const shown = state(second.picker, second.input);
-		outside.focus();
-		await settle();
-		assert.deepStrictEqual([shown.visible, shown.focus, state(second.picker, second.input).visible], [true, 'input', false]);
-	});
-
-	test('ignoreFocusOut keeps the picker when focus moves outside while a context menu is open', async () => {
+	test('hiding the picker does not close an unrelated context menu', async () => {
+		setupController();
 		ignoreFocusOut = true;
-		const { picker, input } = showPicker();
-		openContextMenu(input);
+		const picker = showPicker();
+		rightClickInput();
 		await settle();
+		contextMenuService.showContextMenu({ getAnchor: () => outside, getActions: () => [toAction({ id: 'unrelated', label: 'Unrelated', run: () => { } })] });
+		await settle();
+		picker.hide();
+		const menu = openMenu();
+		assert.deepStrictEqual([menu?.menu.textContent?.includes('Unrelated'), menu ? widget().contains(menu.host) : undefined], [true, false]);
+		instantiationService.get(IContextViewService).hideContextView();
+	});
+
+	test('ignoreFocusOut keeps the picker when focus moves outside', async () => {
+		setupController();
+		ignoreFocusOut = true;
+		const picker = showPicker();
 		outside.focus();
 		await settle();
-		assert.deepStrictEqual(state(picker, input).visible, true);
+		assert.deepStrictEqual(state(picker).visible, true);
 	});
+
+	test('without text input actions (e.g. standalone) no menu is shown and the event is not prevented', async () => {
+		setupController(false);
+		const picker = showPicker();
+		const event = rightClickInput();
+		await settle();
+		assert.deepStrictEqual([event.defaultPrevented, state(picker).menu, state(picker).visible], [false, 'none', true]);
+	});
+
+	for (const immediate of [true, false]) {
+		test(`hosted menu is unclipped and usable with motion (${immediate ? 'during' : 'after'} the open animation)`, async () => {
+			// Production quick input motion (quickInput.css) plus the Modern UI clipping of the widget
+			// (workbench/contrib/modernUI/browser/media/roundedCorners.css)
+			fixture.classList.add('modern-ui', 'monaco-enable-motion');
+			const style = document.createElement('style');
+			style.textContent = '.modern-ui .quick-input-widget { overflow: hidden; }';
+			fixture.appendChild(style);
+			setupController();
+			const picker = showPicker();
+			const animations = widget().getAnimations().map(a => (a as CSSAnimation).animationName);
+			if (!immediate) {
+				await Promise.all(widget().getAnimations().map(a => a.finished));
+			}
+			rightClickInput();
+			await settle();
+			const { menu } = openMenu()!;
+			const computed = mainWindow.getComputedStyle(widget());
+			const rect1 = menu.getBoundingClientRect().toJSON();
+			await new Promise(resolve => mainWindow.requestAnimationFrame(resolve));
+			await new Promise(resolve => mainWindow.requestAnimationFrame(resolve));
+			const rect2 = menu.getBoundingClientRect().toJSON();
+			const items = menu.querySelectorAll<HTMLElement>('.action-item');
+			const last = items[items.length - 1];
+			const lastRect = last.getBoundingClientRect();
+			const hit = (menu.getRootNode() as ShadowRoot).elementFromPoint(lastRect.left + lastRect.width / 2, lastRect.top + lastRect.height / 2);
+			const hitIsLastItem = !!hit && last.contains(hit);
+			const widgetRect = widget().getBoundingClientRect();
+			const extendsBeyondWidget = rect2.bottom > widgetRect.bottom;
+			await timeout(300); // menu items only accept mouse up after a short delay
+			hit?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+			hit?.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, button: 0 }));
+			await settle();
+			const result = state(picker);
+
+			// let the close animation complete before the test tears down
+			picker.hide();
+			await Promise.all(widget().getAnimations().map(a => a.finished.catch(() => undefined)));
+			await settle();
+
+			assert.deepStrictEqual({
+				animated: animations.includes('quick-input-widget-open'),
+				transform: computed.transform, willChange: computed.willChange,
+				stable: JSON.stringify(rect1) === JSON.stringify(rect2),
+				extendsBeyondWidget, hitIsLastItem,
+				...result,
+			}, {
+				animated: true,
+				transform: 'none', willChange: 'auto',
+				stable: true,
+				extendsBeyondWidget: true, hitIsLastItem: true,
+				visible: true, focus: 'input', menu: 'none', value: 'T10 harmless', selection: [0, 12],
+			});
+		});
+	}
 });
