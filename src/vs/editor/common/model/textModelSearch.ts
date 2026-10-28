@@ -259,13 +259,18 @@ export class TextModelSearch {
 			const searchStringLen = searchString.length;
 			const textLength = text.length;
 
-			let lastMatchIndex = -searchStringLen;
-			while ((lastMatchIndex = text.indexOf(searchString, lastMatchIndex + searchStringLen)) !== -1) {
+			let searchStartIndex = 0;
+			let lastMatchIndex: number;
+			while ((lastMatchIndex = text.indexOf(searchString, searchStartIndex)) !== -1) {
 				if (!wordSeparators || isValidMatch(wordSeparators, text, textLength, lastMatchIndex, searchStringLen)) {
 					result[resultLen++] = new FindMatch(new Range(lineNumber, lastMatchIndex + 1 + deltaOffset, lineNumber, lastMatchIndex + 1 + searchStringLen + deltaOffset), null);
 					if (resultLen >= limitResultCount) {
 						return resultLen;
 					}
+					searchStartIndex = lastMatchIndex + searchStringLen;
+				} else {
+					// A rejected candidate can overlap a valid whole-word match.
+					searchStartIndex = findNextWordStart(wordSeparators, text, textLength, lastMatchIndex);
 				}
 			}
 			return resultLen;
@@ -491,6 +496,17 @@ export function isValidMatch(wordSeparators: WordCharacterClassifier, text: stri
 	);
 }
 
+/**
+ * Returns the next possible whole-word match start after a rejected candidate.
+ */
+export function findNextWordStart(wordSeparators: WordCharacterClassifier, text: string, textLength: number, matchStartIndex: number): number {
+	let index = matchStartIndex;
+	do {
+		index += strings.getNextCodePoint(text, textLength, index) > 0xFFFF ? 2 : 1;
+	} while (index < textLength && !leftIsWordBounday(wordSeparators, text, textLength, index, 1));
+	return index;
+}
+
 export class Searcher {
 	public readonly _wordSeparators: WordCharacterClassifier | null;
 	private readonly _searchRegex: RegExp;
@@ -513,13 +529,13 @@ export class Searcher {
 	public next(text: string): RegExpExecArray | null {
 		const textLength = text.length;
 
+		if (this._prevMatchStartIndex + this._prevMatchLength === textLength) {
+			// The previous accepted match reached the end of the text.
+			return null;
+		}
+
 		let m: RegExpExecArray | null;
 		do {
-			if (this._prevMatchStartIndex + this._prevMatchLength === textLength) {
-				// Reached the end of the line
-				return null;
-			}
-
 			m = this._searchRegex.exec(text);
 			if (!m) {
 				return null;
@@ -547,6 +563,10 @@ export class Searcher {
 			if (!this._wordSeparators || isValidMatch(this._wordSeparators, text, textLength, matchStartIndex, matchLength)) {
 				return m;
 			}
+
+			// Retry inside rejected candidates, including those that end at the end of the text.
+			// Skip to a possible word boundary to avoid repeatedly scanning the same long word.
+			this._searchRegex.lastIndex = findNextWordStart(this._wordSeparators, text, textLength, matchStartIndex);
 
 		} while (m);
 
