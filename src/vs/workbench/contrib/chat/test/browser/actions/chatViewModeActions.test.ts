@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isICommandActionToggleInfo } from '../../../../../../platform/action/common/action.js';
 import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
@@ -12,7 +13,7 @@ import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService, IC
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { registerChatActions } from '../../../browser/actions/chatActions.js';
+import { registerChatViewModeActions } from '../../../browser/actions/chatActions.js';
 import { ChatViewId } from '../../../browser/chat.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration, ChatProgressAnimation, ChatProgressVerbosity } from '../../../common/constants.js';
@@ -21,10 +22,18 @@ suite('Chat View Mode', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const modes = [ChatProgressVerbosity.Compact, ChatProgressVerbosity.Verbose, ChatProgressVerbosity.Conversation];
 
+	// Register only the view mode actions, and unregister them afterwards, so that other suites in the
+	// same test run don't see global chat commands such as `workbench.action.chat.open`.
+	let viewModeActions: IDisposable | undefined;
 	suiteSetup(() => {
 		if (!CommandsRegistry.getCommand('workbench.action.chat.viewMode.compact')) {
-			registerChatActions();
+			viewModeActions = registerChatViewModeActions();
 		}
+	});
+
+	suiteTeardown(() => {
+		viewModeActions?.dispose();
+		viewModeActions = undefined;
 	});
 
 	function createConfiguration(animation: ChatProgressAnimation, verbosity: ChatProgressVerbosity, workspace = false) {

@@ -13,6 +13,7 @@ import { safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { language } from '../../../../../base/common/platform.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -584,6 +585,60 @@ export abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 			keybinding
 		}, mode);
 	}
+}
+
+/**
+ * Registers the chat view mode choices and their View Mode submenu.
+ */
+export function registerChatViewModeActions(): IDisposable {
+	const store = new DisposableStore();
+
+	for (const [order, { mode, title }] of [
+		{ mode: ChatProgressVerbosity.Compact, title: localize2('chat.viewMode.compact', "Compact") },
+		{ mode: ChatProgressVerbosity.Verbose, title: localize2('chat.viewMode.verbose', "Verbose") },
+		{ mode: ChatProgressVerbosity.Conversation, title: localize2('chat.viewMode.conversation', "Conversation") },
+	].entries()) {
+		store.add(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.chat.viewMode.${mode}`,
+					title,
+					category: CHAT_CATEGORY,
+					precondition: ChatContextKeys.enabled,
+					toggled: ContextKeyExpr.and(
+						ContextKeyExpr.notEquals(`config.${ChatConfiguration.PersistentProgress}`, ChatProgressAnimation.Off),
+						ContextKeyExpr.equals(`config.${ChatConfiguration.PersistentProgressVerbosity}`, mode),
+					),
+					menu: {
+						id: MenuId.ChatViewMode,
+						group: '1_state',
+						order,
+						when: ChatContextKeys.enabled,
+					},
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const configurationService = accessor.get(IConfigurationService);
+				const updatePreference = (key: ChatConfiguration, value: string) => configurationService.updateValue(key, value,
+					configurationService.inspect(key).workspaceValue === undefined ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE);
+				await updatePreference(ChatConfiguration.PersistentProgressVerbosity, mode);
+				if (configurationService.getValue<string>(ChatConfiguration.PersistentProgress) === ChatProgressAnimation.Off) {
+					await updatePreference(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+				}
+			}
+		}));
+	}
+
+	store.add(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+		submenu: MenuId.ChatViewMode,
+		title: localize2('chat.viewMode', "View Mode"),
+		group: '3_configure',
+		order: 14,
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+	}));
+
+	return store;
 }
 
 export function registerChatActions() {
@@ -1512,50 +1567,7 @@ export function registerChatActions() {
 		}
 	});
 
-	for (const [order, { mode, title }] of [
-		{ mode: ChatProgressVerbosity.Compact, title: localize2('chat.viewMode.compact', "Compact") },
-		{ mode: ChatProgressVerbosity.Verbose, title: localize2('chat.viewMode.verbose', "Verbose") },
-		{ mode: ChatProgressVerbosity.Conversation, title: localize2('chat.viewMode.conversation', "Conversation") },
-	].entries()) {
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.action.chat.viewMode.${mode}`,
-					title,
-					category: CHAT_CATEGORY,
-					precondition: ChatContextKeys.enabled,
-					toggled: ContextKeyExpr.and(
-						ContextKeyExpr.notEquals(`config.${ChatConfiguration.PersistentProgress}`, ChatProgressAnimation.Off),
-						ContextKeyExpr.equals(`config.${ChatConfiguration.PersistentProgressVerbosity}`, mode),
-					),
-					menu: {
-						id: MenuId.ChatViewMode,
-						group: '1_state',
-						order,
-						when: ChatContextKeys.enabled,
-					},
-				});
-			}
-
-			override async run(accessor: ServicesAccessor): Promise<void> {
-				const configurationService = accessor.get(IConfigurationService);
-				const updatePreference = (key: ChatConfiguration, value: string) => configurationService.updateValue(key, value,
-					configurationService.inspect(key).workspaceValue === undefined ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE);
-				await updatePreference(ChatConfiguration.PersistentProgressVerbosity, mode);
-				if (configurationService.getValue<string>(ChatConfiguration.PersistentProgress) === ChatProgressAnimation.Off) {
-					await updatePreference(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
-				}
-			}
-		});
-	}
-
-	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-		submenu: MenuId.ChatViewMode,
-		title: localize2('chat.viewMode', "View Mode"),
-		group: '3_configure',
-		order: 14,
-		when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-	});
+	registerChatViewModeActions();
 
 	registerAction2(class OpenChatFeatureSettingsAction extends Action2 {
 		constructor() {
