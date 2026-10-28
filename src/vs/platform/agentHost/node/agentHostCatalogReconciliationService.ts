@@ -9,6 +9,7 @@ import { Emitter, type Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
+import type { AgentProvider } from '../common/agent.js';
 import type { ISessionCatalogSyncPendingSnapshot } from '../common/sessionDataService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 import { AgentHostCatalogDatabaseReference, AgentHostCatalogDeletionFencedError, AgentHostCatalogSyncResult, AgentHostCatalogSyncService, catalogLegacyMetadataMatches, IAgentHostCatalogSyncRequest, matchesAcknowledgedCatalogReceipt, replayPendingCatalogSnapshot } from './agentHostCatalogSyncService.js';
@@ -31,13 +32,8 @@ const CHAT_MIGRATION_CURSOR_STORAGE_KEY = 'agentHost.catalogReconciliation.chatM
 export const AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY = 'agentHost.catalogReconciliation.verificationVersion';
 const VERIFICATION_VERSION_STORAGE_KEY = AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY;
 const LAST_VERIFICATION_STORAGE_KEY = 'agentHost.catalogReconciliation.lastVerification';
-/**
- * Bumped to 2 so upgraded profiles re-verify every cached payload once. Rows
- * imported before the importer resolved legacy changeset blobs were written
- * clean, so nothing else would ever revisit them and their file-change chips
- * would stay missing (see `_migrateLegacyChangesetAggregate`).
- */
-export const CATALOG_VERIFICATION_VERSION = 2;
+/** Re-verify cached catalogs when legacy ownership and archive projection changes. */
+export const CATALOG_VERIFICATION_VERSION = 3;
 type AgentHostCatalogSyncPendingReason = Extract<AgentHostCatalogSyncResult, { status: 'pending' }>['reason'];
 type ScheduledPassKind = 'background' | 'periodic';
 
@@ -71,12 +67,18 @@ export interface IAgentHostCatalogReconciliationReport {
 
 export type AgentHostCatalogReconciliationSourceResult =
 	| { readonly status: 'available'; readonly request: IAgentHostCatalogSyncRequest }
+	/**
+	 * The provider is not registered, or cannot read its catalog yet. The
+	 * session is parked until the provider registers or its catalog becomes
+	 * readable ({@link AgentHostCatalogReconciliationService.wakeParkedProviderSessions}),
+	 * with the periodic verification as the safety net.
+	 */
 	| { readonly status: 'providerUnavailable' }
 	/**
 	 * The provider is registered but cannot vouch for this session, so there is
-	 * nothing authoritative to project. Unlike an unregistered provider this does
-	 * not clear on its own, so the session is parked rather than retried on the
-	 * regular cadence. A single failed lookup is not proof of absence — a
+	 * nothing authoritative to project. Unlike an unavailable provider this does
+	 * not clear when the provider's catalog does, so the session is parked until
+	 * a wake signal. A single failed lookup is not proof of absence — a
 	 * provider whose SDK is still downloading looks identical — so parking never
 	 * tombstones and always yields to a wake signal.
 	 */
@@ -130,13 +132,16 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	private _followUpRequested = false;
 	private _periodic = false;
 	/**
-	 * Sessions whose source could not be resolved. Parking suppresses
+	 * Sessions whose source could not be resolved, or whose provider could not
+	 * vouch for them, by their registered provider. Parking suppresses
 	 * *scheduling* only: `payloadDirty` stays set, because the rebuild is still
 	 * owed once the source returns. Deliberately in-memory, so a restart
 	 * re-attempts each parked session once and re-parks — parking can never
 	 * become hidden permanent state.
 	 */
-	private readonly _parkedSessions = new Set<string>();
+	private readonly _parkedSessions = new Map<string, AgentProvider>();
+	/** Advanced by every wake of more than one session, so a pass that resolved a source before it does not park after it. */
+	private _wakeGeneration = 0;
 	private readonly _onDidChangeParkedSessions = this._register(new Emitter<string | undefined>());
 	/** Fires a session that was parked or released, or `undefined` when every parked session was released. */
 	readonly onDidChangeParkedSessions: Event<string | undefined> = this._onDidChangeParkedSessions.event;
@@ -194,15 +199,23 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 
 	/**
 	 * Records that a session's chat catalog conversion waits for its aggregate re-projection: a pass re-projects it
-	 * soon and converts it right after, instead of at the next conversion batch.
+	 * soon and converts it right after, instead of at the next conversion batch. Until then the conversion batches skip
+	 * it, so a session whose re-projection cannot happen (its provider cannot vouch for it) is not retried at all.
 	 */
 	convertAfterReprojection(session: string): void {
 		// A session that stays not ready (one never dirty, say) falls back to the conversion batches' cadence.
 		if ((this._conversionReprojectionRetries.get(session) ?? 0) >= CONVERSION_REPROJECTION_RETRY_LIMIT) {
 			return;
 		}
+		if (this._conversionsAwaitingReprojection.has(session)) {
+			return;
+		}
 		this._conversionsAwaitingReprojection.add(session);
-		this.schedule();
+		// A running pass converts it right after re-projecting it; one the pass does not re-project waits for the pass
+		// that does, rather than every waiting session owing a follow-up pass.
+		if (!this._running) {
+			this.schedule();
+		}
 	}
 
 	start(): void {
@@ -311,7 +324,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		const { sessions, receiptBySession } = await this._listDirtySessions();
 		if (sessions.length === 0) {
 			this._tryDeleteStorage(this._cursorStorageKey);
-			await this._convertReprojected(sessions, [], token);
+			await this._convertReprojected(receiptBySession, [], token);
 			return { outcomes: [], cursor: undefined };
 		}
 
@@ -321,7 +334,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		if (cursor && !token.isCancellationRequested) {
 			this._trySetStorage(this._cursorStorageKey, cursor);
 		}
-		await this._convertReprojected(sessions, outcomes, token);
+		await this._convertReprojected(receiptBySession, outcomes, token);
 		return { outcomes, cursor };
 	}
 
@@ -341,25 +354,23 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		if (sessions.length === 0) {
 			this._tryDeleteStorage(this._cursorStorageKey);
 		}
-		await this._convertReprojected(sessions, outcomes, token);
+		await this._convertReprojected(receiptBySession, outcomes, token);
 		return { outcomes, cursor };
 	}
 
 	/**
 	 * Converts the sessions whose conversion waited for their re-projection: those this pass re-projected and those
-	 * no longer dirty. The others wait for a later pass; a conversion that is still not ready records them again.
+	 * whose aggregate is verified and clean. The others (unverified, parked, or still dirty) wait without an attempt,
+	 * which could only end not ready again; a conversion that is still not ready records them again.
 	 */
-	private async _convertReprojected(dirty: readonly IRegisteredSession[], outcomes: readonly AgentHostCatalogReconciliationOutcome[], token: CancellationToken): Promise<void> {
+	private async _convertReprojected(receiptBySession: ReadonlyMap<string, IAgentHostDatabaseSessionV2Receipt>, outcomes: readonly AgentHostCatalogReconciliationOutcome[], token: CancellationToken): Promise<void> {
 		if (!this._migrateChatCatalog || this._conversionsAwaitingReprojection.size === 0 || token.isCancellationRequested) {
 			return;
 		}
-		const stillDirty = new Set(dirty.map(entry => entry.session.toString()));
-		for (const outcome of outcomes) {
-			if (outcome.status === 'succeeded') {
-				stillDirty.delete(outcome.session);
-			}
-		}
-		const ready = [...this._conversionsAwaitingReprojection].filter(session => !stillDirty.has(session));
+		// Skipped: the aggregate was already current, and is now marked clean.
+		const reprojected = new Set(outcomes.filter(outcome => outcome.status === 'succeeded' || outcome.status === 'skipped').map(outcome => outcome.session));
+		// Receipts list verified aggregates only.
+		const ready = [...this._conversionsAwaitingReprojection].filter(session => reprojected.has(session) || receiptBySession.get(session)?.payloadDirty === 0);
 		for (const session of ready) {
 			this._conversionsAwaitingReprojection.delete(session);
 			this._conversionReprojectionRetries.set(session, (this._conversionReprojectionRetries.get(session) ?? 0) + 1);
@@ -391,7 +402,9 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		if (edited.size) {
 			this._followUpRequested = true;
 		}
-		const migrating = [...selected.filter(entry => legacySessions.has(entry.session.toString())), ...sessions.filter(entry => edited.has(entry.session.toString()) && !legacySessions.has(entry.session.toString()))];
+		// A legacy catalog waiting for its session's re-projection is converted right after it (`_convertReprojected`).
+		const converting = selected.filter(entry => legacySessions.has(entry.session.toString()) && !this._conversionsAwaitingReprojection.has(entry.session.toString()));
+		const migrating = [...converting, ...sessions.filter(entry => edited.has(entry.session.toString()) && !legacySessions.has(entry.session.toString()))];
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -441,17 +454,21 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	}
 
 	/**
-	 * Parks a session whose source cannot resolve, so later passes skip it
-	 * without opening its storage. The outcome still reports `retry`: the work
-	 * remains outstanding, it is simply waiting on a wake signal rather than a
-	 * timer.
+	 * Parks a session whose source cannot resolve, or whose provider cannot
+	 * vouch for it yet (unregistered, or its catalog unreadable), so later
+	 * passes skip it without opening its storage. The outcome still reports
+	 * `retry`: the work remains outstanding, it is simply waiting on a wake
+	 * signal rather than a timer.
 	 *
 	 * A mutation can land while the source is being resolved, and its wake is a
 	 * no-op because this session is not parked yet. Parking unconditionally
 	 * would then hide that newer revision until the periodic verification, so
-	 * the dirty marker is re-read and a changed one yields to the next pass.
+	 * the dirty marker is re-read and a changed one yields to the next pass. A
+	 * provider wake in that window (its catalog became readable, say) is caught
+	 * the same way by the wake generation.
 	 */
-	private async _park(session: string, observedDirty: number | undefined): Promise<AgentHostCatalogReconciliationOutcome> {
+	private async _park(registered: IRegisteredSession, observedDirty: number | undefined, observedWakeGeneration: number, reason: 'providerUnavailable' | 'sourceUnresolvable'): Promise<AgentHostCatalogReconciliationOutcome> {
+		const session = registered.session.toString();
 		let currentDirty: number | undefined;
 		try {
 			currentDirty = await this._catalogDatabase.getSessionV2PayloadDirty(session);
@@ -460,14 +477,14 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 			// it as one rather than parking a session that may owe a rebuild.
 			return { session, status: 'retry', reason: 'superseded' };
 		}
-		if (currentDirty !== observedDirty) {
+		if (currentDirty !== observedDirty || this._wakeGeneration !== observedWakeGeneration) {
 			return { session, status: 'retry', reason: 'superseded' };
 		}
 		if (!this._parkedSessions.has(session)) {
-			this._parkedSessions.add(session);
+			this._parkedSessions.set(session, registered.provider);
 			this._onDidChangeParkedSessions.fire(session);
 		}
-		return { session, status: 'retry', reason: 'sourceUnresolvable' };
+		return { session, status: 'retry', reason };
 	}
 
 	/**
@@ -478,6 +495,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	 */
 	wakeParkedSessions(session?: string): void {
 		if (session === undefined) {
+			this._wakeGeneration++;
 			if (this._parkedSessions.size > 0) {
 				this._parkedSessions.clear();
 				this._onDidChangeParkedSessions.fire(undefined);
@@ -489,9 +507,26 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		}
 	}
 
-	/** Whether `session` is parked: its source can't be resolved, so its catalog waits for a wake signal (see {@link wakeParkedSessions}). */
+	/** Whether `session` is parked: its source can't be resolved or its provider can't vouch for it, so its catalog waits for a wake signal (see {@link wakeParkedSessions}). */
 	isParked(session: string): boolean {
 		return this._parkedSessions.has(session);
+	}
+
+	/**
+	 * Releases the sessions parked for a provider, when it can now vouch for them: its catalog became readable.
+	 * @returns whether any session was released, and so a pass is owed.
+	 */
+	wakeParkedProviderSessions(provider: AgentProvider): boolean {
+		this._wakeGeneration++;
+		let woken = false;
+		for (const [session, parkedProvider] of this._parkedSessions) {
+			if (parkedProvider === provider) {
+				this._parkedSessions.delete(session);
+				this._onDidChangeParkedSessions.fire(session);
+				woken = true;
+			}
+		}
+		return woken;
 	}
 
 	/**
@@ -545,6 +580,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	private async _reconcileSession(registered: IRegisteredSession, receipt: IAgentHostDatabaseSessionV2Receipt | undefined, token: CancellationToken): Promise<AgentHostCatalogReconciliationOutcome> {
 		const session = registered.session;
 		const sessionKey = session.toString();
+		const wakeGeneration = this._wakeGeneration;
 		try {
 			if (token.isCancellationRequested) {
 				return { session: sessionKey, status: 'retry', reason: 'cancelled' };
@@ -556,7 +592,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 			if (!this._isSourceAvailable(registered)) {
 				const [snapshot] = await this._catalogDatabase.readCatalogSnapshot([sessionKey]);
 				if (snapshot?.authorityVersion !== 2) {
-					return { session: sessionKey, status: 'retry', reason: 'providerUnavailable' };
+					return await this._park(registered, receipt?.payloadDirty ?? await this._catalogDatabase.getSessionV2PayloadDirty(sessionKey), wakeGeneration, 'providerUnavailable');
 				}
 			}
 			const observedDirty = receipt?.payloadDirty ?? await this._catalogDatabase.getSessionV2PayloadDirty(sessionKey);
@@ -586,11 +622,11 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 							return { session: sessionKey, status: 'retry', reason: 'superseded' };
 						}
 						if (error instanceof CatalogReconciliationProviderUnavailableError) {
-							return { session: sessionKey, status: 'retry', reason: 'providerUnavailable' };
+							return await this._park(registered, observedDirty, wakeGeneration, 'providerUnavailable');
 						}
 						if (error instanceof CatalogReconciliationSourceUnresolvableError) {
 							await this._markEmptySourceUnresolvableAsProvisional(session, database, observedDirty);
-							return await this._park(sessionKey, observedDirty);
+							return await this._park(registered, observedDirty, wakeGeneration, 'sourceUnresolvable');
 						}
 						throw error;
 					}
@@ -660,11 +696,11 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 				}
 				const sourceResult = await this._resolveSource(registered, database);
 				if (sourceResult.status === 'providerUnavailable') {
-					return { session: sessionKey, status: 'retry', reason: 'providerUnavailable' };
+					return await this._park(registered, observedDirty, wakeGeneration, 'providerUnavailable');
 				}
 				if (sourceResult.status === 'sourceUnresolvable') {
 					await this._markEmptySourceUnresolvableAsProvisional(session, database, observedDirty);
-					return await this._park(sessionKey, observedDirty);
+					return await this._park(registered, observedDirty, wakeGeneration, 'sourceUnresolvable');
 				}
 				if (token.isCancellationRequested) {
 					return { session: sessionKey, status: 'retry', reason: 'cancelled' };

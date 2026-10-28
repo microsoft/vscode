@@ -8,6 +8,9 @@
 		"scripts/test-integration.sh": true,
 	},
 	"chat.editing.explainChanges.enabled": true,
+	"chat.artifactIntegrations.githubPullRequests.autoMarkReadyIgnoredChecks": [
+		"VS Code PR Check"
+	],
 	// --- Editor ---
 	"editor.insertSpaces": false,
 	"editor.experimental.asyncTokenization": true,
@@ -207,6 +210,7 @@
 	],
 	// --- Workbench ---
 	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
+	"multiDiffEditor.experimental.fileList": true,
 	"azureMcp.enabledServices": [
 		"kusto" // Needed for kusto tool in data.prompt.md
 	],

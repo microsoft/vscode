@@ -101,6 +101,9 @@
 				jschardet: new URL('../../../node_modules/jschardet/dist/jschardet.min.js', baseUrl).href
 			}
 		}
+		// FileAccess resolves test assets from src, but generated crypto is emitted only to the output tree.
+		const agentHostCryptoPath = 'vs/platform/agentHost/browser/agentHostCryptoModule.js';
+		importMap.imports[new URL(`../../../src/${agentHostCryptoPath}`, baseUrl).href] = new URL(`../../../${out}/${agentHostCryptoPath}`, baseUrl).href;
 
 		// ---- CSS tricks
 
@@ -159,6 +162,43 @@
 	</script>
 
 	<script>
+		const ambiguousRunnables = new Set();
+
+		function runnableKey(runnable) {
+			return JSON.stringify([runnable.type === 'test' ? 'test' : 'suite', runnable.file, runnable.titlePath()]);
+		}
+
+		function prepareTestsForRerun(targets) {
+			const runnables = new Set();
+			function collect(suite) {
+				for (const runnable of [suite, ...suite.tests]) {
+					const key = runnableKey(runnable);
+					if (runnables.has(key)) {
+						ambiguousRunnables.add(key);
+					} else {
+						runnables.add(key);
+					}
+				}
+				suite.suites.forEach(collect);
+			}
+			// Detect duplicates before selection, including pending tests and suites.
+			collect(mocha.suite);
+			if (!targets) {
+				return;
+			}
+			function select(suite) {
+				suite.tests = suite.tests.filter(test => targets.some(target => {
+					const titlePath = test.titlePath();
+					return test.file === target.file
+						&& (target.kind !== 'test' || titlePath.length === target.titlePath.length)
+						&& target.titlePath.every((title, index) => title === titlePath[index]);
+				}));
+				suite.suites.forEach(select);
+			}
+			// A full-title grep cannot distinguish sibling names or different suite ancestry.
+			select(mocha.suite);
+		}
+
 		function serializeSuite(suite) {
 			return {
 				root: suite.root,
@@ -183,6 +223,13 @@
 				speed: runnable.speed,
 				duration: runnable.duration,
 				currentRetry: runnable.currentRetry(),
+				// the test file (module) for the runner to rerun. Root-level hooks have none,
+				// because their failure stops the whole run
+				file: runnable.file,
+				// a failed test is rerun by itself, a failed hook with the rest of its suite
+				type: runnable.type,
+				parentTitlePath: runnable.parent?.titlePath() ?? [],
+				ambiguous: ambiguousRunnables.has(runnableKey(runnable.type === 'hook' ? runnable.parent : runnable))
 			};
 		}
 		function serializeError(err) {
@@ -231,13 +278,57 @@
 			}
 		}
 
+		// How this page claims the test files it runs as a worker of a parallel run (see parallel.ts),
+		// whose runner adds `parallelTestFiles` to the page. Mocha asks for the next suite to run
+		// synchronously, so the claims are synchronous requests.
+		function createTestFileClaims() {
+			const prefix = window.location.pathname.split('/')[1];
+			const maxAttempts = 3;
+			const call = (method, ...args) => {
+				for (let attempt = 1; ; attempt++) {
+					const request = new XMLHttpRequest();
+					let failure;
+					try {
+						request.open('POST', `/${prefix}/testFileClaims/${method}`, false);
+						request.setRequestHeader('Content-Type', 'application/json');
+						request.send(JSON.stringify(args));
+						if (request.status === 200) {
+							return JSON.parse(request.responseText);
+						}
+						failure = `${request.status} ${request.responseText}`;
+					} catch (error) {
+						// a synchronous request throws when its response does not arrive, which happens on busy machines
+						failure = String(error);
+					}
+					// the runner answers a repeated request as before
+					if (attempt < maxAttempts) {
+						console.warn(`Failed to ${method} test files (${failure}), retrying`);
+						continue;
+					}
+					// mocha does not report an error that it gets when it asks for the next suite, but stops the run
+					const error = new Error(`Failed to ${method} test files after ${maxAttempts} attempts: ${failure}`);
+					_rejectTestRun(error);
+					throw error;
+				}
+			};
+			return {
+				start: fileCount => call('start', fileCount),
+				claim: file => call('claim', file),
+				claimAll: () => call('claimAll'),
+				recordRun: files => call('recordRun', files),
+			};
+		}
+
 		async function loadModules(modules) {
 			for (const file of modules) {
 				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
-				const m = await new Promise((resolve, reject) => import(`../../../${out}/${file}.js`).then(resolve, err => {
-					console.log("BAD " + file + JSON.stringify(err, undefined, '\t'));
-					resolve({});
-				}));
+				let m;
+				try {
+					m = await import(`../../../${out}/${file}.js`);
+				} catch (err) {
+					console.error(`Failed to load test module '${file}'`, err);
+					throw err;
+				}
 				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_REQUIRE, m, file, mocha);
 				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_POST_REQUIRE, globalThis, file, mocha);
 			}
@@ -245,11 +336,15 @@
 
 		let _resolveTestData;
 		let _resolveTestRun;
+		let _rejectTestRun;
 		globalThis._VSCODE_TEST_RUN = new Promise(resolve => _resolveTestData = resolve)
 
 		window.loadAndRun = async function loadAndRun(data, manual = false) {
-			_resolveTestData({data, manual})
-			return new Promise(resolve => _resolveTestRun = resolve);
+			return new Promise((resolve, reject) => {
+				_resolveTestRun = resolve;
+				_rejectTestRun = reject;
+				_resolveTestData({data, manual});
+			});
 		}
 
 		const modules = new URL(window.location.href).searchParams.getAll('m');
@@ -261,24 +356,33 @@
 	</script>
 
 	<script type="text" id="bootstrap">
-		const {data: {modules, grep}, manual} = await globalThis._VSCODE_TEST_RUN
+		const {data: {modules, grep, rerunTargets, claimTestFiles}, manual} = await globalThis._VSCODE_TEST_RUN
 
-		// load
-		await loadModules(modules);
-
-		// run
-		await new Promise((resolve, reject) => {
-			if (grep) {
-				mocha.grep(grep);
+		try {
+			// load
+			const testFiles = claimTestFiles ? parallelTestFiles.trackTestFiles(mocha.suite) : undefined;
+			await loadModules(modules);
+			prepareTestsForRerun(rerunTargets);
+			if (testFiles) {
+				parallelTestFiles.distributeTestFiles(mocha.suite, testFiles, createTestFileClaims());
 			}
 
-			if (!manual) {
-				mocha.reporter(PlaywrightReporter);
-			}
-			mocha.run(failCount => resolve(failCount === 0));
-		});
+			// run
+			await new Promise((resolve, reject) => {
+				if (grep) {
+					mocha.grep(grep);
+				}
 
-		_resolveTestRun();
+				if (!manual) {
+					mocha.reporter(PlaywrightReporter);
+				}
+				mocha.run(failCount => resolve(failCount === 0));
+			});
+
+			_resolveTestRun();
+		} catch (err) {
+			_rejectTestRun(err);
+		}
 	</script>
 </body>
 

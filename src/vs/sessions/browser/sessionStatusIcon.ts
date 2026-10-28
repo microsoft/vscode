@@ -130,8 +130,6 @@ export class SessionStatusIcon extends Disposable {
 			createIcon = () => ({ element: $(`span${cacheKey}`) });
 		}
 
-		this._container.classList.toggle('session-icon-pulse', status === SessionStatus.NeedsInput);
-
 		if (this._currentCacheKey === cacheKey) {
 			this._recolorActiveIcon(color);
 			return;

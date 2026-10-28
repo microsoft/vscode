@@ -5,15 +5,16 @@
 
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import * as dom from '../../../../../base/browser/dom.js';
-import { Event } from '../../../../../base/common/event.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import * as nls from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { agentHostAgentPickerStorageKey, resolveAgentHostAgent } from '../../../../../platform/agentHost/common/customAgents.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -24,12 +25,12 @@ import { logChangesToStateModel } from '../../../../../workbench/contrib/chat/co
 import { ChatModeKind } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
-import { SessionProviderIdContext, IsPhoneLayoutContext, SessionAgentPickerInAttachContext } from '../../../../common/contextkeys.js';
+import { SessionProviderIdContext, IsPhoneLayoutContext, SessionActiveChatIsUntitledContext } from '../../../../common/contextkeys.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession, ISessionAgentRef, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ModePicker, ScopedModePickerModelCache } from '../../copilotChatSessions/browser/modePicker.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -37,7 +38,7 @@ import { IAction } from '../../../../../base/common/actions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { IChatContextPickService } from '../../../../../workbench/contrib/chat/browser/attachments/chatContextPickService.js';
+import { IChatContextPickService, IChatContextValueItem } from '../../../../../workbench/contrib/chat/browser/attachments/chatContextPickService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
 
@@ -54,29 +55,54 @@ interface IAgentPickerActionContext {
 }
 let openActiveAgentPicker: ((anchor?: HTMLElement) => void) | undefined;
 
-/** Tracks sessions whose Agent picker has returned to the toolbar after an explicit selection. */
-export class AgentPickerSelectionState {
-	private readonly selectedSessions = new Set<string>();
+// The shared new-session composer renders this picker instead of the workbench
+// agent picker, so it owns the agent picker shortcut there.
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'sessions.agentHost.openAgentPicker',
+	weight: KeybindingWeight.EditorContrib + 1,
+	when: ContextKeyExpr.and(IsActiveSessionAgentHost, ChatContextKeys.inChatInput, SessionActiveChatIsUntitledContext),
+	primary: KeyMod.CtrlCmd | KeyCode.Period,
+	handler: () => openActiveAgentPicker?.(),
+});
 
-	has(session: ISession | undefined): boolean {
-		return !!session && this.selectedSessions.has(session.resource.toString());
-	}
+/** What the Add Context "Agent..." pick needs from the Agents window. */
+export interface IAgentContextPickDelegate {
+	getActiveSession(): IActiveSession | undefined;
+	/** Whether the session's Agent picker can move into Add Context, in either experiment arm. */
+	isEligible(session: ISession | undefined): boolean;
+	openPicker(anchor: HTMLElement | undefined): void;
+}
 
-	mark(session: ISession | undefined): boolean {
-		if (!session || this.has(session)) {
-			return false;
-		}
-		this.selectedSessions.add(session.resource.toString());
-		return true;
-	}
+/**
+ * The Add Context "Agent..." pick, which opens the Agent picker while
+ * {@link AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING} moves it out of the input
+ * toolbar. Logs the experiment trigger for eligible sessions in every arm.
+ */
+export function createAgentContextPick(delegate: IAgentContextPickDelegate, configurationService: IConfigurationService, telemetryService: ITelemetryService): IChatContextValueItem {
+	return {
+		type: 'valuePick',
+		label: nls.localize('agentHostAgentPicker.context', "Agent..."),
+		icon: Codicon.agent,
+		ordinal: 1000,
+		isEnabled: widget => {
+			const session = delegate.getActiveSession();
+			if (!delegate.isEligible(session)) {
+				return false;
+			}
+			logSettingExperimentTrigger(telemetryService, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING);
+			return configurationService.getValue<boolean>(AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING)
+				&& widget.viewModel?.sessionResource.toString() === session?.activeChat.get()?.resource.toString();
+		},
+		asAttachment: async widget => {
+			delegate.openPicker(widget.inputPart.attachContextButtonElement ?? widget.inputPart.inputToolbarElement);
+			return undefined;
+		},
+	};
+}
 
-	transfer(from: ISession, to: ISession): boolean {
-		if (!this.selectedSessions.delete(from.resource.toString())) {
-			return false;
-		}
-		this.selectedSessions.add(to.resource.toString());
-		return true;
-	}
+export function isCustomAgentSelected(session: ISession | undefined, reader?: IReader): boolean {
+	const modeId = session?.mode.read(reader)?.id;
+	return !!modeId && modeId !== ChatMode.Agent.id;
 }
 
 registerAction2(class extends Action2 {
@@ -86,17 +112,6 @@ registerAction2(class extends Action2 {
 			title: nls.localize2('agentHostAgentPicker', "Agent"),
 			f1: false,
 			menu: [{
-				id: Menus.NewSessionConfig,
-				group: 'navigation',
-				order: -1,
-				when: ContextKeyExpr.and(
-					IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(), ChatContextKeys.inAutomationsDialog.negate(),
-					ContextKeyExpr.or(
-						ContextKeyExpr.not(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`),
-						ContextKeyExpr.not(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`),
-					),
-				),
-			}, {
 				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: -1,
@@ -106,15 +121,21 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.has(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`),
 				),
 			}, {
-				id: Menus.NewSessionAttachContext,
-				group: 'navigation',
-				order: -1,
-				when: ContextKeyExpr.and(IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(), SessionAgentPickerInAttachContext),
-			}, {
 				id: Menus.AutomationsDialogInputToolbar,
 				group: 'navigation',
 				order: -1,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAutomationsDialog, IsActiveSessionAgentHost, IsPhoneLayoutContext.negate()),
+			}, {
+				id: Menus.NewSessionChatInputToolbar,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.and(
+					IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(),
+					ContextKeyExpr.or(
+						ContextKeyExpr.not(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`),
+						ContextKeyExpr.not(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`),
+					),
+				),
 			}, {
 				// Running-session input bar — only inside the dedicated
 				// Agents Window. The regular VS Code chat editor uses the
@@ -132,13 +153,14 @@ registerAction2(class extends Action2 {
 	}
 });
 
-class AgentHostModePickerActionViewItem extends BaseActionViewItem {
+export class AgentHostModePickerActionViewItem extends BaseActionViewItem {
 	private compact = false;
 
 	constructor(
 		private readonly picker: ModePicker,
 		private readonly pickerInAttachContext: IObservable<boolean>,
 		disposable: IDisposable,
+		private readonly focusInput: () => void,
 	) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
 		this._register(disposable);
@@ -151,6 +173,9 @@ class AgentHostModePickerActionViewItem extends BaseActionViewItem {
 		this.picker.render(container);
 		this._register(autorun(reader => {
 			const hidden = this.pickerInAttachContext.read(reader);
+			if (hidden && dom.isAncestorOfActiveElement(container)) {
+				this.focusInput();
+			}
 			container.hidden = hidden;
 			container.inert = hidden;
 			if (hidden) {
@@ -180,7 +205,7 @@ class AgentHostModePickerActionViewItem extends BaseActionViewItem {
 	}
 }
 
-class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchContribution {
+export class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.agentHostAgentPicker';
 
@@ -188,7 +213,6 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@ISessionsService sessionsService: ISessionsService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -200,41 +224,15 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 	) {
 		super();
 		let settingAgentInternally = false;
-		const explicitSelection = new AgentPickerSelectionState();
-		const explicitSelectionVersion = observableValue(this, 0);
 		const configurationChanged = observableSignalFromEvent(this, configurationService.onDidChangeConfiguration);
-		const phoneLayoutChanged = observableSignalFromEvent(this, Event.filter(
-			contextKeyService.onDidChangeContext,
-			event => event.affectsSome(new Set([IsPhoneLayoutContext.key])),
-		));
 		const isEligible = (session: ISession | undefined): boolean => {
 			if (!session || contextKeyService.getContextKeyValue<boolean>(IsPhoneLayoutContext.key) || !this._getProvider(session, sessionsProvidersService)) {
 				return false;
 			}
-			return !explicitSelection.has(session);
+			return !isCustomAgentSelected(session);
 		};
-		const isMoved = (session: ISession | undefined): boolean => isEligible(session)
-			&& configurationService.getValue<boolean>(AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING);
-		const shouldHidePicker = (session: ISession | undefined): boolean => configurationService.getValue<boolean>(AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING)
-			&& !explicitSelection.has(session);
-		const markExplicitlySelected = (session: ISession | undefined) => {
-			if (explicitSelection.mark(session)) {
-				explicitSelectionVersion.set(explicitSelectionVersion.get() + 1, undefined);
-			}
-		};
-		this._register(sessionsManagementService.onDidReplaceSession(({ from, to }) => {
-			if (explicitSelection.transfer(from, to)) {
-				explicitSelectionVersion.set(explicitSelectionVersion.get() + 1, undefined);
-			}
-		}));
-		const agentPickerInAttachContext = SessionAgentPickerInAttachContext.bindTo(contextKeyService);
-		this._register(autorun(reader => {
-			configurationChanged.read(reader);
-			phoneLayoutChanged.read(reader);
-			explicitSelectionVersion.read(reader);
-			agentPickerInAttachContext.set(isMoved(sessionsService.activeSession.read(reader)));
-		}));
-		this._register({ dispose: () => agentPickerInAttachContext.reset() });
+		const shouldHidePicker = (session: ISession | undefined, reader: IReader): boolean => configurationService.getValue<boolean>(AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING)
+			&& !isCustomAgentSelected(session, reader);
 
 		const renderedPickers = new Set<{ readonly session: IObservable<ISession | undefined>; readonly item: AgentHostModePickerActionViewItem }>();
 		openActiveAgentPicker = anchor => {
@@ -248,23 +246,11 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 			}
 		});
 
-		this._register(chatContextPickService.registerChatContextItem({
-			type: 'valuePick',
-			label: nls.localize('agentHostAgentPicker.context', "Agent..."),
-			icon: Codicon.agent,
-			ordinal: 1000,
-			isEnabled: widget => {
-				const session = sessionsService.activeSession.get();
-				if (isEligible(session)) {
-					logSettingExperimentTrigger(telemetryService, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING);
-				}
-				return isMoved(session) && widget.viewModel?.sessionResource.toString() === session?.activeChat.get()?.resource.toString();
-			},
-			asAttachment: async widget => {
-				openActiveAgentPicker?.(widget.inputPart.attachContextButtonElement ?? widget.inputPart.inputToolbarElement);
-				return undefined;
-			},
-		}));
+		this._register(chatContextPickService.registerChatContextItem(createAgentContextPick({
+			getActiveSession: () => sessionsService.activeSession.get(),
+			isEligible,
+			openPicker: anchor => openActiveAgentPicker?.(anchor),
+		}, configurationService, telemetryService)));
 		const modePickerModels = this._register(new ScopedModePickerModelCache(session => {
 			const provider = sessionsProvidersService.getProvider(session.providerId);
 			return !!provider && isAgentHostProvider(provider);
@@ -313,22 +299,25 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 			const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel.model, session);
 			const pickerInAttachContext = derived(reader => {
 				configurationChanged.read(reader);
-				explicitSelectionVersion.read(reader);
-				return hideWhenMoved && shouldHidePicker(session.read(reader));
+				return hideWhenMoved && shouldHidePicker(session.read(reader), reader);
 			});
 
 			disposableStore.add(picker.onDidSelect(mode => {
-				markExplicitlySelected(session.get());
 				this._selectMode(mode, session.get(), sessionsProvidersService);
 			}));
-			const item = scopedInstantiationService.createInstance(AgentHostModePickerActionViewItem, picker, pickerInAttachContext, disposableStore);
+			const item = scopedInstantiationService.createInstance(AgentHostModePickerActionViewItem, picker, pickerInAttachContext, disposableStore, () => {
+				const resource = session.get()?.activeChat.get()?.resource;
+				if (resource) {
+					this.chatWidgetService.getWidgetBySessionResource(resource)?.focusInput();
+				}
+			});
 			const renderedPicker = { session, item };
 			renderedPickers.add(renderedPicker);
 			disposableStore.add({ dispose: () => renderedPickers.delete(renderedPicker) });
 			return item;
 		};
 
-		this._register(actionViewItemService.register(Menus.NewSessionConfig, AGENT_HOST_AGENT_PICKER_ACTION_ID, createFactory(true)));
+		this._register(actionViewItemService.register(Menus.NewSessionChatInputToolbar, AGENT_HOST_AGENT_PICKER_ACTION_ID, createFactory(true)));
 		this._register(actionViewItemService.register(Menus.NewSessionControl, AGENT_HOST_AGENT_PICKER_ACTION_ID, createFactory(true)));
 		this._register(actionViewItemService.register(Menus.AutomationsDialogInputToolbar, AGENT_HOST_AGENT_PICKER_ACTION_ID, createFactory(false)));
 		this._register(actionViewItemService.register(MenuId.ChatInput, AGENT_HOST_AGENT_PICKER_ACTION_ID, createFactory(true)));
@@ -411,14 +400,14 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 		if (!selectedAgentUri && isUntitled && resolved) {
 			beginInternalSet();
 			try {
-				this._setAgent(session, provider, resolved);
+				provider.setAgent?.(session.sessionId, { uri: resolved.uri, name: resolved.name });
 			} finally {
 				endInternalSet();
 			}
 		} else if (selectedAgentUri && !resolved && agents.length > 0 && !isUntitled) {
 			beginInternalSet();
 			try {
-				this._setAgent(session, provider, undefined);
+				provider.setAgent?.(session.sessionId, undefined);
 			} finally {
 				endInternalSet();
 			}

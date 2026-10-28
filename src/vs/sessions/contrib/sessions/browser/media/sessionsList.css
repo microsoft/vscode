@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * Rows reveal actions on hover or keyboard focus. Pair every row `:hover` with
+ * Rows reveal actions on hover or keyboard focus. Pair every `:hover` with
  * `.hovered` (e.g. `.monaco-list-row:is(:hover, .hovered)`) so tests and
  * component fixtures can render the hover state without a pointer.
  */
@@ -41,6 +41,7 @@
 }
 
 .sessions-list-control {
+	position: relative;
 	flex: 1 1 auto;
 	height: 100%;
 	min-height: 0;
@@ -66,6 +67,11 @@
 
 		&.focused.selected {
 			background-image: linear-gradient(var(--vscode-list-inactiveSelectionBackground, transparent), var(--vscode-list-inactiveSelectionBackground, transparent));
+		}
+
+		/* The opaque sticky background hides the row tint, so paint it as an overlay. */
+		&:not(.selected):not(.focused):not(:hover, .hovered):has(.session-item.needs-input) {
+			background-image: linear-gradient(color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent), color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent));
 		}
 	}
 
@@ -134,22 +140,14 @@
 	/* Suppressed while selected so the selection highlight is not overpainted. */
 	.monaco-list-row:not(.selected):not(.focused):not(:hover, .hovered):has(.session-item.needs-input),
 	.monaco-list-row:not(.selected):not(.focused):not(:hover, .hovered) .session-chat-item.needs-input {
-		animation: session-needs-input-accent-pulse 3s ease-in-out infinite;
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.monaco-list-row:not(.selected):not(.focused):not(:hover, .hovered):has(.session-item.needs-input),
-		.monaco-list-row:not(.selected):not(.focused):not(:hover, .hovered) .session-chat-item.needs-input {
-			animation: none;
-			background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
-		}
+		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
 	}
 
 	.monaco-list-row .force-no-twistie {
 		display: none !important;
 	}
 
-	.monaco-list-row .session-chat-twistie {
+	.monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie) {
 		position: absolute;
 		top: var(--vscode-spacing-size80);
 		left: var(--vscode-spacing-size120);
@@ -163,8 +161,16 @@
 		z-index: 1;
 	}
 
+	.monaco-list-row :is(.session-comparison-twistie, .session-comparison-attempt-twistie) {
+		left: var(--vscode-spacing-size360);
+	}
+
+	.monaco-list-row .session-comparison-attempt-twistie {
+		top: var(--vscode-spacing-size60);
+	}
+
 	/* Replace the status icon with the twistie only while hovering the session row. */
-	.monaco-list-row:is(:hover, .hovered) .session-chat-twistie.collapsible {
+	.monaco-list-row:is(:hover, .hovered) :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie).collapsible {
 		opacity: 1;
 		pointer-events: auto;
 	}
@@ -362,96 +368,46 @@
 			width: 16px;
 			height: 16px;
 		}
+	}
 
-		&.session-icon-pulse > .codicon {
-			animation: session-needs-input-pulse 2s ease-in-out infinite;
+	.session-group-connector {
+		display: none;
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+	}
+
+	&[data-session-group-connector] {
+		padding-left: var(--vscode-spacing-size360);
+
+		> .session-group-connector {
+			display: block;
 		}
 
-		@media (prefers-reduced-motion: reduce) {
-			&.session-icon-pulse > .codicon {
-				animation: none;
-			}
-		}
-	}
-
-	&.session-comparison-attempt[data-session-group-connector] .session-icon {
-		> .codicon,
-		> .monaco-pixel-spinner {
-			display: none;
-		}
-
-		&::before {
-			flex-shrink: 0;
-			width: 16px;
-			height: 16px;
-			color: var(--vscode-descriptionForeground);
-			font-family: var(--monaco-monospace-font);
-			font-size: var(--vscode-fontSize-body1);
-			line-height: 16px;
-			text-align: center;
-		}
-	}
-
-	&.session-comparison-attempt[data-session-group-connector='first'] .session-icon::before {
-		content: '┌';
-	}
-
-	&.session-comparison-attempt[data-session-group-connector='middle'] .session-icon::before {
-		content: '├';
-	}
-
-	&.session-comparison-attempt[data-session-group-connector='last'] .session-icon::before {
-		content: '└';
-	}
-
-	&.session-comparison-attempt[data-session-group-connector] .session-icon {
-		align-self: stretch;
-		width: var(--vscode-spacing-size160);
-
-		&::before,
-		&::after {
+		> .session-group-connector::before,
+		> .session-group-connector::after {
 			position: absolute;
 			content: '';
+			left: var(--vscode-spacing-size200);
+			top: 0;
+			border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
 		}
 
-		&::before {
-			top: var(--vscode-spacing-size80);
-			left: calc(var(--vscode-spacing-size80) - var(--vscode-strokeThickness));
-			width: calc(var(--vscode-spacing-size80) + var(--vscode-strokeThickness));
-			height: 0;
-			border-top: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
+		> .session-group-connector::before {
+			bottom: calc(-1 * var(--vscode-spacing-size20));
 		}
 
-		&::after {
-			left: calc(var(--vscode-spacing-size80) - var(--vscode-strokeThickness));
-			width: 0;
-			border-left: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
+		> .session-group-connector::after {
+			box-sizing: border-box;
+			width: var(--vscode-spacing-size120);
+			height: var(--vscode-spacing-size160);
+			border-bottom: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
+			border-bottom-left-radius: var(--vscode-cornerRadius-small);
+			opacity: 1;
 		}
 	}
 
-	&.session-comparison-attempt[data-session-group-connector='first'] .session-icon::after {
-		top: var(--vscode-spacing-size80);
-		bottom: calc(-1 * var(--vscode-spacing-size100));
-		width: calc(var(--vscode-spacing-size80) + var(--vscode-strokeThickness));
-		border-top: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
-		border-top-left-radius: var(--vscode-cornerRadius-small);
-	}
-
-	&.session-comparison-attempt[data-session-group-connector='middle'] .session-icon::after {
-		top: calc(-1 * var(--vscode-spacing-size80));
-		bottom: calc(-1 * var(--vscode-spacing-size100));
-	}
-
-	&.session-comparison-attempt[data-session-group-connector='last'] .session-icon::after {
-		top: calc(-1 * var(--vscode-spacing-size80));
-		bottom: calc(100% - var(--vscode-spacing-size80));
-		width: calc(var(--vscode-spacing-size80) + var(--vscode-strokeThickness));
-		border-bottom: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
-		border-bottom-left-radius: var(--vscode-cornerRadius-small);
-	}
-
-	&.session-comparison-attempt[data-session-group-connector='first'] .session-icon::before,
-	&.session-comparison-attempt[data-session-group-connector='last'] .session-icon::before {
+	&[data-session-group-connector='last'] > .session-group-connector::before {
 		display: none;
 	}
 
@@ -483,14 +439,11 @@
 		&.visible {
 			display: flex;
 		}
-
-		.session-comparison-attempt-status-icon {
-			font-size: var(--vscode-codiconFontSize-compact);
-		}
 	}
 
 	&.session-comparison-attempt {
-		padding: var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+		padding-top: var(--vscode-spacing-size60);
+		padding-bottom: var(--vscode-spacing-size60);
 
 		.session-icon {
 			line-height: 16px;
@@ -597,7 +550,8 @@
 
 	.session-external-application-badge-title {
 		display: none;
-		height: 17px;
+		/* Match the title row's line height (17px, or 16px in compact, quick-chat, and comparison rows) so showing the badge never grows the row. */
+		height: 1lh;
 		max-width: 40%;
 		margin-left: var(--vscode-spacing-size60);
 
@@ -709,12 +663,16 @@
 }
 
 .sessions-list-control.compact {
-	.monaco-list-row .session-chat-twistie {
+	.monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie) {
 		top: var(--vscode-spacing-size60);
 	}
 
 	.session-item:not(.quick-chat) {
 		padding: var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+
+		&[data-session-group-connector] {
+			padding-left: var(--vscode-spacing-size360);
+		}
 
 		.session-main {
 			display: grid;
@@ -822,6 +780,11 @@
 	each nested/side chat row (for that chat), so it is scoped to neither. */
 .session-approval-row {
 	display: none;
+	/* Reset the inherited list-row line-height (set to the full row height).
+		The label's code block renders as plain inline text until it is tokenized,
+		so a dynamic-height probe in that state would measure a line box as tall as
+		the previous row height and grow the row on every re-measure. */
+	line-height: 18px;
 	gap: 8px;
 	margin-top: 4px;
 	margin-left: -6px;
@@ -869,6 +832,12 @@
 	}
 }
 
+/*
+ * Hierarchy guides connect an expanded session to its nested chats. While the
+ * pointer is anywhere over the Sessions pane, every hierarchy shows them, like
+ * the Explorer's indent guides. Otherwise only the selected or keyboard-focused
+ * hierarchy shows them (`.session-hierarchy-guides-visible`).
+ */
 .monaco-list-row[aria-expanded="true"] .session-item::after {
 	content: '';
 	position: absolute;
@@ -879,8 +848,31 @@
 	opacity: 0;
 }
 
+.agent-sessions-viewpane:is(:hover, .hovered) .monaco-list-row[aria-expanded="true"] .session-item::after,
 .monaco-list-row[aria-expanded="true"] .session-item.session-hierarchy-guides-visible::after {
 	opacity: 1;
+}
+
+.monaco-list-row[aria-expanded="true"] .session-item[data-session-group-connector]::after {
+	left: calc(var(--vscode-spacing-size360) + var(--vscode-spacing-size80));
+}
+
+.sessions-list-control .monaco-list-row .session-chat-item.session-comparison-chat {
+	padding-left: calc(var(--vscode-spacing-size360) + var(--vscode-spacing-size240));
+
+	&::before,
+	&::after {
+		left: calc(var(--vscode-spacing-size360) + var(--vscode-spacing-size80));
+	}
+
+	> .session-comparison-chat-connector {
+		position: absolute;
+		top: 0;
+		bottom: calc(-1 * var(--vscode-spacing-size20));
+		left: var(--vscode-spacing-size200);
+		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
+		pointer-events: none;
+	}
 }
 
 .session-chat-item {
@@ -919,6 +911,7 @@
 		opacity: 0;
 	}
 
+	.agent-sessions-viewpane:is(:hover, .hovered) &,
 	&.session-hierarchy-guides-visible {
 		&::before,
 		&::after {
@@ -928,6 +921,16 @@
 
 	&.last-chat {
 		&::before {
+			display: none;
+		}
+	}
+
+	/* A done chat listed in the Done section on its own row: aligned with session rows, without hierarchy guides. */
+	&.standalone {
+		padding-left: var(--vscode-spacing-size120);
+
+		&::before,
+		&::after {
 			display: none;
 		}
 	}
@@ -1024,16 +1027,6 @@
 			width: var(--vscode-spacing-size120);
 			height: var(--vscode-spacing-size120);
 		}
-
-		&.session-icon-pulse > .codicon {
-			animation: session-needs-input-pulse 2s ease-in-out infinite;
-		}
-
-		@media (prefers-reduced-motion: reduce) {
-			&.session-icon-pulse > .codicon {
-				animation: none;
-			}
-		}
 	}
 
 	&.unread .session-chat-title,
@@ -1070,6 +1063,10 @@
 
 .sessions-list-control.compact .session-chat-item {
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) var(--vscode-spacing-size360);
+
+	&.standalone {
+		padding-left: var(--vscode-spacing-size120);
+	}
 
 	&::after {
 		height: calc(var(--vscode-spacing-size60) + var(--vscode-spacing-size80));
@@ -1121,8 +1118,36 @@
 }
 
 .monaco-list-row:hover .session-show-more:hover,
-.monaco-list-row.hovered .session-show-more {
+.monaco-list-row.hovered .session-show-more,
+.sessions-list-sticky-show-more .session-show-more:is(:hover, .hovered, :focus-visible) {
 	color: var(--vscode-foreground);
+}
+
+.sessions-list-sticky-show-more {
+	position: absolute;
+	bottom: 0;
+	left: var(--vscode-spacing-size40);
+	right: var(--vscode-spacing-size40);
+	z-index: 1;
+	padding-bottom: var(--vscode-spacing-size20);
+	background-color: var(--vscode-agents-background);
+
+	.monaco-button.session-show-more {
+		height: 26px;
+		text-decoration: none;
+		border-radius: var(--vscode-cornerRadius-small);
+
+		&:is(:hover, .hovered) {
+			background-color: var(--vscode-list-hoverBackground);
+			outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder, transparent);
+			outline-offset: calc(-1 * var(--vscode-strokeThickness));
+		}
+
+		&:focus-visible {
+			outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+			outline-offset: calc(-1 * var(--vscode-strokeThickness));
+		}
+	}
 }
 
 /* Muted placeholder row for the empty "Chats" section, aligned with chat titles. */
@@ -1281,16 +1306,16 @@
 	border-radius: 0;
 }
 
-.monaco-list-row:is(:hover, .hovered) .session-section .session-section-chevron.collapsible,
-.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-section .session-section-chevron.collapsible,
-.monaco-list-row .session-section.dropdown-active .session-section-chevron.collapsible {
+.monaco-list-row:is(:hover, .hovered) .session-section:not(.session-comparison-group) .session-section-chevron.collapsible,
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-section:not(.session-comparison-group) .session-section-chevron.collapsible,
+.monaco-list-row .session-section.dropdown-active:not(.session-comparison-group) .session-section-chevron.collapsible {
 	display: flex;
 	align-items: center;
 }
 
-.monaco-list-row:is(:hover, .hovered) .session-section .session-section-chevron.collapsible + .session-section-icon,
-.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-section .session-section-chevron.collapsible + .session-section-icon,
-.monaco-list-row .session-section.dropdown-active .session-section-chevron.collapsible + .session-section-icon {
+.monaco-list-row:is(:hover, .hovered) .session-section:not(.session-comparison-group) .session-section-chevron.collapsible + .session-section-icon,
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-section:not(.session-comparison-group) .session-section-chevron.collapsible + .session-section-icon,
+.monaco-list-row .session-section.dropdown-active:not(.session-comparison-group) .session-section-chevron.collapsible + .session-section-icon {
 	display: none;
 }
 
@@ -1312,6 +1337,59 @@
 			outline: none !important;
 		}
 	}
+}
+
+/*
+ * A nested custom group steps in one level for each group it is nested in. A
+ * level is the header icon and its gap, so a subgroup's header starts where its
+ * parent's label does; the group's sessions and rows line up with its header.
+ */
+.sessions-list-control {
+	--session-group-indent: calc(var(--vscode-codiconFontSize, 16px) + var(--vscode-spacing-size60));
+
+	/*
+	 * `sessions.list.indentItems` steps every row within a section in by one
+	 * level, and nested custom groups by the same level, so the list reads as a
+	 * hierarchy below its section headers.
+	 */
+	&.indent-items {
+		--session-group-indent: calc(var(--vscode-spacing-size160) + var(--vscode-spacing-size20));
+	}
+}
+
+.session-item,
+.session-chat-item,
+.session-group,
+.session-section,
+.session-show-more,
+.session-placeholder {
+	margin-left: calc(var(--session-group-depth, 0) * var(--session-group-indent, 0px));
+}
+
+.sessions-list-control.indent-items :is(.session-item, .session-chat-item, .session-show-more:not(.session-show-more-folders), .session-placeholder) {
+	margin-left: calc((var(--session-group-depth, 0) + 1) * var(--session-group-indent, 0px));
+}
+
+/*
+ * A comparison's header, participants, and their chats share the comparison's
+ * depth so its guides connect. A comparison in a section is at depth 0 and steps
+ * in like the section's sessions; one in a custom group is already a level below it.
+ */
+.sessions-list-control.indent-items :is(.session-comparison-group, .session-item[data-session-group-connector], .session-chat-item.session-comparison-chat) {
+	margin-left: calc(max(var(--session-group-depth, 0), 1) * var(--session-group-indent, 0px));
+}
+
+/* Session twisties are positioned within the row, so they step in by the same amount as the row's contents. */
+.sessions-list-control .monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie) {
+	translate: calc(var(--session-group-depth, 0) * var(--session-group-indent, 0px)) 0;
+}
+
+.sessions-list-control.indent-items .monaco-list-row .session-chat-twistie {
+	translate: calc((var(--session-group-depth, 0) + 1) * var(--session-group-indent, 0px)) 0;
+}
+
+.sessions-list-control.indent-items .monaco-list-row :is(.session-comparison-twistie, .session-comparison-attempt-twistie) {
+	translate: calc(max(var(--session-group-depth, 0), 1) * var(--session-group-indent, 0px)) 0;
 }
 
 /* Session groups render like sections, with an inline name editor. */
@@ -1351,9 +1429,21 @@
 }
 
 .session-group.session-comparison-group {
-	padding-top: var(--vscode-spacing-size40);
-	padding-bottom: var(--vscode-spacing-size40);
+	position: relative;
+	box-sizing: border-box;
+	align-items: flex-start;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
 	color: var(--vscode-foreground);
+	font-weight: var(--vscode-fontWeight-regular);
+
+	&::after {
+		content: '';
+		position: absolute;
+		top: var(--vscode-spacing-size240);
+		bottom: calc(-1 * var(--vscode-spacing-size20));
+		left: var(--vscode-spacing-size200);
+		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
+	}
 
 	/* Stack the title above the summary; ordinary groups keep the section label layout. */
 	.session-group-labels {
@@ -1369,11 +1459,24 @@
 		max-width: 100%;
 		color: var(--vscode-strongForeground);
 		font-size: var(--vscode-fontSize-label1);
-		font-weight: var(--vscode-fontWeight-semiBold);
+		font-weight: var(--vscode-fontWeight-regular);
 		line-height: 16px;
 	}
 
-	.session-section-chevron.collapsible {
+	.session-section-chevron {
+		position: absolute;
+		top: var(--vscode-spacing-size40);
+		left: var(--vscode-spacing-size120);
+		width: var(--vscode-spacing-size160);
+		height: var(--vscode-spacing-size160);
+		margin: 0;
+		font-size: var(--vscode-codiconFontSize);
+		opacity: 0;
+		z-index: 1;
+	}
+
+	.session-section-chevron.collapsible,
+	.session-section-icon {
 		display: flex;
 		align-items: center;
 	}
@@ -1392,107 +1495,54 @@
 	display: flex;
 }
 
-.monaco-list-row:hover .session-group.session-comparison-group .session-section-chevron.collapsible + .session-section-icon,
-.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-group.session-comparison-group .session-section-chevron.collapsible + .session-section-icon,
-.monaco-list-row .session-group.session-comparison-group.dropdown-active .session-section-chevron.collapsible + .session-section-icon {
-	display: flex;
+.sessions-list-control .monaco-list-row .session-comparison-group .session-section-chevron.collapsible:hover,
+.sessions-list-control:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused .session-comparison-group .session-section-chevron.collapsible {
+	opacity: 1;
+
+	+ .session-section-icon {
+		visibility: hidden;
+	}
+}
+
+.monaco-list-row[aria-expanded="false"] .session-comparison-group::after {
+	display: none;
 }
 
 .session-group.session-group-editing .session-group-input {
 	display: block;
 }
 
+/* Feedback while moving a chat or session: a clear insertion line between rows (also when placing a session between sessions of Pinned or a custom group), and an outlined list for a new session. Moving into a session highlights its rows with the list's drop background, as in the Explorer. */
+.sessions-list-control.move-drag .monaco-list .monaco-list-rows .monaco-list-row.drop-target-before::before,
+.sessions-list-control.move-drag .monaco-list .monaco-list-rows .monaco-list-row.drop-target-after::after {
+	height: calc(2 * var(--vscode-strokeThickness));
+	background-color: var(--vscode-focusBorder);
+	z-index: 1;
+}
+
+/* Among a session's nested rows, the line starts at their indent, unlike a line placing a session between sessions. */
+.sessions-list-control.move-drag.move-drag-nested .monaco-list .monaco-list-rows .monaco-list-row.drop-target-before::before,
+.sessions-list-control.move-drag.move-drag-nested .monaco-list .monaco-list-rows .monaco-list-row.drop-target-after::after {
+	left: var(--vscode-spacing-size360);
+	width: calc(100% - var(--vscode-spacing-size360));
+}
+
+/* A group dropped among nested groups lands at their depth, so its insertion line starts at their indent. */
+.sessions-list-control.session-group-insertion .monaco-list .monaco-list-rows .monaco-list-row.drop-target-before::before,
+.sessions-list-control.session-group-insertion .monaco-list .monaco-list-rows .monaco-list-row.drop-target-after::after {
+	left: calc(var(--session-group-insertion-depth, 0) * var(--session-group-indent, 0px));
+	width: calc(100% - var(--session-group-insertion-depth, 0) * var(--session-group-indent, 0px));
+}
+
+.sessions-list-control.move-drag .monaco-list.drop-target {
+	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-focusBorder);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
 /* Header-only feedback while dragging sessions into a group or Pinned. */
 .sessions-list-control .monaco-list-row.drop-target:has(.session-section),
 .sessions-list-control .monaco-list-row:has(.session-header-drop-target) {
 	background-color: var(--vscode-list-dropBackground) !important;
-}
-
-@keyframes session-needs-input-pulse {
-
-	0%,
-	100% {
-		opacity: 1;
-	}
-
-	50% {
-		opacity: 0.4;
-	}
-}
-
-/* PROTO: yellow background pulse for "Input needed" session rows. */
-@keyframes session-needs-input-accent-pulse {
-	0%, 100% {
-		background-color: transparent;
-	}
-	50% {
-		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 12%, transparent);
-	}
-}
-
-/* Shimmer effect for in-progress session titles when not selected. */
-/* Gated behind @supports because some environments apply */
-/* `-webkit-text-fill-color: transparent` without honoring */
-/* `background-clip: text`, which renders gradient-filled blocks */
-/* instead of clipped text. Also disabled under reduced motion. */
-
-@supports ((background-clip: text) or (-webkit-background-clip: text)) {
-	@media not (prefers-reduced-motion: reduce) {
-		.monaco-list-row:not(.selected) .session-item.in-progress .session-title {
-			background: linear-gradient(
-				90deg,
-				var(--vscode-strongForeground) 0%,
-				var(--vscode-strongForeground) 30%,
-				var(--vscode-chat-thinkingShimmer) 50%,
-				var(--vscode-strongForeground) 70%,
-				var(--vscode-strongForeground) 100%
-			);
-			background-size: 400% 100%;
-			background-clip: text;
-			-webkit-background-clip: text;
-			-webkit-text-fill-color: transparent;
-			animation: session-title-shimmer 6s steps(90, jump-none) infinite;
-		}
-
-		.monaco-list-row:not(.selected) .session-item.in-progress .session-title.chat-progress-animation {
-			animation-play-state: paused;
-		}
-
-		.vs-dark .monaco-list-row:not(.selected) .session-item.in-progress .session-title,
-		.hc-black .monaco-list-row:not(.selected) .session-item.in-progress .session-title {
-			background-image: linear-gradient(
-				90deg,
-				var(--vscode-strongForeground) 0%,
-				var(--vscode-strongForeground) 30%,
-				var(--vscode-descriptionForeground) 50%,
-				var(--vscode-strongForeground) 70%,
-				var(--vscode-strongForeground) 100%
-			);
-		}
-
-		.monaco-list-row:not(.selected) .session-item.session-comparison-attempt.in-progress .session-title {
-			background: none;
-			-webkit-text-fill-color: currentColor;
-			animation: none;
-		}
-	}
-}
-
-.monaco-reduce-motion .monaco-list-row:not(.selected) .session-item.in-progress .session-title {
-	background: none;
-	-webkit-text-fill-color: currentColor;
-	animation: none;
-}
-
-@keyframes session-title-shimmer {
-	0% {
-		background-position: 120% 0;
-	}
-
-	50%,
-	100% {
-		background-position: -120% 0;
-	}
 }
 
 /* ---- Mobile Layout: Touch Adaptations ---- */
@@ -1524,6 +1574,10 @@
 .agent-sessions-workbench.phone-layout .sessions-list-control {
 	.session-item {
 		padding: 10px 10px;
+
+		&[data-session-group-connector] {
+			padding-left: var(--vscode-spacing-size360);
+		}
 		/* Vertically center the icon + main column inside the fixed phone row height. */
 		align-items: center;
 		/* Anchor for the absolutely positioned title toolbar (kept out
@@ -1543,7 +1597,11 @@
 		top: var(--vscode-spacing-size320);
 	}
 
-	.monaco-list-row .session-chat-twistie.collapsible {
+	.monaco-list-row[aria-expanded="true"] .session-item[data-session-group-connector]::after {
+		left: var(--vscode-spacing-size200);
+	}
+
+	.monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie).collapsible {
 		opacity: 1;
 		pointer-events: auto;
 		top: var(--vscode-spacing-size100);
@@ -1560,6 +1618,20 @@
 		--session-chat-base-height: 44px;
 		padding: 0 var(--vscode-spacing-size120) 0 var(--vscode-spacing-size360);
 		font-size: var(--vscode-fontSize-body1);
+
+		&.session-comparison-chat::before,
+		&.session-comparison-chat::after {
+			left: var(--vscode-spacing-size200);
+		}
+	}
+
+	.session-chat-item.standalone {
+		padding-left: var(--vscode-spacing-size100);
+	}
+
+	/* Standalone rows show Open Parent Session next to the row's own action, so reserve room for both, as session rows do. */
+	.session-chat-item.standalone .session-chat-title-row {
+		padding-right: calc(2 * var(--session-chat-base-height) + var(--vscode-spacing-size80));
 	}
 
 	.session-chat-item::after {

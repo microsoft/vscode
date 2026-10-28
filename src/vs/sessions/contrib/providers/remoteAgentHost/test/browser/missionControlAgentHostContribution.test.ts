@@ -13,7 +13,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
-import { IMissionControlEnvironmentService, IMissionControlHost, IMissionControlSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId, IMissionControlEnvironmentService, IMissionControlHost, IMissionControlSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -38,15 +39,20 @@ import { RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostActions.
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../chat/common/constants.js';
+import { getRemoteAgentHostPickerKey } from '../../browser/remoteAgentHostPickerVisibility.js';
 
 class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	override readonly connectionStatus = observableValue<RemoteAgentHostConnectionStatus>(this, RemoteAgentHostConnectionStatus.disconnected);
+	cachedSessionsVisible = true;
 	disposed = false;
 	constructor(override readonly remoteAddress: string, private name: string, private readonly options: IEntryDrivenProviderOptions) { super(); }
 	override get defaultLabel(): string { return this.name; }
 	override get label(): string { return this.name; }
 	override setLabel(name: string): void { this.name = name; }
 	override setConnectionStatus(status: RemoteAgentHostConnectionStatus): void { this.connectionStatus.set(status, undefined); }
+	override setConnection(): void { this.cachedSessionsVisible = true; }
+	override clearConnection(): void { }
+	override unpublishCachedSessions(): void { this.cachedSessionsVisible = false; }
 	override async connect(): Promise<void> { await this.options.connectOnDemand?.(); }
 	override async disconnect(): Promise<void> { await this.options.disconnectOnDemand?.(); }
 	override dispose(): void { this.disposed = true; }
@@ -55,7 +61,7 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 suite('Mission Control native provider inventory', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('labels the remote picker entry and connect command as Environments', () => {
+	test('labels the remote picker entry as GitHub Environments and retains the connect command title', () => {
 		const labels = [
 			{ menu: Menus.SessionWorkspaceManage, command: RemoteAgentHostCommandIds.connectViaMissionControl },
 			{ menu: MenuId.CommandPalette, command: ConnectMissionControlEnvironmentCommand },
@@ -64,16 +70,17 @@ suite('Mission Control native provider inventory', () => {
 			assert.ok(item);
 			return typeof item.command.title === 'string' ? item.command.title : item.command.title.value;
 		});
-		assert.deepStrictEqual(labels, ['Environments', 'Connect to Environment...']);
+		assert.deepStrictEqual(labels, ['GitHub Environments...', 'Connect to Environment...']);
 	});
 
-	for (const { name, quality, development, hostsEnabled, chatEnabled, aiDisabled, available } of [
+	for (const { name, quality, development, hostsEnabled, environmentsEnabled = true, chatEnabled, aiDisabled, available } of [
 		{ name: 'source', quality: '', development: true, hostsEnabled: true, chatEnabled: true, aiDisabled: false, available: true },
 		{ name: 'built OSS', quality: '', development: false, hostsEnabled: true, chatEnabled: true, aiDisabled: false, available: true },
 		{ name: 'Insiders', quality: 'insider', development: false, hostsEnabled: true, chatEnabled: true, aiDisabled: false, available: true },
 		{ name: 'Stable', quality: 'stable', development: false, hostsEnabled: true, chatEnabled: true, aiDisabled: false, available: true },
 		{ name: 'Stable in development mode', quality: 'stable', development: true, hostsEnabled: true, chatEnabled: true, aiDisabled: false, available: true },
 		{ name: 'remote hosts disabled', quality: 'insider', development: false, hostsEnabled: false, chatEnabled: true, aiDisabled: false, available: false },
+		{ name: 'GitHub Environments disabled', quality: 'stable', development: false, hostsEnabled: true, environmentsEnabled: false, chatEnabled: true, aiDisabled: false, available: false },
 		{ name: 'chat disabled', quality: 'insider', development: false, hostsEnabled: true, chatEnabled: false, aiDisabled: false, available: false },
 		{ name: 'AI master setting disabled', quality: 'insider', development: false, hostsEnabled: true, chatEnabled: true, aiDisabled: true, available: false },
 	]) {
@@ -83,6 +90,8 @@ suite('Mission Control native provider inventory', () => {
 			context.setValue(ProductQualityContext.key, quality);
 			context.setValue(ChatContextKeys.enabled.key, chatEnabled);
 			context.setValue(`config.${RemoteAgentHostsEnabledSettingId}`, hostsEnabled);
+			context.setValue(`config.${GitHubEnvironmentsEnabledSettingId}`, environmentsEnabled);
+			context.setValue(GitHubEnvironmentsAvailableContext.key, true);
 			context.setValue('config.chat.disableAIFeatures', aiDisabled);
 			const availability = [
 				{ menu: MenuId.CommandPalette, command: ConnectMissionControlEnvironmentCommand },
@@ -92,7 +101,7 @@ suite('Mission Control native provider inventory', () => {
 				assert.ok(item);
 				return (item.when?.evaluate(context) ?? true) && (item.command.precondition?.evaluate(context) ?? true);
 			});
-			assert.deepStrictEqual(availability, [available, available && quality !== 'stable']);
+			assert.deepStrictEqual(availability, [available, available]);
 		});
 	}
 
@@ -126,6 +135,17 @@ suite('Mission Control native provider inventory', () => {
 		instantiation.stub(IMissionControlSharingService, { setProjectFolders: folders => sharedProjects.push(folders.map(folder => folder.toString())) });
 		const connections = new Map<string, IRemoteAgentHostConnectionInfo>();
 		const connectionsChanged = store.add(new Emitter<void>());
+		const connectionListeners = store.add(new DisposableStore());
+		const agentConnection = new class extends mock<IAgentConnection>() { }();
+		const setConnectionStatus = (id: string, status: RemoteAgentHostConnectionStatus | undefined) => {
+			const address = `cloudsandbox:${id}`;
+			if (status) {
+				connections.set(address, { address, name: id, status });
+			} else {
+				connections.delete(address);
+			}
+			connectionsChanged.fire();
+		};
 		let sharedDiscoveries = 0;
 		let tunnelDiscoveries = 0;
 		const discoveryHandlers = new Set<() => Promise<void>>([async () => { tunnelDiscoveries++; }]);
@@ -145,7 +165,7 @@ suite('Mission Control native provider inventory', () => {
 			override readonly onDidChangeConfiguredEntries = Event.None;
 			override readonly onDidChangeConnections = connectionsChanged.event;
 			override get connections() { return [...connections.values()]; }
-			override getConnection() { return undefined; }
+			override getConnection(address: string) { return connections.has(address) ? agentConnection : undefined; }
 		}());
 		const configuration = new TestConfigurationService({
 			[RemoteAgentHostsEnabledSettingId]: true,
@@ -173,14 +193,11 @@ suite('Mission Control native provider inventory', () => {
 				if (options.connect) {
 					await options.connect();
 				}
-				const address = `cloudsandbox:${id}`;
-				connections.set(address, { address, name: id, status: RemoteAgentHostConnectionStatus.connected });
-				connectionsChanged.fire();
+				setConnectionStatus(id, RemoteAgentHostConnectionStatus.connected);
 			}
 			override async disconnect(id: string) {
 				actions.push(`disconnect:${id}`);
-				connections.delete(`cloudsandbox:${id}`);
-				connectionsChanged.fire();
+				setConnectionStatus(id, undefined);
 			}
 		}());
 		const contribution = store.add(instantiation.createInstance(class extends MissionControlAgentHostContribution {
@@ -197,12 +214,69 @@ suite('Mission Control native provider inventory', () => {
 			}
 		}));
 		return {
-			hosts, created, actions, contribution, configuration, sharedProjects, recentQueries, providerChanges, rediscover, sharedStartup,
+			hosts, created, actions, contribution, configuration, sharedProjects, recentQueries, providerChanges, rediscover, sharedStartup, setConnectionStatus,
+			whenConnected: (id: string) => {
+				const isConnected = () => RemoteAgentHostConnectionStatus.isConnected(connections.get(`cloudsandbox:${id}`)?.status);
+				return isConnected() ? Promise.resolve() : Event.toPromise(Event.filter(connectionsChanged.event, isConnected), connectionListeners);
+			},
 			setRecentFolders: (folders: readonly URI[]) => { recentFolders = folders; recentChanges.fire(); },
 			getDiscoveryCounts: () => ({ sharedDiscoveries, tunnelDiscoveries, missionControlDiscoveries: actions.filter(action => action === 'discover').length }),
 			changeAccount: () => { hosts.set([], undefined); connections.clear(); account = 'second'; },
 		};
 	}
+
+	for (const web of [false, true]) {
+		test(`hides cached sessions from disconnected native hosts on ${web ? 'web' : 'desktop'}`, () => {
+			const { hosts, created } = fixture('profile', { web, autoConnect: false });
+			hosts.set([
+				{ id: 'online', name: 'Online Machine', kind: 'user-local', status: 'online' },
+				{ id: 'offline', name: 'Offline Machine', kind: 'user-local', status: 'offline' },
+			], undefined);
+			assert.deepStrictEqual(created.map(({ provider }) => ({
+				visible: provider.cachedSessionsVisible,
+				disposed: provider.disposed,
+			})), [
+				{ visible: false, disposed: false },
+				{ visible: false, disposed: false },
+			]);
+		});
+	}
+
+	test('publishes native sessions only while connected and hides them again after connection loss or explicit disconnect', async () => {
+		const { hosts, created, setConnectionStatus } = fixture();
+		const host: IMissionControlHost = { id: 'environment', name: 'Machine', kind: 'user-local', status: 'online' };
+		hosts.set([host], undefined);
+		const provider = created[0].provider;
+		const visibility = [provider.cachedSessionsVisible];
+		for (const status of [
+			RemoteAgentHostConnectionStatus.connecting,
+			RemoteAgentHostConnectionStatus.connected,
+			RemoteAgentHostConnectionStatus.reconnecting,
+			RemoteAgentHostConnectionStatus.connected,
+			RemoteAgentHostConnectionStatus.disconnected,
+			RemoteAgentHostConnectionStatus.connected,
+			undefined,
+			RemoteAgentHostConnectionStatus.connected,
+		]) {
+			setConnectionStatus(host.id, status);
+			visibility.push(provider.cachedSessionsVisible);
+		}
+		hosts.set([{ ...host, status: 'offline' }], undefined);
+		visibility.push(provider.cachedSessionsVisible);
+		await provider.disconnect();
+		visibility.push(provider.cachedSessionsVisible);
+		assert.deepStrictEqual({
+			visibility,
+			providers: created.length,
+			disposed: provider.disposed,
+			retained: created[0].options.retainSessionsOnDisconnect,
+		}, {
+			visibility: [false, false, true, false, true, false, true, false, true, true, false],
+			providers: 1,
+			disposed: false,
+			retained: undefined,
+		});
+	});
 
 	test('publishes only local-disk picker recents and updates them when history or picker settings change', async () => {
 		const f = fixture();
@@ -240,12 +314,14 @@ suite('Mission Control native provider inventory', () => {
 				addresses: created.map(entry => entry.provider.remoteAddress),
 				statuses: created.map(entry => entry.provider.connectionStatus.get().kind),
 				pickerVisibility: created.map(entry => entry.options.isVisibleInEnvironmentPicker?.get()),
+				pickerKeys: created.map(entry => entry.options.pickerVisibilityKey),
 				connects: actions.filter(action => action.startsWith('connect:')),
 				discoveries: actions.filter(action => action === 'discover').length,
 			}, {
 				addresses: ['cloudsandbox:online', 'cloudsandbox:offline'],
 				statuses: [connects ? 'connected' : 'disconnected', 'disconnected'],
 				pickerVisibility: [true, false],
+				pickerKeys: ['online', 'offline'].map(id => getRemoteAgentHostPickerKey(`cloudsandbox:${id}`, 'first')),
 				connects: connects ? ['connect:online'] : [],
 				discoveries: 1,
 			});
@@ -267,6 +343,118 @@ suite('Mission Control native provider inventory', () => {
 			});
 		});
 	}
+
+	test('desktop reconnects previously connected environments after reload without opening a chat', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const first = fixture('profile', { storage });
+		const host: IMissionControlHost = { id: 'environment', name: 'Machine', kind: 'user-local', status: 'online' };
+		first.hosts.set([host], undefined);
+		await first.created[0].provider.connect();
+		await storage.flush();
+		first.contribution.dispose();
+
+		const connected = new DeferredPromise<void>();
+		const reopened = fixture('profile', { storage, connect: () => connected.p });
+		reopened.hosts.set([
+			host,
+			{ ...host, id: 'unvisited' },
+		], undefined);
+		const pending = reopened.created.map(({ provider }) => ({
+			status: provider.connectionStatus.get().kind,
+			visible: provider.cachedSessionsVisible,
+		}));
+		await connected.complete();
+		await reopened.whenConnected(host.id);
+		assert.deepStrictEqual({
+			pending,
+			reconnected: reopened.created.map(({ provider }) => provider.cachedSessionsVisible),
+			connects: reopened.actions.filter(action => action.startsWith('connect:')),
+		}, {
+			pending: [{ status: 'connecting', visible: false }, { status: 'disconnected', visible: false }],
+			reconnected: [true, false],
+			connects: ['connect:environment'],
+		});
+	});
+
+	test('desktop waits for remembered hosts to come online and respects the auto-connect setting', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const first = fixture('profile', { storage });
+		const host: IMissionControlHost = { id: 'environment', name: 'Machine', kind: 'user-local', status: 'online' };
+		first.hosts.set([host], undefined);
+		await first.created[0].provider.connect();
+		first.contribution.dispose();
+
+		const reopened = fixture('profile', { storage, autoConnect: false });
+		reopened.hosts.set([host], undefined);
+		const disabled = reopened.created[0].provider.cachedSessionsVisible;
+		reopened.hosts.set([{ ...host, status: 'offline' }], undefined);
+		await reopened.configuration.setUserConfiguration(RemoteAgentHostAutoConnectSettingId, true);
+		reopened.configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(key: string) { return key === RemoteAgentHostAutoConnectSettingId; }
+		}());
+		const offline = reopened.created[0].provider.cachedSessionsVisible;
+		reopened.hosts.set([host], undefined);
+		await reopened.whenConnected(host.id);
+		assert.deepStrictEqual({
+			disabled, offline, connected: reopened.created[0].provider.cachedSessionsVisible,
+			connects: reopened.actions.filter(action => action.startsWith('connect:')),
+		}, { disabled: false, offline: false, connected: true, connects: ['connect:environment'] });
+	});
+
+	test('desktop disconnect suppression survives reload until explicit connect and history is account/profile scoped', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const first = fixture('profile', { storage });
+		const host: IMissionControlHost = { id: 'environment', name: 'Machine', kind: 'user-local', status: 'online' };
+		first.hosts.set([host], undefined);
+		await first.created[0].provider.connect();
+		await first.created[0].provider.disconnect();
+		first.contribution.dispose();
+
+		const reopened = fixture('profile', { storage });
+		reopened.hosts.set([host], undefined);
+		const suppressed = reopened.created[0].provider.cachedSessionsVisible;
+		await reopened.created[0].provider.connect();
+		reopened.contribution.dispose();
+		const reenabled = fixture('profile', { storage });
+		reenabled.hosts.set([host], undefined);
+		await reenabled.whenConnected(host.id);
+		reenabled.changeAccount();
+		reenabled.hosts.set([host], undefined);
+		const otherAccount = reenabled.created.at(-1)!.provider.cachedSessionsVisible;
+		const otherProfile = fixture('other', { storage });
+		otherProfile.hosts.set([host], undefined);
+		assert.deepStrictEqual({
+			suppressed, otherAccount, otherProfile: otherProfile.created[0].provider.cachedSessionsVisible,
+			reopenedConnects: reopened.actions.filter(action => action.startsWith('connect:')),
+			reenabledConnects: reenabled.actions.filter(action => action.startsWith('connect:')),
+		}, {
+			suppressed: false, otherAccount: false, otherProfile: false,
+			reopenedConnects: ['connect:environment'], reenabledConnects: ['connect:environment'],
+		});
+	});
+
+	test('failed desktop reconnects keep sessions hidden and preserve the remembered connection for retry', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const first = fixture('profile', { storage });
+		const host: IMissionControlHost = { id: 'environment', name: 'Machine', kind: 'user-local', status: 'online' };
+		first.hosts.set([host], undefined);
+		await first.created[0].provider.connect();
+		first.contribution.dispose();
+
+		const failed = fixture('profile', { storage, connect: async () => { throw new Error('Connection unavailable'); } });
+		failed.hosts.set([host], undefined);
+		await assert.rejects(failed.created[0].provider.connect(), /Connection unavailable/);
+		const hidden = failed.created[0].provider.cachedSessionsVisible;
+		failed.contribution.dispose();
+		const retried = fixture('profile', { storage });
+		retried.hosts.set([host], undefined);
+		await retried.whenConnected(host.id);
+		assert.deepStrictEqual({
+			hidden, visibleAfterRetry: retried.created[0].provider.cachedSessionsVisible,
+			failedConnects: failed.actions.filter(action => action.startsWith('connect:')),
+			retriedConnects: retried.actions.filter(action => action.startsWith('connect:')),
+		}, { hidden: false, visibleAfterRetry: true, failedConnects: ['connect:environment'], retriedConnects: ['connect:environment'] });
+	});
 
 	test('joins pending web connections across rediscovery and explicit connect', async () => {
 		const gate = new DeferredPromise<void>();
@@ -403,7 +591,7 @@ suite('Mission Control native provider inventory', () => {
 		assert.deepStrictEqual({
 			states, providers: created.length, disposed: original.disposed,
 			retained: created[0].options.retainSessionsOnDisconnect,
-		}, { states: [false, true, false], providers: 1, disposed: false, retained: true });
+		}, { states: [false, true, false], providers: 1, disposed: false, retained: undefined });
 	});
 
 	test('registers disconnected native hosts before AHP, preserves them across rename and disconnect, and withdraws deleted hosts', async () => {
@@ -427,7 +615,7 @@ suite('Mission Control native provider inventory', () => {
 			status: 'disconnected', renamed: { label: 'Renamed Machine', count: 1, disposed: false },
 			disconnected: { count: 1, disposed: false }, deletedProviderDisposed: true, providers: 1, canRemove: false, removal: undefined,
 			actions: ['discover', 'connect:environment', 'disconnect:environment'],
-			alias: undefined, retained: true, readOnly: true,
+			alias: undefined, retained: undefined, readOnly: true,
 		});
 	});
 

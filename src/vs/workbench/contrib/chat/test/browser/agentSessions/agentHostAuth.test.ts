@@ -6,15 +6,19 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
-import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AuthenticateTargetKind, type McpServerAuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostMcpOAuthMetadataService, IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { authenticationAccountMeta, readAuthenticationAccount } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
+import { readAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import type { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -34,8 +38,14 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { IAuthenticationService, type AuthenticationSession, type IAuthenticationProvider, type IAuthenticationProviderSessionOptions } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
-import { AgentHostAuthenticationRecovery, autoAuthenticateMcpServer, authenticateProtectedResources, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { AgentHostAuthenticationRecovery, authenticateCopilotConnectorCredential, autoAuthenticateMcpServer, authenticateProtectedResources, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, selectAuthenticationSession, type AuthenticationSessionSelection, type IAgentHostAuthenticationOptions, type IAgentHostAuthenticateRequest, AgentHostInteractiveAuthentication } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { createAgentModelByokMeta } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
+
+const mcpAuthenticationTarget: McpServerAuthenticateTarget = {
+	kind: AuthenticateTargetKind.McpServer,
+	session: 'other-agent://tenant/conversations/opaque-session?revision=1',
+	customizationId: 'urn:example:mcp:account-a',
+};
 
 class TestCommandService extends mock<ICommandService>() {
 	readonly calls: { commandId: string; args: unknown[] }[] = [];
@@ -72,6 +82,9 @@ function createAuthInstantiationService(disposables: Pick<DisposableStore, 'add'
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+		override readonly currentDefaultAccount = null;
+	}());
 	return instantiationService;
 }
 
@@ -217,6 +230,40 @@ suite('resolveSessionForResource', () => {
 	});
 });
 
+suite('selectAuthenticationSession', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const session = (id: string, accountId: string, scopes: readonly string[]): AuthenticationSession => ({ id, accessToken: `${id}-token`, account: { id: accountId, label: accountId }, scopes });
+	const aBroad = session('a-broad', 'a', ['read', 'write']);
+	const aRead = session('a-read', 'a', ['read']);
+	const aOther = session('a-other', 'a', ['user:email']);
+	const bRead = session('b-read', 'b', ['read']);
+
+	test('selects by account preference and sole-account fallback', () => {
+		const select = (sessions: readonly AuthenticationSession[], accountId?: string, fallbackToSoleAccount = false) =>
+			selectAuthenticationSession(sessions, ['read'], accountId === undefined && !fallbackToSoleAccount ? undefined : { accountId, fallbackToSoleAccount });
+		const summarize = (selection: AuthenticationSessionSelection) => selection.kind === 'selected' ? `${selection.session.id}:${selection.match}` : selection.kind;
+		assert.deepStrictEqual({
+			narrowestWithoutPreference: summarize(select([aBroad, bRead, aRead])),
+			preferredAccount: summarize(select([bRead, aBroad, aRead], 'a')),
+			preferredAccountSuperset: summarize(select([bRead, aBroad], 'a')),
+			strictPreferenceDoesNotFallBack: summarize(select([bRead, aOther], 'a')),
+			fallbackWithOtherAccountsIsMismatch: summarize(select([bRead, aOther], 'a', true)),
+			fallbackToSoleAccount: summarize(select([bRead], undefined, true)),
+			soleAccountWithoutScopes: summarize(select([aOther], 'a', true)),
+		}, {
+			narrowestWithoutPreference: 'b-read:exact',
+			preferredAccount: 'a-read:exact',
+			preferredAccountSuperset: 'a-broad:superset',
+			strictPreferenceDoesNotFallBack: 'none',
+			fallbackWithOtherAccountsIsMismatch: 'accountMismatch',
+			fallbackToSoleAccount: 'b-read:exact',
+			soleAccountWithoutScopes: 'none',
+		});
+	});
+});
+
 suite('AgentHostAuthTokenCache', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -232,6 +279,37 @@ suite('AgentHostAuthTokenCache', () => {
 		];
 
 		assert.deepStrictEqual({ results, authenticateCalls }, { results: [true, false], authenticateCalls: 1 });
+	});
+
+	test('tracks identical MCP tokens independently by host session and customization id', async () => {
+		const cache = new AgentHostAuthTokenCache();
+		const targets = [
+			mcpAuthenticationTarget,
+			{ ...mcpAuthenticationTarget, customizationId: 'opaque/account-b/server' },
+			{ ...mcpAuthenticationTarget, session: 'other-agent://tenant/conversations/another-session' },
+			undefined,
+		];
+		const forwarded: (McpServerAuthenticateTarget | undefined)[] = [];
+		const results: boolean[] = [];
+		for (const target of [...targets, ...targets]) {
+			results.push(await cache.authenticate('https://mcp.slack.com', ['read'], 'shared-token', async () => {
+				forwarded.push(target);
+			}, undefined, undefined, target));
+		}
+		assert.deepStrictEqual({ results, forwarded }, { results: [true, true, true, true, false, false, false, false], forwarded: targets });
+	});
+
+	test('preserves entitlement hints when waiting for an earlier same-token authentication', async () => {
+		const cache = new AgentHostAuthTokenCache();
+		const pending = new DeferredPromise<void>();
+		const calls: string[] = [];
+		const entitlement = { trackingId: 'analytics', sku: 'free' };
+		const first = cache.authenticate('resource', [], 'token', async () => { calls.push('initial'); await pending.p; }, 'account');
+		const changed = cache.authenticate('resource', [], 'token', async () => { calls.push('changed'); }, 'account', entitlement);
+		pending.complete();
+		const results = await Promise.all([first, changed]);
+		const repeated = await cache.authenticate('resource', [], 'token', async () => { calls.push('repeated'); }, 'account', entitlement);
+		assert.deepStrictEqual({ calls, results, repeated }, { calls: ['initial', 'changed'], results: [true, true], repeated: false });
 	});
 
 	test('same-token callers await the in-flight authentication', async () => {
@@ -998,21 +1076,244 @@ suite('autoAuthenticateMcpServer', () => {
 				},
 				oauthClient: { clientId: 'docs-client' },
 				requiredScopes: ['read'],
-			});
+			}, mcpAuthenticationTarget);
 			results.push({ authenticated, serverIds, sessionRequests, authenticateRequests });
 		}
 		assert.deepStrictEqual(results, [true, false].map(allowed => ({
 			authenticated: allowed,
 			serverIds: [agentHostMcpServerId('', 'Docs', 'https://docs.example/mcp')],
 			sessionRequests: [{ scopes: ['read'], silent: true }],
-			authenticateRequests: allowed ? [{ resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token' }] : [],
+			authenticateRequests: allowed ? [{ target: mcpAuthenticationTarget, resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token' }] : [],
 		})));
+	});
+
+	test('forwards an MCP token for a GitHub MCP step-up challenge that echoes the Copilot Connector scope', async () => {
+		// The built-in GitHub MCP server echoes the scopes of the credential it was given plus the one it needs.
+		const requiredScopes = ['read:user', 'user:email', 'write:plugin_gateway_connections', 'repo'];
+		const sessionRequests: (readonly string[] | undefined)[] = [];
+		const authenticateRequests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAuthenticationService, createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async (_providerId, scopes) => {
+				sessionRequests.push(scopes);
+				return [{ id: 'step-up', scopes: requiredScopes, accessToken: 'step-up-token', account: { id: 'account-id', label: 'Account' } }];
+			},
+		}));
+		instantiationService.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
+		instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
+		instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ILabelService, { getHostLabel: () => 'Host' });
+		const connection = new class extends mock<IAgentConnection>() {
+			override async authenticate(request: { resource: string; scopes?: readonly string[]; token: string }) {
+				authenticateRequests.push({ resource: request.resource, scopes: request.scopes, token: request.token });
+				return { authenticated: true };
+			}
+		}();
+		const resource = { resource: 'https://api.githubcopilot.com/mcp/', resource_name: 'GitHub MCP Server', authorization_servers: ['https://github.com/login/oauth'] };
+		const authenticated = await instantiationService.invokeFunction(autoAuthenticateMcpServer, connection, { scheme: 'vscode-agent-host', authority: '' }, 'github-mcp-server', {
+			resource,
+			requiredScopes,
+		}, mcpAuthenticationTarget);
+		assert.deepStrictEqual({ authenticated, sessionRequests, authenticateRequests }, {
+			authenticated: true,
+			sessionRequests: [requiredScopes],
+			authenticateRequests: [{ resource: resource.resource, scopes: requiredScopes, token: 'step-up-token' }],
+		});
 	});
 });
 
 suite('resolveMcpServerAuthentication', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const { allowInteraction, rootMetadata } of [
+		{ allowInteraction: false, rootMetadata: false },
+		{ allowInteraction: true, rootMetadata: false },
+		{ allowInteraction: false, rootMetadata: true },
+		{ allowInteraction: true, rootMetadata: true },
+	]) {
+		test(`discovers ${rootMetadata ? 'root' : 'legacy'} MCP authentication with interaction ${allowInteraction}`, async () => {
+			const resource = 'https://mcp.example.com/v1/mcp';
+			const issuer = 'https://mcp.example.com';
+			const authenticationResource = rootMetadata ? issuer : resource;
+			const metadata = {
+				issuer,
+				authorization_endpoint: `${issuer}/v1/authorize`,
+				token_endpoint: `${issuer}/v1/token`,
+				registration_endpoint: `${issuer}/v1/register`,
+			};
+			const requests: { url: string | undefined; headers: object | undefined }[] = [];
+			const providers: { issuer: string; resource: string; metadata: object }[] = [];
+			const sessionOptions: IAuthenticationProviderSessionOptions[] = [];
+			const forwarded: IAgentHostAuthenticateRequest[] = [];
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IAuthenticationService, createMockAuthService({
+				createDynamicAuthenticationProvider: async (server, discovered, protectedResource) => {
+					assert.ok(protectedResource);
+					providers.push({ issuer: server.toString(true), resource: protectedResource.resource, metadata: discovered });
+					return { id: 'provider' };
+				},
+				getSessions: async (_providerId, _scopes, options) => {
+					sessionOptions.push(options);
+					return [{ id: 'session', scopes: ['read'], accessToken: 'token', account: { id: 'account', label: 'Account' } }];
+				},
+			}));
+			instantiationService.stub(IAuthenticationMcpAccessService, {
+				isAccessAllowedForUrl: () => true,
+			});
+			instantiationService.stub(IAuthenticationMcpService, {
+				getAccountPreference: () => undefined,
+			});
+			instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
+			instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
+				getClientRegistration: async () => ({ clientId: 'persisted-client', clientSecret: 'secret' }),
+			});
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(IAgentHostMcpOAuthMetadataService, new AgentHostMcpOAuthMetadataService(new class extends mock<IRequestService>() {
+				override async request(options: Parameters<IRequestService['request']>[0]) {
+					requests.push({ url: options.url, headers: options.headers });
+					const body = rootMetadata && options.url === `${issuer}/.well-known/oauth-protected-resource`
+						? { resource: issuer, authorization_servers: [issuer] }
+						: options.url === `${issuer}/.well-known/oauth-authorization-server` ? metadata : undefined;
+					return {
+						res: { headers: {}, statusCode: body ? 200 : 404 },
+						stream: bufferToStream(VSBuffer.fromString(body ? JSON.stringify(body) : '')),
+					};
+				}
+			}()));
+
+			const result = await instantiationService.invokeFunction(resolveMcpServerAuthentication, { resource, resource_name: 'Legacy' }, {
+				allowInteraction,
+				logPrefix: '[Test]',
+				target: mcpAuthenticationTarget,
+				mcpServerId: 'legacy',
+				mcpServerName: 'Legacy',
+				mcpServerUrl: resource,
+				scopes: ['read'],
+				authenticate: async request => { forwarded.push(request); },
+			});
+
+			assert.deepStrictEqual({ result, requests, providers, sessionOptions, forwarded }, {
+				result: true,
+				requests: [
+					`${issuer}/.well-known/oauth-protected-resource/v1/mcp`,
+					`${issuer}/.well-known/oauth-protected-resource`,
+					`${issuer}/.well-known/oauth-authorization-server`,
+				].map(url => ({ url, headers: { Accept: 'application/json' } })),
+				providers: [{ issuer: `${issuer}/`, resource: authenticationResource, metadata }],
+				sessionOptions: [{ authorizationServer: URI.parse(issuer), resource: authenticationResource, silent: !allowInteraction }],
+				forwarded: [{ target: mcpAuthenticationTarget, resource, scopes: ['read'], token: 'token' }],
+			});
+		});
+	}
+
+	for (const allowInteraction of [false, true]) {
+		test(`protected resource discovery failures ${allowInteraction ? 'propagate interactively' : 'stay silent'} without forwarding a token`, async () => {
+			const warnings: string[] = [];
+			const forwarded: IAgentHostAuthenticateRequest[] = [];
+			const failure = new Error('Invalid protected resource metadata');
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IAuthenticationService, createMockAuthService({}));
+			instantiationService.stub(IAuthenticationMcpAccessService, {});
+			instantiationService.stub(IAuthenticationMcpService, {});
+			instantiationService.stub(IAuthenticationMcpUsageService, {});
+			instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
+			instantiationService.stub(IAgentHostMcpOAuthMetadataService, {
+				resolveResource: async () => { throw failure; },
+			});
+			instantiationService.stub(ILogService, new class extends NullLogService {
+				override warn(message: string): void { warnings.push(message); }
+			}());
+			const operation = instantiationService.invokeFunction(resolveMcpServerAuthentication, { resource: 'https://mcp.example/v1/mcp' }, {
+				allowInteraction,
+				logPrefix: '[Test]',
+				target: undefined,
+				mcpServerId: 'server',
+				mcpServerName: 'Server',
+				mcpServerUrl: 'https://mcp.example/v1/mcp',
+				scopes: [],
+				authenticate: async request => { forwarded.push(request); },
+			});
+			if (allowInteraction) {
+				await assert.rejects(operation, error => error === failure);
+			} else {
+				assert.strictEqual(await operation, false);
+			}
+			assert.deepStrictEqual({ warnings, forwarded }, {
+				warnings: ['[Test] Failed to discover MCP authentication for Server'],
+				forwarded: [],
+			});
+		});
+	}
+
+	for (const stage of ['metadata', 'provider']) {
+		for (const { allowInteraction, fallback, cancelled } of [
+			{ allowInteraction: false, fallback: 'none', cancelled: false },
+			{ allowInteraction: true, fallback: 'none', cancelled: false },
+			{ allowInteraction: false, fallback: 'succeeds', cancelled: false },
+			{ allowInteraction: true, fallback: 'succeeds', cancelled: false },
+			{ allowInteraction: true, fallback: 'fails', cancelled: false },
+			{ allowInteraction: true, fallback: 'succeeds', cancelled: true },
+		]) {
+			test(`${stage} failure with interaction ${allowInteraction}, fallback ${fallback} and cancellation ${cancelled}`, async () => {
+				const firstIssuer = 'https://first.example/';
+				const secondIssuer = 'https://second.example/';
+				const failure = cancelled ? new CancellationError() : new Error(`${stage} failed`);
+				const fallbackFailure = new Error(`Fallback ${stage} failed`);
+				const metadataRequests: string[] = [];
+				const forwarded: IAgentHostAuthenticateRequest[] = [];
+				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(IAuthenticationService, createMockAuthService({
+					createDynamicAuthenticationProvider: async authorizationServer => {
+						if (stage === 'provider' && (authorizationServer.toString(true) === firstIssuer || fallback === 'fails')) {
+							throw authorizationServer.toString(true) === firstIssuer ? failure : fallbackFailure;
+						}
+						return { id: 'provider' };
+					},
+					getSessions: async () => [{ id: 'session', scopes: [], accessToken: 'token', account: { id: 'account', label: 'Account' } }],
+				}));
+				instantiationService.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
+				instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
+				instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
+				instantiationService.stub(IDynamicAuthenticationProviderStorageService, { getClientRegistration: async () => ({ clientId: 'persisted-client' }) });
+				instantiationService.stub(ILogService, new NullLogService());
+
+				const operation = instantiationService.invokeFunction(resolveMcpServerAuthentication, {
+					resource: 'https://mcp.example.com',
+					authorization_servers: fallback === 'none' ? [firstIssuer] : [firstIssuer, secondIssuer],
+				}, {
+					allowInteraction,
+					logPrefix: '[Test]',
+					target: mcpAuthenticationTarget,
+					mcpServerId: 'server',
+					mcpServerName: 'Server',
+					mcpServerUrl: 'https://mcp.example.com',
+					scopes: [],
+					authorizationServerMetadataFetcher: async authorizationServer => {
+						metadataRequests.push(authorizationServer);
+						if (stage === 'metadata' && (authorizationServer === firstIssuer || fallback === 'fails')) {
+							throw authorizationServer === firstIssuer ? failure : fallbackFailure;
+						}
+						return { metadata: { issuer: authorizationServer, response_types_supported: ['code'] }, discoveryUrl: `${authorizationServer}.well-known/oauth-authorization-server`, errors: [] };
+					},
+					authenticate: async request => { forwarded.push(request); },
+				});
+				if (allowInteraction && (cancelled || fallback !== 'succeeds')) {
+					await assert.rejects(operation, error => error === (fallback === 'fails' ? fallbackFailure : failure));
+				} else {
+					assert.strictEqual(await operation, fallback === 'succeeds');
+				}
+
+				assert.deepStrictEqual({ metadataRequests, forwarded }, {
+					metadataRequests: fallback === 'none' || cancelled ? [firstIssuer] : [firstIssuer, secondIssuer],
+					forwarded: fallback === 'succeeds' && !cancelled ? [{ target: mcpAuthenticationTarget, resource: 'https://mcp.example.com', scopes: [], token: 'token' }] : [],
+				});
+			});
+		}
+	}
 
 	test('preserves OAuth context when selecting an account', async () => {
 		const authorizationServer = URI.parse('https://issuer.example/tenant');
@@ -1055,6 +1356,7 @@ suite('resolveMcpServerAuthentication', () => {
 		}, {
 			allowInteraction: true,
 			logPrefix: '[Test]',
+			target: mcpAuthenticationTarget,
 			mcpServerId: 'server',
 			mcpServerName: 'Server',
 			mcpServerUrl: resource,
@@ -1095,6 +1397,7 @@ suite('resolveMcpServerAuthentication', () => {
 		}, {
 			allowInteraction: false,
 			logPrefix: '[AgentHost]',
+			target: mcpAuthenticationTarget,
 			mcpServerId: 'server-id',
 			mcpServerName: 'Example',
 			mcpServerUrl: 'https://mcp.example.com',
@@ -1135,6 +1438,7 @@ suite('resolveMcpServerAuthentication', () => {
 		}, {
 			allowInteraction: false,
 			logPrefix: '[AgentHost]',
+			target: mcpAuthenticationTarget,
 			mcpServerId: 'slack',
 			mcpServerName: 'Slack',
 			mcpServerUrl: 'https://mcp.slack.com',
@@ -1175,6 +1479,7 @@ suite('resolveMcpServerAuthentication', () => {
 		}, {
 			allowInteraction: false,
 			logPrefix: '[AgentHost]',
+			target: mcpAuthenticationTarget,
 			mcpServerId: 'github',
 			mcpServerName: 'GitHub',
 			mcpServerUrl: 'https://api.githubcopilot.com/mcp',
@@ -1220,6 +1525,7 @@ suite('resolveMcpServerAuthentication', () => {
 		}, {
 			allowInteraction: false,
 			logPrefix: '[AgentHost]',
+			target: mcpAuthenticationTarget,
 			mcpServerId: 'server-id',
 			mcpServerName: 'Example',
 			mcpServerUrl: 'https://mcp.example.com',
@@ -1290,6 +1596,7 @@ suite('resolveMcpServerAuthentication', () => {
 		}, {
 			allowInteraction: false,
 			logPrefix: '[AgentHost]',
+			target: mcpAuthenticationTarget,
 			mcpServerId: 'avalara',
 			mcpServerName: 'Avalara',
 			mcpServerUrl: 'https://mcp.avalara.com/elr',
@@ -1350,6 +1657,7 @@ suite('resolveMcpServerAuthentication', () => {
 		}, {
 			allowInteraction: false,
 			logPrefix: '[AgentHost]',
+			target: mcpAuthenticationTarget,
 			mcpServerId: 'notion',
 			mcpServerName: 'notion',
 			mcpServerUrl: 'https://mcp.notion.com/mcp',
@@ -1372,6 +1680,7 @@ suite('resolveMcpServerAuthentication', () => {
 			providerCreations: [{ clientId: 'notion-client-id', clientSecret: 'notion-client-secret' }],
 			sessionRequests: [{ silent: true }],
 			authenticateRequests: [{
+				target: mcpAuthenticationTarget,
 				resource: 'https://mcp.notion.com/mcp',
 				scopes: [],
 				token: 'notion-token',
@@ -1379,13 +1688,13 @@ suite('resolveMcpServerAuthentication', () => {
 		});
 	});
 
-	test('serializes authentication transactions for different configured clients', async () => {
-		const dynamicProviderId = 'https://mcp.example.com/ https://mcp.example.com/resource';
+	test('serializes authentication for the same OAuth client with distinct host-advertised targets', async () => {
+		const dynamicProviderId = 'https://mcp.example.com/ https://mcp.example.com/resource client:shared-client';
 		const firstSessionStarted = new DeferredPromise<void>();
 		const firstSessionGate = new DeferredPromise<void>();
 		const providerCreations: string[] = [];
 		const sessionRequests: string[] = [];
-		const authenticateRequests: string[] = [];
+		const authenticateRequests: IAgentHostAuthenticateRequest[] = [];
 		let activeClient: string | undefined;
 		let providerActive = false;
 		const authService = createMockAuthService({
@@ -1402,7 +1711,7 @@ suite('resolveMcpServerAuthentication', () => {
 			getSessions: async () => {
 				const clientId = activeClient ?? '';
 				sessionRequests.push(clientId);
-				if (clientId === 'first-client') {
+				if (sessionRequests.length === 1) {
 					firstSessionStarted.complete();
 					await firstSessionGate.p;
 				}
@@ -1426,7 +1735,7 @@ suite('resolveMcpServerAuthentication', () => {
 			addAccountUsage: () => { },
 		});
 		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
-			getClientRegistration: () => Promise.resolve(activeClient ? { clientId: activeClient } : undefined),
+			getClientRegistration: providerId => Promise.resolve(providerId === dynamicProviderId && activeClient ? { clientId: activeClient } : undefined),
 			removeDynamicProvider: async () => {
 				activeClient = undefined;
 			},
@@ -1439,10 +1748,11 @@ suite('resolveMcpServerAuthentication', () => {
 		const options = (clientId: string) => ({
 			allowInteraction: true,
 			logPrefix: '[AgentHost]',
-			mcpServerId: 'example',
+			target: { ...mcpAuthenticationTarget, customizationId: `opaque/${clientId}/server` },
+			mcpServerId: clientId,
 			mcpServerName: 'Example',
 			mcpServerUrl: 'https://mcp.example.com/resource',
-			oauthClient: { clientId },
+			oauthClient: { clientId: 'shared-client' },
 			scopes: [],
 			authorizationServerMetadataFetcher: async (authorizationServer: string) => ({
 				metadata: {
@@ -1452,8 +1762,8 @@ suite('resolveMcpServerAuthentication', () => {
 				discoveryUrl: `${authorizationServer}/.well-known/oauth-authorization-server`,
 				errors: [],
 			}),
-			authenticate: async (request: { token: string }) => {
-				authenticateRequests.push(request.token);
+			authenticate: async (request: IAgentHostAuthenticateRequest) => {
+				authenticateRequests.push(request);
 			},
 		});
 
@@ -1475,15 +1785,127 @@ suite('resolveMcpServerAuthentication', () => {
 			authenticateRequests,
 		}, {
 			beforeResolution: {
-				providerCreations: ['first-client'],
-				sessionRequests: ['first-client'],
+				providerCreations: ['shared-client'],
+				sessionRequests: ['shared-client'],
 			},
 			results: [true, true],
-			providerCreations: ['first-client', 'second-client'],
-			sessionRequests: ['first-client', 'second-client'],
-			authenticateRequests: ['first-client-token', 'second-client-token'],
+			providerCreations: ['shared-client'],
+			sessionRequests: ['shared-client', 'shared-client'],
+			authenticateRequests: ['first-client', 'second-client'].map(clientId => ({
+				target: { ...mcpAuthenticationTarget, customizationId: `opaque/${clientId}/server` },
+				resource: protectedResource.resource,
+				scopes: [],
+				token: 'shared-client-token',
+			})),
 		});
 	});
+
+	for (const legacyRegistration of ['none', 'matching', 'different-secret']) {
+		test(`isolates static OAuth clients sharing a resource with ${legacyRegistration} legacy registration`, async () => {
+			const useLegacyProvider = legacyRegistration === 'matching';
+			const legacyProviderId = 'https://mcp.slack.com/ https://mcp.slack.com';
+			const firstProviderId = useLegacyProvider ? legacyProviderId : `${legacyProviderId} client:github-slack-client`;
+			const secondProviderId = `${legacyProviderId} client:slack-client`;
+			const registrations = new Map<string, { clientId: string; clientSecret?: string }>();
+			const activeProviders = new Set<string>();
+			if (legacyRegistration !== 'none') {
+				registrations.set(legacyProviderId, { clientId: 'github-slack-client', clientSecret: legacyRegistration === 'matching' ? 'configured-secret' : 'previous-secret' });
+				activeProviders.add(legacyProviderId);
+			}
+			const providerCreations: string[] = [];
+			const sessionRequests: { providerId: string; silent: boolean }[] = [];
+			const removedProviders: string[] = [];
+			const authenticateRequests: IAgentHostAuthenticateRequest[] = [];
+			const authService = createMockAuthService({
+				isDynamicAuthenticationProvider: providerId => activeProviders.has(providerId),
+				createDynamicAuthenticationProvider: async (_authorizationServer, _metadata, _resource, clientId, clientSecret, providerId) => {
+					assert.ok(providerId && clientId);
+					providerCreations.push(providerId);
+					registrations.set(providerId, { clientId, clientSecret });
+					activeProviders.add(providerId);
+					return { id: providerId };
+				},
+				unregisterAuthenticationProvider: providerId => {
+					removedProviders.push(providerId);
+					activeProviders.delete(providerId);
+				},
+				getSessions: async (providerId, _scopes, options) => {
+					sessionRequests.push({ providerId, silent: options.silent });
+					const clientId = activeProviders.has(providerId) ? registrations.get(providerId)?.clientId : undefined;
+					return clientId ? [{
+						id: `${clientId}-session`,
+						scopes: [],
+						accessToken: `${clientId}-token`,
+						account: { id: 'account-id', label: 'Slack Account' },
+					}] : [];
+				},
+			});
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IAuthenticationService, authService);
+			instantiationService.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
+			instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => 'Slack Account' });
+			instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
+			instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
+				getClientRegistration: providerId => Promise.resolve(registrations.get(providerId)),
+				removeDynamicProvider: async providerId => {
+					removedProviders.push(providerId);
+					registrations.delete(providerId);
+				},
+			});
+			instantiationService.stub(ILogService, new NullLogService());
+			const protectedResource = {
+				resource: 'https://mcp.slack.com',
+				authorization_servers: ['https://mcp.slack.com'],
+			};
+			const authenticate = (serverName: string, clientId: string, allowInteraction: boolean) => instantiationService.invokeFunction(resolveMcpServerAuthentication, protectedResource, {
+				allowInteraction,
+				logPrefix: '[AgentHost]',
+				target: { ...mcpAuthenticationTarget, customizationId: `opaque/${serverName}/server` },
+				mcpServerId: serverName,
+				mcpServerName: serverName,
+				mcpServerUrl: protectedResource.resource,
+				oauthClient: { clientId, clientSecret: clientId === 'github-slack-client' ? 'configured-secret' : undefined },
+				scopes: [],
+				authorizationServerMetadataFetcher: async authorizationServer => ({
+					metadata: { issuer: authorizationServer, response_types_supported: ['code'] },
+					discoveryUrl: `${authorizationServer}/.well-known/oauth-authorization-server`,
+					errors: [],
+				}),
+				authenticate: async request => { authenticateRequests.push(request); },
+			});
+
+			const results = [
+				await authenticate('github-slack', 'github-slack-client', true),
+				await authenticate('slack', 'slack-client', true),
+				await authenticate('github-slack', 'github-slack-client', false),
+			];
+			activeProviders.clear();
+			results.push(await authenticate('github-slack', 'github-slack-client', false));
+			results.push(await authenticate('slack', 'slack-client', false));
+
+			assert.deepStrictEqual({ results, providerCreations, sessionRequests, removedProviders, authenticateRequests, registeredProviders: [...registrations.keys()] }, {
+				results: [true, true, true, true, true],
+				providerCreations: useLegacyProvider
+					? [secondProviderId, firstProviderId, secondProviderId]
+					: [firstProviderId, secondProviderId, firstProviderId, secondProviderId],
+				sessionRequests: [
+					{ providerId: firstProviderId, silent: false },
+					{ providerId: secondProviderId, silent: false },
+					{ providerId: firstProviderId, silent: true },
+					{ providerId: firstProviderId, silent: true },
+					{ providerId: secondProviderId, silent: true },
+				],
+				removedProviders: [],
+				authenticateRequests: ['github-slack', 'slack', 'github-slack', 'github-slack', 'slack'].map(serverName => ({
+					target: { ...mcpAuthenticationTarget, customizationId: `opaque/${serverName}/server` },
+					resource: protectedResource.resource,
+					scopes: [],
+					token: `${serverName === 'github-slack' ? 'github-slack-client' : 'slack-client'}-token`,
+				})),
+				registeredProviders: legacyRegistration === 'different-secret' ? [legacyProviderId, firstProviderId, secondProviderId] : [firstProviderId, secondProviderId],
+			});
+		});
+	}
 
 	test('restores a persisted configured provider without user interaction', async () => {
 		const dynamicProviderId = 'https://mcp.slack.com/ https://mcp.slack.com';
@@ -1527,6 +1949,7 @@ suite('resolveMcpServerAuthentication', () => {
 		}, {
 			allowInteraction: false,
 			logPrefix: '[AgentHost]',
+			target: mcpAuthenticationTarget,
 			mcpServerId: 'slack',
 			mcpServerName: 'Slack',
 			mcpServerUrl: 'https://mcp.slack.com',
@@ -1549,6 +1972,7 @@ suite('resolveMcpServerAuthentication', () => {
 			result: true,
 			providerCreations: ['slack-client-id'],
 			authenticateRequests: [{
+				target: mcpAuthenticationTarget,
 				resource: 'https://mcp.slack.com',
 				scopes: ['search:read.public'],
 				token: 'slack-token',
@@ -1556,14 +1980,14 @@ suite('resolveMcpServerAuthentication', () => {
 		});
 	});
 
-	test('uses configured public and confidential clients when creating a dynamic provider', async () => {
+	test('keeps configured public and confidential clients separate when a client secret changes', async () => {
 		const dynamicProviderId = 'https://mcp.slack.com/ https://mcp.slack.com';
-		const providerCreations: { authorizationServer: string; resource: string | undefined; clientId: string | undefined; clientSecret: string | undefined }[] = [];
+		const providerCreations: { authorizationServer: string; resource: string | undefined; clientId: string | undefined; clientSecret: string | undefined; providerId: string | undefined }[] = [];
 		const sessionRequests: { clientId: string | undefined; clientSecret: string | undefined }[] = [];
 		const sessionCreations: { clientId: string | undefined; clientSecret: string | undefined }[] = [];
 		const authenticateRequests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
 		const removedProviders: string[] = [];
-		let registeredClient: { clientId?: string; clientSecret?: string } | undefined;
+		const registeredClients = new Map<string, { clientId?: string; clientSecret?: string }>();
 		let getSessionsCall = 0;
 		const provider: IAuthenticationProvider = {
 			id: dynamicProviderId,
@@ -1594,21 +2018,23 @@ suite('resolveMcpServerAuthentication', () => {
 					scopes: ['search:read.public'],
 				});
 			},
-			createDynamicAuthenticationProvider: async (authorizationServer, _metadata, resource, clientId, clientSecret) => {
+			createDynamicAuthenticationProvider: async (authorizationServer, _metadata, resource, clientId, clientSecret, providerId) => {
 				providerCreations.push({
 					authorizationServer: authorizationServer.toString(true),
 					resource: resource?.resource,
 					clientId,
 					clientSecret,
+					providerId,
 				});
-				registeredClient = { clientId, clientSecret };
-				return { id: dynamicProviderId };
+				const id = providerId ?? dynamicProviderId;
+				registeredClients.set(id, { clientId, clientSecret });
+				return { id };
 			},
 			getProvider: () => provider,
-			isDynamicAuthenticationProvider: providerId => providerId === dynamicProviderId && registeredClient !== undefined,
+			isDynamicAuthenticationProvider: providerId => registeredClients.has(providerId),
 			unregisterAuthenticationProvider: providerId => {
 				removedProviders.push(providerId);
-				registeredClient = undefined;
+				registeredClients.delete(providerId);
 			},
 		});
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -1625,7 +2051,7 @@ suite('resolveMcpServerAuthentication', () => {
 			addAccountUsage: () => { },
 		});
 		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
-			getClientRegistration: () => Promise.resolve(registeredClient),
+			getClientRegistration: providerId => Promise.resolve(registeredClients.get(providerId)),
 			removeDynamicProvider: async providerId => {
 				removedProviders.push(providerId);
 			},
@@ -1636,6 +2062,7 @@ suite('resolveMcpServerAuthentication', () => {
 		for (const oauthClient of [
 			{ clientId: 'public-client-id' },
 			{ clientId: 'confidential-client-id', clientSecret: 'confidential-client-secret' },
+			{ clientId: 'confidential-client-id', clientSecret: 'updated-secret' },
 		]) {
 			results.push(await instantiationService.invokeFunction(resolveMcpServerAuthentication, {
 				resource: 'https://mcp.slack.com',
@@ -1644,6 +2071,7 @@ suite('resolveMcpServerAuthentication', () => {
 			}, {
 				allowInteraction: true,
 				logPrefix: '[AgentHost]',
+				target: mcpAuthenticationTarget,
 				mcpServerId: 'slack',
 				mcpServerName: 'Slack',
 				mcpServerUrl: 'https://mcp.slack.com',
@@ -1671,41 +2099,60 @@ suite('resolveMcpServerAuthentication', () => {
 			authenticateRequests,
 			removedProviders,
 		}, {
-			results: [true, true],
+			results: [true, true, true],
 			providerCreations: [
 				{
 					authorizationServer: 'https://mcp.slack.com/',
 					resource: 'https://mcp.slack.com',
 					clientId: 'public-client-id',
 					clientSecret: undefined,
+					providerId: `${dynamicProviderId} client:public-client-id`,
 				},
 				{
 					authorizationServer: 'https://mcp.slack.com/',
 					resource: 'https://mcp.slack.com',
 					clientId: 'confidential-client-id',
 					clientSecret: 'confidential-client-secret',
+					providerId: `${dynamicProviderId} client:confidential-client-id`,
+				},
+				{
+					authorizationServer: 'https://mcp.slack.com/',
+					resource: 'https://mcp.slack.com',
+					clientId: 'confidential-client-id',
+					clientSecret: 'updated-secret',
+					providerId: `${dynamicProviderId} client:confidential-client-id`,
 				},
 			],
 			sessionRequests: [
 				{ clientId: 'public-client-id', clientSecret: undefined },
 				{ clientId: 'confidential-client-id', clientSecret: 'confidential-client-secret' },
+				{ clientId: 'confidential-client-id', clientSecret: 'updated-secret' },
 			],
 			sessionCreations: [
 				{ clientId: 'confidential-client-id', clientSecret: 'confidential-client-secret' },
+				{ clientId: 'confidential-client-id', clientSecret: 'updated-secret' },
 			],
 			authenticateRequests: [
 				{
+					target: mcpAuthenticationTarget,
 					resource: 'https://mcp.slack.com',
 					scopes: ['search:read.public'],
 					token: 'public-token',
 				},
 				{
+					target: mcpAuthenticationTarget,
+					resource: 'https://mcp.slack.com',
+					scopes: ['search:read.public'],
+					token: 'confidential-token',
+				},
+				{
+					target: mcpAuthenticationTarget,
 					resource: 'https://mcp.slack.com',
 					scopes: ['search:read.public'],
 					token: 'confidential-token',
 				},
 			],
-			removedProviders: [dynamicProviderId, dynamicProviderId],
+			removedProviders: [`${dynamicProviderId} client:confidential-client-id`, `${dynamicProviderId} client:confidential-client-id`],
 		});
 	});
 });
@@ -1772,6 +2219,213 @@ suite('authenticateProtectedResources', () => {
 	});
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('provider-level protected resource authentication does not include an MCP target', async () => {
+		const authentication = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'example-provider',
+			getSessions: async () => [{ id: 'session', scopes: ['read'], accessToken: 'provider-token', account: { id: 'account', label: 'Account' } }],
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authentication);
+		const agents = [new class extends mock<AgentInfo>() {
+			override readonly protectedResources = [protectedResource];
+		}()];
+		const requests: IAgentHostAuthenticateRequest[] = [];
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, {
+			logPrefix: '[Test]',
+			authenticate: async request => { requests.push(request); },
+		});
+		assert.deepStrictEqual(requests, [{
+			resource: protectedResource.resource,
+			scopes: ['read'],
+			token: 'provider-token',
+			_meta: authenticationAccountMeta({ providerId: 'example-provider', accountId: 'account' }),
+		}]);
+	});
+
+	test('a rejected token does not keep the harness off the default account', async () => {
+		const aRead: AuthenticationSession = { id: 'a-read', scopes: ['read'], accessToken: 'a-read-token', account: { id: 'account-a', label: 'A' } };
+		const aWide: AuthenticationSession = { id: 'a-wide', scopes: ['read', 'repo'], accessToken: 'a-wide-token', account: { id: 'account-a', label: 'A' } };
+		const bRead: AuthenticationSession = { id: 'b-read', scopes: ['read'], accessToken: 'b-read-token', account: { id: 'account-b', label: 'B' } };
+		const bWide: AuthenticationSession = { id: 'b-wide', scopes: ['read', 'repo'], accessToken: 'b-wide-token', account: { id: 'account-b', label: 'B' } };
+		const sessions = [bRead, bWide, aRead, aWide];
+		const authentication = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async (_providerId, scopes) => scopes ? sessions.filter(session => scopes.every(scope => session.scopes.includes(scope))) : sessions,
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authentication);
+		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly currentDefaultAccount: IDefaultAccount = { sessionId: aRead.id, accountName: 'A', enterprise: false, authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false } };
+		}());
+		const cache = new AgentHostAuthTokenCache();
+		const tokens: string[] = [];
+		const options: IAgentHostAuthenticationOptions = { logPrefix: '[Test]', authTokenCache: cache, authenticate: async request => { tokens.push(request.token); } };
+		// The host rejected account B's token before the default account was applied.
+		cache.rejectSession(protectedResource.resource, protectedResource.scopes_supported, bRead);
+		await instantiationService.invokeFunction(authenticateProtectedResources, [new class extends mock<AgentInfo>() {
+			override readonly protectedResources = [protectedResource];
+		}()], options);
+		const afterSwitch = [...tokens];
+		// The host now rejects the default account's token; recovery tries the default account's other session.
+		cache.rejectSession(protectedResource.resource, protectedResource.scopes_supported, aRead);
+		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, protectedResource, options));
+		assert.deepStrictEqual({ afterSwitch, afterRecovery: tokens.slice(afterSwitch.length) }, {
+			afterSwitch: ['a-read-token'],
+			afterRecovery: ['a-wide-token'],
+		});
+	});
+
+	test('keeps the default account and its entitlement while a refreshed session replaces the default session', async () => {
+		const aRefreshed: AuthenticationSession = { id: 'a-refreshed', scopes: ['read'], accessToken: 'a-refreshed-token', account: { id: 'account-a', label: 'A' } };
+		const bRead: AuthenticationSession = { id: 'b-read', scopes: ['read'], accessToken: 'b-read-token', account: { id: 'account-b', label: 'B' } };
+		const authentication = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async (_providerId, scopes) => scopes ? [bRead, aRefreshed].filter(session => scopes.every(scope => session.scopes.includes(scope))) : [bRead, aRefreshed],
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authentication);
+		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			// The default account still points at the replaced session until it reconciles.
+			override readonly currentDefaultAccount: IDefaultAccount = {
+				sessionId: 'a-replaced', accountName: 'A', enterprise: false, authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+				entitlementsData: {
+					access_type_sku: 'copilot_enterprise', analytics_tracking_id: 'analytics', chat_enabled: true, assigned_date: '',
+					can_signup_for_limited: false, copilot_plan: 'enterprise', organization_login_list: [],
+				},
+			};
+		}());
+		const agents = [new class extends mock<AgentInfo>() {
+			override readonly protectedResources = [protectedResource];
+		}()];
+		const requests: { token: string; entitlement: ReturnType<typeof readAgentEntitlementHint> }[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			logPrefix: '[Test]',
+			authTokenCache: new AgentHostAuthTokenCache(),
+			authenticate: async request => { requests.push({ token: request.token, entitlement: readAgentEntitlementHint(request) }); },
+		};
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+		await instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, agents, 'github', [
+			{ ...aRefreshed, id: 'a-replaced', accessToken: 'a-replaced-token' },
+		], options);
+		assert.deepStrictEqual(requests, [{ token: 'a-refreshed-token', entitlement: { trackingId: 'analytics', sku: 'copilot_enterprise' } }]);
+	});
+
+	test('follows the default account across account switches and sign-in', async () => {
+		const accountA = { id: 'account-a', label: 'A' };
+		const accountB = { id: 'account-b', label: 'B' };
+		const aDefault: AuthenticationSession = { id: 'a-default', scopes: ['user:email'], accessToken: 'a-default-token', account: accountA };
+		const aRead: AuthenticationSession = { id: 'a-read', scopes: ['read'], accessToken: 'a-read-token', account: accountA };
+		const bRead: AuthenticationSession = { id: 'b-read', scopes: ['read'], accessToken: 'b-read-token', account: accountB };
+		let sessions: readonly AuthenticationSession[] = [bRead, aDefault, aRead];
+		let defaultProvider = 'github';
+		const authentication = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async (_providerId, scopes) => scopes
+				? sessions.filter(session => scopes.every(scope => session.scopes.includes(scope)))
+				: sessions,
+		});
+		const commandService = new TestCommandService();
+		commandService.onExecute = () => { sessions = [...sessions, aRead]; };
+		const instantiationService = createAuthInstantiationService(disposables, authentication, commandService);
+		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override get currentDefaultAccount(): IDefaultAccount {
+				return { sessionId: aDefault.id, accountName: 'A', enterprise: false, authenticationProvider: { id: defaultProvider, name: 'GitHub', enterprise: false } };
+			}
+		}());
+		const agents = [new class extends mock<AgentInfo>() {
+			override readonly protectedResources = [protectedResource];
+		}()];
+		const tokens: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			logPrefix: '[Test]',
+			authTokenCache: new AgentHostAuthTokenCache(),
+			authenticate: async request => { tokens.push(request.token); },
+		};
+		const steps: Record<string, string[]> = {};
+		const step = async (name: string, run: () => Promise<unknown>) => {
+			tokens.length = 0;
+			await run();
+			steps[name] = [...tokens];
+		};
+
+		await step('default account preferred over earlier account', () => instantiationService.invokeFunction(authenticateProtectedResources, agents, options));
+		defaultProvider = 'other';
+		await step('default account of another provider is ignored', () => instantiationService.invokeFunction(authenticateProtectedResources, agents, options));
+		defaultProvider = 'github';
+		sessions = [bRead, aDefault];
+		await step('default account lacking scopes revokes the other account', () => instantiationService.invokeFunction(authenticateProtectedResources, agents, options));
+		await step('revocation is not repeated', () => instantiationService.invokeFunction(authenticateProtectedResources, agents, options));
+		await step('interactive sign-in forwards the default account', () => instantiationService.invokeFunction(resolveAuthenticationInteractively, [protectedResource], options));
+		sessions = [bRead];
+		await step('sole signed-in account is used when default session is gone', () => instantiationService.invokeFunction(authenticateProtectedResources, agents, options));
+
+		assert.deepStrictEqual({ steps, prompts: commandService.calls.length }, {
+			steps: {
+				'default account preferred over earlier account': ['a-read-token'],
+				'default account of another provider is ignored': ['b-read-token'],
+				'default account lacking scopes revokes the other account': [''],
+				'revocation is not repeated': [],
+				'interactive sign-in forwards the default account': ['a-read-token'],
+				'sole signed-in account is used when default session is gone': ['b-read-token'],
+			},
+			prompts: 1,
+		});
+	});
+
+	for (const defaultSession of ['session', 'connector-session']) {
+		test(`forwards same-account entitlement changes when default account uses ${defaultSession}`, async () => {
+			const baseSession = { id: 'session', scopes: ['read'], accessToken: 'token', account: { id: 'account', label: 'Account' } };
+			const authentication = createMockAuthService({
+				getOrActivateProviderIdForServer: async () => 'github',
+				getSessions: async (_provider, scopes) => scopes ? [baseSession] : [
+					baseSession, { ...baseSession, id: 'connector-session', scopes: ['read', 'write:plugin_gateway_connections'] },
+				],
+			});
+			const instantiation = createAuthInstantiationService(disposables, authentication);
+			instantiation.stub(IConfigurationService, new TestConfigurationService({
+				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+			}));
+			let sku = 'no_access';
+			let sessionId = defaultSession;
+			let accountName = 'Account';
+			instantiation.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+				override get currentDefaultAccount(): IDefaultAccount {
+					return {
+						sessionId, accountName, enterprise: false,
+						authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+						entitlementsData: {
+							access_type_sku: sku, analytics_tracking_id: 'analytics', chat_enabled: true, assigned_date: '',
+							can_signup_for_limited: false, copilot_plan: 'individual', organization_login_list: [],
+						},
+					};
+				}
+			}());
+			const agents = [new class extends mock<AgentInfo>() {
+				override readonly protectedResources = [{ ...protectedResource, resource: 'https://api.github.com' }];
+			}()];
+			const observed: ReturnType<typeof readAgentEntitlementHint>[] = [];
+			const options: IAgentHostAuthenticationOptions = {
+				logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(),
+				authenticate: async request => { observed.push(readAgentEntitlementHint(request)); },
+			};
+			await instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+			await instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+			sku = 'free_limited_copilot';
+			await instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+			await instantiation.invokeFunction(resolveAuthenticationInteractively, agents[0].protectedResources, options);
+			await instantiation.invokeFunction(revokeAuthenticationForRemovedSessions, agents, 'github', [
+				{ ...baseSession, id: 'removed-session', accessToken: 'removed-token' },
+			], options);
+			await instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+			sessionId = 'another-session';
+			accountName = 'Another account';
+			await instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+			assert.deepStrictEqual(observed, [
+				{ trackingId: 'analytics', sku: 'no_access' },
+				{ trackingId: 'analytics', sku: 'free_limited_copilot' },
+				undefined,
+			]);
+		});
+	}
 
 	test('forwards selected account provenance without changing the host resource', async () => {
 		const resource = { ...protectedResource, resource: 'https://other-host.example/custom/repository-resource' };
@@ -1845,6 +2499,148 @@ suite('authenticateProtectedResources', () => {
 			});
 		});
 	}
+
+	test('Copilot Connector credential stays on the default session until a session grants every Copilot and Connector scope', async () => {
+		const account = { id: 'active-account', label: 'Active' };
+		const current: AuthenticationSession = { id: 'current', accessToken: 'current-token', account, scopes: ['read:user', 'user:email', 'repo', 'workflow'] };
+		const narrow: AuthenticationSession = { id: 'narrow', accessToken: 'narrow-token', account, scopes: ['write:plugin_gateway_connections'] };
+		const partial: AuthenticationSession = { id: 'partial', accessToken: 'partial-token', account, scopes: ['user:email', 'write:plugin_gateway_connections'] };
+		const full: AuthenticationSession = { id: 'full', accessToken: 'full-token', account, scopes: [...current.scopes, 'write:plugin_gateway_connections'] };
+		let sessions: readonly AuthenticationSession[] = [current, narrow, partial];
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async (_providerId, requested) => requested ? [current] : sessions,
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+		}));
+		const requests: { resource: string; token: string }[] = [];
+		const authenticate = async (request: { resource: string; token: string }) => { requests.push({ resource: request.resource, token: request.token }); };
+		await instantiationService.invokeFunction(authenticateCopilotConnectorCredential, current.id, authenticate);
+		sessions = [current, narrow, partial, full];
+		await instantiationService.invokeFunction(authenticateCopilotConnectorCredential, current.id, authenticate);
+		assert.deepStrictEqual(requests, [
+			{ resource: 'https://api.github.com', token: 'current-token' },
+			{ resource: 'https://api.github.com', token: 'full-token' },
+		]);
+	});
+
+	test('never downgrades the forwarded Copilot credential to a Connector session with fewer scopes', async () => {
+		const account = { id: 'active-account', label: 'Active' };
+		const current: AuthenticationSession = { id: 'current', accessToken: 'current-token', account, scopes: ['read:user', 'user:email', 'repo', 'workflow'] };
+		const narrowConnector: AuthenticationSession = { id: 'narrow-connector', accessToken: 'narrow-connector-token', account, scopes: ['user:email', 'read:user', 'write:plugin_gateway_connections'] };
+		const fullConnector: AuthenticationSession = { id: 'full-connector', accessToken: 'full-connector-token', account, scopes: [...current.scopes, 'write:plugin_gateway_connections'] };
+		const broaderConnector: AuthenticationSession = { ...fullConnector, id: 'broader-connector', accessToken: 'broader-connector-token', scopes: [...fullConnector.scopes, 'gist'] };
+		const forward = async (connectorsEnabled: boolean, sessions: readonly AuthenticationSession[]) => {
+			const authService = createMockAuthService({
+				getOrActivateProviderIdForServer: async () => 'github',
+				getSessions: async () => sessions,
+			});
+			const instantiationService = createAuthInstantiationService(disposables, authService);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({
+				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: connectorsEnabled,
+			}));
+			// The default account picks the account; its narrowest session satisfying the Copilot scopes is resolved first.
+			instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+				override readonly currentDefaultAccount = {
+					sessionId: current.id, accountName: account.label, enterprise: false,
+					authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+				};
+			}());
+			const agents = [new class extends mock<AgentInfo>() {
+				override readonly protectedResources = [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], scopes_supported: ['read:user', 'user:email'] }];
+			}()];
+			const tokens: string[] = [];
+			await instantiationService.invokeFunction(authenticateProtectedResources, agents, {
+				logPrefix: '[AgentHost]',
+				authenticate: async request => { tokens.push(request.token); },
+			});
+			return tokens;
+		};
+		assert.deepStrictEqual({
+			narrowOnlyEnabled: await forward(true, [current, narrowConnector]),
+			narrowOnlyDisabled: await forward(false, [current, narrowConnector]),
+			supersetEnabled: await forward(true, [current, broaderConnector, narrowConnector, fullConnector]),
+			supersetDisabled: await forward(false, [current, narrowConnector, fullConnector]),
+			connectorOnly: await forward(true, [narrowConnector]),
+		}, {
+			narrowOnlyEnabled: ['current-token'],
+			narrowOnlyDisabled: ['current-token'],
+			supersetEnabled: ['full-connector-token'],
+			supersetDisabled: ['current-token'],
+			connectorOnly: ['narrow-connector-token'],
+		});
+	});
+
+	test('forwards the Connector session that Connector authorization creates for a narrow default session', async () => {
+		// Mirrors a narrow default session (`user:email`) whose earlier Connector authorization produced a session without
+		// `repo`. That session is never forwarded; the session a new authorization requests (every scope of the equally
+		// narrow Copilot credentials plus the Connector scope) is.
+		const account = { id: 'active-account', label: 'Active' };
+		const defaultSession: AuthenticationSession = { id: 'default', accessToken: 'default-token', account, scopes: ['user:email'] };
+		const copilot: AuthenticationSession = { id: 'copilot', accessToken: 'copilot-token', account, scopes: ['read:user', 'user:email', 'repo', 'workflow'] };
+		const codespace: AuthenticationSession = { id: 'codespace', accessToken: 'codespace-token', account, scopes: ['codespace', 'read:user', 'repo', 'user:email'] };
+		const narrowConnector: AuthenticationSession = { id: 'narrow-connector', accessToken: 'narrow-connector-token', account, scopes: ['user:email', 'read:user', 'write:plugin_gateway_connections'] };
+		const authorizedConnector: AuthenticationSession = { id: 'authorized-connector', accessToken: 'authorized-connector-token', account, scopes: ['user:email', 'read:user', 'repo', 'workflow', 'codespace', 'write:plugin_gateway_connections'] };
+		const forward = async (sessions: readonly AuthenticationSession[]) => {
+			const authService = createMockAuthService({
+				getOrActivateProviderIdForServer: async () => 'github',
+				getSessions: async () => sessions,
+			});
+			const instantiationService = createAuthInstantiationService(disposables, authService);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({
+				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+			}));
+			instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+				override readonly currentDefaultAccount = {
+					sessionId: defaultSession.id, accountName: account.label, enterprise: false,
+					authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+				};
+			}());
+			const agents = [new class extends mock<AgentInfo>() {
+				override readonly protectedResources = [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], scopes_supported: ['read:user', 'user:email'] }];
+			}()];
+			const tokens: string[] = [];
+			await instantiationService.invokeFunction(authenticateProtectedResources, agents, {
+				logPrefix: '[AgentHost]',
+				authenticate: async request => { tokens.push(request.token); },
+			});
+			return tokens;
+		};
+		assert.deepStrictEqual({
+			beforeAuthorization: await forward([defaultSession, copilot, codespace, narrowConnector]),
+			afterAuthorization: await forward([defaultSession, copilot, codespace, narrowConnector, authorizedConnector]),
+		}, {
+			beforeAuthorization: ['copilot-token'],
+			afterAuthorization: ['authorized-connector-token'],
+		});
+	});
+
+	test('Copilot Connector credential stays on the authorized account when another account is returned first', async () => {
+		const scopes = ['read:user', 'user:email'];
+		const account = { id: 'active-account', label: 'Active' };
+		const other = { id: 'other-account', label: 'Other' };
+		const otherCurrent: AuthenticationSession = { id: 'other-current', accessToken: 'other-current-token', account: other, scopes };
+		const otherFull: AuthenticationSession = { id: 'other-full', accessToken: 'other-full-token', account: other, scopes: [...scopes, 'write:plugin_gateway_connections'] };
+		const current: AuthenticationSession = { id: 'current', accessToken: 'current-token', account, scopes };
+		const full: AuthenticationSession = { id: 'full', accessToken: 'full-token', account, scopes: [...scopes, 'write:plugin_gateway_connections'] };
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async (_providerId, requested, options: IAuthenticationProviderSessionOptions) => requested
+				? [otherCurrent, current]
+				: [otherCurrent, otherFull, current, full].filter(session => !options.account || session.account.id === options.account.id),
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+		}));
+		const tokens: string[] = [];
+		const authenticate = async (request: { token: string }) => { tokens.push(request.token); };
+		const authorized = await instantiationService.invokeFunction(authenticateCopilotConnectorCredential, full.id, authenticate);
+		const unavailable = await instantiationService.invokeFunction(authenticateCopilotConnectorCredential, 'signed-out-session', authenticate);
+		assert.deepStrictEqual({ authorized, unavailable, tokens }, { authorized: true, unavailable: false, tokens: ['full-token'] });
+	});
 
 	test('a connector authorization upgrade replaces the token forwarded to a running agent host', async () => {
 		const account = { id: 'active-account', label: 'Active' };
@@ -2241,6 +3037,60 @@ suite('resolveAuthenticationInteractively', () => {
 	};
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const signedIn of [false, true]) {
+		test(`explicit recovery opens product sign-in ${signedIn ? 'even with a refused existing session' : 'without an existing session'}`, async () => {
+			let hasSession = signedIn;
+			const commands = new TestCommandService();
+			commands.onExecute = () => { hasSession = true; };
+			const authentication = createMockAuthService({
+				getOrActivateProviderIdForServer: async () => 'provider-1',
+				getSessions: async () => hasSession ? [{ scopes: ['read'], accessToken: 'same-token' }] : [],
+			});
+			const instantiation = createAuthInstantiationService(disposables, authentication, commands);
+			const interactive = instantiation.createInstance(AgentHostInteractiveAuthentication);
+			const forwarded: { resource: string; token: string; scopes?: readonly string[] }[] = [];
+			await interactive.request(protectedResource, {
+				logPrefix: '[Test]', isCurrent: () => true,
+				authenticate: async request => { forwarded.push(request); },
+			});
+			assert.deepStrictEqual({
+				commands: commands.calls.map(call => call.commandId), forwarded,
+			}, {
+				commands: [CHAT_SETUP_ACTION_ID],
+				forwarded: [{ resource: protectedResource.resource, scopes: ['read'], token: 'same-token' }],
+			});
+		});
+	}
+
+	test('explicit recovery can be retried after cancellation without forwarding a credential', async () => {
+		const commands = new TestCommandService();
+		commands.result = undefined;
+		const instantiation = createAuthInstantiationService(disposables, createMockAuthService({}), commands);
+		const interactive = instantiation.createInstance(AgentHostInteractiveAuthentication);
+		const forwarded: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			logPrefix: '[Test]', isCurrent: () => true,
+			authenticate: async request => { forwarded.push(request.resource); },
+		};
+		await interactive.request(protectedResource, options);
+		await interactive.request(protectedResource, options);
+		assert.deepStrictEqual({ prompts: commands.calls.length, forwarded }, { prompts: 2, forwarded: [] });
+	});
+
+	test('explicit recovery cannot forward credentials after its connection becomes stale', async () => {
+		let current = true;
+		const commands = new TestCommandService();
+		commands.onExecute = () => { current = false; };
+		const instantiation = createAuthInstantiationService(disposables, createMockAuthService({}), commands);
+		const interactive = instantiation.createInstance(AgentHostInteractiveAuthentication);
+		const forwarded: string[] = [];
+		await assert.rejects(interactive.request(protectedResource, {
+			logPrefix: '[Test]', isCurrent: () => current,
+			authenticate: async request => { forwarded.push(request.resource); },
+		}), isCancellationError);
+		assert.deepStrictEqual(forwarded, []);
+	});
 
 	test('uses an existing token before prompting and dedupes repeated checks', async () => {
 		let createSessionCalls = 0;

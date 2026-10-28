@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { structuralEquals } from '../../../base/common/equals.js';
+import { isAuthRequiredError, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, type IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun } from '../../../base/common/observable.js';
@@ -19,6 +20,8 @@ import { parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { isAgentMergePullRequestReadyForReview, readAgentMergeFolderState } from '../common/agentMerge.js';
+import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
@@ -89,14 +92,14 @@ export interface IAgentHostPullRequestStatusService extends IDisposable {
 	 * bypassing cached fragments. Used after a mutation so the advertised
 	 * operations reflect the new state without waiting for the next poll.
 	 */
-	refresh(key: string): Promise<void>;
+	refresh(key: string, source?: IAgentHostCredentialSource): Promise<void>;
 
 	/**
 	 * Resolves an authoritative pull request status for a background lifecycle
 	 * check without requiring a client changeset subscription. A supplied pull
 	 * request URL lets cleanup check a cold session without restoring it first.
 	 */
-	resolveForLifecycle(sessionKey: string, pullRequestUrl: string): Promise<IAgentHostPullRequestStatus | undefined>;
+	resolveForLifecycle(sessionKey: string, pullRequestUrl: string, source?: IAgentHostCredentialSource): Promise<IAgentHostPullRequestStatus | undefined>;
 }
 
 interface IWatch extends IDisposable {
@@ -133,12 +136,19 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		@IAgentHostGitHubService private readonly _gitHubService: IAgentHostGitHubService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
 		this._register(this._changesetSubscriptions.onDidChangeSessionSubscriptions(owner => this._sync(this._containingSession(owner))));
 		this._register(this._gitStateService.onDidRefreshSessionGitState(key => this._sync(this._containingSession(key))));
 		this._register(this._gitStateService.onDidChangeSessionGitHubState(session => this._sync(session)));
 		this._register(this._stateManager.onDidRemoveSession(session => this._stopSessionWatches(session)));
+		// Whether a draft is ready for review depends on the check exclusions the user configured.
+		this._register(this._configurationService.onDidRootConfigChange(() => {
+			for (const [key, watch] of this._watches) {
+				this._updateStatus(key, watch, watch.subscription.resource.snapshot.get());
+			}
+		}));
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			switch (envelope.action.type) {
 				case ActionType.SessionIsArchivedChanged:
@@ -203,7 +213,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		});
 	}
 
-	async refresh(key: string): Promise<void> {
+	async refresh(key: string, source?: IAgentHostCredentialSource): Promise<void> {
 		const folder = this._resolveFolder(key);
 		const watch = folder ? this._watches.get(watchKey(folder)) : undefined;
 		if (!watch) {
@@ -212,13 +222,29 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		}
 		try {
 			this._logService.trace(`[AgentHostPullRequestStatusService] Refreshing pull request: session=${watch.sessionUri}, pr=${describeRef(watch.ref)}`);
-			await watch.subscription.refresh(undefined, undefined, { authoritative: true });
+			if (source) {
+				const store = new DisposableStore();
+				try {
+					const client = store.add(this._gitHubService.acquireRepositoryClient(this._abortController.signal, source, watch.sessionUri)).object;
+					const { account } = await client.credentials.getCredential(this._abortController.signal);
+					if (account.host !== watch.ref.host || account.accountId !== watch.ref.accountId) {
+						return;
+					}
+					const subscription = store.add(client.pullRequests.subscribePullRequest(watch.ref, this._getSubscriptionOptions(watch.folder)));
+					await subscription.refresh(undefined, undefined, { authoritative: true });
+					this._updateStatus(watchKey(watch.folder), watch, subscription.resource.snapshot.get());
+				} finally {
+					store.dispose();
+				}
+			} else {
+				await watch.subscription.refresh(undefined, undefined, { authoritative: true });
+			}
 		} catch (error) {
 			this._logService.warn(`[AgentHostPullRequestStatusService] Refresh failed: session=${watch.sessionUri}, pr=${describeRef(watch.ref)}, error=${error}`);
 		}
 	}
 
-	async resolveForLifecycle(sessionKey: string, pullRequestUrl: string): Promise<IAgentHostPullRequestStatus | undefined> {
+	async resolveForLifecycle(sessionKey: string, pullRequestUrl: string, source?: IAgentHostCredentialSource): Promise<IAgentHostPullRequestStatus | undefined> {
 		const parsed = parsePullRequestUrl(pullRequestUrl);
 		if (!parsed) {
 			this._logService.debug(`[AgentHostPullRequestStatusService] Lifecycle refresh skipped because the pull request URL could not be parsed: session=${sessionKey}, pr=${pullRequestUrl}`);
@@ -226,7 +252,8 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		}
 		const store = new DisposableStore();
 		try {
-			const client = store.add(this._gitHubService.acquireRepositoryClient(this._abortController.signal)).object;
+			source = this._gitHubService.captureSessionCredentialSource(sessionKey, source);
+			const client = store.add(this._gitHubService.acquireRepositoryClient(this._abortController.signal, source, source ? sessionKey : undefined)).object;
 			const credential = await client.credentials.getCredential(this._abortController.signal);
 			if (this._abortController.signal.aborted || credential.account.host.toLowerCase() !== parsed.apiHost.toLowerCase()) {
 				return undefined;
@@ -272,26 +299,39 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			this._staleSyncs.add(sessionKey);
 			return;
 		}
-		this._runSync(sessionKey);
+		try {
+			const source = this._gitHubService.captureSessionCredentialSource(sessionKey);
+			this._runSync(sessionKey, source);
+		} catch (error) {
+			this._logSyncError(sessionKey, error);
+		}
 	}
 
-	private _runSync(sessionKey: string): void {
+	private _logSyncError(sessionKey: string, error: unknown): void {
+		if (isAuthRequiredError(error)) {
+			this._logService.info(`[AgentHostPullRequestStatusService] Sync skipped: sponsor authentication required, session=${sessionKey}`);
+		} else {
+			this._logService.error(`[AgentHostPullRequestStatusService] Sync failed: session=${sessionKey}`, error);
+		}
+	}
+
+	private _runSync(sessionKey: string, source: IAgentHostCredentialSource | undefined): void {
 		this._staleSyncs.delete(sessionKey);
-		const run = this._doSync(sessionKey).catch(error => {
-			this._logService.debug(`[AgentHostPullRequestStatusService] Sync failed: session=${sessionKey}, error=${error}`);
+		const run = this._doSync(sessionKey, source).catch(error => {
+			this._logSyncError(sessionKey, error);
 		}).finally(() => {
 			if (this._pendingSyncs.get(sessionKey) !== run) {
 				return;
 			}
 			this._pendingSyncs.delete(sessionKey);
 			if (this._staleSyncs.delete(sessionKey) && !this._abortController.signal.aborted) {
-				this._runSync(sessionKey);
+				this._runSync(sessionKey, source);
 			}
 		});
 		this._pendingSyncs.set(sessionKey, run);
 	}
 
-	private async _doSync(sessionKey: string): Promise<void> {
+	private async _doSync(sessionKey: string, source: IAgentHostCredentialSource | undefined): Promise<void> {
 		if (this._abortController.signal.aborted) {
 			return;
 		}
@@ -304,7 +344,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			}
 		}
 		for (const folder of folders) {
-			await this._syncFolder(folder);
+			await this._syncFolder(folder, source);
 			if (this._abortController.signal.aborted || this._staleSyncs.has(sessionKey)) {
 				return;
 			}
@@ -328,7 +368,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		return [...folders.values()];
 	}
 
-	private async _syncFolder(folder: IGitHubStateFolder): Promise<void> {
+	private async _syncFolder(folder: IGitHubStateFolder, source: IAgentHostCredentialSource | undefined): Promise<void> {
 		const key = watchKey(folder);
 		const target = this._getWatchTarget(folder);
 		if (target.kind === 'skip') {
@@ -353,7 +393,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		const store = new DisposableStore();
 		let installed = false;
 		try {
-			const client = store.add(this._gitHubService.acquireRepositoryClient(this._abortController.signal)).object;
+			const client = store.add(this._gitHubService.acquireRepositoryClient(this._abortController.signal, source, source ? folder.sessionUri : undefined)).object;
 			const credential = await client.credentials.getCredential(this._abortController.signal);
 			if (this._abortController.signal.aborted) {
 				return;
@@ -493,7 +533,9 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		}
 		const sessionFolderKey = resolveGitHubStateFolder(this._stateManager, watch.sessionUri).folderKey;
 		const agentMerge = readAgentMergeFolderState(this._stateManager.getSessionState(watch.sessionUri)?.config?.values, watch.folder.folderKey, sessionFolderKey);
-		this._setStatus(key, watch, toPullRequestStatus(snapshot, agentMerge?.enabled ? agentMerge.target?.commentWatermark : undefined));
+		// A folder's workspace value, which the client mirrors into its Agent Merge settings, takes precedence over the user's.
+		const ignoredChecks = agentMerge?.readyIgnoredChecks ?? this._configurationService.getRootValue(platformRootSchema, AgentHostGitHubArtifactIgnoredChecksConfigKey) ?? [];
+		this._setStatus(key, watch, toPullRequestStatus(snapshot, agentMerge?.enabled ? agentMerge.target?.commentWatermark : undefined, ignoredChecks));
 	}
 
 	private _setStatus(key: string, watch: IWatch, status: IAgentHostPullRequestStatus | undefined): void {
@@ -579,7 +621,7 @@ function describeStatus(status: IAgentHostPullRequestStatus | undefined): string
  * while either fragment the button bar depends on is still unresolved. Holding
  * back on partial data keeps the client from flashing a wrong primary button.
  */
-function toPullRequestStatus(snapshot: PullRequestSnapshot, agentMergeCommentWatermark?: string): IAgentHostPullRequestStatus | undefined {
+function toPullRequestStatus(snapshot: PullRequestSnapshot, agentMergeCommentWatermark?: string, ignoredChecks: readonly string[] = []): IAgentHostPullRequestStatus | undefined {
 	const core = snapshot.core.value;
 	if (!core) {
 		return undefined;
@@ -607,7 +649,7 @@ function toPullRequestStatus(snapshot: PullRequestSnapshot, agentMergeCommentWat
 		return undefined;
 	}
 	const agentMergeReadyForReview = agentMergeCommentWatermark !== undefined
-		? isAgentMergePullRequestReadyForReview(snapshot, agentMergeCommentWatermark)
+		? isAgentMergePullRequestReadyForReview(snapshot, agentMergeCommentWatermark, ignoredChecks)
 		: undefined;
 
 	return {

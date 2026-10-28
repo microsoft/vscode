@@ -135,6 +135,20 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		assert.strictEqual(unwrapped.path, original.path);
 	});
 
+	test('round-trips an opaque URI', () => {
+		const original = URI.parse('mcp-top-level:copilotcli:session-1:github');
+		const wrapped = toAgentHostUri(original, 'remote-host');
+		assert.deepStrictEqual({
+			scheme: wrapped.scheme,
+			path: wrapped.path,
+			roundTrip: fromAgentHostUri(wrapped).toString(),
+		}, {
+			scheme: AGENT_HOST_SCHEME,
+			path: '/copilotcli:session-1:github',
+			roundTrip: original.toString(),
+		});
+	});
+
 	test('round-trips a URI with authority', () => {
 		const original = URI.from({ scheme: 'agenthost-content', authority: 'session1', path: '/snap/before' });
 		const wrapped = toAgentHostUri(original, 'remote-host');

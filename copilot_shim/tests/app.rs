@@ -195,7 +195,10 @@ fn macos_install_only_finds_an_existing_cli_without_launching_it() {
 			Some(0),
 			false,
 			String::new(),
-			format!("GitHub Copilot CLI is available at {}.\n", cli.display()),
+			format!(
+				"GitHub Copilot CLI is already installed.\nLocation: {}\n",
+				cli.display()
+			),
 		)
 	);
 }

@@ -29,7 +29,7 @@ import type { ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { Action, IAction } from '../../../../../../../base/common/actions.js';
 import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { timeout } from '../../../../../../../base/common/async.js';
-import { IAhpTerminalCommandSource, IChatTerminalOutputSource, IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
+import { IAhpTerminalCommandSource, IChatTerminalOutputPosition, IChatTerminalOutputSource, IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
@@ -1507,6 +1507,8 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		this.updateAriaLabel();
 		if (this.isExpanded) {
 			await this._updateTerminalContent();
+		} else {
+			await this._renderCollapsedStream();
 		}
 	}
 
@@ -1582,7 +1584,10 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		}
 
 		const source = this._getOutputSource();
-		const snapshot = source ? { text: source.output } : this._getTerminalCommandOutput();
+		// Output a stream has dropped can still be in the mirror's scrollback, where sighted users can scroll to it
+		const snapshot = source
+			? { text: this._snapshotMirror?.getScrollbackText(source.output, source.outputPosition) ?? source.output }
+			: this._getTerminalCommandOutput();
 		if (!snapshot) {
 			return `${commandHeader}\n${localize('chatTerminalOutputUnavailable', 'Command output is no longer available.')}`;
 		}
@@ -1668,7 +1673,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 			this._disposeLiveMirror();
 			const storedOutput = this._getTerminalCommandOutput();
 			if (outputSource.output) {
-				await this._renderSnapshotOutput({ text: outputSource.output });
+				await this._renderSnapshotOutput({ text: outputSource.output }, outputSource.outputPosition);
 			} else if (storedOutput?.truncated) {
 				await this._renderSnapshotOutput(storedOutput);
 			} else if (!outputSource.hasExited) {
@@ -1784,10 +1789,23 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		return true;
 	}
 
-	private async _renderSnapshotOutput(snapshot: NonNullable<IChatTerminalToolInvocationData['terminalCommandOutput']>): Promise<void> {
+	/**
+	 * Keeps a mirror that already shows a stream up to date while collapsed. The stream drops its oldest output,
+	 * so a mirror left behind would have to start over from the retained output once expanded again.
+	 */
+	private async _renderCollapsedStream(): Promise<void> {
+		const source = this._getOutputSource();
+		if (!this._snapshotMirror || !source?.output) {
+			return;
+		}
+		this._snapshotMirror.setOutput({ text: source.output }, source.outputPosition);
+		await this._snapshotMirror.render();
+	}
+
+	private async _renderSnapshotOutput(snapshot: NonNullable<IChatTerminalToolInvocationData['terminalCommandOutput']>, position?: IChatTerminalOutputPosition): Promise<void> {
 		this._setTruncationMessage(snapshot.truncated === true || this._canOpenFullOutput());
 		if (this._snapshotMirror) {
-			this._snapshotMirror.setOutput(snapshot);
+			this._snapshotMirror.setOutput(snapshot, position);
 			await this._layoutMirrorWidth(this._snapshotMirror);
 			const result = await this._snapshotMirror.render();
 			this._layoutOutput(result?.lineCount ?? snapshot.lineCount ?? this._lastRenderedLineCount ?? 0);
@@ -1800,7 +1818,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		this._snapshotMirror = this._register(this._instantiationService.createInstance(DetachedTerminalSnapshotMirror, snapshot, this._getStoredTheme, this._getSnapshotScrollback()));
 		this._register(this._snapshotMirror.onDidChangeRowHeight(() => this._handleMirrorRowHeightChange()));
 		await this._snapshotMirror.attach(this._terminalContainer);
-		this._snapshotMirror.setOutput(snapshot);
+		this._snapshotMirror.setOutput(snapshot, position);
 		await this._layoutMirrorWidth(this._snapshotMirror);
 		const result = await this._snapshotMirror.render();
 		const hasText = !!snapshot.text && snapshot.text.length > 0;

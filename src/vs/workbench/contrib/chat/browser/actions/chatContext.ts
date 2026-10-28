@@ -20,7 +20,7 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/edi
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { IPathService } from '../../../../services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../../services/environment/common/copilotHomeService.js';
 import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
 import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.js';
 import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
@@ -101,6 +101,7 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 		// ###############################################################################################
 
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ToolsContextPickerPick)));
+		this._store.add(contextPickService.registerChatContextItem(new AgentContextValuePick()));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ChatInstructionsPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(OpenEditorContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ClipboardImageContextValuePick)));
@@ -108,6 +109,22 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(SessionReferenceContextPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'issue')));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'pullRequest')));
+	}
+}
+
+export class AgentContextValuePick implements IChatContextValueItem {
+	readonly type = 'valuePick';
+	readonly label = localize('chatContext.agent', "Agent...");
+	readonly icon = Codicon.agent;
+	readonly ordinal = 1000;
+
+	isEnabled(widget: IChatWidget): boolean {
+		return widget.inputPart.isAgentPickerInAttachContextMenu;
+	}
+
+	async asAttachment(widget: IChatWidget): Promise<undefined> {
+		widget.inputPart.openModePicker(widget.inputPart.attachContextButtonElement ?? widget.inputPart.inputToolbarElement);
+		return undefined;
 	}
 }
 
@@ -471,7 +488,7 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 
 	constructor(
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
-		@IPathService private readonly _pathService: IPathService,
+		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 	) { }
 
@@ -525,7 +542,7 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 		// For now, attachments while in an Agent Host Copilot harness are attachable when backed by Copilot CLI events.jsonl.
 		return !!buildHostLocalEventsPath(
 			sessionResource,
-			this._pathService.userHome({ preferLocal: true }),
+			this._copilotHomeService.home,
 			authority => this._remoteAgentHostService.connections.find(connection => agentHostAuthority(connection.address) === authority),
 		);
 	}

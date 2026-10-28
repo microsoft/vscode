@@ -169,6 +169,7 @@ export class TypeScriptVersionManager extends Disposable {
 		const suppressPrompt = vscode.l10n.t("Never in this Workspace");
 
 		const result = await vscode.window.showInformationMessage(vscode.l10n.t("This workspace contains a TypeScript version. Would you like to use the workspace TypeScript version for TypeScript and JavaScript language features?"),
+			{ notificationId: 'typescript.workspaceVersion' },
 			allowIt,
 			dismissPrompt,
 			suppressPrompt

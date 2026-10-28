@@ -11,7 +11,7 @@ import { equals } from '../../../../../../base/common/objects.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
 import { AutoTierSourceConfigKey, isAutoModeRoutingTier, isInheritedAutoTier, parseManagedAutoTierDefault, type AutoModeTier } from '../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { COPILOT_AUTO_TIER_KEY, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_AUTO_TIER_KEY, COPILOT_FUSION_TIER_KEY, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { COPILOT_VENDOR_ID, createModelConfigurationActions, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
@@ -41,6 +41,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	private readonly _explicitAutoTiers = new Set<string>();
 	private readonly _sessionAutoTiers = new Set<string>();
 	private _managedAutoTier: AutoModeTier | undefined;
+	private _managedFusionTier = false;
 	private _autoTierSchema: { original: ILanguageModelConfigurationSchema; tier: string; effective: ILanguageModelConfigurationSchema } | undefined;
 	private _sessionConfiguration: IAgentModelConfigurationReport | undefined;
 
@@ -63,6 +64,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		super();
 
 		const readManagedTier = () => {
+			this._managedFusionTier = managedSettingsService.getManagedSettings()[COPILOT_FUSION_TIER_KEY] !== undefined;
 			try {
 				this._managedAutoTier = parseManagedAutoTierDefault(managedSettingsService.getManagedSettingValue(COPILOT_AUTO_TIER_KEY));
 			} catch (error) {
@@ -158,7 +160,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 
 	/** An Auto tier presented here is session state, so it wins over a managed startup default. */
 	presentModelConfiguration(modelId: string, values: IStringDictionary<unknown>): void {
-		if (isAutoModeRoutingTier(values.tier) && !this._explicitAutoTiers.has(modelId)) {
+		if (this._isAutoTier(modelId, values.tier) && !this._explicitAutoTiers.has(modelId)) {
 			this._sessionAutoTiers.add(modelId);
 			values = { ...values, [AutoTierSourceConfigKey]: 'session' };
 		}
@@ -259,7 +261,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 					const offered = value !== undefined && (!offeredValues || offeredValues.includes(value));
 					return [key, {
 						...property,
-						...(choices ? { enum: choices.values, enumItemLabels: choices.labels, enumDescriptions: choices.descriptions } : {}),
+						...(choices ? withScopedChoices(property, choices) : {}),
 						...(offered || choices ? { default: offered ? value : undefined } : {}),
 						readOnly: offered && scoped.readOnly.includes(key),
 					}];
@@ -361,7 +363,8 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		}
 		const source = values[AutoTierSourceConfigKey];
 		const inherited = isInheritedAutoTier(values);
-		if (isAutoModeRoutingTier(filtered.tier)) {
+		const isRoutingTier = (tier: unknown) => this._isAutoTier(modelId, tier);
+		if (isRoutingTier(filtered.tier)) {
 			if (source === 'session' || (!this.isEmpty() && inherited)) {
 				this._sessionAutoTiers.add(modelId);
 				this._explicitAutoTiers.delete(modelId);
@@ -378,7 +381,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 			delete filtered.tier;
 			delete filtered[AutoTierSourceConfigKey];
 		}
-		if (this._sessionAutoTiers.has(modelId) && isAutoModeRoutingTier(filtered.tier)) {
+		if (this._sessionAutoTiers.has(modelId) && isRoutingTier(filtered.tier)) {
 			filtered[AutoTierSourceConfigKey] = 'session';
 		}
 		if (this.isEmpty() && inherited) {
@@ -396,6 +399,15 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		this._applyLocalModelConfiguration(modelId, filtered, persist, restoredDefaults && metadata
 			? filterConfigurationToSchema(restoredDefaults, this.getModelConfigurationSchema(modelId))
 			: restoredDefaults);
+	}
+
+	/** Before the model registers there is no schema, so a provider tier is kept until a later sync validates it. */
+	private _isAutoTier(modelId: string, tier: unknown): boolean {
+		if (isAutoModeRoutingTier(tier)) {
+			return true;
+		}
+		const metadata = this.languageModelsService.lookupLanguageModel(modelId);
+		return (metadata === undefined || metadata.id === 'auto') && typeof tier === 'string' && tier.length > 0;
 	}
 
 	/**
@@ -447,7 +459,8 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 
 	private _usesManagedDefault(vendor: string): boolean {
 		return vendor === COPILOT_VENDOR_ID
-			|| (this.agentHostManagedDefaultScope.get() && vendor === SessionType.AgentHostCopilot);
+			// The Agent Host runtime ignores legacy Auto policy once a Fusion tier is managed.
+			|| (this.agentHostManagedDefaultScope.get() && vendor === SessionType.AgentHostCopilot && !this._managedFusionTier);
 	}
 
 	private _schemaDefaults(modelId: string): IStringDictionary<unknown> {
@@ -490,4 +503,39 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 			this.storageService.store(key, JSON.stringify(bucket), StorageScope.APPLICATION, StorageTarget.USER);
 		}
 	}
+}
+
+type IModelConfigurationPropertySchema = NonNullable<ILanguageModelConfigurationSchema['properties']>[string];
+type IScopedChoices = NonNullable<IAgentModelConfigurationReport['models'][string]['choices']>[string];
+
+/** The host reports only selectable values, so the shared schema's unavailable ones are merged back in. */
+function withScopedChoices(property: IModelConfigurationPropertySchema, choices: IScopedChoices): Partial<IModelConfigurationPropertySchema> {
+	const scoped = { enum: choices.values, enumItemLabels: choices.labels, enumDescriptions: choices.descriptions };
+	const shared = property.enum ?? [];
+	if (!property.enumItemDisabled?.some(Boolean)) {
+		return { ...scoped, enumItemDisabled: undefined };
+	}
+	const entries: { value: unknown; label: string | undefined; description: string | undefined; disabled: boolean }[] = [];
+	const scopedEntry = (value: unknown) => {
+		const index = (choices.values as readonly unknown[]).indexOf(value);
+		return { value, label: choices.labels?.[index], description: choices.descriptions?.[index], disabled: false };
+	};
+	for (const [index, value] of shared.entries()) {
+		if ((choices.values as readonly unknown[]).includes(value)) {
+			entries.push(scopedEntry(value));
+		} else if (property.enumItemDisabled[index]) {
+			entries.push({ value, label: property.enumItemLabels?.[index], description: property.enumDescriptions?.[index], disabled: true });
+		}
+	}
+	for (const value of choices.values) {
+		if (!shared.includes(value)) {
+			entries.push(scopedEntry(value));
+		}
+	}
+	return {
+		enum: entries.map(entry => entry.value),
+		enumItemLabels: entries.map(entry => entry.label ?? String(entry.value)),
+		enumDescriptions: entries.map(entry => entry.description ?? ''),
+		enumItemDisabled: entries.map(entry => entry.disabled),
+	};
 }

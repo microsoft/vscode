@@ -114,7 +114,7 @@ export function createAgentModelPricingMeta(pricing: IAgentModelPricingMeta): Re
 /**
  * Normalizes a raw CAPI or Copilot SDK billing payload into the camelCase
  * {@link ICAPIModelBilling} shape that {@link createPricingMetaFromBilling} expects.
- * Prices are converted from the payload's billing batch to credits per million tokens.
+ * Prices are converted from the payload's billing batch and legacy nano-AIU units to credits per million tokens.
  */
 export function normalizeCAPIBilling(raw: unknown): ICAPIModelBilling | undefined {
 	if (!raw || typeof raw !== 'object') {
@@ -143,11 +143,13 @@ export function normalizeCAPIBilling(raw: unknown): ICAPIModelBilling | undefine
 			const value = values.map(asNumber).find(candidate => candidate !== undefined);
 			return value === undefined ? undefined : value * scale;
 		};
+		// Flat snake_case prices use nano-AIUs; tiered and SDK prices already use credits.
+		const legacyPrice = (value: unknown): number | undefined => !hasDefault && typeof value === 'number' ? value / 1_000_000_000 : undefined;
 
-		const inputPrice = price(rawTokenPrices.inputPrice, hasDefault ? defaultTier.input_price : undefined);
-		const cachePrice = price(rawTokenPrices.cacheReadPrice, rawTokenPrices.cachePrice, hasDefault ? defaultTier.cache_read_price : undefined, hasDefault ? defaultTier.cache_price : undefined);
-		const cacheWritePrice = price(rawTokenPrices.cacheWritePrice, hasDefault ? defaultTier.cache_write_price : undefined);
-		const outputPrice = price(rawTokenPrices.outputPrice, hasDefault ? defaultTier.output_price : undefined);
+		const inputPrice = price(rawTokenPrices.inputPrice, hasDefault ? defaultTier.input_price : legacyPrice(rawTokenPrices.input_price));
+		const cachePrice = price(rawTokenPrices.cacheReadPrice, rawTokenPrices.cachePrice, hasDefault ? defaultTier.cache_read_price : legacyPrice(rawTokenPrices.cache_read_price), hasDefault ? defaultTier.cache_price : legacyPrice(rawTokenPrices.cache_price));
+		const cacheWritePrice = price(rawTokenPrices.cacheWritePrice, hasDefault ? defaultTier.cache_write_price : legacyPrice(rawTokenPrices.cache_write_price));
+		const outputPrice = price(rawTokenPrices.outputPrice, hasDefault ? defaultTier.output_price : legacyPrice(rawTokenPrices.output_price));
 		const contextMax = asNumber(rawTokenPrices.maxPromptTokens) ?? asNumber(rawTokenPrices.contextMax) ?? asNumber(hasDefault ? defaultTier.max_prompt_tokens : undefined) ?? asNumber(hasDefault ? defaultTier.context_max : undefined);
 
 		const rawLong = (rawTokenPrices.longContext ?? rawTokenPrices.long_context) as Record<string, unknown> | undefined;

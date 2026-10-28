@@ -53,6 +53,12 @@ export interface GitHubFragmentError {
 	readonly message: string;
 	readonly kind: RequestErrorKind;
 	readonly statusCode?: number;
+	/**
+	 * The GitHub page where the user authorizes the credential for an
+	 * organization that enforces SAML single sign-on, when it refused the
+	 * request for that. GitHub expires it after an hour.
+	 */
+	readonly ssoAuthorizationUrl?: string;
 }
 
 export interface FragmentState<T> {
@@ -146,9 +152,20 @@ export interface PullRequestCheck {
 	readonly name: string;
 	readonly status?: string;
 	readonly conclusion?: string;
+	/** Whether GitHub reports the check itself as required by the base branch. */
 	readonly required?: boolean;
 	readonly detailsUrl?: string;
 	readonly workflowName?: string;
+	/** The GitHub Actions workflow run that reported the check. */
+	readonly workflowRunId?: string;
+	/** The path of that run's workflow file. */
+	readonly workflowPath?: string;
+	/**
+	 * The unfinished required checks that wait for this check through their
+	 * workflow's `needs:`, directly or through other jobs; see
+	 * `classifyRequiredPullRequestChecks`.
+	 */
+	readonly requiredBy?: readonly string[];
 }
 
 export interface PullRequestCheckSuite {
@@ -163,6 +180,12 @@ export interface PullRequestChecks {
 	readonly headSha: string;
 	readonly checks: readonly PullRequestCheck[];
 	readonly requirednessComplete: boolean;
+	/**
+	 * The names of the checks the base branch's protection and rulesets
+	 * require, including those that have not reported yet. `undefined` when
+	 * they were not requested or could not be read.
+	 */
+	readonly requiredContexts?: readonly string[];
 	readonly expectedSuites: readonly PullRequestCheckSuite[];
 	readonly expectedSuitesComplete: boolean;
 }
@@ -208,4 +231,17 @@ export interface PullRequestSubscription extends IDisposable {
 	readonly resource: PullRequestResource;
 	update(options: PullRequestSubscriptionOptions): void;
 	refresh(fragment?: PullRequestFragment, token?: CancellationToken, options?: PullRequestRefreshOptions): Promise<void>;
+}
+
+export function firstCredentialFailure(snapshot: PullRequestSnapshot, fragments: readonly PullRequestFragment[]): { readonly id: string; readonly kind: 'authentication' | 'authorization'; readonly message: string; readonly ssoAuthorizationUrl?: string } | undefined {
+	for (const fragment of fragments) {
+		const error = snapshot[fragment].error;
+		if (error?.kind === 'authentication' || error?.kind === 'authorization') {
+			return {
+				id: `${fragment}:${error.kind}`, kind: error.kind, message: error.message,
+				...(error.ssoAuthorizationUrl ? { ssoAuthorizationUrl: error.ssoAuthorizationUrl } : {}),
+			};
+		}
+	}
+	return undefined;
 }

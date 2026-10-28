@@ -3,20 +3,20 @@ src/vs/base/common/oauth.ts @TylerLeonhardt
 src/vs/base/browser/domSanitize.ts @mjbvz
 src/vs/base/parts/quickinput/** @TylerLeonhardt
 
-# Base Widgets
-src/vs/base/browser/ui/grid/** @benibenj
-src/vs/base/browser/ui/list/** @benibenj
-src/vs/base/browser/ui/sash/** @benibenj
-src/vs/base/browser/ui/splitview/** @benibenj
-src/vs/base/browser/ui/table/** @benibenj
-src/vs/base/browser/ui/tree/** @benibenj
-
 # Platform
 src/vs/platform/agentHost/node/claude/** @TylerLeonhardt
 src/vs/platform/agentHost/**/*Automation* @ulugbekna @benvillalobos
 src/vs/platform/agentHost/**/*automation* @ulugbekna @benvillalobos
 src/vs/platform/agentHost/common/state/protocol/channels-automation-run/** @ulugbekna @benvillalobos
 src/vs/platform/agentHost/common/state/protocol/channels-automation/** @ulugbekna @benvillalobos
+# Agent Host tool budget: the deferral allow-lists and the baselines a tool author must update (see src/vs/platform/agentHost/AGENTS.md §9)
+src/vs/platform/agentHost/node/copilot/copilotBuiltinToolAllowlist.ts @bhavyaus
+src/vs/platform/agentHost/node/copilot/toolSearchDeferral.ts @bhavyaus
+src/vs/platform/agentHost/test/node/serverToolGroups.test.ts @bhavyaus
+src/vs/platform/agentHost/test/node/toolSearchDeferral.test.ts @bhavyaus
+src/vs/platform/agentHost/test/node/e2e/providers/copilotPromptsE2E.integrationTest.ts @bhavyaus
+src/vs/platform/agentHost/test/node/providerIntegration/copilotBuiltinToolAllowlist.integrationTest.ts @bhavyaus
+src/vs/platform/agentHost/test/node/e2e/providers/__snapshots__/*.prompt.md @bhavyaus
 src/vs/platform/browserView/** @kycutler @jruales
 src/vs/platform/quickinput/** @TylerLeonhardt
 src/vs/platform/secrets/** @TylerLeonhardt
@@ -27,17 +27,12 @@ src/vs/platform/terminal/node/** @anthonykim1
 # Electron Main
 src/vs/code/** @deepak1556
 
-# Workbench Layout & Editor Parts
-src/vs/workbench/browser/parts/** @benibenj
-src/vs/workbench/services/editor/** @benibenj
-src/vs/workbench/services/layout/** @benibenj
-
 # Workbench Services
 src/vs/workbench/services/authentication/** @TylerLeonhardt
 src/vs/workbench/services/browserView/** @kycutler @jruales
 src/vs/workbench/services/dialogs/** @alexr00
 src/vs/workbench/services/languageDetection/** @TylerLeonhardt
-src/vs/workbench/services/views/** @sandy081 @benibenj
+src/vs/workbench/services/views/** @sandy081
 
 # Workbench Contributions
 src/vs/workbench/contrib/authentication/** @TylerLeonhardt
@@ -114,18 +109,12 @@ extensions/github/** @lszomoru
 extensions/vscode-api-tests/src/singlefolder-tests/browser*.test.ts @kycutler @jruales
 
 # Testing
-test/mcp/** @TylerLeonhardt
 test/scenario/** @bryanchen-d
 test/sanity/** @dmitrivMS
 
 # Agents Workbench
 # Ensure the Agents workbench team is aware of changes to the sessions model and services
 src/vs/sessions/services/sessions/** @sandy081 @lszomoru
-
-# Ensure the Agents workbench team is aware of changes to the core workbench layout
-src/vs/sessions/contrib/layout/** @benibenj
-src/vs/sessions/browser/parts/** @benibenj
-src/vs/sessions/browser/workbench.ts @benibenj
 
 # Agents Window architecture specifications and their routing policy.
 /src/vs/sessions/*.md @sandy081
@@ -134,4 +123,3 @@ src/vs/sessions/browser/workbench.ts @benibenj
 /.github/instructions/sessions.instructions.md @sandy081
 /.github/skills/sessions/SKILL.md @sandy081
 /.github/skills/chat-customizations-editor/SKILL.md @sandy081
-

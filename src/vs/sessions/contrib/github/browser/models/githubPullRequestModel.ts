@@ -10,9 +10,12 @@ import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableSet, IDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IGitHubPRComment, IGitHubPullRequest, IGitHubPullRequestMergeability, IGitHubPullRequestReview } from '../../common/types.js';
+import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
+import { compareRequestPriority, RequestPriority } from '../../../../../platform/github/common/types.js';
+import { GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequest, IGitHubPullRequestMergeability, IGitHubPullRequestReview } from '../../common/types.js';
 import { computeMergeability, GitHubPRFetcher } from '../fetchers/githubPRFetcher.js';
 import { GitHubApiClient } from '../githubApiClient.js';
+import { IPullRequestIconCache } from '../pullRequestIconCache.js';
 
 const LOG_PREFIX = '[GitHubPullRequestModel]';
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
@@ -23,7 +26,8 @@ export class GitHubPullRequestModelReferenceCollection extends ReferenceCollecti
 
 	constructor(
 		apiClient: GitHubApiClient,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IPullRequestIconCache private readonly _iconCache: IPullRequestIconCache,
 	) {
 		super();
 		this._fetcher = new GitHubPRFetcher(apiClient);
@@ -31,7 +35,7 @@ export class GitHubPullRequestModelReferenceCollection extends ReferenceCollecti
 
 	protected override createReferencedObject(key: string, owner: string, repo: string, prNumber: number): GitHubPullRequestModel {
 		this._logService.trace(`${TRACE_PREFIX} [GitHubPullRequestModelReferenceCollection][createReferencedObject] Creating PR model for ${key}`);
-		return new GitHubPullRequestModel(owner, repo, prNumber, this._fetcher, this._logService);
+		return new GitHubPullRequestModel(owner, repo, prNumber, this._fetcher, this._logService, this._iconCache);
 	}
 
 	protected override destroyReferencedObject(key: string, object: GitHubPullRequestModel): void {
@@ -54,6 +58,8 @@ export class GitHubPullRequestModel extends Disposable {
 	readonly mergeability: IObservable<IGitHubPullRequestMergeability | undefined> = this._mergeability;
 
 	private _refreshPromise: Promise<void> | undefined;
+	private _refreshPriority: RequestPriority = 'interactive';
+	private _refreshVersion = 0;
 
 	private readonly _pollScheduler: RunOnceScheduler;
 	private readonly _pollingDisposables = this._register(new DisposableSet());
@@ -64,6 +70,7 @@ export class GitHubPullRequestModel extends Disposable {
 		readonly prNumber: number,
 		private readonly _fetcher: GitHubPRFetcher,
 		private readonly _logService: ILogService,
+		private readonly _iconCache: IPullRequestIconCache,
 	) {
 		super();
 
@@ -77,19 +84,24 @@ export class GitHubPullRequestModel extends Disposable {
 				this._mergeability.set(undefined, tx);
 			});
 			if (shouldRefresh) {
-				void this.refresh();
+				void this.refresh({ priority: 'background' });
 			}
 		}));
 	}
 
 	/** Refreshes pull request metadata, reviews, and mergeability. */
-	refresh(): Promise<void> {
-		const pending = this._refreshPromise ??= this._refresh().finally(() => {
-			if (this._refreshPromise === pending) {
-				this._refreshPromise = undefined;
-			}
-		});
-		return pending;
+	refresh(options?: ApiRequestOptions): Promise<void> {
+		const priority = options?.priority ?? 'interactive';
+		if (!this._refreshPromise || compareRequestPriority(priority, this._refreshPriority) < 0) {
+			this._refreshPriority = priority;
+			const pending = this._refresh(options).finally(() => {
+				if (this._refreshPromise === pending) {
+					this._refreshPromise = undefined;
+				}
+			});
+			this._refreshPromise = pending;
+		}
+		return this._refreshPromise;
 	}
 
 	/**
@@ -129,24 +141,32 @@ export class GitHubPullRequestModel extends Disposable {
 
 	private async _poll(): Promise<void> {
 		this._logService.trace(`${TRACE_PREFIX} [PRModel] Poll cycle for ${this.owner}/${this.repo}#${this.prNumber}`);
-		await this.refresh();
+		await this.refresh({ priority: 'background' });
 		// Re-schedule for next poll cycle (RunOnceScheduler is one-shot)
 		if (!this._store.isDisposed && this._pollingDisposables.size > 0) {
 			this._pollScheduler.schedule();
 		}
 	}
 
-	private async _refresh(): Promise<void> {
+	private async _refresh(options?: ApiRequestOptions): Promise<void> {
 		const generation = this._fetcher.client.generation;
+		const version = ++this._refreshVersion;
 		this._logService.trace(`${TRACE_PREFIX} [PRModel] Refreshing ${this.owner}/${this.repo}#${this.prNumber}`);
 		try {
 			const [pr, reviews] = await Promise.all([
-				this._fetcher.getPullRequest(this.owner, this.repo, this.prNumber, this._token),
-				this._fetcher.getReviews(this.owner, this.repo, this.prNumber, this._token),
+				this._fetcher.getPullRequest(this.owner, this.repo, this.prNumber, this._token, options),
+				this._fetcher.getReviews(this.owner, this.repo, this.prNumber, this._token, options),
 			]);
-			if (this._store.isDisposed || generation !== this._fetcher.client.generation) {
+			if (this._store.isDisposed || generation !== this._fetcher.client.generation || version !== this._refreshVersion) {
 				return;
 			}
+
+			const prLink = `https://${this._fetcher.client.enterpriseHost ?? 'github.com'}/${this.owner}/${this.repo}/pull/${this.prNumber}`;
+			if (this._iconCache.getState(prLink)?.state === GitHubPullRequestState.Merged && pr.state !== GitHubPullRequestState.Merged) {
+				this._logService.warn(`${LOG_PREFIX} Ignoring a non-merged response for previously merged PR ${prLink}`);
+				return;
+			}
+			this._iconCache.setState(prLink, pr);
 
 			transaction(tx => {
 				const prChanged = !structuralEquals(pr, this._pullRequest.get());

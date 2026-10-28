@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -13,6 +14,10 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type IAgent } from '../../common/agent.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
+import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
+import { ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
@@ -119,6 +124,47 @@ suite('AgentHostSessionOpenTelemetry', () => {
 				totalDurationMs: 0,
 			}]);
 		});
+	});
+
+	test('attributes existing subscription events without exporting resource paths or client machine metadata', async () => {
+		const telemetry = new TestTelemetryService();
+		const service = createService(telemetry);
+		const context = {
+			clientId: 'opaque-client', clientType: AgentHostClientType.AgentsWindow,
+			connectionKind: AgentHostClientConnectionKind.MissionControl, transportKind: AgentHostTransportKind.WebSocket,
+			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, isReconnect: true, machineId: 'private-machine',
+		};
+		for (const resource of [session, defaultChat]) {
+			await service.withSubscription(resource, async scope => scope.setServedFromMemory(true), context);
+		}
+		assert.deepStrictEqual({
+			count: telemetry.events.length,
+			channels: telemetry.events.map(event => event.data.channel),
+			clients: telemetry.events.map(event => event.data.clientId),
+			routes: telemetry.events.map(event => event.data.connectionKind),
+			reconnects: telemetry.events.map(event => event.data.isReconnect),
+			sameSession: telemetry.events[0].data.sessionIdHash === telemetry.events[1].data.sessionIdHash,
+			hasHash: /^[a-f0-9]{40}$/.test(String(telemetry.events[0].data.sessionIdHash)),
+			hasPrivateData: /private-machine|copilotcli:|ahp-chat:/.test(JSON.stringify(telemetry.events)),
+		}, {
+			count: 2, channels: ['session', 'defaultChat'], clients: ['opaque-client', 'opaque-client'],
+			routes: ['mission_control', 'mission_control'], reconnects: [true, true], sameSession: true, hasHash: true, hasPrivateData: false,
+		});
+	});
+
+	test('reports bounded subscription failures and cancellation exactly once', async () => {
+		const telemetry = new TestTelemetryService();
+		const service = createService(telemetry);
+		for (const error of [new ProtocolError(AhpErrorCodes.PermissionDenied, 'private /Users/alice/file'), new CancellationError()]) {
+			await assert.rejects(service.withSubscription(session, async () => { throw error; }), caught => caught === error);
+		}
+		assert.deepStrictEqual(telemetry.events.map(event => ({
+			outcome: event.data.outcome, category: event.data.errorCategory, code: event.data.errorCode,
+			private: JSON.stringify(event).includes('/Users/alice'),
+		})), [
+			{ outcome: 'failure', category: 'authorization', code: AhpErrorCodes.PermissionDenied, private: false },
+			{ outcome: 'cancelled', category: 'cancelled', code: undefined, private: false },
+		]);
 	});
 
 	test('accumulates retries and reports fallback creation without duplicate emission', async () => {
