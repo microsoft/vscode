@@ -1329,8 +1329,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async listManagedWorktrees(knownWorktrees: readonly IManagedSessionWorktree[] = []): Promise<IManagedSessionWorktree[]> {
-		const inventories = await Promise.all(this.sessionsProvidersService.getProviders({ includeSessionBackends: true }).map(async provider =>
-			(await provider.listManagedWorktrees?.(knownWorktrees.filter(worktree => worktree.providerId === provider.id).map(worktree => URI.parse(worktree.repository))) ?? []).map(worktree => ({ ...worktree, providerId: provider.id }))));
+		const inventories = await Promise.all(this.sessionsProvidersService.getProviders({ includeSessionBackends: true }).map(async provider => {
+			try {
+				return (await provider.listManagedWorktrees?.(knownWorktrees.filter(worktree => worktree.providerId === provider.id).map(worktree => URI.parse(worktree.repository))) ?? []).map(worktree => ({ ...worktree, providerId: provider.id }));
+			} catch (error) {
+				this.logService.warn(`[SessionsManagement] Failed to list managed worktrees for provider '${provider.id}'`, error);
+				return [];
+			}
+		}));
 		return inventories.flat();
 	}
 

@@ -20,6 +20,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IListService, ListService, WorkbenchTable } from '../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -80,7 +81,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 			sizeBytes: undefined, worktreeCount: 1, cleanupState: 'unlinked', worktreeExists: true, cleanupStatus: { state: 'unknown' },
 		};
 		const requests: ISessionWorktreeCleanupCandidate[][] = [];
-		const { editor, container, opened } = createEditor({
+		const { editor, container, opened, instantiationService } = createEditor({
 			getWorktrees: async () => [unlinked],
 			cleanupWorktrees: async (candidates, onProgress) => {
 				requests.push([...candidates]);
@@ -91,18 +92,51 @@ suite('SessionWorktreeCleanupEditor', () => {
 		await timeout(0);
 		const row = container.querySelector('.session-worktree-cleanup-row:not(.header)')!;
 		const checkbox = row.querySelector<HTMLElement>('.monaco-checkbox')!;
+		const title = row.querySelector<HTMLAnchorElement>('.session-worktree-cleanup-session-link')!;
+		const showHover = stub(instantiationService.get(IHoverService), 'showInstantHover').returns(undefined);
+		disposables.add(toDisposable(() => showHover.restore()));
+		title.click();
+		title.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 		assert.deepStrictEqual({
 			title: row.querySelector('.title')?.textContent,
 			storage: row.querySelector('.storage')?.textContent,
 			lastUsed: row.querySelector('.lastUsed')?.textContent,
 			selected: checkbox.getAttribute('aria-checked'),
 			selectable: checkbox.getAttribute('aria-disabled'),
-		}, { title: 'agents/recoveredNo matching session', storage: 'Unknown', lastUsed: 'Unknown', selected: 'false', selectable: null });
+			titleRole: title.getAttribute('role'),
+			titleTabIndex: title.tabIndex,
+			announcesPath: title.closest('.monaco-list-row')?.getAttribute('aria-label')?.includes('/repos/app.worktrees/recovered'),
+			inspectedPaths: showHover.args.map(([options, focus]) => ({ content: options.content, focus })),
+		}, {
+			title: 'agents/recoveredNo matching session - /repos/app.worktrees/recovered',
+			storage: 'Unknown', lastUsed: 'Unknown', selected: 'false', selectable: null,
+			titleRole: 'button', titleTabIndex: 0, announcesPath: true,
+			inspectedPaths: Array.from({ length: 2 }, () => ({ content: '/repos/app.worktrees/recovered', focus: true })),
+		});
 		checkbox.click();
 		container.querySelector<HTMLAnchorElement>('.session-worktree-cleanup-action')!.click();
 		await timeout(0);
 		assert.deepStrictEqual({ requests: requests.map(candidates => candidates.map(getWorktreeCleanupId)), opened }, {
 			requests: [[getWorktreeCleanupId(unlinked)]], opened: [],
+		});
+	});
+
+	test('keeps an unlinked worktree unavailable when its existence check fails', async () => {
+		const { container } = await openEditor([{
+			unlinkedWorktree: { providerId: 'test', repository: URI.file('/repos/app').toString(), worktree: URI.file('/repos/app.worktrees/unlinked').toString(), branch: 'agents/unlinked', cleanupStatus: { state: 'unknown' } },
+			sizeBytes: undefined, worktreeCount: 1, cleanupState: 'unlinked', worktreeCheckError: 'Host disconnected',
+		}]);
+		const section = container.querySelector<HTMLDetailsElement>('details')!;
+		section.open = true;
+		section.dispatchEvent(new mainWindow.Event('toggle'));
+		assert.deepStrictEqual({
+			unavailable: section.querySelector('summary')?.textContent,
+			reason: section.querySelector('.session-worktree-cleanup-reason')?.textContent,
+			selectable: section.querySelectorAll('[role="checkbox"]').length,
+		}, {
+			unavailable: 'Unavailable for cleanup (1)',
+			reason: 'Couldn\'t check whether the worktree still exists: Host disconnected - /repos/app.worktrees/unlinked',
+			selectable: 0,
 		});
 	});
 
@@ -123,7 +157,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 			titles: [...section.querySelectorAll('.session-worktree-cleanup-session-link')].map(element => element.textContent),
 			reason: section.querySelector('.session-worktree-cleanup-reason')?.textContent,
 			selectable: section.querySelectorAll('[role="checkbox"]').length,
-			sessionlessReason: [...container.querySelectorAll('.session-worktree-cleanup-reason')].some(element => element.textContent === 'Cleanup failed; retry scheduled: git add exited with code 128'),
+			sessionlessReason: [...container.querySelectorAll('.session-worktree-cleanup-reason')].some(element => element.textContent?.startsWith('Cleanup failed; retry scheduled: git add exited with code 128')),
 		}, {
 			unavailable: 'Unavailable for cleanup (1)',
 			titles: ['blocked'],

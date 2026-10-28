@@ -37,6 +37,7 @@ class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	readonly calls: string[] = [];
 	readonly sessions = new Map<string, IRecordedWorktree>([[SESSION.toString(), recorded('archived')]]);
 	readonly detached = new Map<string, IRecordedWorktree>([[HANDLE, recorded('detached')]]);
+	readonly retainedDetachedPaths: URI[] = [];
 	failures = 0;
 	outcome: WorktreeRemovalOutcome = 'removed';
 	removal: DeferredPromise<void> | undefined;
@@ -94,6 +95,9 @@ class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	override async claimDetachedWorktree(handle: string): Promise<void> {
 		this.calls.push(`claim:${handle}`);
 	}
+	override async getDetachedWorktreePaths(): Promise<readonly URI[]> {
+		return this.retainedDetachedPaths;
+	}
 	override async cleanupUnclaimedDetachedWorktrees(canRemove?: DetachedWorktreeRemovalGuard): Promise<void> {
 		this.calls.push('reconcileUnclaimed');
 		this.reconcileGuard = canRemove;
@@ -131,7 +135,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 			getCurrentBranchName: async () => head.branch,
 			getWorktrees: async () => roots.map(path => ({ path, branchName: head.branch })),
 		});
-		return { ...create(undefined, undefined, gitService), repository, managed, external, roots, head };
+		return { ...create(undefined, undefined, gitService), repository, managed, external, roots, head, gitService };
 	}
 
 	function create(options?: IAgentHostWorktreeCleanupOptions, logService = new NullLogService(), gitService = upcastPartial<IAgentHostGitService>({})) {
@@ -190,6 +194,20 @@ suite('AgentHostWorktreeCleanupService', () => {
 		});
 	});
 
+	test('preserves an unlinked cleanup failure across a cleanup service restart', async () => {
+		const { database, cleanup, worktree, repository, managed, gitService } = await createManagedInventory();
+		await cleanup.cleanupManagedWorktree(repository, managed, 'agents/recovered');
+		worktree.failures = 1;
+		await cleanup.runPass();
+		const beforeRestart = await cleanup.listManagedWorktrees([repository]);
+		cleanup.dispose();
+		const restarted = disposables.add(new AgentHostWorktreeCleanupService(undefined, database, new RecordingWorktreeIsolation(), new NullLogService(), gitService));
+		const afterRestart = await restarted.listManagedWorktrees([repository]);
+		assert.deepStrictEqual([beforeRestart, afterRestart].map(rows => rows.map(row => row.cleanupStatus)), [
+			[{ state: 'failed', message: 'git failed' }], [{ state: 'failed', message: 'git failed' }],
+		]);
+	});
+
 	test('refuses unlinked cleanup when a live session uses it, including a session absent from the UI', async () => {
 		const { database, cleanup, repository, managed } = await createManagedInventory();
 		await useWorktree(database, OTHER_SESSION, { repositoryRoot: repository, worktree: managed, branchName: 'agents/recovered' });
@@ -197,6 +215,43 @@ suite('AgentHostWorktreeCleanupService', () => {
 		await assert.rejects(cleanup.cleanupManagedWorktree(repository, managed, 'agents/recovered'), /still using/);
 		assert.deepStrictEqual({ states: inventory.map(worktree => worktree.cleanupStatus.state), pending: await pending(database) }, {
 			states: ['inUse'], pending: [],
+		});
+	});
+
+	test('protects retained detached worktrees even when their container sessions are absent from this host', async () => {
+		const { database, cleanup, worktree, repository, managed } = await createManagedInventory();
+		worktree.retainedDetachedPaths.push(managed);
+		const inventory = await cleanup.listManagedWorktrees([repository]);
+		await assert.rejects(cleanup.cleanupManagedWorktree(repository, managed, 'agents/recovered'), /still using/);
+		assert.deepStrictEqual({ states: inventory.map(worktree => worktree.cleanupStatus.state), pending: await pending(database) }, {
+			states: ['inUse'], pending: [],
+		});
+	});
+
+	test('rechecks detached ownership before processing an accepted unlinked removal', async () => {
+		const { database, cleanup, worktree, repository, managed } = await createManagedInventory();
+		await cleanup.cleanupManagedWorktree(repository, managed, 'agents/recovered');
+		worktree.retainedDetachedPaths.push(managed);
+		await cleanup.runPass();
+		assert.deepStrictEqual({ calls: worktree.calls, pending: await pending(database) }, {
+			calls: [], pending: ['detached:commit:0'],
+		});
+	});
+
+	test('rechecks detached ownership in the final unlinked removal guard', async () => {
+		const { database, cleanup, worktree, repository, managed } = await createManagedInventory();
+		await cleanup.cleanupManagedWorktree(repository, managed, 'agents/recovered');
+		worktree.removal = new DeferredPromise<void>();
+		const removal = cleanup.runPass();
+		await worktree.removalStarted.p;
+		try {
+			worktree.retainedDetachedPaths.push(managed);
+		} finally {
+			await worktree.removal.complete();
+			await removal;
+		}
+		assert.deepStrictEqual({ lastCall: worktree.calls.at(-1), pending: await pending(database) }, {
+			lastCall: `inUse:${managed.toString()}`, pending: ['detached:commit:0'],
 		});
 	});
 
@@ -309,7 +364,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 			let database = disposables.add(new AgentHostDatabase(path));
 			try {
 				const worktree = new RecordingWorktreeIsolation();
-				const cleanup = disposables.add(new AgentHostWorktreeCleanupService({ now: () => 100 }, database, worktree, new NullLogService()));
+				const cleanup = disposables.add(new AgentHostWorktreeCleanupService({ now: () => 100 }, database, worktree, new NullLogService(), upcastPartial<IAgentHostGitService>({})));
 				await useWorktree(database, SESSION, recorded('archived'), true);
 				await cleanup.sessionWorktreeCleanup(SESSION, true);
 				if (state === 'failed') {
@@ -323,7 +378,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 				await database.close();
 				database = disposables.add(new AgentHostDatabase(path));
 				const restartedWorktree = new RecordingWorktreeIsolation();
-				const restarted = disposables.add(new AgentHostWorktreeCleanupService({ now: () => 100 }, database, restartedWorktree, new NullLogService()));
+				const restarted = disposables.add(new AgentHostWorktreeCleanupService({ now: () => 100 }, database, restartedWorktree, new NullLogService(), upcastPartial<IAgentHostGitService>({})));
 				await restarted.runPass();
 				const afterRestart = await restarted.sessionWorktreeCleanup(SESSION, false);
 				const callsDuringBackoff = [...restartedWorktree.calls];

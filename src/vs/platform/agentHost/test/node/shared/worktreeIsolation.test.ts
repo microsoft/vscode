@@ -1277,6 +1277,26 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('lists retained detached paths from persisted records before and after a claim or host restart', async () => {
+		const { service } = createTrackedSessionDataService();
+		const isolation = createIsolation(disposables, { sessionDataService: service });
+		const created = await isolation.createDetachedWorktree({
+			workingDirectory: repoRoot,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+			prompt: 'do a thing',
+		});
+		const unclaimed = await isolation.getDetachedWorktreePaths();
+		await isolation.claimDetachedWorktree(created.handle);
+		const restarted = createIsolation(disposables, { sessionDataService: service });
+		const claimedAfterRestart = await restarted.getDetachedWorktreePaths();
+		await restarted.deleteDetachedWorktreeRecord(created.handle);
+		assert.deepStrictEqual({
+			unclaimed: unclaimed.map(path => path.toString()),
+			claimedAfterRestart: claimedAfterRestart.map(path => path.toString()),
+			afterDeletion: await restarted.getDetachedWorktreePaths(),
+		}, { unclaimed: [created.worktree.toString()], claimedAfterRestart: [created.worktree.toString()], afterDeletion: [] });
+	});
+
 	test('detached worktree persists the default diff base before creation completes', async () => {
 		let diffBaseWrites = 0;
 		db = new class extends TestSessionDatabase {

@@ -371,6 +371,39 @@ suite('SessionsManagementService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('managed worktree inventory isolates provider failures and forwards only their known repositories', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'healthy' });
+		const calls: { provider: string; repositories: string[] }[] = [];
+		const entry = { repository: URI.file('/repo').toString(), worktree: URI.file('/repo.worktrees/leftover').toString(), branch: 'agents/leftover', cleanupStatus: { state: 'unknown' as const } };
+		const healthy = new class extends TestSessionsProvider {
+			override readonly id = 'healthy';
+			override async listManagedWorktrees(repositories: readonly URI[] = []) {
+				calls.push({ provider: this.id, repositories: repositories.map(uri => uri.toString()) });
+				return [entry];
+			}
+		}(session);
+		const failing = new class extends TestSessionsProvider {
+			override readonly id = 'offline';
+			override async listManagedWorktrees(repositories: readonly URI[] = []): Promise<never> {
+				calls.push({ provider: this.id, repositories: repositories.map(uri => uri.toString()) });
+				throw new Error('Host disconnected');
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, [healthy, failing]);
+		assert.ok(service.listManagedWorktrees);
+		const result = await service.listManagedWorktrees([
+			{ ...entry, providerId: healthy.id },
+			{ ...entry, providerId: failing.id, repository: URI.file('/remote').toString() },
+		]);
+		assert.deepStrictEqual({ calls, result }, {
+			calls: [
+				{ provider: 'healthy', repositories: [entry.repository] },
+				{ provider: 'offline', repositories: [URI.file('/remote').toString()] },
+			],
+			result: [{ ...entry, providerId: healthy.id }],
+		});
+	});
+
 	suite('session grid integration', () => {
 		function created(id: string): ISession {
 			const chat: IChat = { ...stubChat, resource: URI.parse(`test:///${id}/chat`), status: constObservable(SessionStatus.Completed) };

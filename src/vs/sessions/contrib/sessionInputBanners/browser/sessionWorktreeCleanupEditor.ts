@@ -586,7 +586,9 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	private getWorktreeAriaLabel(worktree: ISessionWorktree): string {
 		return localize('sessionWorktreeCleanup.rowDiskUsageLabel', "{0}, workspace {1}, last used {2}, disk usage {3}. {4} {5}",
-			getWorktreeCleanupTitle(worktree),
+			worktree.unlinkedWorktree
+				? localize('sessionWorktreeCleanup.titleAndPath', "{0}, worktree path {1}", getWorktreeCleanupTitle(worktree), URI.parse(worktree.unlinkedWorktree.worktree).path)
+				: getWorktreeCleanupTitle(worktree),
 			getWorktreeWorkspace(worktree)?.label ?? localize('sessionWorktreeCleanup.unknownWorkspace', "Unknown workspace"),
 			worktree.session ? fromNow(worktree.session.updatedAt.get(), true, true) : localize('sessionWorktreeCleanup.unknownLastUsed', "Unknown"),
 			this.getWorktreeStorageLabel(worktree, true),
@@ -833,6 +835,8 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				const session = template.worktree?.session;
 				if (session) {
 					void this.sessionsService.openSession(session.resource).catch(error => this.notificationService.error(error));
+				} else if (template.worktree?.unlinkedWorktree) {
+					this.hoverService.showInstantHover({ ...this.cellHoverOptions, target: titleLink, content: URI.parse(template.worktree.unlinkedWorktree.worktree).path }, true);
 				}
 			};
 			disposables.add(dom.addDisposableListener(titleLink, dom.EventType.CLICK, openSession));
@@ -848,13 +852,14 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				dynamicDisposables.clear();
 				const title = getWorktreeCleanupTitle(worktree);
 				titleLink.textContent = title;
-				titleLink.classList.toggle('session-worktree-cleanup-session-link', !!worktree.session);
-				titleLink.setAttribute('role', worktree.session ? 'link' : 'text');
-				titleLink.tabIndex = worktree.session ? 0 : -1;
+				titleLink.setAttribute('role', worktree.session ? 'link' : 'button');
 				dynamicDisposables.add(this.hoverService.setupDelayedHoverAtMouse(titleLink, { content: worktree.unlinkedWorktree ? URI.parse(worktree.unlinkedWorktree.worktree).path : localize('sessionWorktreeCleanup.openSession', "Open {0}", title) }, this.cellHoverOptions));
 				reason?.remove();
 				reason = undefined;
-				const label = this.getWorktreeCleanupLabel(worktree, this.isWorktreeCleaning(worktree));
+				const cleanupLabel = this.getWorktreeCleanupLabel(worktree, this.isWorktreeCleaning(worktree));
+				const label = worktree.unlinkedWorktree
+					? localize('sessionWorktreeCleanup.reasonAndPath', "{0} - {1}", cleanupLabel ?? '', URI.parse(worktree.unlinkedWorktree.worktree).path)
+					: cleanupLabel;
 				if (label) {
 					reason = dom.append(container, dom.$('span.session-worktree-cleanup-reason', undefined, label));
 					dynamicDisposables.add(this.hoverService.setupDelayedHoverAtMouse(reason, { content: label }, this.cellHoverOptions));
@@ -1099,7 +1104,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const batch = this.cleanupBatch.get(getWorktreeCleanupId(worktree));
 		return worktree.worktreeExists !== false && !this.requiresSessionRearchive(worktree) && batch?.state !== 'queued' && batch?.state !== 'pending' && batch?.state !== 'removed'
 			&& (worktree.unlinkedWorktree
-				? !!worktree.unlinkedWorktree.branch && !worktree.cleanupStatusError && worktree.cleanupStatus?.state !== 'inUse' && !this.hasPendingCleanup(worktree)
+				? !!worktree.unlinkedWorktree.branch && !worktree.cleanupStatusError && !worktree.worktreeCheckError && worktree.cleanupStatus?.state !== 'inUse' && !this.hasPendingCleanup(worktree)
 				: worktree.cleanupState === 'archived'
 				? !!worktree.cleanupStatus && !this.hasPendingCleanup(worktree)
 				: !worktree.session.isArchived.get() && worktree.sizeBytes !== undefined && (worktree.cleanupState === 'eligible' || worktree.cleanupState === 'active' || worktree.cleanupState === 'needsInput'));

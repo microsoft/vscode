@@ -8,7 +8,7 @@ import { DeferredPromise, raceCancellationError, timeout } from '../../../../../
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -96,6 +96,64 @@ suite('SessionWorktreeCleanupService', () => {
 			id: getWorktreeCleanupId(worktree), exists: worktree.worktreeExists, size: worktree.sizeBytes, hasError: !!worktree.cleanupStatusError,
 		})), [{ id: getWorktreeCleanupId(worktrees[0]), exists: undefined, size: undefined, hasError: true }]);
 	});
+
+	test('retains failed existence checks without losing other rows and recovers on refresh', async () => {
+		const missing = managedWorktree();
+		const healthy = managedWorktree('/repo.worktrees/healthy');
+		let inventory = [missing, healthy];
+		let fail = true;
+		const service = disposables.add(createService([], true, () => undefined,
+			undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+				listManagedWorktrees: async () => inventory,
+				managedWorktreeExists: async () => {
+					if (fail) {
+						throw new Error('Host disconnected');
+					}
+					return false;
+				},
+			}));
+		const worktrees = await service.getWorktrees(0);
+		inventory = [healthy];
+		const failed = await service.refreshPendingCleanup(worktrees.map(getWorktreeCleanupId), 0);
+		fail = false;
+		const recovered = await service.refreshPendingCleanup(worktrees.map(getWorktreeCleanupId), 0);
+		assert.deepStrictEqual([failed, recovered].map(rows => rows.map(row => ({
+			id: getWorktreeCleanupId(row), exists: row.worktreeExists, size: row.sizeBytes, error: row.worktreeCheckError,
+		}))), [
+			[
+				{ id: getWorktreeCleanupId(worktrees[1]), exists: true, size: undefined, error: undefined },
+				{ id: getWorktreeCleanupId(worktrees[0]), exists: undefined, size: undefined, error: 'Host disconnected' },
+			],
+			[
+				{ id: getWorktreeCleanupId(worktrees[1]), exists: true, size: undefined, error: undefined },
+				{ id: getWorktreeCleanupId(worktrees[0]), exists: false, size: 0, error: undefined },
+			],
+		]);
+	});
+
+	for (const cancelToken of [true, false]) {
+		test(`preserves cancellation while checking a missing managed worktree when ${cancelToken ? 'the request is cancelled' : 'the provider cancels'}`, async () => {
+			let inventory = [managedWorktree()];
+			const checking = new DeferredPromise<void>();
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const service = disposables.add(createService([], true, () => undefined,
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+					listManagedWorktrees: async () => inventory,
+					managedWorktreeExists: async () => {
+						await checking.complete();
+						if (cancelToken) {
+							cancellation.cancel();
+						}
+						throw new CancellationError();
+					},
+				}));
+			const worktrees = await service.getWorktrees(0);
+			inventory = [];
+			const refresh = service.refreshPendingCleanup(worktrees.map(getWorktreeCleanupId), 0, undefined, cancellation.token);
+			await checking.p;
+			await assert.rejects(refresh, error => isCancellationError(error));
+		});
+	}
 
 	test('publishes unlinked inventory while an existing session measurement is still pending', async () => {
 		const measurement = new DeferredPromise<number>();

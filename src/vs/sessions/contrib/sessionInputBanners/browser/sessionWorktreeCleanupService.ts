@@ -7,7 +7,7 @@ import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Limiter, raceCancellationError, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
@@ -386,13 +386,24 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		for (const previous of this._unlinkedWorktrees) {
 			if (!ids.has(getWorktreeCleanupId(previous)) && previous.unlinkedWorktree
 				&& !linkedPaths.has(`${previous.unlinkedWorktree.providerId}:${extUri.getComparisonKey(URI.parse(previous.unlinkedWorktree.worktree))}`)) {
-				const worktreeExists = await raceCancellationError(this.sessionsManagementService.managedWorktreeExists?.(previous.unlinkedWorktree) ?? Promise.resolve(undefined), token);
+				let worktreeExists: boolean | undefined;
+				let worktreeCheckError: string | undefined;
+				try {
+					worktreeExists = await raceCancellationError(this.sessionsManagementService.managedWorktreeExists?.(previous.unlinkedWorktree) ?? Promise.resolve(undefined), token);
+				} catch (error) {
+					if (token.isCancellationRequested || isCancellationError(error)) {
+						throw error;
+					}
+					worktreeCheckError = getErrorMessage(error);
+					this.logService.warn('[SessionWorktreeCleanupService] Failed to verify managed worktree existence', error);
+				}
 				unlinked.push({
 					...previous,
 					sizeBytes: worktreeExists === false ? 0 : undefined,
 					worktreeExists,
 					cleanupStatus: undefined,
-					cleanupStatusError: worktreeExists === false ? undefined : localize('worktreeCleanup.inventoryUnavailable', "This worktree is no longer listed by its host. Refresh after reconnecting to verify cleanup."),
+					worktreeCheckError,
+					cleanupStatusError: worktreeExists === false || worktreeCheckError ? undefined : localize('worktreeCleanup.inventoryUnavailable', "This worktree is no longer listed by its host. Refresh after reconnecting to verify cleanup."),
 				});
 			}
 		}
