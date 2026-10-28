@@ -335,6 +335,15 @@ suite('AgentHostGitService', () => {
 		]);
 	});
 
+	test('reads fetch remote URLs of partial clones', () => {
+		assert.deepStrictEqual(parseFetchRemoteUrls([
+			'origin\thttps://github.com/microsoft/vscode.git (fetch) [blob:none]',
+			'origin\thttps://github.com/microsoft/vscode.git (push)',
+		].join('\n')), [
+			'https://github.com/microsoft/vscode.git',
+		]);
+	});
+
 	test('prefers the branch upstream remote before origin', () => {
 		assert.deepStrictEqual(parseFetchRemoteUrls([
 			'origin\thttps://github.com/me/vscode.git (fetch)',
@@ -607,6 +616,18 @@ suite('AgentHostGitService', () => {
 
 		test('passes through a normal single-line message', () => {
 			assert.strictEqual(summarizeStderrForError('fatal: invalid reference: x\n'), 'fatal: invalid reference: x');
+		});
+
+		test('keeps the lock failure instead of trailing lock removal advice', () => {
+			const diagnostic = 'fatal: Unable to create \'/repo/.git/worktrees/session/index.lock\': File exists.';
+			assert.strictEqual(summarizeStderrForError([
+				diagnostic, '',
+				'Another git process seems to be running in this repository, e.g.',
+				'an editor opened by \'git commit\'. Please make sure all processes',
+				'are terminated then try again. If it still fails, a git process',
+				'may have crashed in this repository earlier:',
+				'remove the file manually to continue.',
+			].join('\n')), diagnostic);
 		});
 
 		test('truncates very long lines with an ellipsis', () => {

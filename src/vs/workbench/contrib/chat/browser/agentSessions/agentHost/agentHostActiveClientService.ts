@@ -41,6 +41,21 @@ import { Iterable } from '../../../../../../base/common/iterator.js';
 
 export const IAgentHostActiveClientService = createDecorator<IAgentHostActiveClientService>('agentHostActiveClientService');
 
+/** Appends session tool lists to an active client, preserving earlier definitions on name collisions. */
+export function composeSessionActiveClient(activeClient: SessionActiveClient, ...toolLists: readonly (readonly ToolDefinition[])[]): SessionActiveClient {
+	const tools = [...activeClient.tools];
+	const toolNames = new Set(tools.map(tool => tool.name));
+	for (const toolList of toolLists) {
+		for (const tool of toolList) {
+			if (!toolNames.has(tool.name)) {
+				tools.push(tool);
+				toolNames.add(tool.name);
+			}
+		}
+	}
+	return { ...activeClient, tools };
+}
+
 /** Identity a published customization set is resolved against. Refcounted; disposed by each holder. */
 export interface IAgentCustomizationScope extends IDisposable {
 	readonly customizations: IObservable<readonly ClientPluginCustomization[]>;

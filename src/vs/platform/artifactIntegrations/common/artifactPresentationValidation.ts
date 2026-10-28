@@ -16,7 +16,20 @@ function strings(value: Record<string, unknown>, ...keys: string[]): boolean {
 export function isArtifactAvailability(value: unknown): value is ArtifactAvailability {
 	return isRecord(value) && (value.kind === 'loading' || value.kind === 'available'
 		|| (['stale', 'authenticationRequired', 'unavailable', 'error'].includes(String(value.kind)) && typeof value.reason === 'string'))
-		&& (value.observedAt === undefined || (typeof value.observedAt === 'number' && Number.isFinite(value.observedAt)));
+		&& (value.observedAt === undefined || (typeof value.observedAt === 'number' && Number.isFinite(value.observedAt)))
+		&& (value.authorizationUrl === undefined || (value.kind === 'authenticationRequired' && isSecureUrl(value.authorizationUrl)));
+}
+
+function isSecureUrl(value: unknown): boolean {
+	if (typeof value !== 'string') {
+		return false;
+	}
+	try {
+		const url = new URL(value);
+		return url.protocol === 'https:' && !url.username && !url.password;
+	} catch {
+		return false;
+	}
 }
 
 export function isArtifactIcon(value: unknown): value is ArtifactIcon {

@@ -14,6 +14,18 @@ import { detectChanges } from '../../../.github/actions/detect-changes/detect.ts
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const coreTestOutputs = ['unit-tests', 'browser-integration', 'product-tests'];
 
+/** The outputs of the changes that only Compile & Hygiene reads. */
+const onlyCompileAndHygiene = {
+	'cli': 'false',
+	'copilot-shim': 'false',
+	'copilot': 'false',
+	'unit-tests': 'false',
+	'browser-integration': 'false',
+	'product-tests': 'false',
+	'monaco-editor': 'false',
+	'telemetry': 'false',
+};
+
 interface IWorkflowJob {
 	readonly name?: string;
 	readonly needs?: string | readonly string[];
@@ -64,7 +76,7 @@ function skipOutput(test: ITestJob): string | undefined {
 	return typeof condition === 'string' ? /needs\.changes\.outputs\.(?<output>[\w-]+) == 'true'/.exec(condition)?.groups?.output : undefined;
 }
 
-async function detect(files: readonly { filename: string; previous_filename?: string }[], expectedCount = files.length, failure?: Error) {
+async function detect(files: readonly { filename: string; previous_filename?: string; status?: string; patch?: string }[], expectedCount = files.length, failure?: Error) {
 	const outputs: Record<string, string> = {};
 	await detectChanges({
 		paginate: async (_method, parameters) => {
@@ -145,6 +157,18 @@ suite('Detect Changes', () => {
 			['.github/workflows/pr-linux-test.yml', ['true', 'true', 'true']],
 			['.github/actions/detect-changes/detect.ts', ['true', 'true', 'true']],
 			['build/gulpfile.ts', ['true', 'true', 'true']],
+			['build/azure-pipelines/product-build.yml', ['false', 'false', 'false']],
+			['build/azure-pipelines/win32/steps/product-build-win32-test.yml', ['false', 'false', 'false']],
+			['build/azure-pipelines/linux/setup-env.sh', ['true', 'true', 'true']],
+			['build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts', ['true', 'true', 'true']],
+			['.vscode/settings.json', ['false', 'false', 'false']],
+			['.vscode/extensions/vscode-selfhost-test-provider/src/extension.ts', ['false', 'false', 'false']],
+			['.vscode/extensions/vscode-extras/package.json', ['false', 'false', 'false']],
+			['extensions/vscode-api-tests/testWorkspace/.vscode/settings.json', ['false', 'true', 'true']],
+			['eslint.config.js', ['false', 'false', 'false']],
+			['.eslint-plugin-local/code-no-any-casts.ts', ['false', 'false', 'false']],
+			['test/sanity/src/cli.test.ts', ['false', 'false', 'false']],
+			['test/smoke/src/main.ts', ['true', 'true', 'true']],
 			['package.json', ['true', 'true', 'true']],
 		];
 		const results: [string, string[]][] = [];
@@ -159,11 +183,96 @@ suite('Detect Changes', () => {
 			await detectCoreTests('extensions/copilot/package.json', 'README.md', 'cli/Cargo.toml'),
 			await detectCoreTests('extensions/copilot/package.json', 'extensions/git/package.json'),
 			await detectCoreTests('extensions/copilot/package.json', 'src/vs/base/common/async.ts'),
+			await detectCoreTests('build/azure-pipelines/product-build.yml', 'README.md'),
+			await detectCoreTests('build/azure-pipelines/product-build.yml', 'build/azure-pipelines/win32/exec.ps1'),
 		], [
 			['false', 'false', 'true'],
 			['false', 'true', 'true'],
 			['true', 'true', 'true'],
+			['false', 'false', 'false'],
+			['true', 'true', 'true'],
 		]);
+	});
+
+	test('a change to the Azure Pipelines definitions runs only Compile & Hygiene, whose build script tests read them', async () => {
+		const outputs = await detect([
+			{ filename: 'build/azure-pipelines/product-build.yml' },
+			{ filename: 'build/azure-pipelines/darwin/steps/product-build-darwin-test.yml' },
+		]);
+		const { jobs } = loadWorkflow();
+		assert.deepStrictEqual({
+			outputs,
+			// The jobs that the outputs do not skip. The calling jobs of the test workflows always run, while the jobs
+			// of the workflows skip (see the test of the "<OS> / <job>" checks below).
+			unskippableJobs: Object.entries(jobs)
+				.filter(([, job]) => !testWorkflow.test(job.uses ?? '') && !/needs\.changes\.outputs\.[\w-]+ == 'true'/.test(job.if ?? ''))
+				.map(([id]) => id),
+		}, {
+			outputs: {
+				'cli': 'false',
+				'copilot-shim': 'false',
+				'copilot': 'false',
+				'unit-tests': 'false',
+				'browser-integration': 'false',
+				'product-tests': 'false',
+				'monaco-editor': 'false',
+				'telemetry': 'false',
+			},
+			unskippableJobs: ['changes', 'compile', 'pr-gate'],
+		});
+	});
+
+	test('a change to the workspace configuration, the ESLint configuration or the sanity tests runs only Compile & Hygiene, and the Copilot checks lint with the ESLint configuration', async () => {
+		assert.deepStrictEqual({
+			workspaceConfiguration: await detect([
+				{ filename: '.vscode/settings.json' },
+				{ filename: '.vscode/launch.json' },
+				{ filename: '.vscode/tasks.json' },
+				{ filename: '.vscode/extensions/vscode-selfhost-test-provider/src/extension.ts' },
+				{ filename: '.vscode/extensions/vscode-extras/package-lock.json' },
+			]),
+			eslintConfiguration: await detect([
+				{ filename: 'eslint.config.js' },
+				{ filename: '.eslint-ignore' },
+				{ filename: '.eslint-allowed-javascript-files' },
+				{ filename: '.eslint-allowed-bracket-notation-files' },
+				{ filename: '.eslint-plugin-local/code-no-any-casts.ts' },
+			]),
+			sanityTests: await detect([
+				{ filename: 'test/sanity/src/cli.test.ts' },
+				{ filename: 'test/sanity/package-lock.json' },
+			]),
+		}, {
+			workspaceConfiguration: onlyCompileAndHygiene,
+			eslintConfiguration: { ...onlyCompileAndHygiene, 'copilot': 'true' },
+			sanityTests: onlyCompileAndHygiene,
+		});
+	});
+
+	test('a change that only updates the distro commit in package.json runs only Compile & Hygiene', async () => {
+		// The line of package.json that `npm run update-distro` rewrites, so that the test fails when its format changes.
+		const distroLine = readFileSync(path.join(repositoryRoot, 'package.json'), 'utf8').split('\n').find(line => line.includes('"distro"'));
+		const packageJsonChange = (...changedLines: string[]) => ({
+			filename: 'package.json',
+			status: 'modified',
+			patch: ['@@ -1,7 +1,7 @@', ' {', '   "name": "code-oss-dev",', ...changedLines, '   "author": {'].join('\n'),
+		});
+		const distroUpdate = packageJsonChange(`-${distroLine}`, `+  "distro": "${'0'.repeat(40)}",`);
+		const everyCheck = { ...onlyCompileAndHygiene, 'cli': 'true', 'copilot': 'true', 'unit-tests': 'true', 'browser-integration': 'true', 'product-tests': 'true', 'monaco-editor': 'true', 'telemetry': 'true' };
+		assert.deepStrictEqual({
+			distroUpdate: await detect([distroUpdate]),
+			withAzurePipelinesDefinition: await detect([distroUpdate, { filename: 'build/azure-pipelines/product-build.yml' }]),
+			withSources: await detect([distroUpdate, { filename: 'src/vs/base/common/async.ts' }]),
+			withOtherField: await detect([packageJsonChange(`-${distroLine}`, '-  "version": "1.0.0",', `+  "distro": "${'0'.repeat(40)}",`, '+  "version": "1.1.0",')]),
+			// GitHub omits the patch of large diffs.
+			withoutPatch: await detect([{ filename: 'package.json', status: 'modified' }]),
+		}, {
+			distroUpdate: onlyCompileAndHygiene,
+			withAzurePipelinesDefinition: onlyCompileAndHygiene,
+			withSources: { ...everyCheck, 'cli': 'false', 'copilot': 'false' },
+			withOtherField: everyCheck,
+			withoutPatch: everyCheck,
+		});
 	});
 
 	test('both sides of a rename participate in selection', async () => {
@@ -342,6 +451,7 @@ suite('Detect Changes', () => {
 
 	test('compile, Monaco Editor and telemetry run after Detect Changes and appear first in the job group', () => {
 		const { jobs } = loadWorkflow();
+		const skipsWhenUnaffected = (output: string) => `\${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.${output} == 'true') }}`;
 		assert.deepStrictEqual(Object.entries(jobs).slice(0, 4).map(([id, job]) => ({
 			id,
 			name: job.name,
@@ -351,8 +461,8 @@ suite('Detect Changes', () => {
 		})), [
 			{ id: 'changes', name: 'Detect Changes', needs: undefined, if: undefined, uses: undefined },
 			{ id: 'compile', name: 'Compile & Hygiene', needs: 'changes', if: '${{ !cancelled() }}', uses: undefined },
-			{ id: 'monaco-editor', name: 'Monaco Editor', needs: 'changes', if: '${{ !cancelled() }}', uses: undefined },
-			{ id: 'telemetry', name: 'Telemetry', needs: 'changes', if: '${{ !cancelled() }}', uses: undefined },
+			{ id: 'monaco-editor', name: 'Monaco Editor', needs: 'changes', if: skipsWhenUnaffected('monaco-editor'), uses: undefined },
+			{ id: 'telemetry', name: 'Telemetry', needs: 'changes', if: skipsWhenUnaffected('telemetry'), uses: undefined },
 		]);
 	});
 

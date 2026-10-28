@@ -108,6 +108,8 @@
 
 .monaco-workbench.agent-sessions-workbench.automation-dialog-open.modern-ui-frosted-glass:not(.hc-black):not(.hc-light) {
 	--modern-ui-solid-dialog-background: var(--vscode-agentsPanel-background);
+	/* Keep the modal dimmer from showing through the dialog's panel surface. */
+	--modern-ui-glass-dialog-background: var(--vscode-agentsPanel-background);
 }
 
 .monaco-workbench .monaco-dialog-box.automation-dialog:focus:not(:focus-visible) {
@@ -461,6 +463,44 @@
 
 .automation-trigger-option {
 	cursor: pointer;
+}
+
+.automation-trigger-fields .automation-trigger-actor-permission {
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size40);
+}
+
+.automation-trigger-actor-option {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+}
+
+.automation-trigger-actor-option > .monaco-checkbox {
+	flex-shrink: 0;
+}
+
+.automation-trigger-actor-option.disabled {
+	color: var(--vscode-disabledForeground);
+}
+
+.automation-trigger-actor-option.disabled,
+.automation-trigger-actor-option.disabled > .monaco-checkbox {
+	cursor: not-allowed;
+}
+
+.automation-trigger-actor-reason:not([hidden]) {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.automation-trigger-actor-reason > .codicon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .automation-form-event-group .automation-event-button {

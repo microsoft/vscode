@@ -13,7 +13,7 @@ import { constObservable, ISettableObservable, observableValue, waitForState } f
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { ArtifactAction, ArtifactAuthenticationRequiredError, ArtifactAutomationOption, ArtifactContributionView, ArtifactDetails, ArtifactPromptReceipt, ArtifactRecord, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegration, IArtifactIntegrationBinding, isArtifactRunSettled } from '../../common/artifactIntegration.js';
+import { ArtifactAction, ArtifactActionRejectedError, ArtifactAuthenticationRequiredError, ArtifactAutomationOption, ArtifactContributionView, ArtifactDetails, ArtifactPromptReceipt, ArtifactRecord, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegration, IArtifactIntegrationBinding, isArtifactRunSettled } from '../../common/artifactIntegration.js';
 import { applyArtifactAutomationSelection, disableArtifactAutomation, reconcileArtifactAutomationOptions } from '../../common/artifactAutomationConfiguration.js';
 import { formatArtifactAutomationNotice, isArtifactAutomationEnabledRules, isArtifactAutomationNoticeChanges, mergeArtifactAutomationNotices } from '../../common/artifactIntegrationNotices.js';
 import { ArtifactIntegrationRegistry } from '../../common/artifactIntegrationRegistry.js';
@@ -1081,12 +1081,12 @@ suite('Artifact Integrations', () => {
 				kind: 'changed', content: [
 					'Autopilot updated for Example \\(3 rules\\)',
 					'',
-					'- Repair enabled\\',
+					'- **Repair enabled**\\',
 					'  Repair failures.',
-					'- Merge enabled\\',
+					'- **Merge enabled**\\',
 					'  Merge when ready.\\',
 					'  Mode: Only if Unchanged',
-					'- Address \\*Reviews\\* disabled\\',
+					'- **Address \\*Reviews\\* disabled**\\',
 					'  Attempt limit reached',
 					'',
 					'No new automatic runs will start for the disabled rules. Pending runs will be cancelled; work already sent may still finish. Completed changes are not undone.',
@@ -1103,6 +1103,22 @@ suite('Artifact Integrations', () => {
 			},
 			integrations: 'Still enabled: Repair.',
 			disabledAcrossIntegrations: 'No automation rules remain enabled for these artifact integrations.',
+		});
+	});
+
+	test('notice list titles are bold without formatting their descriptions', () => {
+		assert.deepStrictEqual(formatArtifactAutomationNotice('Example', [
+			{ integrationId: 'test', optionId: 'repair', label: '*Repair*\nfailures', kind: 'changed', details: ['Use [this](command:run).\nThen push.'] },
+			{ integrationId: 'test', optionId: 'merge', label: 'Merge', kind: 'enabled', details: [] },
+		], []), {
+			kind: 'changed',
+			content: [
+				'Autopilot updated for Example \\(2 rules\\)',
+				'',
+				'- **\\*Repair\\* failures updated**\\',
+				'  Use \\[this\\]\\(command:run\\). Then push.',
+				'- **Merge enabled**',
+			].join('\n'),
 		});
 	});
 
@@ -1506,6 +1522,32 @@ suite('Artifact Integrations', () => {
 		await reference.object.cancel(second.id);
 		await reference.object.reconcile(first.id);
 		assert.deepStrictEqual({ effects, runs: f.service.ledger.state.get().runs.map(run => [run.state, run.indeterminate === true]) }, { effects: 1, runs: [['completed', false], ['cancelled', false]] });
+	}));
+
+	test('a native effect the external system rejected fails with a known outcome without blocking new requests', () => run(async store => {
+		let effects = 0;
+		const action: ArtifactAction = {
+			...codeAction,
+			prepare: async () => ({
+				kind: 'ready', value: {
+					run: async () => {
+						if (++effects === 1) {
+							throw new ArtifactActionRejectedError('Base branch was modified');
+						}
+						return { kind: 'completed', summary: 'Done' };
+					}
+				}
+			}),
+		};
+		const f = fixture(store, action);
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		const first = await reference.object.invoke('test', 'act', 'chat', 'first');
+		await waitForState(f.service.ledger.state, state => state.runs.some(run => run.id === first.id && isArtifactRunSettled(run)));
+		const second = await reference.object.invoke('test', 'act', 'chat', 'second');
+		await waitForState(f.service.ledger.state, state => state.runs.some(run => run.id === second.id && isArtifactRunSettled(run)));
+		assert.deepStrictEqual({ effects, runs: f.service.ledger.state.get().runs.map(run => [run.state, run.indeterminate === true, run.reason]) }, {
+			effects: 2, runs: [['failed', false, 'Base branch was modified'], ['completed', false, 'Done']],
+		});
 	}));
 
 	test('expanded action consent is disabled on restart instead of silently inheriting authorization', () => run(async store => {

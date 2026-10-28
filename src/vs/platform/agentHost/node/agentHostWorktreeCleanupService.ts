@@ -171,9 +171,9 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 			if (await this._database.isWorktreeInUse(removal.worktreePath, removal.ownerSession)) {
 				return { state: 'inUse' } as const;
 			}
-			return { state: 'pending' } as const;
+			return removal.lastAttempt ?? { state: removal.attempts > 0 ? 'unknown' : 'pending' } as const;
 		}));
-		for (const state of ['running', 'pending', 'failed', 'inUse', 'skipped'] as const) {
+		for (const state of ['running', 'pending', 'failed', 'inUse', 'skipped', 'unknown'] as const) {
 			const status = statuses.find(status => status.state === state);
 			if (status) {
 				return status;
@@ -462,7 +462,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 			if (outcome === 'skipped') {
 				this._setRemovalStatus(removal, { state: 'skipped' });
 				// Kept for now, such as an unsynced branch: try again later rather than strand the folder.
-				await this._database.recordPendingWorktreeRemovalFailure(removal, retryAt);
+				await this._database.recordPendingWorktreeRemovalFailure(removal, retryAt, { state: 'skipped' });
 				return;
 			}
 			if (removal.kind === 'detached' && removal.ownerDeleted) {
@@ -476,7 +476,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 			this._removalStatuses.delete(this._removalKey(removal));
 		} catch (error) {
 			this._setRemovalStatus(removal, { state: 'failed', message: errorMessage(error) });
-			const attempts = await this._database.recordPendingWorktreeRemovalFailure(removal, retryAt);
+			const attempts = await this._database.recordPendingWorktreeRemovalFailure(removal, retryAt, { state: 'failed', message: errorMessage(error) });
 			const message = `[AgentHostWorktreeCleanup:${key}] Failed to remove worktree '${worktree.worktree.fsPath}' (attempt ${attempts ?? removal.attempts + 1}): ${errorMessage(error)}`;
 			if ((attempts ?? 0) >= WARN_AFTER_ATTEMPTS) {
 				this._logService.warn(message);

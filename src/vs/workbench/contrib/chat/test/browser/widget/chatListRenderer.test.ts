@@ -9737,7 +9737,7 @@ suite('ChatListRenderer', () => {
 				after: label(),
 				isUsed: authentication.isUsed,
 				pendingServers: authentication.servers.get().length,
-				promptVisible: !!template.value.querySelector('.chat-mcp-servers-interaction-hint'),
+				promptVisible: !!template.value.querySelector('.chat-mcp-servers-interaction .chat-confirmation-widget2'),
 			}, { before: 'Working', after: 'Working', isUsed: false, pendingServers: 1, promptVisible: true });
 			request.response?.complete();
 			renderer.renderElement(node, 0, template);

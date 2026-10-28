@@ -8,14 +8,15 @@
  *
  * Every worker loads all test files, but a test file only runs in the worker that claims it
  * first. Claims are atomic directory creations in a directory shared by all workers, so every
- * file runs exactly once. Workers claim files lazily whenever they run out of suites to run, so
+ * file runs exactly once. The browser runner's page claims files through the test server of its
+ * worker process. Workers claim files lazily whenever they run out of suites to run, so
  * faster workers pick up more files and all workers finish at about the same time. Files are
  * claimed in load order, so every worker runs its files in the same relative order as a single
  * process would. This way, tests that leak global state cannot affect tests that ran before
  * them in a single process.
  *
  * Only the first attempt runs in workers. Every worker reports its failures to the process that
- * started it, which reruns them in a single process (see `--rerun-failed-files`).
+ * started it, which reruns them in a single process or browser (see `--rerun-failed-files`).
  */
 
 const cp: typeof import('child_process') = require('child_process');
@@ -32,7 +33,24 @@ interface ITestFile {
 }
 
 /**
- * A failed test or hook of a test file, as the runners record it.
+ * How a worker claims test files. All workers of a run share the claims, so every test file
+ * runs in the worker that claims it first. Repeating a call returns the same result, so that
+ * the browser runner's page can repeat a request whose response it did not receive.
+ */
+interface ITestFileClaims {
+	/** Records how many test files the worker loaded, to verify that every one ran */
+	start(fileCount: number): void;
+	/** Claims a test file, returns false if another worker already did */
+	claim(file: string): boolean;
+	/** Claims the run of all test files when tests are exclusive (`.only`), returns false if another worker already did */
+	claimAll(): boolean;
+	/** Records that the worker runs the test files after those it ran before, to reproduce failures */
+	recordRun(files: string[]): void;
+}
+
+/**
+ * A failed test or hook of a test file, as the runners record it. Runners may record more,
+ * such as the title path, which reaches the process that started the workers as is.
  */
 interface IFailure {
 	readonly title: string;
@@ -217,6 +235,11 @@ function verifyAllFilesRan(workerDir: string, count: number): string | undefined
 	return undefined;
 }
 
+/*
+ * trackTestFiles and distributeClaimedTestFiles must not use anything outside of themselves: the
+ * browser runner runs their source in the page that runs the tests (see browser/index.js).
+ */
+
 /**
  * Records the root-level suites and tests that each test file registers while it is loaded.
  * Call this before loading the test files.
@@ -243,22 +266,9 @@ function trackTestFiles(root: Suite): Map<string, ITestFile> {
  * test runner itself) run in every worker. With `.only`, one worker runs all test files.
  * @param files from {@link trackTestFiles}
  */
-function distributeTestFiles(root: Suite, files: Map<string, ITestFile>, { workerId, workerDir }: { workerId: string; workerDir: string }): void {
-	fs.writeFileSync(path.join(workerDir, `worker-${workerId}.json`), JSON.stringify({ files: files.size }));
+function distributeClaimedTestFiles(root: Suite, files: Map<string, ITestFile>, claims: ITestFileClaims): void {
+	claims.start(files.size);
 
-	/** Creates the directory, returns false if another worker already did */
-	const claimDirectory = (directory: string) => {
-		try {
-			fs.mkdirSync(directory);
-			return true;
-		} catch (error) {
-			if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
-				return false;
-			}
-			throw error;
-		}
-	};
-	const claim = (file: string) => claimDirectory(path.join(workerDir, 'claims', encodeURIComponent(file)));
 	const suitesOf = (file: string) => files.get(file)?.suites ?? [];
 	const queue = [...files.keys()];
 
@@ -266,11 +276,11 @@ function distributeTestFiles(root: Suite, files: Map<string, ITestFile>, { worke
 	// any file, so a worker that does not load their file would run its other tests instead. So one
 	// worker runs all test files, as a single process would, and the other workers run nothing.
 	if ((root as Suite & { hasOnly(): boolean }).hasOnly()) { // missing in the typings
-		if (claimDirectory(path.join(workerDir, 'only'))) {
+		if (claims.claimAll()) {
 			for (const file of queue) {
-				claim(file);
+				claims.claim(file);
 			}
-			fs.appendFileSync(path.join(workerDir, `worker-${workerId}.files`), queue.map(file => `src/${file}.ts\n`).join(''));
+			claims.recordRun(queue);
 		} else {
 			root.suites = [];
 			root.tests = [];
@@ -291,7 +301,7 @@ function distributeTestFiles(root: Suite, files: Map<string, ITestFile>, { worke
 	const otherSuitesAfter = root.suites.filter((suite, i) => !fileOf.has(suite) && firstFileSuite !== -1 && i > firstFileSuite);
 
 	// Root-level tests run before any suite, so their files are claimed upfront
-	const owned = new Set(queue.filter(file => files.get(file)?.tests.length && claim(file)));
+	const owned = new Set(queue.filter(file => files.get(file)?.tests.length && claims.claim(file)));
 	root.tests = root.tests.filter(test => !fileOf.has(test) || owned.has(fileOf.get(test)!));
 
 	const suites = [...otherSuitesBefore];
@@ -301,9 +311,9 @@ function distributeTestFiles(root: Suite, files: Map<string, ITestFile>, { worke
 	const claimNext = () => {
 		while (next < queue.length) {
 			const file = queue[next++];
-			if (owned.has(file) || claim(file)) {
+			if (owned.has(file) || claims.claim(file)) {
 				// Record the order in which this worker runs the files, to reproduce failures
-				fs.appendFileSync(path.join(workerDir, `worker-${workerId}.files`), `src/${file}.ts\n`);
+				claims.recordRun([file]);
 				suites.push(...suitesOf(file));
 				if (suitesOf(file).length) {
 					return true;
@@ -342,6 +352,49 @@ function distributeTestFiles(root: Suite, files: Map<string, ITestFile>, { worke
 }
 
 /**
+ * Claims test files with atomic directory creations in the directory that all workers share.
+ */
+function createTestFileClaims({ workerId, workerDir }: { workerId: string; workerDir: string }): ITestFileClaims {
+	/** Creates the directory, returns false if another worker already did */
+	const claimDirectory = (directory: string) => {
+		try {
+			fs.mkdirSync(directory);
+			return true;
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+				return false;
+			}
+			throw error;
+		}
+	};
+	const claimed = new Set<string>();
+	const recorded = new Set<string>();
+	let claimedAll: boolean | undefined;
+	return {
+		start: fileCount => fs.writeFileSync(path.join(workerDir, `worker-${workerId}.json`), JSON.stringify({ files: fileCount })),
+		claim: file => {
+			if (!claimed.has(file) && claimDirectory(path.join(workerDir, 'claims', encodeURIComponent(file)))) {
+				claimed.add(file);
+			}
+			return claimed.has(file);
+		},
+		claimAll: () => claimedAll ??= claimDirectory(path.join(workerDir, 'only')),
+		recordRun: files => {
+			const unrecorded = files.filter(file => !recorded.has(file));
+			unrecorded.forEach(file => recorded.add(file));
+			fs.appendFileSync(path.join(workerDir, `worker-${workerId}.files`), unrecorded.map(file => `src/${file}.ts\n`).join(''));
+		},
+	};
+}
+
+/**
+ * {@link distributeClaimedTestFiles} with the claims in the directory that all workers share.
+ */
+function distributeTestFiles(root: Suite, files: Map<string, ITestFile>, worker: { workerId: string; workerDir: string }): void {
+	distributeClaimedTestFiles(root, files, createTestFileClaims(worker));
+}
+
+/**
  * @returns a promise that resolves once the data is flushed, so exiting does not truncate it
  */
 function write(data: string | Buffer): Promise<void> {
@@ -353,4 +406,4 @@ function formatDuration(ms: number): string {
 	return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
 }
 
-module.exports = { getWorkerCount, removeArgument, runInWorkers, writeWorkerReport, trackTestFiles, distributeTestFiles };
+module.exports = { getWorkerCount, removeArgument, runInWorkers, writeWorkerReport, trackTestFiles, distributeTestFiles, createTestFileClaims, distributeClaimedTestFiles };

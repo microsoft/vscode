@@ -192,6 +192,11 @@ export function createTestAgentHostWorktreeIsolation(overrides: Partial<IAgentHo
 export function createTestAgentHostProxyResolver(fetchFn: typeof globalThis.fetch = globalThis.fetch): IAgentHostProxyResolver {
 	return {
 		_serviceBrand: undefined,
+		clientCertificates: [],
+		registerCertificateProvider: () => Disposable.None,
+		loadClientCertificates: async () => [],
+		setClientCertificates: () => { },
+		loadCertificates: async () => [],
 		onDidRegisterConnection: Event.None,
 		onDidChangeConfiguration: Event.None,
 		register: () => Disposable.None,
@@ -237,7 +242,7 @@ export function createTestAgentService(
 		[IAgentHostGitService, gitService],
 		[ITelemetryService, telemetryService],
 		[IAgentHostClientConnectionService, clientConnectionService],
-		[IAgentHostSystemWakeService, new AgentHostSystemWakeService()],
+		[IAgentHostSystemWakeService, foundationDisposables.add(new AgentHostSystemWakeService(logService))],
 		[IAgentHostMacAccessibilityTrustService, new AgentHostMacAccessibilityTrustService()],
 	);
 	const options = {

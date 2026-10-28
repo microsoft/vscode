@@ -41,7 +41,19 @@ export interface ArtifactAuthority {
 export type ArtifactAvailability =
 	| { readonly kind: 'available'; readonly observedAt?: number }
 	| { readonly kind: 'loading' }
-	| { readonly kind: 'stale' | 'authenticationRequired' | 'unavailable' | 'error'; readonly reason: string; readonly observedAt?: number };
+	| { readonly kind: 'stale' | 'unavailable' | 'error'; readonly reason: string; readonly observedAt?: number }
+	| {
+		readonly kind: 'authenticationRequired';
+		readonly reason: string;
+		readonly observedAt?: number;
+		/**
+		 * A secure page where the user grants the current credential the access it
+		 * lacks, such as GitHub's page authorizing it for an organization's single
+		 * sign-on. Signing in again would not grant it, so clients open this page
+		 * instead.
+		 */
+		readonly authorizationUrl?: string;
+	};
 
 export interface ArtifactIcon {
 	readonly id: string;
@@ -222,6 +234,17 @@ export class ArtifactAuthenticationRequiredError extends Error {
 	constructor(message: string, readonly main: ArtifactPartPresentation) {
 		super(message);
 		this.name = 'ArtifactAuthenticationRequiredError';
+	}
+}
+
+/**
+ * Thrown by a code action's execution when the external system definitively refused the action, so it cannot have
+ * taken effect. Unlike other errors after dispatch, the run fails with a known outcome instead of requiring reconciliation.
+ */
+export class ArtifactActionRejectedError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'ArtifactActionRejectedError';
 	}
 }
 

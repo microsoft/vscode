@@ -27,7 +27,7 @@ import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IB
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type IAgentHostWorkspaceTrust, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
-import { withAgentToolFullReferenceName } from '../../common/meta/agentToolDefinitionMeta.js';
+import { withAgentToolFullReferenceName, withAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
 import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
@@ -581,6 +581,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			rotateCertificate: async () => { },
 			removeCertificate: async () => { },
 			getShellInitDirectory: () => undefined,
+			getAppliedPluginDirectories: () => [],
 			shellManager: undefined,
 		}));
 		const runtime: ICopilotSessionRuntime = {
@@ -3790,6 +3791,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		const snapshot = { discoveredAgents: [], additionalRootInstructions: [], tools: [{ name: SEMANTIC_SEARCH_TOOL_NAME }], plugins: [], mcpServers: {} };
 		const disabled = await buildResumeConfig(createLauncher(store, {}), undefined, { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} });
 		const enabled = await buildResumeConfig(createLauncher(store, {}), undefined, snapshot);
+		const app = await buildResumeConfig(createLauncher(store, {}), undefined, { ...snapshot, tools: snapshot.tools.map(tool => withAgentToolOrigin(tool, 'mcpApp')) });
 		const filtered = await buildResumeConfig(
 			createLauncher(store, { modelCapabilityOverrides: { '*': { excludedTools: [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`] } } }),
 			undefined,
@@ -3797,8 +3799,8 @@ suite('CopilotSessionLauncher resume config', () => {
 		);
 
 		assert.deepStrictEqual(
-			[disabled.excludedTools, enabled.excludedTools, filtered.excludedTools],
-			[[...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], defaultDisabledTools, [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`, ...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
+			[disabled.excludedTools, enabled.excludedTools, filtered.excludedTools, app.excludedTools],
+			[[...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], defaultDisabledTools, [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`, ...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
 		);
 		store.dispose();
 	});
@@ -3963,6 +3965,26 @@ suite('CopilotSessionLauncher resume config', () => {
 				{ enabled: true, deferThreshold: 1 },
 			]
 		);
+		store.dispose();
+	});
+
+	test('an app named toolSearch does not activate the trusted tool-search override', async () => {
+		const store = new DisposableStore();
+		const decisions: boolean[] = [];
+		const config = await buildResumeConfig(
+			createLauncher(store, { toolSearchEnabled: true }),
+			{ id: 'claude-opus-4.8' },
+			{
+				discoveredAgents: [], additionalRootInstructions: [],
+				tools: [withAgentToolOrigin({ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME }, 'mcpApp')],
+				plugins: [], mcpServers: {},
+			},
+			toolSearchActive => {
+				decisions.push(toolSearchActive);
+				return [];
+			},
+		);
+		assert.deepStrictEqual({ config: config.toolSearch, decisions }, { config: { enabled: false }, decisions: [false] });
 		store.dispose();
 	});
 
