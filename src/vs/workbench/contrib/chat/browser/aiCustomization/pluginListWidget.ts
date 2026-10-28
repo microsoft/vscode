@@ -54,7 +54,7 @@ import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, focusFirstCustomizationTreeItem, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setVirtualizedRowActionsTabbable, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, focusFirstCustomizationTreeItem, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setVirtualizedRowActionsTabbable, stopListRowActionKeyDownPropagation, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
@@ -291,6 +291,8 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		const location = templateDisposables.add(new MiddleEllipsisPathLabel(DOM.append(details, $('.plugin-list-item-location'))));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const actions = DOM.append(container, $('.plugin-list-item-action'));
+		templateDisposables.add(stopListRowActionKeyDownPropagation(syncToggleContainer));
+		templateDisposables.add(stopListRowActionKeyDownPropagation(actions));
 
 		const template = { container, syncToggleContainer, name, source, location, metadata, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
 		this._templates.add(template);
@@ -367,6 +369,7 @@ interface IPluginRemoteItemTemplateData {
 	readonly metadata: HTMLElement;
 	readonly status: HTMLElement;
 	readonly actions: HTMLElement;
+	readonly templateDisposables: DisposableStore;
 	readonly disposables: DisposableStore;
 	currentItemId: string | undefined;
 }
@@ -391,8 +394,10 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const status = DOM.append(container, $('.plugin-list-item-status'));
 		const actions = DOM.append(container, $('.plugin-list-item-action'));
+		const templateDisposables = new DisposableStore();
+		templateDisposables.add(stopListRowActionKeyDownPropagation(actions));
 
-		const template = { container, name, badge, description, metadata, status, actions, disposables: new DisposableStore(), currentItemId: undefined };
+		const template = { container, name, badge, description, metadata, status, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
 		this._templates.add(template);
 		return template;
 	}
@@ -464,6 +469,7 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 	disposeTemplate(templateData: IPluginRemoteItemTemplateData): void {
 		this._templates.delete(templateData);
 		templateData.disposables.dispose();
+		templateData.templateDisposables.dispose();
 	}
 }
 
@@ -523,6 +529,7 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 		const templateDisposables = new DisposableStore();
 		templateDisposables.add(installButton);
 		templateDisposables.add(DOM.addDisposableGenericMouseDownListener(installButton.element, event => DOM.EventHelper.stop(event, true)));
+		templateDisposables.add(stopListRowActionKeyDownPropagation(actionContainer));
 
 		const template = { container, name, recommendedBadge, publisher, description, metadata, installButton, elementDisposables: new DisposableStore(), templateDisposables, currentItemId: undefined };
 		this._templates.add(template);
@@ -980,8 +987,8 @@ export class PluginListWidget extends Disposable {
 		// Search container
 		const searchContainer = DOM.append(this.searchAndButtonContainer, $('.list-search-container'));
 		this.searchInput = this._register(new InputBox(searchContainer, this.contextViewService, {
-			placeholder: localize('searchPluginsPlaceholder', "Type to search..."),
-			ariaLabel: localize('searchPluginsAriaLabel', "Search plugins"),
+			placeholder: localize('searchPluginsPlaceholder', "Search plugins..."),
+			ariaLabel: localize('searchPluginsAriaLabel', "Search plugins..."),
 			inputBoxStyles: defaultInputBoxStyles,
 		}));
 
@@ -2002,7 +2009,7 @@ export class PluginListWidget extends Disposable {
 
 		this.searchInput.setPlaceHolder(browse
 			? localize('searchMarketplacePlaceholder', "Search plugin marketplace...")
-			: localize('searchPluginsPlaceholder', "Type to search...")
+			: localize('searchPluginsPlaceholder', "Search plugins...")
 		);
 
 		if (browse) {

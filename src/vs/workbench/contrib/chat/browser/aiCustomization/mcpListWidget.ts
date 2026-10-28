@@ -74,7 +74,7 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { createWorkbenchMcpServerDetailInput, IMcpServerDefinitionUnavailable, IMcpServerDetailInput, IMcpServerProvenance, isMcpServerDetailMigratable } from './embeddedMcpServerDetail.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, focusFirstCustomizationTreeItem, getVirtualizedSectionMinimumHeight, layoutVirtualizedSections, setVirtualizedRowActionsTabbable, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, focusFirstCustomizationTreeItem, getVirtualizedSectionMinimumHeight, layoutVirtualizedSections, setVirtualizedRowActionsTabbable, stopListRowActionKeyDownPropagation, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
@@ -393,6 +393,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		const issueHover = templateDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), issue, ''));
 
 		const actions = DOM.append(container, $('.mcp-server-actions'));
+		templateDisposables.add(stopListRowActionKeyDownPropagation(actions));
 
 		const template: IMcpServerItemTemplateData = {
 			container,
@@ -2179,8 +2180,8 @@ export class McpListWidget extends Disposable {
 		// Search container
 		const searchContainer = DOM.append(this.searchAndButtonContainer, $('.list-search-container'));
 		this.searchInput = this._register(new InputBox(searchContainer, this.contextViewService, {
-			placeholder: localize('searchMcpPlaceholder', "Type to search..."),
-			ariaLabel: localize('searchMcpAriaLabel', "Search MCP servers"),
+			placeholder: localize('searchMcpPlaceholder', "Search MCP servers..."),
+			ariaLabel: localize('searchMcpAriaLabel', "Search MCP servers..."),
 			inputBoxStyles: defaultInputBoxStyles,
 		}));
 

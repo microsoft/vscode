@@ -34,7 +34,7 @@ import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/se
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, focusFirstCustomizationTreeItem, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, focusFirstCustomizationTreeItem, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection, stopListRowActionKeyDownPropagation } from '../../../browser/aiCustomization/customizationCardList.js';
 import { getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups } from '../../../browser/aiCustomization/aiCustomizationWorkspaceGroups.js';
 import { getCustomizationGroupAriaLabel } from '../../../browser/aiCustomization/customizationGroupHeaderRenderer.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
@@ -66,11 +66,11 @@ suite('aiCustomizationListWidget', () => {
 			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Hooks),
 			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Prompts),
 		], [
-			'Search agents',
-			'Search skills',
-			'Search instructions',
-			'Search hooks',
-			'Search prompts',
+			'Search agents...',
+			'Search skills...',
+			'Search instructions...',
+			'Search hooks...',
+			'Search prompts...',
 		]);
 	});
 
@@ -365,6 +365,30 @@ suite('aiCustomizationListWidget', () => {
 			focused: [0, 0, -1],
 			unfocused: [-1, -1, -1],
 		});
+	});
+
+	test('virtualized row actions isolate keyboard activation from the list', () => {
+		const row = document.createElement('div');
+		const actions = document.createElement('div');
+		const action = document.createElement('button');
+		actions.appendChild(action);
+		row.appendChild(actions);
+		const disposable = stopListRowActionKeyDownPropagation(actions);
+		const bubbledKeys: string[] = [];
+		row.addEventListener('keydown', event => bubbledKeys.push(event.key));
+		const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+		const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+
+		try {
+			action.dispatchEvent(enterEvent);
+			action.dispatchEvent(escapeEvent);
+			assert.deepStrictEqual(
+				{ bubbledKeys, enterDefaultPrevented: enterEvent.defaultPrevented, escapeDefaultPrevented: escapeEvent.defaultPrevented },
+				{ bubbledKeys: ['Escape'], enterDefaultPrevented: false, escapeDefaultPrevented: false },
+			);
+		} finally {
+			disposable.dispose();
+		}
 	});
 
 	test('virtualized section height is redistributed when a sibling collapses', () => {

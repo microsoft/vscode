@@ -8,6 +8,7 @@ import { IListRenderer, IListVirtualDelegate } from '../../../../browser/ui/list
 import { DefaultStyleController, List, unthemedListStyles } from '../../../../browser/ui/list/listWidget.js';
 import { range } from '../../../../common/arrays.js';
 import { timeout } from '../../../../common/async.js';
+import { toDisposable } from '../../../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ListWidget', function () {
@@ -146,6 +147,41 @@ suite('ListWidget', function () {
 				focusedElementRendered: true
 			}
 		});
+	});
+
+	test('Tab focuses the first enabled row action', function () {
+		const element = document.createElement('div');
+		element.style.height = '20px';
+		element.style.width = '200px';
+		document.body.appendChild(element);
+		store.add(toDisposable(() => element.remove()));
+
+		const delegate: IListVirtualDelegate<number> = {
+			getHeight() { return 20; },
+			getTemplateId() { return 'template'; }
+		};
+
+		const renderer: IListRenderer<number, void> = {
+			templateId: 'template',
+			renderTemplate(container) {
+				const disabledAction = document.createElement('button');
+				disabledAction.tabIndex = -1;
+				const enabledAction = document.createElement('button');
+				enabledAction.tabIndex = 0;
+				container.append(disabledAction, enabledAction);
+			},
+			renderElement() { },
+			disposeTemplate() { }
+		};
+
+		const listWidget = store.add(new List<number>('test', element, delegate, [renderer]));
+		listWidget.layout(20);
+		listWidget.splice(0, 0, [0]);
+		listWidget.setFocus([0]);
+		listWidget.domFocus();
+		listWidget.getHTMLElement().dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+
+		assert.strictEqual(document.activeElement, element.querySelectorAll('button')[1]);
 	});
 
 	test('styles a .hovered row like a pointer-hovered row', function () {

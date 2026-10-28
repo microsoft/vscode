@@ -545,16 +545,16 @@ export function usesCustomizationTreePresentation(section: AICustomizationManage
 export function getCustomizationSearchAriaLabel(section: AICustomizationManagementSection): string {
 	switch (section) {
 		case AICustomizationManagementSection.Agents:
-			return localize('searchAgentsAriaLabel', "Search agents");
+			return localize('searchAgentsAriaLabel', "Search agents...");
 		case AICustomizationManagementSection.Skills:
-			return localize('searchSkillsAriaLabel', "Search skills");
+			return localize('searchSkillsAriaLabel', "Search skills...");
 		case AICustomizationManagementSection.Instructions:
-			return localize('searchInstructionsAriaLabel', "Search instructions");
+			return localize('searchInstructionsAriaLabel', "Search instructions...");
 		case AICustomizationManagementSection.Hooks:
-			return localize('searchHooksAriaLabel', "Search hooks");
+			return localize('searchHooksAriaLabel', "Search hooks...");
 		case AICustomizationManagementSection.Prompts:
 		default:
-			return localize('searchPromptsAriaLabel', "Search prompts");
+			return localize('searchPromptsAriaLabel', "Search prompts...");
 	}
 }
 
@@ -850,9 +850,10 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Search container
 		this.searchContainer = DOM.append(this.searchAndButtonContainer, $('.list-search-container'));
+		const searchLabel = getCustomizationSearchAriaLabel(this.currentSection);
 		this.searchInput = this._register(new InputBox(this.searchContainer, this.contextViewService, {
-			placeholder: localize('searchPlaceholder', "Type to search..."),
-			ariaLabel: getCustomizationSearchAriaLabel(this.currentSection),
+			placeholder: searchLabel,
+			ariaLabel: searchLabel,
 			inputBoxStyles: defaultInputBoxStyles,
 		}));
 
@@ -1148,7 +1149,9 @@ export class AICustomizationListWidget extends Disposable {
 		this.sectionTitleDescriptionText.textContent = description;
 		this.sectionLink.textContent = learnMoreLabel;
 		this.sectionLink.href = docsUrl;
-		this.searchInput.setAriaLabel(getCustomizationSearchAriaLabel(this.currentSection));
+		const searchLabel = getCustomizationSearchAriaLabel(this.currentSection);
+		this.searchInput.setPlaceHolder(searchLabel);
+		this.searchInput.setAriaLabel(searchLabel);
 		this.updateHeaderActions();
 	}
 
