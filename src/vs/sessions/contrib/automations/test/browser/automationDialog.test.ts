@@ -907,6 +907,9 @@ suite('Automation dialog creation', () => {
 			select.selectedIndex = Array.from(select.options).findIndex(option => option.textContent === 'Cron');
 			select.dispatchEvent(new (DOM.getWindow(select).Event)('change'));
 			const cron = row.querySelector<HTMLElement>('.automation-form-cron-group');
+			const cronControl = cron?.querySelector<HTMLElement>('.automation-cron-segments');
+			const cronLabel = cron?.querySelector<HTMLElement>('.automation-form-label');
+			const timeZoneHint = cron?.querySelector<HTMLElement>('#automation-cron-hint');
 			const triggerBounds = trigger.getBoundingClientRect();
 			const cronBounds = cron?.getBoundingClientRect();
 			results.push({
@@ -916,6 +919,14 @@ suite('Automation dialog creation', () => {
 				cronSpansTwoColumns: !!cronBounds && Math.abs(cronBounds.width - (2 * triggerBounds.width + cronBounds.left - triggerBounds.right)) < 1,
 				aligned: !!cronBounds && Math.abs(triggerBounds.top - cronBounds.top) < 1,
 				beside: !!cronBounds && cronBounds.left > triggerBounds.right,
+				hintBesideLabel: !!cronLabel && !!timeZoneHint && cronLabel.nextElementSibling === timeZoneHint
+					&& timeZoneHint.getBoundingClientRect().left >= cronLabel.getBoundingClientRect().right,
+				matchingPickerHeight: !!cronControl && Math.abs(cronControl.getBoundingClientRect().height - select.getBoundingClientRect().height) < 1,
+				inputsAligned: !!cronControl && Math.abs(cronControl.getBoundingClientRect().top - select.getBoundingClientRect().top) < 1,
+				inputTextFits: !!cronControl && Array.from(cronControl.querySelectorAll('input')).every(input => {
+					const style = DOM.getWindow(input).getComputedStyle(input);
+					return input.getBoundingClientRect().height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) >= parseFloat(style.lineHeight) - 1;
+				}),
 				captionsFit: !!cron && Array.from(cron.querySelectorAll<HTMLElement>('.automation-cron-caption')).every(caption => caption.getBoundingClientRect().width <= caption.parentElement!.getBoundingClientRect().width),
 				controls: Array.from(row.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select'))
 					.filter(element => element.getBoundingClientRect().width > 0)
@@ -929,7 +940,7 @@ suite('Automation dialog creation', () => {
 			await dialog.result;
 		}
 		assert.deepStrictEqual(results, [640, 360].flatMap(width => [{
-			width, visibleGroups: 2, triggerUsesOneColumn: true, cronSpansTwoColumns: true, aligned: true, beside: true, captionsFit: true,
+			width, visibleGroups: 2, triggerUsesOneColumn: true, cronSpansTwoColumns: true, aligned: true, beside: true, hintBesideLabel: true, matchingPickerHeight: true, inputsAligned: true, inputTextFits: true, captionsFit: true,
 			controls: ['Trigger', 'Minute', 'Hour', 'Day of month', 'Month', 'Day of week'],
 		}, { width, presetColumnsEqual: true }]));
 	});

@@ -44,11 +44,13 @@ export class AutomationCronInput extends Disposable {
 		@IHoverService hoverService: IHoverService,
 	) {
 		super();
-		this.group = DOM.append(container, DOM.$('.automation-cron-segments', { role: 'group', 'aria-label': localize('cron.expression', "Cron expression") }));
-		this.hint = DOM.append(container, DOM.$('.automation-cron-hint', { id: 'automation-cron-hint' }));
+		const label = DOM.append(container, DOM.$('.automation-cron-label'));
+		DOM.append(label, DOM.$('span.automation-form-label', undefined, localize('cron.expression', "Cron expression")));
+		this.hint = DOM.append(label, DOM.$('span.automation-cron-hint', { id: 'automation-cron-hint' }));
 		this.hint.textContent = timeZone === Intl.DateTimeFormat().resolvedOptions().timeZone
 			? localize('cron.localTime', "Evaluated in local time.")
 			: localize('cron.timeZone', "Evaluated in {0}.", timeZone);
+		this.group = DOM.append(container, DOM.$('.automation-cron-segments', { role: 'group', 'aria-label': localize('cron.expression', "Cron expression") }));
 		this.error = DOM.append(container, DOM.$('.automation-cron-hint.automation-form-cron-error', { id: 'automation-cron-error', 'aria-live': 'polite' }));
 		const parts = expression.trim().split(/\s+/);
 		for (const [index, field] of fields.entries()) {

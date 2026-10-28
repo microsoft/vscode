@@ -990,11 +990,22 @@
 	cursor: default;
 }
 
+.automation-cron-label {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	column-gap: var(--vscode-spacing-size40);
+}
+
 .automation-cron-hint {
 	font-size: var(--vscode-fontSize-body2, 11px);
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.4;
 	min-height: 1em;
+}
+
+.automation-cron-label > .automation-cron-hint {
+	font-size: var(--vscode-fontSize-label3, 10px);
 }
 
 .automation-form-cron-error {
@@ -1003,6 +1014,8 @@
 
 .automation-cron-segments {
 	display: flex;
+	box-sizing: border-box;
+	height: 26px;
 	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
 	border-radius: var(--vscode-cornerRadius-small);
 	background: var(--vscode-input-background);
@@ -1013,7 +1026,7 @@
 	position: relative;
 	flex: 1;
 	min-width: 0;
-	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	padding: 0 var(--vscode-spacing-size40);
 }
 
 .automation-cron-segment:nth-last-child(-n + 2) {
@@ -1022,14 +1035,23 @@
 
 .automation-cron-segment > .monaco-inputbox {
 	width: 100%;
+	height: 100%;
 }
 
-.automation-cron-segment .monaco-inputbox input {
+.automation-cron-segment .monaco-inputbox > .ibwrapper {
+	height: 100%;
+}
+
+.automation-cron-segment .monaco-inputbox input.input {
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+	line-height: 1.4;
 	text-align: center;
 	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-body1, 13px);
 }
 
-.monaco-workbench .automation-cron-segment .monaco-inputbox input:focus {
+.automation-cron-segment > .monaco-inputbox.synthetic-focus,
+.automation-cron-segment .monaco-inputbox input.input:focus {
 	outline: none;
 }
 
@@ -1042,6 +1064,7 @@
 	background: var(--vscode-input-background);
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body2);
+	line-height: 1;
 }
 
 .automation-cron-segments:focus-within {

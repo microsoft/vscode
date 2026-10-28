@@ -16,6 +16,8 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { createTextInputActions } from '../../../../../workbench/browser/actions/textInputActions.js';
 import { AutomationCronInput } from '../../browser/automationCronInput.js';
+import '../../browser/media/automationDialog.css';
+import '../../../../../workbench/browser/media/style.css';
 
 suite('Automation cron segmented input', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -74,6 +76,36 @@ suite('Automation cron segmented input', () => {
 		assert.deepStrictEqual({ valid, missing, missingInvalid, surplus, macro: input.value, invalid: container.querySelector('.automation-cron-segments')?.classList.contains('invalid') }, {
 			valid: '*/2 * * * MON-FRI', missing: '0 1 2 3', missingInvalid: true, surplus: '0 1 2 3 4 5', macro: '@daily', invalid: true,
 		});
+	});
+
+	test('removes per-part focus outlines without removing the shared validation border', async () => {
+		const { container, elements, change } = create('0 9 * * *');
+		container.classList.add('monaco-workbench', 'automation-dialog');
+		container.style.setProperty('--vscode-focusBorder', 'blue');
+		container.style.setProperty('--vscode-inputValidation-errorBorder', 'red');
+		await new Promise<void>(resolve => DOM.getWindow(container).requestAnimationFrame(() => resolve()));
+		const group = container.querySelector<HTMLElement>('.automation-cron-segments')!;
+		const results = [false, true].flatMap(invalid => {
+			if (invalid) {
+				change(2, 'asd');
+			}
+			return elements.map((element, index) => {
+				element.focus();
+				const inputBox = element.closest<HTMLElement>('.monaco-inputbox')!;
+				const hasOutline = (target: HTMLElement) => {
+					const style = DOM.getWindow(target).getComputedStyle(target);
+					return style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0;
+				};
+				return {
+					invalid, index, inputOutline: hasOutline(element), inputBoxOutline: hasOutline(inputBox),
+					validationBorder: invalid ? DOM.getWindow(group).getComputedStyle(group).borderTopColor : undefined,
+				};
+			});
+		});
+		assert.deepStrictEqual(results, [false, true].flatMap(invalid => elements.map((_, index) => ({
+			invalid, index, inputOutline: false, inputBoxOutline: false,
+			validationBorder: invalid ? 'rgb(255, 0, 0)' : undefined,
+		}))));
 	});
 
 	test('shows GitHub field guidance only for the focused segment and disposes it on Escape, blur and teardown', () => {
