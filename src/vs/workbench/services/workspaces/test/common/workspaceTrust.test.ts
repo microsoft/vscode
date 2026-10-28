@@ -13,6 +13,9 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { getSingletonServiceDescriptors } from '../../../../../platform/instantiation/common/extensions.js';
+import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IRemoteAuthorityResolverService, WebSocketRemoteConnection } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
@@ -113,6 +116,16 @@ suite('Workspace Trust', () => {
 			instantiationService.stub(IWorkspaceContextService, workspaceService);
 
 			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+		});
+
+		test('workbench startup retains the canonical URI service used by workspace trust', () => {
+			const services = new ServiceCollection([ICanonicalUriService, canonicalUriService]);
+			for (const [id, descriptor] of getSingletonServiceDescriptors()) {
+				services.set(id, descriptor);
+			}
+			const workbenchInstantiationService = store.add(new InstantiationService(services, true));
+
+			assert.strictEqual(workbenchInstantiationService.invokeFunction(accessor => accessor.get(ICanonicalUriService)), canonicalUriService);
 		});
 
 		test('empty workspace - trusted', async () => {

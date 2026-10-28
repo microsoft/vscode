@@ -7,9 +7,9 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ICanonicalUriService, ICanonicalUriProvider } from '../../../../platform/workspace/common/canonicalUri.js';
 
+/** Created at startup so Workspace Trust and extension hosts share one provider registry. */
 export class CanonicalUriService extends Disposable implements ICanonicalUriService {
 	declare readonly _serviceBrand: undefined;
 
@@ -39,5 +39,3 @@ export class CanonicalUriService extends Disposable implements ICanonicalUriServ
 		return undefined;
 	}
 }
-
-registerSingleton(ICanonicalUriService, CanonicalUriService, InstantiationType.Delayed);
