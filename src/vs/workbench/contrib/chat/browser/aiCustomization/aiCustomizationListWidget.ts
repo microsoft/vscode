@@ -910,7 +910,7 @@ export class AICustomizationListWidget extends Disposable {
 				accessibilityProvider: {
 					getAriaLabel: (entry: IListEntry) => {
 						if (entry.type === 'group-header') {
-							return localize('groupAriaLabel', "{0}, {1} items", entry.label, entry.count);
+							return localize('groupAriaLabel2', "{0}, {1} items", entry.label, entry.count);
 						}
 						const label = getCustomizationItemAriaLabel(entry.item);
 						if (!hasReadableCustomizationContent(entry.item.uri)) {
