@@ -24,7 +24,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyValue, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ServiceIdentifier } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -2217,5 +2217,20 @@ suite('Sessions - Actions', () => {
 		const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
 		assert.ok(command);
 		await assert.rejects(async () => command.handler(instantiationService, { toSide: true }), error);
+	});
+
+	test('Close Editor Area shows in the empty editor area of the main window, not in that of a chat window, which closes its own', () => {
+		const items = MenuRegistry.getMenuItems(MenuId.EditorGroupWatermarkToolbar).filter(isIMenuItem).filter(item => item.command.id === 'sessions.closeEditorArea');
+		const shown = (keys: Record<string, ContextKeyValue>) => {
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			for (const [key, value] of Object.entries(keys)) {
+				contextKeyService.createKey(key, value);
+			}
+			return items.filter(item => contextKeyService.contextMatchesRules(item.when)).length;
+		};
+		assert.deepStrictEqual({
+			mainWindow: shown({ isSessionsWindow: true }),
+			chatWindow: shown({ isSessionsWindow: true, 'sessions.chatWindow': 'chat', isAuxiliaryWindow: true }),
+		}, { mainWindow: 1, chatWindow: 0 });
 	});
 });
