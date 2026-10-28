@@ -72,8 +72,8 @@ const fullProfilePrefixes = [
 ];
 
 function requiresFullProfile(path: string): boolean {
-	// Only Compile & Hygiene reads the Azure Pipelines definitions under build/ and the workspace configuration in
-	// .vscode/, including the package.json files of its self-hosting extensions (see shouldSkipTestJobs).
+	// Only Compile & Hygiene reads these paths, including the package.json files in them, such as those of the
+	// self-hosting extensions in .vscode/extensions/ and of test/sanity/ (see shouldSkipTestJobs).
 	if (shouldSkipTestJobs(path)) {
 		return false;
 	}
