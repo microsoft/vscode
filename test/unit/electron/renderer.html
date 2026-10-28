@@ -119,12 +119,19 @@
 		};
 
 		const { promisify } = require('util');
+		// A full run loads every test file into this one page, so each test sees the stylesheets of all the others.
+		// Load every product stylesheet up front so that a run of only some test files (a PR test plan, or one
+		// worker's share) sees the same global styles. Test fixture stylesheets are data, not workbench styles.
+		const productCssUrls = [];
 		globalThis._VSCODE_TEST_INIT = promisify(require('glob'))('**/*.css', { cwd: basePath }).then(cssModules => {
 			for (const cssModule of cssModules) {
 				const cssUrl = new URL(cssModule, baseUrl).href;
 				const jsSrc = `globalThis._VSCODE_CSS_LOAD('${cssUrl}');\n`;
 				const blob = new Blob([jsSrc], { type: 'application/javascript' });
 				importMap.imports[cssUrl] = URL.createObjectURL(blob);
+				if (!/(^|\/)test\//.test(cssModule)) {
+					productCssUrls.push(cssUrl);
+				}
 			}
 
 		}).then(() => {
@@ -133,6 +140,7 @@
 			importMapScript.type = 'importmap';
 			importMapScript.textContent = rawImportMap;
 			document.head.append(importMapScript);
+			return Promise.allSettled(productCssUrls.map(cssUrl => import(cssUrl)));
 		});
 	</script>
 	<script src="./renderer.js"></script>

@@ -107,6 +107,13 @@
 
 		// ---- CSS tricks
 
+		// A full run loads every test file into this one page, so each test sees the stylesheets of all the others.
+		// Load every product stylesheet up front so that a run of only some test files (a PR test plan, or one
+		// worker's share) sees the same global styles. Test fixture stylesheets are data, not workbench styles.
+		const productCssUrls = [];
+		const isTestFixtureCss = cssModule => /(^|\/)test\//.test(cssModule);
+		const preloadProductCss = () => Promise.allSettled(productCssUrls.map(cssUrl => import(cssUrl)));
+
 		const cssDataBase64 = urlParams.get('_devCssData');
 		if (typeof cssDataBase64 === 'string') {
 
@@ -127,6 +134,9 @@
 					const jsSrc = `globalThis._VSCODE_CSS_LOAD('${cssUrl}');\n`;
 					const blob = new Blob([jsSrc], { type: 'application/javascript' });
 					importMap.imports[cssUrl] = URL.createObjectURL(blob);
+					if (!isTestFixtureCss(cssModule)) {
+						productCssUrls.push(cssUrl);
+					}
 				}
 			}).catch(err => {
 				console.error(err);
@@ -140,6 +150,8 @@
 			importMapScript.type = 'importmap';
 			importMapScript.textContent = rawImportMap;
 			importMapParent.appendChild(importMapScript);
+
+			return preloadProductCss();
 
 		}).then(() => {
 			const bootstrapScript = document.createElement('script');
