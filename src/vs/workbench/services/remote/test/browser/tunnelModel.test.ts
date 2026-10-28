@@ -6,12 +6,13 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TunnelProtocol } from '../../../../../platform/tunnel/common/tunnel.js';
 import { OnPortForward, PortsAttributes } from '../../common/tunnelModel.js';
 
 suite('PortsAttributes', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createAttributes(portsAttributes: Record<string, { label?: string; requireLocalPort?: boolean }>, otherPortsAttributes = {}) {
+	function createAttributes(portsAttributes: Record<string, { label?: string; requireLocalPort?: boolean; protocol?: TunnelProtocol }>, otherPortsAttributes = {}) {
 		const configurationService = new TestConfigurationService({
 			'remote.portsAttributes': portsAttributes,
 			'remote.otherPortsAttributes': otherPortsAttributes
@@ -118,5 +119,35 @@ suite('PortsAttributes', () => {
 		});
 
 		assert.deepStrictEqual(actual, [true, false]);
+	});
+
+	test('preserves exact-port protocol over matching range and regex rules', () => {
+		const actual = [TunnelProtocol.Http, TunnelProtocol.Https].map(protocol => {
+			const opposite = protocol === TunnelProtocol.Http ? TunnelProtocol.Https : TunnelProtocol.Http;
+			const attributes = createAttributes({
+				'3000': { protocol },
+				'3000-4000': { protocol: opposite },
+				'server\\.js': { protocol: opposite }
+			});
+			return attributes.getAttributes(3000, 'localhost', 'node server.js')?.protocol;
+		});
+
+		assert.deepStrictEqual(actual, [TunnelProtocol.Http, TunnelProtocol.Https]);
+	});
+
+	test('preserves range protocol when an exact-port rule leaves it unset', () => {
+		const actual = [TunnelProtocol.Http, TunnelProtocol.Https].map(protocol => {
+			const attributes = createAttributes({
+				'3000-4000': { protocol },
+				'3500': { label: 'Exact' }
+			});
+			const result = attributes.getAttributes(3500, 'localhost');
+			return { label: result?.label, protocol: result?.protocol };
+		});
+
+		assert.deepStrictEqual(actual, [
+			{ label: 'Exact', protocol: TunnelProtocol.Http },
+			{ label: 'Exact', protocol: TunnelProtocol.Https }
+		]);
 	});
 });
