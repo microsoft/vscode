@@ -37,6 +37,7 @@ import { AgentHostTransportFailureReason } from '../../../../../platform/agentHo
 import { supportsAgentHostArtifactRemoval, supportsAgentHostCreateChatWorkspace } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { supportsAgentHostSessionImport } from '../../../../../platform/agentHost/common/meta/agentHostSessionImportMeta.js';
 import { supportsAgentHostSessionMove } from '../../../../../platform/agentHost/common/meta/agentHostSessionMoveMeta.js';
+import { supportsAgentHostWorktreeDiskUsage } from '../../../../../platform/agentHost/common/meta/agentHostWorktreeDiskUsageMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { readCodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
@@ -63,7 +64,7 @@ import { ResolveSessionConfigResult, type SessionConfigPropertySchema, type Sess
 import { AgentCustomization, ChangesSummary, type ChatConfigState, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type CanvasState, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, McpServerStatus, MessageKind, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { isActionKnownToVersion } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AHP_SESSION_NOT_FOUND, ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AHP_SESSION_NOT_FOUND, AhpErrorCodes, ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { AgentCapabilities, AgentInfo, buildChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isChatInSessionReadAggregate, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readFolderScopeGitState, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, readWorkingDirectoryKey, readWorkingDirectoryKeys, readWorkingDirectoryScopeId, readWorkingDirectoryScopeIds, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionScratchFolders, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -7324,7 +7325,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const session = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
-		if (!session || !connection) {
+		if (!session || !connection?.measureWorktreeDiskUsage || !supportsAgentHostWorktreeDiskUsage(connection.initializeResult.get())) {
 			return undefined;
 		}
 		const worktrees = new Map<string, URI>();
@@ -7339,12 +7340,39 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const sizes: (number | undefined)[] = [];
 		for (const worktreeUri of worktrees.values()) {
-			sizes.push(await connection.measureWorktreeDiskUsage?.(worktreeUri, token, session.backendUri));
+			sizes.push(await connection.measureWorktreeDiskUsage(worktreeUri, token, session.backendUri));
 		}
-		if (sizes.every(size => size === undefined)) {
+		// A supported host returns undefined for a root that no longer exists.
+		return sizes.reduce<number>((total, size) => total + (size ?? 0), 0);
+	}
+
+	async sessionWorktreeExists(sessionId: string, token = CancellationToken.None): Promise<boolean | undefined> {
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const session = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (!session || !connection) {
 			return undefined;
 		}
-		return sizes.reduce<number>((total, size) => total + (size ?? 0), 0);
+		const worktrees = new ResourceSet();
+		for (const folder of session.workspace.get()?.folders ?? []) {
+			if (folder.gitRepository?.workTreeUri) {
+				worktrees.add(folder.gitRepository.workTreeUri);
+			}
+		}
+		if (worktrees.size === 0) {
+			return undefined;
+		}
+		for (const worktree of worktrees) {
+			try {
+				await raceCancellationError(connection.resourceResolve({ channel: 'ahp-root://', uri: fromAgentHostUri(worktree).toString(), followSymlinks: false }), token);
+				return true;
+			} catch (error) {
+				if (!(error instanceof ProtocolError) || error.code !== AhpErrorCodes.NotFound) {
+					throw error;
+				}
+			}
+		}
+		return false;
 	}
 
 	async unarchiveSession(sessionId: string): Promise<void> {
