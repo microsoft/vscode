@@ -13825,7 +13825,7 @@ suite('ChatListRenderer', () => {
 		});
 
 		for (const values of [['First', 'Second'], ['', 'First', 'Second']]) {
-			test(`restored array reasoning preserves all text with the Finished thinking fallback (${JSON.stringify(values)})`, () => {
+			test(`restored array reasoning preserves all text with the Finished thinking fallback (${JSON.stringify(values)})`, async () => {
 				const seed = createPersistentProgressRenderer();
 				seed.model.acceptResponseProgress(seed.request, { kind: 'markdownContent', content: new MarkdownString('Done') });
 				seed.request.response!.complete();
@@ -13846,9 +13846,12 @@ suite('ChatListRenderer', () => {
 					initialData: { value, serializer: new ChatSessionOperationLog() },
 				});
 				renderer.renderElement(node, 0, template);
+				const thinking = template.value.querySelector<HTMLElement>('.chat-thinking-box');
+				assert.ok(thinking);
 				const button = template.value.querySelector<HTMLElement>('.chat-thinking-box > .chat-used-context-label .monaco-button');
 				button?.click();
-				const text = template.value.querySelector<HTMLElement>('.chat-thinking-box')?.innerText;
+				await Promise.all(thinking.getAnimations({ subtree: true }).map(animation => animation.finished));
+				const text = thinking.innerText;
 				assert.deepStrictEqual({
 					title: button?.textContent,
 					first: text?.includes('First'),
