@@ -32,6 +32,7 @@ import { onUnexpectedError } from '../../../base/common/errors.js';
 import { localize } from '../../../nls.js';
 import { ChatInteractivity, getChatCapabilities, getChatHarness, IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { getHarnessPresentationOrDefault, IHarnessPresentation } from '../../services/sessions/common/sessionsProvider.js';
+import { CHAT_WINDOWS_ENABLED_SETTING, OPEN_CHAT_IN_WINDOW_COMMAND_ID } from '../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData, isSessionDragFromPaneEdge } from '../dnd.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
@@ -640,6 +641,11 @@ export class ChatCompositeBar extends Disposable {
 				await this._commandService.executeCommand(CLOSE_CHAT_COMMAND_ID, session, chat);
 			}
 		}));
+		const openInWindowAction = this._tabDisposables.add(new Action(OPEN_CHAT_IN_WINDOW_COMMAND_ID, localize('openChatInNewWindow', "Open in New Window"), undefined, true, async () => {
+			if (session) {
+				await this._commandService.executeCommand(OPEN_CHAT_IN_WINDOW_COMMAND_ID, { session, chat });
+			}
+		}));
 		const markReadAction = this._tabDisposables.add(new Action(MARK_SESSION_READ_COMMAND_ID, localize('chatTab.markRead', "Mark as Read"), undefined, true, async () => {
 			if (session) {
 				await this._commandService.executeCommand(MARK_SESSION_READ_COMMAND_ID, { session, chat });
@@ -698,6 +704,7 @@ export class ChatCompositeBar extends Disposable {
 					const canSetReadState = !!session && !chat.isArchived.get() && (isMainChat || session.capabilities.get().supportsIndependentChatReadState === true);
 					return Separator.join(
 						!isMainChat && session ? [closeAction] : [],
+						session && this._configurationService.getValue<boolean>(CHAT_WINDOWS_ENABLED_SETTING) ? [openInWindowAction] : [],
 						[
 							...(canSetReadState ? [chat.isRead.get() ? markUnreadAction : markReadAction] : []),
 							...(capabilities.canArchive ? [chat.isArchived.get() ? unarchiveAction : archiveAction] : []),
