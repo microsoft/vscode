@@ -34,15 +34,20 @@ export interface IChatThinkingTitleService {
 	generateTitle(request: IChatThinkingTitleRequest, isRelevant: () => boolean, token: CancellationToken): Promise<string | undefined>;
 }
 
+interface IThinkingTitleCacheEntry {
+	readonly title: string;
+	readonly storedAt: number;
+}
+
 const cacheStorageKey = 'chat.thinkingTitleCache';
 const cacheTtlMs = 7 * 24 * 60 * 60 * 1000;
 const cacheMaxEntries = 1000;
 
-/** Shares thinking-title requests and lazily loads the persisted cache once per window. */
+/** Shares thinking-title requests and lazily merges profile storage changes with pending local titles. */
 export class ChatThinkingTitleService extends Disposable implements IChatThinkingTitleService {
 	declare readonly _serviceBrand: undefined;
-	private cache: Map<string, { title: string; storedAt: number }> | undefined;
-	private dirty = false;
+	private cache: Map<string, IThinkingTitleCacheEntry> | undefined;
+	private readonly pendingEntries = new Map<string, IThinkingTitleCacheEntry>();
 	private readonly saveScheduler = this._register(new RunOnceScheduler(() => this.save(), 1000));
 
 	constructor(
@@ -54,6 +59,11 @@ export class ChatThinkingTitleService extends Disposable implements IChatThinkin
 	) {
 		super();
 		this._register(storageService.onWillSaveState(() => this.save()));
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, cacheStorageKey, this._store)(event => {
+			if (event.external) {
+				this.cache = undefined;
+			}
+		}));
 	}
 
 	getCachedTitle(request: IChatThinkingTitleRequest): string | undefined {
@@ -103,9 +113,10 @@ Content: ${content}`
 			}, token))?.trim();
 			if (title && !this._store.isDisposed && !title.toLowerCase().includes('can\'t assist with that')) {
 				const cache = this.load();
+				const entry = { title, storedAt: Date.now() };
 				cache.delete(key);
-				cache.set(key, { title, storedAt: Date.now() });
-				this.dirty = true;
+				cache.set(key, entry);
+				this.pendingEntries.set(key, entry);
 				if (!this.saveScheduler.isScheduled()) {
 					this.saveScheduler.schedule();
 				}
@@ -125,21 +136,28 @@ Content: ${content}`
 		return `${chatSessionResourceToId(request.sessionResource)}:thinking:${hash.digest()}`;
 	}
 
-	private load(): Map<string, { title: string; storedAt: number }> {
+	private load(): Map<string, IThinkingTitleCacheEntry> {
 		if (!this.cache) {
 			this.cache = new Map();
+			const now = Date.now();
 			const stored = this.storageService.getObject<Record<string, { title?: unknown; storedAt?: unknown }>>(cacheStorageKey, StorageScope.PROFILE, {});
 			if (!isObject(stored)) {
 				this.logService.warn('[ChatThinkingTitle] Ignoring an invalid persisted title cache');
-				return this.cache;
-			}
-			for (const [key, value] of Object.entries(stored)) {
-				if (!isObject(value) || typeof value.title !== 'string' || typeof value.storedAt !== 'number' || !Number.isFinite(value.storedAt)) {
-					this.logService.warn('[ChatThinkingTitle] Ignoring an invalid persisted title entry');
-					continue;
+			} else {
+				for (const [key, value] of Object.entries(stored)) {
+					if (!isObject(value) || typeof value.title !== 'string' || typeof value.storedAt !== 'number' || !Number.isFinite(value.storedAt)) {
+						this.logService.warn('[ChatThinkingTitle] Ignoring an invalid persisted title entry');
+						continue;
+					}
+					if (now - value.storedAt <= cacheTtlMs) {
+						this.cache.set(key, { title: value.title, storedAt: value.storedAt });
+					}
 				}
-				if (Date.now() - value.storedAt <= cacheTtlMs) {
-					this.cache.set(key, { title: value.title, storedAt: value.storedAt });
+			}
+			for (const [key, entry] of this.pendingEntries) {
+				const persisted = this.cache.get(key);
+				if (now - entry.storedAt <= cacheTtlMs && (!persisted || entry.storedAt >= persisted.storedAt)) {
+					this.cache.set(key, entry);
 				}
 			}
 		}
@@ -147,18 +165,19 @@ Content: ${content}`
 	}
 
 	private save(): void {
-		if (!this.dirty || !this.cache) {
+		if (!this.pendingEntries.size) {
 			return;
 		}
+		const cache = this.load();
 		const now = Date.now();
-		const entries = [...this.cache].filter(([, entry]) => now - entry.storedAt <= cacheTtlMs)
+		const entries = [...cache].filter(([, entry]) => now - entry.storedAt <= cacheTtlMs)
 			.sort((a, b) => b[1].storedAt - a[1].storedAt).slice(0, cacheMaxEntries);
-		this.cache.clear();
+		cache.clear();
 		for (const [key, entry] of entries) {
-			this.cache.set(key, entry);
+			cache.set(key, entry);
 		}
 		this.storageService.store(cacheStorageKey, JSON.stringify(Object.fromEntries(entries)), StorageScope.PROFILE, StorageTarget.MACHINE);
-		this.dirty = false;
+		this.pendingEntries.clear();
 	}
 
 	override dispose(): void {

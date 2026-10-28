@@ -12,6 +12,7 @@ import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ChatThinkingTitleController } from '../../../browser/widget/chatThinkingTitleController.js';
@@ -61,7 +62,17 @@ suite('ChatThinkingTitleController', () => {
 		}();
 	});
 
-	teardown(() => clock.restore());
+	teardown(() => {
+		clock.restore();
+		sinon.restore();
+	});
+
+	async function setGenerationEnabled(enabled: boolean): Promise<void> {
+		await configuration.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, enabled);
+		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string) { return section === ChatConfiguration.ThinkingGenerateTitles; }
+		}());
+	}
 
 	function createChat(nativeObserver = false) {
 		const container = mainWindow.document.createElement('div');
@@ -140,17 +151,58 @@ suite('ChatThinkingTitleController', () => {
 		});
 	});
 
-	test('restored visible headers may reuse a cached title without generating one', async () => {
-		service = new class extends mock<IChatThinkingTitleService>() {
-			override getCachedTitle() { return 'Previously reviewed the implementation'; }
-			override async generateTitle(): Promise<string | undefined> { return assert.fail('Restoration must never generate titles'); }
-		}();
+	for (const enabled of [true, false]) {
+		test(`restored visible headers reuse cached titles without generating (enabled=${enabled})`, async () => {
+			await setGenerationEnabled(enabled);
+			service = new class extends mock<IChatThinkingTitleService>() {
+				override getCachedTitle() { return 'Previously reviewed the implementation'; }
+				override async generateTitle(): Promise<string | undefined> { return assert.fail('Restoration must never generate titles'); }
+			}();
+			const chat = createChat();
+			const item = register(chat, 'restored', false);
+			await clock.tickAsync(0);
+			observers[0].emit(item.header, true);
+			await clock.tickAsync(300);
+			assert.deepStrictEqual({ prepared: item.prepared, title: item.header.textContent }, { prepared: 1, title: 'Previously reviewed the implementation' });
+		});
+	}
+
+	test('disabling generation cancels active work but still applies a cached title', async () => {
 		const chat = createChat();
-		const item = register(chat, 'restored', false);
+		const item = register(chat);
+		const result = held = new DeferredPromise<string>();
 		await clock.tickAsync(0);
 		observers[0].emit(item.header, true);
 		await clock.tickAsync(300);
-		assert.deepStrictEqual({ prepared: item.prepared, title: item.header.textContent }, { prepared: 1, title: 'Previously reviewed the implementation' });
+		sinon.stub(service, 'getCachedTitle').returns('Previously reviewed the implementation');
+		await setGenerationEnabled(false);
+		const cancelled = sent[0].token.isCancellationRequested;
+		await clock.tickAsync(300);
+		const whileDisabled = item.header.textContent;
+		result.complete('Late generated title');
+		await clock.tickAsync(0);
+		await setGenerationEnabled(true);
+		await clock.tickAsync(300);
+		assert.deepStrictEqual({ cancelled, whileDisabled, title: item.header.textContent, sent: sent.length }, {
+			cancelled: true, whileDisabled: 'Previously reviewed the implementation', title: 'Previously reviewed the implementation', sent: 1,
+		});
+	});
+
+	test('enabling generation does not qualify completions that happened while disabled', async () => {
+		await setGenerationEnabled(false);
+		const chat = createChat();
+		const item = register(chat);
+		await clock.tickAsync(0);
+		await setGenerationEnabled(true);
+		observers[0].emit(item.header, true);
+		await clock.tickAsync(300);
+		const fresh = register(chat, 'new completion');
+		await clock.tickAsync(0);
+		observers[0].emit(fresh.header, true);
+		await clock.tickAsync(300);
+		assert.deepStrictEqual({ sent: sent.map(request => request.content), title: item.header.textContent }, {
+			sent: ['new completion'], title: 'Finished thinking',
+		});
 	});
 
 	test('a section that finishes offscreen does not generate a title when scrolled into view', async () => {
@@ -222,7 +274,7 @@ suite('ChatThinkingTitleController', () => {
 		await configuration.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, true);
 		observers[0].emit(item.header, true);
 		await clock.tickAsync(300);
-		assert.deepStrictEqual({ prepared: item.prepared, sent: sent.length, observed: observers[0].targets.size }, { prepared: 0, sent: 0, observed: 0 });
+		assert.deepStrictEqual({ prepared: item.prepared, sent: sent.length, observed: observers[0].targets.size }, { prepared: 1, sent: 0, observed: 0 });
 	});
 
 	test('native viewport observation excludes offscreen headers and a background chat', async () => {

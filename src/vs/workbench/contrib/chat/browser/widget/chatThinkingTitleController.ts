@@ -52,7 +52,9 @@ export class ChatThinkingTitleController extends Disposable {
 
 	register(header: HTMLElement, getRequest: () => IChatThinkingTitleRequest, acceptTitle: (title: string) => void, newlyCompleted: boolean): IDisposable {
 		const request: IVisibleThinkingTitle = { header, getRequest, acceptTitle, intersecting: false, allowGeneration: false, finished: false };
-		request.allowGeneration = newlyCompleted && this.isInViewport(request);
+		request.allowGeneration = newlyCompleted
+			&& this.configurationService.getValue<boolean>(ChatConfiguration.ThinkingGenerateTitles) !== false
+			&& this.isInViewport(request);
 		this.requests.set(header, request);
 		queueMicrotask(() => {
 			if (this._store.isDisposed || this.requests.get(header) !== request) {
@@ -134,7 +136,6 @@ export class ChatThinkingTitleController extends Disposable {
 	private isInViewport(request: IVisibleThinkingTitle): boolean {
 		const targetWindow = getWindow(this.container);
 		if (this._store.isDisposed || !this.chatVisible || targetWindow.document.hidden
-			|| this.configurationService.getValue<boolean>(ChatConfiguration.ThinkingGenerateTitles) === false
 			|| !request.header.isConnected || !request.header.checkVisibility({ checkVisibilityCSS: true, checkOpacity: true })) {
 			return false;
 		}
@@ -149,16 +150,19 @@ export class ChatThinkingTitleController extends Disposable {
 		if (request.finished) {
 			return;
 		}
-		if (this.isRelevant(request)) {
+		const relevant = this.isRelevant(request);
+		if (!relevant || this.configurationService.getValue<boolean>(ChatConfiguration.ThinkingGenerateTitles) === false) {
+			request.allowGeneration = false;
+			request.cancellation?.dispose(true);
+			request.cancellation = undefined;
+		}
+		if (relevant) {
 			this.visible.add(request);
 			if (!request.cancellation) {
 				this.scheduler.schedule();
 			}
 		} else {
-			request.allowGeneration = false;
 			this.visible.delete(request);
-			request.cancellation?.dispose(true);
-			request.cancellation = undefined;
 		}
 	}
 
