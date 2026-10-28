@@ -5,27 +5,33 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import { CompletionItemKind } from '../../common/state/protocol/commands.js';
-import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, type DirectoryCustomization, type PluginCustomization, type PromptCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, type DirectoryCustomization, type PluginCustomization, type PromptCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
 import { CustomizationEnablementKind } from '../../common/state/protocol/state.js';
 import { AgentHostCompletions, CompletionTriggerCharacter } from '../../node/agentHostCompletions.js';
 import { AgentHostSkillCompletionProvider } from '../../node/agentHostSkillCompletionProvider.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { MockAgent } from './mockAgent.js';
+import { createTestAgentChatContext } from './agentChatContextTestUtils.js';
 
 suite('AgentHostSkillCompletionProvider', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function skill(name: string, description?: string): SkillCustomization {
+	type SkillOptions = Pick<SkillCustomization, 'disableModelInvocation' | 'disableUserInvocation' | 'enabled'>;
+
+	function skill(name: string, description?: string, options?: SkillOptions): SkillCustomization {
 		return {
 			type: CustomizationType.Skill,
 			id: `file:///skills/${name}/SKILL.md`,
 			uri: `file:///skills/${name}/SKILL.md`,
 			name,
 			...(description !== undefined ? { description } : {}),
+			...options,
 		};
 	}
 
@@ -62,13 +68,14 @@ suite('AgentHostSkillCompletionProvider', () => {
 	}
 
 	/** A skill with an explicit URI, so the same logical skill can be modelled at two different locations. */
-	function skillAt(name: string, uri: string, description?: string): SkillCustomization {
+	function skillAt(name: string, uri: string, description?: string, options?: SkillOptions): SkillCustomization {
 		return {
 			type: CustomizationType.Skill,
 			id: uri,
 			uri,
 			name,
 			...(description !== undefined ? { description } : {}),
+			...options,
 		};
 	}
 
@@ -87,16 +94,16 @@ suite('AgentHostSkillCompletionProvider', () => {
 	}
 
 	function createProvider(agent: MockAgent): AgentHostSkillCompletionProvider {
-		return disposables.add(new AgentHostSkillCompletionProvider(() => agent));
+		return disposables.add(new AgentHostSkillCompletionProvider(() => agent, async session => ({ chat: URI.parse(buildDefaultChatUri(session)), context: createTestAgentChatContext(session, session) })));
 	}
 
 	async function run(provider: AgentHostSkillCompletionProvider, text: string, offset = text.length) {
-		return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: 'mock:/session', text, offset }, CancellationToken.None);
+		return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: 'mock:/session', text, offset }, { chat: undefined }, CancellationToken.None);
 	}
 
 	test('announces slash as a trigger character', () => {
-		const completions = disposables.add(new AgentHostCompletions(new NullLogService()));
-		const provider = disposables.add(new AgentHostSkillCompletionProvider(() => undefined));
+		const completions = disposables.add(new AgentHostCompletions(new NullLogService(), disposables.add(new AgentHostStateManager(new NullLogService()))));
+		const provider = disposables.add(new AgentHostSkillCompletionProvider(() => undefined, async session => ({ chat: URI.parse(buildDefaultChatUri(session)), context: createTestAgentChatContext(session, session) })));
 		disposables.add(completions.registerProvider(provider));
 		assert.deepStrictEqual([...completions.triggerCharacters], [CompletionTriggerCharacter.Slash]);
 	});
@@ -125,6 +132,59 @@ suite('AgentHostSkillCompletionProvider', () => {
 				},
 			},
 		}]);
+	});
+
+	test('carries a skill argument hint into the completion metadata', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			directory('.copilot', 'file:///home/.copilot/skills', [
+				{ ...skillAt('design-prep', 'file:///home/.copilot/skills/design-prep/SKILL.md', 'Prep a design'), _meta: { 'vscode.skill.argumentHint': '<problem and repo> [offline]' } },
+				skillAt('no-hint', 'file:///home/.copilot/skills/no-hint/SKILL.md', 'No hint'),
+			]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.attachment?._meta), [
+			{
+				uri: 'file:///home/.copilot/skills/design-prep/SKILL.md',
+				name: 'design-prep',
+				displayName: 'design-prep',
+				description: 'Prep a design',
+				argumentHint: '<problem and repo> [offline]',
+			},
+			{
+				uri: 'file:///home/.copilot/skills/no-hint/SKILL.md',
+				name: 'no-hint',
+				displayName: 'no-hint',
+				description: 'No hint',
+			},
+		]);
+	});
+
+	test('filters user-disabled and disabled skills without filtering model-disabled skills', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			plugin('plugin', [
+				skill('default'),
+				skill('model-disabled', undefined, { disableModelInvocation: true }),
+				skill('user-disabled', undefined, { disableUserInvocation: true }),
+			]),
+			directory('.github', 'file:///ws/.github/skills', [
+				skillAt('disabled', 'file:///ws/.github/skills/disabled/SKILL.md', undefined, { enabled: false }),
+				skillAt('visible', 'file:///ws/.github/skills/visible/SKILL.md'),
+			]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), [
+			'/plugin:default ',
+			'/plugin:model-disabled ',
+			'/visible ',
+		]);
 	});
 
 	test('complete skills from a plugin with the same name as the skill', async () => {

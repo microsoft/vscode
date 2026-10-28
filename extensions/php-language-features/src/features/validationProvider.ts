@@ -9,6 +9,7 @@ import which from 'which';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { ThrottledDelayer } from './utils/async';
+import { getSafeNotificationMessage } from './utils/notification';
 
 const enum Setting {
 	Run = 'php.validate.run',
@@ -279,7 +280,14 @@ export default class PHPValidationProvider {
 
 	private async showErrorMessage(message: string): Promise<void> {
 		const openSettings = vscode.l10n.t("Open Settings");
-		if (await vscode.window.showInformationMessage(message, openSettings) === openSettings) {
+		const safeMessage = getSafeNotificationMessage(
+			message,
+			vscode.l10n.t("PHP validation could not be started. Use the setting 'php.validate.executablePath' to configure the PHP executable."),
+		);
+		if (safeMessage !== message) {
+			console.error(message);
+		}
+		if (await vscode.window.showInformationMessage(safeMessage, openSettings) === openSettings) {
 			vscode.commands.executeCommand('workbench.action.openSettings', Setting.ExecutablePath);
 		}
 	}

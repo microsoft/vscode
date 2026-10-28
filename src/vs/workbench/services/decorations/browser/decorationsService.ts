@@ -192,6 +192,9 @@ class DecorationStyles {
 		const iconClassName = rule.iconBadgeClassName;
 		let tooltip = distinct(data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip)).join(' • ');
 		const strikethrough = data.some(d => d.strikethrough);
+		const isTextBadge = !onlyChildren
+			&& !data.some(decoration => ThemeIcon.isThemeIcon(decoration.letter))
+			&& data.some(decoration => typeof decoration.letter === 'string' && decoration.letter.length > 0);
 
 		if (onlyChildren) {
 			// show items from its children only
@@ -204,6 +207,7 @@ class DecorationStyles {
 			badgeClassName,
 			iconClassName,
 			strikethrough,
+			isTextBadge,
 			tooltip,
 			dispose: () => {
 				if (rule?.release()) {

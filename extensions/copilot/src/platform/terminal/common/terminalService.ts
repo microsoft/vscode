@@ -169,12 +169,6 @@ export class NullTerminalService extends Disposable implements ITerminalService 
 		// No-op for null service
 	}
 }
-export function isTerminalService(thing: any): thing is ITerminalService {
-	return thing && typeof thing.createTerminal === 'function';
-}
-export function isNullTerminalService(thing: any): thing is NullTerminalService {
-	return thing && typeof thing.createTerminal === 'function' && thing.createTerminal() === undefined;
-}
 
 export interface IKnownTerminal extends vscode.Terminal {
 	id: string;

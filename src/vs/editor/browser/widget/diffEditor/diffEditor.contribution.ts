@@ -18,21 +18,6 @@ registerAction2(ToggleUseInlineViewWhenSpaceIsLimited);
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
-		id: new ToggleUseInlineViewWhenSpaceIsLimited().desc.id,
-		title: localize('useInlineViewWhenSpaceIsLimited', "Use Inline View When Space Is Limited"),
-		toggled: ContextKeyExpr.has('config.diffEditor.useInlineViewWhenSpaceIsLimited'),
-		precondition: ContextKeyExpr.has('isInDiffEditor'),
-	},
-	order: 11,
-	group: '1_diff',
-	when: ContextKeyExpr.and(
-		EditorContextKeys.diffEditorRenderSideBySideInlineBreakpointReached,
-		ContextKeyExpr.has('isInDiffEditor'),
-	),
-});
-
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	command: {
 		id: new ToggleShowMovedCodeBlocks().desc.id,
 		title: localize('showMoves', "Show Moved Code Blocks"),
 		icon: Codicon.move,

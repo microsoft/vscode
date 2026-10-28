@@ -151,15 +151,11 @@ export function mapDiscoveredCustomizations(
 
 	const result: Customization[] = [];
 	for (const bucket of [...workspaceBuckets, userBucket]) {
-		if (bucket.agents.length > 0) {
-			result.push(makeDirectory(bucket.base, 'agents', CustomizationType.Agent, bucket.agents));
-		}
-		if (bucket.skills.length > 0) {
-			result.push(makeDirectory(bucket.base, 'skills', CustomizationType.Skill, bucket.skills));
-		}
-		if (bucket.rules.length > 0) {
-			result.push(makeDirectory(bucket.base, 'rules', CustomizationType.Rule, bucket.rules));
-		}
+		result.push(
+			makeDirectory(bucket.base, 'agents', CustomizationType.Agent, bucket.agents),
+			makeDirectory(bucket.base, 'skills', CustomizationType.Skill, bucket.skills),
+			makeDirectory(bucket.base, 'rules', CustomizationType.Rule, bucket.rules),
+		);
 		if (bucket.hooks.length > 0) {
 			result.push(makeDirectory(bucket.base, 'hooks', CustomizationType.Hook, bucket.hooks));
 		}

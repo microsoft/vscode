@@ -8,9 +8,15 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, type IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, observableValue, type IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AgentMergeSettingId } from '../../../../../platform/agentHost/common/agentMerge.js';
+import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IAgentHostSessionsProvider, IAgentMergeClientState } from '../../../../common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
@@ -28,12 +34,25 @@ suite('BlockedSessions', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(sessions: TestSession[], gitHubService: TestGitHubService): { service: BlockedSessions; management: TestSessionsManagementService } {
+	function createService(sessions: TestSession[], gitHubService: TestGitHubService) {
 		const management = new TestSessionsManagementService(sessions as unknown as ISession[]);
-		const service = store.add(new BlockedSessions(management as unknown as ISessionsManagementService, gitHubService as unknown as IGitHubService, new NullLogService()));
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const provider: ISessionsProvider = new class extends mock<IAgentHostSessionsProvider>() {
+			override readonly id = 'local-agent-host';
+			override getAgentMergeClientStateObservable(sessionId: string) {
+				return sessions.find(session => session.sessionId === sessionId)!.agentMergeState;
+			}
+		};
+		const providers = new class extends mock<ISessionsProvidersService>() {
+			override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
+				return providerId === provider.id ? provider as T : undefined;
+			}
+		};
+		const service = store.add(new BlockedSessions(management as unknown as ISessionsManagementService, gitHubService as unknown as IGitHubService, new NullLogService(), providers, configuration));
 		// Keep the derived live so per-session model references are actually read.
 		store.add(autorun(reader => { service.blockedSessions.read(reader); }));
-		return { service, management };
+		return { service, management, configuration };
 	}
 
 	function blockedIds(service: BlockedSessions): string[] {
@@ -78,6 +97,123 @@ suite('BlockedSessions', () => {
 		const session = new TestSession('ci', SessionStatus.Completed, { pr: { owner: 'owner', repo: 'repo', number: 7 } });
 		const { service } = createService([session], gitHub);
 		assert.deepStrictEqual(blockedOccurrences(service), [`${BlockedSessionReason.FailingCI}:sha7`]);
+	});
+
+	test('reports CI failures independently while preserving the input-needed blocked reason', () => {
+		const gitHub = new TestGitHubService();
+		gitHub.setPullRequest('owner', 'repo', 7, openPullRequest(7, 'sha7'));
+		gitHub.setCIStatus('owner', 'repo', 7, 'sha7', GitHubCIOverallStatus.Failure);
+		const session = new TestSession('both', SessionStatus.NeedsInput, { pr: { owner: 'owner', repo: 'repo', number: 7 } });
+		const { service } = createService([session], gitHub);
+		const failingCI: string[][] = [];
+		store.add(autorun(reader => {
+			failingCI.push(service.failingCISessions.read(reader).map(session => session.sessionId));
+		}));
+
+		gitHub.setCIStatus('owner', 'repo', 7, 'sha7', GitHubCIOverallStatus.Success);
+		gitHub.setCIStatus('owner', 'repo', 7, 'sha7', GitHubCIOverallStatus.Failure);
+		session.agentMergeState.set({ enabled: true }, undefined);
+		session.agentMergeState.set({ enabled: true, overrides: { fixCI: false } }, undefined);
+
+		assert.deepStrictEqual({
+			failingCI,
+			blocked: blockedReasons(service),
+			released: gitHub.releasedModels,
+		}, {
+			failingCI: [['both'], [], ['both'], [], ['both']],
+			blocked: [['both', BlockedSessionReason.NeedsInput]],
+			released: [],
+		});
+	});
+
+	for (const { name, status, archived, pullRequest } of [
+		{ name: 'in-progress', status: SessionStatus.InProgress, archived: false, pullRequest: openPullRequest(7, 'sha7') },
+		{ name: 'archived', status: SessionStatus.NeedsInput, archived: true, pullRequest: openPullRequest(7, 'sha7') },
+		{ name: 'draft PR', status: SessionStatus.NeedsInput, archived: false, pullRequest: { ...openPullRequest(7, 'sha7'), isDraft: true } },
+		{ name: 'closed PR', status: SessionStatus.NeedsInput, archived: false, pullRequest: { ...openPullRequest(7, 'sha7'), state: GitHubPullRequestState.Closed } },
+		{ name: 'merged PR', status: SessionStatus.NeedsInput, archived: false, pullRequest: { ...openPullRequest(7, 'sha7'), state: GitHubPullRequestState.Merged } },
+	]) {
+		test(`excludes ${name} sessions from independent CI eligibility`, () => {
+			const gitHub = new TestGitHubService();
+			gitHub.setPullRequest('owner', 'repo', 7, pullRequest);
+			gitHub.setCIStatus('owner', 'repo', 7, 'sha7', GitHubCIOverallStatus.Failure);
+			const session = new TestSession('excluded', status, { archived, pr: { owner: 'owner', repo: 'repo', number: 7 } });
+			const { service } = createService([session], gitHub);
+			store.add(autorun(reader => { service.failingCISessions.read(reader); }));
+
+			assert.deepStrictEqual(service.failingCISessions.get(), []);
+		});
+	}
+
+	test('keeps independent CI models across recomputes and releases them when no longer observed', () => {
+		const gitHub = new TestGitHubService();
+		gitHub.setPullRequest('owner', 'repo', 7, openPullRequest(7, 'sha7'));
+		gitHub.setCIStatus('owner', 'repo', 7, 'sha7', GitHubCIOverallStatus.Failure);
+		const session = new TestSession('both', SessionStatus.NeedsInput, { pr: { owner: 'owner', repo: 'repo', number: 7 } });
+		const { service, management } = createService([session], gitHub);
+		const observer = store.add(autorun(reader => { service.failingCISessions.read(reader); }));
+
+		management.fireDidChangeSessions();
+		const beforeDisposal = {
+			failingCI: service.failingCISessions.get().map(session => session.sessionId),
+			released: [...gitHub.releasedModels],
+		};
+		observer.dispose();
+
+		assert.deepStrictEqual({ beforeDisposal, released: gitHub.releasedModels }, {
+			beforeDisposal: { failingCI: ['both'], released: [] },
+			released: ['owner/repo/7', 'owner/repo/7/sha7'],
+		});
+	});
+
+	test('CI blocking reacts to per-session Agent Merge enablement and Fix CI overrides', () => {
+		const gitHub = new TestGitHubService();
+		gitHub.setPullRequest('owner', 'repo', 7, openPullRequest(7, 'sha7'));
+		gitHub.setCIStatus('owner', 'repo', 7, 'sha7', GitHubCIOverallStatus.Failure);
+		const session = new TestSession('ci', SessionStatus.Completed, { pr: { owner: 'owner', repo: 'repo', number: 7 } });
+		const otherSession = new TestSession('other', SessionStatus.Completed, { pr: { owner: 'owner', repo: 'repo', number: 7 } });
+		const { service } = createService([session, otherSession], gitHub);
+		const blocked = [blockedIds(service)];
+		for (const state of [
+			{ enabled: true },
+			{ enabled: true, overrides: { fixCI: false } },
+			{ enabled: true, overrides: { fixCI: true } },
+			{ enabled: false },
+		]) {
+			session.agentMergeState.set(state, undefined);
+			blocked.push(blockedIds(service));
+		}
+		assert.deepStrictEqual({ blocked, released: gitHub.releasedModels }, {
+			blocked: [['ci', 'other'], ['other'], ['ci', 'other'], ['other'], ['ci', 'other']],
+			released: [],
+		});
+	});
+
+	test('CI blocking reacts to the global Fix CI setting and respects session overrides', async () => {
+		const gitHub = new TestGitHubService();
+		gitHub.setPullRequest('owner', 'repo', 7, openPullRequest(7, 'sha7'));
+		gitHub.setCIStatus('owner', 'repo', 7, 'sha7', GitHubCIOverallStatus.Failure);
+		const session = new TestSession('ci', SessionStatus.Completed, { pr: { owner: 'owner', repo: 'repo', number: 7 } });
+		session.agentMergeState.set({ enabled: true }, undefined);
+		const { service, configuration } = createService([session], gitHub);
+		const blocked = [blockedIds(service)];
+		for (const fixCI of [false, true, false]) {
+			await configuration.setUserConfiguration(AgentMergeSettingId.FixCI, fixCI);
+			configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+				affectsConfiguration: key => key === AgentMergeSettingId.FixCI,
+			}));
+			blocked.push(blockedIds(service));
+		}
+		session.agentMergeState.set({ enabled: true, overrides: { fixCI: true } }, undefined);
+		blocked.push(blockedIds(service));
+		assert.deepStrictEqual(blocked, [[], ['ci'], [], ['ci'], []]);
+	});
+
+	test('Agent Merge does not hide sessions needing input', () => {
+		const session = new TestSession('input', SessionStatus.NeedsInput);
+		session.agentMergeState.set({ enabled: true }, undefined);
+		const { service } = createService([session], new TestGitHubService());
+		assert.deepStrictEqual(blockedReasons(service), [['input', BlockedSessionReason.NeedsInput]]);
 	});
 
 	test('completed session with unresolved PR comments is not blocked', () => {
@@ -179,6 +315,8 @@ interface ITestSessionOptions {
 }
 
 class TestSession {
+	readonly providerId = 'local-agent-host';
+	readonly agentMergeState = observableValue<IAgentMergeClientState | undefined>(this, undefined);
 	readonly sessionId: string;
 	readonly resource: URI;
 	readonly status: ISettableObservable<SessionStatus>;

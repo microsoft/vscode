@@ -1,0 +1,23 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-customization-migration-notice.new-chat-migration-notice {
+	width: 100%;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	border-color: var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-foreground) 10%, transparent));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: color-mix(in srgb, var(--vscode-foreground) 3%, var(--session-view-background, var(--vscode-editor-background)));
+	line-height: normal;
+}
+
+.hc-black .chat-customization-migration-notice.new-chat-migration-notice,
+.hc-light .chat-customization-migration-notice.new-chat-migration-notice {
+	border-color: var(--vscode-contrastBorder);
+	background-color: var(--vscode-editor-background);
+}
+
+.new-chat-migration-notice .chat-customization-migration-notice-content {
+	text-wrap: wrap;
+}

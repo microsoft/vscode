@@ -98,6 +98,25 @@ export class PlaywrightDriver {
 		return this._currentPage;
 	}
 
+	/** Resize the current window and return its previous size. */
+	async resizeWindow(size: { width: number; height: number }): Promise<{ width: number; height: number }> {
+		if ('browserWindow' in this.application) {
+			const window = await this.application.browserWindow(this.page);
+			try {
+				return await window.evaluate((window, size) => {
+					const [width, height] = window.getSize();
+					window.setSize(size.width, size.height);
+					return { width, height };
+				}, size);
+			} finally {
+				await window.dispose();
+			}
+		}
+		const previous = this.page.viewportSize() ?? await this.page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
+		await this.page.setViewportSize(size);
+		return previous;
+	}
+
 	/**
 	 * Get all open windows/pages.
 	 * For Electron apps, returns all Electron windows.
@@ -669,9 +688,32 @@ export class PlaywrightDriver {
 
 	async close() {
 
-		// Stop tracing
+		// Electron: ask the application to quit right away. Playwright's `close()`
+		// below only quits the application after all pending trace writes have been
+		// flushed to disk, which can take tens of seconds on slow disks. By then
+		// `Code#exit()` has already force killed the application, skipping its
+		// graceful shutdown (https://github.com/microsoft/vscode/issues/344456).
+		let exited = false;
+		if ('browserWindow' in this.application) {
+			const application = this.application;
+			const whenExited = new Promise<void>(resolve => application.once('close', () => resolve()));
+			try {
+				await measureAndLog(() => application.evaluate(({ app }) => app.quit()), 'app.quit()', this.options.logger);
+
+				// Wait for the application to exit before the cleanup below: Playwright's
+				// `close()` quits the application again, and a second quit while VS Code is
+				// still shutting down terminates it right away, because VS Code only defers
+				// the first `will-quit` event.
+				await measureAndLog(() => whenExited, 'wait for application exit', this.options.logger);
+				exited = true;
+			} catch (error) {
+				this.options.logger.log(`Error quitting application (${error})`);
+			}
+		}
+
+		// Stop tracing (it can no longer be stopped once the application has exited)
 		try {
-			if (this.options.tracing) {
+			if (this.options.tracing && !exited) {
 				await measureAndLog(() => this.context.tracing.stop(), 'stop tracing', this.options.logger);
 			}
 		} catch (error) {

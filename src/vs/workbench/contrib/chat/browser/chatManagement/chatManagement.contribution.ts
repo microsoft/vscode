@@ -26,6 +26,8 @@ import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ModelsManagementEditor } from './chatManagementEditor.js';
 import { ModelsManagementEditorInput } from './chatManagementEditorInput.js';
 import { ILanguageModelsConfigurationService } from '../../common/languageModelsConfiguration.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { IChatWidgetService } from '../chat.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
@@ -126,12 +128,18 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 					f1: true,
 				});
 			}
-			async run(accessor: ServicesAccessor, searchQuery?: string) {
+			async run(accessor: ServicesAccessor, searchQuery?: string, sessionType?: string) {
 				const editorService = accessor.get(IEditorService);
+				// Without an explicit harness, use the one the last focused chat selects models for.
+				const fallbackSessionType = accessor.get(IChatWidgetService).lastFocusedWidget?.input.modelTargetSessionType
+					?? accessor.get(ICustomizationHarnessService).activeHarness.get();
 				await ensureChatExtensionEnabled(accessor);
 				const pane = await editorService.openEditor(new ModelsManagementEditorInput(), { pinned: true });
-				if (searchQuery && pane instanceof ModelsManagementEditor) {
-					pane.search(searchQuery);
+				if (pane instanceof ModelsManagementEditor) {
+					pane.setSessionType(sessionType ?? fallbackSessionType);
+					if (searchQuery) {
+						pane.search(searchQuery);
+					}
 				}
 				return pane;
 			}

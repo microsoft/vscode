@@ -166,6 +166,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.showSaveDialogSimplified(schema, options);
 		}
 
+		options.defaultUri ??= await this.defaultFilePath(schema);
 		const result = await this.nativeHostService.showSaveDialog(this.toNativeSaveDialogOptions(options));
 		if (result && !result.canceled && result.filePath) {
 			return URI.file(result.filePath);
@@ -179,6 +180,10 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		if (this.shouldUseSimplified(schema).useSimplified) {
 			return this.showOpenDialogSimplified(schema, options);
 		}
+
+		options.defaultUri ??= options.canSelectFolders && !options.canSelectFiles
+			? await this.defaultFolderPath(schema)
+			: await this.defaultFilePath(schema);
 
 		const newOptions: OpenDialogOptions & { properties: string[] } & INativeHostOptions = {
 			title: options.title,

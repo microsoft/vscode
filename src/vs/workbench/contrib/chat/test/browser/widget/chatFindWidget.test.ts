@@ -4,10 +4,112 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { Event as BaseEvent } from '../../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { createRegExp } from '../../../../../../base/common/strings.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ChatFindWidget, computeRevealScrollTop, findMatchRangesInDom, openAncestorDisclosures, rangesEqual, shouldCaptureFocusBeforeShow } from '../../../browser/widget/chatFind/chatFindWidget.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { ChatTreeItem } from '../../../browser/chat.js';
+import { ChatFindModel } from '../../../browser/widget/chatFind/chatFindModel.js';
+import { ChatFindWidget, computeRevealScrollTop, findMatchRangesInDom, IChatFindHost, openAncestorDisclosures, rangesEqual, shouldCaptureFocusBeforeShow } from '../../../browser/widget/chatFind/chatFindWidget.js';
+
+suite('ChatFindWidget', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createWidget(items: readonly ChatTreeItem[] = []) {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const container = document.createElement('div');
+		const transcriptDomNode = container.appendChild(document.createElement('div'));
+		const host: IChatFindHost = {
+			transcriptDomNode,
+			getItems: () => items,
+			onDidChangeContent: BaseEvent.None,
+			reveal: () => { },
+			getTemplateDataForRequestId: () => undefined,
+			onDidRerenderRow: BaseEvent.None,
+			editorsInUse: () => [],
+			getScrollTop: () => 0,
+			setScrollTop: () => { },
+			getRenderHeight: () => 0,
+			getViewportAnchorItemId: () => undefined,
+		};
+		const widget = disposables.add(instantiationService.createInstance(ChatFindWidget, host));
+		const model = Reflect.get(widget, '_model') as ChatFindModel;
+		return { disposables, model, widget };
+	}
+
+	test('does not search intermediate IME composition text', async () => {
+		const { model, widget } = createWidget();
+		const input = widget.getDomNode().querySelector('input');
+		assert.ok(input);
+
+		input.dispatchEvent(new Event('compositionstart'));
+		input.value = 'n';
+		input.dispatchEvent(new Event('input'));
+		await timeout(200);
+		const duringComposition = model.query;
+
+		input.value = '你好';
+		input.dispatchEvent(new Event('compositionend'));
+		input.dispatchEvent(new Event('input'));
+		await timeout(200);
+
+		assert.deepStrictEqual({
+			duringComposition,
+			afterComposition: model.query,
+		}, {
+			duringComposition: '',
+			afterComposition: '你好',
+		});
+	});
+
+	test('next and previous reopen the hidden widget and continue from the active match without focusing it', async () => {
+		const item = { id: 'request', message: {}, messageText: 'needle needle needle' } as unknown as ChatTreeItem;
+		const next = createWidget([item]);
+		const previous = createWidget([item]);
+		Reflect.set(next.widget, '_navigateToActive', () => { });
+		Reflect.set(previous.widget, '_navigateToActive', () => { });
+		const focusedElement = document.activeElement;
+
+		next.widget.show('needle', false);
+		next.model.next();
+		next.widget.hide();
+		previous.widget.show('needle', false);
+		previous.model.next();
+		previous.widget.hide();
+		await timeout(250);
+
+		next.widget.next();
+		previous.widget.previous();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			nextQuery: next.model.query,
+			nextActiveIndex: next.model.activeIndex,
+			nextVisible: next.widget.visible,
+			nextRendered: next.widget.getDomNode().querySelector('.simple-find-part')?.classList.contains('visible'),
+			previousQuery: previous.model.query,
+			previousActiveIndex: previous.model.activeIndex,
+			previousVisible: previous.widget.visible,
+			previousRendered: previous.widget.getDomNode().querySelector('.simple-find-part')?.classList.contains('visible'),
+			focusedElement: document.activeElement,
+		}, {
+			nextQuery: 'needle',
+			nextActiveIndex: 2,
+			nextVisible: true,
+			nextRendered: true,
+			previousQuery: 'needle',
+			previousActiveIndex: 0,
+			previousVisible: true,
+			previousRendered: true,
+			focusedElement,
+		});
+		next.disposables.dispose();
+		previous.disposables.dispose();
+	});
+});
 
 suite('ChatFindWidget DOM highlighting', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

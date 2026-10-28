@@ -51,6 +51,7 @@ import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { formatTokenCount } from '../../../../../base/common/numbers.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
+import { getAddModelsUnavailableReason } from '../../common/chatSessionsService.js';
 
 const $ = DOM.$;
 
@@ -1147,6 +1148,7 @@ export class ChatModelsWidget extends Disposable {
 	private addButton!: Button;
 	private dropdownActions: IAction[] = [];
 	private defaultAccountResolved = false;
+	private sessionType: string | undefined;
 	private viewModel: ChatModelsViewModel;
 	private delayedFiltering: Delayer<void>;
 
@@ -1281,11 +1283,10 @@ export class ChatModelsWidget extends Disposable {
 		this.addButtonContainer = DOM.append(searchAndButtonContainer, $('.section-title-actions'));
 		const buttonOptions: IButtonOptions = {
 			...defaultButtonStyles,
-			supportIcons: true,
 		};
 
 		this.addButton = this._register(new Button(this.addButtonContainer, buttonOptions));
-		this.addButton.label = `$(${Codicon.add.id}) ${localize('models.enableModelProvider', 'Add Models')}`;
+		this.addButton.label = localize('models.enableModelProvider', 'Add Models');
 		this.addButton.element.classList.add('models-add-model-button');
 		this.updateAddModelsButton();
 		this._register(this.addButton.onDidClick((e) => {
@@ -1304,7 +1305,7 @@ export class ChatModelsWidget extends Disposable {
 				...buttonOptions,
 				secondary: true,
 			}));
-			browseMarketplaceButton.label = `$(${Codicon.extensions.id}) ${localize('models.installProviderExtensions', "Install Model Providers")}`;
+			browseMarketplaceButton.label = localize('models.installProviderExtensions', "Install Model Providers");
 			browseMarketplaceButton.element.classList.add('models-browse-marketplace-button');
 			this._register(browseMarketplaceButton.onDidClick(() => this.openLanguageModelProviderExtensionsSearch()));
 		}
@@ -1645,6 +1646,14 @@ export class ChatModelsWidget extends Disposable {
 	}
 
 	private updateAddModelsButton(): void {
+		const unavailableReason = getAddModelsUnavailableReason(this.sessionType, this.environmentService.remoteAuthority);
+		if (unavailableReason) {
+			this.dropdownActions = [];
+			this.addButton.enabled = false;
+			this.addButton.setTitle(unavailableReason);
+			return;
+		}
+
 		const configurableVendors = this.languageModelsService.getVendors().filter(vendor => vendor.managementCommand || vendor.configuration);
 
 		const entitlement = this.chatEntitlementService.entitlement;
@@ -1712,6 +1721,16 @@ export class ChatModelsWidget extends Disposable {
 	public clearSearch(): void {
 		this.focusSearch();
 		this.searchWidget.setValue('');
+	}
+
+	/**
+	 * Lists only the Copilot models of the given session type (harness).
+	 * Pass `undefined` to list every model.
+	 */
+	public setSessionType(sessionType: string | undefined): void {
+		this.sessionType = sessionType;
+		this.viewModel.setSessionType(sessionType);
+		this.updateAddModelsButton();
 	}
 
 	public render(): void {

@@ -17,8 +17,6 @@ export interface INormalizedSessionModelPickerOptions extends ISessionModelPicke
 }
 
 const DEFAULT_MODEL_PICKER_OPTIONS: INormalizedSessionModelPickerOptions = {
-	useGroupedModelPicker: true,
-	showFeatured: true,
 	showUnavailableFeatured: false,
 	showManageModelsAction: false,
 	showAutoModel: true,
@@ -45,6 +43,10 @@ export function hasSelectableModel(
 	options: INormalizedSessionModelPickerOptions,
 ): boolean {
 	return models.length > 0 || options.showAutoModel;
+}
+
+export function hasSendableModelSelection(state: ISessionModelSelectionState): boolean {
+	return state.hasSelectableModel && (!state.pendingSelection || state.options.showAutoModel);
 }
 
 export const EMPTY_MODEL_SELECTION_STATE: ISessionModelSelectionState = {

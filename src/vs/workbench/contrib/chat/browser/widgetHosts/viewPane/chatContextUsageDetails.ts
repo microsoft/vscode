@@ -14,7 +14,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { WorkbenchButtonBar } from '../../../../../../platform/actions/browser/buttonbar.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { formatCopilotCredits } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsLabel } from '../../../common/chatService/chatService.js';
 import type { IChatWidget } from '../../chat.js';
 
 const $ = dom.$;
@@ -167,10 +167,7 @@ export class ChatContextUsageDetails extends Disposable {
 
 		// Update session cost — hide section when no cost data is available
 		if (typeof sessionCost === 'number' && sessionCost > 0) {
-			const formatted = formatCopilotCredits(sessionCost);
-			this.sessionCostValue.textContent = formatted === '1'
-				? localize('sessionCostCredit', "{0} credit", formatted)
-				: localize('sessionCostCredits', "{0} credits", formatted);
+			this.sessionCostValue.textContent = formatCopilotCreditsLabel(sessionCost);
 			this.sessionCostSection.style.display = '';
 		} else {
 			this.sessionCostSection.style.display = 'none';

@@ -10,6 +10,7 @@ import { EditSurvivalResult } from '../../../platform/editSurvivalTracking/commo
 import { IGitService } from '../../../platform/git/common/gitService';
 import { ILanguageDiagnosticsService } from '../../../platform/languages/common/languageDiagnosticsService';
 import { IMultiFileEditInternalTelemetryService } from '../../../platform/multiFileEdit/common/multiFileEditQualityTelemetry';
+import { gitHubCopilotRequestTeProperty } from '../../../platform/networking/common/fetch';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import type { EditOutcome } from '../../../platform/otel/common/genAiAttributes';
 import { emitEditFeedbackEvent, emitEditHunkActionEvent, emitEditSurvivalEvent, emitInlineDoneEvent, emitUserFeedbackEvent } from '../../../platform/otel/common/genAiEvents';
@@ -27,7 +28,7 @@ import { findDiagnosticsTelemetry } from '../../inlineChat/node/diagnosticsTelem
 import { CopilotInteractiveEditorResponse, InteractionOutcome } from '../../inlineChat/node/promptCraftingTypes';
 import { participantIdToModeName } from '../../intents/common/intents';
 import { EditCodeStepTurnMetaData } from '../../intents/node/editCodeStep';
-import { Conversation, ICopilotChatResultIn } from '../../prompt/common/conversation';
+import { Conversation, ICopilotChatResultIn, TurnResponseGitHubCopilotRequestTe } from '../../prompt/common/conversation';
 import { IFeedbackReporter } from '../../prompt/node/feedbackReporter';
 import { sendUserActionTelemetry } from '../../prompt/node/telemetry';
 import { resolveModelIdForTelemetry } from './resolveModelId';
@@ -54,6 +55,16 @@ export class UserFeedbackService implements IUserFeedbackService {
 		@IOTelService private readonly otelService: IOTelService,
 		@IGitService private readonly gitService: IGitService
 	) { }
+
+	/**
+	 * Raw `X-GitHub-Copilot-Request-Te` value of the model call that produced the response of the
+	 * turn identified by `responseId` (the request id sent with that call), if still in memory.
+	 */
+	private _getResponseGitHubCopilotRequestTe(responseId: string | undefined): { gitHubCopilotRequestTe?: string } {
+		const conversation = responseId ? this.conversationStore.getConversation(responseId) : undefined;
+		const turn = conversation?.turns.find(turn => turn.id === responseId);
+		return gitHubCopilotRequestTeProperty(turn?.getMetadata(TurnResponseGitHubCopilotRequestTe)?.value);
+	}
 
 	handleUserAction(e: vscode.ChatUserActionEvent, agentId: string): void {
 		const document = vscode.window.activeTextEditor?.document;
@@ -164,6 +175,7 @@ export class UserFeedbackService implements IUserFeedbackService {
 						"panel.edit.feedback" : {
 							"owner": "joyceerhl",
 							"comment": "Counts accept/reject actions for a proposed edit from panel chat",
+							"gitHubCopilotRequestTe": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Raw value of the CAPI X-GitHub-Copilot-Request-Te response header from the model call that produced the turn's response (normally the final call of the turn), logged unmodified. Non-user-identifying service metadata; omitted when absent." },
 							"languageId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Language of the currently open document." },
 							"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the message request that is being followed-up." },
 							"participant": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the chat participant for this message." },
@@ -189,6 +201,7 @@ export class UserFeedbackService implements IUserFeedbackService {
 					this.telemetryService.sendGHTelemetryEvent('panel.edit.feedback', {
 						languageId: document?.languageId,
 						requestId: result.metadata?.responseId,
+						...this._getResponseGitHubCopilotRequestTe(result.metadata?.responseId),
 						participant: agentId,
 						command: result.metadata?.command,
 						outcome: outcomes.get(e.action.outcome) ?? 'unknown',
@@ -305,6 +318,7 @@ export class UserFeedbackService implements IUserFeedbackService {
 					codeBlockIndex: e.action.codeBlockIndex.toString(),
 					messageId: result.metadata?.modelMessageId ?? '',
 					headerRequestId: result.metadata?.responseId ?? '',
+					...this._getResponseGitHubCopilotRequestTe(result.metadata?.responseId),
 					participant: agentId,
 					languageId: e.action.languageId ?? '',
 					modelId: resolveModelIdForTelemetry(e.action.modelId ?? '', result.metadata?.resolvedModel),
@@ -330,6 +344,7 @@ export class UserFeedbackService implements IUserFeedbackService {
 				codeBlockIndex: e.codeBlockIndex.toString(),
 				messageId: result.metadata?.modelMessageId ?? '',
 				headerRequestId: result.metadata?.responseId ?? '',
+				...this._getResponseGitHubCopilotRequestTe(result.metadata?.responseId),
 				participant: agentId,
 				languageId: e.languageId ?? '',
 				modelId: resolveModelIdForTelemetry(e.modelId, result.metadata?.resolvedModel),
@@ -378,6 +393,7 @@ export class UserFeedbackService implements IUserFeedbackService {
 				rating: e.kind === vscode.ChatResultFeedbackKind.Helpful ? 'positive' : 'negative',
 				messageId: result.metadata?.modelMessageId ?? '',
 				headerRequestId: result.metadata?.responseId ?? '',
+				...this._getResponseGitHubCopilotRequestTe(result.metadata?.responseId),
 			},
 			{},
 			'conversation.messageRating'
@@ -437,6 +453,7 @@ export class UserFeedbackService implements IUserFeedbackService {
 		const { selection, wholeRange, intent, query } = response.promptQuery;
 
 		const requestId = conversation?.getLatestTurn().id;
+		const gitHubCopilotRequestTe = gitHubCopilotRequestTeProperty(conversation?.getLatestTurn().getMetadata(TurnResponseGitHubCopilotRequestTe)?.value);
 		const intentId = intent?.id;
 		const languageId = response.promptQuery.document.languageId;
 
@@ -472,7 +489,7 @@ export class UserFeedbackService implements IUserFeedbackService {
 		};
 
 		if (kind === InteractiveEditorResponseFeedbackKind.Accepted && response.editSurvivalTracker) {
-			response.editSurvivalTracker.startReporter(res => reportInlineEditSurvivalEvent(res, sharedProps, sharedMeasures, this.otelService));
+			response.editSurvivalTracker.startReporter(res => reportInlineEditSurvivalEvent(res, sharedProps, sharedMeasures, this.otelService, gitHubCopilotRequestTe));
 		}
 		(response as any).editSurvivalTracker = undefined; // TODO@jrieken
 
@@ -483,6 +500,7 @@ export class UserFeedbackService implements IUserFeedbackService {
 				"comment": "Metadata about an inline code suggestion being accepted or undone",
 				"languageId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The current file language." },
 				"replyType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "How response is shown in the interface." },
+				"gitHubCopilotRequestTe": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Raw value of the CAPI X-GitHub-Copilot-Request-Te response header from the model call that produced the inline chat response (normally the final call of the turn), logged unmodified. Non-user-identifying service metadata; omitted when absent." },
 				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The id of the inline assistant conversation." },
 				"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The id of the current request turn." },
 				"command": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The command which was used in providing the response." },
@@ -501,7 +519,7 @@ export class UserFeedbackService implements IUserFeedbackService {
 		this.telemetryService.sendMSFTTelemetryEvent('inline.done', sharedProps, {
 			...sharedMeasures, accepted
 		});
-		this.telemetryService.sendGHTelemetryEvent('inline.done', sharedProps, {
+		this.telemetryService.sendGHTelemetryEvent('inline.done', { ...sharedProps, ...gitHubCopilotRequestTe }, {
 			...sharedMeasures, accepted
 		});
 
@@ -536,16 +554,17 @@ export class UserFeedbackService implements IUserFeedbackService {
 		}
 
 		if (telemetryEventName) {
-			sendUserActionTelemetry(this.telemetryService, response.promptQuery.document, userActionProperties, {}, telemetryEventName);
+			sendUserActionTelemetry(this.telemetryService, response.promptQuery.document, { ...userActionProperties, ...gitHubCopilotRequestTe }, {}, telemetryEventName);
 		}
 	}
 }
 
-function reportInlineEditSurvivalEvent(res: EditSurvivalResult, sharedProps: TelemetryEventProperties | undefined, sharedMeasures: TelemetryEventMeasurements | undefined, otelService: IOTelService) {
+function reportInlineEditSurvivalEvent(res: EditSurvivalResult, sharedProps: TelemetryEventProperties | undefined, sharedMeasures: TelemetryEventMeasurements | undefined, otelService: IOTelService, gitHubCopilotRequestTe: { gitHubCopilotRequestTe?: string }) {
 	/* __GDPR__
 		"inline.trackEditSurvival" : {
 			"owner": "hediet",
 			"comment": "Tracks how much percent of the AI edits surived after 5 minutes of accepting",
+			"gitHubCopilotRequestTe": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Raw value of the CAPI X-GitHub-Copilot-Request-Te response header from the model call that produced the inline chat response (normally the final call of the turn), logged unmodified. Non-user-identifying service metadata; omitted when absent." },
 			"languageId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The current file language." },
 			"replyType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "How response is shown in the interface." },
 			"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The id of the inline assistant conversation." },
@@ -575,6 +594,7 @@ function reportInlineEditSurvivalEvent(res: EditSurvivalResult, sharedProps: Tel
 	});
 	res.telemetryService.sendGHTelemetryEvent('inline.trackEditSurvival', {
 		...sharedProps,
+		...gitHubCopilotRequestTe,
 		headBranchName: res.workspace?.headBranchName,
 		headCommitHash: res.workspace?.headCommitHash,
 		remoteUrl: res.workspace?.remoteUrl,

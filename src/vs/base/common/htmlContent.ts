@@ -6,7 +6,7 @@
 import { illegalArgument } from './errors.js';
 import { escapeIcons } from './iconLabels.js';
 import { matchesSomeScheme, Schemas } from './network.js';
-import { isEqual } from './resources.js';
+import { dirname, isEqual, resolvePath } from './resources.js';
 import { escapeRegExpCharacters } from './strings.js';
 import { URI, UriComponents } from './uri.js';
 
@@ -235,6 +235,23 @@ export function parseHrefAndDimensions(href: string): { href: string; dimensions
 		}
 	}
 	return { href, dimensions };
+}
+
+/**
+ * Resolves a Markdown link or media destination against the Markdown's base URI, as the Markdown
+ * renderer does. Destinations with a scheme are returned unchanged.
+ */
+export function resolveWithBaseUri(baseUri: URI, href: string): string {
+	const hasScheme = /^\w[\w\d+.-]*:/.test(href);
+	if (hasScheme) {
+		return href;
+	}
+
+	if (baseUri.path.endsWith('/')) {
+		return resolvePath(baseUri, href).toString();
+	} else {
+		return resolvePath(dirname(baseUri), href).toString();
+	}
 }
 
 export function createMarkdownLink(text: string, href: string, title?: string, escapeTokens = true): string {

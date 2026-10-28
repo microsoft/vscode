@@ -1,0 +1,251 @@
+{
+  "$comment": "Conformance vectors for the `copilot.toolOrigin` key on ToolDefinition._meta. The host produces this key when it projects the Copilot runtime's resolved tool set onto AHP's native SessionState.serverTools. See ../tool-definition.md for the prose spec and ./README.md for the harness contract.",
+  "key": "copilot.toolOrigin",
+  "carrier": "ToolDefinition._meta",
+  "tests": [
+    {
+      "name": "projectFromSdk: a runtime built-in carries kind 'builtin'",
+      "op": "projectFromSdk",
+      "input": {
+        "sdk": {
+          "name": "bash",
+          "description": "Runs a Bash command.",
+          "input_schema": {
+            "type": "object",
+            "properties": { "command": { "type": "string" } },
+            "required": ["command"]
+          }
+        }
+      },
+      "expected": {
+        "tool": {
+          "name": "bash",
+          "description": "Runs a Bash command.",
+          "inputSchema": {
+            "type": "object",
+            "properties": { "command": { "type": "string" } },
+            "required": ["command"]
+          },
+          "_meta": { "copilot.toolOrigin": { "kind": "builtin" } }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: an MCP-backed tool carries kind 'mcp' with its server provenance",
+      "op": "projectFromSdk",
+      "input": {
+        "sdk": {
+          "name": "playwright-navigate",
+          "description": "Navigate to a URL.",
+          "namespacedName": "playwright/navigate",
+          "mcpServerName": "playwright",
+          "mcpToolName": "navigate"
+        }
+      },
+      "expected": {
+        "tool": {
+          "name": "playwright-navigate",
+          "description": "Navigate to a URL.",
+          "_meta": {
+            "copilot.toolOrigin": {
+              "kind": "mcp",
+              "namespacedName": "playwright/navigate",
+              "mcpServerName": "playwright",
+              "mcpToolName": "navigate"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: deferLoading rides the key when the runtime set it",
+      "op": "projectFromSdk",
+      "input": {
+        "sdk": {
+          "name": "search_huge_index",
+          "description": "Search a very large index.",
+          "deferLoading": true
+        }
+      },
+      "expected": {
+        "tool": {
+          "name": "search_huge_index",
+          "description": "Search a very large index.",
+          "_meta": {
+            "copilot.toolOrigin": { "kind": "builtin", "deferLoading": true }
+          }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: an empty description is omitted rather than sent as an empty string",
+      "op": "projectFromSdk",
+      "input": { "sdk": { "name": "quiet_tool", "description": "" } },
+      "expected": {
+        "tool": {
+          "name": "quiet_tool",
+          "_meta": { "copilot.toolOrigin": { "kind": "builtin" } }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: a namespaced built-in keeps its namespacedName",
+      "op": "projectFromSdk",
+      "input": {
+        "sdk": {
+          "name": "config-get",
+          "description": "Read a config value.",
+          "namespacedName": "config/get"
+        }
+      },
+      "expected": {
+        "tool": {
+          "name": "config-get",
+          "description": "Read a config value.",
+          "_meta": {
+            "copilot.toolOrigin": {
+              "kind": "builtin",
+              "namespacedName": "config/get"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "set: stamps the origin onto a tool with no _meta",
+      "op": "set",
+      "input": {
+        "tool": { "name": "bash", "description": "Runs a Bash command." },
+        "origin": { "kind": "builtin" }
+      },
+      "expected": {
+        "tool": {
+          "name": "bash",
+          "description": "Runs a Bash command.",
+          "_meta": { "copilot.toolOrigin": { "kind": "builtin" } }
+        }
+      }
+    },
+    {
+      "name": "set: preserves other tool metadata",
+      "op": "set",
+      "input": {
+        "tool": {
+          "name": "bash",
+          "description": "Runs a Bash command.",
+          "_meta": { "copilot.unrelated": true }
+        },
+        "origin": { "kind": "builtin" }
+      },
+      "expected": {
+        "tool": {
+          "name": "bash",
+          "description": "Runs a Bash command.",
+          "_meta": {
+            "copilot.unrelated": true,
+            "copilot.toolOrigin": { "kind": "builtin" }
+          }
+        }
+      }
+    },
+    {
+      "name": "extract: returns the origin object when well-formed",
+      "op": "extract",
+      "input": {
+        "tool": {
+          "name": "playwright-navigate",
+          "_meta": {
+            "copilot.toolOrigin": {
+              "kind": "mcp",
+              "mcpServerName": "playwright"
+            }
+          }
+        }
+      },
+      "expected": {
+        "origin": { "kind": "mcp", "mcpServerName": "playwright" }
+      }
+    },
+    {
+      "name": "extract: returns an unrecognised kind rather than rejecting it",
+      "op": "extract",
+      "input": {
+        "tool": {
+          "name": "future_tool",
+          "_meta": { "copilot.toolOrigin": { "kind": "somethingNew" } }
+        }
+      },
+      "expected": { "origin": { "kind": "somethingNew" } }
+    },
+    {
+      "name": "extract: absent key yields no origin",
+      "op": "extract",
+      "input": { "tool": { "name": "bash" } },
+      "expected": { "origin": null }
+    },
+    {
+      "name": "extract: absent key among other metadata yields no origin",
+      "op": "extract",
+      "input": {
+        "tool": { "name": "bash", "_meta": { "copilot.unrelated": true } }
+      },
+      "expected": { "origin": null }
+    },
+    {
+      "name": "extract: empty object yields no origin (kind is required)",
+      "op": "extract",
+      "input": {
+        "tool": { "name": "bash", "_meta": { "copilot.toolOrigin": {} } }
+      },
+      "expected": { "origin": null }
+    },
+    {
+      "name": "extract: wrong-typed value yields no origin",
+      "op": "extract",
+      "input": {
+        "tool": { "name": "bash", "_meta": { "copilot.toolOrigin": "builtin" } }
+      },
+      "expected": { "origin": null }
+    },
+    {
+      "name": "extract: non-string kind yields no origin",
+      "op": "extract",
+      "input": {
+        "tool": { "name": "bash", "_meta": { "copilot.toolOrigin": { "kind": 7 } } }
+      },
+      "expected": { "origin": null }
+    },
+    {
+      "name": "wireShape: the key is a flat dotted entry holding an object value",
+      "op": "wireShape",
+      "input": {
+        "tool": {
+          "name": "playwright-navigate",
+          "description": "Navigate to a URL.",
+          "_meta": {
+            "copilot.toolOrigin": {
+              "kind": "mcp",
+              "namespacedName": "playwright/navigate",
+              "mcpServerName": "playwright",
+              "mcpToolName": "navigate"
+            }
+          }
+        }
+      },
+      "expected": {
+        "json": {
+          "name": "playwright-navigate",
+          "description": "Navigate to a URL.",
+          "_meta": {
+            "copilot.toolOrigin": {
+              "kind": "mcp",
+              "namespacedName": "playwright/navigate",
+              "mcpServerName": "playwright",
+              "mcpToolName": "navigate"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

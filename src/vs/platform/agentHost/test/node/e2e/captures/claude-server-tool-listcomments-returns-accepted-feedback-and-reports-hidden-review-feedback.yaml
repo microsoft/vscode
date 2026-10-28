@@ -2,30 +2,26 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
           content: Call listComments exactly once, then reply exactly "listed".
     response:
       content:
-        - type: text
-          text: I'll call listComments once.
         - type: tool_use
           id: toolcall_0
           name: mcp__host__listComments
           input: {}
       stopReason: tool_use
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
           content: Call listComments exactly once, then reply exactly "listed".
         - role: assistant
           content:
-            - type: text
-              text: I'll call listComments once.
             - type: tool_use
               name: mcp__host__listComments
               input: {}
@@ -47,9 +43,13 @@ exchanges:
                       },
                       "text": "visible",
                       "kind": "codeReview",
+                      "author": "agent",
                       "resolved": false,
                       "replies": [
-                        "reply"
+                        {
+                          "author": "user",
+                          "text": "reply"
+                        }
                       ]
                     }
                   ],

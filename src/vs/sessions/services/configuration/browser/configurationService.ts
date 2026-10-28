@@ -115,20 +115,28 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	async initialize(): Promise<void> {
 		const workspace = this.workspaceService.getWorkspace() as Workspace;
 		const workspaceIdentifier = { id: workspace.id, configPath: workspace.configuration! };
-		const [defaultModel, policyModel, userModel] = await Promise.all([
-			this.defaultConfiguration.initialize(),
+		// Policy definitions depend on the initialized default configuration.
+		await this.defaultConfiguration.initialize();
+		const [, userModel] = await Promise.all([
 			this.policyConfiguration.initialize(),
 			this.userConfiguration.initialize(),
 			this.workspaceConfiguration.initialize(workspaceIdentifier, true),
 		]);
 		this.workspaceConfiguration.reparseWorkspaceSettings({ exclude: [...this.agentsWindowReadOnlyKeys] });
+
+		// Capture models after file loading so policy updates during initialization are preserved.
+		const [defaultModel, policyModel, workspaceModel] = [
+			this.defaultConfiguration.configurationModel,
+			this.policyConfiguration.configurationModel,
+			this.workspaceConfiguration.getConfiguration(),
+		];
 		this._configuration = new Configuration(
 			defaultModel,
 			policyModel,
 			ConfigurationModel.createEmptyModel(this.logService),
 			userModel,
 			ConfigurationModel.createEmptyModel(this.logService),
-			this.workspaceConfiguration.getConfiguration(),
+			workspaceModel,
 			new ResourceMap(),
 			ConfigurationModel.createEmptyModel(this.logService),
 			new ResourceMap<ConfigurationModel>(),
@@ -215,7 +223,7 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		}
 
 		await this.configurationEditing.write(settingsResource, path, value);
-		await this.reloadConfiguration();
+		await this.reloadConfiguration(target);
 	}
 
 	private deriveConfigurationTargets(_key: string, value: unknown, inspect: IConfigurationValue<unknown>): ConfigurationTarget[] {
@@ -274,7 +282,9 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	}
 
 	async reloadConfiguration(_target?: ConfigurationTarget | IWorkspaceFolder): Promise<void> {
-		this.reloadDefaultConfiguration();
+		if (_target === undefined || _target === ConfigurationTarget.DEFAULT) {
+			this.reloadDefaultConfiguration();
+		}
 		if (_target === ConfigurationTarget.DEFAULT) {
 			return;
 		}

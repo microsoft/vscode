@@ -10,7 +10,7 @@ import { LanguagesRegistry } from './languagesRegistry.js';
 import { ILanguageNameIdPair, ILanguageSelection, ILanguageService, ILanguageIcon, ILanguageExtensionPoint } from '../languages/language.js';
 import { ILanguageIdCodec, TokenizationRegistry } from '../languages.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../languages/modesRegistry.js';
-import { IObservable, observableFromEvent } from '../../../base/common/observable.js';
+import { IObservable, observableSignalFromEvent } from '../../../base/common/observable.js';
 
 export class LanguageService extends Disposable implements ILanguageService {
 	public _serviceBrand: undefined;
@@ -25,6 +25,9 @@ export class LanguageService extends Disposable implements ILanguageService {
 
 	protected readonly _onDidChange = this._register(new Emitter<void>({ leakWarningThreshold: 200, leakWarningName: 'LanguageService._onDidChange' /* https://github.com/microsoft/vscode/issues/119968 */ }));
 	public readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	// Observed language selections share one subscription to the registry.
+	private readonly _languagesChanged = observableSignalFromEvent(this, this.onDidChange);
 
 	private readonly _requestedBasicLanguages = new Set<string>();
 	private readonly _requestedRichLanguages = new Set<string>();
@@ -99,20 +102,20 @@ export class LanguageService extends Disposable implements ILanguageService {
 	}
 
 	public createById(languageId: string | null | undefined): ILanguageSelection {
-		return new LanguageSelection(this.onDidChange, () => {
+		return new LanguageSelection(this._languagesChanged, () => {
 			return this._createAndGetLanguageIdentifier(languageId);
 		});
 	}
 
 	public createByMimeType(mimeType: string | null | undefined): ILanguageSelection {
-		return new LanguageSelection(this.onDidChange, () => {
+		return new LanguageSelection(this._languagesChanged, () => {
 			const languageId = this.getLanguageIdByMimeType(mimeType);
 			return this._createAndGetLanguageIdentifier(languageId);
 		});
 	}
 
 	public createByFilepathOrFirstLine(resource: URI | null, firstLine?: string): ILanguageSelection {
-		return new LanguageSelection(this.onDidChange, () => {
+		return new LanguageSelection(this._languagesChanged, () => {
 			const languageId = this.guessLanguageIdByFilepathOrFirstLine(resource, firstLine);
 			return this._createAndGetLanguageIdentifier(languageId);
 		});
@@ -153,8 +156,8 @@ class LanguageSelection implements ILanguageSelection {
 	private readonly _value: IObservable<string>;
 	public readonly onDidChange: Event<string>;
 
-	constructor(onDidChangeLanguages: Event<void>, selector: () => string) {
-		this._value = observableFromEvent(this, onDidChangeLanguages, () => selector());
+	constructor(onDidChangeLanguages: IObservable<void>, selector: () => string) {
+		this._value = onDidChangeLanguages.map(this, selector);
 		this.onDidChange = Event.fromObservable(this._value);
 	}
 

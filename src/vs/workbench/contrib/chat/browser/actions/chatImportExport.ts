@@ -15,10 +15,9 @@ import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { extractExportableSessionData, isExportableSessionData } from '../../common/model/chatModel.js';
+import { parseChatImport } from '../../common/model/chatModel.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { revive } from '../../../../../base/common/marshalling.js';
 import { ACTIVE_GROUP, PreferredGroup } from '../../../../services/editor/common/editorService.js';
 
 const defaultFileName = 'chat.json';
@@ -113,11 +112,7 @@ export function registerChatExportActions() {
 
 			const content = await fileService.readFile(inputPath);
 			try {
-				const data = revive(JSON.parse(content.value.toString()));
-				if (!isExportableSessionData(data)) {
-					throw new Error('Invalid chat session data');
-				}
-				const importedData = extractExportableSessionData(data);
+				const importedData = parseChatImport(content.value.toString());
 
 				let sessionResource: URI;
 				let resolvedTarget: typeof ChatViewPaneTarget | PreferredGroup;

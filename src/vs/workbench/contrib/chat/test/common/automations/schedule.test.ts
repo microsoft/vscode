@@ -6,129 +6,71 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAutomationSchedule } from '../../../common/automations/automation.js';
-import { computeNextRunAt } from '../../../common/automations/schedule.js';
+import { automationScheduleToLocal, automationScheduleToUTC } from '../../../common/automations/schedule.js';
 
-/**
- * Builds a local-time `Date` from year/month/day/hour/minute. Used so test
- * fixtures read as wall-clock instants regardless of the host timezone.
- */
-function localDate(year: number, month: number, day: number, hour = 0, minute = 0): Date {
-	return new Date(year, month - 1, day, hour, minute, 0, 0);
-}
-
-suite('Automations - computeNextRunAt', () => {
+suite('Automation schedule time zones', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('manual schedules never produce a next-run', () => {
-		const schedule: IAutomationSchedule = { interval: 'manual', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 };
-		assert.strictEqual(computeNextRunAt(schedule, localDate(2026, 6, 1, 12, 0)), undefined);
+	for (const { offset, local, utc } of [
+		{ offset: 420, local: [9, 45, 1], utc: [16, 45, 1] },
+		{ offset: 480, local: [9, 45, 1], utc: [17, 45, 1] },
+		{ offset: 420, local: [23, 45, 6], utc: [6, 45, 0] },
+		{ offset: -330, local: [0, 15, 0], utc: [18, 45, 6] },
+		{ offset: -345, local: [9, 0, 2], utc: [3, 15, 2] },
+		{ offset: 210, local: [23, 0, 6], utc: [2, 30, 0] },
+		{ offset: -765, local: [0, 0, 1], utc: [11, 15, 0] },
+		{ offset: 0, local: [12, 7, 3], utc: [12, 7, 3] },
+		{ offset: 44, local: [9, 45, 1], utc: [10, 29, 1] },
+	]) {
+		test(`converts weekly fields and weekday rollover at offset ${offset}, local ${local}`, () => {
+			const localSchedule: IAutomationSchedule = { interval: 'weekly', scheduleHour: local[0], scheduleMinute: local[1], scheduleDay: local[2] };
+			const utcSchedule: IAutomationSchedule = { interval: 'weekly', timeZone: 'UTC', scheduleHour: utc[0], scheduleMinute: utc[1], scheduleDay: utc[2] };
+			assert.deepStrictEqual({
+				toUTC: automationScheduleToUTC(localSchedule, offset),
+				toLocal: automationScheduleToLocal(utcSchedule, offset),
+			}, { toUTC: utcSchedule, toLocal: localSchedule });
+		});
+	}
+
+	test('daily conversion leaves the unused weekday unchanged', () => {
+		const local: IAutomationSchedule = { interval: 'daily', scheduleHour: 23, scheduleMinute: 45, scheduleDay: 6 };
+		const utc = automationScheduleToUTC(local, 420);
+		assert.deepStrictEqual({ utc, local: automationScheduleToLocal(utc, 420) }, {
+			utc: { ...local, timeZone: 'UTC', scheduleHour: 6 }, local,
+		});
 	});
 
-	test('hourly schedules return now + 1h regardless of wall-clock fields', () => {
-		const schedule: IAutomationSchedule = { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
-		const now = localDate(2026, 6, 1, 12, 30);
-		const next = computeNextRunAt(schedule, now);
-		assert.ok(next);
-		assert.strictEqual(next.getTime() - now.getTime(), 60 * 60 * 1000);
+	test('fixed UTC displays differently in winter and summer, while a held editing offset roundtrips exactly', () => {
+		const utc: IAutomationSchedule = { interval: 'daily', timeZone: 'UTC', scheduleHour: 16, scheduleMinute: 45, scheduleDay: 1 };
+		const summer = automationScheduleToLocal(utc, 420);
+		const winter = automationScheduleToLocal(utc, 480);
+		assert.deepStrictEqual({
+			summer: summer.scheduleHour, winter: winter.scheduleHour,
+			unchangedSave: automationScheduleToUTC(summer, 420),
+		}, { summer: 9, winter: 8, unchangedSave: utc });
 	});
 
-	test('daily: when target time is later today, returns today at that time', () => {
-		const schedule: IAutomationSchedule = { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 };
-		const now = localDate(2026, 6, 1, 8, 0);
-		assert.deepStrictEqual(computeNextRunAt(schedule, now), localDate(2026, 6, 1, 9, 0));
+	test('all daily and weekly minutes roundtrip with representative offsets', () => {
+		for (const interval of ['daily', 'weekly'] as const) {
+			for (const offset of [-840, -765, -345, -330, 0, 210, 420, 480, 720]) {
+				for (let day = 0; day < 7; day++) {
+					for (let minute = 0; minute < 1440; minute++) {
+						const schedule: IAutomationSchedule = { interval, timeZone: 'UTC', scheduleHour: Math.floor(minute / 60), scheduleMinute: minute % 60, scheduleDay: day };
+						assert.deepStrictEqual(automationScheduleToUTC(automationScheduleToLocal(schedule, offset), offset), schedule);
+					}
+				}
+			}
+		}
 	});
 
-	test('daily: when target time has passed, returns tomorrow at that time', () => {
-		const schedule: IAutomationSchedule = { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 };
-		const now = localDate(2026, 6, 1, 10, 0);
-		assert.deepStrictEqual(computeNextRunAt(schedule, now), localDate(2026, 6, 2, 9, 0));
-	});
-
-	test('daily: when target equals now, returns tomorrow (strict >)', () => {
-		const schedule: IAutomationSchedule = { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 };
-		const now = localDate(2026, 6, 1, 9, 0);
-		assert.deepStrictEqual(computeNextRunAt(schedule, now), localDate(2026, 6, 2, 9, 0));
-	});
-
-	test('daily: rolls into next month at month boundary', () => {
-		const schedule: IAutomationSchedule = { interval: 'daily', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 };
-		const now = localDate(2026, 6, 30, 23, 0);
-		assert.deepStrictEqual(computeNextRunAt(schedule, now), localDate(2026, 7, 1, 9, 30));
-	});
-
-	test('weekly: same weekday and time in the future returns today', () => {
-		// 2026-06-01 is a Monday (getDay() === 1)
-		const schedule: IAutomationSchedule = { interval: 'weekly', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 };
-		const now = localDate(2026, 6, 1, 7, 0);
-		assert.deepStrictEqual(computeNextRunAt(schedule, now), localDate(2026, 6, 1, 9, 0));
-	});
-
-	test('weekly: same weekday but time already passed returns next week', () => {
-		const schedule: IAutomationSchedule = { interval: 'weekly', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 };
-		const now = localDate(2026, 6, 1, 10, 0);
-		assert.deepStrictEqual(computeNextRunAt(schedule, now), localDate(2026, 6, 8, 9, 0));
-	});
-
-	test('weekly: future weekday this week', () => {
-		// Now = Mon (1). Target = Fri (5).
-		const schedule: IAutomationSchedule = { interval: 'weekly', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 5 };
-		const now = localDate(2026, 6, 1, 7, 0);
-		assert.deepStrictEqual(computeNextRunAt(schedule, now), localDate(2026, 6, 5, 9, 0));
-	});
-
-	test('weekly: past weekday this week wraps to next week', () => {
-		// Now = Thu (4). Target = Mon (1).
-		const schedule: IAutomationSchedule = { interval: 'weekly', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 };
-		const now = localDate(2026, 6, 4, 7, 0);
-		assert.deepStrictEqual(computeNextRunAt(schedule, now), localDate(2026, 6, 8, 9, 0));
-	});
-
-	test('rejects invalid hour, minute, or day for daily/weekly', () => {
-		const now = localDate(2026, 6, 1, 12, 0);
-		assert.strictEqual(computeNextRunAt({ interval: 'daily', scheduleHour: 24, scheduleMinute: 0, scheduleDay: 0 }, now), undefined);
-		assert.strictEqual(computeNextRunAt({ interval: 'daily', scheduleHour: -1, scheduleMinute: 0, scheduleDay: 0 }, now), undefined);
-		assert.strictEqual(computeNextRunAt({ interval: 'daily', scheduleHour: 9, scheduleMinute: 60, scheduleDay: 0 }, now), undefined);
-		assert.strictEqual(computeNextRunAt({ interval: 'weekly', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 7 }, now), undefined);
-		assert.strictEqual(computeNextRunAt({ interval: 'weekly', scheduleHour: 9, scheduleMinute: 0, scheduleDay: -1 }, now), undefined);
-	});
-
-	test('hourly ignores hour/minute fields (still produces a next-run with junk values)', () => {
-		const now = localDate(2026, 6, 1, 12, 0);
-		const schedule: IAutomationSchedule = { interval: 'hourly', scheduleHour: 99, scheduleMinute: 99, scheduleDay: 99 };
-		const next = computeNextRunAt(schedule, now);
-		assert.ok(next);
-		assert.strictEqual(next.getTime() - now.getTime(), 60 * 60 * 1000);
-	});
-
-	test('daily: spring-forward day is not skipped', () => {
-		// 2026-03-08 02:30 local is in the spring-forward gap in US timezones
-		// (clock jumps 02:00 → 03:00). Even outside DST timezones the test
-		// asserts the calendar-date semantics: starting 23:30 the day before,
-		// `tomorrow` must be the *next calendar day*, not the day after that.
-		const schedule: IAutomationSchedule = { interval: 'daily', scheduleHour: 2, scheduleMinute: 30, scheduleDay: 0 };
-		const now = localDate(2026, 3, 7, 23, 30); // Saturday March 7, 23:30
-		const next = computeNextRunAt(schedule, now);
-		assert.ok(next);
-		// Next run must be Sunday March 8, not Monday March 9. `localDate`
-		// may shift 02:30 forward into the DST gap on actual DST hosts, but
-		// the *date* must land on the 8th, never the 9th.
-		assert.strictEqual(next.getDate(), 8, `expected next.getDate()===8, got ${next.toString()}`);
-		assert.strictEqual(next.getMonth(), 2);
-	});
-
-	test('weekly: spring-forward across the boundary lands on the correct calendar day', () => {
-		// Weekly on Sunday 02:30, now = Saturday March 7 23:30.
-		const schedule: IAutomationSchedule = { interval: 'weekly', scheduleHour: 2, scheduleMinute: 30, scheduleDay: 0 };
-		const now = localDate(2026, 3, 7, 23, 30);
-		const next = computeNextRunAt(schedule, now);
-		assert.ok(next);
-		assert.strictEqual(next.getDate(), 8);
-		assert.strictEqual(next.getDay(), 0); // Sunday
-	});
-
-	test('rejects unknown intervals', () => {
-		const now = localDate(2026, 6, 1, 12, 0);
-		const schedule = { interval: 'bogus', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 } as unknown as IAutomationSchedule;
-		assert.strictEqual(computeNextRunAt(schedule, now), undefined);
+	test('manual, hourly and custom fields are not shifted, and already-local/UTC schedules are not double converted', () => {
+		for (const interval of ['manual', 'hourly', 'custom'] as const) {
+			const local: IAutomationSchedule = { interval, scheduleHour: 0, scheduleMinute: 7, scheduleDay: 3 };
+			const utc: IAutomationSchedule = { ...local, timeZone: 'UTC' };
+			assert.deepStrictEqual({
+				local: automationScheduleToLocal(utc, -345), utc: automationScheduleToUTC(local, 420),
+				alreadyLocal: automationScheduleToLocal(local, 420), alreadyUTC: automationScheduleToUTC(utc, 420),
+			}, { local, utc, alreadyLocal: local, alreadyUTC: utc });
+		}
 	});
 });

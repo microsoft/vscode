@@ -22,7 +22,7 @@ suite('AgentHostImportConversationStore', () => {
 
 	test('set/take round-trips the conversation and consumes it exactly once', () => {
 		const store = new AgentHostImportConversationStore();
-		const conversation = { turns: [turn('a')], model: { id: 'gpt-x' } };
+		const conversation = { turns: [turn('a')], model: { id: 'gpt-x' }, title: 'Source conversation' };
 
 		store.set(untitled, conversation);
 
@@ -47,7 +47,7 @@ suite('AgentHostImportConversationStore', () => {
 
 	test('rename moves the stash from the untitled resource to the real one', () => {
 		const store = new AgentHostImportConversationStore();
-		const conversation = { turns: [turn('a')], model: { id: 'gpt-x' } };
+		const conversation = { turns: [turn('a')], model: { id: 'gpt-x' }, title: 'Source conversation' };
 		store.set(untitled, conversation);
 
 		store.rename(untitled, real);

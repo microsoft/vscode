@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isMouseEvent } from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { IActionRunner } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -10,6 +11,9 @@ import { DisposableStore, MutableDisposable } from '../../../../../base/common/l
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { CodiconActionViewItem } from '../../../notebook/browser/view/cellParts/cellActionView.js';
+import { isChatTreeItem } from '../../common/model/chatViewModel.js';
+import { IForkConversationOptions } from '../actions/chatForkActions.js';
+import { ChatTreeItem } from '../chat.js';
 
 const actionIconClasses = ThemeIcon.asClassNameArray(Codicon.repoForked);
 const forkIconClasses = ThemeIcon.asClassNameArray(Codicon.repoForkedCompact);
@@ -29,6 +33,22 @@ export class ChatForkActionViewItem extends CodiconActionViewItem {
 	override set actionRunner(actionRunner: IActionRunner) {
 		super.actionRunner = actionRunner;
 		this.bindActionRunner(actionRunner);
+	}
+
+	override async onClick(event: MouseEvent): Promise<void> {
+		if (!isMouseEvent(event) || !event.altKey || !isChatTreeItem(this._context)) {
+			return super.onClick(event);
+		}
+
+		event.preventDefault();
+		event.stopPropagation();
+
+		const context: IForkConversationOptions & { element: ChatTreeItem } = { element: this._context, toSide: true };
+		try {
+			await this.actionRunner.run(this._commandAction, context);
+		} catch (error) {
+			this._notificationService.error(error);
+		}
 	}
 
 	override render(container: HTMLElement): void {

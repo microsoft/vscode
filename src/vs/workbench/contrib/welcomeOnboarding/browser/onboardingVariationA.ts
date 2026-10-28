@@ -33,6 +33,8 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { InstallChatEvent, InstallChatClassification, ChatSetupStrategy } from '../../chat/browser/chatSetup/chatSetup.js';
+import { IChatMicrosoftSignInProbeService } from '../../chat/browser/chatSetup/chatSetupMicrosoftProbe.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import {
@@ -43,11 +45,10 @@ import {
 	IOnboardingThemeOption,
 	getOnboardingStepTitle,
 	getOnboardingStepSubtitle,
-	GHE_FULL_URI_REGEX,
-	GheParseResultKind,
-	parseGheInstanceInput,
 } from '../common/onboardingTypes.js';
 import { IOnboardingService } from '../common/onboardingService.js';
+import { addGitHubEnterpriseUri, getConfiguredGitHubEnterpriseUris, GheParseResultKind, isValidGitHubEnterpriseUri, parseGheInstanceInput } from '../../../services/accounts/common/githubEnterprise.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
 type OnboardingStepViewClassification = {
 	owner: 'cwebster-99';
@@ -88,7 +89,8 @@ const defaultChat = product.defaultChatAgent;
  * tab. When dismissed, the welcome tab is revealed underneath.
  *
  * Steps:
- * 1. Sign In — sessions-style sign-in hero with GitHub Copilot, Google, and Apple options
+ * 1. Sign In — sessions-style sign-in hero with GitHub Copilot, Google, and Apple options, plus
+ *    Microsoft when {@link IChatMicrosoftSignInProbeService} offers it
  * 2. Personalize — Theme selection grid + keymap pills
  */
 export class OnboardingVariationA extends Disposable implements IOnboardingService {
@@ -146,6 +148,8 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IChatMicrosoftSignInProbeService private readonly microsoftSignInProbeService: IChatMicrosoftSignInProbeService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -557,6 +561,20 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			this._handleSignIn('apple');
 		}));
 
+		const microsoftBtn = this._registerStepFocusable(this._createSignInButton(actions, 'microsoft', localize('onboarding.signIn.microsoft', "Continue with Microsoft"), {
+			iconOnly: true,
+			label: localize('onboarding.signIn.microsoft', "Continue with Microsoft")
+		}));
+		this.stepDisposables.add(addDisposableListener(microsoftBtn, EventType.CLICK, () => {
+			this._logAction('signIn', undefined, 'microsoft');
+			this._handleSignIn(defaultChat.provider.microsoft.id);
+		}));
+		// Only offered once a linked Microsoft account is found, which can happen while this step shows.
+		this.microsoftSignInProbeService.notifySignInShown();
+		this.stepDisposables.add(autorun(reader => {
+			microsoftBtn.style.display = this.microsoftSignInProbeService.offerMicrosoftSignIn.read(reader) ? '' : 'none';
+		}));
+
 		const gheBtn = this._registerStepFocusable(this._createSignInButton(actions, 'github-enterprise', localize('onboarding.signIn.ghe', "GHE"), {
 			textOnly: true,
 			label: localize('onboarding.signIn.ghe.aria', "Continue with GitHub Enterprise")
@@ -571,6 +589,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 	private _renderEnterpriseInstanceForm(actions: HTMLElement): void {
 		const enterprisePromptLabel = this._getEnterpriseInstancePromptLabel();
+		const replacedUri = getConfiguredGitHubEnterpriseUris(this.configurationService, this.workspaceTrustManagementService.isWorkspaceTrusted(), defaultChat.providerUriSetting).find(uri => !isValidGitHubEnterpriseUri(uri));
 
 		const container = append(actions, $('.onboarding-a-signin-ghe-input'));
 
@@ -597,7 +616,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				validate();
 				return;
 			}
-			await this._submitEnterpriseInstance(result.resolvedUri);
+			await this._submitEnterpriseInstance(result.resolvedUri, replacedUri);
 		};
 		submitAction.run = submit;
 
@@ -626,7 +645,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				case GheParseResultKind.Invalid:
 					inputBox.element.classList.add('error');
 					message.classList.add('error');
-					message.textContent = localize('onboarding.signIn.enterprise.invalid', 'You must enter a valid {0} instance (i.e. "octocat" or "https://octocat.ghe.com")', defaultChat.provider.enterprise.name);
+					message.textContent = localize('onboarding.signIn.enterprise.invalid', "Enter a GHE.com instance name or HTTPS URL.");
 					submitAction.enabled = false;
 					return false;
 			}
@@ -679,7 +698,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		}
 	}
 
-	private _createSignInButton(parent: HTMLElement, providerClass: 'github' | 'github-enterprise' | 'google' | 'apple', label: string, options?: { emphasized?: boolean; iconOnly?: boolean; textOnly?: boolean; label?: string }): HTMLButtonElement {
+	private _createSignInButton(parent: HTMLElement, providerClass: 'github' | 'github-enterprise' | 'google' | 'apple' | 'microsoft', label: string, options?: { emphasized?: boolean; iconOnly?: boolean; textOnly?: boolean; label?: string }): HTMLButtonElement {
 		const isCompact = options?.iconOnly || options?.textOnly;
 		const btn = append(parent, $<HTMLButtonElement>(isCompact ? 'button.onboarding-a-signin-icon-btn' : 'button.onboarding-a-signin-btn'));
 		btn.type = 'button';
@@ -739,23 +758,30 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	}
 
 	private async _handleEnterpriseSignIn(): Promise<void> {
-		const existingUri = this.configurationService.getValue<string>(defaultChat.providerUriSetting);
-		if (typeof existingUri !== 'string' || !GHE_FULL_URI_REGEX.test(existingUri)) {
-			this.enterpriseInstanceValue = existingUri ?? '';
-			this.enterpriseSignInWatch = StopWatch.create();
+		let uris: readonly string[];
+		try {
+			uris = getConfiguredGitHubEnterpriseUris(this.configurationService, this.workspaceTrustManagementService.isWorkspaceTrusted(), defaultChat.providerUriSetting);
+		} catch {
+			this._notifyEnterpriseSignInError();
+			return;
+		}
+		const invalidUri = uris.find(uri => !isValidGitHubEnterpriseUri(uri));
+		const hasCloudInstance = uris.some(uri => parseGheInstanceInput(uri).kind === GheParseResultKind.FullUri);
+		if (!hasCloudInstance || invalidUri !== undefined) {
+			this.enterpriseInstanceValue = invalidUri ?? '';
+			this.enterpriseSignInWatch ??= StopWatch.create();
 			this._setEnterpriseSignInUiState('instance');
 			return;
 		}
 
-		this.enterpriseInstanceValue = existingUri;
 		await this._runEnterpriseSignInSetup();
 	}
 
-	private async _submitEnterpriseInstance(resolvedUri: string): Promise<void> {
+	private async _submitEnterpriseInstance(resolvedUri: string, replacedUri?: string): Promise<void> {
 		try {
-			await this.configurationService.updateValue(defaultChat.providerUriSetting, resolvedUri, ConfigurationTarget.USER);
+			await addGitHubEnterpriseUri(this.configurationService, resolvedUri, this.workspaceTrustManagementService.isWorkspaceTrusted(), defaultChat.providerUriSetting, replacedUri);
 			this.enterpriseInstanceValue = resolvedUri;
-			await this._runEnterpriseSignInSetup();
+			await this._handleEnterpriseSignIn();
 		} catch {
 			this.enterpriseSignInWatch = undefined;
 			this._setEnterpriseSignInUiState('instance');
@@ -1115,13 +1141,17 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		return kbd;
 	}
 
-	private _createInlineLink(parent: HTMLElement, label: string, href: string): HTMLAnchorElement {
+	private _createInlineLink(parent: HTMLElement, label: string, href: string | undefined): void {
+		if (!href) {
+			parent.append(label);
+			return;
+		}
+
 		const link = this._registerStepFocusable(append(parent, $<HTMLAnchorElement>('a.onboarding-a-inline-link')));
 		link.textContent = label;
 		link.href = href;
 		link.target = '_blank';
 		link.rel = 'noopener';
-		return link;
 	}
 
 	// =====================================================================
