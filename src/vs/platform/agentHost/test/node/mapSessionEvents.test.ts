@@ -1379,13 +1379,13 @@ suite('mapSessionEvents — history replay', () => {
 				contributor: part.toolCall.contributor,
 				meta: readToolCallMeta(part.toolCall),
 				structuredContent: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.structuredContent : undefined,
+				resultMetadata: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.resultMetadata : undefined,
 			}, {
 				contributor: {
 					kind: ToolCallContributorKind.MCP,
 					customizationId: `mcp-top-level:${providerId}:test-session:GitHub`,
 				},
 				meta: {
-					'vscode.mcpToolResultMeta': mcpResultMeta,
 					mcpServerName: 'GitHub',
 					mcpToolName: 'get_me',
 					ui: {
@@ -1394,6 +1394,7 @@ suite('mapSessionEvents — history replay', () => {
 					},
 				},
 				structuredContent,
+				resultMetadata: mcpResultMeta,
 			});
 		});
 	}

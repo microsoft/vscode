@@ -8,7 +8,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { getAgentHostExtensionInitializeResultMeta, supportsAgentHostCreateSessionImport } from '../../common/agentHostExtensionProtocol.js';
 import { AgentHostCreateSessionImportMetaKey, readCreateSessionImportMeta, readCreateSessionImportValue, serializeCreateSessionImport, splitCreateSessionImportChunks, withCreateSessionImportMeta, withoutCreateSessionImportMeta, withStagedCreateSessionImportMeta, type IAgentCreateSessionImportConversation } from '../../common/meta/agentHostCreateSessionImportMeta.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState } from '../../common/state/protocol/state.js';
-import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 
 suite('Agent host createSession importConversation metadata', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -66,19 +65,16 @@ suite('Agent host createSession importConversation metadata', () => {
 		});
 	});
 
-	test('MCP result meta survives JSON serialization and staged conversation import', () => {
+	test('MCP result metadata survives JSON serialization and staged conversation import', () => {
 		const conversation: IAgentCreateSessionImportConversation = {
 			...sampleImport,
 			turns: sampleImport.turns.map(turn => ({
 				...turn,
-				responseParts: turn.responseParts.map(part => part.kind === ResponsePartKind.ToolCall ? {
+				responseParts: turn.responseParts.map(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? {
 					...part,
 					toolCall: {
 						...part.toolCall,
-						_meta: toToolCallMeta({
-							ui: { resourceUri: 'ui://app', channel: 'mcp://other-host/opaque-channel' },
-							'vscode.mcpToolResultMeta': { ui: { private: [null, false, 0, {}] }, toolKind: 'server-owned' },
-						}),
+						resultMetadata: { ui: { private: [null, false, 0, {}] }, toolKind: 'server-owned' },
 					},
 				} : part),
 			})),

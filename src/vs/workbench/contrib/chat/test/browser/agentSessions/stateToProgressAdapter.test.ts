@@ -1979,7 +1979,7 @@ suite('stateToProgressAdapter', () => {
 					success: fixture.success,
 					content,
 					structuredContent,
-					_meta: toToolCallMeta({ ui, mcpServerName: 'remote-server', 'vscode.mcpToolResultMeta': fixture.resultMeta }),
+					resultMetadata: fixture.resultMeta,
 				});
 				const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
 				rawFinalizeToolInvocation(live, completed, backendSession, 'other-host');
@@ -1998,11 +1998,14 @@ suite('stateToProgressAdapter', () => {
 		}
 
 		test('does not emit MCP result meta from a running tool', () => {
-			const running = createToolCallState({
-				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'remote-server' },
-				content: [],
-				_meta: toToolCallMeta({ ui, 'vscode.mcpToolResultMeta': resultMeta }),
-			});
+			const running = {
+				...createToolCallState({
+					contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'remote-server' },
+					content: [],
+					_meta: toToolCallMeta({ ui }),
+				}),
+				resultMetadata: resultMeta,
+			};
 			const invocation = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
 			rawUpdateRunningToolSpecificData(invocation, running, backendSession, 'other-host');
 			const runningDetails = IChatToolInvocation.resultDetails(invocation);

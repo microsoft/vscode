@@ -2041,7 +2041,7 @@ function toMcpCallToolResult(tc: ToolCallState, isError: boolean, connectionAuth
 		}
 	}
 	const structuredContent = tc.status === ToolCallStatus.Completed ? tc.structuredContent : undefined;
-	const resultMeta = tc.status === ToolCallStatus.Completed ? readToolCallMeta(tc)['vscode.mcpToolResultMeta'] : undefined;
+	const resultMeta = tc.status === ToolCallStatus.Completed ? tc.resultMetadata : undefined;
 	if (content.length === 0 && structuredContent === undefined && resultMeta === undefined && !isError) {
 		return undefined;
 	}

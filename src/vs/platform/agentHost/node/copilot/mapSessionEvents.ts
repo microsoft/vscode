@@ -1435,10 +1435,10 @@ function makeCompletedToolCallPart(
 		pastTenseMessage: getPastTenseMessage(info.toolName, info.displayName, info.parameters, d.success, d.success ? toolOutput : undefined, path => resolveToolDisplayPath(path, workingDirectory), resolveAgentName, imageGeneration),
 		content: content.length > 0 ? content : undefined,
 		structuredContent: d.result?.structuredContent as Record<string, unknown> | undefined,
+		resultMetadata: getSdkMcpResultMeta(d.result),
 		error: d.error,
 		confirmed: ToolCallConfirmationReason.NotNeeded,
 		_meta: toToolCallMeta({
-			'vscode.mcpToolResultMeta': getSdkMcpResultMeta(d.result),
 			[imageGenerationToolMetaKey]: imageGeneration,
 			'vscode.toolCallDurationMs': info.toolName === CopilotToolName.ImageGeneration ? getToolCallDurationMs(info.startedAt, completedAt) : undefined,
 			'vscode.toolInputContract': info.hasNativeToolInputContract ? getToolSummaryInputContract(info.toolName) : undefined,

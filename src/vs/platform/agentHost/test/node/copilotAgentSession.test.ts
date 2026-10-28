@@ -17988,14 +17988,14 @@ Use the attached image as context.
 				}
 			}
 			assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallComplete
-				? [{ success: action.result.success, meta: readToolCallMeta(action) }] : []),
+				? [{ success: action.result.success, resultMetadata: action.result.resultMetadata, meta: action._meta }] : []),
 				[true, false].flatMap(success => resultMetas.map(mcpResultMeta => ({
 					success,
+					resultMetadata: mcpResultMeta,
 					meta: {
 						mcpServerName: 'docs',
 						mcpToolName: 'open_app',
 						ui,
-						...(mcpResultMeta !== undefined ? { 'vscode.mcpToolResultMeta': mcpResultMeta } : {}),
 					},
 				}))));
 		});

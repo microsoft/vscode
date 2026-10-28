@@ -9784,9 +9784,10 @@ export class CopilotAgentSession extends Disposable {
 						pastTenseMessage: getPastTenseMessage(tracked.toolName, displayName, tracked.parameters, e.data.success, e.data.success ? toolOutput : undefined, path => this._resolveEditFilePath(path), this._resolveAgentName, tracked.meta?.[imageGenerationToolMetaKey]),
 						content: content.length > 0 ? content : undefined,
 						structuredContent: e.data.result?.structuredContent as Record<string, unknown> | undefined,
+						resultMetadata: getSdkMcpResultMeta(e.data.result),
 						error: e.data.error,
 					},
-					_meta: toToolCallMeta({ ...tracked.meta, 'vscode.mcpToolResultMeta': getSdkMcpResultMeta(e.data.result) }),
+					_meta: tracked.meta ? toToolCallMeta(tracked.meta) : undefined,
 				}, parentToolCallId);
 				const onPublished = (published: boolean) => {
 					completionPublished = published;

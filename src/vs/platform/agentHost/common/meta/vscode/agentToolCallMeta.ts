@@ -26,8 +26,6 @@ export interface IToolCallMeta {
 	readonly [imageGenerationToolMetaKey]?: IImageGenerationToolMetadata;
 	/** Provider-measured execution duration for display, in milliseconds. */
 	readonly 'vscode.toolCallDurationMs'?: number;
-	/** Verbatim MCP App result metadata, isolated from host-owned rendering metadata. */
-	readonly 'vscode.mcpToolResultMeta'?: Record<string, unknown>;
 	/** Declares the input schema of a native tool, never a client- or MCP-contributed implementation. */
 	readonly 'vscode.toolInputContract'?: typeof copilotCliToolInputContract;
 	/** Trusted Copilot host snapshot for integrated-browser client tools. Absent for other tools and harnesses. */
@@ -76,7 +74,6 @@ const fusionPhaseStatuses = ['running', 'succeeded', 'failed', 'cancelled'] as c
 export type AgentFusionPhaseStatus = typeof fusionPhaseStatuses[number];
 const knownFusionPhaseStatuses: ReadonlySet<string> = new Set(fusionPhaseStatuses);
 
-// Result-only metadata must not suppress other hosts' presentation fallbacks.
 const toolCallMetaKeys = [
 	imageGenerationToolMetaKey,
 	'vscode.toolCallDurationMs',
@@ -188,10 +185,6 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 		return {};
 	}
 	const result: Mutable<IToolCallMeta> = {};
-	const mcpToolResultMeta = meta['vscode.mcpToolResultMeta'];
-	if (mcpToolResultMeta !== null && typeof mcpToolResultMeta === 'object' && !Array.isArray(mcpToolResultMeta)) {
-		result['vscode.mcpToolResultMeta'] = mcpToolResultMeta as Record<string, unknown>;
-	}
 	const durationMs = meta['vscode.toolCallDurationMs'];
 	if (typeof durationMs === 'number' && Number.isFinite(durationMs) && durationMs >= 0) {
 		result['vscode.toolCallDurationMs'] = durationMs;
