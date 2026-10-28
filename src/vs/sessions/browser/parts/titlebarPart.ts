@@ -234,6 +234,17 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 		this.rootContainer = append(parent, $('.titlebar-container.sessions-titlebar-container.has-center'));
+
+		// Track fullscreen of the window hosting this part (main or auxiliary)
+		const targetWindow = getWindow(parent);
+		const targetWindowId = getWindowId(targetWindow);
+		const updateFullscreenClass = () => parent.classList.toggle('titlebar-fullscreen', isFullscreen(targetWindow));
+		updateFullscreenClass();
+		this._register(onDidChangeFullscreen(windowId => {
+			if (windowId === targetWindowId) {
+				updateFullscreenClass();
+			}
+		}));
 		// Measure in the render phase so DOM reads do not force layout during startup.
 		this.titleBarToolBarOverflowScheduler = this._register(new AnimationFrameScheduler(this.rootContainer, () => this.updateTitleBarToolBarOverflow()));
 
@@ -262,7 +273,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 				// Hide spacer in fullscreen (traffic lights are not shown)
 				const updateSpacerVisibility = () => {
-					const fullscreen = isFullscreen(mainWindow);
+					const fullscreen = isFullscreen(targetWindow);
 					spacer.style.display = fullscreen ? 'none' : '';
 					this.leftSpacerWidth = fullscreen ? 0 : 70;
 				};
@@ -270,7 +281,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 				spacer.style.width = `${this.leftSpacerWidth}px`;
 				spacer.style.flexShrink = '0';
 				this._register(onDidChangeFullscreen(windowId => {
-					if (windowId === getWindowId(mainWindow)) {
+					if (windowId === targetWindowId) {
 						updateSpacerVisibility();
 					}
 				}));

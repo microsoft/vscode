@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { getZoomFactor, setZoomFactor } from '../../../base/browser/browser.js';
+import { getZoomFactor, setFullscreen, setZoomFactor } from '../../../base/browser/browser.js';
 import { $, append } from '../../../base/browser/dom.js';
 import { Direction, Grid, IView, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { mainWindow } from '../../../base/browser/window.js';
@@ -295,9 +295,9 @@ suite('Sessions - Titlebar Part', () => {
 		}
 	}
 
-	for (const { name, classes, controlsOnLeft, gap } of [
+	for (const { name, classes, titlebarClasses = [], controlsOnLeft, gap } of [
 		{ name: 'native macOS', classes: ['mac'], controlsOnLeft: true, gap: 16 },
-		{ name: 'macOS fullscreen', classes: ['mac', 'fullscreen'], controlsOnLeft: true, gap: 8 },
+		{ name: 'macOS fullscreen', classes: ['mac'], titlebarClasses: ['titlebar-fullscreen'], controlsOnLeft: true, gap: 8 },
 		{ name: 'macOS browser', classes: ['mac', 'web'], controlsOnLeft: true, gap: 8 },
 		{ name: 'macOS without left controls', classes: ['mac'], controlsOnLeft: false, gap: 8 },
 		{ name: 'Windows', classes: ['windows'], controlsOnLeft: false, gap: 8 },
@@ -309,6 +309,7 @@ suite('Sessions - Titlebar Part', () => {
 			root.classList.add(...classes);
 			root.style.cssText = 'width: 800px; --vscode-spacing-size160: 16px;';
 			const titlebar = append(root, $('.part.titlebar'));
+			titlebar.classList.add(...titlebarClasses);
 			const content = append(titlebar, $('.titlebar-container.sessions-titlebar-container.has-center'));
 			const left = append(content, $('.titlebar-left'));
 			const controls = controlsOnLeft ? append(left, $('.window-controls-container')) : undefined;
@@ -531,6 +532,19 @@ suite('Sessions - Titlebar Part', () => {
 			}, { contiguous: true, moreHidden: 0 });
 		});
 	}
+
+	test('tracks fullscreen of its own window on the title bar element', () => {
+		const { part } = createTitlebar();
+		const parent = $('div');
+		(part as unknown as { createContentArea(parent: HTMLElement): HTMLElement }).createContentArea(parent);
+		const initial = parent.classList.contains('titlebar-fullscreen');
+		setFullscreen(true, mainWindow);
+		store.add(toDisposable(() => setFullscreen(false, mainWindow)));
+		const fullscreen = parent.classList.contains('titlebar-fullscreen');
+		setFullscreen(false, mainWindow);
+
+		assert.deepStrictEqual({ initial, fullscreen, restored: parent.classList.contains('titlebar-fullscreen') }, { initial: false, fullscreen: true, restored: false });
+	});
 
 	test('hides optional toolbar groups when a titlebar section overflows', () => {
 		let centerClientWidth = 100;
