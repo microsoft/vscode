@@ -1462,6 +1462,30 @@ suite('QuickInput item hover layout', () => {
 		]);
 	});
 
+	test('dismisses the item hover when the picker moves and keeps it when relaid out in place', async () => {
+		await showPicker(['first']);
+		await settle();
+		controller.toggleHover();
+		const shown = hoverGeometry();
+
+		controller.layout({ height: 600, width: 800 }, 0);
+		const relaidOutInPlace = hoverGeometry();
+
+		// A different size re-centres the picker, which a viewport-positioned hover would not follow
+		controller.layout({ height: 600, width: 700 }, 0);
+		const afterMove = hoverGeometry();
+
+		controller.toggleHover();
+		const reopened = hoverGeometry();
+
+		assert.deepStrictEqual({ shown, relaidOutInPlace, afterMove, reopened }, {
+			shown: expectedGeometry,
+			relaidOutInPlace: expectedGeometry,
+			afterMove: { shown: false },
+			reopened: expectedGeometry,
+		});
+	});
+
 	test('keeps the widget settled when a visible picker is replaced and animates a new show', async () => {
 		await showPicker(['first']);
 		await settle();

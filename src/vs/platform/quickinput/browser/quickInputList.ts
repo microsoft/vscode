@@ -791,6 +791,8 @@ export class QuickInputList extends Disposable {
 	// Elements that apply to the current set of elements
 	private readonly _elementDisposable = this._register(new DisposableStore());
 	private _lastHover: IHoverWidget | undefined;
+	// Viewport position of the list when the item hover was shown, see `layout`
+	private _lastHoverListPosition: { readonly top: number; readonly left: number } | undefined;
 	private _lastQueryString: string | undefined;
 
 	constructor(
@@ -1426,6 +1428,22 @@ export class QuickInputList extends Disposable {
 			+ 6
 			}px` : '';
 		this._tree.layout();
+		this.hideHoverIfMoved();
+	}
+
+	/**
+	 * The item hover is positioned relative to the viewport, so it would be left behind when
+	 * the quick input moves (e.g. the window is resized or the alignment changes).
+	 */
+	private hideHoverIfMoved(): void {
+		if (!this._lastHover || this._lastHover.isDisposed || !this._lastHoverListPosition) {
+			return;
+		}
+		const { top, left } = this._container.getBoundingClientRect();
+		if (top !== this._lastHoverListPosition.top || left !== this._lastHoverListPosition.left) {
+			this.hoverDelegate.onDidHideHover?.();
+			this._lastHover.dispose();
+		}
 	}
 
 	filter(query: string): boolean {
@@ -1664,6 +1682,8 @@ export class QuickInputList extends Disposable {
 				useFixedPosition: true
 			}
 		}, false);
+		const { top, left } = this._container.getBoundingClientRect();
+		this._lastHoverListPosition = { top, left };
 	}
 }
 
