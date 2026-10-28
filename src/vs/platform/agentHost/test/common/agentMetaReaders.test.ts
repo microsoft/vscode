@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { type AgentFusionPhaseStatus, isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { type AgentFusionPhaseStatus, isPresentationOnlyToolCall, readAgentToolOutputDelta, readToolCallMeta, readToolCallPresentation, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSystemNotificationKind, type AgentFusionProgressStatus, readAgentSystemNotificationMeta, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readSessionSandboxPolicy, withSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
@@ -287,6 +287,43 @@ suite('Agent host _meta readers', () => {
 	suite('readToolCallMeta', () => {
 		test('returns empty when no _meta', () => {
 			assert.deepStrictEqual(readToolCallMeta(toolCall(undefined)), {});
+		});
+
+		test('MCP result meta round-trips opaque objects without colliding with host keys', () => {
+			const key = 'vscode.mcpToolResultMeta';
+			const payload = {
+				ui: { resourceUri: 'server-owned', nested: [null, false, 0, { value: 'opaque' }] },
+				toolKind: 'server-owned',
+				'vscode.imageGeneration': { private: true },
+			};
+			const host = { toolKind: 'search', ui: { resourceUri: 'ui://app', channel: 'mcp://c' } } as const;
+			assert.deepStrictEqual([payload, {}].map(value => {
+				const meta = { ...host, [key]: value };
+				const wire = toToolCallMeta(meta);
+				return { wire, read: readToolCallMeta(toolCall(wire)) };
+			}), [payload, {}].map(value => ({
+				wire: { ...host, [key]: value },
+				read: { ...host, [key]: value },
+			})));
+		});
+
+		test('MCP result meta rejects absent and malformed outer values', () => {
+			const invalid = [undefined, null, [], [1], '', 'meta', 0, 1, false, true];
+			assert.deepStrictEqual({
+				absent: readToolCallMeta(toolCall(undefined)),
+				invalid: invalid.map(value => readToolCallMeta(toolCall({ 'vscode.mcpToolResultMeta': value }))),
+			}, { absent: {}, invalid: invalid.map(() => ({})) });
+		});
+
+		test('MCP result meta alone does not change other-host presentation or output fallbacks', () => {
+			const sources = [toolCall(undefined), toolCall(toToolCallMeta({ 'vscode.mcpToolResultMeta': {} }))];
+			assert.deepStrictEqual({
+				kinds: sources.map(source => readToolCallPresentation({ ...source, toolName: 'grep', displayName: 'Grep' }).toolKind),
+				chunks: sources.map(source => readAgentToolOutputDelta({ _meta: { 'copilot.toolOutputDelta': 'output' } }, source, source)),
+			}, {
+				kinds: ['search', 'search'],
+				chunks: [{ output: 'output', isPty: false }, { output: 'output', isPty: false }],
+			});
 		});
 
 		test('validates the sandbox bypass flag', () => {

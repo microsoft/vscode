@@ -271,6 +271,14 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 	return shellExit;
 }
 
+/**
+ * Reads the MCP App tool-result `_meta` the runtime carries as `mcpResultMeta`.
+ * TODO: Read the field directly once the pinned `@github/copilot-sdk` declares it.
+ */
+export function getSdkMcpResultMeta(result: ToolExecutionCompleteResult | undefined): Record<string, unknown> | undefined {
+	return (result as (ToolExecutionCompleteResult & { readonly mcpResultMeta?: Record<string, unknown> }) | undefined)?.mcpResultMeta;
+}
+
 /** Prefers UI output and avoids duplicating text already carried by structured result blocks. */
 export function getSdkToolResultText(result: ToolExecutionCompleteResult | undefined): string | undefined {
 	const displayText = result?.detailedContent ?? result?.content;
@@ -1430,6 +1438,7 @@ function makeCompletedToolCallPart(
 		error: d.error,
 		confirmed: ToolCallConfirmationReason.NotNeeded,
 		_meta: toToolCallMeta({
+			'vscode.mcpToolResultMeta': getSdkMcpResultMeta(d.result),
 			[imageGenerationToolMetaKey]: imageGeneration,
 			'vscode.toolCallDurationMs': info.toolName === CopilotToolName.ImageGeneration ? getToolCallDurationMs(info.startedAt, completedAt) : undefined,
 			'vscode.toolInputContract': info.hasNativeToolInputContract ? getToolSummaryInputContract(info.toolName) : undefined,
