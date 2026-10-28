@@ -1636,8 +1636,8 @@ suite('Sessions - Editor Contribution', () => {
 	test('empty file editor updates its workspace', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const layoutService = stubEditorVisibility(instantiationService, true);
-		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first')), layoutService));
-		const other = store.add(new EmptyFileEditorInput(undefined, layoutService));
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first')), layoutService, new class extends mock<IEditorGroupsService>() { override readonly parts = []; }()));
+		const other = store.add(new EmptyFileEditorInput(undefined, layoutService, new class extends mock<IEditorGroupsService>() { override readonly parts = []; }()));
 		input.setWorkspace(createWorkspace(URI.file('/repo/other')));
 
 		assert.deepStrictEqual({
@@ -1658,7 +1658,7 @@ suite('Sessions - Editor Contribution', () => {
 				return part === Parts.EDITOR_PART && editorVisible;
 			}
 		};
-		const input = store.add(new EmptyFileEditorInput(undefined, layoutService));
+		const input = store.add(new EmptyFileEditorInput(undefined, layoutService, new class extends mock<IEditorGroupsService>() { override readonly parts = []; }()));
 		let capabilitiesChanges = 0;
 		store.add(input.onDidChangeCapabilities(() => capabilitiesChanges++));
 
@@ -1693,7 +1693,7 @@ suite('Sessions - Editor Contribution', () => {
 				return part === Parts.EDITOR_PART && editorVisible;
 			}
 		};
-		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/worktree')), layoutService));
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/worktree')), layoutService, new class extends mock<IEditorGroupsService>() { override readonly parts = []; }()));
 		let labelChanges = 0;
 		store.add(input.onDidChangeLabel(() => labelChanges++));
 
@@ -1716,7 +1716,7 @@ suite('Sessions - Editor Contribution', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const layoutService = stubEditorVisibility(instantiationService, false);
 		const serializer = new EmptyFileEditorSerializer();
-		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first'), URI.file('/repo/second')), layoutService));
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first'), URI.file('/repo/second')), layoutService, new class extends mock<IEditorGroupsService>() { override readonly parts = []; }()));
 		const restored = serializer.deserialize(instantiationService, serializer.serialize(input) ?? '');
 		if (restored) {
 			store.add(restored);
