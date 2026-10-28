@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { shouldSkipTestJobs } from '../detect-changes/detect.ts';
+import { changedPaths, shouldSkipTestJobs } from '../detect-changes/detect.ts';
 
 interface IChangedFile {
 	readonly filename: string;
 	readonly previous_filename?: string;
+	readonly status?: string;
+	readonly patch?: string;
 }
 
 interface IListFilesParameters {
@@ -108,8 +110,7 @@ export async function detectAgentHostE2EChanges(github: IGitHub, context: IConte
 		return;
 	}
 
-	const paths = files.flatMap(file =>
-		file.previous_filename ? [file.filename, file.previous_filename] : [file.filename]);
+	const paths = changedPaths(files);
 	const expectedFileCount = context.payload.pull_request?.changed_files;
 	const incomplete = typeof expectedFileCount === 'number' && files.length < expectedFileCount;
 	const fullProfilePath = paths.find(requiresFullProfile);
