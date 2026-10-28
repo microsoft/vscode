@@ -355,7 +355,11 @@ suite('Detect Changes', () => {
 		});
 	});
 
-	test('the component fixture gate accepts deliberate skips but rejects failures, cancellations and unexpected skips', () => {
+	test('the component fixture gate accepts deliberate skips but rejects failures, cancellations and unexpected skips', t => {
+		if (process.platform === 'win32') {
+			t.skip('The workflow gate uses bash only.');
+			return;
+		}
 		const step = loadWorkflow('component-fixtures.yml').jobs['component-fixtures'].steps?.[0];
 		assert.ok(step?.run);
 		assert.deepStrictEqual(step.env, {
