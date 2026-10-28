@@ -140,7 +140,8 @@ import { AgentHostLocalModelSupport } from './agentHostLocalModelSupport.js';
 import { resolveAgentHostToolResultImage } from './agentHostToolResultImages.js';
 import { getComputerUseActivationCardText, getComputerUseSetupCardText, IComputerUseSetupService } from './computerUseSetup.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
-import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
+import { composeSessionActiveClient, IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
+import { IAgentHostMcpAppToolsService } from './agentHostMcpAppToolsService.js';
 import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { IAgentHostSessionWorkingDirectoryResolver, RequestedWorkingDirectory } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostSessionWorkingDirectorySynchronizer } from './agentHostSessionWorkingDirectorySynchronizer.js';
@@ -1121,6 +1122,7 @@ function equalsActiveClientState(one: unknown, other: unknown): boolean {
 class ActiveClientEntry extends Disposable {
 
 	private readonly _activeClient: IObservable<SessionActiveClient>;
+	private readonly _baseToolNames: IObservable<ReadonlySet<string>>;
 	private readonly _state = observableValue(this, true);
 	private readonly _cancellation = new CancellationTokenSource();
 	private readonly _reconcileSignal = observableValue(this, 0);
@@ -1133,6 +1135,7 @@ class ActiveClientEntry extends Disposable {
 	constructor(
 		private readonly _scope: IAgentCustomizationScope,
 		sessionTools: IReference<IObservable<readonly ToolDefinition[]>>,
+		appTools: IObservable<readonly ToolDefinition[]>,
 		clientId: string,
 		debounceDelay: number,
 		private readonly _getSessionState: (backendSession: URI) => SessionState | undefined,
@@ -1140,18 +1143,15 @@ class ActiveClientEntry extends Disposable {
 	) {
 		super();
 		const scopedActiveClient = _scope.activeClient(clientId);
-		this._activeClient = derived(this, reader => {
-			const activeClient = scopedActiveClient.read(reader);
-			const tools = [...activeClient.tools];
-			const toolNames = new Set(tools.map(tool => tool.name));
-			for (const tool of sessionTools.object.read(reader)) {
-				if (!toolNames.has(tool.name)) {
-					tools.push(tool);
-					toolNames.add(tool.name);
-				}
-			}
-			return { ...activeClient, tools };
-		});
+		this._baseToolNames = derived(this, reader => new Set([
+			...scopedActiveClient.read(reader).tools,
+			...sessionTools.object.read(reader),
+		].map(tool => tool.name)));
+		this._activeClient = derived(this, reader => composeSessionActiveClient(
+			scopedActiveClient.read(reader),
+			sessionTools.object.read(reader),
+			appTools.read(reader),
+		));
 		this._publishDelayer = this._register(new Delayer<void>(debounceDelay));
 		this._register(_scope);
 		this._register(sessionTools);
@@ -1169,6 +1169,11 @@ class ActiveClientEntry extends Disposable {
 	/** Snapshot of the composed active-client view. */
 	getActiveClient(): SessionActiveClient {
 		return this._activeClient.get();
+	}
+
+	/** Whether the app-independent active-client scope publishes this tool name. */
+	hasBaseOrSessionTool(name: string): boolean {
+		return this._baseToolNames.get().has(name);
 	}
 
 	/** Resolves once no active-client publish is pending. */
@@ -1304,7 +1309,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * holds a reference; the shared watcher stays alive while any reference
 	 * remains and is disposed only when the last one is released.
 	 */
-	private readonly _inputNeededWatchers = new Map<string, { readonly store: DisposableStore; readonly refs: Set<string> }>();
+	private readonly _inputNeededWatchers = new Map<string, { readonly store: DisposableStore; readonly refs: Set<string>; readonly sessionResource: URI }>();
 	/**
 	 * Backend session each open resource's {@link _inputNeededWatchers}
 	 * reference belongs to, recorded when the reference is installed. Teardown
@@ -1440,6 +1445,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@IAgentHostMcpAppToolsService private readonly _mcpAppToolsService: IAgentHostMcpAppToolsService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
@@ -2783,6 +2789,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const entry = new ActiveClientEntry(
 			scope,
 			this._activeClientService.acquireSessionTools(sessionResource),
+			this._mcpAppToolsService.getToolDefinitions(sessionResource),
 			this._config.connection.clientId,
 			AgentHostSessionHandler.ACTIVE_CLIENT_RECONCILIATION_DEBOUNCE_MS,
 			backendSession => this._getSessionState(backendSession.toString()),
@@ -3038,7 +3045,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const sessionSub = this._ensureSessionSubscription(sessionKey);
 		const state = observableFromSubscription(this, sessionSub);
 		const store = new DisposableStore();
-		this._inputNeededWatchers.set(sessionKey, { store, refs: new Set([sessionResource.toString()]) });
+		this._inputNeededWatchers.set(sessionKey, { store, refs: new Set([sessionResource.toString()]), sessionResource });
 
 		// Requests that we own should be 'invoked' when pending confirmation immediately because
 		// we handle showing their UI directly. For simplicity in later tool call flows, rewrite them.
@@ -3162,6 +3169,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						execution.activeAttempts++;
 						void this._executeClientTool(
 							request,
+							backendSession,
+							sessionResource,
 							contextSessionResource,
 							execution.source.token,
 							() => requestGeneration === generation && (invocationStarted || equals(request$.read(undefined), request)),
@@ -3183,7 +3192,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					};
 					if (claimant) {
 						execute(claimant);
-					} else if (!this._clientToolRequiresConfirmation(request.toolCall)) {
+					} else if (!this._clientToolRequiresConfirmation(request.toolCall, backendSession, sessionResource)) {
 						execute(undefined);
 					} else if (!unobservedTimer.value) {
 						const requestGeneration = generation;
@@ -3258,7 +3267,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * observer that renders the call and the watcher that executes it therefore
 	 * act on one invocation.
 	 */
-	private _ensureClientToolInvocation(chatURI: string, turnId: string, toolCallId: string, toolId: string, subagentInvocationId: string | undefined): ChatToolInvocation | undefined {
+	private _ensureClientToolInvocation(chatURI: string, turnId: string, toolCallId: string, toolId: string, toolSessionResource: URI, subagentInvocationId: string | undefined): ChatToolInvocation | undefined {
 		const key = this._toolCallKey(chatURI, turnId, toolCallId);
 		const existing = this._clientToolInvocations.get(key);
 		if (existing) {
@@ -3267,6 +3276,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const invocation = this._toolsService.beginToolCall({
 			toolCallId,
 			toolId,
+			toolSessionResource,
 			subagentInvocationId,
 			sessionResource: undefined,
 			force: true,
@@ -3277,11 +3287,24 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return invocation;
 	}
 
+	private _getClientToolOwner(backendSession: URI, sessionResource: URI): { sessionResource: URI; toolSessionResource: URI } {
+		const owner = this._inputNeededWatchers.get(backendSession.toString())?.sessionResource ?? sessionResource;
+		return { sessionResource: owner, toolSessionResource: this._mcpAppToolsService.getToolSessionResource(owner) };
+	}
+
 	/** Resolves a client tool without considering MCP tools, which the host executes separately. */
-	private _resolveClientTool(toolName: string): IToolData | undefined {
+	private _resolveClientTool(toolName: string, backendSession: URI, sessionResource: URI): IToolData | undefined {
+		const owner = this._getClientToolOwner(backendSession, sessionResource);
+		const appTool = this._mcpAppToolsService.getTool(owner.toolSessionResource, toolName);
+		if (appTool && !this._activeClientEntries.get(owner.sessionResource)?.hasBaseOrSessionTool(toolName)) {
+			return appTool;
+		}
 		const isCopilotSession = isCopilotAgentHostSessionType(this._config.sessionType);
 		if (isCopilotSession && toolName === SEMANTIC_SEARCH_TOOL_NAME) {
-			return this._toolsService.getTool(CLIENT_SEMANTIC_SEARCH_TOOL_ID);
+			const tool = this._toolsService.getTool(CLIENT_SEMANTIC_SEARCH_TOOL_ID);
+			if (tool) {
+				return tool;
+			}
 		}
 		const clientToolName = toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME ? CLIENT_TOOL_SEARCH_REFERENCE_NAME : toolName;
 		for (const tool of this._toolsService.getAllToolsIncludingDisabled()) {
@@ -3289,7 +3312,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return tool;
 			}
 		}
-		return undefined;
+		return appTool;
 	}
 
 	/**
@@ -3303,8 +3326,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * headless modal nobody can answer. Only consulted for the unclaimed case;
 	 * a claimed call always runs with context regardless.
 	 */
-	private _clientToolRequiresConfirmation(toolCall: ToolCallState): boolean {
-		return this._resolveClientTool(toolCall.toolName)?.canRequestPreApproval === true;
+	private _clientToolRequiresConfirmation(toolCall: ToolCallState, backendSession: URI, sessionResource: URI): boolean {
+		return this._resolveClientTool(toolCall.toolName, backendSession, sessionResource)?.canRequestPreApproval === true;
 	}
 
 	/**
@@ -3317,19 +3340,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * attribute to that observer's chat. Without it the tool runs headlessly,
 	 * independent of whether the owning turn is live.
 	 */
-	private async _executeClientTool(request: ClientToolExecutionRequest, contextSessionResource: URI | undefined, token: CancellationToken, isCurrent: () => boolean, markInvocationStarted: () => void): Promise<void> {
+	private async _executeClientTool(request: ClientToolExecutionRequest, backendSession: URI, sessionResource: URI, contextSessionResource: URI | undefined, token: CancellationToken, isCurrent: () => boolean, markInvocationStarted: () => void): Promise<void> {
 		const chatURI = request.chat.toString();
 		const toolCall = request.toolCall;
 		const toolName = toolCall.toolName;
 		const isToolSearch = toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME;
-		const toolData = this._resolveClientTool(toolName);
+		const toolData = this._resolveClientTool(toolName, backendSession, sessionResource);
+		const { toolSessionResource } = this._getClientToolOwner(backendSession, sessionResource);
 
 		// A tool-search completion (success or failure) must drop the transient
 		// candidate corpus from `_meta` while preserving any other metadata.
 		const completionMeta = isToolSearch ? { _meta: metaWithoutToolSearchCandidates(toolCall) } : {};
 
 		const invocation = toolData
-			? this._ensureClientToolInvocation(chatURI, request.turnId, toolCall.toolCallId, toolData.id, undefined)
+			? this._ensureClientToolInvocation(chatURI, request.turnId, toolCall.toolCallId, toolData.id, toolSessionResource, undefined)
 			: undefined;
 		const fail = (message: string, code: string) => {
 			const pastTenseMessage = localize('agentHost.clientTool.pastTense', "Couldn't run {0}", toolCall.displayName);
@@ -3405,6 +3429,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			result = await this._toolsService.invokeTool({
 				callId: toolCall.toolCallId,
 				toolId: toolData.id,
+				toolSessionResource,
 				parameters,
 				context: contextSessionResource ? {
 					sessionResource: contextSessionResource,
@@ -5221,7 +5246,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			adopted.didExecuteTool(undefined);
 		}
 
-		const toolData = this._resolveClientTool(toolName);
+		const toolData = this._resolveClientTool(toolName, opts.backendSession, opts.sessionResource);
 		if (!toolData) {
 			this._logService.warn(`[AgentHost] Client tool call for unknown tool: ${toolName}`);
 			this._dispatchAction(opts.backendSession, {
@@ -5237,7 +5262,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return;
 		}
 
-		const invocation = this._ensureClientToolInvocation(opts.chatURI, opts.turnId, toolCallId, toolData.id, opts.subAgentInvocationId);
+		const { toolSessionResource } = this._getClientToolOwner(opts.backendSession, opts.sessionResource);
+		const invocation = this._ensureClientToolInvocation(opts.chatURI, opts.turnId, toolCallId, toolData.id, toolSessionResource, opts.subAgentInvocationId);
 		if (!invocation) {
 			this._logService.warn(`[AgentHost] Failed to begin client tool invocation: ${toolName}`);
 			this._dispatchAction(opts.backendSession, {

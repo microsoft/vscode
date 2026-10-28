@@ -23,7 +23,7 @@ import { EditSuggestionId } from '../../../../../../editor/common/textModelEditS
 import { IAccessibleViewService } from '../../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
@@ -1641,6 +1641,149 @@ suite('ChatListWidget', () => {
 			assert.ok(row && bubble);
 			return { ...context, request, row, bubble };
 		}
+
+		function getOverlayClipBounds(container: HTMLElement) {
+			const list = container.querySelector<HTMLElement>('.monaco-list');
+			const clip = container.querySelector<HTMLElement>('.chat-list-overlay-clip');
+			assert.ok(list && clip && clip.parentElement === list);
+			const listBounds = list.getBoundingClientRect();
+			const clipBounds = clip.getBoundingClientRect();
+			return {
+				top: Math.round(clipBounds.top - listBounds.top),
+				right: Math.round(listBounds.right - clipBounds.right),
+				bottom: Math.round(listBounds.bottom - clipBounds.bottom),
+				left: Math.round(clipBounds.left - listBounds.left),
+			};
+		}
+
+		test('clips MCP app overlays below appearing, resized and hidden sticky prompts', async () => {
+			const { container, widget } = await createTranscript('Keep this request visible above the MCP app.');
+			const stickyNode = widget.stickyScrollDomNode;
+			assert.ok(stickyNode);
+			const pinnedScrollTop = widget.scrollTop;
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const initial = getOverlayClipBounds(container);
+			const initialStickyHeight = stickyNode.offsetHeight;
+
+			widget.scrollTop = pinnedScrollTop;
+			await waitForStableLayout(widget);
+			const pinned = getOverlayClipBounds(container);
+			const pinnedStickyHeight = stickyNode.offsetHeight;
+
+			container.style.width = '250px';
+			widget.layout(300, 250);
+			await waitForStableLayout(widget);
+			const narrowed = getOverlayClipBounds(container);
+			const narrowedStickyHeight = stickyNode.offsetHeight;
+
+			container.style.width = '500px';
+			widget.layout(300, 500);
+			await waitForStableLayout(widget);
+			const restored = getOverlayClipBounds(container);
+			const restoredStickyHeight = stickyNode.offsetHeight;
+
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				initial,
+				initialStickyHeight,
+				pinned,
+				promptAppeared: pinnedStickyHeight > 0,
+				narrowed,
+				promptGrew: narrowedStickyHeight > pinnedStickyHeight,
+				restored,
+				promptHeightRestored: restoredStickyHeight === pinnedStickyHeight,
+				sameStickyNode: widget.stickyScrollDomNode === stickyNode,
+				hidden: getOverlayClipBounds(container),
+				hiddenStickyHeight: stickyNode.offsetHeight,
+			}, {
+				initial: { top: 0, right: 0, bottom: 0, left: 0 },
+				initialStickyHeight: 0,
+				pinned: { top: pinnedStickyHeight, right: 0, bottom: 0, left: 0 },
+				promptAppeared: true,
+				narrowed: { top: narrowedStickyHeight, right: 0, bottom: 0, left: 0 },
+				promptGrew: true,
+				restored: { top: pinnedStickyHeight, right: 0, bottom: 0, left: 0 },
+				promptHeightRestored: true,
+				sameStickyNode: true,
+				hidden: { top: 0, right: 0, bottom: 0, left: 0 },
+				hiddenStickyHeight: 0,
+			});
+		});
+
+		test('rebinds MCP app overlay clipping after sticky scroll toggles and preserves scrolling to the first prompt', async () => {
+			const { container, widget, viewModel, instantiationService } = await createTranscript();
+			const configurationService = instantiationService.get(IConfigurationService);
+			assert.ok(configurationService instanceof TestConfigurationService);
+			const originalStickyNode = widget.stickyScrollDomNode;
+			const originalClip = container.querySelector('.chat-list-overlay-clip');
+			assert.ok(originalStickyNode && originalClip);
+			const pinnedScrollTop = widget.scrollTop;
+			const snapshotTranscript = () => ({
+				scrollHeight: widget.scrollHeight,
+				contentHeight: widget.contentHeight,
+				items: viewModel.getItems().map(item => ({
+					id: item.id,
+					text: isRequestVM(item) ? item.messageText : isResponseVM(item) ? item.response.toString() : '',
+				})),
+				firstPromptTop: container.querySelector('.monaco-list-rows .interactive-request .chat-markdown-part')?.getBoundingClientRect().top,
+			});
+			const setStickyScrollEnabled = async (enabled: boolean) => {
+				await configurationService.setUserConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled, enabled);
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectedKeys: new Set([ChatConfiguration.ExperimentalStickyScrollEnabled]),
+					affectsConfiguration: key => key === ChatConfiguration.ExperimentalStickyScrollEnabled,
+				}));
+				await waitForStableLayout(widget);
+			};
+
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const initialTranscript = snapshotTranscript();
+			assert.notStrictEqual(initialTranscript.firstPromptTop, undefined);
+			widget.scrollTop = pinnedScrollTop;
+			await waitForStableLayout(widget);
+			const scrollHeights = [widget.scrollHeight];
+
+			await setStickyScrollEnabled(false);
+			const disabled = {
+				bounds: getOverlayClipBounds(container),
+				nodeRemoved: widget.stickyScrollDomNode === undefined && !originalStickyNode.isConnected,
+			};
+			scrollHeights.push(widget.scrollHeight);
+
+			await setStickyScrollEnabled(true);
+			const replacementStickyNode = widget.stickyScrollDomNode;
+			assert.ok(replacementStickyNode);
+			const enabled = {
+				bounds: getOverlayClipBounds(container),
+				nodeReplaced: replacementStickyNode !== originalStickyNode,
+				promptVisible: replacementStickyNode.offsetHeight > 0,
+			};
+			const replacementStickyHeight = replacementStickyNode.offsetHeight;
+			scrollHeights.push(widget.scrollHeight);
+
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				disabled,
+				enabled,
+				sameClip: container.querySelector('.chat-list-overlay-clip') === originalClip,
+				scrollHeights,
+				returnedScrollTop: widget.scrollTop,
+				returnedBounds: getOverlayClipBounds(container),
+				returnedTranscript: snapshotTranscript(),
+			}, {
+				disabled: { bounds: { top: 0, right: 0, bottom: 0, left: 0 }, nodeRemoved: true },
+				enabled: { bounds: { top: replacementStickyHeight, right: 0, bottom: 0, left: 0 }, nodeReplaced: true, promptVisible: true },
+				sameClip: true,
+				scrollHeights: [initialTranscript.scrollHeight, initialTranscript.scrollHeight, initialTranscript.scrollHeight],
+				returnedScrollTop: 0,
+				returnedBounds: { top: 0, right: 0, bottom: 0, left: 0 },
+				returnedTranscript: initialTranscript,
+			});
+		});
 
 		for (const partiallyVisible of [false, true]) {
 			test(`multi-paragraph sticky requests retain their width when rendered (source partially visible: ${partiallyVisible})`, async () => {

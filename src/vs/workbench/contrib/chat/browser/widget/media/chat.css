@@ -103,6 +103,12 @@
 	padding: 4px;
 }
 
+.interactive-list > .monaco-list > .chat-list-overlay-clip {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+
 .interactive-item-container {
 	padding: 12px 16px;
 	display: flex;
