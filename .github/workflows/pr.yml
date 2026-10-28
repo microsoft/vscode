@@ -43,6 +43,7 @@ jobs:
       unit-tests: ${{ steps.detect.outputs.unit-tests }}
       browser-integration: ${{ steps.detect.outputs.browser-integration }}
       product-tests: ${{ steps.detect.outputs.product-tests }}
+      component-fixtures: ${{ steps.detect.outputs.component-fixtures }}
       monaco-editor: ${{ steps.detect.outputs.monaco-editor }}
       telemetry: ${{ steps.detect.outputs.telemetry }}
       agent-host-e2e: ${{ steps.detect-agent-host-e2e.outputs.affected }}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { suite, test } from 'node:test';
@@ -22,6 +22,7 @@ const onlyCompileAndHygiene = {
 	'unit-tests': 'false',
 	'browser-integration': 'false',
 	'product-tests': 'false',
+	'component-fixtures': 'false',
 	'monaco-editor': 'false',
 	'telemetry': 'false',
 };
@@ -34,7 +35,7 @@ interface IWorkflowJob {
 	readonly with?: Record<string, unknown>;
 	readonly env?: Record<string, unknown>;
 	readonly outputs?: Record<string, string>;
-	readonly steps?: readonly { readonly id?: string; readonly name?: string; readonly 'continue-on-error'?: boolean; readonly env?: Record<string, string> }[];
+	readonly steps?: readonly { readonly id?: string; readonly name?: string; readonly uses?: string; readonly run?: string; readonly 'continue-on-error'?: boolean; readonly env?: Record<string, string> }[];
 }
 
 /** A job of a reusable test workflow, and the job of pr.yml that calls the workflow. */
@@ -215,6 +216,7 @@ suite('Detect Changes', () => {
 				'unit-tests': 'false',
 				'browser-integration': 'false',
 				'product-tests': 'false',
+				'component-fixtures': 'false',
 				'monaco-editor': 'false',
 				'telemetry': 'false',
 			},
@@ -258,7 +260,7 @@ suite('Detect Changes', () => {
 			patch: ['@@ -1,7 +1,7 @@', ' {', '   "name": "code-oss-dev",', ...changedLines, '   "author": {'].join('\n'),
 		});
 		const distroUpdate = packageJsonChange(`-${distroLine}`, `+  "distro": "${'0'.repeat(40)}",`);
-		const everyCheck = { ...onlyCompileAndHygiene, 'cli': 'true', 'copilot': 'true', 'unit-tests': 'true', 'browser-integration': 'true', 'product-tests': 'true', 'monaco-editor': 'true', 'telemetry': 'true' };
+		const everyCheck = { ...onlyCompileAndHygiene, 'cli': 'true', 'copilot': 'true', 'unit-tests': 'true', 'browser-integration': 'true', 'product-tests': 'true', 'component-fixtures': 'true', 'monaco-editor': 'true', 'telemetry': 'true' };
 		assert.deepStrictEqual({
 			distroUpdate: await detect([distroUpdate]),
 			withAzurePipelinesDefinition: await detect([distroUpdate, { filename: 'build/azure-pipelines/product-build.yml' }]),
@@ -290,6 +292,104 @@ suite('Detect Changes', () => {
 			assert.ok(Object.values(outputs).every(value => value === 'true'), JSON.stringify(outputs));
 		}
 		assert.deepStrictEqual(coreTestOutputs.map(output => empty[output]), ['true', 'true', 'true']);
+	});
+
+	test('component fixtures skip documentation but retain Markdown inputs and both sides of renames', async () => {
+		const cases: [string[], string][] = [
+			[['README.md', '.github/skills/unit-tests/SKILL.md'], 'false'],
+			[['cli/README.md', 'copilot_shim/src/main.rs', '.vscode/settings.json', 'eslint.config.js', 'test/sanity/src/cli.test.ts', 'build/azure-pipelines/product-build.yml'], 'false'],
+			[['src/vs/workbench/contrib/chat/README.md'], 'true'],
+			[['test/componentFixtures/blocks-ci-screenshots.md'], 'true'],
+			[['extensions/markdown-language-features/test-workspace/a.md'], 'true'],
+			[['README.md', 'src/vs/base/browser/ui/button/button.ts'], 'true'],
+			[['src/vs/workbench/test/browser/componentFixtures/button.fixture.ts'], 'true'],
+			[['extensions/theme-defaults/themes/dark_modern.json'], 'true'],
+			[['extensions/copilot/package.json'], 'true'],
+			[['build/rspack/rspack.serve-out.config.mts'], 'true'],
+			[['test/componentFixtures/playwright/package-lock.json'], 'true'],
+			[['package-lock.json'], 'true'],
+			[['.github/workflows/component-fixtures.yml'], 'true'],
+			[['.github/actions/detect-changes/detect.ts'], 'true'],
+			[['new-file-type.xyz'], 'true'],
+		];
+		const results: [string[], string][] = [];
+		for (const [filenames] of cases) {
+			results.push([filenames, (await detect(filenames.map(filename => ({ filename }))))['component-fixtures']]);
+		}
+		assert.deepStrictEqual({
+			results,
+			renamedInput: (await detect([{ filename: 'docs/input.md', previous_filename: 'test/componentFixtures/input.md' }]))['component-fixtures'],
+			renamedDocumentation: (await detect([{ filename: 'test/componentFixtures/input.md', previous_filename: 'docs/input.md' }]))['component-fixtures'],
+			failed: (await detect([], 0, new Error('lookup unavailable')))['component-fixtures'],
+			incomplete: (await detect([{ filename: 'README.md' }], 2))['component-fixtures'],
+			empty: (await detect([]))['component-fixtures'],
+		}, {
+			results: cases,
+			renamedInput: 'true',
+			renamedDocumentation: 'true',
+			failed: 'true',
+			incomplete: 'true',
+			empty: 'true',
+		});
+	});
+
+	test('component fixture jobs run on pushes and failed detection, and skip only on an explicit unaffected result', () => {
+		const { jobs } = loadWorkflow('component-fixtures.yml');
+		const condition = `\${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.component-fixtures != 'false') }}`;
+		assert.deepStrictEqual({
+			detection: {
+				if: jobs.changes.if,
+				outputs: jobs.changes.outputs,
+				action: jobs.changes.steps?.find(step => step.id === 'detect')?.uses,
+			},
+			workers: [jobs.playwright, jobs.screenshots].map(job => ({ needs: job.needs, if: job.if })),
+			gate: { name: jobs['component-fixtures'].name, needs: jobs['component-fixtures'].needs, if: jobs['component-fixtures'].if },
+		}, {
+			detection: {
+				if: "github.event_name == 'pull_request'",
+				outputs: { 'component-fixtures': '${{ steps.detect.outputs.component-fixtures }}' },
+				action: './.github/actions/detect-changes',
+			},
+			workers: [{ needs: 'changes', if: condition }, { needs: 'changes', if: condition }],
+			gate: { name: 'Screenshots & Tests', needs: ['changes', 'playwright', 'screenshots'], if: '${{ always() }}' },
+		});
+	});
+
+	test('the component fixture gate accepts deliberate skips but rejects failures, cancellations and unexpected skips', () => {
+		const step = loadWorkflow('component-fixtures.yml').jobs['component-fixtures'].steps?.[0];
+		assert.ok(step?.run);
+		assert.deepStrictEqual(step.env, {
+			CHANGES_RESULT: '${{ needs.changes.result }}',
+			FIXTURES_CHANGED: '${{ needs.changes.outputs.component-fixtures }}',
+			PLAYWRIGHT_RESULT: '${{ needs.playwright.result }}',
+			SCREENSHOTS_RESULT: '${{ needs.screenshots.result }}',
+		});
+		const cases: [string, string, string, string, number][] = [
+			['success', 'false', 'skipped', 'skipped', 0],
+			['success', 'true', 'success', 'success', 0],
+			['skipped', '', 'success', 'success', 0],
+			['failure', '', 'success', 'success', 0],
+			['success', '', 'success', 'success', 0],
+			['success', 'true', 'failure', 'success', 1],
+			['success', 'true', 'success', 'failure', 1],
+			['success', 'true', 'cancelled', 'success', 1],
+			['success', 'true', 'success', 'cancelled', 1],
+			['success', 'true', 'skipped', 'skipped', 1],
+			['success', '', 'skipped', 'skipped', 1],
+			['failure', 'false', 'skipped', 'skipped', 1],
+			['cancelled', 'false', 'skipped', 'skipped', 1],
+			['skipped', '', 'skipped', 'skipped', 1],
+			['success', 'false', 'failure', 'skipped', 1],
+			['success', 'false', 'skipped', 'success', 1],
+		];
+		assert.deepStrictEqual(cases.map(([changes, affected, playwright, screenshots]) => {
+			const result = spawnSync('bash', ['-c', step.run!], {
+				env: { ...process.env, CHANGES_RESULT: changes, FIXTURES_CHANGED: affected, PLAYWRIGHT_RESULT: playwright, SCREENSHOTS_RESULT: screenshots },
+				encoding: 'utf8',
+			});
+			assert.ifError(result.error);
+			return [changes, affected, playwright, screenshots, result.status];
+		}), cases);
 	});
 
 	test('the unit tests run for every built-in extension whose files the core tests read', async () => {

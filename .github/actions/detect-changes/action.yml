@@ -25,6 +25,9 @@ outputs:
   product-tests:
     description: "'true' when the Electron integration, Electron smoke and remote tests need to run."
     value: ${{ steps.detect.outputs.product-tests }}
+  component-fixtures:
+    description: "'true' when the component fixture screenshots and Playwright tests need to run."
+    value: ${{ steps.detect.outputs.component-fixtures }}
   monaco-editor:
     description: "'true' when the Monaco Editor checks need to run."
     value: ${{ steps.detect.outputs.monaco-editor }}

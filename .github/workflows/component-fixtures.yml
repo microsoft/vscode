@@ -21,8 +21,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detect Changes
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      component-fixtures: ${{ steps.detect.outputs.component-fixtures }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Detect changes
+        id: detect
+        uses: ./.github/actions/detect-changes
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Branch pushes still publish baseline screenshots; PRs skip only on an explicit unaffected result.
   playwright:
     name: Playwright Fixture Tests
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.component-fixtures != 'false') }}
     runs-on: vscode-large-runners-ubuntu-8-core
     steps:
       - name: Checkout
@@ -86,6 +110,8 @@ jobs:
 
   screenshots:
     name: Screenshots
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.component-fixtures != 'false') }}
     runs-on: vscode-large-runners-ubuntu-8-core
     steps:
       - name: Checkout
@@ -476,16 +502,26 @@ jobs:
     name: Screenshots & Tests
     if: ${{ always() }}
     needs:
+      - changes
       - playwright
       - screenshots
     runs-on: vscode-large-runners-ubuntu-8-core
     steps:
       - name: Verify fixture test results
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          FIXTURES_CHANGED: ${{ needs.changes.outputs.component-fixtures }}
+          PLAYWRIGHT_RESULT: ${{ needs.playwright.result }}
+          SCREENSHOTS_RESULT: ${{ needs.screenshots.result }}
         run: |
-          if [[ '${{ needs.playwright.result }}' != 'success' ||
-                '${{ needs.screenshots.result }}' != 'success' ]]; then
+          if [[ "$CHANGES_RESULT" == 'success' && "$FIXTURES_CHANGED" == 'false' &&
+                "$PLAYWRIGHT_RESULT" == 'skipped' && "$SCREENSHOTS_RESULT" == 'skipped' ]]; then
+            echo "No changes affect component fixtures."
+            exit 0
+          fi
+          if [[ "$PLAYWRIGHT_RESULT" != 'success' || "$SCREENSHOTS_RESULT" != 'success' ]]; then
             echo "::error::Component fixture checks failed."
-            echo "Playwright: ${{ needs.playwright.result }}"
-            echo "Screenshots: ${{ needs.screenshots.result }}"
+            echo "Playwright: $PLAYWRIGHT_RESULT"
+            echo "Screenshots: $SCREENSHOTS_RESULT"
             exit 1
           fi

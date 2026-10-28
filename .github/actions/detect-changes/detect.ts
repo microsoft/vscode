@@ -205,6 +205,11 @@ const coreTestRules: readonly ICoreTestRule[] = [
 		canSkip: path => isDocumentation(path) || isRustCrate(path) || shouldSkipTestJobs(path),
 	},
 	{
+		// Keep Markdown test inputs and the committed blocks-ci screenshot hashes in scope.
+		output: 'component-fixtures',
+		canSkip: path => isDocumentation(path) || isRustCrate(path) || shouldSkipTestJobs(path),
+	},
+	{
 		// The Monaco Editor checks also package Markdown files, such as build/monaco/README-npm.md.
 		output: 'monaco-editor',
 		canSkip: shouldSkipTestJobs,
