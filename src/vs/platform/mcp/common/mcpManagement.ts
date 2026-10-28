@@ -303,7 +303,7 @@ export interface IAllowedMcpServersService {
 	readonly hasManagedAllowlist: boolean;
 	/** Original allow/deny URL and command strings containing environment references, to be resolved into {@link IMcpServerIdentity.policyValues} by the executing host. */
 	getServerPolicyVariableValues(): readonly string[];
-	/** Checks a server definition before resolution, deferring rules for variable-dependent URL/command fields. */
+	/** Checks gallery candidates or a server definition before resolution, rejecting invalid command/URL shapes and deferring variable-dependent rules. */
 	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): true | IMarkdownString;
 
 	/** Checks a definition identity before resolution; access and name restrictions are never deferred. */

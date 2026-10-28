@@ -32,6 +32,28 @@ suite('AllowedMcpServersService', () => {
 		assert.strictEqual(service.isServerAllowed({ name: 'github' }), true);
 	});
 
+	for (const allowlist of [undefined, [{ serverName: 'server' }]]) {
+		test(`rejects malformed configuration before policy matching ${allowlist ? 'with a matching name rule' : 'without policy'}`, () => {
+			const service = createService({ [mcpAllowedServersConfig]: allowlist });
+			const servers: IInstallableMcpServer[] = JSON.parse(JSON.stringify([
+				{ type: McpServerType.LOCAL },
+				{ type: McpServerType.LOCAL, command: null },
+				{ type: McpServerType.LOCAL, command: ' ' },
+				{ type: McpServerType.LOCAL, command: 'node', args: [null] },
+				{ type: McpServerType.LOCAL, command: 'node', args: [42] },
+				{ type: McpServerType.LOCAL, command: 'node', args: '--bad' },
+				{ type: McpServerType.LOCAL, command: 'node', args: null },
+				{ type: McpServerType.REMOTE },
+				{ type: McpServerType.REMOTE, url: 42 },
+				{ type: McpServerType.REMOTE, url: '' },
+			].map(config => ({ name: 'server', config }))));
+			assert.deepStrictEqual(servers.map(server => {
+				const result = service.isAllowed(server);
+				return result !== true && result.value.includes('configuration is invalid');
+			}), servers.map(() => true));
+		});
+	}
+
 	test('only enterprise allowlist policies replace registry authorization, including an explicit empty list', () => {
 		const configurations: [Record<string, unknown>, Record<string, unknown>][] = [
 			[{}, {}],

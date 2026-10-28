@@ -6,8 +6,10 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, constObservable, IObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -21,6 +23,8 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -31,6 +35,7 @@ import { COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG } from '../../../../../pl
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { McpGalleryServerUrlError } from '../../../../../platform/mcp/common/mcpGalleryService.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { McpResourceScannerService } from '../../../../../platform/mcp/common/mcpResourceScannerService.js';
 import { McpResourceFormat } from '../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -38,6 +43,7 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { IURLService } from '../../../../../platform/url/common/url.js';
 import { IUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IWorkspaceContextService, toWorkspaceFolder, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
@@ -564,6 +570,66 @@ suite('McpWorkbenchService', () => {
 		await complete(await galleryService.nextRequest(), new Map([[local.name, notFound()]]));
 		await configurationService.setUserConfiguration(mcpAllowedServersConfig, [{ serverName: local.name }]);
 		assert.deepStrictEqual(service.getEnabledLocalMcpServers(), []);
+	});
+
+	test('malformed persisted servers do not prevent healthy siblings from being published or refreshed', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		const scanner = store.add(new McpResourceScannerService(fileService, store.add(new UriIdentityService(fileService))));
+		const resource = URI.from({ scheme: Schemas.inMemory, path: '/mcp.json' });
+		const servers = {
+			missingCommand: { type: McpServerType.LOCAL },
+			nullArgument: { type: McpServerType.LOCAL, command: 'node', args: [null] },
+			invalidArguments: { type: McpServerType.LOCAL, command: 'node', args: '--bad' },
+			missingUrl: { type: McpServerType.REMOTE },
+			healthy: { type: McpServerType.LOCAL, command: 'node', args: ['initial.js'] },
+		};
+		const readInstalled = async () => Object.entries((await scanner.scanMcpServers(resource, ConfigurationTarget.USER)).servers ?? {})
+			.map(([name, config]) => ({ ...createLocal(name, LocalMcpServerScope.User, config), mcpResource: resource }));
+		await fileService.writeFile(resource, VSBuffer.fromString(JSON.stringify({ servers })));
+		const { service, managementService, logService } = await createFixture(await readInstalled(), McpAccessValue.All);
+		const initiallyEnabled = service.getEnabledLocalMcpServers().map(server => server.name);
+		const invalidStatus = service.local.filter(server => server.name !== 'healthy').map(server => ({
+			name: server.name,
+			state: server.runtimeStatus?.state,
+			invalid: server.runtimeStatus?.message?.text.value.includes('configuration is invalid'),
+		}));
+		const registered = new DeferredPromise<McpCollectionDefinition>();
+		const discovery = store.add(new InstalledMcpServersDiscovery(service, upcastPartial<IMcpRegistry>({
+			registerCollection: collection => {
+				void registered.complete(collection);
+				return Disposable.None;
+			},
+		}), upcastPartial<ITextModelService>({
+			createModelReference: async () => { throw new Error('No editor model'); },
+		}), logService));
+		discovery.start();
+		const collection = await registered.p;
+		const initiallyPublished = collection.serverDefinitions.get().map(server => server.label);
+		const nonce = collection.serverDefinitions.get()[0].cacheNonce;
+		const refreshed = waitForState(collection.serverDefinitions, definitions => definitions.length === 1 && definitions[0].cacheNonce !== nonce);
+		servers.healthy.args = ['refreshed.js'];
+		await fileService.writeFile(resource, VSBuffer.fromString(JSON.stringify({ servers })));
+		managementService.installed = await readInstalled();
+		await service.queryLocal();
+		await refreshed;
+		assert.deepStrictEqual({
+			initiallyEnabled,
+			initiallyPublished,
+			invalidStatus,
+			refreshed: service.getEnabledLocalMcpServers().map(server => ({ name: server.name, config: server.config })),
+			published: collection.serverDefinitions.get().map(server => server.label),
+			errors: logService.errors,
+		}, {
+			initiallyEnabled: ['healthy'],
+			initiallyPublished: ['healthy'],
+			invalidStatus: ['invalidArguments', 'missingCommand', 'missingUrl', 'nullArgument'].map(name => ({
+				name, state: McpServerEnablementState.DisabledByAccess, invalid: true,
+			})),
+			refreshed: [{ name: 'healthy', config: { type: McpServerType.LOCAL, command: 'node', args: ['refreshed.js'] } }],
+			published: ['healthy'],
+			errors: [],
+		});
 	});
 
 	for (const initialQueryFinishesFirst of [true, false]) {
