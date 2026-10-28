@@ -18,13 +18,14 @@ import { TestAccessibilityService } from '../../../../../../platform/accessibili
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
 import { ChatResponseModelChangeReason, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatResponseModel, IResponse } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
+import { ChatPetJumpGameModel, IChatPetJumpPlatform, IChatPetJumpWall } from '../../../common/chatPetJumpGame.js';
 import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot, disabledChatPetAchievements, getChatPetAchievement, getChatPetAchievementForAccessory, getChatPetAchievementPresentation, getChatPetCustomizationAchievementIds, getUnlockedChatPetAccessories, isUserAuthoredChatPetCustomization, shouldUnlockChatPetIntegratedBrowserShare } from '../../../browser/chatPetAchievements.js';
@@ -133,6 +134,7 @@ suite('ChatPetWidget', () => {
 		const inputChanged = disposables.add(new Emitter<void>());
 		const additionalPlatforms: HTMLElement[] = [];
 		const reducedMotionChanged = disposables.add(new Emitter<void>());
+		let contextMenu: IContextMenuDelegate | undefined;
 		const accessibilityService = new class extends TestAccessibilityService {
 			override onDidChangeReducedMotion = reducedMotionChanged.event;
 			override isMotionReduced(): boolean { return motionReduced; }
@@ -164,7 +166,10 @@ suite('ChatPetWidget', () => {
 				override readonly lastRequestObs = constObservable(undefined);
 			}()),
 		};
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		const storageService = disposables.add(new TestStorageService());
+		const service = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IStorageService, storageService);
 		service.toggle();
 		if (supportsJumpGame) {
 			service.setHorizontalPosition(0.5);
@@ -175,7 +180,9 @@ suite('ChatPetWidget', () => {
 		}
 		const widget = disposables.add(new ChatPetWidget(
 			firstHost, { resizeObserverCtor: TestResizeObserver, intersectionObserverCtor }, service, accessibilityService,
-			new class extends mock<IContextMenuService>() { }(),
+			new class extends mock<IContextMenuService>() {
+				override showContextMenu(delegate: IContextMenuDelegate): void { contextMenu = delegate; }
+			}(),
 			new class extends mock<ICommandService>() { }(),
 			new NullLogService(),
 			new class extends mock<IHostService>() {
@@ -183,7 +190,7 @@ suite('ChatPetWidget', () => {
 				override readonly onDidChangeFocus = Event.None;
 				override readonly onDidChangeActiveWindow = Event.None;
 			}(),
-			workbenchInstantiationService(undefined, disposables),
+			instantiationService,
 		));
 		const button = firstParent.querySelector<HTMLElement>('.chat-pet-button')!;
 		const overlay = firstParent.querySelector<HTMLElement>('.chat-pet-overlay')!;
@@ -191,8 +198,9 @@ suite('ChatPetWidget', () => {
 		const effectImage = overlay.querySelector<HTMLImageElement>(':scope > img.chat-pet-spritesheet')!;
 		button.classList.remove('entering');
 		return {
-			root, firstParent, secondParent, firstHost, secondHost, widget, service, button, overlay, effect, effectImage, platformChanged, inputChanged, additionalPlatforms,
+			root, firstParent, secondParent, firstHost, secondHost, widget, service, storageService, button, overlay, effect, effectImage, platformChanged, inputChanged, additionalPlatforms,
 			layout: () => layout(),
+			getContextMenu: () => contextMenu,
 			setReducedMotion: (value: boolean) => {
 				motionReduced = value;
 				reducedMotionChanged.fire();
@@ -262,6 +270,205 @@ suite('ChatPetWidget', () => {
 			welcome: true,
 			label: 'Play Blobby\'s Jump Game. Activate the pet on this perch to play, or drag it to move it.',
 			platforms: true,
+		});
+	});
+
+	for (const reducedMotion of [false, true]) {
+		test(`starts the game from the normal input surface through the pet menu (reduced motion: ${reducedMotion})`, async () => {
+			const { root, firstHost, firstParent, secondParent, widget, button, getContextMenu } = createHostTransitionHarness(reducedMotion, 'teleport', undefined, undefined, undefined, true);
+			widget.setHost({
+				...firstHost,
+				getPlatforms: () => firstHost.getPlatforms!().map(platform => ({ ...platform, isDefault: platform.element === secondParent })),
+			});
+			await waitForPetAnimation(() => button.dataset.state === 'idle');
+			const initialBottom = button.getBoundingClientRect().bottom;
+			button.focus();
+			const keyboardEvent = new mainWindow.KeyboardEvent('keydown', { key: 'F10', code: 'F10', shiftKey: true, bubbles: true, cancelable: true });
+			Object.defineProperty(keyboardEvent, 'keyCode', { value: 121 });
+			button.dispatchEvent(keyboardEvent);
+			const menu = getContextMenu();
+			const action = menu?.getActions().find(action => action.id === 'chat.pet.playJumpGame');
+			assert.ok(action);
+			const actionState = { label: action.label, enabled: action.enabled };
+			menu!.onHide?.(false);
+			await action.run();
+			assert.deepStrictEqual({
+				initialBottom,
+				actionState,
+				playing: !!widget.jumpGame,
+				focused: mainWindow.document.activeElement === button,
+				perchBottom: button.getBoundingClientRect().bottom,
+				platforms: root.querySelectorAll('.chat-pet-jump-platform').length > 1,
+				menuAnchoredToPet: menu!.getAnchor() === button,
+				menuKeyboardSelected: menu!.autoSelectItem,
+				keyHandled: keyboardEvent.defaultPrevented,
+			}, {
+				initialBottom: secondParent.getBoundingClientRect().top,
+				actionState: { label: 'Play Jump Game', enabled: true },
+				playing: true, focused: true, perchBottom: firstParent.getBoundingClientRect().top, platforms: true,
+				menuAnchoredToPet: true, menuKeyboardSelected: true, keyHandled: true,
+			});
+		});
+	}
+
+	test('only offers the game menu action on hosts with a visible welcome perch and rechecks stale actions', async () => {
+		const ordinary = createHostTransitionHarness(true);
+		ordinary.button.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		const ordinaryHasAction = ordinary.getContextMenu()?.getActions().some(action => action.id === 'chat.pet.playJumpGame');
+		const { firstParent, widget, button, getContextMenu } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		button.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		const menu = getContextMenu();
+		const action = menu?.getActions().find(action => action.id === 'chat.pet.playJumpGame');
+		assert.ok(action);
+		menu!.onHide?.(false);
+		firstParent.style.visibility = 'hidden';
+		await action.run();
+		button.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		assert.deepStrictEqual({
+			ordinaryHasAction,
+			hiddenHasAction: getContextMenu()?.getActions().some(action => action.id === 'chat.pet.playJumpGame'),
+			game: widget.jumpGame,
+		}, { ordinaryHasAction: false, hiddenHasAction: false, game: undefined });
+	});
+
+	for (const scale of [1, 2]) {
+		test(`keeps controls inside the minimum game height and cancels below it (scale: ${scale})`, async () => {
+			const { root, firstParent, widget, service, button, layout } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+			service.setScale(scale);
+			await waitForPetAnimation(() => button.dataset.state === 'idle');
+			button.click();
+			const game = widget.jumpGame;
+			assert.ok(game);
+			const minimumHeight = 48 * scale + 80;
+			root.style.height = `${minimumHeight}px`;
+			firstParent.style.top = `${48 * scale + 48}px`;
+			layout();
+			const gauge = root.querySelector<HTMLElement>('.chat-pet-jump-charge')!;
+			const bounds = root.getBoundingClientRect();
+			const atBoundary = {
+				playing: widget.jumpGame === game,
+				petInside: button.getBoundingClientRect().top >= bounds.top && button.getBoundingClientRect().bottom <= bounds.bottom,
+				gaugeInside: gauge.getBoundingClientRect().top >= bounds.top && gauge.getBoundingClientRect().bottom <= bounds.bottom,
+			};
+			root.style.height = `${minimumHeight - 1}px`;
+			layout();
+			assert.deepStrictEqual({
+				atBoundary,
+				playingAfterShrink: !!widget.jumpGame,
+				effectsAfterShrink: root.querySelectorAll('.chat-pet-jump-effects').length,
+			}, {
+				atBoundary: { playing: true, petInside: true, gaugeInside: true },
+				playingAfterShrink: false, effectsAfterShrink: 0,
+			});
+		});
+	}
+
+	for (const height of [60, 80]) {
+		test(`cancels the game after shrinking its playfield to ${height}px`, async () => {
+			const { root, widget, button, layout } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+			await waitForPetAnimation(() => button.dataset.state === 'idle');
+			button.click();
+			root.style.height = `${height}px`;
+			layout();
+			assert.deepStrictEqual({
+				playing: !!widget.jumpGame, effects: root.querySelectorAll('.chat-pet-jump-effects').length,
+			}, { playing: false, effects: 0 });
+		});
+	}
+
+	test('shows hops above the device-local high score and retains only the high score between runs', async () => {
+		let hops = 0;
+		sinon.stub(ChatPetJumpGameModel.prototype, 'hops').get(() => hops);
+		const { root, widget, button, storageService } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		await waitForPetAnimation(() => button.dataset.state === 'idle');
+		const readScore = () => [...root.querySelectorAll('.chat-pet-jump-hops, .chat-pet-jump-high-score')].map(element => element.textContent);
+		button.click();
+		const initial = readScore();
+		hops = 7;
+		dispatchJumpGameKey(button, 13);
+		const playing = readScore();
+		const hopsBounds = root.querySelector('.chat-pet-jump-hops')!.getBoundingClientRect();
+		const highScoreBounds = root.querySelector('.chat-pet-jump-high-score')!.getBoundingClientRect();
+		const accessible = widget.jumpGame!.getAccessibleContent();
+		dispatchJumpGameKey(button, 27);
+		const hiddenAfterExit = root.querySelector('.chat-pet-jump-score') === null;
+		hops = 0;
+		button.click();
+		assert.deepStrictEqual({
+			initial, playing, restarted: readScore(), hiddenAfterExit,
+			stacked: highScoreBounds.top >= hopsBounds.bottom,
+			stored: storageService.getNumber('chat.vscodePet.jumpGame.highScore', StorageScope.APPLICATION),
+			localOnly: storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE).includes('chat.vscodePet.jumpGame.highScore'),
+			accessible: accessible.includes('Hops: 7. High score: 7.'),
+		}, {
+			initial: ['Hops: 0', 'High score: 0'], playing: ['Hops: 7', 'High score: 7'], restarted: ['Hops: 0', 'High score: 7'],
+			hiddenAfterExit: true, stacked: true, stored: 7, localOnly: true, accessible: true,
+		});
+	});
+
+	test('updates an open score counter from storage without letting a lower score overwrite the best', async () => {
+		const { root, button, storageService } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		storageService.store('chat.vscodePet.jumpGame.highScore', 12, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		await waitForPetAnimation(() => button.dataset.state === 'idle');
+		button.click();
+		const initial = root.querySelector('.chat-pet-jump-high-score')!.textContent;
+		storageService.store('chat.vscodePet.jumpGame.highScore', 20, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const updated = root.querySelector('.chat-pet-jump-high-score')!.textContent;
+		storageService.store('chat.vscodePet.jumpGame.highScore', 3, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		assert.deepStrictEqual({
+			initial, updated, final: root.querySelector('.chat-pet-jump-high-score')!.textContent,
+			stored: storageService.getNumber('chat.vscodePet.jumpGame.highScore', StorageScope.APPLICATION),
+		}, { initial: 'High score: 12', updated: 'High score: 20', final: 'High score: 20', stored: 20 });
+	});
+
+	test('recovers an invalid stored high score instead of rendering NaN', async () => {
+		const { root, button, storageService } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		storageService.store('chat.vscodePet.jumpGame.highScore', 'invalid', StorageScope.APPLICATION, StorageTarget.MACHINE);
+		await waitForPetAnimation(() => button.dataset.state === 'idle');
+		button.click();
+		assert.deepStrictEqual({
+			label: root.querySelector('.chat-pet-jump-high-score')!.textContent,
+			stored: storageService.getNumber('chat.vscodePet.jumpGame.highScore', StorageScope.APPLICATION),
+		}, { label: 'High score: 0', stored: 0 });
+	});
+
+	test('renders distinct hazard markings and describes moving ledges, crumbling ledges, and walls accessibly', async () => {
+		const platforms: IChatPetJumpPlatform[] = [
+			{ id: 0, left: 320, width: 144, height: 0, kind: 'static', collapseProgress: 0, fallDistance: 0 },
+			{ id: 5, left: 400, width: 80, height: 60, kind: 'moving', collapseProgress: 0, fallDistance: 0 },
+			{ id: 9, left: 300, width: 70, height: 120, kind: 'crumbling', collapseProgress: 0.5, fallDistance: 0 },
+		];
+		const walls: IChatPetJumpWall[] = [{ id: 12, left: 500, width: 8, bottom: 60, top: 160 }];
+		sinon.stub(ChatPetJumpGameModel.prototype, 'platforms').get(() => platforms);
+		sinon.stub(ChatPetJumpGameModel.prototype, 'walls').get(() => walls);
+		const advance = sinon.spy(ChatPetJumpGameModel.prototype, 'advance');
+		const { root, widget, button } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		await waitForPetAnimation(() => button.dataset.state === 'idle');
+		button.click();
+		const game = widget.jumpGame!;
+		game.pause();
+		const callsBeforePause = advance.callCount;
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
+		const content = game.getAccessibleContent();
+		const before = {
+			moving: root.querySelectorAll('.chat-pet-jump-platform.moving').length,
+			crumbling: root.querySelector<HTMLElement>('.chat-pet-jump-platform.crumbling-active .chat-pet-jump-platform-integrity')?.style.transform === 'scaleX(0.5)',
+			walls: root.querySelectorAll('.chat-pet-jump-wall').length,
+			paused: advance.callCount === callsBeforePause,
+			accessible: content.includes('Moving horizontally.') && content.includes('Crumbles after landing.') && content.includes('Wall beside platform 12'),
+			help: game.getHelp().includes('Only the high score is saved on this device'),
+		};
+		platforms[2] = { ...platforms[2], collapseProgress: 1, fallDistance: 250 };
+		game.layout();
+		const collapsed = {
+			visible: root.querySelectorAll('.chat-pet-jump-platform.crumbling').length,
+			describedAsLandable: game.getAccessibleContent().includes('Platform 9:'),
+		};
+		game.resume();
+		dispatchJumpGameKey(button, 27);
+		assert.deepStrictEqual({ before, collapsed, cleaned: root.querySelectorAll('.chat-pet-jump-effects, .chat-pet-jump-score, .chat-pet-jump-wall').length }, {
+			before: { moving: 1, crumbling: true, walls: 1, paused: true, accessible: true, help: true },
+			collapsed: { visible: 0, describedAsLandable: false }, cleaned: 0,
 		});
 	});
 

@@ -1869,9 +1869,13 @@ export class ChatPetWidget extends Disposable {
 		return this._jumpGame.value;
 	}
 
-	private _tryStartJumpGame(): boolean {
-		const platform = this._restingPlatform;
-		if (!platform?.supportsJumpGame || !platform.element || this._busy || !this._enabled || this._jumpGame.value) {
+	private _getJumpGamePlatform(): IChatPetPlatform | undefined {
+		return this._getPlatforms().find(platform => platform.supportsJumpGame && platform.element?.checkVisibility({ checkVisibilityCSS: true }));
+	}
+
+	private _tryStartJumpGame(platform = this._restingPlatform): boolean {
+		if (!platform?.supportsJumpGame || !platform.element || this._busy || !this._enabled || this._jumpGame.value
+			|| this._isDead.get() || this._isDragging.get() || this._isAirborne() || this.chatPetService.onTheRun.get()) {
 			return false;
 		}
 		const bounds = this.movementBounds.getBoundingClientRect();
@@ -1880,6 +1884,11 @@ export class ChatPetWidget extends Disposable {
 			return false;
 		}
 		this._hopController.cancel();
+		if (platform.element !== this._restingPlatform?.element) {
+			const overlayBounds = this._overlay.getBoundingClientRect();
+			this._setHorizontalPosition((platform.left + platform.right - size) / 2 - overlayBounds.left);
+			this._setRestingPlatform(platform);
+		}
 		this._idleScheduler.cancel();
 		this._transientScheduler.cancel();
 		this._hostPositionScheduler.cancel();
@@ -1909,6 +1918,7 @@ export class ChatPetWidget extends Disposable {
 			onExit: reason => this._stopJumpGame(reason === 'escape' ? 'restore' : reason === 'cancel' ? 'immediate' : 'fall', reason === 'escape'),
 		});
 		transaction(tx => {
+			this._idleExpired.set(false, tx);
 			this._transientState.set(undefined, tx);
 			this._jumpGameActive.set(true, tx);
 		});
@@ -2667,7 +2677,7 @@ export class ChatPetWidget extends Disposable {
 		}
 	}
 
-	private _showContextMenu(event: MouseEvent): void {
+	private _showContextMenu(event?: MouseEvent): void {
 		this._contextMenuVisible = true;
 		const onTheRun = this.chatPetService.onTheRun.get();
 		const actions = new DisposableStore();
@@ -2710,12 +2720,26 @@ export class ChatPetWidget extends Disposable {
 				this.chatPetService.setOnTheRun(!onTheRun);
 			}
 		));
+		const playJumpGame = this._getJumpGamePlatform() ? actions.add(new Action(
+			'chat.pet.playJumpGame',
+			localize('chatPet.playJumpGame.action', "Play Jump Game"),
+			undefined,
+			!this._busy && !onTheRun && !this._isDead.get() && !this._isDragging.get() && !this._isAirborne(),
+			() => {
+				const platform = this._getJumpGamePlatform();
+				if (platform) {
+					this._tryStartJumpGame(platform);
+				}
+			},
+		)) : undefined;
 		const interactionSeparator = new Separator();
 		const appearanceSeparator = new Separator();
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => new StandardMouseEvent(dom.getWindow(this._button.element), event),
+			getAnchor: () => event ? new StandardMouseEvent(dom.getWindow(this._button.element), event) : this._button.element,
+			autoSelectItem: !event,
 			getActions: (): IAction[] => [
 				achievements,
+				...(playJumpGame ? [playJumpGame] : []),
 				onTheRunAction,
 				interactionSeparator,
 				grow,
@@ -2745,6 +2769,13 @@ export class ChatPetWidget extends Disposable {
 			return;
 		}
 		const keyboardEvent = new StandardKeyboardEvent(event);
+		if (keyboardEvent.equals(KeyMod.Shift | KeyCode.F10) || keyboardEvent.equals(KeyCode.ContextMenu)) {
+			keyboardEvent.preventDefault();
+			keyboardEvent.stopPropagation();
+			this._dismissBounceResult();
+			this._showContextMenu();
+			return;
+		}
 		let direction = 0;
 		let throwRequested = false;
 		if (keyboardEvent.equals(KeyMod.Shift | KeyCode.LeftArrow)) {
@@ -2796,6 +2827,9 @@ export class ChatPetWidget extends Disposable {
 			return localize('chatPet.playJumpGame', "Play Blobby's Jump Game. Activate the pet on this perch to play, or drag it to move it.");
 		}
 		const label = localize('chatPet.interact', "Interact with the VS Code pet. Drag it around the chat, or flick it toward either side to throw it. While it is falling, catch it with the pointer to bounce it; while it is airborne, press Enter or Space to bounce it. Use the left and right arrow keys to make it hop, or hold Shift to throw it toward a wall. Use the context menu to put it on the run.");
+		if (this._enabled && !this._busy && this._getJumpGamePlatform()) {
+			return localize('chatPet.playJumpGameFromInput', "{0} Choose Play Jump Game in the context menu to play from here.", label);
+		}
 		return isGeneratingImage ? localize('chatPet.painting', "Painting an image. {0}", label) : label;
 	}
 

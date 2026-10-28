@@ -14,6 +14,8 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatPetJumpDirection, ChatPetJumpGameModel } from '../../common/chatPetJumpGame.js';
 
@@ -28,6 +30,7 @@ interface IChatPetJumpGameOptions {
 }
 
 const FADE_DURATION = 160;
+const HIGH_SCORE_STORAGE_KEY = 'chat.vscodePet.jumpGame.highScore';
 
 export class ChatPetJumpGame extends Disposable {
 	private readonly model: ChatPetJumpGameModel;
@@ -36,7 +39,10 @@ export class ChatPetJumpGame extends Disposable {
 	private readonly stage: HTMLElement;
 	private readonly gauge: HTMLElement;
 	private readonly cells: HTMLElement[];
-	private readonly platforms = new Map<number, HTMLElement>();
+	private readonly hopsLabel: HTMLElement;
+	private readonly highScoreLabel: HTMLElement;
+	private readonly platforms = new Map<number, { element: HTMLElement; integrity: HTMLElement | undefined }>();
+	private readonly walls = new Map<number, HTMLElement>();
 	private readonly frame = this._register(new MutableDisposable());
 	private readonly originalParent: HTMLElement;
 	private readonly originalStyle: Pick<CSSStyleDeclaration, 'left' | 'right' | 'top' | 'bottom'>;
@@ -49,6 +55,8 @@ export class ChatPetJumpGame extends Disposable {
 	private lastFrameTime: number | undefined;
 	private paused = false;
 	private disposed = false;
+	private highScore = 0;
+	private displayedHops = -1;
 
 	constructor(
 		private readonly overlay: HTMLElement,
@@ -57,6 +65,8 @@ export class ChatPetJumpGame extends Disposable {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IStorageService private readonly storageService: IStorageService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this.originalParent = overlay.parentElement!;
@@ -74,6 +84,11 @@ export class ChatPetJumpGame extends Disposable {
 		const track = dom.append(this.gauge, dom.$('.chat-pet-jump-charge-track'));
 		this.cells = Array.from({ length: 8 }, () => dom.append(track, dom.$('.chat-pet-jump-charge-cell')));
 		dom.append(this.stage, dom.$('.chat-pet-jump-hint')).textContent = localize('chatPet.jump.controls', "Hold Space to charge, release to jump. Left / Right to hop or aim. Esc to exit.");
+		const score = dom.append(this.stage, dom.$('.chat-pet-jump-score'));
+		this.hopsLabel = dom.append(score, dom.$('.chat-pet-jump-hops'));
+		this.highScoreLabel = dom.append(score, dom.$('.chat-pet-jump-high-score'));
+		this._register(storageService.onDidChangeValue(StorageScope.APPLICATION, HIGH_SCORE_STORAGE_KEY, this._store)(() => this.updateScore()));
+		this.updateScore();
 
 		root.appendChild(overlay);
 		overlay.classList.add('chat-pet-jump-game');
@@ -136,7 +151,7 @@ export class ChatPetJumpGame extends Disposable {
 	layout(): void {
 		const bounds = this.options.bounds.getBoundingClientRect();
 		const platform = this.options.platform.getBoundingClientRect();
-		if (bounds.width < this.model.petSize * 2 || bounds.height <= 0 || platform.width <= 0 || !this.options.platform.checkVisibility({ checkVisibilityCSS: true })) {
+		if (bounds.width < this.model.petSize * 2 || bounds.height < this.model.petSize + 80 || platform.width <= 0 || !this.options.platform.checkVisibility({ checkVisibilityCSS: true })) {
 			this.options.onExit('cancel');
 			return;
 		}
@@ -210,9 +225,16 @@ export class ChatPetJumpGame extends Disposable {
 				status(localize('chatPet.jump.fullCharge', "Full jump charge"));
 			}
 			if (previousPlatform === undefined && this.model.player.platform !== undefined) {
-				status(this.model.player.platform === 0
-					? localize('chatPet.jump.startingPlatform', "Blobby is back on the starting platform")
-					: localize('chatPet.jump.landed', "Blobby landed on platform {0}", this.model.player.platform));
+				const platform = this.model.platforms.find(platform => platform.id === this.model.player.platform);
+				status(platform?.kind === 'crumbling'
+					? localize('chatPet.jump.landedCrumbling', "Crumbling platform. Charge your next jump before it falls. Hops: {0}.", this.model.hops)
+					: platform?.kind === 'moving'
+						? localize('chatPet.jump.landedMoving', "Moving platform. Blobby moves with it while charging. Hops: {0}.", this.model.hops)
+						: this.model.player.platform < 0
+							? localize('chatPet.jump.landedWall', "Blobby landed on a wall. Hops: {0}.", this.model.hops)
+						: this.model.player.platform === 0
+							? localize('chatPet.jump.startingPlatform', "Blobby is back on the starting platform")
+							: localize('chatPet.jump.landed', "Blobby landed on platform {0}. Hops: {1}.", this.model.player.platform, this.model.hops));
 			}
 			this.render();
 			this.scheduleFrame();
@@ -221,25 +243,61 @@ export class ChatPetJumpGame extends Disposable {
 
 	private render(): void {
 		const player = this.model.player;
+		if (this.displayedHops !== this.model.hops) {
+			this.updateScore();
+		}
 		const cameraHeight = Math.max(0, player.height);
 		this.model.ensurePlatforms(player.height + this.anchor + this.model.petSize * 4);
 		const visible = new Set<number>();
 		for (const platform of this.model.platforms) {
-			const top = this.anchor + cameraHeight - platform.height;
-			if (top < -16 || top > this.bounds.height) {
+			const top = this.anchor + cameraHeight - platform.height + platform.fallDistance;
+			if (top < -16 || top > this.bounds.height || platform.fallDistance >= this.model.petSize * 4) {
 				continue;
 			}
 			visible.add(platform.id);
-			let element = this.platforms.get(platform.id);
-			if (!element) {
-				element = dom.prepend(this.stage, dom.$('.chat-pet-jump-platform'));
-				this.platforms.set(platform.id, element);
+			let rendered = this.platforms.get(platform.id);
+			if (!rendered) {
+				const element = dom.prepend(this.stage, dom.$('.chat-pet-jump-platform'));
+				element.classList.add(platform.kind);
+				const integrity = platform.kind === 'crumbling' ? dom.append(element, dom.$('.chat-pet-jump-platform-integrity')) : undefined;
+				rendered = { element, integrity };
+				this.platforms.set(platform.id, rendered);
 			}
+			const { element, integrity } = rendered;
 			element.style.left = `${platform.left + platform.width / 2}px`;
 			element.style.top = `${top}px`;
 			element.style.width = `${platform.width}px`;
+			element.classList.toggle('crumbling-active', platform.collapseProgress > 0);
+			if (integrity) {
+				integrity.style.transform = `scaleX(${1 - platform.collapseProgress})`;
+				element.style.opacity = String(1 - platform.fallDistance / (this.model.petSize * 4));
+			}
 		}
-		for (const [id, element] of this.platforms) {
+		const visibleWalls = new Set<number>();
+		for (const wall of this.model.walls) {
+			const top = this.anchor + cameraHeight - wall.top;
+			const height = wall.top - wall.bottom;
+			if (top + height < 0 || top > this.bounds.height) {
+				continue;
+			}
+			visibleWalls.add(wall.id);
+			let element = this.walls.get(wall.id);
+			if (!element) {
+				element = dom.prepend(this.stage, dom.$('.chat-pet-jump-wall'));
+				this.walls.set(wall.id, element);
+			}
+			element.style.left = `${wall.left}px`;
+			element.style.top = `${top}px`;
+			element.style.width = `${wall.width}px`;
+			element.style.height = `${height}px`;
+		}
+		for (const [id, element] of this.walls) {
+			if (!visibleWalls.has(id)) {
+				element.remove();
+				this.walls.delete(id);
+			}
+		}
+		for (const [id, { element }] of this.platforms) {
 			if (!visible.has(id)) {
 				element.remove();
 				this.platforms.delete(id);
@@ -258,6 +316,21 @@ export class ChatPetJumpGame extends Disposable {
 		}
 		const direction = player.velocityX < 0 ? -1 : player.velocityX > 0 ? 1 : this.model.direction;
 		this.options.onRender(player.platform === undefined, direction);
+	}
+
+	private updateScore(): void {
+		const stored = this.storageService.getNumber(HIGH_SCORE_STORAGE_KEY, StorageScope.APPLICATION, 0);
+		const valid = Number.isSafeInteger(stored) && stored >= 0;
+		if (!valid) {
+			this.logService.warn('[ChatPetJumpGame] Ignoring an invalid saved high score.');
+		}
+		this.highScore = Math.max(this.highScore, valid ? stored : 0, this.model.hops);
+		this.displayedHops = this.model.hops;
+		this.hopsLabel.textContent = localize('chatPet.jump.hops', "Hops: {0}", this.displayedHops);
+		this.highScoreLabel.textContent = localize('chatPet.jump.highScore', "High score: {0}", this.highScore);
+		if (!valid || this.highScore > stored) {
+			this.storageService.store(HIGH_SCORE_STORAGE_KEY, this.highScore, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		}
 	}
 
 	pause(): void {
@@ -303,25 +376,37 @@ export class ChatPetJumpGame extends Disposable {
 
 	getHelp(): string {
 		return [
-			localize('chatPet.jump.help.overview', "Blobby's jump game starts when you activate the pet while it is sitting on the new-session welcome text. The randomly generated platforms belong only to the game. Your session, draft, and workspace are not changed."),
+			localize('chatPet.jump.help.overview', "Blobby's jump game starts when you activate the pet while it is sitting on the new-session welcome text. You can also choose Play Jump Game from the pet's context menu to move to that perch and start, including with reduced motion enabled. The randomly generated platforms belong only to the game. Your session, draft, and workspace are not changed."),
 			localize('chatPet.jump.help.controls', "Hold Space to charge a jump, then release it to launch. A longer charge jumps higher and farther. Left and Right Arrow make short hops; while holding Space, they choose the jump direction. The direction is locked during flight. Walls bounce Blobby back. Missing a platform can drop Blobby onto a lower one. Falling past the starting platform ends the game and lets Blobby fall onto the input box or another surface. If no surface catches Blobby, the normal respawn plays."),
 			localize('chatPet.jump.help.camera', "The camera follows Blobby up and down. The platforms scroll, but the workbench does not. Landings and a full charge are announced."),
+			localize('chatPet.jump.help.difficulty', "As you climb, ledges become narrower. Moving ledges have arrow markings and carry Blobby while charging. Broken-line ledges crumble shortly after landing, then fall away; charge and leave before their remaining solid line disappears. Later sections add solid walls. Aim toward a wall to reflect your jump onto a nearby narrow ledge; hitting a side reverses horizontal travel without changing the vertical speed. The platforms and crumble timers pause with accessibility help and the accessible view."),
+			localize('chatPet.jump.help.score', "The top-right counter shows Hops, with High score underneath. Landing on a platform higher than any you have reached in this run adds one hop. Returning to old platforms or hopping in place does not add points. Only the high score is saved on this device; every run starts at zero."),
 			localize('chatPet.jump.help.view', "Inspect your height, charge, and nearby platforms with <keybinding:editor.action.accessibleView>. The game pauses while accessibility help or the accessible view is open."),
-			localize('chatPet.jump.help.exit', "Press Escape to leave the game and restore Blobby to its perch. Tab away, click into the input, or start typing to fade the platforms away and let Blobby fall straight down onto the surfaces below. The new-session content fades out visually while playing and returns on exit; its layout and draft are unchanged. No game progress is saved."),
+			localize('chatPet.jump.help.exit', "Press Escape to leave the game and restore Blobby to its perch. Tab away, click into the input, or start typing to fade the platforms away and let Blobby fall straight down onto the surfaces below. The new-session content fades out visually while playing and returns on exit; its layout and draft are unchanged."),
 		].join('\n\n');
 	}
 
 	getAccessibleContent(): string {
 		const player = this.model.player;
-		const nearby = this.model.platforms.filter(platform => platform.height > player.height).slice(0, 4);
+		const nearby = this.model.platforms.filter(platform => platform.height > player.height && platform.collapseProgress < 1).slice(0, 4);
+		const current = this.model.platforms.find(platform => platform.id === player.platform);
 		return [
+			localize('chatPet.jump.view.score', "Hops: {0}. High score: {1}.", this.model.hops, this.highScore),
 			localize('chatPet.jump.view.status', "Height: {0} pixels. Best height: {1} pixels. Charge: {2} percent.", Math.round(player.height), Math.round(this.model.bestHeight), Math.round(this.model.charge * 100)),
 			player.platform !== undefined
-				? localize('chatPet.jump.view.grounded', "On platform {0}.", player.platform)
+				? player.platform < 0 ? localize('chatPet.jump.view.onWall', "On top of wall {0}.", -player.platform) : localize('chatPet.jump.view.grounded', "On platform {0}.", player.platform)
 				: player.velocityY > 0 ? localize('chatPet.jump.view.rising', "Rising.") : localize('chatPet.jump.view.falling', "Falling."),
-			...nearby.map(platform => localize('chatPet.jump.view.platform', "Platform {0}: {1} pixels above, {2} pixels {3}, width {4} pixels.",
+			...(current?.kind === 'crumbling' ? [localize('chatPet.jump.view.crumbling', "This platform is crumbling: {0} percent remaining. Charge your next jump before it falls.", Math.round((1 - current.collapseProgress) * 100))] : []),
+			...nearby.map(platform => localize('chatPet.jump.view.platform', "Platform {0}: {1} pixels above, {2} pixels {3}, width {4} pixels. {5}",
 				platform.id, Math.round(platform.height - player.height), Math.round(Math.abs(platform.left + platform.width / 2 - player.x)),
-				platform.left + platform.width / 2 < player.x ? localize('chatPet.jump.left', "left") : localize('chatPet.jump.right', "right"), Math.round(platform.width))),
+				platform.left + platform.width / 2 < player.x ? localize('chatPet.jump.left', "left") : localize('chatPet.jump.right', "right"), Math.round(platform.width),
+				platform.kind === 'moving' ? localize('chatPet.jump.view.moving', "Moving horizontally.")
+					: platform.kind === 'crumbling' ? localize('chatPet.jump.view.crumblingLedge', "Crumbles after landing.")
+						: localize('chatPet.jump.view.stable', "Stable."))),
+			...this.model.walls.filter(wall => wall.top >= player.height && wall.bottom < player.height + this.anchor).slice(0, 3).map(wall =>
+				localize('chatPet.jump.view.wall', "Wall beside platform {0}: {1} pixels {2}. Aim toward it to bank your jump.",
+					wall.id, Math.round(Math.abs(wall.left + wall.width / 2 - player.x)),
+					wall.left + wall.width / 2 < player.x ? localize('chatPet.jump.left', "left") : localize('chatPet.jump.right', "right"))),
 		].join('\n');
 	}
 
@@ -332,6 +417,7 @@ export class ChatPetJumpGame extends Disposable {
 			this.effects.remove();
 		}
 		this.platforms.clear();
+		this.walls.clear();
 		this.overlay.classList.remove('chat-pet-jump-game');
 		this.originalParent.prepend(this.overlay);
 		Object.assign(this.pet.style, this.originalStyle);

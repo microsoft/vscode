@@ -7,13 +7,16 @@ import assert from 'assert';
 import { spy } from 'sinon';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { timeout } from '../../../../../../base/common/async.js';
-import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { retry, timeout } from '../../../../../../base/common/async.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
-import { AccessibleViewType } from '../../../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibleContentProvider, AccessibleViewType } from '../../../../../../platform/accessibility/browser/accessibleView.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextViewDelegate, IContextViewService, IOpenContextView } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, QuickInputHideReason } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AccessibleView } from '../../../../accessibility/browser/accessibleView.js';
@@ -24,6 +27,43 @@ import '../../../browser/widget/media/chatPet.css';
 
 suite('ChatPetJumpGameAccessibleView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createTestQuickPick<T extends IQuickPickItem>(onShow: () => void, onHide: () => void) {
+		return new class extends mock<IQuickPick<T>>() {
+			private readonly resources = new DisposableStore();
+			private readonly didAcceptEmitter = this.resources.add(new Emitter<IQuickPickDidAcceptEvent>());
+			private readonly didHideEmitter = this.resources.add(new Emitter<IQuickInputHideEvent>());
+			override readonly onDidAccept = this.didAcceptEmitter.event;
+			override readonly onDidHide = this.didHideEmitter.event;
+			override items: readonly T[] = [];
+			override selectedItems: readonly T[] = [];
+			private visible = false;
+
+			override show(): void {
+				this.visible = true;
+				onShow();
+			}
+
+			override accept(): void {
+				assert.ok(this.items.length);
+				this.selectedItems = [this.items[0]];
+				this.didAcceptEmitter.fire({ inBackground: false });
+			}
+
+			override hide(reason = QuickInputHideReason.Gesture): void {
+				if (this.visible) {
+					this.visible = false;
+					onHide();
+					this.didHideEmitter.fire({ reason });
+				}
+			}
+
+			override dispose(): void {
+				this.hide(QuickInputHideReason.Other);
+				this.resources.dispose();
+			}
+		}();
+	}
 
 	async function createHarness(type = AccessibleViewType.View) {
 		const root = dom.append(mainWindow.document.body, dom.$('.monaco-workbench'));
@@ -60,6 +100,36 @@ suite('ChatPetJumpGameAccessibleView', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IContextViewService, contextViewService);
 		instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
+		const pickerInput = dom.append(root, dom.$('input'));
+		const commandTarget = dom.append(root, dom.$('button', undefined, 'Keybindings'));
+		const commands: { id: string; args: readonly unknown[] }[] = [];
+		instantiationService.stub(ICommandService, {
+			executeCommand: async (id: string, ...args: readonly unknown[]) => {
+				commands.push({ id, args });
+				commandTarget.focus();
+			},
+		});
+		let currentPicker: ReturnType<typeof createTestQuickPick> | undefined;
+		let latestPicker: ReturnType<typeof createTestQuickPick> | undefined;
+		const quickInputService = new class extends mock<IQuickInputService>() {
+			override get currentQuickInput() { return currentPicker; }
+
+			override createQuickPick<T extends IQuickPickItem>() {
+				const picker = store.add(createTestQuickPick<T>(() => {
+					const previous = currentPicker;
+					currentPicker = latestPicker = picker;
+					previous?.hide(QuickInputHideReason.Other);
+					contextViewService.hideContextView();
+					pickerInput.focus();
+				}, () => {
+					if (currentPicker === picker) {
+						currentPicker = undefined;
+					}
+				}));
+				return picker;
+			}
+		}();
+		instantiationService.stub(IQuickInputService, quickInputService);
 		const exits: string[] = [];
 		const game = store.add(instantiationService.createInstance(ChatPetJumpGame, overlay, pet, {
 			bounds: root,
@@ -107,7 +177,11 @@ suite('ChatPetJumpGameAccessibleView', () => {
 			});
 			return replacement;
 		};
-		return { root, pet, game, exits, provider, view, show, showHelp, replace, contextViewService, focusPet };
+		const getPicker = () => {
+			assert.ok(latestPicker);
+			return latestPicker;
+		};
+		return { root, pet, game, exits, provider, view, show, showHelp, replace, contextViewService, focusPet, getPicker, pickerInput, commands, commandTarget, quickInputService };
 	}
 
 	async function nextFrames(): Promise<void> {
@@ -123,7 +197,7 @@ suite('ChatPetJumpGameAccessibleView', () => {
 			const chargeEvent = new mainWindow.KeyboardEvent('keydown', { bubbles: true, cancelable: true });
 			Object.defineProperty(chargeEvent, 'keyCode', { value: 32 });
 			pet.dispatchEvent(chargeEvent);
-			await nextFrames();
+			await retry(async () => assert.ok(root.querySelector('.chat-pet-jump-charge-cell.filled')), 10, 100);
 			assert.deepStrictEqual({
 				focused: game.isFocused(),
 				activeElement: mainWindow.document.activeElement === pet,
@@ -211,4 +285,147 @@ suite('ChatPetJumpGameAccessibleView', () => {
 			refreshed: { exits: [], focused: false }, exits: ['blur'], focused: true,
 		});
 	});
+
+	for (const accept of [false, true]) {
+		test(`symbol picker keeps the game paused and restores the view (${accept ? 'selection' : 'cancel'})`, async () => {
+			const { root, pet, game, exits, provider, view, show, getPicker, pickerInput, focusPet, replace, contextViewService } = await createHarness();
+			provider.getSymbols = () => [{ label: 'Starting platform', lineNumber: 1 }];
+			const content = game.getAccessibleContent();
+			view.goToSymbol();
+			await nextFrames();
+			const whilePicking = { exits: [...exits], focused: mainWindow.document.activeElement === pickerInput, content: game.getAccessibleContent() };
+			const picker = getPicker();
+			if (accept) {
+				picker.accept();
+			} else {
+				picker.hide();
+			}
+			await timeout(0);
+			await nextFrames();
+			const afterPicking = { exits: [...exits], focusedPet: game.isFocused(), content: game.getAccessibleContent(), petFocusCalls: focusPet.callCount };
+			const restored = show.lastCall.args[0];
+			assert.ok(restored);
+			store.add(restored);
+			assert.ok(view.editorWidget.getValue().includes(content));
+			if (accept) {
+				restored.onClose();
+				contextViewService.hideContextView();
+				const charge = new mainWindow.KeyboardEvent('keydown', { bubbles: true, cancelable: true });
+				Object.defineProperty(charge, 'keyCode', { value: 32 });
+				pet.dispatchEvent(charge);
+				await retry(async () => assert.ok(root.querySelector('.chat-pet-jump-charge-cell.filled')), 10, 100);
+			} else {
+				const replacement = replace();
+				await nextFrames();
+				assert.deepStrictEqual({ exits, focused: mainWindow.document.activeElement === replacement, petFocusCalls: focusPet.callCount }, {
+					exits: ['blur'], focused: true, petFocusCalls: 0,
+				});
+			}
+			assert.deepStrictEqual({ whilePicking, afterPicking }, {
+				whilePicking: { exits: [], focused: true, content },
+				afterPicking: { exits: [], focusedPet: false, content, petFocusCalls: 0 },
+			});
+		});
+	}
+
+	for (const accept of [false, true]) {
+		test(`keybinding picker owns the pause until ${accept ? 'opening keybindings' : 'returning to the view'}`, async () => {
+			const { root, game, exits, provider, view, getPicker, pickerInput, focusPet, replace, commands, commandTarget } = await createHarness();
+			provider.options.configureKeybindingItems = [{ id: 'editor.action.accessibleView', label: 'Open Accessible View' }];
+			view.configureKeybindings(true);
+			await nextFrames();
+			const whilePicking = { exits: [...exits], focused: mainWindow.document.activeElement === pickerInput };
+			const picker = getPicker();
+			if (accept) {
+				picker.accept();
+				await timeout(0);
+				await nextFrames();
+				assert.deepStrictEqual({
+					whilePicking, exits, commands, focused: mainWindow.document.activeElement === commandTarget,
+					petFocusCalls: focusPet.callCount, effects: root.querySelectorAll('.chat-pet-jump-effects').length,
+				}, {
+					whilePicking: { exits: [], focused: true }, exits: ['blur'],
+					commands: [{ id: 'workbench.action.openGlobalKeybindings', args: ['editor.action.accessibleView'] }],
+					focused: true, petFocusCalls: 0, effects: 0,
+				});
+			} else {
+				picker.hide();
+				await timeout(0);
+				await nextFrames();
+				const afterPicking = { exits: [...exits], focusedPet: game.isFocused() };
+				const replacement = replace();
+				await nextFrames();
+				assert.deepStrictEqual({ whilePicking, afterPicking, exits, focused: mainWindow.document.activeElement === replacement, petFocusCalls: focusPet.callCount }, {
+					whilePicking: { exits: [], focused: true }, afterPicking: { exits: [], focusedPet: false },
+					exits: ['blur'], focused: true, petFocusCalls: 0,
+				});
+			}
+		});
+	}
+
+	for (const kind of ['symbol', 'keybinding']) {
+		test(`${kind} picker can return through nested help without resuming the game`, async () => {
+			const { game, exits, view, show, showHelp, getPicker, replace, focusPet } = await createHarness();
+			const help = await showHelp();
+			assert.ok(help instanceof AccessibleContentProvider);
+			help.getSymbols = () => [{ label: 'Help', lineNumber: 1 }];
+			help.options.configureKeybindingItems = [{ id: 'editor.action.accessibleView', label: 'Open Accessible View' }];
+			if (kind === 'symbol') {
+				view.goToSymbol();
+			} else {
+				view.configureKeybindings(true);
+			}
+			await nextFrames();
+			getPicker().hide();
+			await timeout(0);
+			await nextFrames();
+			const restoredHelp = show.lastCall.args[0];
+			assert.ok(restoredHelp);
+			store.add(restoredHelp);
+			const afterPicker = { exits: [...exits], focusedPet: game.isFocused(), type: restoredHelp.options.type };
+			restoredHelp.onClose();
+			await timeout(0);
+			await nextFrames();
+			const afterHelp = { exits: [...exits], focusedPet: game.isFocused() };
+			const replacement = replace();
+			await nextFrames();
+			assert.deepStrictEqual({
+				afterPicker, afterHelp, exits, replacementFocused: mainWindow.document.activeElement === replacement, petFocusCalls: focusPet.callCount,
+			}, {
+				afterPicker: { exits: [], focusedPet: false, type: AccessibleViewType.Help },
+				afterHelp: { exits: [], focusedPet: false }, exits: ['blur'], replacementFocused: true, petFocusCalls: 0,
+			});
+		});
+
+		for (const abandon of ['blur', 'replace', 'dispose']) {
+			test(`${kind} picker releases the game when abandoned by ${abandon}`, async () => {
+				const { root, exits, provider, view, show, getPicker, quickInputService, pickerInput, focusPet, commandTarget } = await createHarness();
+				provider.getSymbols = () => [{ label: 'Starting platform', lineNumber: 1 }];
+				provider.options.configureKeybindingItems = [{ id: 'editor.action.accessibleView', label: 'Open Accessible View' }];
+				if (kind === 'symbol') {
+					view.goToSymbol();
+				} else {
+					view.configureKeybindings(true);
+				}
+				await nextFrames();
+				const shows = show.callCount;
+				if (abandon === 'replace') {
+					quickInputService.createQuickPick().show();
+				} else {
+					commandTarget.focus();
+					if (abandon === 'blur') {
+						getPicker().hide(QuickInputHideReason.Blur);
+					} else {
+						view.dispose();
+					}
+				}
+				await nextFrames();
+				assert.deepStrictEqual({
+					exits, shows: show.callCount, effects: root.querySelectorAll('.chat-pet-jump-effects').length,
+					focusKept: mainWindow.document.activeElement === (abandon === 'replace' ? pickerInput : commandTarget),
+					petFocusCalls: focusPet.callCount,
+				}, { exits: ['blur'], shows, effects: 0, focusKept: true, petFocusCalls: 0 });
+			});
+		}
+	}
 });

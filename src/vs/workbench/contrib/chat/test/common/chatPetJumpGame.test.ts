@@ -23,6 +23,24 @@ suite('ChatPetJumpGame', () => {
 		model.setChargeHeld(false);
 	}
 
+	function climbTo(platformId: number, size = 48): ChatPetJumpGameModel {
+		const model = new ChatPetJumpGameModel(size * 12.5, size, size * 6.25, () => 0.5);
+		model.ensurePlatforms(size * 50);
+		const centers = model.platforms.map(platform => platform.left + platform.width / 2);
+		for (let id = 1; id <= platformId; id++) {
+			const wall = model.walls.find(wall => wall.id === id);
+			const center = centers[id - 1];
+			const direction = wall ? wall.left > model.player.x ? 1 : -1
+				: center < model.width / 4 ? 1 : center > model.width * 3 / 4 ? -1 : 1;
+			chargeJump(model, wall ? 900 : Math.round((0.845 + Math.min(4, Math.floor(id / 8)) * 0.015) * 108) * 1000 / 120, direction);
+			for (let step = 0; step < 240 && model.player.platform === undefined && !model.hasFallen; step++) {
+				model.advance(1000 / 120);
+			}
+			assert.strictEqual(model.player.platform, id, `The pre-generated route must remain playable at platform ${id}, pet size ${size}`);
+		}
+		return model;
+	}
+
 	test('charges for exactly 900ms, caps at full power, and launches only on release', () => {
 		const model = new ChatPetJumpGameModel(600, 48, 300);
 		model.setChargeHeld(true);
@@ -155,7 +173,7 @@ suite('ChatPetJumpGame', () => {
 			platform: model.player.platform,
 			fallPreserved: model.player.x === fallenPlayer.x && model.player.height === fallenPlayer.height,
 			bestHeight: Math.round(model.bestHeight),
-			platforms: model.platforms,
+			platforms: model.platforms.map(({ id, left, width, height }) => ({ id, left, width, height })),
 		}, {
 			hasFallen: true, leftStartingPlatform: true, belowStart: true, descending: true, platform: undefined, fallPreserved: true,
 			bestHeight: 187,
@@ -178,6 +196,7 @@ suite('ChatPetJumpGame', () => {
 					const next = platforms[i];
 					const rise = next.height - previous.height;
 					const scale = size / 48;
+					const wall = model.walls.find(wall => wall.id === next.id);
 					let reachable = false;
 					for (let step = 1; step <= 108 && !reachable; step++) {
 						const charge = step / 108;
@@ -188,7 +207,17 @@ suite('ChatPetJumpGame', () => {
 						}
 						const time = (speed + Math.sqrt(discriminant)) / (1800 * scale);
 						for (const direction of [-1, 0, 1]) {
-							const projected = previous.left + previous.width / 2 + direction * (120 + 160 * charge) * scale * time;
+							const center = previous.left + previous.width / 2;
+							const velocityX = direction * (120 + 160 * charge) * scale;
+							let projected = center + velocityX * time;
+							if (wall && direction !== 0) {
+								const contact = direction > 0 ? wall.left - size / 2 : wall.left + wall.width + size / 2;
+								const collisionTime = (contact - center) / velocityX;
+								const collisionHeight = previous.height + speed * collisionTime - 1800 * scale * collisionTime * collisionTime / 2;
+								if (collisionTime >= 0 && collisionTime <= time && collisionHeight < wall.top && collisionHeight + size > wall.bottom) {
+									projected = 2 * contact - projected;
+								}
+							}
 							const range = width - size;
 							const offset = ((projected - size / 2) % (2 * range) + 2 * range) % (2 * range);
 							const x = size / 2 + (offset <= range ? offset : 2 * range - offset);
@@ -197,12 +226,127 @@ suite('ChatPetJumpGame', () => {
 					}
 					assert.deepStrictEqual({
 						inside: next.left >= 0 && next.left + next.width <= width,
-						riseInRange: rise >= size * 1.25 - 1e-6 && rise <= size * 2.25 + 1e-6,
+						riseInRange: wall ? Math.abs(rise - size * 3.1) < 1e-6 : rise >= size * 1.25 - 1e-6 && rise <= size * (2.25 + Math.min(4, Math.floor(i / 8)) * 0.1) + 1e-6,
 						reachable,
 					}, { inside: true, riseInRange: true, reachable: true }, `size=${size}, width=${width}, platform=${i}`);
 				}
 			}
 		}
+	});
+
+	test('introduces hazards gradually and keeps a complete route playable across pet sizes', () => {
+		const results = [24, 48, 96].map(size => {
+			const model = climbTo(16, size);
+			return {
+				hops: model.hops,
+				firstLedges: model.platforms.slice(1, 5).map(platform => platform.kind),
+				moving: model.platforms[5].kind,
+				crumbling: model.platforms[9].kind,
+				firstWall: model.walls[0].id,
+				narrower: model.platforms[16].width < model.platforms[1].width,
+			};
+		});
+		assert.deepStrictEqual(results, Array(3).fill({
+			hops: 16, firstLedges: ['static', 'static', 'static', 'static'],
+			moving: 'moving', crumbling: 'crumbling', firstWall: 12, narrower: true,
+		}));
+	});
+
+	test('a moving ledge carries a landed pet while charging without awarding extra hops', () => {
+		const model = climbTo(5);
+		const platform = model.platforms[5];
+		const offset = model.player.x - platform.left;
+		const left = platform.left;
+		model.setChargeHeld(true);
+		advance(model, 450);
+		assert.deepStrictEqual({
+			moving: Math.abs(platform.left - left) > 1,
+			carried: Math.abs(model.player.x - platform.left - offset) < 1e-6,
+			grounded: model.player.platform,
+			charge: model.charge,
+			hops: model.hops,
+		}, { moving: true, carried: true, grounded: 5, charge: 0.5, hops: 5 });
+	});
+
+	test('crumbling ledges allow a full charge, then fall and release the pet without a phantom jump', () => {
+		const model = climbTo(9);
+		model.setChargeHeld(true);
+		advance(model, 900);
+		const before = { platform: model.player.platform, charge: model.charge, crumbling: model.platforms[9].collapseProgress > 0 };
+		advance(model, 700);
+		model.setChargeHeld(false);
+		assert.deepStrictEqual({
+			before,
+			collapsed: model.platforms[9].collapseProgress,
+			ledgeFalling: model.platforms[9].fallDistance > 0,
+			petFalling: model.player.height < model.platforms[9].height && model.player.velocityY < 0,
+			platform: model.player.platform, charge: model.charge, hops: model.hops,
+		}, {
+			before: { platform: 9, charge: 1, crumbling: true },
+			collapsed: 1, ledgeFalling: true, petFalling: true, platform: undefined, charge: 0, hops: 9,
+		});
+	});
+
+	test('bank shots reflect horizontal speed without an extra vertical kick and land on the narrow ledge', () => {
+		const model = climbTo(11);
+		const wall = model.walls.find(wall => wall.id === 12)!;
+		const direction = wall.left > model.player.x ? 1 : -1;
+		chargeJump(model, 900, direction);
+		let steps = 0;
+		while (steps < 120 && model.player.velocityX === direction * 280) {
+			model.advance(1000 / 120);
+			steps++;
+		}
+		const bounce = {
+			horizontalSpeed: model.player.velocityX,
+			verticalSpeed: Math.round(model.player.velocityY),
+			expectedVerticalSpeed: 820 - 15 * steps,
+			airborne: model.player.platform === undefined,
+		};
+		advance(model, 500);
+		assert.deepStrictEqual({
+			bounce, platform: model.player.platform, hops: model.hops, width: model.platforms[12].width,
+		}, {
+			bounce: { horizontalSpeed: -direction * 280, verticalSpeed: 820 - 15 * steps, expectedVerticalSpeed: 820 - 15 * steps, airborne: true },
+			platform: 12, hops: 12, width: 48 * 0.8,
+		});
+	});
+
+	test('moving and crumbling physics are independent of display refresh rate', () => {
+		for (const id of [5, 9]) {
+			const results = [30, 60, 120].map(fps => {
+				const model = climbTo(id);
+				advance(model, 1600, 1000 / fps);
+				return { player: { ...model.player }, platforms: model.platforms, hops: model.hops };
+			});
+			assert.deepStrictEqual(results, [results[0], results[0], results[0]]);
+		}
+	});
+
+	test('resting on the top of a wall settles without a zero-time collision loop or score', () => {
+		const model = new ChatPetJumpGameModel(600, 48, 300, () => 0.5);
+		model.ensurePlatforms(1500);
+		const wall = model.walls[0];
+		Object.assign(model.player, { x: wall.left + wall.width / 2, height: wall.top, platform: undefined });
+		advance(model, 100);
+		const landed = { platform: model.player.platform, height: model.player.height, hops: model.hops };
+		model.hop(-1);
+		advance(model, 100);
+		assert.deepStrictEqual({ landed, canJump: model.player.height > wall.top && model.player.platform === undefined }, {
+			landed: { platform: -wall.id, height: wall.top, hops: 0 }, canJump: true,
+		});
+	});
+
+	test('hopping on a reached platform or falling back never increases the score', () => {
+		const model = climbTo(3);
+		model.hop(0);
+		advance(model, 400);
+		const repeat = { hops: model.hops, platform: model.player.platform };
+		chargeJump(model, 0, -1);
+		advance(model, 2000);
+		assert.deepStrictEqual({ repeat, hops: model.hops, noProgress: (model.player.platform ?? 0) <= 3 }, {
+			repeat: { hops: 3, platform: 3 }, hops: 3, noProgress: true,
+		});
 	});
 
 	test('generates only on demand and keeps existing platforms when extending the route', () => {
