@@ -345,11 +345,17 @@ export class QuickInputController extends Disposable {
 					this.endOfQuickInputBoxContext.set(value);
 				}
 			}
+			// While a context menu hosted inside the quick input has focus, quick input
+			// keybindings (e.g. accepting the active item) must not apply
+			const inHostedContextView = e.composedPath().includes(this.contextViewService.getContextViewElement());
+			this.inQuickInputContext.set(!inHostedContextView);
+			if (inHostedContextView) {
+				this.endOfQuickInputBoxContext.set(false);
+			}
 			// Ignore focus events within container
 			if (dom.isAncestor(e.relatedTarget as HTMLElement, ui.container)) {
 				return;
 			}
-			this.inQuickInputContext.set(true);
 			this.previousFocusElement = dom.isHTMLElement(e.relatedTarget) ? e.relatedTarget : undefined;
 		}, true));
 		this._register(focusTracker.onDidBlur(() => {

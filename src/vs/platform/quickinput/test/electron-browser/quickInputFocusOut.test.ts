@@ -257,6 +257,20 @@ suite('QuickInput hosts its context menus', () => { // https://github.com/micros
 		assert.deepStrictEqual(state(picker), { visible: true, focus: 'input', menu: 'none', value: 'T10 harmless', selection: [4, 7] });
 	});
 
+	test('quick input keybinding context is off while the hosted menu has focus', async () => {
+		setupController();
+		showPicker();
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const inQuickInput = () => contextKeyService.getContextKeyValue<boolean>('inQuickInput');
+		const before = inQuickInput();
+		rightClickInput();
+		await settle();
+		const inMenu = inQuickInput();
+		keydown(activeElementDeep()!, 'Escape', 27);
+		await settle();
+		assert.deepStrictEqual([before, inMenu, inQuickInput()], [true, false, true]);
+	});
+
 	test('running a hosted menu action keeps the picker; hiding returns focus to the editor', async () => {
 		setupController();
 		const picker = showPicker();
