@@ -642,12 +642,12 @@ suite('InboxNotificationsService', () => {
 			let requests = 0;
 			const fixture = createFixture([createSession({ id: 'preview-failure', status: SessionStatus.NeedsInput, updatedAt: 200, description: 'Approve the request' })],
 				undefined, undefined, undefined, undefined, true, [], true, {
-					utilityRequest: async request => {
-						assert.strictEqual(request.purpose, 'inboxPreview');
-						requests++;
-						throw expectedError;
-					},
-				});
+				utilityRequest: async request => {
+					assert.strictEqual(request.purpose, 'inboxPreview');
+					requests++;
+					throw expectedError;
+				},
+			});
 			const item = fixture.service.notifications.get()[0];
 			fixture.service.requestPreview(item);
 			await waitForState(fixture.service.isLoading, loading => !loading);
