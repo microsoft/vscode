@@ -871,13 +871,18 @@ class PersistentBackgroundActivityTracker extends Disposable {
 class ChatWorkingProgressAnchor implements IChatContentPart {
 	readonly domNode = dom.$('.chat-working-progress-anchor');
 
-	constructor(readonly part: ChatWorkingProgressContentPart, private readonly onDispose: () => void) { }
+	constructor(private _part: ChatWorkingProgressContentPart | undefined, private readonly onDispose: () => void) { }
+
+	get part(): ChatWorkingProgressContentPart | undefined {
+		return this._part;
+	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		return this.part.hasSameContent(other, followingContent, element);
+		return this._part?.hasSameContent(other, followingContent, element) ?? false;
 	}
 
 	dispose(): void {
+		this._part = undefined;
 		this.onDispose();
 	}
 }
@@ -1307,6 +1312,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		part?.domNode.remove();
 		this.stickyProgressPart.clear();
 		this.stickyProgressResponse = undefined;
+		this.stickyProgressAnchor?.dispose();
 		this.stickyProgressAnchor = undefined;
 		this.stickyProgressContainer?.classList.add('hidden');
 	}
@@ -2420,7 +2426,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		if (this.isPersistentProgressEnabled()) {
-			return element.isCanceled ? undefined : this.getPersistentWorkingProgress(element, partsToRender);
+			// Inline and pinned presentations share progress state, not the markdown reveal budget.
+			const progressContent = this.isStickyProgressEnabled() ? annotateSpecialMarkdownContent(element.response.value) : partsToRender;
+			return element.isCanceled ? undefined : this.getPersistentWorkingProgress(element, progressContent);
 		}
 
 		if (element.agentOrSlashCommandDetected || !checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse)) {

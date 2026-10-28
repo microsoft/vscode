@@ -263,6 +263,7 @@
 
 /* ---- Chat Input ---- */
 
+.agent-sessions-workbench .interactive-session .interactive-input-part > .chat-input-persistent-content,
 .agent-sessions-workbench .interactive-session .interactive-input-part > .chat-input-persistent-content > .chat-sticky-progress {
 	padding-inline: inherit;
 }

@@ -3745,7 +3745,7 @@ suite('Sessions - Chat View', () => {
 			pills.style.height = '28px';
 			dom.getWindow(workbench).document.body.appendChild(workbench);
 			disposables.add(toDisposable(() => workbench.remove()));
-			const before = { height: persistentContent.getBoundingClientRect().height, top: pills.getBoundingClientRect().top };
+			const before = { height: persistentContent.getBoundingClientRect().height, top: pills.getBoundingClientRect().top, left: pills.getBoundingClientRect().left };
 			const sticky = dom.prepend(persistentContent, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
 			const progress = dom.append(sticky, dom.$('.chat-working-progress'));
 			progress.style.height = '22px';
@@ -3759,13 +3759,16 @@ suite('Sessions - Chat View', () => {
 			};
 			pills.style.display = 'none';
 			persistentContent.classList.remove('chat-persistent-content-visible');
+			session.classList.remove('chat-floating-persistent-content');
 			assert.deepStrictEqual({
 				withPills,
 				withoutPills: progress.getBoundingClientRect().bottom,
+				withoutPillsLeft: progress.getBoundingClientRect().left,
 				emptyAnchorHeight: emptyAnchor.getBoundingClientRect().height,
 			}, {
-				withPills: { position: 'absolute', height: before.height, pillTop: before.top, bottom: before.top - 2, left: persistentContent.getBoundingClientRect().left + 24 },
+				withPills: { position: 'absolute', height: before.height, pillTop: before.top, bottom: before.top - 2, left: before.left },
 				withoutPills: inputPart.getBoundingClientRect().top - 2,
+				withoutPillsLeft: bounds.left,
 				emptyAnchorHeight: 22,
 			});
 		});

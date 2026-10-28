@@ -16,6 +16,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { clamp } from '../../../../../base/common/numbers.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -672,20 +673,22 @@ export class ChatListWidget extends Disposable {
 					return false;
 				}
 				const viewport = this._tree.getHTMLElement().getBoundingClientRect();
+				const stickyHeader = this._tree.stickyScrollDomNode?.getBoundingClientRect();
+				const top = stickyHeader?.height ? Math.max(viewport.top, stickyHeader.bottom) : viewport.top;
 				const bottom = Math.min(viewport.bottom, progress.getBoundingClientRect().bottom);
 				if (bottom <= viewport.top) {
 					return false;
 				}
 				if (anchor) {
 					const bounds = anchor.getBoundingClientRect();
-					return bounds.bottom > bottom || bounds.top < viewport.top;
+					return bounds.bottom > bottom || bounds.top < top;
 				}
 				const responseTop = this._tree.getElementTop(response);
 				if (responseTop === undefined) {
 					return false;
 				}
 				const responseBottom = responseTop + (response.currentRenderedHeight ?? this._delegate.getHeight(response)) - this._tree.scrollTop + viewport.top;
-				return responseBottom > bottom || responseBottom <= viewport.top;
+				return responseBottom > bottom || responseBottom <= top;
 			});
 		}
 		if (options.tabIndex !== undefined) {
@@ -934,7 +937,10 @@ export class ChatListWidget extends Disposable {
 		if (this._visible && progress?.isConnected && progress.childElementCount > 0 && button.style.display !== 'none') {
 			const bounds = progress.getBoundingClientRect();
 			if (bounds.height > 0) {
-				bottom = `${this._container.getBoundingClientRect().bottom - (bounds.top + bounds.bottom) / 2 - button.offsetHeight / 2}px`;
+				const viewport = this._container.getBoundingClientRect();
+				const buttonHeight = button.offsetHeight;
+				const centeredBottom = viewport.bottom - (bounds.top + bounds.bottom) / 2 - buttonHeight / 2;
+				bottom = `${clamp(centeredBottom, 0, Math.max(0, viewport.height - buttonHeight))}px`;
 			}
 		}
 		if (button.style.bottom !== bottom) {

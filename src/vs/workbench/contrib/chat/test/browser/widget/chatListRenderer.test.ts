@@ -2360,6 +2360,86 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
+	test('sticky progress replaces a stale anchor when a hidden completed turn resumes', async () => {
+		const { request, container, renderer, template, node } = createPersistentProgressRenderer();
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		renderer.setWorkingProgressContainer(sticky, () => false);
+		renderer.renderElement(node, 0, template);
+		const initial = template.value.querySelector('.chat-working-progress');
+		assert.ok(initial);
+
+		renderer.setVisible(false);
+		renderer.updateStickyProgress();
+		request.response!.complete();
+		await timeout(0);
+		request.response!.reopen();
+		await timeout(0);
+		renderer.setVisible(true);
+		renderer.renderElement(node, 0, template);
+		const resumed = template.value.querySelector<HTMLElement>('.chat-working-progress');
+		assert.deepStrictEqual({
+			oldProgressConnected: initial.isConnected,
+			resumedLabel: resumed?.textContent?.trim(),
+			resumedVisibility: resumed ? dom.getWindow(resumed).getComputedStyle(resumed).visibility : undefined,
+			inlineCopies: template.value.querySelectorAll('.chat-working-progress-anchor > .chat-working-progress').length,
+			stickyCopies: sticky.childElementCount,
+		}, {
+			oldProgressConnected: false,
+			resumedLabel: 'Working',
+			resumedVisibility: 'visible',
+			inlineCopies: 1,
+			stickyCopies: 0,
+		});
+	});
+
+	for (const interaction of ['question', 'plan review'] as const) {
+		test(`sticky progress keeps authoritative ${interaction} status while markdown is buffered`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { disposables, configurationService, model, request, response, container, renderer, template, node } = createPersistentProgressRenderer();
+			try {
+				const announcements = dom.$('div');
+				setARIAContainer(announcements);
+				disposables.add(toDisposable(() => announcements.remove()));
+				configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+				const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+				renderer.setWorkingProgressContainer(sticky, () => false);
+				renderer.renderElement(node, 0, template);
+				const progress = template.value.querySelector('.chat-working-progress');
+				assert.ok(progress);
+
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Buffered words. '.repeat(200)) });
+				model.acceptResponseProgress(request, interaction === 'question'
+					? new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true)
+					: new ChatPlanReviewData('Review plan', 'Check the changes.', [{ label: 'Implement' }], false));
+				await timeout(1);
+				const label = interaction === 'question' ? 'Waiting for your response' : 'Plan review required';
+				const readAnnouncements = () => [...announcements.querySelectorAll('.monaco-alert')].map(alert => alert.textContent);
+				const initiallyAnnounced = readAnnouncements();
+				assert.ok(initiallyAnnounced.includes(label));
+
+				response.renderData = { lastRenderTime: Date.now(), renderedWordCount: 1, renderedParts: [] };
+				renderer.renderElement(node, 0, template);
+				await timeout(50);
+				const whileBuffered = {
+					status: progress.textContent?.replace(/\u00a0/g, ' ').trim(),
+					stillBuffered: (response.renderData?.renderedWordCount ?? 0) < 400,
+				};
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\nMore details.') });
+				await timeout(0);
+				assert.deepStrictEqual({
+					whileBuffered,
+					announcements: readAnnouncements(),
+					sameComponent: template.value.querySelector('.chat-working-progress') === progress,
+				}, {
+					whileBuffered: { status: label, stillBuffered: true },
+					announcements: initiallyAnnounced,
+					sameComponent: true,
+				});
+			} finally {
+				disposables.dispose();
+			}
+		}));
+	}
+
 	for (const progressBorder of [false, true]) {
 		test(`sticky progress respects the initial progress border setting (${progressBorder})`, () => {
 			const { configurationService, container, renderer, template, node } = createPersistentProgressRenderer();

@@ -2409,11 +2409,13 @@ suite('ChatListWidget', () => {
 	});
 
 	suite('sticky progress', () => {
-		async function createTranscript({ pills = false, floating = true, incremental = false, options = {} }: { pills?: boolean; floating?: boolean; incremental?: boolean; options?: IChatListWidgetOptions } = {}) {
+		async function createTranscript({ pills = false, floating = true, incremental = false, stickyScroll = false, options = {} }: { pills?: boolean; floating?: boolean; incremental?: boolean; stickyScroll?: boolean; options?: IChatListWidgetOptions } = {}) {
 			const result = createWidget({ stickyProgress: true, paddingBottom: 32, ...options }, configuration => {
 				configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 				configuration.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
 				configuration.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Working'] });
+				configuration.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, stickyScroll);
+				configuration.setUserConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled, stickyScroll);
 			}, true);
 			const { disposables, model, viewModel, container, widget } = result;
 			const session = container.parentElement!;
@@ -2465,6 +2467,21 @@ suite('ChatListWidget', () => {
 			const anchor = container.querySelector<HTMLElement>('.chat-working-progress-anchor');
 			assert.ok(progress && sticky && anchor && widget.scrollTop > 0);
 			return { ...result, session, inputPart, persistentContent, pillRow, input, request, progress, sticky, anchor, setPillsVisible };
+		}
+
+		function addPendingRequests(model: ChatModel, kind = ChatRequestQueueKind.Queued): void {
+			for (let index = 0; index < 10; index++) {
+				const text = `Queued instruction ${index}`;
+				model.addPendingRequest(new ChatRequestModel({
+					session: model,
+					message: {
+						text,
+						parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+					},
+					variableData: { variables: [] },
+					timestamp: 0,
+				}), kind, {});
+			}
 		}
 
 		for (const incremental of [false, true]) {
@@ -2602,6 +2619,35 @@ suite('ChatListWidget', () => {
 				});
 			});
 		}
+
+		test('clamps the scroll arrow to a short transcript when sticky progress wraps', async () => {
+			const { model, request, session, inputPart, container, widget, progress } = await createTranscript();
+			widget.scrollTop = 0;
+			model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Waiting for background operations and their verification. '.repeat(8)) });
+			session.style.width = inputPart.style.width = container.style.width = '240px';
+			inputPart.style.top = container.style.height = '40px';
+			widget.layout(40, 240);
+			await waitForStableLayout(widget);
+			const button = widget.scrollDownButtonDomNode;
+			const aboveViewport = {
+				wrappedBeyondViewport: progress.getBoundingClientRect().height > widget.renderHeight,
+				arrowTop: button.getBoundingClientRect().top,
+				bottom: Number.parseFloat(button.style.bottom),
+			};
+
+			inputPart.style.top = '400px';
+			widget.layout(40, 240);
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				aboveViewport,
+				belowViewportBottom: button.getBoundingClientRect().bottom,
+				belowViewportOffset: button.style.bottom,
+			}, {
+				aboveViewport: { wrappedBeyondViewport: true, arrowTop: container.getBoundingClientRect().top, bottom: 40 - button.offsetHeight },
+				belowViewportBottom: container.getBoundingClientRect().bottom,
+				belowViewportOffset: '0px',
+			});
+		});
 
 		test('follows pills appearing and disappearing without moving the pills or input', async () => {
 			const { widget, progress, sticky, pillRow, input, setPillsVisible } = await createTranscript();
@@ -2799,18 +2845,7 @@ suite('ChatListWidget', () => {
 
 		test('stays visible when queued messages push the active response above the viewport', async () => {
 			const { model, viewModel, widget, progress, sticky } = await createTranscript();
-			for (let index = 0; index < 10; index++) {
-				const text = `Queued instruction ${index}`;
-				model.addPendingRequest(new ChatRequestModel({
-					session: model,
-					message: {
-						text,
-						parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
-					},
-					variableData: { variables: [] },
-					timestamp: 0,
-				}), ChatRequestQueueKind.Queued, {});
-			}
+			addPendingRequests(model);
 			widget.refresh();
 			await waitForStableLayout(widget);
 			widget.scrollToEnd();
@@ -2823,6 +2858,31 @@ suite('ChatListWidget', () => {
 				pinned: progress.parentElement === sticky,
 			}, { responseAboveViewport: true, pinned: true });
 		});
+
+		for (const kind of [ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering]) {
+			test(`pins progress while its inline anchor is covered by the sticky prompt (${kind})`, async () => {
+				const { model, viewModel, container, widget, progress, sticky } = await createTranscript({ stickyScroll: true });
+				addPendingRequests(model, kind);
+				widget.refresh();
+				await waitForStableLayout(widget);
+				const response = viewModel.getItems().findLast(isResponseVM);
+				assert.ok(response);
+				widget.reveal(response, 0);
+				await waitForStableLayout(widget);
+				const anchor = container.querySelector<HTMLElement>('.chat-working-progress-anchor');
+				assert.ok(anchor);
+				const viewport = container.getBoundingClientRect();
+				widget.scrollTop += anchor.getBoundingClientRect().top - viewport.top - 1;
+				await waitForStableLayout(widget);
+				const bounds = anchor.getBoundingClientRect();
+				const header = widget.stickyScrollDomNode?.getBoundingClientRect();
+				assert.deepStrictEqual({
+					anchorInViewport: bounds.top >= viewport.top && bounds.bottom <= viewport.bottom,
+					anchorUnderHeader: !!header && header.height > 0 && bounds.top < header.bottom,
+					progressPinned: progress.parentElement === sticky,
+				}, { anchorInViewport: true, anchorUnderHeader: true, progressPinned: true });
+			});
+		}
 
 		test('hides with the view and restores the same progress when shown', async () => {
 			const { widget, progress, sticky } = await createTranscript();
