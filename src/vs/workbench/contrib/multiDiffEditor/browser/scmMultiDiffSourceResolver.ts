@@ -13,9 +13,12 @@ import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEdit
 import { localize2 } from '../../../../nls.js';
 import { Action2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyValue } from '../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { getHistoryItemChangeWorkingTreeUri } from '../../scm/common/history.js';
 import { ISCMProvider, ISCMRepository, ISCMResourceGroup, ISCMService } from '../../scm/common/scm.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 
@@ -135,7 +138,11 @@ export class ScmHistoryItemResolver implements IMultiDiffSourceResolver {
 		return { repositoryId, historyItemId, historyItemParentId, historyItemDisplayId };
 	}
 
-	constructor(@ISCMService private readonly _scmService: ISCMService) { }
+	constructor(
+		@ISCMService private readonly _scmService: ISCMService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: IFileService,
+	) { }
 
 	canHandleUri(uri: URI): boolean {
 		return ScmHistoryItemResolver.parseUri(uri) !== undefined;
@@ -151,17 +158,22 @@ export class ScmHistoryItemResolver implements IMultiDiffSourceResolver {
 		const historyProvider = await waitForState(repository.provider.historyProvider);
 		const historyItemChanges = await historyProvider.provideHistoryItemChanges(historyItemId, historyItemParentId) ?? [];
 
-		const resources = ValueWithChangeEvent.const<readonly MultiDiffEditorItem[]>(
-			historyItemChanges.map(change => {
-				const goToFileEditorTitle = change.modifiedUri
-					? `${basename(change.modifiedUri.fsPath)} (${historyItemDisplayId ?? historyItemId})`
-					: undefined;
+		const items = await Promise.all(historyItemChanges.map(async change => {
+			const workingTreeUri = change.modifiedUri
+				? await getHistoryItemChangeWorkingTreeUri(change, this._configurationService, this._fileService)
+				: undefined;
+			if (workingTreeUri) {
+				return new MultiDiffEditorItem(change.originalUri, change.modifiedUri, workingTreeUri);
+			}
 
-				return new MultiDiffEditorItem(change.originalUri, change.modifiedUri, change.modifiedUri, goToFileEditorTitle);
-			})
-		);
+			const goToFileEditorTitle = change.modifiedUri
+				? `${basename(change.modifiedUri.fsPath)} (${historyItemDisplayId ?? historyItemId})`
+				: undefined;
 
-		return { resources };
+			return new MultiDiffEditorItem(change.originalUri, change.modifiedUri, change.modifiedUri, goToFileEditorTitle);
+		}));
+
+		return { resources: ValueWithChangeEvent.const<readonly MultiDiffEditorItem[]>(items) };
 	}
 }
 
