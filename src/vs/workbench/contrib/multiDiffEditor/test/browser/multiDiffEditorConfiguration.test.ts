@@ -65,7 +65,7 @@ suite('MultiDiffEditorConfiguration', () => {
 		assert.strictEqual(defaultMultiDiffEditorExperimentalVariant, 'noCards');
 	});
 
-	test('registers the experimental file list setting as opt-in', () => {
+	test('registers the experimental file list setting as enabled by default', () => {
 		const property = registeredFileListSetting;
 
 		assert.deepStrictEqual({
@@ -75,7 +75,7 @@ suite('MultiDiffEditorConfiguration', () => {
 			isExperimental: property.tags?.includes('experimental'),
 		}, {
 			type: 'boolean',
-			default: false,
+			default: true,
 			scope: ConfigurationScope.WINDOW,
 			isExperimental: true,
 		});
