@@ -11,6 +11,7 @@ import * as nls from '../../../../nls.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { IPreferencesService } from './preferences.js';
 import { Settings2EditorModel } from './preferencesModels.js';
 
@@ -90,5 +91,23 @@ export class PreferencesEditorInput extends EditorInput {
 
 	override async resolve(): Promise<null> {
 		return null;
+	}
+}
+
+/**
+ * Side by side editor of the default settings (secondary) and an editable
+ * settings file (primary), resolved through the split settings editor
+ * registration of the editor resolver.
+ */
+export class SplitSettingsEditorInput extends SideBySideEditorInput {
+
+	/**
+	 * The editor id of the split settings editor registration. Kept at its
+	 * historical value so that existing editor associations continue to match.
+	 */
+	static readonly EDITOR_ID: string = SideBySideEditorInput.ID;
+
+	override get editorId(): string {
+		return SplitSettingsEditorInput.EDITOR_ID;
 	}
 }
