@@ -350,8 +350,8 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 				active: ['Reset to default'],
 				selected: ['Reset to default'],
 				accepted: ['Reset to default'],
-				position: '3',
-				size: '3',
+				position: '2',
+				size: '2',
 				level: '1',
 			});
 		});
@@ -472,6 +472,75 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			level: row.getAttribute('aria-level'),
 			active: picker.activeItems.map(item => item.label),
 		}, { headers: 1, headerActive: true, dividers: 1, hasParent: true, level: '2', active: ['Reset to default'] });
+	});
+
+	test('previous section targets visible matches instead of hidden first children', async () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+		picker.items = [{ label: 'apple' }, { type: 'separator' }, { label: 'berry' }, { label: 'apricot' }];
+		picker.sortByLabel = false;
+		picker.value = 'a';
+		picker.show();
+		picker.focus(QuickPickFocus.PreviousSeparator);
+		let accepted: string[] = [];
+		store.add(picker.onDidAccept(() => accepted = picker.activeItems.map(item => item.label)));
+		await controller.accept();
+		assert.deepStrictEqual({
+			active: picker.activeItems.map(item => item.label),
+			accepted,
+			focused: fixture.querySelector('.monaco-list-row.focused .label-name')?.textContent,
+		}, { active: ['apricot'], accepted: ['apricot'], focused: 'apricot' });
+	});
+
+	test('previous section moves to the current section start before the preceding section', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+		picker.items = [
+			{ label: 'A1' }, { label: 'A2' }, { type: 'separator' }, { label: 'B1' }, { label: 'B2' },
+		];
+		picker.show();
+		picker.focus(QuickPickFocus.Last);
+		const active: string[][] = [];
+		for (let index = 0; index < 3; index++) {
+			picker.focus(QuickPickFocus.PreviousSeparator);
+			active.push(picker.activeItems.map(item => item.label));
+		}
+		assert.deepStrictEqual(active, [['B1'], ['A1'], ['B1']]);
+	});
+
+	test('action headers followed immediately by dividers navigate and select visible options', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+		picker.items = [
+			{ label: 'First' },
+			{ type: 'separator', label: 'Colors', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] },
+			{ type: 'separator' }, { label: 'Reset to default' },
+		];
+		picker.show();
+		picker.focus(QuickPickFocus.NextSeparator);
+		const navigated = picker.activeItems.map(item => item.label);
+		const header = fixture.querySelector<HTMLElement>('.quick-input-list-separator-as-item.has-actions')!;
+		header.click();
+		const row = fixture.querySelector('.monaco-list-row.focused')!;
+		assert.deepStrictEqual({
+			navigated,
+			selected: picker.activeItems.map(item => item.label),
+			position: row.getAttribute('aria-posinset'),
+			size: row.getAttribute('aria-setsize'),
+		}, { navigated: ['Reset to default'], selected: ['Reset to default'], position: '1', size: '1' });
+	});
+
+	test('the sole Reset option counts once below a custom widget divider', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+		picker.widget = mainWindow.document.createElement('div');
+		picker.items = [{ type: 'separator' }, { label: 'Reset to default' }];
+		picker.show();
+		const row = fixture.querySelector('.monaco-list-row.focused')!;
+		assert.deepStrictEqual({
+			position: row.getAttribute('aria-posinset'),
+			size: row.getAttribute('aria-setsize'),
+		}, { position: '1', size: '1' });
 	});
 
 	test('close motion requires modern UI with motion enabled', () => {
