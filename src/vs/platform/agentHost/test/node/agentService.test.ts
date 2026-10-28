@@ -24940,21 +24940,32 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('rejects restoring a session that has been explicitly deleted (tombstoned) without resurrecting it', async () => {
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database));
 			const agent = disposables.add(new MockAgent('copilot'));
+			const cliAgent = disposables.add(new MockAgent('copilotcli'));
 			registerTestAgentProvider(svc, agent);
+			registerTestAgentProvider(svc, cliAgent);
 
 			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const cliSession = await svc.createSession({ provider: 'copilotcli' });
+			const cliSessionId = AgentSession.id(cliSession);
+			const poisonedSubagentSession = AgentSession.uri('copilotcli', cliSessionId).with({ query: 'subagentChatResource=ahp-chat%3A%2Fchild' });
+			await database.registerRuntimeSession(poisonedSubagentSession.toString(), { provider: 'copilotcli', startTime: 1, source: 'restore' }, { checkTombstone: false });
 			await svc.disposeSession(session);
-			assert.deepStrictEqual(await svc.getRegisteredSessions(), []);
+			await svc.disposeSession(cliSession);
+			assert.deepStrictEqual((await svc.getRegisteredSessions()).map(entry => entry.toString()), [poisonedSubagentSession.toString()]);
 
-			await assert.rejects(
-				() => svc.restoreSession(session),
-				(error: unknown) => error instanceof ProtocolError && error.code === AHP_SESSION_NOT_FOUND,
-			);
+			for (const target of [session, cliSession, AgentSession.uri('copilotcli', cliSessionId), poisonedSubagentSession]) {
+				await assert.rejects(
+					() => svc.restoreSession(target),
+					(error: unknown) => error instanceof ProtocolError && error.code === AHP_SESSION_NOT_FOUND && /Session was explicitly deleted/.test(error.message),
+				);
+			}
 
-			assert.deepStrictEqual(await svc.getRegisteredSessions(), []);
 			assert.strictEqual(getStateManager(svc).getSessionState(session.toString()), undefined, 'a rejected restore must not have populated any state');
+			assert.strictEqual(getStateManager(svc).getSessionState(cliSession.toString()), undefined);
+			assert.strictEqual(getStateManager(svc).getSessionState(poisonedSubagentSession.toString()), undefined);
 		});
 
 		suite('initial provider migration race (#331648)', () => {

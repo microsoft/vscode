@@ -922,7 +922,7 @@ function isManagedSandboxPolicyConflict(err: unknown): boolean {
 }
 
 /** Applies sandbox configuration, returning false when the runtime retains its policy after a managed conflict. */
-export async function applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig, sessionId: string, logService: ILogService, rejectPolicyConflicts = false): Promise<boolean> {
+export async function applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig, sessionId: string, logService: ILogService, rejectPolicyConflicts = false, isSessionClosed?: () => boolean): Promise<boolean> {
 	try {
 		const result = await session.rpc.options.update({ sandboxConfig });
 		if (!result.success) {
@@ -931,6 +931,9 @@ export async function applySandboxConfig(session: CopilotSessionWrapper['session
 		logService.info(`[Copilot:${sessionId}] Applied SDK sandboxConfig via session.options.update`);
 		return true;
 	} catch (err) {
+		if (isSessionClosed?.()) {
+			return false;
+		}
 		if (!rejectPolicyConflicts && isManagedSandboxPolicyConflict(err)) {
 			logService.warn(`[Copilot:${sessionId}] SDK sandboxConfig update conflicts with managed policy; continuing with the runtime's existing sandbox configuration`, err);
 			return false;

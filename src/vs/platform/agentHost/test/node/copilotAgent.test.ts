@@ -15488,6 +15488,7 @@ suite('CopilotAgent', () => {
 					const client = new StopCountingClient([]);
 					const launchTelemetryFlags: (boolean | undefined)[] = [];
 					const disconnectedSessions: number[] = [];
+					const sandboxUpdatesByAttempt = new Set<number>();
 					const shellInitUpdatesByAttempt = new Map<number, unknown[]>();
 					const pauseReached = new DeferredPromise<void>();
 					const allowContinue = new DeferredPromise<void>();
@@ -15503,7 +15504,10 @@ suite('CopilotAgent', () => {
 						}
 						const mockSession = new MockCopilotSession(`sess-${stage}-${pathKind}`);
 						const origOptionsUpdate = mockSession.rpc.options.update;
-						mockSession.rpc.options.update = (async (params?: { shell?: { initScripts?: unknown[] } }) => {
+						mockSession.rpc.options.update = (async (params?: { sandboxConfig?: unknown; shell?: { initScripts?: unknown[] } }) => {
+							if (params?.sandboxConfig !== undefined) {
+								sandboxUpdatesByAttempt.add(attempt);
+							}
 							if (params?.shell?.initScripts !== undefined) {
 								shellInitUpdatesByAttempt.set(attempt, params.shell.initScripts);
 								if (stage === 'postLaunch' && attempt === 1) {
@@ -15536,7 +15540,10 @@ suite('CopilotAgent', () => {
 						sessionDataService,
 						fileService,
 						useRealResumePath: true,
-						rootConfig: { [CopilotCliConfigKey.EnableShellInitScript]: true },
+						rootConfig: {
+							[CopilotCliConfigKey.EnableShellInitScript]: true,
+							[CopilotCliConfigKey.EnableCustomTerminalTool]: false,
+						},
 					});
 					const sessionUri = AgentSession.uri('copilotcli', `sess-${stage}-${pathKind}`);
 					const chatUri = defaultChatUri(sessionUri);
@@ -15587,12 +15594,14 @@ suite('CopilotAgent', () => {
 							pathKind,
 							launchTelemetryFlags,
 							disconnectedSessions,
+							sandboxUpdatedOnAttempts: [...sandboxUpdatesByAttempt],
 							shellInitRegisteredOnAttempts: [...shellInitUpdatesByAttempt.entries()].map(([attempt, scripts]) => ({ attempt, count: scripts.length })),
 						}, {
 							stage,
 							pathKind,
 							launchTelemetryFlags: [undefined, false],
 							disconnectedSessions: [1],
+							sandboxUpdatedOnAttempts: [1, 2],
 							shellInitRegisteredOnAttempts: stage === 'sdkLaunch'
 								? [{ attempt: 2, count: 1 }]
 								: [{ attempt: 1, count: 1 }, { attempt: 2, count: 1 }],
@@ -22283,6 +22292,122 @@ suite('CopilotAgent', () => {
 					disposed: true,
 				});
 			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('ignores config updates after SDK session shutdown during disposal (#344272)', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			const fsProvider = disposables.add(new InMemoryFileSystemProvider());
+			disposables.add(fileService.registerProvider(Schemas.file, fsProvider));
+			const mockSession = new MockCopilotSession();
+			let optionsUpdateAfterShutdown = 0;
+			let shutdownEmitted = false;
+			const imageSyncBlocked = new DeferredPromise<void>();
+			const allowImageSync = new DeferredPromise<void>();
+			const shellFileWriteBlocked = new DeferredPromise<void>();
+			const allowShellFileWrite = new DeferredPromise<void>();
+			const origWriteFile = fileService.writeFile.bind(fileService);
+			let blockNextShellWrite = false;
+			fileService.writeFile = async (resource, bufferOrReadableOrStream, opts) => {
+				if (blockNextShellWrite && resource.path.includes('shellInit')) {
+					blockNextShellWrite = false;
+					shellFileWriteBlocked.complete();
+					await allowShellFileWrite.p;
+				}
+				return origWriteFile(resource, bufferOrReadableOrStream, opts);
+			};
+			mockSession.rpc.options.update = async (params?: { imageGeneration?: { enabled?: boolean } }) => {
+				if (shutdownEmitted) {
+					optionsUpdateAfterShutdown++;
+					throw new Error(`Request session.options.update failed with message: Session not found for sessionId: ${mockSession.sessionId}`);
+				}
+				if (params?.imageGeneration?.enabled === true && !imageSyncBlocked.isSettled) {
+					imageSyncBlocked.complete();
+					await allowImageSync.p;
+				}
+				return { isExperimentalMode: false, success: true };
+			};
+			const client = new TestCopilotClient([]);
+			client.createSession = async () => mockSession as unknown as CopilotSession;
+			const { agent, stateManager, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService });
+			client.deleteSession = async () => {
+				shutdownEmitted = true;
+				mockSession.emit({
+					id: 'shutdown-1',
+					timestamp: '2026-01-01T00:00:00Z',
+					parentId: null,
+					type: 'session.shutdown',
+					data: {
+						shutdownType: 'destroy',
+						totalPremiumRequests: 0,
+						totalApiDurationMs: 0,
+						sessionStartTime: 0,
+						codeChanges: { linesAdded: 0, linesRemoved: 0, filesModified: [] },
+						modelMetrics: {},
+					},
+				});
+				allowImageSync.complete();
+				allowShellFileWrite.complete();
+				configurationService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
+			};
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const sessionUri = AgentSession.uri('copilotcli', 'shutdown-config-race');
+				const chatUri = defaultChatUri(sessionUri);
+				const now = new Date().toISOString();
+				stateManager.createSession({
+					resource: sessionUri.toString(),
+					provider: 'copilotcli',
+					title: 'Test',
+					status: SessionStatus.Idle,
+					createdAt: now,
+					modifiedAt: now,
+					workingDirectories: [URI.file('/workspace').toString()],
+					defaultChat: chatUri.toString(),
+				});
+				stateManager.setSessionConfig(sessionUri.toString(), {
+					schema: platformSessionSchema.toProtocol(),
+					values: { [SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export INIT=1\n' }] },
+				});
+				const created = await provisionSession(agent, {
+					session: sessionUri,
+					workingDirectories: [URI.file('/workspace')],
+				});
+				await agent.chats.sendMessage(chatUri, 'hello', undefined, undefined, undefined, undefined, exactChatContext(created.session, chatUri, created.session));
+
+				// Enqueue a first image-generation update that blocks in the sequencer, then a second one,
+				// plus a shell-init update that pauses during async file materialization, before shutdown fires.
+				blockNextShellWrite = true;
+				configurationService.updateRootConfig({
+					[CopilotCliConfigKey.ImageGeneration]: true,
+					[CopilotCliConfigKey.EnableShellInitScript]: true,
+					[CopilotCliConfigKey.EnableCustomTerminalTool]: false,
+				});
+				await Promise.all([imageSyncBlocked.p, shellFileWriteBlocked.p]);
+				configurationService.updateRootConfig({
+					[CopilotCliConfigKey.ImageGenerationWatermark]: true,
+				});
+
+				await agent.chats.disposeChat(chatUri, exactChatContext(created.session, chatUri, created.session));
+
+				const querySession = AgentSession.uri('copilotcli', 'shutdown-config-race').with({ query: 'subagentChatResource=ahp-chat%3A%2Fchild' });
+				const queryAdoption = await ensureDefaultChatAdopted(agent, querySession);
+				const queryMetadata = await agent.getChatMetadata(defaultChatUri(querySession), exactChatContext(querySession, defaultChatUri(querySession), querySession));
+
+				assert.deepStrictEqual({
+					optionsUpdateAfterShutdown,
+					queryAdoption,
+					queryMetadata,
+				}, {
+					optionsUpdateAfterShutdown: 0,
+					queryAdoption: { adopted: false, eligible: false, reason: 'notLegacyChat' },
+					queryMetadata: undefined,
+				});
+			} finally {
+				allowImageSync.complete();
+				allowShellFileWrite.complete();
 				await disposeAgent(agent);
 			}
 		});

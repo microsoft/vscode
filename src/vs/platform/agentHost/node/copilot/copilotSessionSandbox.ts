@@ -51,6 +51,7 @@ interface ICopilotSessionSandboxOptions {
 	readonly getConfigWriteTarget: () => IAgentChatConfigurationTarget;
 	readonly platform: NodeJS.Platform;
 	readonly getSession: () => CopilotSession | undefined;
+	readonly isSessionClosed?: (session?: CopilotSession) => boolean;
 	readonly getHostSupport: () => ReturnType<CopilotClient['rpc']['sandbox']['getHostSupport']>;
 	readonly getCertificateStatus: (config: SandboxConfig) => Promise<IAgentSandboxCertificateStatus | undefined>;
 	readonly installCertificate: (getConfig: () => SandboxConfig, scopeId: string) => Promise<void>;
@@ -314,6 +315,9 @@ export class CopilotSessionSandbox extends Disposable {
 	}
 
 	private async _updateConfig(failOnError: boolean, requestedSelection: 'on' | 'off' | 'default' | undefined, recorder?: IAgentProviderSendStageRecorder, session = this._options.getSession() ?? this._launchSession, reportMutation = true): Promise<void> {
+		if (this._store.isDisposed || this._options.isSessionClosed?.(session)) {
+			return;
+		}
 		if (!session) {
 			if (requestedSelection !== undefined) {
 				this._pendingSelection = requestedSelection;
@@ -350,13 +354,16 @@ export class CopilotSessionSandbox extends Disposable {
 			if (!unchanged && reportMutation) {
 				this._options.onDidChangeRuntimeConfig?.();
 			}
-			if (unchanged || await measureAgentProviderOperation(recorder, 'sandboxRpc', () => applySandboxConfig(session, sandboxConfig, this._options.sessionId, this._logService, requestedSelection !== undefined))) {
+			if (unchanged || await measureAgentProviderOperation(recorder, 'sandboxRpc', () => applySandboxConfig(session, sandboxConfig, this._options.sessionId, this._logService, requestedSelection !== undefined, () => !!this._options.isSessionClosed?.(session)))) {
 				this._appliedConfig = serialized;
 				this._disabledForSession = false;
 				this._configurationService.setChatSandboxEnabled(target, sandboxConfig.enabled);
 				await measureAgentProviderOperation(recorder, 'sandboxDiagnostics', () => this.updateDiagnostics(sandboxConfig));
 			}
 		} catch (err) {
+			if (this._store.isDisposed || this._options.isSessionClosed?.(session)) {
+				return;
+			}
 			if (failOnError) {
 				throw err;
 			}

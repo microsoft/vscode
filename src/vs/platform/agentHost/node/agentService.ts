@@ -13362,6 +13362,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!agent) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `No agent for session: ${sessionStr}`);
 		}
+		if (await this._isSessionSuppressed(session, agent, registeredSession)) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
+		}
 		// Warming the provider catalogue is O(catalogue) — ~48s on a large
 		// `~/.copilot` — and the only decision that needs it is whether a metadata
 		// miss is authoritative (#331648). Defer it so a session that resolves from
@@ -13376,7 +13379,7 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.warn(`[AgentService] restore: initial catalog migration for provider ${agent.id} failed; a metadata miss will be reported as unavailable, not missing`, err);
 			}
 			// This wait can be lengthy, so re-check that the session was not deleted or hidden meanwhile.
-			if (await this._sessionRegistry.isSuppressed(session)) {
+			if (await this._isSessionSuppressed(session, agent, registeredSession)) {
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
 			}
 			return readable;
@@ -13611,7 +13614,8 @@ export class AgentService extends Disposable implements IAgentService {
 			meta = await this._getSessionMetadataForRestore(agent, session, external);
 			// The registry is backfilled by that same pass, so re-read it before
 			// concluding the session is unknown.
-			const knownToRegistry = sessionKnownToRegistry || (await this._listRegisteredSessions()).some(entry => entry.session.toString() === sessionStr);
+			const knownToRegistry = (sessionKnownToRegistry || (await this._listRegisteredSessions()).some(entry => entry.session.toString() === sessionStr))
+				&& (!usesStandardSessionUris(agent.id) || (!session.authority && !session.query && !session.fragment));
 			if (!meta) {
 				// A session still marked provisional never materialized, so its
 				// provider never created a backing for it to describe — but only a
@@ -14829,6 +14833,9 @@ export class AgentService extends Disposable implements IAgentService {
 				chatRef.dispose();
 			}
 		}
+		if (session.authority || session.query || session.fragment) {
+			return undefined;
+		}
 		const ref = await this._sessionDataService.tryOpenDatabase?.(session);
 		if (!ref) {
 			return undefined;
@@ -14838,6 +14845,27 @@ export class AgentService extends Disposable implements IAgentService {
 		} finally {
 			ref.dispose();
 		}
+	}
+
+	private async _isSessionSuppressed(session: URI, agent?: IAgent, registeredSession?: IRegisteredSession): Promise<boolean> {
+		if (await this._sessionRegistry.isSuppressed(session)) {
+			return true;
+		}
+		if (!agent || !usesStandardSessionUris(agent.id)) {
+			return false;
+		}
+		const sessionId = AgentSession.id(session);
+		const providerSession = AgentSession.uri(agent.id, sessionId);
+		if (!isEqual(session, providerSession) && await this._sessionRegistry.isSuppressed(providerSession)) {
+			return true;
+		}
+		const standardSession = AgentSession.uri('ahp-session', sessionId);
+		if ((!registeredSession || session.authority || session.query || session.fragment)
+			&& !isEqual(session, standardSession)
+			&& await this._sessionRegistry.isSuppressed(standardSession)) {
+			return true;
+		}
+		return false;
 	}
 
 	private async _isWorkspaceConversionQuarantined(session: URI): Promise<boolean> {
