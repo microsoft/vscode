@@ -1369,6 +1369,9 @@ export class QuickInputList extends Disposable {
 					if (element instanceof QuickPickSeparatorElement) {
 						separator = element;
 						startsSection = true;
+						if (element === focused) {
+							currentSection = sections.length;
+						}
 					} else if (element instanceof QuickPickItemElement) {
 						if (startsSection || element.separator) {
 							sections.push({ item: element, separator });
@@ -1384,7 +1387,7 @@ export class QuickInputList extends Disposable {
 					break;
 				}
 				const next = what === QuickPickFocus.NextSeparator;
-				const delta = next ? 1 : focused === sections[currentSection]?.item ? -1 : 0;
+				const delta = next ? 1 : focused instanceof QuickPickSeparatorElement || focused === sections[currentSection]?.item ? -1 : 0;
 				const section = sections[(currentSection + delta + sections.length) % sections.length];
 				if (next && section.item === focused) {
 					this._tree.scrollTop = this._tree.scrollHeight;

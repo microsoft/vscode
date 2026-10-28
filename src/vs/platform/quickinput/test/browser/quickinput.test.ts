@@ -8,6 +8,7 @@ import sinon from 'sinon';
 import { addDisposableListener, EventType } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { IconSelectBox } from '../../../../base/browser/ui/icons/iconSelectBox.js';
+import { ObjectTree } from '../../../../base/browser/ui/tree/objectTree.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCodeChord } from '../../../../base/common/keybindings.js';
 import { OS } from '../../../../base/common/platform.js';
@@ -34,7 +35,7 @@ import { IConfigurationService } from '../../../configuration/common/configurati
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ILayoutService } from '../../../layout/browser/layoutService.js';
 import { IContextViewService } from '../../../contextview/browser/contextView.js';
-import { IListService, ListService } from '../../../list/browser/listService.js';
+import { IListService, ListService, WorkbenchListWidget } from '../../../list/browser/listService.js';
 import { IContextKeyService } from '../../../contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../contextkey/browser/contextKeyService.js';
 import { KeybindingResolver, NoMatchingKb, ResultKind } from '../../../keybinding/common/keybindingResolver.js';
@@ -66,6 +67,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	let controller: QuickInputController;
 	let fixture: HTMLElement;
 	let instantiationService: TestInstantiationService;
+	let getRegisteredLists: () => readonly WorkbenchListWidget[];
 
 	setup(() => {
 		fixture = document.createElement('div');
@@ -78,7 +80,10 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
-		instantiationService.stub(IListService, store.add(new ListService()));
+		const listService = store.add(new ListService());
+		const registrations = sinon.spy(listService, 'register');
+		getRegisteredLists = () => registrations.getCalls().map(call => call.args[0]);
+		instantiationService.stub(IListService, listService);
 		instantiationService.stub(ILayoutService, {
 			_serviceBrand: undefined,
 			activeContainer: fixture,
@@ -541,6 +546,42 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			position: row.getAttribute('aria-posinset'),
 			size: row.getAttribute('aria-setsize'),
 		}, { position: '1', size: '1' });
+	});
+
+	test('section navigation preserves action-header focus context', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+		const first = { label: 'A1' };
+		const middle = { label: 'B1' };
+		const last = { label: 'C1' };
+		picker.items = [
+			{ type: 'separator', label: 'A', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] }, first,
+			{ type: 'separator', label: 'B', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] }, middle,
+			{ type: 'separator', label: 'C', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] }, last,
+		];
+		picker.show();
+		const list = fixture.querySelector<HTMLElement>('.quick-input-list > .monaco-list')!;
+		const tree = getRegisteredLists().find(widget => widget.getHTMLElement() === list);
+		if (!(tree instanceof ObjectTree)) {
+			throw new Error('Expected the focused Quick Input tree');
+		}
+		const active: string[][] = [];
+		for (const [item, direction] of [
+			[middle, QuickPickFocus.NextSeparator],
+			[middle, QuickPickFocus.PreviousSeparator],
+			[first, QuickPickFocus.PreviousSeparator],
+			[last, QuickPickFocus.NextSeparator],
+		] as const) {
+			picker.activeItems = [item];
+			const header = tree.getParentElement(tree.getFocus()[0]);
+			if (!header) {
+				throw new Error('Expected an action-bearing parent header');
+			}
+			tree.setFocus([header]);
+			picker.focus(direction);
+			active.push(picker.activeItems.map(item => item.label));
+		}
+		assert.deepStrictEqual(active, [['C1'], ['A1'], ['C1'], ['A1']]);
 	});
 
 	test('close motion requires modern UI with motion enabled', () => {
