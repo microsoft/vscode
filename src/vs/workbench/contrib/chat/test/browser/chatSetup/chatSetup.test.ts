@@ -11,12 +11,15 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatMicrosoftAuthenticationEnabledSettingId, ChatMicrosoftAuthenticationMode, toChatMicrosoftAuthenticationMode } from '../../../../../../platform/chat/common/chatSettings.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
@@ -28,12 +31,13 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { CONTEXT_DEFAULT_ACCOUNT_STATE, DefaultAccountStatus } from '../../../../../services/accounts/browser/defaultAccount.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ChatEntitlement, ChatEntitlementContext, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatSetupFromAccountsWhen } from '../../../browser/chatSetup/chatSetupContributions.js';
-import { buildUpgradeUrlWithRedirect, ChatSetupAnonymous, ChatSetupSource, ChatSetupStrategy, IChatSetupRunOptions } from '../../../browser/chatSetup/chatSetup.js';
+import { buildUpgradeUrlWithRedirect, ChatSetupAnonymous, CHAT_SETUP_NATIVE_LOKI_MICROSOFT_SIGN_IN_COMMAND_ID, ChatSetupSource, ChatSetupStrategy, IChatSetupRunOptions } from '../../../browser/chatSetup/chatSetup.js';
 import { ChatSetupController } from '../../../browser/chatSetup/chatSetupController.js';
 import { ChatMicrosoftSignInProbeService, IChatMicrosoftSignInProbeService, MicrosoftSignInProbeOutcome, probeMicrosoftSignIn } from '../../../browser/chatSetup/chatSetupMicrosoftProbe.js';
-import { ChatSetup, ChatSetupDialog, getChatSetupDialogButtons, getChatSetupDialogFooter, IChatSetupDialogProviders, showChatSetupDialogWithCancellation } from '../../../browser/chatSetup/chatSetupRunner.js';
+import { ChatSetup, ChatSetupDialog, getChatSetupDialogButtons, getChatSetupDialogFooter, getNativeCopilotSignInFooter, IChatSetupDialogProviders, showChatSetupDialogWithCancellation } from '../../../browser/chatSetup/chatSetupRunner.js';
 
 /**
  * Parses the final URL and extracts the decoded return_to value,
@@ -165,6 +169,18 @@ suite('Chat setup dialog presentation', () => {
 		assert.strictEqual(footer, 'By continuing, you agree to GitHub\'s [Terms](https://example.com/terms) and [Privacy Statement](https://example.com/privacy). GitHub Copilot may show [public code](https://example.com/public-code) suggestions and use your data to improve the product. You can change these settings anytime.');
 	});
 
+	test('describes either Microsoft service independently in dual-provider mode', () => {
+		const termsUrl = 'https://example.com/terms';
+		const privacyUrl = 'https://example.com/privacy';
+		assert.deepStrictEqual({
+			lokiOnly: getNativeCopilotSignInFooter(false, termsUrl, privacyUrl),
+			dual: getNativeCopilotSignInFooter(true, termsUrl, privacyUrl),
+		}, {
+			lokiOnly: 'GitHub sign-in choices use GitHub\'s [Terms](https://example.com/terms) and [Privacy Statement](https://example.com/privacy). Continue with Microsoft signs in directly to Microsoft 365 Copilot without a GitHub exchange.',
+			dual: 'GitHub Copilot uses GitHub\'s [Terms](https://example.com/terms) and [Privacy Statement](https://example.com/privacy). Continue with Microsoft enables GitHub Copilot, Microsoft 365 Copilot, or both, depending on what\'s available to your account.',
+		});
+	});
+
 	test('places Microsoft after the other providers and before the signed-out continuation', () => {
 		assert.deepStrictEqual({
 			withMicrosoft: buttonLabels({ allowContinueWithoutSignIn: true }, false, true),
@@ -189,6 +205,17 @@ suite('Chat setup dialog presentation', () => {
 			ChatMicrosoftAuthenticationMode.Never,
 			ChatMicrosoftAuthenticationMode.Never,
 		]);
+	});
+
+	test('adds Microsoft to the existing provider choices for resource-scoped sign-in', () => {
+		const options = { forceSignInDialog: true, directMicrosoftSignIn: async () => { } };
+		assert.deepStrictEqual({
+			standard: buttonLabels(options, false, false),
+			enterprise: buttonLabels(options, true, false),
+		}, {
+			standard: ['Continue with GitHub', 'Continue with Google', 'Continue with Apple', 'Continue with Microsoft', 'Continue with GHE'],
+			enterprise: ['Continue with GHE', 'Continue with Google', 'Continue with Apple', 'Continue with Microsoft', 'Continue with GitHub'],
+		});
 	});
 });
 
@@ -257,6 +284,7 @@ suite('Chat setup Microsoft sign-in probe', () => {
 			cancelledCalls: ['microsoft'],
 		});
 	});
+
 });
 
 suite('Chat Microsoft sign-in probe service', () => {
@@ -582,6 +610,8 @@ suite('Chat setup strategy', () => {
 			{ isWorkspaceTrusted: () => true } as never,
 			undefined as never,
 			undefined as never,
+			upcastPartial<IEnvironmentService>({ isBuilt: true }),
+			upcastPartial<ICommandService>({}),
 		);
 
 		const result = await setup.run({ setupStrategy: ChatSetupStrategy.SetupWithMicrosoftProvider, additionalScopes: ['repo'] });
@@ -596,6 +626,247 @@ suite('Chat setup strategy', () => {
 			useEnterpriseProvider: false,
 			useSocialProvider: 'microsoft',
 			additionalScopes: ['repo'],
+		});
+	});
+});
+
+suite('Chat setup Microsoft runtime probe', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const commandId = '_workbench.chat.probeMicrosoftRuntime';
+
+	async function runSetup(isBuilt: boolean, probeAvailable: boolean, options: {
+		runOptions?: IChatSetupRunOptions;
+		activateByEvent?: IExtensionService['activateByEvent'];
+		probe?: (token: CancellationToken) => Promise<void>;
+		nativeLoki?: { available: boolean; signIn?: (token: CancellationToken) => Promise<boolean | undefined> };
+	} = {}) {
+		const instantiationService = store.add(new TestInstantiationService());
+		const calls: string[] = [];
+		let completed = false;
+		if (probeAvailable) {
+			store.add(CommandsRegistry.registerCommand(commandId, () => { }));
+		}
+		if (options.nativeLoki) {
+			store.add(CommandsRegistry.registerCommand(CHAT_SETUP_NATIVE_LOKI_MICROSOFT_SIGN_IN_COMMAND_ID, () => { }));
+		}
+		instantiationService.stub(IEnvironmentService, { isBuilt });
+		instantiationService.stub(ICommandService, {
+			executeCommand: async <R = unknown>(id: string, ...args: unknown[]): Promise<R | undefined> => {
+				calls.push(id);
+				if (id === CHAT_SETUP_NATIVE_LOKI_MICROSOFT_SIGN_IN_COMMAND_ID) {
+					assert.ok(options.nativeLoki);
+					const [operation, token] = args;
+					if (operation === 'isAvailable') {
+						return options.nativeLoki.available as R;
+					}
+					assert.strictEqual(operation, 'signIn');
+					assert.ok(CancellationToken.isCancellationToken(token));
+					return (options.nativeLoki.signIn ? await options.nativeLoki.signIn(token) : true) as R | undefined;
+				}
+				const [token] = args;
+				assert.ok(CancellationToken.isCancellationToken(token));
+				await options.probe?.(token);
+				return undefined;
+			},
+		});
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IExtensionService, { activateByEvent: options.activateByEvent ?? (async () => { }) });
+		instantiationService.stub(IWorkspaceTrustManagementService, { isWorkspaceTrusted: () => true });
+		instantiationService.stub(IWorkspaceTrustRequestService, { requestWorkspaceTrust: async () => true });
+		instantiationService.stub(IDefaultAccountService, { getDefaultAccountAuthenticationProvider: () => ({ id: 'github', name: 'GitHub', enterprise: false }) });
+		instantiationService.stub(IChatMicrosoftSignInProbeService, {
+			offerMicrosoftSignIn: constObservable(false),
+			notifySignInShown: () => { },
+		});
+		const context = upcastPartial<ChatEntitlementContext>({
+			update: async update => { completed ||= hasKey(update, { completed: true }) && update.completed === true; },
+		});
+		const controller = new Lazy(() => upcastPartial<ChatSetupController>({
+			setupWithProvider: async options => {
+				calls.push(options.useSocialProvider ?? 'github');
+				return true;
+			},
+		}));
+		const setup = instantiationService.createInstance(ChatSetup, context, controller);
+		const result = await setup.run({ setupStrategy: ChatSetupStrategy.SetupWithMicrosoftProvider, disableChatViewReveal: true, ...options.runOptions });
+		return { calls, completed, success: result.success, error: result.error };
+	}
+
+	test('runs the explicitly registered development probe without completing Chat setup', async () => {
+		assert.deepStrictEqual(await runSetup(false, true), {
+			calls: [commandId], completed: false, success: undefined, error: undefined,
+		});
+	});
+
+	test('uses the native Loki Microsoft provider instead of exchanging into GitHub', async () => {
+		assert.deepStrictEqual(await runSetup(false, false, { nativeLoki: { available: true } }), {
+			calls: [CHAT_SETUP_NATIVE_LOKI_MICROSOFT_SIGN_IN_COMMAND_ID, CHAT_SETUP_NATIVE_LOKI_MICROSOFT_SIGN_IN_COMMAND_ID],
+			completed: false, success: true, error: undefined,
+		});
+	});
+
+	test('keeps Microsoft social sign-in outside the native Loki prototype', async () => {
+		assert.deepStrictEqual(await runSetup(false, false, { nativeLoki: { available: false } }), {
+			calls: [CHAT_SETUP_NATIVE_LOKI_MICROSOFT_SIGN_IN_COMMAND_ID, 'microsoft'],
+			completed: true, success: true, error: undefined,
+		});
+	});
+
+	test('does not fall back to GitHub after a native Loki Microsoft sign-in error', async () => {
+		const error = new Error('Microsoft authentication failed');
+		assert.deepStrictEqual(await runSetup(false, false, {
+			nativeLoki: { available: true, signIn: async () => { throw error; } },
+		}), {
+			calls: [CHAT_SETUP_NATIVE_LOKI_MICROSOFT_SIGN_IN_COMMAND_ID, CHAT_SETUP_NATIVE_LOKI_MICROSOFT_SIGN_IN_COMMAND_ID],
+			completed: false, success: false, error,
+		});
+	});
+
+	test('uses direct Microsoft sign-in instead of the GitHub exchange or development probe', async () => {
+		let signedIn = false;
+		assert.deepStrictEqual(await runSetup(false, true, {
+			runOptions: { directMicrosoftSignIn: async () => { signedIn = true; } },
+		}), {
+			calls: [], completed: false, success: true, error: undefined,
+		});
+		assert.strictEqual(signedIn, true);
+	});
+
+	test('keeps the other sign-in choices on their existing GitHub setup path', async () => {
+		let microsoftSignIns = 0;
+		const result = await runSetup(false, true, {
+			runOptions: {
+				setupStrategy: ChatSetupStrategy.SetupWithoutEnterpriseProvider,
+				directMicrosoftSignIn: async () => { microsoftSignIns++; },
+			},
+		});
+		assert.deepStrictEqual({ ...result, microsoftSignIns }, {
+			calls: ['github'], completed: true, success: true, error: undefined, microsoftSignIns: 0,
+		});
+	});
+	test('surfaces direct Microsoft sign-in failures without exchanging for GitHub', async () => {
+		const error = new Error('Microsoft sign-in failed');
+		assert.deepStrictEqual(await runSetup(false, true, {
+			runOptions: { directMicrosoftSignIn: async () => { throw error; } },
+		}), {
+			calls: [], completed: false, success: false, error,
+		});
+	});
+
+	test('does not complete Chat setup when direct Microsoft sign-in is cancelled', async () => {
+		const cancellation = store.add(new CancellationTokenSource());
+		const started = new DeferredPromise<void>();
+		const finish = new DeferredPromise<void>();
+		const pending = runSetup(false, true, {
+			runOptions: {
+				cancellationToken: cancellation.token,
+				directMicrosoftSignIn: async () => {
+					await started.complete();
+					await finish.p;
+				},
+			},
+		});
+		await started.p;
+		cancellation.cancel();
+		const result = await pending;
+		await finish.complete();
+		assert.deepStrictEqual(result, {
+			calls: [], completed: false, success: undefined, error: undefined,
+		});
+	});
+
+	test('preserves normal Microsoft sign-in when the development probe is absent', async () => {
+		assert.deepStrictEqual(await runSetup(false, false), {
+			calls: ['microsoft'], completed: true, success: true, error: undefined,
+		});
+	});
+
+	test('ignores the probe in a built product', async () => {
+		assert.deepStrictEqual(await runSetup(true, true), {
+			calls: ['microsoft'], completed: true, success: true, error: undefined,
+		});
+	});
+
+	test('does not intercept other sign-in providers', async () => {
+		assert.deepStrictEqual(await runSetup(false, true, { runOptions: { setupStrategy: ChatSetupStrategy.SetupWithGoogleProvider } }), {
+			calls: ['google'], completed: true, success: true, error: undefined,
+		});
+	});
+
+	test('surfaces a probe failure without falling back to ordinary sign-in', async () => {
+		const error = new Error('Probe failed');
+		assert.deepStrictEqual(await runSetup(false, true, { probe: async () => { throw error; } }), {
+			calls: [commandId], completed: false, success: false, error,
+		});
+	});
+
+	for (const probeAvailable of [true, false]) {
+		test(`cancellation during activation does not start sign-in (probe available: ${probeAvailable})`, async () => {
+			const cancellation = store.add(new CancellationTokenSource());
+			const activationStarted = new DeferredPromise<void>();
+			const activationFinished = new DeferredPromise<void>();
+			const pending = runSetup(false, probeAvailable, {
+				runOptions: { cancellationToken: cancellation.token },
+				activateByEvent: async event => {
+					assert.strictEqual(event, `onCommand:${commandId}`);
+					await activationStarted.complete();
+					await activationFinished.p;
+				},
+			});
+
+			try {
+				await activationStarted.p;
+				cancellation.cancel();
+				const result = await pending;
+				await activationFinished.complete();
+
+				assert.deepStrictEqual(result, {
+					calls: [], completed: false, success: undefined, error: undefined,
+				});
+			} finally {
+				await activationFinished.complete();
+			}
+		});
+	}
+
+	test('forwards caller cancellation to an active probe without waiting for its reply', async () => {
+		const cancellation = store.add(new CancellationTokenSource());
+		const probeStarted = new DeferredPromise<void>();
+		const probeCancelled = new DeferredPromise<void>();
+		const probeFinished = new DeferredPromise<void>();
+		const pending = runSetup(false, true, {
+			runOptions: { cancellationToken: cancellation.token },
+			probe: async token => {
+				store.add(token.onCancellationRequested(() => { void probeCancelled.complete(); }));
+				await probeStarted.complete();
+				await probeFinished.p;
+			},
+		});
+
+		try {
+			await probeStarted.p;
+			cancellation.cancel();
+			const result = await pending;
+			await probeCancelled.p;
+
+			assert.deepStrictEqual(result, {
+				calls: [commandId], completed: false, success: undefined, error: undefined,
+			});
+		} finally {
+			await probeFinished.complete();
+		}
+	});
+
+	test('does not activate the probe when setup is cancelled as sign-in starts', async () => {
+		const activationEvents: string[] = [];
+		const result = await runSetup(false, true, {
+			runOptions: { onSignInStarted: cancel => cancel() },
+			activateByEvent: async event => { activationEvents.push(event); },
+		});
+
+		assert.deepStrictEqual({ ...result, activationEvents }, {
+			calls: [], completed: false, success: undefined, error: undefined, activationEvents: [],
 		});
 	});
 });
@@ -680,6 +951,8 @@ suite('Chat setup dialog cancellation', () => {
 			{ isWorkspaceTrusted: () => true } as never,
 			undefined as never,
 			undefined as never,
+			upcastPartial<IEnvironmentService>({ isBuilt: true }),
+			upcastPartial<ICommandService>({}),
 		);
 
 		const result = setup.run({ setupStrategy: ChatSetupStrategy.DefaultSetup, cancellationToken: cancellation.token });
@@ -696,12 +969,15 @@ suite('Chat setup dialog telemetry', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSetup(entitlement = ChatEntitlement.Unknown, accountAvailable = false) {
+	function createSetup(entitlement = ChatEntitlement.Unknown, accountAvailable = false, nativeLokiAvailable = false) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const impressions: (ITelemetryData | undefined)[] = [];
 		const dialogShown = new DeferredPromise<void>();
 		const dialogResult = new DeferredPromise<ChatSetupStrategy>();
 		let microsoftSignInAsked = 0;
+		if (nativeLokiAvailable) {
+			store.add(CommandsRegistry.registerCommand(CHAT_SETUP_NATIVE_LOKI_MICROSOFT_SIGN_IN_COMMAND_ID, () => { }));
+		}
 		const context = upcastPartial<ChatEntitlementContext>({
 			state: { entitlement, sku: undefined, organisations: undefined, isStaff: undefined, copilotTrackingId: undefined },
 			update: async () => { },
@@ -726,6 +1002,12 @@ suite('Chat setup dialog telemetry', () => {
 		instantiationService.stub(IChatMicrosoftSignInProbeService, {
 			offerMicrosoftSignIn: constObservable(false),
 			notifySignInShown: () => { microsoftSignInAsked++; },
+		});
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IEnvironmentService, { isBuilt: !nativeLokiAvailable });
+		instantiationService.stub(ICommandService, {
+			executeCommand: async <R,>(id: string, ...args: unknown[]): Promise<R | undefined> =>
+				id === CHAT_SETUP_NATIVE_LOKI_MICROSOFT_SIGN_IN_COMMAND_ID && args[0] === 'isAvailable' && nativeLokiAvailable ? true as R : undefined,
 		});
 		instantiationService.stub(ILayoutService, {});
 		instantiationService.stubInstance(ChatSetupDialog, {
@@ -754,6 +1036,16 @@ suite('Chat setup dialog telemetry', () => {
 		await Promise.all([first, second]);
 		await setup.run({ telemetrySource: ChatSetupSource.Chat });
 		assert.strictEqual(impressions.length, 2);
+	});
+
+	test('does not run a GitHub linking probe when native Microsoft sign-in is offered', async () => {
+		const { setup, dialogShown, dialogResult, microsoftSignInAsked } = createSetup(ChatEntitlement.Unknown, false, true);
+		const result = setup.run({ forceSignInDialog: true });
+		await dialogShown.p;
+		await dialogResult.complete(ChatSetupStrategy.Canceled);
+		await result;
+
+		assert.strictEqual(microsoftSignInAsked(), 0);
 	});
 
 	test('records forced sign-in with an available account from Agents setup', async () => {

@@ -760,19 +760,19 @@ export function getTerminalContent(content: ToolResultContent[] | undefined): Ex
 export interface TurnModelLookup {
 	/** Returns the chat-layer namespaced model id for a raw AHP model id. */
 	toLanguageModelId(rawModelId: string | undefined): string | undefined;
-	/** Resolves the actual model's registered id when available, without falling back to the selected model. */
-	toActualModelId(rawModelId: string | undefined): string | undefined;
+	/** Resolves the billed model's registered id, using a matching explicit selection without falling back to it. */
+	toActualModelId(rawModelId: string | undefined, selectedModelId?: string): string | undefined;
 	/** Returns the registered display name for a raw AHP model id. */
-	toModelDisplayName?(rawModelId: string): string | undefined;
+	toModelDisplayName?(rawModelId: string, selectedModelId?: string): string | undefined;
 	/** Resolves response details, optionally naming an orchestration model without rewriting billed usage. */
-	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined, responseModelId?: string): string | undefined;
+	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined, responseModelId?: string, selectedModelId?: string): string | undefined;
 	/** Returns the Auto model routing part carried by this usage report, if any. */
 	toAutoModeResolution?(usage: UsageInfo | undefined): IChatAutoModeResolutionPart | undefined;
 	/**
 	 * Returns the identity and display name of the model a turn bills to, reading Auto's pick
 	 * when it routed and folding back to "Auto" while explainability is hidden.
 	 */
-	toBilledModelInfo?(usage: UsageInfo | undefined): ITurnModelInfo | undefined;
+	toBilledModelInfo?(usage: UsageInfo | undefined, selectedModelId?: string): ITurnModelInfo | undefined;
 }
 
 export interface ITurnModelInfo {
@@ -793,7 +793,7 @@ export function turnToResponseDetails(turn: Turn | ActiveTurn | undefined, looku
 	const isFusion = turn?.message.model?.id === COPILOT_HYDRA_FUSION_MODEL_ID || turn?.responseParts.some(part =>
 		part.kind === ResponsePartKind.ToolCall && getToolKind(part.toolCall) === 'fusionPhase'
 		|| part.kind === ResponsePartKind.SystemNotification && readAgentSystemNotificationMeta(part).kind === AgentSystemNotificationKind.FusionProgress);
-	return lookup?.toResponseDetails(turn?.usage?.model, turn?.usage, isFusion ? COPILOT_HYDRA_FUSION_MODEL_ID : undefined);
+	return lookup?.toResponseDetails(turn?.usage?.model, turn?.usage, isFusion ? COPILOT_HYDRA_FUSION_MODEL_ID : undefined, turn?.message.model?.id);
 }
 
 /**
@@ -1153,7 +1153,8 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
-		const modelId = lookup?.toLanguageModelId(turn.message.model?.id ?? rawModelId);
+		const selectedModelId = turn.message.model?.id;
+		const modelId = lookup?.toLanguageModelId(selectedModelId ?? rawModelId);
 		const details = turnToResponseDetails(turn, lookup);
 
 		// Request
@@ -1196,9 +1197,9 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			parts.push(autoModeResolution);
 		}
 
-		const usage = usageInfoToChatUsage(turn.usage, lookup?.toModelDisplayName, turn === turns.at(-1) ? contextUsage : undefined);
+		const usage = usageInfoToChatUsage(turn.usage, rawId => lookup?.toModelDisplayName?.(rawId, selectedModelId), turn === turns.at(-1) ? contextUsage : undefined);
 		if (usage) {
-			const actualModelId = lookup?.toActualModelId(rawModelId);
+			const actualModelId = lookup?.toActualModelId(rawModelId, selectedModelId);
 			if (actualModelId) {
 				usage.actualModelId = actualModelId;
 			}
@@ -1608,7 +1609,7 @@ function textRangeToIRange(range: TextRange): IRange {
  */
 export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions, lookup?: TurnModelLookup, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), subagentToolCallIds?: ReadonlySet<string>): IChatProgress[] {
 	const parts: IChatProgress[] = [];
-	const usage = usageInfoToChatUsage(activeTurn.usage, lookup?.toModelDisplayName);
+	const usage = usageInfoToChatUsage(activeTurn.usage, rawId => lookup?.toModelDisplayName?.(rawId, activeTurn.message.model?.id));
 	if (usage) {
 		parts.push(usage);
 	}

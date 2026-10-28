@@ -7285,6 +7285,40 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(result.details, 'Opus 4.7 • 1.5 credits');
 		}));
 
+		test('live Loki turn uses its qualified model when CAPI reports the same billed id', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const rawModelId = 'claude-haiku-4.5';
+			const lokiModelId = '@native/bG9raTpmaXh0dXJlLWFjY291bnQ/claude-haiku-4.5';
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				[`agent-host-copilot:${rawModelId}`, upcastPartial<ILanguageModelChatMetadata>({ name: 'Claude Haiku 4.5 (GitHub Copilot)' })],
+				[`agent-host-copilot:${lokiModelId}`, upcastPartial<ILanguageModelChatMetadata>({ name: 'Claude Haiku 4.5 (Microsoft 365 Copilot)' })],
+			]);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				userSelectedModelId: `agent-host-copilot:${lokiModelId}`,
+			});
+
+			fire({
+				type: 'chat/usage', session, turnId,
+				usage: {
+					model: rawModelId, inputTokens: 10, outputTokens: 20,
+					_meta: { cost: 0.3, turnTokenTotals: [{ model: rawModelId, inputTokens: 10, cachedTokens: 0, outputTokens: 20 }] },
+				},
+			} as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			const result = await turnPromise;
+			const usage = collected.flat().filter(part => part.kind === 'usage').at(-1);
+
+			assert.deepStrictEqual({
+				details: result.details,
+				actualModelId: usage?.actualModelId,
+				modelTotal: usage?.modelTotals?.[0]?.model,
+			}, {
+				details: 'Claude Haiku 4.5 (Microsoft 365 Copilot) • 0.3 credits',
+				actualModelId: `agent-host-copilot:${lokiModelId}`,
+				modelTotal: 'Claude Haiku 4.5 (Microsoft 365 Copilot)',
+			});
+		}));
+
 		for (const cancelled of [false, true]) {
 			test(`Fusion response footer keeps the selected workflow model (cancelled: ${cancelled})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const languageModels = new Map<string, ILanguageModelChatMetadata>([
@@ -10477,6 +10511,59 @@ suite('AgentHostChatContribution', () => {
 			if (activeResponse.type === 'response') {
 				assert.strictEqual(activeResponse.parts.length, 0);
 			}
+		});
+
+		test('restored CAPI and Loki turns retain distinct response and usage model identities', async () => {
+			const rawModelId = 'claude-haiku-4.5';
+			const lokiModelId = '@native/bG9raTpmaXh0dXJlLWFjY291bnQ/claude-haiku-4.5';
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				[`agent-host-copilot:${rawModelId}`, upcastPartial<ILanguageModelChatMetadata>({ name: 'Claude Haiku 4.5 (GitHub Copilot)' })],
+				[`agent-host-copilot:${lokiModelId}`, upcastPartial<ILanguageModelChatMetadata>({ name: 'Claude Haiku 4.5 (Microsoft 365 Copilot)' })],
+			]);
+			const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels });
+			const sessionUri = AgentSession.uri('copilot', 'provider-collision');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/provider-collision' });
+			const usage = { model: rawModelId, inputTokens: 10, outputTokens: 20, _meta: { cost: 0.3 } };
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({
+					resource: sessionUri.toString(), provider: 'copilot', title: 'Test',
+					status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [rawModelId, lokiModelId].map((modelId, index) => ({
+					id: `turn-${index}`,
+					message: { text: `Q${index}`, origin: { kind: MessageKind.User }, model: { id: modelId } },
+					responseParts: [],
+					usage,
+					state: TurnState.Complete,
+				})),
+				activeTurn: {
+					id: 'active-turn',
+					startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'Q2', origin: { kind: MessageKind.User }, model: { id: lokiModelId } },
+					responseParts: [],
+					usage,
+				},
+			});
+
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+			assert.deepStrictEqual({
+				history: session.history.map(item => item.type === 'request'
+					? { modelId: item.modelId }
+					: { details: item.details, actualModelId: item.parts.find(part => part.kind === 'usage')?.actualModelId }),
+				activeUsageModelId: session.progressObs?.get().find(part => part.kind === 'usage')?.actualModelId,
+			}, {
+				history: [
+					{ modelId: `agent-host-copilot:${rawModelId}` },
+					{ details: 'Claude Haiku 4.5 (GitHub Copilot) • 0.3 credits', actualModelId: `agent-host-copilot:${rawModelId}` },
+					{ modelId: `agent-host-copilot:${lokiModelId}` },
+					{ details: 'Claude Haiku 4.5 (Microsoft 365 Copilot) • 0.3 credits', actualModelId: `agent-host-copilot:${lokiModelId}` },
+					{ modelId: `agent-host-copilot:${lokiModelId}` },
+					{ details: 'Claude Haiku 4.5 (Microsoft 365 Copilot) • 0.3 credits', actualModelId: undefined },
+				],
+				activeUsageModelId: `agent-host-copilot:${lokiModelId}`,
+			});
 		});
 	});
 

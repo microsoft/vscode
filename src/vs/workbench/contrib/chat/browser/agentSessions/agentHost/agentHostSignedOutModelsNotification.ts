@@ -8,6 +8,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../../.
 import { Event } from '../../../../../../base/common/event.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { isNativeLokiResource } from '../../../../../../platform/agentHost/common/meta/nativeLoki.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -24,6 +25,7 @@ import { ILanguageModelsConfigurationService } from '../../../common/languageMod
 
 const SIGNED_OUT_MODELS_NOTIFICATION_ID = 'agentHost.signedOutModels.copilot';
 const SIGN_IN_COMMAND_ID = 'workbench.action.chat.triggerSetup';
+export const AGENT_HOST_NATIVE_LOKI_SIGN_IN_COMMAND_ID = 'workbench.action.chat.signInToNativeLoki';
 const COPILOT_AGENT_HOST_PROVIDER_ID = 'copilotcli';
 const NOTIFICATION_CONTEXT_KEYS = new Set([
 	ChatEntitlementContextKeys.clientByokEnabled.key,
@@ -76,6 +78,7 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 	static readonly ID = 'workbench.contrib.agentHostSignedOutModelsNotification';
 
 	private _notificationShown = false;
+	private _nativeLokiNotificationShown = false;
 	/** Startup readiness prevents transient empty catalogs from producing false notifications. */
 	private _accountResolved = false;
 	private _extensionsRegistered = false;
@@ -161,24 +164,26 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 			vendor => this._languageModelsService.hasResolvedVendor(vendor),
 		);
 		const rootState = this._agentHostService.rootState.value;
-		const hasCopilotHarness = !!rootState
-			&& !(rootState instanceof Error)
-			&& rootState.agents.some(agent => agent.provider === COPILOT_AGENT_HOST_PROVIDER_ID);
-		const hasModels = this._chatEntitlementService.clientByokEnabled
-			&& hasVisibleByokModelsTargetingSessionType(this._languageModelsService, SessionType.AgentHostCopilot);
+		const copilotAgent = rootState && !(rootState instanceof Error)
+			? rootState.agents.find(agent => agent.provider === COPILOT_AGENT_HOST_PROVIDER_ID)
+			: undefined;
+		const nativeLoki = copilotAgent?.protectedResources?.some(resource => isNativeLokiResource(resource.resource)) === true;
+		const hasModels = (this._chatEntitlementService.clientByokEnabled
+			&& hasVisibleByokModelsTargetingSessionType(this._languageModelsService, SessionType.AgentHostCopilot))
+			|| (nativeLoki && copilotAgent.models.length > 0);
 		const state = getSignedOutModelsNotificationState({
 			allowSignedOutWhenUsable,
 			accountResolved: this._accountResolved,
 			entitlementResolved,
-			signedIn,
-			hasCopilotHarness,
+			signedIn: !nativeLoki && signedIn,
+			hasCopilotHarness: !!copilotAgent,
 			hasModels,
 			localModelsLoaded,
 			gracePeriodElapsed: this._gracePeriodElapsed,
 			setupDialogVisible: this._contextKeyService.getContextKeyValue<boolean>(ChatSetupDialogVisibleContext.key) === true,
 		});
 		this._updateGracePeriod(state);
-		this._setNotification(state === SignedOutModelsNotificationState.Visible);
+		this._setNotification(state === SignedOutModelsNotificationState.Visible, nativeLoki);
 	}
 
 	private _updateGracePeriod(state: SignedOutModelsNotificationState): void {
@@ -203,19 +208,20 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 		}
 	}
 
-	private _setNotification(show: boolean): void {
-		if (show === this._notificationShown) {
+	private _setNotification(show: boolean, nativeLoki: boolean): void {
+		if (show === this._notificationShown && (!show || nativeLoki === this._nativeLokiNotificationShown)) {
 			return;
 		}
 		this._notificationShown = show;
+		this._nativeLokiNotificationShown = show && nativeLoki;
 		if (!show) {
 			this._chatInputNotificationService.deleteNotification(SIGNED_OUT_MODELS_NOTIFICATION_ID);
 			return;
 		}
-		this._chatInputNotificationService.setNotification(this._createNotification());
+		this._chatInputNotificationService.setNotification(this._createNotification(nativeLoki));
 	}
 
-	private _createNotification(): IChatInputNotification {
+	private _createNotification(nativeLoki: boolean): IChatInputNotification {
 		return {
 			id: SIGNED_OUT_MODELS_NOTIFICATION_ID,
 			severity: ChatInputNotificationSeverity.Info,
@@ -231,7 +237,7 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 				{
 					kind: ChatInputNotificationActionKind.Command,
 					label: localize('agentHost.signedOutModels.signIn', "Sign In"),
-					commandId: SIGN_IN_COMMAND_ID,
+					commandId: nativeLoki ? AGENT_HOST_NATIVE_LOKI_SIGN_IN_COMMAND_ID : SIGN_IN_COMMAND_ID,
 					keepOpen: true,
 				}
 			],

@@ -112,6 +112,24 @@ suite('Sessions - Account Title Bar State', () => {
 		});
 	});
 
+	test('identifies the Microsoft account when it is the only signed-in provider', () => {
+		const state = getAccountTitleBarState(createState({
+			accountName: 'corporate@example.com',
+			accountProviderLabel: 'Microsoft 365 Copilot',
+			entitlement: ChatEntitlement.Unresolved,
+		}));
+
+		assert.deepStrictEqual({
+			source: state.source,
+			label: state.label,
+			ariaLabel: state.ariaLabel,
+		}, {
+			source: 'account',
+			label: 'corporate@example.com',
+			ariaLabel: 'Signed in as corporate@example.com with Microsoft 365 Copilot',
+		});
+	});
+
 	test('reveals loading account label only on hover', () => {
 		const state = getAccountTitleBarState(createState({
 			isAccountLoading: true,

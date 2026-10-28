@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { nativeLokiAuthenticationMeta, NATIVE_LOKI_PROTECTED_RESOURCE, NATIVE_LOKI_SCOPE } from '../../common/meta/nativeLoki.js';
 import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -942,6 +943,21 @@ suite('AgentHostProtocolClient', () => {
 		await revoke;
 
 		assert.deepStrictEqual([...client['_authentication'].values()], []);
+	});
+
+	test('does not retain one-shot native Loki token replies for reconnect replay', async () => {
+		const { client, transport } = createClient();
+		const initial = { resource: NATIVE_LOKI_PROTECTED_RESOURCE.resource, scopes: [NATIVE_LOKI_SCOPE], token: 'bootstrap', _meta: nativeLokiAuthenticationMeta({ accountId: 'account' }) };
+		const authenticate = client.authenticate(initial);
+		const request = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { authenticated: true } });
+		await authenticate;
+
+		const reply = client.authenticate({ ...initial, token: 'renewed', _meta: nativeLokiAuthenticationMeta({ accountId: 'account', requestId: 'request' }) });
+		const replyRequest = transport.sentMessages[1] as JsonRpcRequest;
+		transport.fireMessage({ jsonrpc: '2.0', id: replyRequest.id, result: { authenticated: true } });
+		await reply;
+		assert.deepStrictEqual([...client['_authentication'].values()], [{ params: initial, expiresAt: undefined }]);
 	});
 
 	test('listSessions carries the workspace-less marker and compatible working directories', async () => {

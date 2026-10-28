@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { AccountLinks } from '../common/accountLinks';
 import { isSupportedClient, isSupportedTarget } from '../common/env';
 import { Log } from '../common/logger';
+import { Sequencer } from '../common/utils';
 import { ExtensionHost, getFlows, GitHubTarget } from '../flows';
 import { AuthProviderType, GitHubSessionEngine, UriEventHandler } from '../github';
 import { GitHubServer, IGitHubServer, IGitHubToken } from '../githubServer';
@@ -72,6 +73,7 @@ suite('GitHub session provenance', () => {
 			},
 			_accountLinks: new AccountLinks(new TestMemento(), 'test.microsoftAccountLinks', logger),
 			_accountsSeen: new Set<string>(),
+			_sessionMutations: new Sequencer(),
 			_transientSessions: new Map<string, { session: vscode.AuthenticationSession; expiresAt: number }>(),
 			_renewals: new Map<string, Promise<vscode.AuthenticationSession | undefined>>(),
 			_restores: new Map<string, Promise<vscode.AuthenticationSession | undefined>>(),

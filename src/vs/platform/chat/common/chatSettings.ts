@@ -8,7 +8,8 @@ export const ChatAIDisabledSettingId = 'chat.disableAIFeatures';
 /**
  * Configuration key for the "Continue with Microsoft" sign-in choice. Choosing it exchanges a
  * Microsoft Entra sign-in for a GitHub token that is published as a process-lifetime GitHub
- * authentication session. See {@link ChatMicrosoftAuthenticationMode} for its values.
+ * authentication session. Resource-scoped native Microsoft 365 Copilot sign-in offers Microsoft
+ * directly without a GitHub token exchange. See {@link ChatMicrosoftAuthenticationMode}.
  */
 export const ChatMicrosoftAuthenticationEnabledSettingId = 'chat.microsoftAuthentication.enabled';
 

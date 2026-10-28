@@ -92,6 +92,9 @@ import { createCopilotCliEnvironment } from './copilotCliEnvironment.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotGitHubTelemetryForwarder, type ICopilotModelCallCorrelationTelemetry } from './copilotGitHubTelemetryForwarder.js';
+import { CopilotNativeLoki } from './copilotNativeLoki.js';
+import { createAgentModelGroupMeta } from '../../common/agentModelSource.js';
+import { getNativeRawModelId, nativeCopilotModelProviderMeta, readNativeLokiAuthentication } from '../../common/meta/nativeLoki.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotSessionLauncher, AutoTierConfigKey, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, isCopilotReasoningEffort, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
@@ -163,6 +166,7 @@ export async function getCopilotManagedSettingsDiagnostics(
 
 const RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS = 300;
 const COPILOT_CAPI_URL = 'https://api.githubcopilot.com';
+const NATIVE_EMU_CAPI_INTEGRATION_ID = 'copilot-developer-cli';
 const SESSION_METADATA_BULK_THRESHOLD = 100;
 const SESSION_METADATA_CACHE_TTL_MS = 30_000;
 
@@ -949,6 +953,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _isShuttingDown = false;
 	private readonly _plugins: PluginController;
 	private readonly _sessionLauncher: CopilotSessionLauncher;
+	private readonly _nativeLoki: CopilotNativeLoki | undefined;
 	private readonly _gitHubTelemetryForwarder: CopilotGitHubTelemetryForwarder;
 	private readonly _secondaryAssignmentContext: CopilotSecondaryAssignmentContext;
 	private readonly _githubTelemetryRouter: AgentHostGitHubTelemetryRouter | undefined;
@@ -991,6 +996,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IByokLmProxyService byokLmProxyService: IByokLmProxyService,
 	) {
 		super();
+		const nativeLokiRuntime = !this._environmentService.isBuilt && process.env['VSCODE_AGENT_HOST_NATIVE_LOKI_RUNTIME'];
+		if (nativeLokiRuntime) {
+			this._nativeLoki = this._register(new CopilotNativeLoki(nativeLokiRuntime, process.env['COPILOT_LOKI_BASE_URL'], resource => {
+				this._authenticationRequired.set({ resource, reason: AuthRequiredReason.Expired }, undefined);
+			}, this._logService, undefined, process.env['VSCODE_NATIVE_LOKI_ACCOUNT_ID'], process.env['VSCODE_NATIVE_LOKI_DUAL_PROVIDER'] === '1'));
+		}
 		this._register(this._githubCredentials.onDidRequestRefresh(() => this._handleCopilotSessionAuthRequired(false)));
 		if (isAgentHostTelemetryService(this._telemetryService)) {
 			this._register(this._telemetryService.registerCopilotSkuProvider(this.id, () => this.getTelemetryContext().copilotSku));
@@ -1001,7 +1012,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 		this._lastStartupConfig = this._readClientStartupConfig();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController, () => this._ensureClient()));
-		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
+		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher, this._nativeLoki);
 		const discoveryRoot = URI.file(join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state'));
 		this._copilotChatDiscovery = this._register(this._instantiationService.createInstance(CopilotChatDiscovery,
 			discoveryRoot, scan => this._emitCopilotChats(scan)));
@@ -1534,6 +1545,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
+		if (this._nativeLoki) {
+			return this._nativeLoki.emuEnabled
+				? [this._nativeLoki.protectedResource, this._nativeLoki.emuProtectedResource]
+				: [this._nativeLoki.protectedResource];
+		}
 		const allowSignedOutWhenUsable = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AllowSignedOutWhenUsable) === true;
 		const copilotResource = this._gitHubEndpointService.getCopilotResource();
 		return [
@@ -1543,6 +1559,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async getNetworkDiagnosticsEndpoints(): Promise<readonly IAgentHostNetworkEndpoint[]> {
+		if (this._nativeLoki) {
+			return [{ name: 'Microsoft 365 Copilot (Loki)', url: `${this._nativeLoki.protectedResource.resource}/models` }];
+		}
 		let capiUrl = process.env['VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE'] || COPILOT_CAPI_URL;
 		if (this._githubCredentials.token) {
 			try {
@@ -1564,6 +1583,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async getManagedSettingsDiagnostics(): Promise<IAgentHostManagedSettingsSnapshot> {
+		if (this._nativeLoki) {
+			throw new Error(localize('nativeLoki.managedSettingsDiagnostics', "The local Loki runtime build does not provide the bundled managed-settings diagnostics module."));
+		}
 		this._logService.debug('[Copilot] Collecting runtime managed-settings diagnostics');
 		let stage = 'starting the Copilot runtime';
 		let timedOut = false;
@@ -2073,6 +2095,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async authenticate(resource: string, token: string, expiresIn?: number): Promise<boolean> {
+		if (this._nativeLoki) {
+			return false;
+		}
 		if (resource === this._gitHubEndpointService.getRepoResource().resource) {
 			return true;
 		}
@@ -2192,6 +2217,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async handleAuthenticationToken(params: AuthenticateParams): Promise<boolean> {
+		if (this._nativeLoki && this._nativeLoki.handlesResource(params.resource)) {
+			const change = this._nativeLoki.acceptToken(params);
+			const request = readNativeLokiAuthentication(params);
+			if (!request?.requestId || readNativeLokiAuthentication(this._authenticationRequired.get()?.resource)?.requestId === request.requestId) {
+				this._authenticationRequired.set(undefined, undefined);
+			}
+			if (change.identityChanged) {
+				this._capiModels = [];
+				this._publishModels();
+				await this._requestClientRestart('Native Loki Microsoft account changed');
+			}
+			if (change.tokenChanged) {
+				void this._scheduleModelRefresh();
+			}
+			return true;
+		}
 		let handled = false;
 		const sessions = new Set([...this._sessionsPendingRegistration.values(), ...this._allLiveSessions()]);
 		for (const session of sessions) {
@@ -2419,7 +2460,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 
-		const tokenAtRefreshStart = this._githubCredentials.token;
+		const tokenAtRefreshStart = this._nativeLoki ? this._nativeLoki.accountId : this._githubCredentials.token;
 		if (!tokenAtRefreshStart) {
 			this._capiModels = [];
 			this._publishModels();
@@ -2427,7 +2468,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		try {
 			const models = await this._listModels(tokenAtRefreshStart);
-			if (this._githubCredentials.token === tokenAtRefreshStart && this._modelCatalogGeneration === generation) {
+			if ((this._nativeLoki ? this._nativeLoki.accountId : this._githubCredentials.token) === tokenAtRefreshStart && this._modelCatalogGeneration === generation) {
 				this._capiModels = models;
 				this._publishModels();
 			}
@@ -2435,10 +2476,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Token rotated mid-flight — a newer refresh owns the result — or
 			// teardown began while the request was in flight, in which case a
 			// retry would just resurrect the client we are tearing down.
-			if (this._githubCredentials.token !== tokenAtRefreshStart || this._modelCatalogGeneration !== generation || this._shutdownPromise) {
+			if ((this._nativeLoki ? this._nativeLoki.accountId : this._githubCredentials.token) !== tokenAtRefreshStart || this._modelCatalogGeneration !== generation || this._shutdownPromise) {
 				return;
 			}
-			if (/\b401\b/.test(getErrorMessage(err))) {
+			if (!this._nativeLoki && /\b401\b/.test(getErrorMessage(err))) {
 				this._handleCopilotSessionAuthRequired();
 			}
 			await this._handleClientOperationFailure(err, 'modelRefresh');
@@ -2464,6 +2505,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * allocated each call so the observable always notifies its consumers.
 	 */
 	private _publishModels(): void {
+		if (this._nativeLoki) {
+			this._models.set([...this._capiModels], undefined);
+			return;
+		}
 		const hydraFusionModels: readonly IAgentModelInfo[] = this._isHydraFusionEnabled() && !this._capiModels.some(model => model.id === COPILOT_HYDRA_FUSION_MODEL_ID) ? [{
 			provider: this.id,
 			id: COPILOT_HYDRA_FUSION_MODEL_ID,
@@ -2576,6 +2621,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _stopClient(): Promise<void> {
 		this._prewarmedSessionMetadata = undefined;
+		this._nativeLoki?.cancelTokenRequests();
 		// Any parked restart is satisfied by this stop: the next `_ensureClient`
 		// starts from the current config, so nothing is left to re-apply. Cleared
 		// synchronously so a concurrent `_applyPendingClientRestart` bails rather
@@ -2733,9 +2779,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'] = [...flags].join(',');
 			}
 
-			// Identify VS Code's agent host traffic in CAPI
-			env['GITHUB_COPILOT_INTEGRATION_ID'] = COPILOT_INTEGRATION_ID;
-			this._logService.info(`[Copilot] Set CLI env: GITHUB_COPILOT_INTEGRATION_ID=${COPILOT_INTEGRATION_ID}`);
+			// Temporary pairing until CAPI supports the CLI OAuth credential with the code-oss integration.
+			const integrationId = this._nativeLoki?.emuEnabled ? NATIVE_EMU_CAPI_INTEGRATION_ID : COPILOT_INTEGRATION_ID;
+			env['GITHUB_COPILOT_INTEGRATION_ID'] = integrationId;
+			this._logService.info(`[Copilot] Set CLI env: GITHUB_COPILOT_INTEGRATION_ID=${integrationId}`);
 
 			// Point the Copilot CLI at a configured GitHub Enterprise host for its
 			// authentication and CAPI endpoint discovery. `COPILOT_GH_HOST` is
@@ -2770,10 +2817,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 				rgDiskPath(),
 				this._otelService.getSdkTelemetryConfig(),
 				this._otelService.getNativeSdkTelemetryConfig(),
-				startupConfig.runtimePath ? validateCopilotRuntimePath(startupConfig.runtimePath) : undefined,
+				startupConfig.runtimePath && !this._nativeLoki ? validateCopilotRuntimePath(startupConfig.runtimePath) : undefined,
 			]);
 			let runtimePath = bundledRuntimePath;
-			if (startupConfig.runtimePath) {
+			if (this._nativeLoki) {
+				runtimePath = await this._nativeLoki.resolveRuntimePath();
+				env['COPILOT_LOKI_BASE_URL'] = this._nativeLoki.protectedResource.resource;
+				for (const key of ['GH_TOKEN', 'GITHUB_TOKEN', 'COPILOT_GITHUB_TOKEN', 'COPILOT_TOKEN', 'COPILOT_GH_HOST']) {
+					delete env[key];
+				}
+			} else if (startupConfig.runtimePath) {
 				runtimePath = startupConfig.runtimePath;
 				this._logService.info(`[Copilot] Using configured runtime path: ${runtimePath}`);
 			} else {
@@ -2809,9 +2862,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				env['OTEL_METRICS_EXPORTER'] = 'none';
 			}
 			const copilotSdkLogLevelAtStartup = this._resolveCopilotSdkLogLevel(startupConfig.copilotSdkLogLevel);
-			const gitHubToken = startupConfig.enterpriseHost || startupConfig.copilotConnectors ? this._githubCredentials.token : undefined;
+			const gitHubToken = !this._nativeLoki && (startupConfig.enterpriseHost || startupConfig.copilotConnectors) ? this._githubCredentials.token : undefined;
 
 			const clientOptions: CopilotClientOptions = {
+				...this._nativeLoki?.clientOptions,
 				useLoggedInUser: false,
 				gitHubToken,
 				connection: RuntimeConnection.forStdio({ path: runtimePath }),
@@ -2822,7 +2876,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				},
 				telemetry,
 				logLevel: copilotSdkLogLevelAtStartup,
-				enableRemoteSessions: startupConfig.sessionSync,
+				enableRemoteSessions: !this._nativeLoki && startupConfig.sessionSync,
 				...(extensionBootstrapPath && extensionSdkPath ? {
 					extensionLaunchProvider: {
 						resolve: request => this._resolveExtensionLaunch(request.id, request.modulePath, request.source, extensionBootstrapPath),
@@ -2944,9 +2998,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return pricing || notices ? { ...pricing, ...notices } : undefined;
 	}
 
-	private _createModelConfigSchema(m: CopilotModelInfo, billing: ICAPIModelBilling | undefined): ConfigSchema | undefined {
+	private _createModelConfigSchema(m: CopilotModelInfo, billing: ICAPIModelBilling | undefined, modelId = m.id): ConfigSchema | undefined {
 		const properties: ConfigSchema['properties'] = {};
-		const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, undefined, m.id);
+		const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, undefined, modelId);
 		if (thinkingLevel) {
 			properties[ThinkingLevelConfigKey] = thinkingLevel;
 		}
@@ -2954,7 +3008,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (contextSize) {
 			properties[ContextSizeConfigKey] = contextSize;
 		}
-		const autoTier = this._createAutoTierConfigSchemaProperty(m.id);
+		const autoTier = this._createAutoTierConfigSchemaProperty(modelId);
 		if (autoTier) {
 			properties[AutoTierConfigKey] = autoTier;
 		}
@@ -3547,15 +3601,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _listModels(gitHubToken: string): Promise<IAgentModelInfo[]> {
 		this._logService.info('[Copilot] Listing models...');
 		const client = await this._ensureClient();
-		const { models } = await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
+		const nativeModels = this._nativeLoki ? await this._nativeLoki.listModels(client) : undefined;
+		const models = nativeModels ?? (await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken })).models;
 		// Empty SDK results can also mean discovery failed, so do not replace an already loaded catalog.
 		if (!models.length && this._capiModels.some(model => model !== this._fallbackAutoModel)) {
 			throw new Error('Model refresh returned an empty catalog; retaining the previous models');
 		}
 		this._freeLongContextModels.clear();
-		const result = models.map((m): IAgentModelInfo => {
+		const result = models.map((m, index): IAgentModelInfo => {
 			const billing = normalizeCAPIBilling(m.billing);
-			const configSchema = this._createModelConfigSchema(m, billing);
+			const nativeProviderId = nativeModels?.[index].modelProviderId;
+			const configSchema = this._createModelConfigSchema(m, billing, nativeProviderId && nativeProviderId !== 'copilot' ? getNativeRawModelId(m.id) : m.id);
+			const modelMeta = this._createModelPickerMeta(m, billing);
+			let name = m.name;
+			if (this._nativeLoki?.emuEnabled) {
+				if (nativeProviderId === 'copilot' && !isAutoModel(m.id)) {
+					name = localize('nativeEmu.modelName', "{0} (GitHub Copilot)", m.name);
+				} else if (nativeProviderId && nativeProviderId !== 'copilot') {
+					name = localize('nativeLoki.modelName', "{0} (Microsoft 365 Copilot)", m.name);
+				}
+			}
 			// Free long context: a larger long-context window at no surcharge. Defaults to the full window; picker keeps both.
 			const tokenPrices = billing?.tokenPrices;
 			const hasLargerLongContext = !!tokenPrices?.contextMax
@@ -3567,7 +3632,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return {
 				provider: this.id,
 				id: m.id,
-				name: m.name,
+				name,
 				// Synthetic SDK entries like `auto` ship with `capabilities: {}` and
 				// no fixed context window — surface them with maxContextWindow undefined.
 				maxContextWindow: m.capabilities?.limits?.max_context_window_tokens,
@@ -3576,7 +3641,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				supportsVision: !!m.capabilities?.supports?.vision,
 				configSchema,
 				policyState: m.policy?.state as PolicyState | undefined,
-				_meta: this._createModelPickerMeta(m, billing),
+				_meta: nativeProviderId
+					? { ...modelMeta, ...nativeCopilotModelProviderMeta(nativeProviderId), ...(nativeProviderId !== 'copilot' ? createAgentModelGroupMeta(this.id) : {}) }
+					: modelMeta,
 			};
 		});
 		this._logService.info(`[Copilot] Found ${result.length} models: ${result.map(m => m.name).join(', ')}`);
@@ -5959,11 +6026,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// unavailable, so preserve the SDK's existing fail-open behavior in that case.
 		// A runtime that listed nothing, leaving only the fallback Auto, counts as empty
 		// whatever HydraFusion or BYOK models are published beside it.
-		if (this._capiModels.includes(this._getFallbackAutoModel())) {
+		if (!this._nativeLoki && this._capiModels.includes(this._getFallbackAutoModel())) {
 			return;
 		}
 		const models = this._models.get();
-		if (models.length > 0 && !models.some(candidate => candidate.id === model.id)) {
+		if ((this._nativeLoki || models.length > 0) && !models.some(candidate => candidate.id === model.id)) {
 			throw new Error(localize('copilotAgent.modelNotAvailable', "Model '{0}' is not available.", model.id));
 		}
 	}
@@ -6051,6 +6118,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			this._sessionsPendingRegistration.clearAndDisposeAll();
 			this._githubCredentials.shutdown();
+			this._nativeLoki?.dispose();
 			for (const lifetime of this._sessionLifetimes.values()) {
 				void lifetime.close();
 			}
@@ -6169,7 +6237,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 
-		let capiUrl = env['VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE'] || COPILOT_CAPI_URL;
+		let capiUrl = this._nativeLoki ? this._nativeLoki.protectedResource.resource : env['VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE'] || COPILOT_CAPI_URL;
 		if (this._githubCredentials.token) {
 			try {
 				const discovered = await this._copilotApiService.resolveApiEndpoint(this._githubCredentials.token);
