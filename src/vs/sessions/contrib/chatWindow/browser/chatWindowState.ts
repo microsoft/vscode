@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable, ISettableObservable, derived, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, constObservable, derived, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { SessionLayoutMode, SessionTerminalPosition } from '../../../common/sessionGridLayout/sessionGridLayout.js';
 import { IChatWindowKind, SessionSplitLayout } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { getLayoutModeOwnerKind, IRememberedLayoutMode, ISessionLayoutModeService } from '../../../services/layoutMode/common/sessionLayoutModeService.js';
+import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 
 function isLayoutMode(value: unknown): value is SessionLayoutMode {
 	return value === SessionLayoutMode.Stacked || value === SessionLayoutMode.SideBySide || value === SessionLayoutMode.EditorOnly || value === SessionLayoutMode.ChatOnly;
@@ -58,56 +61,34 @@ export class ChatWindowDefaults {
 	}
 }
 
-/** How a chat is remembered to show in a chat window. */
-export interface IRememberedChatLayout {
-	readonly mode: SessionLayoutMode;
-	readonly splitLayout: SessionSplitLayout;
-	readonly inputOnly: boolean;
-}
-
-/** How the chat of a chat window is remembered to show with its editor area, per chat. */
+/**
+ * How the chat of a chat window is remembered to show with its editor area, per chat: through `ISessionLayoutModeService`,
+ * which the main window remembers its modes in too, so that a chat shows alike in both.
+ */
 export interface IChatWindowRememberedMode {
-	/** How the chat last showed in a chat window, if it did. */
-	readonly initial: IRememberedChatLayout | undefined;
+	/** How the chat last showed in a chat window, or else as the main window shows it. */
+	readonly initial: IRememberedLayoutMode | undefined;
 	/** Remembers what the user chose for the chat. */
-	set(layout: IRememberedChatLayout): void;
+	set(layout: IRememberedLayoutMode): void;
 }
 
-/** The most chats whose layout is remembered; the least recently changed are forgotten first. */
+/**
+ * How the chat of a chat window is remembered to show: as it last showed in a chat window, or else as the main window
+ * shows it, and what the user chooses is remembered for the chat the window shows then, which a replaced session changes.
+ */
+export function createChatWindowRememberedMode(layoutModeService: ISessionLayoutModeService, session: ISession, chatResource: URI, windowSession: IObservable<IActiveSession | undefined>): IChatWindowRememberedMode {
+	const kind = getLayoutModeOwnerKind({ isCreated: constObservable(session.status.get() !== SessionStatus.Untitled), isQuickChat: session.isQuickChat });
+	return {
+		initial: layoutModeService.getChatWindowInitialMode({ sessionResource: session.resource, chatResource }, kind),
+		set: mode => {
+			const shown = windowSession.get();
+			layoutModeService.setChatWindowMode({ sessionResource: shown?.resource ?? session.resource, chatResource: shown?.activeChat.get().resource ?? chatResource }, mode);
+		},
+	};
+}
+
+/** The most chats whose cell sizes are remembered; the least recently changed are forgotten first. */
 const MAX_REMEMBERED_CHAT_LAYOUTS = 200;
-
-/** Remembers, per chat and in the workspace, how each chat last showed in a chat window. */
-export class ChatWindowChatLayouts {
-
-	static readonly STORAGE_KEY = 'sessions.chatWindow.chatLayouts';
-
-	constructor(private readonly _storageService: IStorageService) { }
-
-	private _read(): [string, IRememberedChatLayout][] {
-		try {
-			const stored: unknown = JSON.parse(this._storageService.get(ChatWindowChatLayouts.STORAGE_KEY, StorageScope.WORKSPACE, '[]'));
-			return Array.isArray(stored) ? stored.filter((entry): entry is [string, IRememberedChatLayout] => Array.isArray(entry)
-				&& typeof entry[0] === 'string'
-				&& isLayoutMode(entry[1]?.mode)
-				&& (entry[1].splitLayout === SessionLayoutMode.Stacked || entry[1].splitLayout === SessionLayoutMode.SideBySide)
-				&& typeof entry[1].inputOnly === 'boolean') : [];
-		} catch {
-			return [];
-		}
-	}
-
-	get(chat: URI): IRememberedChatLayout | undefined {
-		const key = chat.toString();
-		return this._read().find(([candidate]) => candidate === key)?.[1];
-	}
-
-	set(chat: URI, layout: IRememberedChatLayout): void {
-		const key = chat.toString();
-		const entries = this._read().filter(([candidate]) => candidate !== key);
-		entries.push([key, { mode: layout.mode, splitLayout: layout.splitLayout, inputOnly: layout.inputOnly }]);
-		this._storageService.store(ChatWindowChatLayouts.STORAGE_KEY, JSON.stringify(entries.slice(-MAX_REMEMBERED_CHAT_LAYOUTS)), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-	}
-}
 
 /** The sizes the cells of a chat window showed with, per topology; see `ChatWindowGridHost.exportSizes`. */
 export type ChatWindowCellSizes = Record<string, Record<string, { readonly width: number; readonly height: number }>>;
