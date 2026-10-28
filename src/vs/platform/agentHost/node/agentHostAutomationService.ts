@@ -436,8 +436,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			}
 			const current = this._historyDeletions.get(resource)!;
 			const sessions = new Map(current.sessions.map(entry => [entry.session, entry]));
+			const deletedSessions = new Set(current.deletedSessions ?? []);
 			for (const session of legacySessions) {
-				if (!sessions.has(session.toString())) {
+				if (!sessions.has(session.toString()) && !deletedSessions.has(session.toString())) {
 					sessions.set(session.toString(), { session: session.toString() });
 				}
 			}

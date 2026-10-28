@@ -493,7 +493,7 @@ suite('AgentHostAutomationService', () => {
 		await assert.rejects(restored.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: owner.resource, requestId: 'retained-again' }), /not available/);
 	});
 
-	test('deletes all retained members beyond the history page and retries only failed rows', async () => {
+	test('deletes all retained members beyond the history page and replay retries only failed rows', async () => {
 		const automation = createAction().resource;
 		const runs: AutomationRunState[] = Array.from({ length: 51 }, (_, index) => ({
 			resource: `ahp-automation-run:/${index}`, automation,
@@ -537,7 +537,8 @@ suite('AgentHostAutomationService', () => {
 			secondary: runs[0].resource,
 		});
 		fail = false;
-		const acknowledged = await service.deleteAutomation(automation, true);
+		const allSessions = runs.flatMap(run => run.sessions).map(session => URI.parse(session));
+		const acknowledged = await service.deleteAutomation(automation, true, allSessions);
 		const missingOwner = await service.deleteAutomation(automation, true, [URI.parse('ahp-session:/unrelated')]);
 		assert.deepStrictEqual({
 			deleted: deleted.length, entries: stateManager.getAutomationCatalogState()?.entries,
