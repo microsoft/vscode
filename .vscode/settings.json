@@ -8,6 +8,9 @@
 		"scripts/test-integration.sh": true,
 	},
 	"chat.editing.explainChanges.enabled": true,
+	"chat.artifactIntegrations.githubPullRequests.autoMarkReadyIgnoredChecks": [
+		"VS Code PR Check"
+	],
 	// --- Editor ---
 	"editor.insertSpaces": false,
 	"editor.experimental.asyncTokenization": true,

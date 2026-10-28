@@ -10,6 +10,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ISpotlightStep } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
 import { AgentHostSessionTypesAvailableContext, IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionHasWorkspaceContext, SessionsWelcomeVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
@@ -177,7 +178,7 @@ suite('NewSessionViewV2Tour', () => {
 			model: { openTarget: steps[1].openTarget, allowTargetInteraction: steps[1].allowTargetInteraction },
 			defaultStepsUnchanged: await defaultScenario.presentation.payload.resolveSteps!() === defaultScenario.presentation.payload.steps,
 		}, {
-			variations: ['default', 'workspaceAndModel'],
+			variations: ['default', 'workspaceAndModel', 'mentalModelAndModels'],
 			stepIds: ['workspacePicker', 'modelPicker'],
 			workspace: {
 				when: SessionWorkspacePickerVisibleContext.serialize(),
@@ -192,10 +193,43 @@ suite('NewSessionViewV2Tour', () => {
 		});
 	});
 
+	test('resolves the mental-model-and-models variation with mental-model workspace and multi-provider model copy', async () => {
+		const trigger = observableValue<boolean>(disposables, false);
+		const steps = await createNewSessionViewV2Tour(trigger, async () => 'mentalModelAndModels').presentation.payload.resolveSteps!();
+		const workspaceAndModelSteps = await createNewSessionViewV2Tour(trigger, async () => 'workspaceAndModel').presentation.payload.resolveSteps!();
+		const withoutCopy = (step: ISpotlightStep) => ({ ...step, title: undefined, description: undefined, selectedContent: undefined });
+
+		assert.deepStrictEqual({
+			behaviorMatchesWorkspaceAndModel: steps.map(withoutCopy),
+			copy: steps.map(step => ({ id: step.id, title: step.title, description: step.description, selectedContent: step.selectedContent })),
+		}, {
+			behaviorMatchesWorkspaceAndModel: workspaceAndModelSteps.map(withoutCopy),
+			copy: [
+				{
+					id: 'workspacePicker',
+					title: 'Pick a project for this session',
+					description: 'Unlike a normal VS Code window, you aren\'t locked to one folder. Point this session at any repo or folder—or switch projects anytime without opening a new window.',
+					selectedContent: {
+						title: 'Pick a project for this session',
+						description: 'We\'ve selected your current project to get you started. You can point each new session at any repo or folder—all from this window.',
+					},
+				},
+				{
+					id: 'modelPicker',
+					title: 'All your favorite models, one place',
+					description: 'Claude, GPT, Gemini, and more—the best models from across the industry are ready to go. Pick your favorite or switch anytime.',
+					selectedContent: undefined,
+				},
+			],
+		});
+	});
+
 	test('selects the V2 variation from the experiment or an enabled developer override', async () => {
 		const cases = [
 			{ treatment: undefined, developerMode: false, override: undefined, expected: 'default', warnings: 0, defaultVariation: undefined, useTreatment: undefined },
 			{ treatment: 'workspaceAndModel', developerMode: false, override: undefined, expected: 'workspaceAndModel', warnings: 0, defaultVariation: undefined, useTreatment: undefined },
+			{ treatment: 'mentalModelAndModels', developerMode: false, override: undefined, expected: 'mentalModelAndModels', warnings: 0, defaultVariation: undefined, useTreatment: undefined },
+			{ treatment: 'default', developerMode: true, override: 'mentalModelAndModels', expected: 'mentalModelAndModels', warnings: 0, defaultVariation: undefined, useTreatment: undefined },
 			{ treatment: 'default', developerMode: true, override: 'workspaceAndModel', expected: 'workspaceAndModel', warnings: 0, defaultVariation: undefined, useTreatment: undefined },
 			{ treatment: 'workspaceAndModel', developerMode: true, override: 'default', expected: 'default', warnings: 0, defaultVariation: undefined, useTreatment: undefined },
 			{ treatment: 'default', developerMode: false, override: 'workspaceAndModel', expected: 'default', warnings: 0, defaultVariation: undefined, useTreatment: undefined },

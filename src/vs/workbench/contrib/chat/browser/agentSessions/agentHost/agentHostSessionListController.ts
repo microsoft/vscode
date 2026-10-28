@@ -199,17 +199,12 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			return;
 		}
 
-		const session = this._resolveSession(resource);
-		const entry = this._sessionListStore.getSession(this._provider, session);
 		if (resource.fragment) {
-			const chat = entry?.summary.chats?.find(chat => getAgentHostChatId(chat.resource) === resource.fragment);
-			if (!chat) {
-				throw new Error(`Cannot resolve chat '${resource.fragment}' in session '${session.toString()}'`);
-			}
-			await this._sessionListStore.disposeChat(URI.parse(chat.resource));
+			await this._sessionListStore.disposeChat(this._resolveChat(resource));
 			return;
 		}
 
+		const session = this._resolveSession(resource);
 		await this._sessionListStore.disposeSession(session);
 
 		// `root/sessionRemoved` only fires for sessions the backend had previously announced, so remove the session from
@@ -223,7 +218,11 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			return;
 		}
 
-		this._sessionListStore.setSessionArchived(this._provider, this._resolveSession(resource), archived);
+		if (resource.fragment) {
+			this._sessionListStore.setChatArchived(this._resolveChat(resource), archived);
+		} else {
+			this._sessionListStore.setSessionArchived(this._provider, this._resolveSession(resource), archived);
+		}
 	}
 
 	setChatSessionItemRead(resource: URI, isRead: boolean): void {
@@ -231,7 +230,11 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			return;
 		}
 
-		this._sessionListStore.setSessionRead(this._provider, this._resolveSession(resource), isRead);
+		if (resource.fragment) {
+			this._sessionListStore.setChatRead(this._resolveChat(resource), isRead);
+		} else {
+			this._sessionListStore.setSessionRead(this._provider, this._resolveSession(resource), isRead);
+		}
 	}
 
 	async refresh(token: CancellationToken): Promise<void> {
@@ -293,6 +296,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			title: this._useSessionTitleForDefaultChat ? summary.title : defaultChat?.title || summary.title,
 			children: peerChats.length ? peerChats.map(chat => this._makeItem(resource, {
 				title: chat.title || summary.title,
+				status: chat.status,
 				workingDirectory: base.workingDirectory,
 				createdAt: base.createdAt,
 				modifiedAt: base.modifiedAt,
@@ -329,6 +333,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			iconPath: getAgentSessionProviderIcon(this._sessionType),
 			...(opts.status !== undefined ? { status: mapSessionStatus(opts.status) } : undefined),
 			archived: opts.status !== undefined && (opts.status & SessionStatus.IsArchived) === SessionStatus.IsArchived,
+			canArchive: opts.chat ? this._sessionListStore.canArchiveChat : undefined,
 			// Without a host-provided status there is no opinion on read state —
 			// a pending new session, or a cold one the host has no record for.
 			// Leave it unset rather than reporting the synthesized bit as unread.
@@ -359,6 +364,16 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			throw new Error(`Cannot resolve session '${resource.toString()}' on '${this._connectionAuthority}'`);
 		}
 		return identity.backendSession;
+	}
+
+	private _resolveChat(resource: URI): URI {
+		const session = this._resolveSession(resource);
+		const entry = this._sessionListStore.getSession(this._provider, session);
+		const chat = entry?.summary.chats?.find(chat => getAgentHostChatId(chat.resource) === resource.fragment);
+		if (!chat) {
+			throw new Error(`Cannot resolve chat '${resource.fragment}' in session '${session.toString()}'`);
+		}
+		return URI.parse(chat.resource);
 	}
 
 	/** Tells the move tracker which chats the session lists, each with its chat session resource; a summary without a catalog says nothing about it. */

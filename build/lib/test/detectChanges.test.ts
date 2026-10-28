@@ -145,6 +145,10 @@ suite('Detect Changes', () => {
 			['.github/workflows/pr-linux-test.yml', ['true', 'true', 'true']],
 			['.github/actions/detect-changes/detect.ts', ['true', 'true', 'true']],
 			['build/gulpfile.ts', ['true', 'true', 'true']],
+			['build/azure-pipelines/product-build.yml', ['false', 'false', 'false']],
+			['build/azure-pipelines/win32/steps/product-build-win32-test.yml', ['false', 'false', 'false']],
+			['build/azure-pipelines/linux/setup-env.sh', ['true', 'true', 'true']],
+			['build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts', ['true', 'true', 'true']],
 			['package.json', ['true', 'true', 'true']],
 		];
 		const results: [string, string[]][] = [];
@@ -159,11 +163,43 @@ suite('Detect Changes', () => {
 			await detectCoreTests('extensions/copilot/package.json', 'README.md', 'cli/Cargo.toml'),
 			await detectCoreTests('extensions/copilot/package.json', 'extensions/git/package.json'),
 			await detectCoreTests('extensions/copilot/package.json', 'src/vs/base/common/async.ts'),
+			await detectCoreTests('build/azure-pipelines/product-build.yml', 'README.md'),
+			await detectCoreTests('build/azure-pipelines/product-build.yml', 'build/azure-pipelines/win32/exec.ps1'),
 		], [
 			['false', 'false', 'true'],
 			['false', 'true', 'true'],
 			['true', 'true', 'true'],
+			['false', 'false', 'false'],
+			['true', 'true', 'true'],
 		]);
+	});
+
+	test('a change to the Azure Pipelines definitions runs only Compile & Hygiene, whose build script tests read them', async () => {
+		const outputs = await detect([
+			{ filename: 'build/azure-pipelines/product-build.yml' },
+			{ filename: 'build/azure-pipelines/darwin/steps/product-build-darwin-test.yml' },
+		]);
+		const { jobs } = loadWorkflow();
+		assert.deepStrictEqual({
+			outputs,
+			// The jobs that the outputs do not skip. The calling jobs of the test workflows always run, while the jobs
+			// of the workflows skip (see the test of the "<OS> / <job>" checks below).
+			unskippableJobs: Object.entries(jobs)
+				.filter(([, job]) => !testWorkflow.test(job.uses ?? '') && !/needs\.changes\.outputs\.[\w-]+ == 'true'/.test(job.if ?? ''))
+				.map(([id]) => id),
+		}, {
+			outputs: {
+				'cli': 'false',
+				'copilot-shim': 'false',
+				'copilot': 'false',
+				'unit-tests': 'false',
+				'browser-integration': 'false',
+				'product-tests': 'false',
+				'monaco-editor': 'false',
+				'telemetry': 'false',
+			},
+			unskippableJobs: ['changes', 'compile', 'pr-gate'],
+		});
 	});
 
 	test('both sides of a rename participate in selection', async () => {
@@ -342,6 +378,7 @@ suite('Detect Changes', () => {
 
 	test('compile, Monaco Editor and telemetry run after Detect Changes and appear first in the job group', () => {
 		const { jobs } = loadWorkflow();
+		const skipsWhenUnaffected = (output: string) => `\${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.${output} == 'true') }}`;
 		assert.deepStrictEqual(Object.entries(jobs).slice(0, 4).map(([id, job]) => ({
 			id,
 			name: job.name,
@@ -351,8 +388,8 @@ suite('Detect Changes', () => {
 		})), [
 			{ id: 'changes', name: 'Detect Changes', needs: undefined, if: undefined, uses: undefined },
 			{ id: 'compile', name: 'Compile & Hygiene', needs: 'changes', if: '${{ !cancelled() }}', uses: undefined },
-			{ id: 'monaco-editor', name: 'Monaco Editor', needs: 'changes', if: '${{ !cancelled() }}', uses: undefined },
-			{ id: 'telemetry', name: 'Telemetry', needs: 'changes', if: '${{ !cancelled() }}', uses: undefined },
+			{ id: 'monaco-editor', name: 'Monaco Editor', needs: 'changes', if: skipsWhenUnaffected('monaco-editor'), uses: undefined },
+			{ id: 'telemetry', name: 'Telemetry', needs: 'changes', if: skipsWhenUnaffected('telemetry'), uses: undefined },
 		]);
 	});
 

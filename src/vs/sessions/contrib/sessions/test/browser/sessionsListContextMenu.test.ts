@@ -27,10 +27,13 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { ARCHIVE_SESSION_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ISessionGroup } from '../../../../services/sessions/browser/sessionGroupsService.js';
@@ -294,6 +297,66 @@ suite('Sessions list context menus', () => {
 		});
 	});
 
+	test('session menus offer Hide from Sessions List after Pin for automation sessions the list shows', async () => {
+		const session: ISession = { ...createTestSession('Automation').session, isAutomation: constObservable(true) };
+		const harness = createListHarness(disposables, [session], { groups: [group], shownAutomationSessionIds: new Set([session.sessionId]) });
+		const { instantiationService, store } = harness;
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configurationService.setUserConfiguration(ChatSessionArchiveActionWordingSettingId, ChatSessionArchiveActionWording.MarkAsDone);
+		const contextKeyService = store.add(new ContextKeyService(configurationService));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
+		IsSessionsWindowContext.bindTo(contextKeyService).set(true);
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
+			override readonly automations = constObservable([]);
+			override readonly runs = constObservable([]);
+			override readonly catalogueState = constObservable('ready' as const);
+		});
+		instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+			override readonly activeCustomView = constObservable(undefined);
+		});
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		store.add(instantiationService.createInstance(SessionsArchiveActionsContribution));
+		const contextMenuService = new TestContextMenuService();
+		instantiationService.stub(IContextMenuService, contextMenuService);
+		const container = harness.createContainer(400, 500);
+		const list = store.add(instantiationService.createInstance(SessionsList, container, {
+			grouping: () => SessionsGrouping.Workspace,
+			sorting: () => SessionsSorting.Created,
+			onSessionOpen: () => { },
+		}));
+		list.layout(500, 400);
+		await timeout(100);
+		const row = container.querySelector<HTMLElement>('.session-item');
+		assert.ok(row);
+
+		dispatchContextMenu(row);
+		const actions = contextMenuService.delegate!.getActions();
+		contextMenuService.delegate!.onHide?.(false);
+		await actions.find(action => action.id === HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID)?.run();
+
+		assert.deepStrictEqual({
+			menu: actions.map(action => action instanceof Separator ? '---' : action.label),
+			commands: harness.commandService.calls,
+		}, {
+			menu: [
+				'Open to the Side',
+				'---',
+				'Mark as Unread',
+				'Mark as Done',
+				'---',
+				'Pin',
+				'Hide from Sessions List',
+				'Add to Group',
+				'Create Group',
+				'---',
+				'Rename...',
+			],
+			commands: [{ commandId: HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, args: [[session]] }],
+		});
+	});
+
 	test('New navigation shortcut runs the existing command and navigation rows have no context menus', async () => {
 		const { container, contextMenuService, commandService, newSessionFocusCount } = createList(false, false, SessionsGrouping.Date, [createSession('Session').session], [], true);
 		const shortcutRows = Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut'));
@@ -408,7 +471,7 @@ suite('Sessions list context menus', () => {
 		});
 	});
 
-	test('comparison groups and participants hide membership mutation actions but allow idle deletion', async () => {
+	test('comparison parents offer group moves while participants retain membership and idle deletion stays last', async () => {
 		const session = createSession('Attempt').session;
 		const { container, contextMenuService, commandService } = createList(true, true, SessionsGrouping.Date, [session], true);
 		const sessionRow = container.querySelector<HTMLElement>('.session-item');
@@ -430,7 +493,7 @@ suite('Sessions list context menus', () => {
 				disposableIds: [],
 			},
 			groupActions: {
-				ids: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.deleteGroupAction'],
+				ids: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.moveComparisonToGroup', 'sessions.moveComparisonToGroup.target', 'vs.actions.separator', 'sessions.deleteGroupAction'],
 				disposableIds: [],
 			},
 			deletedGroups: [[group.id]],
@@ -499,7 +562,7 @@ suite('Sessions list context menus', () => {
 		dispatchContextMenu(groupHeader);
 
 		assert.deepStrictEqual(snapshotActions(contextMenuService.delegate!.getActions()), {
-			ids: ['sessionsViewPane.markAllInSectionRead'],
+			ids: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.moveComparisonToGroup', 'sessions.moveComparisonToGroup.target'],
 			disposableIds: [],
 		});
 	});

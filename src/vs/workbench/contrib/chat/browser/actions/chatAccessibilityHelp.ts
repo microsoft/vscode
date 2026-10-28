@@ -90,6 +90,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	if (type !== 'inlineChat') {
 		content.push(getChatInputSessionLinkAccessibilityHelp());
 	}
+	if (!isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat') {
+		content.push(localize('chat.agentPickerInAttachContext', "When {0} is enabled, the default Agent picker is in Add Context. Open Add Context and choose Agent to change agents. Non-default selections remain visible in the toolbar; selecting the default Agent moves the picker back into Add Context and returns focus to the input. The Open Agent Picker shortcut{1} still opens the picker.", ChatConfiguration.AgentsPickerInAttachContextMenu, '<keybinding:workbench.action.chat.openModePicker>'));
+	}
 	const hasSessionWorkingSet = sessionWorkingSetEnabled && !isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat';
 	if (hasSessionWorkingSet) {
 		const headingActions = !sessionWorkingSetReviewEnabled
@@ -258,7 +261,8 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		if (stickyPromptHeaderShown) {
 			content.push(localize('chat.stickyPromptHeader', 'The prompt you have scrolled past is pinned to the top of the transcript. Activate its title to jump back to that prompt.'));
 		}
-		content.push(localize('workbench.action.chat.announceConfirmation', 'To focus pending chat confirmation dialogs, invoke the Focus Chat Confirmation Status command{0}.', '<keybinding:workbench.action.chat.focusConfirmation>'));
+		content.push(localize('workbench.action.chat.announceConfirmation', "To focus pending chat confirmation dialogs or MCP authentication prompts, invoke the Chat: Focus Chat Confirmation command{0}. Use Tab to reach a button and Enter or Space to activate it. Invoke the command again to return to the chat input.", '<keybinding:workbench.action.chat.focusConfirmation>'));
+		content.push(localize('chat.mcpAuthenticationProgress', "After you activate Authenticate, authentication progress and its outcome are announced. Errors are announced through notifications. An incomplete or cancelled attempt is not reported as a success."));
 		content.push(localize('chat.sandboxPathGrant', "When a sandbox confirmation offers path access, review the granted path and whether it allows reading or reading and writing. A grant may cover a folder rather than only the blocked file. The header asks to add access to user sandbox settings and retry. Allow saves access in your user settings and retries inside the sandbox. These settings are shared with connected agent hosts across workspaces and sessions. Skip declines access. Use Tab to reach these choices."));
 		content.push(localize('chat.showHiddenTerminals', 'If there are any hidden chat terminals, you can view them by invoking the View Hidden Chat Terminals command{0}.', '<keybinding:workbench.action.terminal.chat.viewHiddenChatTerminals>'));
 		content.push(localize('chat.focusMostRecentTerminal', 'To focus the last chat terminal that ran a tool, invoke the Focus Most Recent Chat Terminal command{0}.', `<keybinding:${TerminalContribCommandId.FocusMostRecentChatTerminal}>`));
@@ -346,6 +350,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chat.renameSession', 'To rename the current chat session when supported, invoke the Rename command{0}. Agent Host sessions can be renamed after sending the first request.', `<keybinding:${AGENT_SESSION_RENAME_ACTION_ID}>`));
 		content.push(localize('chat.markSessionsRead', "When the Sessions list has focus, mark the focused session or selected sessions as read{0} or unread{1} without opening them. These shortcuts do not apply while typing in an input.", `<keybinding:${AGENT_SESSION_MARK_READ_ACTION_ID}>`, `<keybinding:${AGENT_SESSION_MARK_UNREAD_ACTION_ID}>`));
 		content.push(localize('chat.markNestedSessionRead', "The same read and unread shortcuts work on nested sessions and change only the targeted nested sessions, not their parent."));
+		content.push(sessionArchiveActionWording === ChatSessionArchiveActionWording.MarkAsDone
+			? localize('chat.markNestedSessionDone', "In the Sessions list, nested Agent Host chats, including /btw side chats, offer Mark as Done in their row toolbar and context menu when supported by the host. This marks only the targeted chats as done, not their parent session. Enable Done in the Sessions list filter to show them again, then choose Restore.")
+			: localize('chat.archiveNestedSession', "In the Sessions list, nested Agent Host chats, including /btw side chats, offer Archive in their row toolbar and context menu when supported by the host. This archives only the targeted chats, not their parent session. Enable Archived in the Sessions list filter to show them again, then choose Unarchive."));
 	}
 	if (type === 'panelChat' || type === 'editsView' || type === 'agentView') {
 		content.push(localize('chat.forkSession', "In an Agent Host chat that supports forking, type /fork to create a forked chat beside the current one. Add a title after /fork to name it, or type /fork prompt followed by a prompt to also send that prompt in the new chat."));
