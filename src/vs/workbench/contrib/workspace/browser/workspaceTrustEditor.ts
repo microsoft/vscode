@@ -392,8 +392,7 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 	acceptEdit(item: ITrustedUriItem, uri: URI) {
 		this.editedUris.set(item.uri, uri);
 		this.updateTrust(async () => {
-			const previousFolders = this.workspaceTrustManagementService.getTrustedUris();
-			const trustedFolders = previousFolders.slice();
+			const trustedFolders = this.workspaceTrustManagementService.getTrustedUris();
 			const index = trustedFolders.findIndex(u => this.uriService.extUri.isEqual(u, item.uri));
 
 			if (index >= trustedFolders.length || index === -1) {
@@ -404,16 +403,12 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 
 			await this.workspaceTrustManagementService.setTrustedUris(trustedFolders);
 
-			// The service stores a canonical form of every URI and drops duplicates, so find the entry
-			// that this edit saved, letting actions queued for this row act on the entry that is shown:
-			// the edited URI as normalized by the service itself, or else the only entry the save added,
-			// but only if no other folder was rewritten by the same save, as that addition may be its.
-			const extUri = this.uriService.extUri;
-			const savedFolders = this.workspaceTrustManagementService.getTrustedUris();
-			const normalized = extUri.removeTrailingPathSeparator(uri);
-			const added = savedFolders.filter(saved => !previousFolders.some(previous => extUri.isEqual(previous, saved)));
-			const othersRewritten = previousFolders.some(previous => !extUri.isEqual(previous, item.uri) && !savedFolders.some(saved => extUri.isEqual(previous, saved)));
-			const saved = savedFolders.find(folder => extUri.isEqual(folder, normalized)) ?? (added.length === 1 && !othersRewritten ? added[0] : undefined);
+			// The service removes a trailing separator and drops duplicates when saving, so let actions
+			// queued for this row act on that entry. Other rewrites (such as a remote's canonical form)
+			// can't be attributed reliably, as other windows and folders can change in the same save, so
+			// queued actions then do nothing rather than risk acting on a different folder.
+			const normalized = this.uriService.extUri.removeTrailingPathSeparator(uri);
+			const saved = this.workspaceTrustManagementService.getTrustedUris().find(folder => this.uriService.extUri.isEqual(folder, normalized));
 			if (saved) {
 				this.editedUris.set(item.uri, saved);
 			}

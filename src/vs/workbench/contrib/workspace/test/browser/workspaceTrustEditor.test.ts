@@ -722,7 +722,7 @@ suite('WorkspaceTrustedUrisTable', () => {
 			assert.deepStrictEqual(trustService.getTrustedUris().map(uri => uri.toString()), [hostA.toString(), legacy.with({ path: '/home/modern' }).toString()]);
 		});
 
-		test('deletes the saved form of an edited folder that the service rewrites', async () => {
+		test('does nothing for a row whose edit the service rewrites in ways it cannot follow', async () => {
 			createTableWithUris([hostA, hostB]);
 			trustService.canonicalize = uri => uri.with({ path: uri.path.replace(/^\/home\/b2-alias$/, '/home/b2') });
 			const gate = new DeferredPromise<void>();
@@ -733,7 +733,7 @@ suite('WorkspaceTrustedUrisTable', () => {
 			gate.complete();
 			await deletion;
 
-			assert.deepStrictEqual(trustService.getTrustedUris().map(uri => uri.path), ['/home/a']);
+			assert.deepStrictEqual(trustService.getTrustedUris().map(uri => uri.path), ['/home/a', '/home/b2']);
 		});
 
 		test('opens the editor of the latest edit only, after all queued saves', async () => {
