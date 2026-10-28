@@ -403,7 +403,16 @@ export class BrowserHostService extends Disposable implements IHostService {
 						if (options.mergeMode) {
 							filesToWaitFor.push(fileOpenables[3].fileUri /* [3] is the resulting merge file */);
 						} else {
-							filesToWaitFor.push(...fileOpenables.map(fileOpenable => fileOpenable.fileUri));
+							filesToWaitFor.push(...fileOpenables.map(fileOpenable => {
+
+								// Support: --goto parameter where the path carries line/col
+								// that is not part of the resource of the opened editor
+								if (options.gotoLineMode && !options.diffMode) {
+									return fileOpenable.fileUri.with({ path: parseLineAndColumnAware(fileOpenable.fileUri.path).path });
+								}
+
+								return fileOpenable.fileUri;
+							}));
 						}
 						await this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, filesToWaitFor));
 
