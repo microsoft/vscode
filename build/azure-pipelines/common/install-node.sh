@@ -25,6 +25,14 @@ esac
 
 NAME="node-v${VERSION}-${PLATFORM}-${ARCH}"
 BASE_URL="https://nodejs.org/dist/v${VERSION}"
+
+# A cache restore may already have put the right version in place.
+if [ "$("$INSTALL_DIR/bin/node" --version 2>/dev/null || true)" = "v$VERSION" ]; then
+	echo "Using cached Node.js $VERSION from $INSTALL_DIR"
+	echo "##vso[task.prependpath]$INSTALL_DIR/bin"
+	exit 0
+fi
+
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 

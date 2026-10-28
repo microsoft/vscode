@@ -13,6 +13,15 @@ $MaxTime = if ($env:NODE_DOWNLOAD_MAX_TIME) { $env:NODE_DOWNLOAD_MAX_TIME } else
 $Arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' }
 $Name = "node-v$Version-win-$Arch"
 $BaseUrl = "https://nodejs.org/dist/v$Version"
+
+# A cache restore may already have put the right version in place.
+$NodeExe = Join-Path $InstallDir 'node.exe'
+if ((Test-Path $NodeExe) -and ((& $NodeExe --version) -eq "v$Version")) {
+	Write-Host "Using cached Node.js $Version from $InstallDir"
+	Write-Host "##vso[task.prependpath]$InstallDir"
+	exit 0
+}
+
 $WorkDir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid())
 New-Item -ItemType Directory -Path $WorkDir | Out-Null
 

@@ -157,6 +157,15 @@ jobs:
             echo ##vso[task.prependpath]!SIGNTOOL_ROOT!
           displayName: Install SignTool (Windows ARM64)
 
+      # Node.js comes from the pipeline cache when possible. nodejs.org stalls from the shared
+      # agent pools at times, so the bounded download below is only the fallback.
+      - task: Cache@2
+        inputs:
+          key: '"sanity-node" | "22.22.0" | "$(Agent.OS)" | "$(Agent.OSArchitecture)"'
+          path: $(Agent.ToolsDirectory)/sanity-node
+        displayName: Restore Node.js cache
+        retryCountOnTaskFailure: 2
+
       - ${{ if eq(parameters.os, 'windows') }}:
         - pwsh: build/azure-pipelines/common/install-node.ps1 -Version 22.22.0 -InstallDir "$(Agent.ToolsDirectory)/sanity-node"
           displayName: Install Node.js
