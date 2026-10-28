@@ -38,6 +38,7 @@ import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey 
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
+import { getNativeRawModelId } from '../../../../../../platform/agentHost/common/meta/nativeLoki.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { resolveAgentHostSessionTrustFolders } from '../../../../../../platform/agentHost/common/agentHostWorkspaceTrust.js';
@@ -1641,7 +1642,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							// Enrich usage entries with the actual model so the
 							// context-usage widget resolves the right context window
 							// on reconnection (same enrichment as _observeTurn).
-							const actualModelId = lookup.toActualModelId(sessionState.activeTurn.usage?.model);
+							const actualModelId = lookup.toActualModelId(sessionState.activeTurn.usage?.model, sessionState.activeTurn.message.model?.id);
 							if (actualModelId) {
 								for (const p of initialProgress) {
 									if (p.kind === 'usage') {
@@ -3712,18 +3713,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			store.add(autorun(reader => {
 				const rawUsage = usage$.read(reader);
+				const selectedModelId = turn$.read(reader)?.message.model?.id;
 				// The parent turn's usage already aggregates the parent agent's
 				// calls plus every subagent's calls (the agent host folds
 				// subagent usage into the parent turn under scope `''`), so it is
 				// emitted as-is — no separate re-aggregation of subagent credits.
-				const usage = usageInfoToChatUsage(rawUsage, modelLookup.toModelDisplayName);
+				const usage = usageInfoToChatUsage(rawUsage, rawId => modelLookup.toModelDisplayName?.(rawId, selectedModelId));
 				if (!usage) {
 					return;
 				}
 				// Carry through the actual model so the context-usage widget
 				// can look up context window metadata when the request-level
 				// model (e.g. "auto") doesn't expose one.
-				const actualModelId = modelLookup.toActualModelId(rawUsage?.model);
+				const actualModelId = modelLookup.toActualModelId(rawUsage?.model, selectedModelId);
 				if (actualModelId) {
 					usage.actualModelId = actualModelId;
 				}
@@ -3808,8 +3810,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (hideAutoExplainability === undefined) {
 					return;
 				}
-				const model = this._createTurnModelLookup(opts.sessionResource, turn$.read(reader)?.message.model?.id, hideAutoExplainability)
-					.toBilledModelInfo?.(usage$.read(reader));
+				const selectedModelId = turn$.read(reader)?.message.model?.id;
+				const model = this._createTurnModelLookup(opts.sessionResource, selectedModelId, hideAutoExplainability)
+					.toBilledModelInfo?.(usage$.read(reader), selectedModelId);
 				if (model && !equals(model, modelObservable.read(undefined))) {
 					transaction(tx => modelObservable.set(model, tx));
 				}
@@ -6239,8 +6242,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			return undefined;
 		};
-		const lookupModel = (rawModelId: string | undefined): { identifier: string; model: ILanguageModelChatMetadata; resolvedFromRaw: boolean } | undefined => {
-			const rawModel = lookupRawModel(rawModelId);
+		const lookupReportedModel = (rawModelId: string | undefined, selectedModelId?: string) => {
+			if (rawModelId && selectedModelId?.startsWith('@native/')) {
+				const selectedRawModelId = getNativeRawModelId(selectedModelId);
+				if (selectedRawModelId === rawModelId || selectedRawModelId === rawModelId.replace(/-(\d+)$/, '.$1')) {
+					const selectedModel = lookupRawModel(selectedModelId);
+					if (selectedModel) {
+						return selectedModel;
+					}
+				}
+			}
+			return lookupRawModel(rawModelId);
+		};
+		const lookupModel = (rawModelId: string | undefined, selectedModelId?: string): { identifier: string; model: ILanguageModelChatMetadata; resolvedFromRaw: boolean } | undefined => {
+			const rawModel = lookupReportedModel(rawModelId, selectedModelId);
 			if (rawModel) {
 				return rawModel;
 			}
@@ -6253,12 +6268,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		};
 		// Folds a routed pick back to Auto when explainability is hidden, so every
 		// readout tells the same story.
-		const resolveBilledModel = (rawModelId: string | undefined, usage: UsageInfo | undefined, responseModelId?: string) => {
+		const resolveBilledModel = (rawModelId: string | undefined, usage: UsageInfo | undefined, responseModelId?: string, selectedModelId?: string) => {
 			// Keyed off the reported routing decision so restored history only
 			// rewrites turns that actually used Auto.
 			const routed = !!readUsageInfoMeta(usage).autoModeResolved;
 			const billedId = responseModelId ?? (routed && hideAutoExplainability ? AUTO_RAW_MODEL_ID : rawModelId);
-			return { billedId, resolved: responseModelId ? lookupRawModel(responseModelId) : lookupModel(billedId) };
+			return { billedId, resolved: responseModelId ? lookupRawModel(responseModelId) : lookupModel(billedId, selectedModelId) };
 		};
 		const displayName = (resolved: { identifier: string; model: ILanguageModelChatMetadata }) => {
 			const model = { identifier: resolved.identifier, metadata: resolved.model };
@@ -6266,10 +6281,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		};
 		return {
 			toLanguageModelId: (rawModelId) => this._toLanguageModelId(sessionResource, resolveRaw(rawModelId)),
-			toActualModelId: rawModelId => lookupRawModel(rawModelId)?.identifier ?? this._toLanguageModelId(sessionResource, rawModelId),
-			toModelDisplayName: rawModelId => lookupRawModel(rawModelId)?.model.name,
-			toResponseDetails: (rawModelId, usage, responseModelId) => {
-				const { billedId, resolved } = resolveBilledModel(rawModelId, usage, responseModelId);
+			toActualModelId: (rawModelId, selectedModelId) => lookupReportedModel(rawModelId, selectedModelId)?.identifier ?? this._toLanguageModelId(sessionResource, rawModelId),
+			toModelDisplayName: (rawModelId, selectedModelId) => lookupReportedModel(rawModelId, selectedModelId)?.model.name,
+			toResponseDetails: (rawModelId, usage, responseModelId, selectedModelId) => {
+				const { billedId, resolved } = resolveBilledModel(rawModelId, usage, responseModelId, selectedModelId);
 				// resolvedFromRaw=false means we fell back to the picked model; surface billedModelId so
 				// e.g. an "Auto" pick reads "Auto (raptor-mini)".
 				const billedModelId = resolved && !resolved.resolvedFromRaw ? billedId : undefined;
@@ -6279,10 +6294,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				} : responseModelId === COPILOT_HYDRA_FUSION_MODEL_ID ? { name: COPILOT_HYDRA_FUSION_MODEL_NAME } : undefined;
 				return formatTurnResponseDetails(responseModel, billedModelId, usage);
 			},
-			toBilledModelInfo: usage => {
+			toBilledModelInfo: (usage, selectedModelId) => {
 				// Auto names the model it picked, which is the one worth showing.
 				const chosenModel = readUsageInfoMeta(usage).autoModeResolved?.chosenModel;
-				const { billedId, resolved } = resolveBilledModel(chosenModel ?? usage?.model, usage);
+				const { billedId, resolved } = resolveBilledModel(chosenModel ?? usage?.model, usage, undefined, selectedModelId);
 				const knownModel = resolved && (resolved.resolvedFromRaw || !billedId) ? resolved : undefined;
 				const modelId = knownModel?.identifier ?? this._toLanguageModelId(sessionResource, billedId ?? fallbackRawModelId);
 				const modelName = knownModel ? displayName(knownModel) : billedId ?? fallbackRawModelId;

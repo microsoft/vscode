@@ -212,7 +212,7 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 			_keychain: { setToken: async value => { await overrides.keychainWrite?.(value); } },
 			_githubServer: {
 				getFallbackBaseUri: () => overrides.serverBaseUri ?? baseUri,
-				login: overrides.githubLogin ?? (async () => 'gho_persisted_login'),
+				login: overrides.githubLogin ?? (async () => ({ token: 'gho_persisted_login', authorizationServer: vscode.Uri.parse(authorizationServer) })),
 				getUserInfo: overrides.getUserInfo ?? (async () => GITHUB_ACCOUNT),
 				loginWithMicrosoft: async (scopes, options) => {
 					logins.push({ scopes, options });
@@ -621,7 +621,7 @@ function registerMicrosoftBrokeredSessionTests(type: AuthProviderType, baseUri: 
 						acquisitionStarted.resolve();
 						await releaseAcquisition.promise;
 					}
-					return 'gho_persisted_login';
+					return { token: 'gho_persisted_login', authorizationServer: vscode.Uri.parse(authorizationServer) };
 				},
 				getUserInfo: async () => {
 					if (stage === 'identity lookup') {

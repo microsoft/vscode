@@ -11,6 +11,7 @@ import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { deriveGitHubEndpoints } from '../../../../../../platform/agentHost/common/githubEndpoints.js';
+import { isNativeEmuResource, isNativeLokiResource, nativeLokiAuthenticationMeta, NATIVE_EMU_SCOPE, NATIVE_LOKI_AUTHORITY, NATIVE_LOKI_SCOPE, readNativeCopilotModelProvider, readNativeLokiActiveAccountId, readNativeLokiAuthentication } from '../../../../../../platform/agentHost/common/meta/nativeLoki.js';
 import { type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -52,6 +53,14 @@ export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, m
 	if (!agent?.protectedResources?.length) {
 		return false;
 	}
+	const selectedModel = model ? agent.models.find(candidate => candidate.id === model.id) : undefined;
+	const nativeProvider = readNativeCopilotModelProvider(selectedModel);
+	if (nativeProvider === 'copilot') {
+		return false;
+	}
+	if (nativeProvider) {
+		return agent.protectedResources.some(resource => isNativeLokiResource(resource.resource) && resource.required !== false);
+	}
 	const requiresAuthentication = agent.protectedResources.some(resource => resource.required !== false);
 	if (!allowSignedOutWhenUsable || !agent.models.some(candidate => readAgentModelByokIdentifier(candidate) !== undefined)) {
 		return requiresAuthentication;
@@ -59,7 +68,6 @@ export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, m
 	if (!model) {
 		return true;
 	}
-	const selectedModel = agent.models.find(candidate => candidate.id === model.id);
 	return !selectedModel || readAgentModelByokIdentifier(selectedModel) === undefined;
 }
 
@@ -234,6 +242,10 @@ export class AgentHostAuthenticationRecovery {
 	}
 
 	recover(accessor: ServicesAccessor, resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions): Promise<void> {
+		const nativeLoki = readNativeLokiAuthentication(resource);
+		if ((isNativeLokiResource(resource.resource) || isNativeEmuResource(resource.resource)) && nativeLoki?.requestId) {
+			return renewNativeLokiToken(accessor.get(IAuthenticationService), resource, options);
+		}
 		const key = protectedResourceAuthenticationKey(resource);
 		const pendingRecovery = this._pendingRecoveries.get(key);
 		if (pendingRecovery) {
@@ -371,6 +383,7 @@ async function resolveAuthenticationSessionForResource(
 	logService: ILogService,
 	logPrefix: string,
 	rejectedSession: RejectedAuthenticationSession | null = null,
+	accountId?: string,
 ): Promise<AuthenticationSessionResolution> {
 	let hasUnavailableProvider = false;
 	const requestedSet = new Set(scopes);
@@ -398,17 +411,18 @@ async function resolveAuthenticationSessionForResource(
 			continue;
 		}
 		logService.trace(`${logPrefix} Resolved auth provider '${providerId}' for server: ${server}`);
+		const sessionOptions = { authorizationServer: serverUri, ...(accountId ? { account: { id: accountId, label: '' } } : {}) };
 
 		let sessions: readonly AuthenticationSession[];
 		try {
 			// Try exact scope match first
-			sessions = await authenticationService.getSessions(providerId, [...scopes], { authorizationServer: serverUri }, true);
+			sessions = await authenticationService.getSessions(providerId, [...scopes], sessionOptions, true);
 		} catch (error) {
 			hasUnavailableProvider = true;
 			logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
 			continue;
 		}
-		const exactSession = sessions.find(session => isAuthenticationSessionCandidate(session, rejectedSession));
+		const exactSession = sessions.find(session => (!accountId || session.account.id === accountId) && isAuthenticationSessionCandidate(session, rejectedSession));
 		if (exactSession) {
 			return {
 				kind: 'resolved',
@@ -421,7 +435,7 @@ async function resolveAuthenticationSessionForResource(
 		let allSessions: readonly AuthenticationSession[];
 		try {
 			// Fall back: get all sessions and find the narrowest superset of requested scopes
-			allSessions = await authenticationService.getSessions(providerId, undefined, { authorizationServer: serverUri }, true);
+			allSessions = await authenticationService.getSessions(providerId, undefined, sessionOptions, true);
 		} catch (error) {
 			hasUnavailableProvider = true;
 			logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
@@ -430,7 +444,7 @@ async function resolveAuthenticationSessionForResource(
 		let bestSession: AuthenticationSession | undefined;
 		let bestExtraScopes = Infinity;
 		for (const session of allSessions) {
-			if (!isAuthenticationSessionCandidate(session, rejectedSession)) {
+			if ((accountId && session.account.id !== accountId) || !isAuthenticationSessionCandidate(session, rejectedSession)) {
 				continue;
 			}
 			const sessionScopes = new Set(session.scopes);
@@ -463,12 +477,15 @@ export interface IAgentHostAuthenticateRequest {
 	readonly token: string;
 	/** The access token's remaining lifetime in seconds, when known. */
 	readonly expiresIn?: number;
+	readonly _meta?: Record<string, unknown>;
 }
 
 export interface IAgentHostAuthenticationOptions {
 	readonly authTokenCache?: AgentHostAuthTokenCache;
 	readonly logPrefix: string;
 	readonly isCurrent?: () => boolean;
+	readonly forceSignInDialog?: boolean;
+	readonly optionalEmuResource?: ProtectedResourceMetadata;
 	readonly authenticate: (request: IAgentHostAuthenticateRequest) => Promise<unknown>;
 }
 
@@ -508,7 +525,7 @@ async function forwardAuthenticationToken(
 	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'>,
 	resource: string,
 	scopes: readonly string[] | undefined,
-	session: (Pick<AuthenticationSession, 'accessToken' | 'expiresAfter'> & Partial<Pick<AuthenticationSession, 'id'>>) | undefined,
+	session: (Pick<AuthenticationSession, 'accessToken' | 'expiresAfter'> & Partial<Pick<AuthenticationSession, 'id' | 'account'>>) | undefined,
 ): Promise<boolean> {
 	throwIfAuthenticationStale(options);
 	const token = session?.accessToken ?? '';
@@ -522,12 +539,196 @@ async function forwardAuthenticationToken(
 		resource,
 		scopes,
 		token,
+		...((isNativeLokiResource(resource) || isNativeEmuResource(resource)) && session?.account
+			? { _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }) } : {}),
 		...(expiresAfter !== undefined && Number.isInteger(expiresAfter) && expiresAfter > 0 ? { expiresIn: Math.ceil(expiresAfter / 1000) } : {}),
 	};
 	if (options.authTokenCache) {
 		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request));
 	}
 	await options.authenticate(request);
+	return true;
+}
+
+export async function renewNativeLokiToken(
+	authenticationService: IAuthenticationService,
+	resource: ProtectedResourceMetadata,
+	options: IAgentHostAuthenticationOptions,
+): Promise<void> {
+	const request = readNativeLokiAuthentication(resource);
+	const scope = isNativeEmuResource(resource.resource) ? NATIVE_EMU_SCOPE
+		: isNativeLokiResource(resource.resource) ? NATIVE_LOKI_SCOPE : undefined;
+	if (!request?.requestId || !scope
+		|| resource.scopes_supported?.length !== 1 || resource.scopes_supported[0] !== scope) {
+		throw new Error(localize('nativeLoki.invalidRequest', "Invalid native Loki token request."));
+	}
+	throwIfAuthenticationStale(options);
+	const reply = {
+		resource: resource.resource,
+		scopes: [scope],
+		token: '',
+		_meta: nativeLokiAuthenticationMeta(request),
+	};
+	try {
+		const sessions = await authenticationService.getSessions('microsoft', [scope], {
+			silent: true,
+			account: { id: request.accountId, label: '' },
+			authorizationServer: URI.parse(NATIVE_LOKI_AUTHORITY),
+		}, true);
+		const session = sessions.find(session => session.account.id === request.accountId);
+		if (session && (!session.accessToken || !session.scopes.includes(scope))) {
+			throw new Error(localize('nativeLoki.invalidRequestedToken', "Microsoft authentication did not return a token for the requested scope."));
+		}
+		throwIfAuthenticationStale(options);
+		await options.authenticate({ ...reply, token: session?.accessToken ?? '' });
+	} catch (error) {
+		throwIfAuthenticationStale(options);
+		await options.authenticate(reply);
+		throw error;
+	}
+}
+
+function nativeLokiSignInScopes(resource: ProtectedResourceMetadata): readonly string[] {
+	const scopes = resource.scopes_supported ?? [];
+	if (!isNativeLokiResource(resource.resource) || scopes.length !== 1 || scopes[0] !== NATIVE_LOKI_SCOPE) {
+		throw new Error(localize('nativeLoki.unexpectedSignInScopes', "The agent requested an unexpected Microsoft scope."));
+	}
+	return scopes;
+}
+
+async function createNativeLokiMicrosoftSession(authenticationService: IAuthenticationService, resource: ProtectedResourceMetadata): Promise<AuthenticationSession> {
+	const scopes = nativeLokiSignInScopes(resource);
+	const accountId = readNativeLokiAuthentication(resource)?.accountId;
+	return acquireNativeMicrosoftSession(authenticationService, scopes[0], accountId, undefined, true);
+}
+
+function validateNativeMicrosoftSession(session: AuthenticationSession, accountId: string | undefined, scope: string): AuthenticationSession {
+	if (accountId && session.account.id !== accountId) {
+		throw new Error(localize('nativeLoki.wrongSignInAccount', "Sign in with the selected Microsoft account to use Copilot."));
+	}
+	if (!session.accessToken || !session.scopes.includes(scope)) {
+		throw new Error(localize('nativeLoki.invalidSignInToken', "Microsoft sign-in did not return a token for the requested Copilot service."));
+	}
+	return session;
+}
+
+async function acquireNativeMicrosoftSession(
+	authenticationService: IAuthenticationService,
+	scope: string,
+	accountId: string | undefined,
+	rejected: RejectedAuthenticationSession | undefined,
+	forceInteractive = false,
+): Promise<AuthenticationSession> {
+	let session: AuthenticationSession | undefined;
+	if (accountId && !forceInteractive) {
+		const sessions = await authenticationService.getSessions('microsoft', [scope], {
+			silent: true,
+			account: { id: accountId, label: '' },
+			authorizationServer: URI.parse(NATIVE_LOKI_AUTHORITY),
+		}, true);
+		session = sessions.find(candidate => candidate.account.id === accountId && (!rejected || !isSameAuthenticationSession(candidate, rejected)));
+	}
+	session ??= await authenticationService.createSession('microsoft', [scope], {
+		activateImmediate: true,
+		authorizationServer: URI.parse(NATIVE_LOKI_AUTHORITY),
+		...(accountId ? { account: { id: accountId, label: '' } } : {}),
+	});
+	return validateNativeMicrosoftSession(session, accountId, scope);
+}
+
+/** Acquire each Microsoft audience for the same account without requiring either Copilot service to succeed. */
+export async function authenticateNativeLokiWithMicrosoft(
+	authenticationService: IAuthenticationService,
+	resource: ProtectedResourceMetadata,
+	options: IAgentHostAuthenticationOptions,
+	optionalEmu?: { readonly resource: ProtectedResourceMetadata; readonly logService: ILogService; readonly onSelectedAccountId?: (accountId: string) => void },
+): Promise<boolean> {
+	throwIfAuthenticationStale(options);
+	const scopes = nativeLokiSignInScopes(resource);
+	if (optionalEmu && (!isNativeEmuResource(optionalEmu.resource.resource)
+		|| optionalEmu.resource.scopes_supported?.length !== 1 || optionalEmu.resource.scopes_supported[0] !== NATIVE_EMU_SCOPE)) {
+		throw new Error(localize('nativeLoki.invalidEmuResource', "The runtime requested an unexpected GitHub Copilot Microsoft scope."));
+	}
+	const pinnedAccountId = readNativeLokiAuthentication(resource)?.accountId;
+	let lokiSession: AuthenticationSession | undefined;
+	let lokiError: unknown;
+	try {
+		lokiSession = await acquireNativeMicrosoftSession(authenticationService, scopes[0], pinnedAccountId,
+			options.authTokenCache?.getRejectedSession(resource.resource, scopes));
+	} catch (error) {
+		if (!optionalEmu || isCancellationError(error)) {
+			throw error;
+		}
+		lokiError = error;
+		optionalEmu.logService.warn(`${options.logPrefix} Microsoft 365 Copilot token unavailable; trying GitHub Copilot (${error instanceof Error ? error.name : typeof error}).`);
+	}
+	throwIfAuthenticationStale(options);
+	let emuSession: AuthenticationSession | undefined;
+	if (optionalEmu) {
+		try {
+			emuSession = await acquireNativeMicrosoftSession(authenticationService, NATIVE_EMU_SCOPE,
+				lokiSession?.account.id ?? pinnedAccountId,
+				options.authTokenCache?.getRejectedSession(optionalEmu.resource.resource, [NATIVE_EMU_SCOPE]));
+		} catch (error) {
+			if (isCancellationError(error) && options.isCurrent?.() === false) {
+				throw error;
+			}
+			optionalEmu.logService.warn(`${options.logPrefix} GitHub Copilot via Microsoft is unavailable (${error instanceof Error ? error.name : typeof error}).`);
+		}
+	}
+	throwIfAuthenticationStale(options);
+	const selectedSession = lokiSession ?? emuSession;
+	if (!selectedSession) {
+		throw lokiError ?? new Error(localize('nativeLoki.noMicrosoftService', "Neither Microsoft 365 Copilot nor GitHub Copilot sign-in succeeded."));
+	}
+	const selectedAccountId = selectedSession.account.id;
+	for (const [oldResource, oldScopes, replacement] of [
+		[resource, scopes, lokiSession],
+		[optionalEmu?.resource, [NATIVE_EMU_SCOPE], emuSession],
+	] as const) {
+		if (!oldResource) {
+			continue;
+		}
+		const activeAccountId = readNativeLokiActiveAccountId(oldResource);
+		if (!activeAccountId || (activeAccountId === selectedAccountId && replacement)) {
+			continue;
+		}
+		throwIfAuthenticationStale(options);
+		options.authTokenCache?.clear(oldResource.resource, oldScopes);
+		await options.authenticate({
+			resource: oldResource.resource, scopes: oldScopes, token: '',
+			_meta: nativeLokiAuthenticationMeta({ accountId: activeAccountId }),
+		});
+	}
+	optionalEmu?.onSelectedAccountId?.(selectedAccountId);
+	if (!optionalEmu) {
+		options.authTokenCache?.clear(resource.resource, scopes);
+		return forwardAuthenticationToken(options, resource.resource, scopes, lokiSession);
+	}
+	let authenticated = false;
+	let forwardingError: unknown;
+	for (const [authResource, authScopes, session] of [
+		[resource, scopes, lokiSession],
+		[optionalEmu?.resource, [NATIVE_EMU_SCOPE], emuSession],
+	] as const) {
+		if (!authResource || !session) {
+			continue;
+		}
+		try {
+			options.authTokenCache?.clear(authResource.resource, authScopes);
+			await forwardAuthenticationToken(options, authResource.resource, authScopes, session);
+			authenticated = true;
+		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			forwardingError ??= error;
+			optionalEmu.logService.error(`${options.logPrefix} Failed to forward Microsoft token for ${authResource.resource} (${error instanceof Error ? error.name : typeof error}).`);
+		}
+	}
+	if (!authenticated) {
+		throw forwardingError ?? new Error(localize('nativeLoki.authForwardFailed', "The runtime did not accept a Microsoft account."));
+	}
 	return true;
 }
 
@@ -722,6 +923,7 @@ async function resolveSessionForProtectedResource(
 	resource: ProtectedResourceMetadata,
 	options: IResolvedAgentHostAuthenticationOptions,
 	rejectedSession: RejectedAuthenticationSession | null = options.authTokenCache?.getRejectedSession(resource.resource, resource.scopes_supported) ?? null,
+	accountId?: string,
 ): Promise<AuthenticationSessionResolution> {
 	const resolution = await resolveAuthenticationSessionForResource(
 		URI.parse(resource.resource),
@@ -731,6 +933,7 @@ async function resolveSessionForProtectedResource(
 		logService,
 		options.logPrefix,
 		rejectedSession,
+		isNativeLokiResource(resource.resource) || isNativeEmuResource(resource.resource) ? accountId ?? readNativeLokiAuthentication(resource)?.accountId : undefined,
 	);
 	if (!options.preferConnectorScopedSession || resource.resource !== deriveGitHubEndpoints(undefined).apiBaseUri ||
 		resolution.kind !== 'resolved' || resolution.session.scopes.includes(copilotConnectorsScope)) {
@@ -790,7 +993,7 @@ export async function resolveAuthenticationInteractively(
 		const rejectedSession = options.authTokenCache?.getRejectedSession(resource.resource, scopes);
 		const existingSessionResolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, resolvedOptions);
 		throwIfAuthenticationStale(options);
-		if (existingSessionResolution.kind === 'resolved') {
+		if (!options.forceSignInDialog && existingSessionResolution.kind === 'resolved') {
 			const existingSession = existingSessionResolution.session;
 			if (await forwardAuthenticationToken(options, resource.resource, scopes, existingSession)) {
 				reportAgentHostAuthRecovery(telemetryService, {
@@ -807,7 +1010,9 @@ export async function resolveAuthenticationInteractively(
 		reportAgentHostAuthRecovery(telemetryService, {
 			trigger: 'sessionCreation',
 			action: 'prompt',
-			initialSessionMatch: existingSessionResolution.kind === 'signedOut' ? 'none' : 'unavailable',
+			initialSessionMatch: existingSessionResolution.kind === 'resolved'
+				? existingSessionResolution.match
+				: existingSessionResolution.kind === 'signedOut' ? 'none' : 'unavailable',
 			quarantinePresent: rejectedSession !== undefined,
 		});
 		return (await forceAuthenticationInteractively(authenticationService, commandService, logService, telemetryService, resource, resolvedOptions, 'sessionCreation', rejectedSession?.accessToken)) !== undefined;
@@ -831,11 +1036,33 @@ async function forceAuthenticationInteractively(
 	const data: AgentHostAuthSignInData = { trigger, result: 'failed', credentialChanged: undefined, sessionMatch: undefined };
 	try {
 		const scopes = resource.scopes_supported ?? [];
+		const nativeLoki = isNativeLokiResource(resource.resource);
+		if (nativeLoki) {
+			nativeLokiSignInScopes(resource);
+		}
+		let signedInMicrosoftAccountId: string | undefined;
+		let directMicrosoftAuthenticated = false;
 		const setupResult = await commandService.executeCommand<IChatSetupResult>(CHAT_SETUP_ACTION_ID, undefined, {
 			telemetrySource: 'agentHost',
 			forceSignInDialog: true,
-			additionalScopes: scopes,
-			dialogTitle: localize('agentHost.signInDialogTitle', "Sign in to use GitHub Copilot"),
+			additionalScopes: nativeLoki ? undefined : scopes,
+			dialogTitle: nativeLoki
+				? localize('agentHost.nativeLokiSignInDialogTitle', "Sign in to use Copilot")
+				: localize('agentHost.signInDialogTitle', "Sign in to use GitHub Copilot"),
+			...(nativeLoki ? {
+				directMicrosoftSignIn: async () => {
+					if (options.optionalEmuResource) {
+						directMicrosoftAuthenticated = await authenticateNativeLokiWithMicrosoft(authenticationService, resource, options, {
+							resource: options.optionalEmuResource,
+							logService,
+							onSelectedAccountId: accountId => { signedInMicrosoftAccountId = accountId; },
+						});
+					} else {
+						const session = await createNativeLokiMicrosoftSession(authenticationService, resource);
+						signedInMicrosoftAccountId = session.account.id;
+					}
+				}
+			} : {}),
 			disableChatViewReveal: true,
 			returnResult: true,
 		});
@@ -847,9 +1074,19 @@ async function forceAuthenticationInteractively(
 		if (!setupResult.success) {
 			throw setupResult.error ?? new Error(localize('agentHost.signInFailed', "Failed to sign in to use GitHub Copilot."));
 		}
-		let sessionResolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options);
+		if (directMicrosoftAuthenticated && options.optionalEmuResource) {
+			for (const candidate of [resource, options.optionalEmuResource]) {
+				const resolution = await resolveSessionForProtectedResource(authenticationService, logService, candidate, options, null, signedInMicrosoftAccountId);
+				if (resolution.kind === 'resolved') {
+					data.result = 'tokenForwarded';
+					return resolution.session;
+				}
+			}
+			throw new Error(localize('nativeLoki.noMicrosoftSession', "The Microsoft account is no longer available for either Copilot service."));
+		}
+		let sessionResolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options, undefined, signedInMicrosoftAccountId);
 		if (sessionResolution.kind === 'signedOut' && options.authTokenCache?.getRejectedSession(resource.resource, scopes)) {
-			sessionResolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options, null);
+			sessionResolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options, null, signedInMicrosoftAccountId);
 		}
 		throwIfAuthenticationStale(options);
 		if (sessionResolution.kind !== 'resolved') {

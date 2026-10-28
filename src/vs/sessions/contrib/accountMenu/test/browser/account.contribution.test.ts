@@ -16,11 +16,14 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { nativeCopilotModelProviderMeta, nativeLokiActiveAccountMeta, nativeLokiAuthenticationMeta, NATIVE_EMU_PROTECTED_RESOURCE, NATIVE_LOKI_PROTECTED_RESOURCE, type INativeLokiProtectedResource } from '../../../../../platform/agentHost/common/meta/nativeLoki.js';
+import type { RootState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatPetAccessoryId, ChatPetAccessoryIds, ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { ChatPetVariant, IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
+import type { AuthenticationSession } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { Menus } from '../../../../browser/menus.js';
-import { getChatGPTRateLimitResetHover, shouldShowAccountPanelSummary } from '../../browser/account.contribution.js';
+import { getAuthenticatedNativeMicrosoftAccount, getAuthenticatedNativeLokiAccountLabel, getChatGPTRateLimitResetHover, shouldShowAccountPanelSummary } from '../../browser/account.contribution.js';
 import { getSessionsChatPetAchievementBadges, SessionsChatPetAchievementBadges } from '../../browser/chatPetAchievementBadges.js';
 
 suite('Sessions - Account Menu', () => {
@@ -58,10 +61,72 @@ suite('Sessions - Account Menu', () => {
 			signedOut: shouldShowAccountPanelSummary({ source: 'copilot', kind: 'prominent' }, false, false),
 			unavailable: shouldShowAccountPanelSummary({ source: 'copilot', kind: 'warning' }, false, false),
 			loading: shouldShowAccountPanelSummary({ source: 'account', kind: 'default' }, false, true),
+			lokiAccount: shouldShowAccountPanelSummary({ source: 'account', kind: 'default' }, false, false, true),
 		}, {
 			signedOut: false,
 			unavailable: true,
 			loading: false,
+			lokiAccount: false,
+		});
+	});
+
+	test('shows only the account accepted by the Loki host, not the first Microsoft session or a configured pin', () => {
+		const state = (resource: INativeLokiProtectedResource, provider = 'copilotcli'): RootState => ({
+			agents: [{ provider, displayName: 'Copilot', description: '', models: [], protectedResources: [resource] }],
+		});
+		const pinned = { ...NATIVE_LOKI_PROTECTED_RESOURCE, _meta: nativeLokiAuthenticationMeta({ accountId: 'personal-id' }) };
+		const active = { ...pinned, _meta: { ...pinned._meta, ...nativeLokiActiveAccountMeta('corporate-id') } };
+		const sessions: AuthenticationSession[] = [
+			{ id: 'personal', accessToken: 'unused', scopes: [], account: { id: 'personal-id', label: 'personal@example.com' } },
+			{ id: 'corporate', accessToken: 'unused', scopes: [], account: { id: 'corporate-id', label: 'corporate@example.com' } },
+		];
+
+		assert.deepStrictEqual({
+			pinnedOnly: getAuthenticatedNativeMicrosoftAccount(state(pinned)),
+			active: getAuthenticatedNativeMicrosoftAccount(state(active)),
+			activeLabel: getAuthenticatedNativeLokiAccountLabel(sessions, 'corporate-id'),
+			missingLabel: getAuthenticatedNativeLokiAccountLabel(sessions, 'different-id'),
+			signedOut: getAuthenticatedNativeMicrosoftAccount({ agents: [] }),
+			reconnecting: getAuthenticatedNativeMicrosoftAccount(undefined),
+			otherProvider: getAuthenticatedNativeMicrosoftAccount(state(active, 'codex')),
+			otherResource: getAuthenticatedNativeMicrosoftAccount(state({ ...active, resource: 'https://example.com' })),
+		}, {
+			pinnedOnly: undefined,
+			active: { id: 'corporate-id', githubCopilot: false, microsoft365Copilot: true },
+			activeLabel: 'corporate@example.com',
+			missingLabel: undefined,
+			signedOut: undefined,
+			reconnecting: undefined,
+			otherProvider: undefined,
+			otherResource: undefined,
+		});
+	});
+
+	test('ties EMU, M365, and combined model availability to the accepted Microsoft account', () => {
+		const accountId = 'corporate-id';
+		const active = nativeLokiActiveAccountMeta(accountId);
+		const loki = { ...NATIVE_LOKI_PROTECTED_RESOURCE, _meta: active };
+		const emu = { ...NATIVE_EMU_PROTECTED_RESOURCE, _meta: active };
+		const model = (id: string, providerId: string) => ({
+			id, name: id, provider: 'copilotcli', _meta: nativeCopilotModelProviderMeta(providerId),
+		});
+		const capi = model('capi-gpt-5', 'copilot');
+		const m365 = model('loki-gpt-5', `loki:${accountId}`);
+		const state = (resources: INativeLokiProtectedResource[], models: RootState['agents'][number]['models']): RootState => ({
+			agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models, protectedResources: resources }],
+		});
+		assert.deepStrictEqual({
+			emuOnly: getAuthenticatedNativeMicrosoftAccount(state([NATIVE_LOKI_PROTECTED_RESOURCE, emu], [capi])),
+			m365Only: getAuthenticatedNativeMicrosoftAccount(state([loki, NATIVE_EMU_PROTECTED_RESOURCE], [m365])),
+			both: getAuthenticatedNativeMicrosoftAccount(state([loki, emu], [capi, m365])),
+			autoOnly: getAuthenticatedNativeMicrosoftAccount(state([loki, emu], [model('auto', 'copilot'), m365])),
+			noModels: getAuthenticatedNativeMicrosoftAccount(state([NATIVE_LOKI_PROTECTED_RESOURCE, emu], [])),
+		}, {
+			emuOnly: { id: accountId, githubCopilot: true, microsoft365Copilot: false },
+			m365Only: { id: accountId, githubCopilot: false, microsoft365Copilot: true },
+			both: { id: accountId, githubCopilot: true, microsoft365Copilot: true },
+			autoOnly: { id: accountId, githubCopilot: false, microsoft365Copilot: true },
+			noModels: { id: accountId, githubCopilot: false, microsoft365Copilot: false },
 		});
 	});
 

@@ -28,17 +28,19 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { IAuthenticationService, type AuthenticationSession, type IAuthenticationProvider, type IAuthenticationProviderSessionOptions } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
-import { AgentHostAuthenticationRecovery, authenticateProtectedResources, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { type IChatSetupCommandOptions } from '../../../browser/chatSetup/chatSetup.js';
+import { AgentHostAuthenticationRecovery, authenticateNativeLokiWithMicrosoft, authenticateProtectedResources, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, renewNativeLokiToken, type IAgentHostAuthenticateRequest, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { createAgentModelByokMeta } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
+import { nativeCopilotModelProviderMeta, nativeLokiActiveAccountMeta, nativeLokiAuthenticationMeta, NATIVE_EMU_PROTECTED_RESOURCE, NATIVE_EMU_SCOPE, NATIVE_LOKI_AUTHORITY, NATIVE_LOKI_BASE_URLS, NATIVE_LOKI_PROTECTED_RESOURCE, NATIVE_LOKI_SCOPE, type INativeLokiProtectedResource } from '../../../../../../platform/agentHost/common/meta/nativeLoki.js';
 
 class TestCommandService extends mock<ICommandService>() {
 	readonly calls: { commandId: string; args: unknown[] }[] = [];
 	result: unknown = { success: true, dialogSkipped: false };
-	onExecute: (() => void | Promise<void>) | undefined;
+	onExecute: ((commandId: string, args: unknown[]) => void | Promise<void>) | undefined;
 
 	override async executeCommand<R = unknown>(commandId: string, ...args: unknown[]): Promise<R | undefined> {
 		this.calls.push({ commandId, args });
-		await this.onExecute?.();
+		await this.onExecute?.(commandId, args);
 		return this.result as R;
 	}
 }
@@ -69,6 +71,10 @@ function createAuthInstantiationService(disposables: Pick<DisposableStore, 'add'
 	return instantiationService;
 }
 
+function isDirectMicrosoftSignInSetup(value: unknown): value is IChatSetupCommandOptions & { readonly directMicrosoftSignIn: () => Promise<void> } {
+	return isObject(value) && 'directMicrosoftSignIn' in value && typeof value.directMicrosoftSignIn === 'function';
+}
+
 function createMockAuthService(overrides: {
 	getOrActivateProviderIdForServer?: (serverUri: URI, resourceUri: URI) => Promise<string | undefined>;
 	getSessions?: (providerId: string, scopes: string[] | undefined, options: any, activate: boolean) => Promise<readonly { id?: string; scopes: readonly string[]; accessToken: string; expiresAfter?: number; account?: { id: string; label: string } }[]>;
@@ -92,6 +98,583 @@ function createMockAuthService(overrides: {
 		unregisterAuthenticationProvider: overrides.unregisterAuthenticationProvider ?? (() => { }),
 	} as unknown as IAuthenticationService;
 }
+
+suite('native Loki authentication', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const session: AuthenticationSession = { id: 'session', accessToken: 'microsoft-token', account: { id: 'microsoft-account', label: 'Microsoft account' }, scopes: [NATIVE_LOKI_SCOPE] };
+	const request: INativeLokiProtectedResource = { ...NATIVE_LOKI_PROTECTED_RESOURCE, _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id, requestId: 'renewal' }) };
+
+	test('generic Microsoft sign-in reuses the selected account when its Loki token already works', async () => {
+		const resource: INativeLokiProtectedResource = { ...NATIVE_LOKI_PROTECTED_RESOURCE, _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }) };
+		const lookups: object[] = [];
+		const forwarded: object[] = [];
+		const authenticationService = createMockAuthService({
+			getSessions: async (providerId, scopes, options, activate) => {
+				lookups.push({ providerId, scopes, options, activate });
+				return [{ ...session, account: { id: 'personal-account', label: 'Personal' }, accessToken: 'other-token' }, session];
+			},
+			createSession: async () => { assert.fail('A usable Microsoft account must not start interactive broker sign-in'); },
+		});
+		const success = await authenticateNativeLokiWithMicrosoft(authenticationService, resource, {
+			logPrefix: 'test',
+			authenticate: async value => { forwarded.push(value); },
+		});
+		assert.deepStrictEqual({ success, lookups, forwarded }, {
+			success: true,
+			lookups: [{
+				providerId: 'microsoft', scopes: [NATIVE_LOKI_SCOPE],
+				options: {
+					silent: true,
+					account: { id: session.account.id, label: '' },
+					authorizationServer: URI.parse(NATIVE_LOKI_AUTHORITY),
+				},
+				activate: true,
+			}],
+			forwarded: [{
+				resource: resource.resource,
+				scopes: [NATIVE_LOKI_SCOPE],
+				token: session.accessToken,
+				_meta: resource._meta,
+			}],
+		});
+	});
+
+	test('generic Microsoft sign-in does not reuse a quarantined Microsoft token', async () => {
+		const resource: INativeLokiProtectedResource = { ...NATIVE_LOKI_PROTECTED_RESOURCE, _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }) };
+		const replacement = { ...session, accessToken: 'fresh-token' };
+		const cache = new AgentHostAuthTokenCache();
+		cache.rejectSession(resource.resource, [NATIVE_LOKI_SCOPE], session);
+		const forwarded: object[] = [];
+		let interactiveCalls = 0;
+		const authenticationService = createMockAuthService({
+			getSessions: async () => [session],
+			createSession: async () => { interactiveCalls++; return replacement; },
+		});
+		const success = await authenticateNativeLokiWithMicrosoft(authenticationService, resource, {
+			authTokenCache: cache,
+			logPrefix: 'test',
+			authenticate: async value => { forwarded.push(value); },
+		});
+		assert.deepStrictEqual({ success, interactiveCalls, forwarded }, {
+			success: true,
+			interactiveCalls: 1,
+			forwarded: [{
+				resource: resource.resource,
+				scopes: [NATIVE_LOKI_SCOPE],
+				token: replacement.accessToken,
+				_meta: resource._meta,
+			}],
+		});
+	});
+
+	test('generic Microsoft sign-in forwards the Microsoft provider token to native Loki', async () => {
+		const resource: INativeLokiProtectedResource = { ...NATIVE_LOKI_PROTECTED_RESOURCE, _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }) };
+		const acquisitions: object[] = [];
+		const forwarded: object[] = [];
+		const authenticationService = createMockAuthService({
+			createSession: async (providerId, scopes, options) => {
+				acquisitions.push({ providerId, scopes, options });
+				return session;
+			},
+		});
+		const success = await authenticateNativeLokiWithMicrosoft(authenticationService, resource, {
+			logPrefix: 'test',
+			authenticate: async value => { forwarded.push(value); },
+		});
+		assert.deepStrictEqual({ success, acquisitions, forwarded }, {
+			success: true,
+			acquisitions: [{
+				providerId: 'microsoft',
+				scopes: [NATIVE_LOKI_SCOPE],
+				options: {
+					activateImmediate: true,
+					authorizationServer: URI.parse(NATIVE_LOKI_AUTHORITY),
+					account: { id: session.account.id, label: '' },
+				},
+			}],
+			forwarded: [{
+				resource: resource.resource,
+				scopes: [NATIVE_LOKI_SCOPE],
+				token: session.accessToken,
+				_meta: resource._meta,
+			}],
+		});
+	});
+
+	test('generic Microsoft sign-in never forwards a different account', async () => {
+		const resource: INativeLokiProtectedResource = { ...NATIVE_LOKI_PROTECTED_RESOURCE, _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }) };
+		const authenticationService = createMockAuthService({
+			createSession: async () => ({ ...session, account: { id: 'other-account', label: 'Other account' } }),
+		});
+		const forwarded: object[] = [];
+		await assert.rejects(authenticateNativeLokiWithMicrosoft(authenticationService, resource, {
+			logPrefix: 'test',
+			authenticate: async value => { forwarded.push(value); },
+		}), /selected Microsoft account/);
+		assert.deepStrictEqual(forwarded, []);
+	});
+
+	for (const scenario of [
+		{ name: 'both', loki: true, emu: true, expectedScopes: [NATIVE_LOKI_SCOPE, NATIVE_EMU_SCOPE] },
+		{ name: 'M365 only', loki: true, emu: false, expectedScopes: [NATIVE_LOKI_SCOPE] },
+		{ name: 'EMU only', loki: false, emu: true, expectedScopes: [NATIVE_EMU_SCOPE] },
+	]) {
+		test(`one Microsoft sign-in enables ${scenario.name} without requiring the other service`, async () => {
+			const resource: INativeLokiProtectedResource = { ...NATIVE_LOKI_PROTECTED_RESOURCE, _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }) };
+			const emuSession: AuthenticationSession = { ...session, accessToken: 'emu-token', scopes: [NATIVE_EMU_SCOPE] };
+			const forwarded: IAgentHostAuthenticateRequest[] = [];
+			const prompted: string[] = [];
+			const authenticationService = createMockAuthService({
+				getSessions: async (_providerId, scopes) => scopes?.includes(NATIVE_EMU_SCOPE)
+					? scenario.emu ? [emuSession] : []
+					: scenario.loki ? [session] : [],
+				createSession: async (_providerId, scopes) => {
+					prompted.push(scopes[0]);
+					throw new Error(`${scopes[0]} unavailable`);
+				},
+			});
+			const success = await authenticateNativeLokiWithMicrosoft(authenticationService, resource, {
+				logPrefix: 'test',
+				authenticate: async value => { forwarded.push(value); },
+			}, { resource: NATIVE_EMU_PROTECTED_RESOURCE, logService: store.add(new NullLogService()) });
+
+			assert.deepStrictEqual({
+				success,
+				forwardedScopes: forwarded.map(value => value.scopes?.[0]),
+				forwardedAccounts: forwarded.map(value => value._meta),
+				prompted,
+			}, {
+				success: true,
+				forwardedScopes: scenario.expectedScopes,
+				forwardedAccounts: scenario.expectedScopes.map(() => nativeLokiAuthenticationMeta({ accountId: session.account.id })),
+				prompted: scenario.loki && scenario.emu ? [] : [scenario.loki ? NATIVE_EMU_SCOPE : NATIVE_LOKI_SCOPE],
+			});
+		});
+	}
+
+	test('one Microsoft sign-in fails explicitly when neither audience is available', async () => {
+		const resource: INativeLokiProtectedResource = { ...NATIVE_LOKI_PROTECTED_RESOURCE, _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }) };
+		const forwarded: object[] = [];
+		const authenticationService = createMockAuthService({
+			getSessions: async () => [],
+			createSession: async (_providerId, scopes) => { throw new Error(`${scopes[0]} unavailable`); },
+		});
+		await assert.rejects(authenticateNativeLokiWithMicrosoft(authenticationService, resource, {
+			logPrefix: 'test',
+			authenticate: async value => { forwarded.push(value); },
+		}, { resource: NATIVE_EMU_PROTECTED_RESOURCE, logService: store.add(new NullLogService()) }), /unavailable/);
+		assert.deepStrictEqual(forwarded, []);
+	});
+
+	test('switching Microsoft accounts revokes both old runtime credentials before forwarding either new one', async () => {
+		const oldAccountId = 'previous-microsoft-account';
+		const active = nativeLokiActiveAccountMeta(oldAccountId);
+		const resource: INativeLokiProtectedResource = { ...NATIVE_LOKI_PROTECTED_RESOURCE, _meta: active };
+		const emuResource: INativeLokiProtectedResource = { ...NATIVE_EMU_PROTECTED_RESOURCE, _meta: active };
+		const emuSession: AuthenticationSession = { ...session, scopes: [NATIVE_EMU_SCOPE], accessToken: 'emu-token' };
+		const forwarded: IAgentHostAuthenticateRequest[] = [];
+		const authenticationService = createMockAuthService({
+			getSessions: async (_providerId, scopes) => scopes?.includes(NATIVE_EMU_SCOPE) ? [emuSession] : [],
+			createSession: async () => session,
+		});
+		await authenticateNativeLokiWithMicrosoft(authenticationService, resource, {
+			logPrefix: 'test',
+			authTokenCache: new AgentHostAuthTokenCache(),
+			authenticate: async value => { forwarded.push(value); },
+		}, { resource: emuResource, logService: store.add(new NullLogService()) });
+		assert.deepStrictEqual(forwarded, [
+			{ resource: resource.resource, scopes: [NATIVE_LOKI_SCOPE], token: '', _meta: nativeLokiAuthenticationMeta({ accountId: oldAccountId }) },
+			{ resource: emuResource.resource, scopes: [NATIVE_EMU_SCOPE], token: '', _meta: nativeLokiAuthenticationMeta({ accountId: oldAccountId }) },
+			{ resource: resource.resource, scopes: [NATIVE_LOKI_SCOPE], token: session.accessToken, _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }) },
+			{ resource: emuResource.resource, scopes: [NATIVE_EMU_SCOPE], token: emuSession.accessToken, _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }) },
+		]);
+	});
+
+	test('an unavailable optional service revokes its old token while keeping the other service', async () => {
+		const active = nativeLokiActiveAccountMeta(session.account.id);
+		const resource: INativeLokiProtectedResource = { ...NATIVE_LOKI_PROTECTED_RESOURCE, _meta: active };
+		const emuResource: INativeLokiProtectedResource = { ...NATIVE_EMU_PROTECTED_RESOURCE, _meta: active };
+		const forwarded: IAgentHostAuthenticateRequest[] = [];
+		const authenticationService = createMockAuthService({
+			getSessions: async () => [],
+			createSession: async (_providerId, scopes) => {
+				if (scopes.includes(NATIVE_EMU_SCOPE)) {
+					throw new Error('EMU unavailable');
+				}
+				return session;
+			},
+		});
+		const success = await authenticateNativeLokiWithMicrosoft(authenticationService, resource, {
+			logPrefix: 'test',
+			authenticate: async value => { forwarded.push(value); },
+		}, { resource: emuResource, logService: store.add(new NullLogService()) });
+		assert.deepStrictEqual({ success, forwarded }, {
+			success: true,
+			forwarded: [
+				{ resource: emuResource.resource, scopes: [NATIVE_EMU_SCOPE], token: '', _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }) },
+				{ resource: resource.resource, scopes: [NATIVE_LOKI_SCOPE], token: session.accessToken, _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }) },
+			],
+		});
+	});
+
+	for (const selectedAccount of [true, false]) {
+		test(`signed-out MSIT sign-in uses the Microsoft provider without GitHub (pinned: ${selectedAccount})`, async () => {
+			let signedIn = false;
+			const otherSession = { ...session, accessToken: 'other-token', account: { id: 'other-account', label: 'Other account' } };
+			const acquisitions: object[] = [];
+			const requests: object[] = [];
+			const resource: INativeLokiProtectedResource = {
+				...NATIVE_LOKI_PROTECTED_RESOURCE,
+				resource: NATIVE_LOKI_BASE_URLS[1],
+				...(selectedAccount ? { _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }) } : {}),
+			};
+			const authenticationService = createMockAuthService({
+				getOrActivateProviderIdForServer: async () => 'microsoft',
+				getSessions: async () => signedIn ? [otherSession, session] : [],
+				createSession: async (providerId, scopes, options) => {
+					acquisitions.push({ providerId, scopes, options });
+					signedIn = true;
+					return session;
+				},
+			});
+			const commandService = new TestCommandService();
+			commandService.onExecute = async (commandId, args) => {
+				assert.strictEqual(commandId, CHAT_SETUP_ACTION_ID);
+				const setup = args[1];
+				assert.ok(isDirectMicrosoftSignInSetup(setup));
+				await setup.directMicrosoftSignIn();
+			};
+			const instantiation = createAuthInstantiationService(store, authenticationService, commandService);
+			const success = await instantiation.invokeFunction(resolveAuthenticationInteractively, [resource], {
+				logPrefix: 'test',
+				authenticate: async value => { requests.push(value); },
+			});
+			const setup = commandService.calls[0].args[1];
+			assert.ok(isDirectMicrosoftSignInSetup(setup));
+			assert.deepStrictEqual({
+				success,
+				dialogTitle: setup.dialogTitle,
+				buttonAction: typeof setup.directMicrosoftSignIn,
+				additionalScopes: setup.additionalScopes,
+				acquisitions,
+				requests,
+			}, {
+				success: true,
+				dialogTitle: 'Sign in to use Copilot',
+				buttonAction: 'function',
+				additionalScopes: undefined,
+				acquisitions: [{
+					providerId: 'microsoft',
+					scopes: [NATIVE_LOKI_SCOPE],
+					options: {
+						activateImmediate: true,
+						authorizationServer: URI.parse(NATIVE_LOKI_AUTHORITY),
+						...(selectedAccount ? { account: { id: session.account.id, label: '' } } : {}),
+					},
+				}],
+				requests: [{
+					resource: resource.resource,
+					scopes: [NATIVE_LOKI_SCOPE],
+					token: session.accessToken,
+					_meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }),
+				}],
+			});
+		});
+	}
+
+	for (const hasLokiSession of [true, false]) {
+		test(`the shared sign-in picker enables ${hasLokiSession ? 'both providers' : 'EMU without Loki'}`, async () => {
+			const resource: INativeLokiProtectedResource = { ...NATIVE_LOKI_PROTECTED_RESOURCE, _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }) };
+			const emuSession: AuthenticationSession = { ...session, scopes: [NATIVE_EMU_SCOPE], accessToken: 'emu-token' };
+			const requests: IAgentHostAuthenticateRequest[] = [];
+			const auth = createMockAuthService({
+				getOrActivateProviderIdForServer: async () => 'microsoft',
+				getSessions: async (_providerId, scopes) => scopes?.includes(NATIVE_EMU_SCOPE)
+					? [emuSession] : hasLokiSession ? [session] : [],
+				createSession: async (_providerId, scopes) => { throw new Error(`${scopes[0]} unavailable`); },
+			});
+			const commands = new TestCommandService();
+			commands.onExecute = async (_commandId, args) => {
+				const setup = args[1];
+				assert.ok(isDirectMicrosoftSignInSetup(setup));
+				await setup.directMicrosoftSignIn();
+			};
+			const instantiation = createAuthInstantiationService(store, auth, commands);
+			const success = await instantiation.invokeFunction(resolveAuthenticationInteractively, [resource, NATIVE_EMU_PROTECTED_RESOURCE], {
+				logPrefix: 'test',
+				forceSignInDialog: true,
+				optionalEmuResource: NATIVE_EMU_PROTECTED_RESOURCE,
+				authenticate: async request => { requests.push(request); },
+			});
+			assert.deepStrictEqual({
+				success,
+				scopes: requests.map(request => request.scopes?.[0]),
+				accounts: requests.map(request => request._meta),
+			}, {
+				success: true,
+				scopes: hasLokiSession ? [NATIVE_LOKI_SCOPE, NATIVE_EMU_SCOPE] : [NATIVE_EMU_SCOPE],
+				accounts: (hasLokiSession ? [NATIVE_LOKI_SCOPE, NATIVE_EMU_SCOPE] : [NATIVE_EMU_SCOPE])
+					.map(() => nativeLokiAuthenticationMeta({ accountId: session.account.id })),
+			});
+		});
+	}
+
+	test('rejects a different account returned by Microsoft sign-in', async () => {
+		const requests: object[] = [];
+		const resource: INativeLokiProtectedResource = { ...NATIVE_LOKI_PROTECTED_RESOURCE, _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }) };
+		const authenticationService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'microsoft',
+			getSessions: async () => [],
+			createSession: async () => ({ ...session, account: { id: 'other-account', label: 'Other account' } }),
+		});
+		const commandService = new TestCommandService();
+		commandService.onExecute = async (_commandId, args) => {
+			const setup = args[1];
+			assert.ok(isDirectMicrosoftSignInSetup(setup));
+			await setup.directMicrosoftSignIn();
+		};
+		const instantiation = createAuthInstantiationService(store, authenticationService, commandService);
+		await assert.rejects(instantiation.invokeFunction(resolveAuthenticationInteractively, [resource], {
+			logPrefix: 'test',
+			authenticate: async value => { requests.push(value); },
+		}), /selected Microsoft account/);
+		assert.deepStrictEqual(requests, []);
+	});
+
+	test('cancelling native Loki sign-in does not acquire or forward a token', async () => {
+		const resource: INativeLokiProtectedResource = { ...NATIVE_LOKI_PROTECTED_RESOURCE, _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }) };
+		let createSessionCalls = 0;
+		const authenticationService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'microsoft',
+			getSessions: async () => [],
+			createSession: async () => { createSessionCalls++; return session; },
+		});
+		const commandService = new TestCommandService();
+		commandService.result = { success: undefined, dialogSkipped: false };
+		const instantiation = createAuthInstantiationService(store, authenticationService, commandService);
+		const success = await instantiation.invokeFunction(resolveAuthenticationInteractively, [resource], {
+			logPrefix: 'test',
+			authenticate: async () => { assert.fail('Unexpected token forwarding'); },
+		});
+		assert.deepStrictEqual({ success, createSessionCalls }, { success: false, createSessionCalls: 0 });
+	});
+
+	test('the explicit native Loki sign-in action prompts even with a cached Microsoft session', async () => {
+		const resource: INativeLokiProtectedResource = { ...NATIVE_LOKI_PROTECTED_RESOURCE, _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }) };
+		const requests: object[] = [];
+		let createSessionCalls = 0;
+		const authenticationService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'microsoft',
+			getSessions: async () => [session],
+			createSession: async () => { createSessionCalls++; return session; },
+		});
+		const commandService = new TestCommandService();
+		commandService.onExecute = async (_commandId, args) => {
+			const setup = args[1];
+			assert.ok(isDirectMicrosoftSignInSetup(setup));
+			await setup.directMicrosoftSignIn();
+		};
+		const instantiation = createAuthInstantiationService(store, authenticationService, commandService);
+		const success = await instantiation.invokeFunction(resolveAuthenticationInteractively, [resource], {
+			forceSignInDialog: true,
+			logPrefix: 'test',
+			authenticate: async value => { requests.push(value); },
+		});
+		assert.deepStrictEqual({ success, dialogCount: commandService.calls.length, createSessionCalls, requests }, {
+			success: true,
+			dialogCount: 1,
+			createSessionCalls: 1,
+			requests: [{
+				resource: resource.resource, scopes: [NATIVE_LOKI_SCOPE], token: session.accessToken,
+				_meta: resource._meta,
+			}],
+		});
+	});
+
+	test('rejects unexpected native Loki scopes before showing Microsoft sign-in', async () => {
+		const authenticationService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'microsoft',
+			getSessions: async () => [],
+		});
+		const commandService = new TestCommandService();
+		const instantiation = createAuthInstantiationService(store, authenticationService, commandService);
+		await assert.rejects(instantiation.invokeFunction(resolveAuthenticationInteractively, [{
+			...NATIVE_LOKI_PROTECTED_RESOURCE, scopes_supported: ['unexpected-scope']
+		}], { logPrefix: 'test', authenticate: async () => { } }), /unexpected Microsoft scope/);
+		assert.deepStrictEqual(commandService.calls, []);
+	});
+
+	for (const selectedAvailable of [true, false]) {
+		test(`explicit initial account selection never borrows another account (available: ${selectedAvailable})`, async () => {
+			const requests: object[] = [];
+			const lookups: object[] = [];
+			const otherSession = { ...session, id: 'other', accessToken: 'other-token', account: { id: 'other-account', label: 'Other' } };
+			const auth = createMockAuthService({
+				getOrActivateProviderIdForServer: async () => 'microsoft',
+				getSessions: async (_provider, _scopes, options) => {
+					lookups.push(options.account);
+					return selectedAvailable ? [otherSession, session] : [otherSession];
+				},
+			});
+			const instantiation = createAuthInstantiationService(store, auth);
+			const resource = { ...NATIVE_LOKI_PROTECTED_RESOURCE, _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }) };
+			await instantiation.invokeFunction(authenticateProtectedResources, [{ provider: 'copilotcli', displayName: 'Copilot', description: 'Copilot', models: [], protectedResources: [resource] }], {
+				logPrefix: 'test',
+				authenticate: async request => { requests.push(request); },
+			});
+			assert.deepStrictEqual({ requests, lookups }, {
+				requests: selectedAvailable ? [{
+					resource: resource.resource, scopes: [NATIVE_LOKI_SCOPE], token: session.accessToken,
+					_meta: resource._meta,
+				}] : [],
+				lookups: Array.from({ length: selectedAvailable ? 1 : 2 }, () => ({ id: session.account.id, label: '' })),
+			});
+		});
+	}
+
+	test('initial protected-resource forwarding includes the host account identity', async () => {
+		const requests: object[] = [];
+		const auth = createMockAuthService({ getOrActivateProviderIdForServer: async () => 'microsoft', getSessions: async () => [session] });
+		const instantiation = createAuthInstantiationService(store, auth);
+		await instantiation.invokeFunction(authenticateProtectedResources, [{ provider: 'copilotcli', displayName: 'Copilot', description: 'Copilot', models: [], protectedResources: [NATIVE_LOKI_PROTECTED_RESOURCE] }], {
+			logPrefix: 'test',
+			authenticate: async request => { requests.push(request); },
+		});
+		assert.deepStrictEqual(requests, [{
+			resource: NATIVE_LOKI_PROTECTED_RESOURCE.resource,
+			scopes: [NATIVE_LOKI_SCOPE],
+			token: session.accessToken,
+			_meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }),
+		}]);
+	});
+
+	test('MSIT initial authentication and renewal retain the selected resource and account', async () => {
+		const replies: object[] = [];
+		const resource = { ...NATIVE_LOKI_PROTECTED_RESOURCE, resource: NATIVE_LOKI_BASE_URLS[1] };
+		const auth = createMockAuthService({ getOrActivateProviderIdForServer: async () => 'microsoft', getSessions: async () => [session] });
+		const instantiation = createAuthInstantiationService(store, auth);
+		const options: IAgentHostAuthenticationOptions = { logPrefix: 'test', authenticate: async reply => { replies.push(reply); } };
+		await instantiation.invokeFunction(authenticateProtectedResources, [{ provider: 'copilotcli', displayName: 'Copilot', description: 'Copilot', models: [], protectedResources: [resource] }], options);
+		const challenge: INativeLokiProtectedResource = { ...resource, _meta: request._meta };
+		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
+		await instantiation.invokeFunction(accessor => recovery.recover(accessor, challenge, options));
+		assert.deepStrictEqual(replies, [
+			{ resource: resource.resource, scopes: [NATIVE_LOKI_SCOPE], token: session.accessToken, _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }) },
+			{ resource: resource.resource, scopes: [NATIVE_LOKI_SCOPE], token: session.accessToken, _meta: request._meta },
+		]);
+	});
+
+	for (const available of [true, false]) {
+		test(`renewal is silent and ${available ? 'uses the exact account' : 'does not substitute another account'}`, async () => {
+			const acquisitions: object[] = [];
+			const replies: object[] = [];
+			const auth = createMockAuthService({
+				getSessions: async (providerId, scopes, options) => {
+					acquisitions.push({ providerId, scopes, options });
+					return [available ? session : { ...session, account: { id: 'other-account', label: 'Other' } }];
+				},
+			});
+			await renewNativeLokiToken(auth, request, {
+				logPrefix: 'test',
+				authTokenCache: new AgentHostAuthTokenCache(),
+				authenticate: async reply => { replies.push(reply); },
+			});
+			assert.deepStrictEqual({ acquisitions, replies }, {
+				acquisitions: [{
+					providerId: 'microsoft', scopes: [NATIVE_LOKI_SCOPE],
+					options: { silent: true, account: { id: session.account.id, label: '' }, authorizationServer: URI.parse(NATIVE_LOKI_AUTHORITY) },
+				}],
+				replies: [{
+					resource: request.resource,
+					scopes: [NATIVE_LOKI_SCOPE],
+					token: available ? session.accessToken : '',
+					_meta: request._meta,
+				}],
+			});
+		});
+	}
+
+	test('initial authentication forwards both Microsoft audiences for the same account', async () => {
+		const replies: object[] = [];
+		const emuSession: AuthenticationSession = { ...session, accessToken: 'emu-token', scopes: [NATIVE_EMU_SCOPE] };
+		const auth = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'microsoft',
+			getSessions: async (_providerId, scopes) => scopes?.includes(NATIVE_EMU_SCOPE) ? [emuSession] : [session],
+		});
+		const instantiation = createAuthInstantiationService(store, auth);
+		await instantiation.invokeFunction(authenticateProtectedResources, [{
+			provider: 'copilotcli', displayName: 'Copilot', description: 'Copilot', models: [],
+			protectedResources: [NATIVE_LOKI_PROTECTED_RESOURCE, NATIVE_EMU_PROTECTED_RESOURCE],
+		}], {
+			logPrefix: 'test',
+			authenticate: async reply => { replies.push(reply); },
+		});
+		assert.deepStrictEqual(replies, [
+			{ resource: NATIVE_LOKI_PROTECTED_RESOURCE.resource, scopes: [NATIVE_LOKI_SCOPE], token: session.accessToken, _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }) },
+			{ resource: NATIVE_EMU_PROTECTED_RESOURCE.resource, scopes: [NATIVE_EMU_SCOPE], token: emuSession.accessToken, _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id }) },
+		]);
+	});
+
+	test('EMU renewal is silent and a missing token does not prompt or borrow another account', async () => {
+		const replies: object[] = [];
+		const resource: INativeLokiProtectedResource = {
+			...NATIVE_EMU_PROTECTED_RESOURCE,
+			_meta: nativeLokiAuthenticationMeta({ accountId: session.account.id, requestId: 'emu-renewal' }),
+		};
+		const auth = createMockAuthService({
+			getSessions: async () => [{ ...session, scopes: [NATIVE_EMU_SCOPE], account: { id: 'other-account', label: 'Other' } }],
+		});
+		await renewNativeLokiToken(auth, resource, {
+			logPrefix: 'test',
+			authenticate: async reply => { replies.push(reply); },
+		});
+		assert.deepStrictEqual(replies, [{
+			resource: resource.resource, scopes: [NATIVE_EMU_SCOPE], token: '', _meta: resource._meta,
+		}]);
+	});
+
+	test('a disconnected client cannot forward a late renewal', async () => {
+		let current = true;
+		const auth = createMockAuthService({ getSessions: async () => { current = false; return [session]; } });
+		await assert.rejects(renewNativeLokiToken(auth, request, {
+			logPrefix: 'test',
+			isCurrent: () => current,
+			authenticate: async () => { assert.fail('Unexpected token forwarding'); },
+		}), isCancellationError);
+	});
+
+	test('recovery answers concurrent renewals even when the host returns the same token', async () => {
+		const replies: object[] = [];
+		const auth = createMockAuthService({ getSessions: async () => [session] });
+		const instantiation = createAuthInstantiationService(store, auth);
+		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
+		const options: IAgentHostAuthenticationOptions = {
+			logPrefix: 'test',
+			authTokenCache: new AgentHostAuthTokenCache(),
+			authenticate: async reply => { replies.push(reply); },
+		};
+		await Promise.all(['one', 'two'].map(requestId => {
+			const resource: INativeLokiProtectedResource = { ...request, _meta: nativeLokiAuthenticationMeta({ accountId: session.account.id, requestId }) };
+			return instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		}));
+		assert.deepStrictEqual(replies, ['one', 'two'].map(requestId => ({
+			resource: request.resource, scopes: [NATIVE_LOKI_SCOPE], token: session.accessToken,
+			_meta: nativeLokiAuthenticationMeta({ accountId: session.account.id, requestId }),
+		})));
+	});
+
+	test('authentication failures release the runtime callback and remain visible to the caller', async () => {
+		const replies: object[] = [];
+		const auth = createMockAuthService({ getSessions: async () => { throw new Error('Microsoft authentication failed'); } });
+		await assert.rejects(renewNativeLokiToken(auth, request, {
+			logPrefix: 'test',
+			authenticate: async reply => { replies.push(reply); },
+		}), /Microsoft authentication failed/);
+		assert.deepStrictEqual(replies, [{
+			resource: request.resource, scopes: [NATIVE_LOKI_SCOPE], token: '', _meta: request._meta,
+		}]);
+	});
+});
 
 suite('agentHostMcpServerId', () => {
 
@@ -1599,6 +2182,28 @@ suite('modelRequiresAgentAuthentication', () => {
 			optionalResourceSignedOutDisabled: false,
 			optionalResourceWithoutByok: false,
 			noProtectedResource: false,
+		});
+	});
+
+	test('requires only the selected native model provider instead of both Microsoft audiences', () => {
+		const mixedAgent = {
+			...agent,
+			models: [
+				{ id: 'capi-gpt-5', _meta: nativeCopilotModelProviderMeta('copilot') },
+				{ id: 'loki-gpt-5', _meta: nativeCopilotModelProviderMeta('loki:corporate-account') },
+			],
+			protectedResources: [NATIVE_LOKI_PROTECTED_RESOURCE, NATIVE_EMU_PROTECTED_RESOURCE],
+		} as AgentInfo;
+		assert.deepStrictEqual({
+			capi: modelRequiresAgentAuthentication(mixedAgent, { id: 'capi-gpt-5' }),
+			loki: modelRequiresAgentAuthentication(mixedAgent, { id: 'loki-gpt-5' }),
+			unknown: modelRequiresAgentAuthentication(mixedAgent, { id: 'missing-model' }),
+			noSelection: modelRequiresAgentAuthentication(mixedAgent, undefined),
+		}, {
+			capi: false,
+			loki: true,
+			unknown: true,
+			noSelection: true,
 		});
 	});
 });

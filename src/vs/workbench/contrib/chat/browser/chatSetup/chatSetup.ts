@@ -60,6 +60,8 @@ export enum ChatSetupStrategy {
 	SetupWithMicrosoftProvider = 6
 }
 
+export const CHAT_SETUP_NATIVE_LOKI_MICROSOFT_SIGN_IN_COMMAND_ID = '_workbench.chat.nativeLokiMicrosoftSignIn';
+
 export type ChatSetupResultValue = boolean /* success */ | undefined /* canceled */;
 
 export interface IChatSetupResult {
@@ -100,6 +102,8 @@ export interface IChatSetupRunOptions {
 	readonly telemetrySource?: ChatSetupSource;
 	readonly disableChatViewReveal?: boolean;
 	readonly forceSignInDialog?: boolean;
+	/** Handles a resource-scoped Microsoft sign-in without setting up a GitHub account. */
+	readonly directMicrosoftSignIn?: () => Promise<void>;
 	/** Continue setup with the default account if sign-in completes while the dialog is open. */
 	readonly autoDismissOnSignIn?: boolean;
 	readonly cancellationToken?: CancellationToken;

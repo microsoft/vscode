@@ -484,6 +484,25 @@ suite('AgentHostLanguageModelProvider', () => {
 		]);
 	});
 
+	test('keeps CAPI and Loki offerings with the same raw model ID distinct', async () => {
+		const provider = createProvider();
+		const lokiId = '@native/bG9raTpmaXh0dXJlLWFjY291bnQ/gpt-5.6-luna';
+		provider.updateModels([
+			{ ...makeModel('gpt-5.6-luna'), name: 'GPT-5.6 Luna (GitHub Copilot)' },
+			{ ...makeModel(lokiId), name: 'GPT-5.6 Luna (Microsoft 365 Copilot)', _meta: { modelGroupId: 'copilotcli' } },
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(infos.map(info => ({
+			identifier: info.identifier,
+			name: info.metadata.name,
+			group: info.metadata.modelGroup,
+		})), [
+			{ identifier: 'copilotcli:gpt-5.6-luna', name: 'GPT-5.6 Luna (GitHub Copilot)', group: { id: 'copilotcli' } },
+			{ identifier: `copilotcli:${lokiId}`, name: 'GPT-5.6 Luna (Microsoft 365 Copilot)', group: { id: 'copilotcli' } },
+		]);
+	});
+
 	test('does not infer a trusted source from provider names', async () => {
 		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-codex', 'codex'));
 		provider.updateModels([{ id: '@provider=openai:gpt-5.6-sol', provider: 'chatgpt', name: 'GPT-5.6 Sol' }]);
