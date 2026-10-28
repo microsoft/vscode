@@ -220,8 +220,8 @@ suite('PermissionPickerActionItem', () => {
 	const policy = {
 		badge: undefined,
 		disabled: true,
-		description: '$(briefcase) Disabled by policy',
-		ariaDescription: 'Disabled by policy. Your organization\'s policy doesn\'t allow this permission level.',
+		description: '$(briefcase) Disabled by your organization',
+		ariaDescription: 'Disabled by your organization. Contact your administrator.',
 	};
 	const enabled = { badge: undefined, disabled: false, description: undefined, ariaDescription: undefined };
 	const unattributed = {
