@@ -16,7 +16,7 @@ import { FileService } from '../../../../../../platform/files/common/fileService
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { AgentPluginItemKind, IAgentPluginItem, IMarketplacePluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
-import { getPluginRepository, getPluginVersion, loadMarketplacePluginContributionEntries, loadPluginReadme, PluginReadmeRenderGuard, waitForInstalledPlugin } from '../../../browser/aiCustomization/embeddedAgentPluginDetail.js';
+import { getPluginRepository, getPluginSourceUri, getPluginVersion, loadMarketplacePluginContributionEntries, loadPluginReadme, PluginReadmeRenderGuard, waitForInstalledPlugin } from '../../../browser/aiCustomization/embeddedAgentPluginDetail.js';
 import { IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { parseMarketplaceReference } from '../../../common/plugins/marketplaceReference.js';
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
@@ -118,12 +118,12 @@ suite('embeddedAgentPluginDetail', () => {
 			sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'octo-org/example' },
 		} satisfies IMarketplacePlugin;
 		const installedUri = URI.file('/plugins/example');
-		const createInstalledItem = (fromMarketplace?: IMarketplacePlugin) => ({
+		const createInstalledItem = (fromMarketplace?: IMarketplacePlugin, uri = installedUri) => ({
 			kind: AgentPluginItemKind.Installed,
 			name: 'example',
 			description: 'Example plugin',
 			plugin: new class extends mock<IAgentPlugin>() {
-				override readonly uri = installedUri;
+				override readonly uri = uri;
 				override readonly label = 'example';
 				override readonly fromMarketplace = fromMarketplace;
 			}(),
@@ -141,14 +141,34 @@ suite('embeddedAgentPluginDetail', () => {
 				capabilities: [],
 				representativeQueries: [],
 				repository: URI.parse('https://github.com/catalog/example'),
+				installation: { kind: 'plugin', repository: 'catalog/example', ref: 'abc123', path: 'plugins/example' },
 			} satisfies ICustomizationMarketplaceResource,
 			state: { kind: 'installed', target: { kind: 'plugin', uri: installedUri, name: 'example' } },
+		}, {
+			resource: {
+				sourceId: 'github-feed',
+				identifier: 'same-name',
+				displayName: 'Example',
+				description: 'Different plugin with the same name',
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				tags: [],
+				capabilities: [],
+				representativeQueries: [],
+				repository: URI.parse('https://github.com/catalog/wrong-example'),
+			} satisfies ICustomizationMarketplaceResource,
+			state: { kind: 'installed', target: { kind: 'plugin', uri: URI.file('/plugins/different'), name: 'same-name' } },
 		}]);
+		const sameNameItem = {
+			...createInstalledItem(undefined, URI.file('/plugins/unrecorded')),
+			name: 'same-name',
+		} satisfies IAgentPluginItem;
 
 		assert.deepStrictEqual({
 			marketplaceRepository: getPluginRepository(marketplaceItem, emptyCustomizationMarketplaceInstallationSnapshot)?.toString(),
 			configuredPluginRepository: getPluginRepository(installedItem, catalogInstallations)?.toString(),
 			providerCatalogRepository: getPluginRepository(providerItem, catalogInstallations)?.toString(),
+			providerCatalogSource: getPluginSourceUri(providerItem, catalogInstallations)?.toString(),
+			sameNameRepository: getPluginRepository(sameNameItem, catalogInstallations)?.toString(),
 			missingRepository: getPluginRepository(providerItem, emptyCustomizationMarketplaceInstallationSnapshot)?.toString(),
 			nonGitHubRepository: getPluginRepository({
 				...marketplaceItem,
@@ -159,6 +179,8 @@ suite('embeddedAgentPluginDetail', () => {
 			marketplaceRepository: 'https://github.com/owner/repo',
 			configuredPluginRepository: 'https://github.com/octo-org/example',
 			providerCatalogRepository: 'https://github.com/catalog/example',
+			providerCatalogSource: 'https://github.com/catalog/example/tree/abc123/plugins/example',
+			sameNameRepository: undefined,
 			missingRepository: undefined,
 			nonGitHubRepository: undefined,
 		});

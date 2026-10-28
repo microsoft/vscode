@@ -3258,21 +3258,27 @@ function renderEmbeddedPluginDetail(
 	item: IAgentPluginItem | undefined,
 	options?: {
 		readonly marketplaceResource?: ICustomizationMarketplaceResource;
+		readonly deferMarketplaceResource?: boolean;
 		readonly width?: number;
 		readonly height?: number;
 		readonly focusRepository?: boolean;
+		readonly focusEnablementAction?: boolean;
 	},
 ): void {
 	const width = options?.width ?? 480;
 	const height = options?.height ?? 320;
 	ctx.container.style.width = `${width}px`;
 	ctx.container.style.height = `${height}px`;
-	const marketplaceInstallations = item?.kind === AgentPluginItemKind.Installed && options?.marketplaceResource
+	const installedMarketplaceResource = item?.kind === AgentPluginItemKind.Installed && options?.marketplaceResource
 		? createCustomizationMarketplaceInstallationSnapshot([{
 			resource: options.marketplaceResource,
 			state: { kind: 'installed', target: { kind: 'plugin', uri: item.plugin.uri, name: item.name } },
 		}])
 		: emptyCustomizationMarketplaceInstallationSnapshot;
+	const marketplaceInstallations = observableValue(
+		'embeddedPluginDetail.marketplaceInstallations',
+		options?.deferMarketplaceResource ? emptyCustomizationMarketplaceInstallationSnapshot : installedMarketplaceResource,
+	);
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
@@ -3302,7 +3308,7 @@ function renderEmbeddedPluginDetail(
 			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() { }());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 				override readonly onDidChange = Event.None;
-				override readonly installations = constObservable(marketplaceInstallations);
+				override readonly installations = marketplaceInstallations;
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override async readFile(): Promise<IFileContent> { throw new Error('Fixture README not found'); }
@@ -3322,8 +3328,18 @@ function renderEmbeddedPluginDetail(
 	const detail = ctx.disposableStore.add(instantiationService.createInstance(EmbeddedAgentPluginDetail, host));
 	if (item) {
 		detail.setInput(item);
+		const focusedEnablementAction = options?.focusEnablementAction
+			? host.querySelector<HTMLElement>('.monaco-button-dropdown > .monaco-button:not(.monaco-dropdown-button)')
+			: undefined;
 		if (options?.focusRepository) {
 			host.querySelector<HTMLAnchorElement>('.embedded-detail-fact-link[href*="github.com"]')?.focus();
+		}
+		focusedEnablementAction?.focus();
+		if (options?.deferMarketplaceResource) {
+			marketplaceInstallations.set(installedMarketplaceResource, undefined);
+		}
+		if (options?.focusEnablementAction) {
+			assert(!!focusedEnablementAction && focusedEnablementAction.isConnected && focusedEnablementAction.ownerDocument.activeElement === focusedEnablementAction, 'Repository metadata refresh must preserve the focused enablement action.');
 		}
 	}
 }
@@ -5222,6 +5238,20 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			ctx,
 			makeInstalledPluginItem('Linear', 'Issue tracking and project management integration'),
 			{ marketplaceResource: makePluginMarketplaceResource('Linear', 'acme/linear-plugin'), focusRepository: true },
+		),
+	}),
+
+	EmbeddedPluginDetailAsyncRepositoryPreservesFocus: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The installed plugin repository appears after installation metadata arrives while keyboard focus remains on the Disable action.'],
+		render: ctx => renderEmbeddedPluginDetail(
+			ctx,
+			makeInstalledPluginItem('Linear', 'Issue tracking and project management integration'),
+			{
+				marketplaceResource: makePluginMarketplaceResource('Linear', 'acme/linear-plugin'),
+				deferMarketplaceResource: true,
+				focusEnablementAction: true,
+			},
 		),
 	}),
 
