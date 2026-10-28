@@ -7,6 +7,7 @@ import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { disposableTimeout } from '../../../base/common/async.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
+import { Iterable } from '../../../base/common/iterator.js';
 import { autorun, type IReader } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -48,7 +49,7 @@ const STORAGE_KEY = 'automations';
 const SCHEDULE_CURSORS_META_KEY = 'vscode.scheduleCursors';
 const SCHEDULE_RETRY_DELAY_MS = 60_000;
 const RUN_HISTORY_PAGE_SIZE = 50;
-/** Gives the network time to reconnect after a full wake before resuming a turn that sleep broke. */
+/** Gives the network time to reconnect after a full wake before resuming a turn that sleep broke; resumes also wait until scheduled work is ready. */
 const RESUME_AFTER_WAKE_DELAY_MS = 10_000;
 
 interface IStoredManualRunRequest {
@@ -115,8 +116,8 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	private readonly _resumeAfterWakeTimer = this._register(new MutableDisposable());
 	/** Running runs that were active while the machine was not fully awake. */
 	private readonly _sleptRuns = new Set<string>();
-	/** Runs whose turn failed after the machine slept, waiting to resume that turn once it is fully awake. */
-	private readonly _resumesAfterWake = new Map<string, { readonly session: string; readonly turnId: string; readonly error: ErrorInfo }>();
+	/** Runs whose turn failed after the machine slept, waiting for the next resume delay to finish and for scheduled work to be ready. */
+	private readonly _resumesAfterWake = new Map<string, { readonly session: string; readonly turnId: string; readonly error: ErrorInfo; delayElapsed: boolean }>();
 	/** Runs already resumed after a wake; another failure ends them. */
 	private readonly _resumedAfterWake = new Set<string>();
 	/** Pending runs that a Run Now request reused; like manual runs, they start without waiting for scheduled work to be ready. */
@@ -163,16 +164,23 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => this._handleEnvelope(envelope)));
 		this._register(this._stateManager.onDidDeleteSession(session => this._cancelRunsForDeletedSession(session)));
 		this._register(autorun(reader => {
-			if (this._systemWake.isFullyAwake.read(reader)) {
-				this._scheduleResumesAfterWake();
+			if (!this._systemWake.isFullyAwake.read(reader)) {
+				this._resumeAfterWakeTimer.clear();
+				for (const pending of this._resumesAfterWake.values()) {
+					pending.delayElapsed = false;
+				}
+				for (const run of this._runs.values()) {
+					if (run.lifecycle.status === AutomationRunStatus.Running) {
+						this._sleptRuns.add(run.resource);
+					}
+				}
 				return;
 			}
-			this._resumeAfterWakeTimer.clear();
-			for (const run of this._runs.values()) {
-				if (run.lifecycle.status === AutomationRunStatus.Running) {
-					this._sleptRuns.add(run.resource);
-				}
+			// Readiness implies full wake, so it is only tracked while awake.
+			if (this._systemWake.isReadyForScheduledWork.read(reader)) {
+				void this._resumeTurnsAfterWake();
 			}
+			this._scheduleResumesAfterWake();
 		}));
 		this._startup = this._enqueueMutation(async () => {
 			if (this._catalog) {
@@ -895,7 +903,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 					const session = current.sessions.find(candidate => this._chatOwnership.getDefaultChat(candidate) === envelope.channel);
 					if (session && action.part.resumable === true && !this._resumedAfterWake.has(current.resource)
 						&& (this._sleptRuns.has(current.resource) || !this._systemWake.isFullyAwake.get())) {
-						this._resumesAfterWake.set(current.resource, { session, turnId: action.turnId, error: action.part.error });
+						this._resumesAfterWake.set(current.resource, { session, turnId: action.turnId, error: action.part.error, delayElapsed: false });
 						this._logService.info(`[AgentHostAutomationService] Automation run will resume once the machine is fully awake: run=${current.resource}, turnId=${action.turnId}.`);
 						this._scheduleResumesAfterWake();
 						return;
@@ -915,11 +923,14 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	}
 
 	private _scheduleResumesAfterWake(): void {
-		if (this._resumesAfterWake.size === 0 || this._resumeAfterWakeTimer.value || !this._systemWake.isFullyAwake.get()) {
+		if (this._resumeAfterWakeTimer.value || !this._systemWake.isFullyAwake.get() || !Iterable.some(this._resumesAfterWake.values(), pending => !pending.delayElapsed)) {
 			return;
 		}
 		this._resumeAfterWakeTimer.value = disposableTimeout(() => {
 			this._resumeAfterWakeTimer.clear();
+			for (const pending of this._resumesAfterWake.values()) {
+				pending.delayElapsed = true;
+			}
 			void this._resumeTurnsAfterWake();
 		}, RESUME_AFTER_WAKE_DELAY_MS);
 	}
@@ -927,7 +938,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	private async _resumeTurnsAfterWake(): Promise<void> {
 		for (const resource of [...this._resumesAfterWake.keys()]) {
 			const pending = this._resumesAfterWake.get(resource);
-			if (!pending || !this._systemWake.isFullyAwake.get()) {
+			if (!pending?.delayElapsed || !this._systemWake.isReadyForScheduledWork.get()) {
 				continue;
 			}
 			this._resumesAfterWake.delete(resource);

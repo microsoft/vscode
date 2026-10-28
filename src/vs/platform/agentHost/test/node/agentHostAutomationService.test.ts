@@ -1601,6 +1601,113 @@ suite('AgentHostAutomationService', () => {
 		}));
 	}
 
+	for (const { name, failAfterWakeMs, resumedAfterWakeMs } of [
+		{
+			name: 'resumes a turn that broke during sleep once scheduled work is ready, not at the earlier resume delay',
+			failAfterWakeMs: undefined, resumedAfterWakeMs: [SCHEDULED_WORK_WAKE_SETTLE_MS],
+		},
+		{
+			name: 'resumes a turn that broke after scheduled work is ready no sooner than the resume delay after the failure',
+			failAfterWakeMs: 20_000, resumedAfterWakeMs: [30_000],
+		},
+	]) {
+		test(name, () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
+			const session = URI.parse('mock:/resume-timing-session');
+			const chat = buildDefaultChatUri(session);
+			const started = new DeferredPromise<void>();
+			let wokeAt = 0;
+			const resumed: number[] = [];
+			const service = createService({
+				createSession: async () => {
+					stateManager.createSession({
+						resource: session.toString(), provider: 'mock', title: '', status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+						defaultChat: chat,
+					});
+					return session;
+				},
+				startSession: async (_session, message) => {
+					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date().toISOString(), message });
+					await started.complete();
+				},
+				resumeTurn: async (_session, turnId) => {
+					resumed.push(Date.now() - wokeAt);
+					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnResume, turnId });
+					return true;
+				},
+			});
+			await enableAndCreate(service);
+			await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: name });
+			await started.p;
+			const failTurn = () => stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatError, turnId: 'turn', duration: 0,
+				part: { kind: ResponsePartKind.Error, error: { errorType: 'query', message: 'Connection reset' }, resumable: true },
+			});
+
+			systemWake.setFullyAwake(false);
+			if (failAfterWakeMs === undefined) {
+				failTurn();
+			}
+			await timeout(1_000);
+			systemWake.setFullyAwake(true);
+			wokeAt = Date.now();
+			if (failAfterWakeMs !== undefined) {
+				await timeout(failAfterWakeMs);
+				failTurn();
+			}
+			await timeout(SCHEDULED_WORK_WAKE_NETWORK_CAP_MS);
+
+			assert.deepStrictEqual(resumed, resumedAfterWakeMs);
+		}));
+	}
+
+	test('a turn that fails after another turn\'s resume delay passed still waits its own delay', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
+		const sessionFor = (automation: string) => URI.from({ scheme: 'mock', path: URI.parse(automation).path });
+		const started = new Map(['/first', '/second'].map(path => [path, new DeferredPromise<void>()]));
+		let wokeAt = 0;
+		const resumed: string[] = [];
+		const service = createService({
+			createSession: async (_template, run) => {
+				const session = sessionFor(run.automation);
+				stateManager.createSession({
+					resource: session.toString(), provider: 'mock', title: '', status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session),
+				});
+				return session;
+			},
+			startSession: async (session, message) => {
+				stateManager.dispatchServerAction(buildDefaultChatUri(session), { type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date().toISOString(), message });
+				await started.get(session.path)?.complete();
+			},
+			resumeTurn: async (session, turnId) => {
+				resumed.push(`${session.path}: ${Date.now() - wokeAt}`);
+				stateManager.dispatchServerAction(buildDefaultChatUri(session), { type: ActionType.ChatTurnResume, turnId });
+				return true;
+			},
+		});
+		for (const automation of ['ahp-automation:/first', 'ahp-automation:/second']) {
+			await enableAndCreate(service, automation);
+			await service.runAutomation({ channel: 'ahp-automations://', automation, requestId: automation });
+		}
+		await Promise.all([...started.values()].map(start => start.p));
+		const failTurn = (path: string) => stateManager.dispatchServerAction(buildDefaultChatUri(URI.from({ scheme: 'mock', path })), {
+			type: ActionType.ChatError, turnId: 'turn', duration: 0,
+			part: { kind: ResponsePartKind.Error, error: { errorType: 'query', message: 'Connection reset' }, resumable: true },
+		});
+
+		systemWake.setFullyAwake(false);
+		failTurn('/first');
+		await timeout(1_000);
+		systemWake.setFullyAwake(true);
+		wokeAt = Date.now();
+		await timeout(14_000);
+		failTurn('/second');
+		await timeout(SCHEDULED_WORK_WAKE_NETWORK_CAP_MS);
+
+		assert.deepStrictEqual(resumed, ['/first: 15000', '/second: 24000']);
+	}));
+
 	test('cancellation wins a session-creation race without sending the prompt', async () => {
 		const session = URI.parse('mock:/cancelled-session');
 		const createStarted = new DeferredPromise<void>();
