@@ -27,10 +27,10 @@
 			}
 		},
 		"strictPluginOnlyCustomization": {
-			"description": "Customization lockdown baseline. When set, prevents standalone user and workspace/project customizations from the named surfaces; those customizations may then originate only from plugins or managed settings. It does NOT mean managed-plugin-only — eligible plugin-provided customizations are still permitted (use `allowManagedMcpServersOnly` / `allowManagedHooksOnly` for the stricter managed-only overlays). `true` locks all four surfaces (skills, agents, hooks, MCP servers); an array locks only the named surfaces. Unset preserves existing behavior.",
+			"description": "Customization lockdown baseline. When set, prevents standalone user and workspace/project customizations from the named surfaces; those customizations may then originate only from plugins or managed settings. For executable Copilot extensions, also blocks session-state extension directories. It does NOT mean managed-plugin-only — eligible plugin-provided customizations are still permitted (use `allowManagedMcpServersOnly` / `allowManagedHooksOnly` for the stricter managed-only overlays). `true` locks all five surfaces (skills, agents, hooks, MCP servers, extensions); an array locks only the named surfaces. Unset or false preserves existing behavior.",
 			"oneOf": [
 				{
-					"description": "true locks all four surfaces (skills, agents, hooks, MCP servers); false preserves existing behavior.",
+					"description": "true locks all five surfaces (skills, agents, hooks, MCP servers, extensions); false preserves existing behavior.",
 					"type": "boolean"
 				},
 				{
@@ -42,7 +42,8 @@
 							"skills",
 							"agents",
 							"hooks",
-							"mcp"
+							"mcp",
+							"extensions"
 						]
 					},
 					"uniqueItems": true
@@ -989,6 +990,13 @@
 						"strategy": "force-on-wins"
 					}
 				},
+				"sandboxExtensions": {
+					"description": "Whether extension processes are spawned inside the sandbox. Routing flag: true is the more-restrictive value, so a managed true wins and a user false cannot loosen it.",
+					"type": "boolean",
+					"x-composition": {
+						"strategy": "force-on-wins"
+					}
+				},
 				"sandboxLspServers": {
 					"description": "Whether LSP servers are spawned inside the sandbox. Routing flag: true (servers sandboxed) is the more-restrictive value, so a managed true wins (force-on) and a user false cannot loosen it.",
 					"type": "boolean",
@@ -1167,7 +1175,7 @@
 			},
 			"x-composition": {
 				"strategy": "restrictiveness-merge",
-				"description": "The managed sandbox is a floor: each field composes with the user's value in the safe direction (force-on for enabled and the MCP/LSP routing flags, deny-wins for the remaining boolean toggles including allowDevToolAccess, intersection for the readwrite/readonly grant lists, union for the deny list). The proxy URL is a directional managed override: it replaces the user's URL while preserving user-managed credentials, and device-managed settings win conflicts between managed sources. Deprecated keys (sandbox.config, sandbox.userPolicy.experimental) are excluded. The runtime applies this per-field merge to compute the effective sandbox policy."
+				"description": "The managed sandbox is a floor: each field composes with the user's value in the safe direction (force-on for enabled and the MCP/LSP/extension routing flags, deny-wins for the remaining boolean toggles including allowDevToolAccess, intersection for the readwrite/readonly grant lists, union for the deny list). The proxy URL is a directional managed override: it replaces the user's URL while preserving user-managed credentials, and device-managed settings win conflicts between managed sources. Deprecated keys (sandbox.config, sandbox.userPolicy.experimental) are excluded. The runtime applies this per-field merge to compute the effective sandbox policy."
 			}
 		}
 	},

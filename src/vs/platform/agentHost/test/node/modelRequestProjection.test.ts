@@ -16,6 +16,23 @@ suite('modelRequestProjection', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('private message fingerprints assert exact projected text without publishing its body', () => {
+		const fingerprint = '${sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824}';
+		const recorded = projectModelRequest(request([{ role: 'assistant', content: fingerprint }]));
+		const live = (content: string, role = 'assistant') => projectModelRequest(request([{ role, content }]));
+		assert.deepStrictEqual({
+			matching: modelRequestsMatch(recorded, live('hello')),
+			changed: modelRequestsMatch(recorded, live('Hello')),
+			wrongRole: modelRequestsMatch(recorded, live('hello', 'user')),
+			missingMessage: modelRequestsMatch(recorded, projectModelRequest(request([]))),
+			literalFingerprint: modelRequestsMatch(recorded, live(fingerprint)),
+			extraMessage: modelRequestsMatch(recorded, projectModelRequest(request([{ role: 'assistant', content: 'hello' }, { role: 'user', content: 'extra' }]))),
+		}, { matching: true, changed: false, wrongRole: false, missingMessage: false, literalFingerprint: false, extraMessage: false });
+		const diagnostic = formatModelRequestMismatch(0, recorded, live('Hello'));
+		assert.ok(diagnostic.includes(fingerprint));
+		assert.ok(!diagnostic.includes('Hello'));
+	});
+
 	test('keeps the host-authored structure of a conversation', () => {
 		// Roles, ordering, retained history, and the system prompt are the
 		// host's own product, so all of them are asserted verbatim.

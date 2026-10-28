@@ -63,6 +63,11 @@ export function getCopilotRuntimeVersion(nodeModulesRoot = 'node_modules'): stri
 	return runtimeVersion;
 }
 
+/** Checks a release runtime pin while allowing an SDK built directly from source. */
+export function isCopilotRuntimeVersionCompatible(declaredVersion: string, bundledVersion: string): boolean {
+	return bundledVersion === '0.0.0-dev' || declaredVersion === bundledVersion;
+}
+
 /**
  * Converts VS Code build platform/arch to the values that Node.js reports
  * at runtime via `process.platform` and `process.arch`.
