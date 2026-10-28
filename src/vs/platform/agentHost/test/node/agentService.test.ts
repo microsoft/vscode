@@ -238,6 +238,15 @@ function discoveredChat(session: URI, external = true, modifiedTime = Date.now()
 	};
 }
 
+/** A normalized catalog that outlives one host, so a second service can restart from it. */
+class RetainedAgentHostDatabase extends AgentHostDatabase {
+	override async close(): Promise<void> { }
+	override dispose(): void { }
+	release(): Promise<void> {
+		return super.close();
+	}
+}
+
 function createPerSessionDataService(createDatabase: () => TestSessionDatabase = () => new TestSessionDatabase()): { readonly service: ISessionDataService; readonly database: (session: URI) => TestSessionDatabase; readonly databaseOpens: string[]; readonly databaseIds: () => readonly string[] } {
 	const databases = new Map<string, TestSessionDatabase>();
 	const databaseOpens: string[] = [];
@@ -6232,15 +6241,6 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
-		/** A normalized catalog that outlives one host, so a second service can restart from it. */
-		class RetainedAgentHostDatabase extends AgentHostDatabase {
-			override async close(): Promise<void> { }
-			override dispose(): void { }
-			release(): Promise<void> {
-				return super.close();
-			}
-		}
-
 		async function createSessionWithReadPeer(catalog: 'legacy' | 'normalized' = 'legacy'): Promise<{ svc: AgentService; agent: ReadPeerAgent; db: TestSessionDatabase; session: URI; defaultChat: string; peer: string; restart(): Promise<AgentService> }> {
 			const perSession = createPerSessionDataService();
 			let orchestratorDb: IAgentHostDatabase = new TestAgentHostOrchestratorDatabase();
@@ -7073,14 +7073,14 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('a chat archive toggle on an unloaded session rejects default, side and unknown chats without restoring', async () => {
+		test('a chat archive toggle on an unloaded session rejects default, tool and unknown chats without restoring', async () => {
 			const { svc, restoreCalls } = createReadToggleService();
 			const session = AgentSession.uri('copilot', 'unmanageable').toString();
 			const defaultChat = buildDefaultChatUri(session);
 			const side = buildChatUri(session, 'side');
 			announceUnloadedSession(svc, session, SessionStatus.Idle, [
 				{ resource: defaultChat, title: '', status: SessionStatus.Idle },
-				{ resource: side, title: 'Side', status: SessionStatus.Idle, origin: { kind: ChatOriginKind.SideChat, chat: defaultChat, turnId: 'turn' } },
+				{ resource: side, title: 'Tool', status: SessionStatus.Idle, origin: { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'tool' } },
 			]);
 			const rejections: (string | undefined)[] = [];
 			for (const [index, chat] of [defaultChat, side, mintPeerChatUri('opaque', session)].entries()) {
@@ -7302,7 +7302,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('rejects independent archive actions for side chats', async () => {
+		test('accepts independent archive and restore actions for side chats', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
@@ -7319,13 +7319,23 @@ suite('AgentService (node dispatcher)', () => {
 				isArchived: true,
 			}, 'test-client', 1);
 			const envelope = await envelopePromise;
+			const archived = isSessionStatusArchived(getStateManager(svc).getChatState(sideChat)?.status);
+			const restoredEnvelope = clientEcho(svc, 2);
+			svc.dispatchAction(sideChat, { type: ActionType.ChatIsArchivedChanged, isArchived: false }, 'test-client', 2);
+			const restored = await restoredEnvelope;
 
 			assert.deepStrictEqual({
 				rejectionReason: envelope.rejectionReason,
-				chatArchived: ((getStateManager(svc).getChatState(sideChat)?.status ?? 0) & SessionStatus.IsArchived) !== 0,
+				restoreRejection: restored.rejectionReason,
+				archived,
+				chatArchived: isSessionStatusArchived(getStateManager(svc).getChatState(sideChat)?.status),
+				sessionArchived: isSessionStatusArchived(getStateManager(svc).getSessionState(session.toString())?.status),
 			}, {
-				rejectionReason: 'Only a known independently manageable non-default chat can be archived.',
+				rejectionReason: undefined,
+				restoreRejection: undefined,
+				archived: true,
 				chatArchived: false,
+				sessionArchived: false,
 			});
 		});
 
@@ -32361,6 +32371,72 @@ suite('AgentService (node dispatcher)', () => {
 				restoredChatState: undefined,
 			});
 		});
+
+		for (const loaded of [false, true]) {
+			test(`side chat completion survives a host restart without completing its parent (loaded=${loaded})`, async () => {
+				const perSession = createPerSessionDataService();
+				const database = new RetainedAgentHostDatabase(':memory:');
+				disposables.add(toDisposable(() => void database.release()));
+				const createService = (knownSession?: URI) => {
+					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database));
+					const agent = disposables.add(new SideChatAgent('copilot'));
+					if (knownSession) {
+						agent.seedSession(knownSession);
+					}
+					registerTestAgentProvider(service, agent);
+					return service;
+				};
+				const service = createService();
+				const session = await service.createSession({ legacyChatUris: false, provider: 'copilot' });
+				const stateManager = getStateManager(service);
+				const main = stateManager.getDefaultChat(session.toString())!;
+				stateManager.seedDefaultChatTurns(session.toString(), [completedTurn('t1')]);
+				const side = URI.parse(mintPeerChatUri('opaque', session.toString()));
+				await service.createChat(session, side, { sideChat: { source: URI.parse(main), turnId: 't1' } });
+				const sibling = URI.parse(mintPeerChatUri('opaque', session.toString()));
+				await service.createChat(session, sibling);
+				await service.whenCatalogReconciliationIdle();
+				if (!loaded) {
+					stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(session.toString())!]);
+					stateManager.removeSession(session.toString());
+				}
+				const archiveEcho = Event.toPromise(Event.filter(service.onDidAction, envelope => envelope.origin?.clientSeq === 1), disposables);
+				service.dispatchAction(side.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'archive-client', 1);
+				const archive = await archiveEcho;
+				await service.whenCatalogReconciliationIdle();
+				const loadedAfterArchive = stateManager.getSessionState(session.toString()) !== undefined;
+				await service.shutdown();
+				service.dispose();
+
+				const restarted = createService(session);
+				await restarted.restoreSession(session);
+				const restoredState = getStateManager(restarted).getSessionState(session.toString());
+				const flags = {
+					parent: isSessionStatusArchived(restoredState?.status),
+					main: isSessionStatusArchived(restoredState?.chats.find(chat => chat.resource === main)?.status),
+					side: isSessionStatusArchived(restoredState?.chats.find(chat => chat.resource === side.toString())?.status),
+					sibling: isSessionStatusArchived(restoredState?.chats.find(chat => chat.resource === sibling.toString())?.status),
+				};
+				const restoreEcho = Event.toPromise(Event.filter(restarted.onDidAction, envelope => envelope.origin?.clientSeq === 2), disposables);
+				restarted.dispatchAction(side.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: false }, 'archive-client', 2);
+				const restore = await restoreEcho;
+				await restarted.whenCatalogReconciliationIdle();
+				const persisted = await getTestChatPersistenceService(restarted).readNormalizedChat(session, side);
+				assert.deepStrictEqual({
+					archiveRejection: archive.rejectionReason,
+					restoreRejection: restore.rejectionReason,
+					loadedAfterArchive,
+					flags,
+					persistedArchived: persisted.chat?.archived === true,
+				}, {
+					archiveRejection: undefined,
+					restoreRejection: undefined,
+					loadedAfterArchive: loaded,
+					flags: { parent: false, main: false, side: true, sibling: false },
+					persistedArchived: false,
+				});
+			});
+		}
 
 		test('resolves a restored peer side-chat source without resolving the target chat', async () => {
 			const db = new TestSessionDatabase();

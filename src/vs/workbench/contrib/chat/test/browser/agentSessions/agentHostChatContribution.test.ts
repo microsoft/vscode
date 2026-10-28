@@ -96,7 +96,7 @@ import { IChatEditingService, IChatEditingSession, IChatEditingSessionProvider }
 import { ITextFileEditorModelManager, ITextFileService } from '../../../../../services/textfile/common/textfiles.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { ChatSessionForkError, IChatSessionsService, type IChatSession, type IChatSessionForkOptions, type IChatSessionHistoryItem, type IChatSessionContentProvider, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
+import { ChatSessionForkError, ChatSessionStatus, IChatSessionsService, type IChatSession, type IChatSessionForkOptions, type IChatSessionHistoryItem, type IChatSessionContentProvider, type IChatSessionItem, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
 import { IChatSideChatOrigin } from '../../../common/chatSideChatService.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
@@ -5178,6 +5178,107 @@ suite('AgentHostChatContribution', () => {
 			listController.setChatSessionItemArchived(URI.from({ scheme: 'agent-host-other', path: '/session' }), true);
 
 			assert.deepStrictEqual(agentHostService.dispatchedActions, []);
+		});
+
+		test('side chat completion targets the exact advertised chat and reconciles independently', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+			const session = URI.parse('host-session:/opaque-archive');
+			const main = 'host-chat:/conversation/main';
+			const side = 'host-chat:/conversation/side-question';
+			const sibling = 'host-chat:/conversation/sibling';
+			const chats: NonNullable<SessionSummary['chats']> = [
+				{ resource: main, title: 'Main', status: SessionStatus.InProgress },
+				{ resource: side, title: 'Side', status: SessionStatus.Idle, origin: { kind: ChatOriginKind.SideChat, chat: main, turnId: 'turn' } },
+				{ resource: sibling, title: 'Sibling', status: SessionStatus.InProgress },
+			];
+			agentHostService.addSession({
+				session, provider: 'copilot', startTime: 1000, modifiedTime: 2000, status: SessionStatus.InProgress,
+				chats: chats.map((chat, index) => ({ ...chat, chat: URI.parse(chat.resource), summary: chat.title, kind: index === 0 ? 'default' : 'peer' })),
+			});
+			await listController.refresh(CancellationToken.None);
+			agentHostService.dispatchedActions.length = 0;
+			const sideResource = listController.items[0].children![0].resource;
+			const before = listController.items[0];
+			listController.setChatSessionItemRead(sideResource, true);
+			listController.setChatSessionItemArchived(sideResource, true);
+			const update = (archived: boolean) => agentHostService.fireNotification({
+				type: NotificationType.SessionSummaryChanged, channel: ROOT_STATE_URI, session: session.toString(),
+				changes: { chats: chats.map(chat => chat.resource === side ? { ...chat, status: SessionStatus.Idle | SessionStatus.IsRead | (archived ? SessionStatus.IsArchived : 0) } : chat) },
+			});
+			update(true);
+			const completed = listController.items[0];
+			listController.setChatSessionItemArchived(sideResource, false);
+			update(false);
+			const flags = (item: IChatSessionItem) => ({
+				parent: { archived: item.archived, status: item.status, read: item.isRead },
+				children: item.children?.map(child => ({ id: child.resource.fragment, archived: child.archived, canArchive: child.canArchive, status: child.status, read: child.isRead })),
+			});
+			assert.deepStrictEqual({
+				actions: agentHostService.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+				before: flags(before),
+				completed: flags(completed),
+				restored: flags(listController.items[0]),
+			}, {
+				actions: [
+					{ channel: side, action: { type: ActionType.ChatIsReadChanged, isRead: true } },
+					{ channel: side, action: { type: ActionType.ChatIsArchivedChanged, isArchived: true } },
+					{ channel: side, action: { type: ActionType.ChatIsArchivedChanged, isArchived: false } },
+				],
+				before: {
+					parent: { archived: false, status: ChatSessionStatus.InProgress, read: false },
+					children: [
+						{ id: side, archived: false, canArchive: true, status: ChatSessionStatus.Completed, read: false },
+						{ id: sibling, archived: false, canArchive: true, status: ChatSessionStatus.InProgress, read: false },
+					],
+				},
+				completed: {
+					parent: { archived: false, status: ChatSessionStatus.InProgress, read: false },
+					children: [
+						{ id: side, archived: true, canArchive: true, status: ChatSessionStatus.Completed, read: true },
+						{ id: sibling, archived: false, canArchive: true, status: ChatSessionStatus.InProgress, read: false },
+					],
+				},
+				restored: {
+					parent: { archived: false, status: ChatSessionStatus.InProgress, read: false },
+					children: [
+						{ id: side, archived: false, canArchive: true, status: ChatSessionStatus.Completed, read: true },
+						{ id: sibling, archived: false, canArchive: true, status: ChatSessionStatus.InProgress, read: false },
+					],
+				},
+			});
+		});
+
+		test('side chat archive support follows the negotiated protocol and rejects unknown chat targets', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+			const session = AgentSession.uri('copilot', 'archive-version');
+			const main = buildDefaultChatUri(session.toString());
+			const side = 'host-chat:/side-question';
+			agentHostService.addSession({
+				session, startTime: 1000, modifiedTime: 2000,
+				chats: [
+					{ chat: URI.parse(main), kind: 'default' },
+					{ chat: URI.parse(side), kind: 'peer', origin: { kind: ChatOriginKind.SideChat, chat: main, turnId: 'turn' } },
+				],
+			});
+			agentHostService.setHostProtocolVersion('0.8.0');
+			await listController.refresh(CancellationToken.None);
+			const unsupported = listController.items[0].children![0];
+			assert.throws(() => listController.setChatSessionItemArchived(unsupported.resource, true), /does not support independent chat/);
+			const dispatchedBeforeUpgrade = agentHostService.dispatchedActions.length;
+			agentHostService.setHostProtocolVersion('0.9.0');
+			await listController.refresh(CancellationToken.None);
+			const supported = listController.items[0].children![0];
+			assert.throws(() => listController.setChatSessionItemArchived(supported.resource.with({ fragment: 'unknown' }), true), /Cannot resolve chat/);
+			listController.setChatSessionItemArchived(supported.resource, true);
+			assert.deepStrictEqual({
+				unsupported: unsupported.canArchive,
+				supported: supported.canArchive,
+				dispatchedBeforeUpgrade,
+				actions: agentHostService.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+			}, {
+				unsupported: false, supported: true, dispatchedBeforeUpgrade: 0,
+				actions: [{ channel: side, action: { type: ActionType.ChatIsArchivedChanged, isArchived: true } }],
+			});
 		});
 
 		test('read mutations dispatch through AHP and reconcile server summaries', async () => {

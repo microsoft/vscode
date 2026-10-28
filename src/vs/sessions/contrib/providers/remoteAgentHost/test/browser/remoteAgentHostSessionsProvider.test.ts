@@ -31,7 +31,7 @@ import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../..
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ResourceType, type ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatOriginKind, ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, createActiveTurn, createChatState, isAhpAutomationCatalogChannel, readSessionWorkspaceless, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionExternal, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -53,7 +53,7 @@ import { ISessionChangeEvent, ISessionsProvider, ISessionsProviderCreateSessionO
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ChatInteractivity, ChatModelSource, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type ISession, type ISessionFileChange } from '../../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, getChatCapabilities, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type ISession, type ISessionFileChange } from '../../../../../services/sessions/common/session.js';
 import { SessionPullRequestPresentationModel } from '../../../../github/browser/pullRequestIconStatus.js';
 import { buildSessionPullRequestSections } from '../../../../chat/browser/sessionChatInputToolbar.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -2291,7 +2291,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	// ---- Session actions -------
 
-	test('opaque advertised default and peer chat mutations use host resources without native reconstruction', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('opaque advertised default and side chat mutations use host resources without native reconstruction', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const disposed: string[] = [];
 		const created: { session: string; forkSource?: string; sideChatSource?: string; title?: string }[] = [];
 		const backend = URI.parse('session-store://tenant/opaque/session?generation%3D2');
@@ -2300,7 +2300,10 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		let state: SessionState = {
 			provider: 'copilot', title: 'Opaque', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [],
 			defaultChat: defaultChat.toString(),
-			chats: [defaultChat, peer].map(resource => createChatState({ resource: resource.toString(), title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(2000).toISOString() })),
+			chats: [
+				createChatState({ resource: defaultChat.toString(), title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(2000).toISOString() }),
+				createChatState({ resource: peer.toString(), title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(2000).toISOString(), origin: { kind: ChatOriginKind.SideChat, chat: defaultChat.toString(), turnId: 'source-turn' } }),
+			],
 		};
 		const peerConnection = new class extends MockAgentConnection {
 			override readonly initializeResult = constObservable<InitializeResult>({ protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] });
@@ -2315,30 +2318,37 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		peerConnection.setAgents([{ provider: 'copilot', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo]);
 		peerConnection.addSession({
 			session: backend, provider: 'copilot', startTime: 1000, modifiedTime: 2000, summary: 'Opaque',
-			chats: [{ chat: defaultChat, kind: 'default', summary: 'Default' }, { chat: peer, kind: 'peer', summary: 'Peer' }],
+			chats: [
+				{ chat: defaultChat, kind: 'default', summary: 'Default' },
+				{ chat: peer, kind: 'peer', summary: 'Peer', origin: { kind: ChatOriginKind.SideChat, chat: defaultChat.toString(), turnId: 'source-turn' } },
+			],
 		});
 		peerConnection.setChannelState(backend, state);
 		const provider = createProvider(disposables, peerConnection);
 		await timeout(0);
 		const session = provider.getSessions()[0];
 		const peerResource = session.resource.with({ fragment: peer.toString() });
+		const canArchive = getChatCapabilities(session.chats.get().find(chat => chat.resource.fragment === peer.toString())!, session, undefined).canArchive;
 		await provider.forkChat(session.sessionId, session.resource, 'source-turn', { title: 'Optional fork title' });
 		await provider.createSideChat(session.sessionId, peerResource, 'source-turn');
 		await provider.renameChat(session.sessionId, session.resource, 'Renamed default');
 		await provider.renameChat(session.sessionId, peerResource, 'Renamed peer');
 		await provider.archiveChat(session.sessionId, peerResource);
+		await provider.unarchiveChat(session.sessionId, peerResource);
 		await assert.rejects(provider.forkChat(session.sessionId, session.resource.with({ fragment: 'unknown-peer' }), 'source-turn'), /The chat could not be found/);
 		await assert.rejects(provider.createSideChat(session.sessionId, session.resource.with({ fragment: 'unknown-peer' }), 'source-turn'), /The chat could not be found/);
 		await provider.deleteChat(session.sessionId, peerResource, { skipConfirmation: true });
 		assert.deepStrictEqual({
+			canArchive,
 			titles: peerConnection.dispatchedActions.filter(entry => entry.action.type === ActionType.SessionTitleChanged).map(entry => entry.channel),
 			archives: peerConnection.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatIsArchivedChanged).map(entry => entry.channel),
 			disposed,
 			created,
 			resource: session.resource.toString(),
 		}, {
+			canArchive: true,
 			titles: [backend.toString(), peer.toString()],
-			archives: [peer.toString()],
+			archives: [peer.toString(), peer.toString()],
 			disposed: [peer.toString()],
 			created: [
 				{ session: backend.toString(), forkSource: defaultChat.toString(), sideChatSource: undefined, title: 'Optional fork title' },

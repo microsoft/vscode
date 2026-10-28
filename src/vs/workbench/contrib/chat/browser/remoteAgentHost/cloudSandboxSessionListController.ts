@@ -70,6 +70,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		this.sessionType = remoteAgentHostSessionTypeId(authority, CLOUD_SANDBOX_AGENT_PROVIDER);
 		this._sessionListStore = this._register(instantiationService.createInstance(AgentHostSessionListStore, {
 			onDidNotification: this._notifications.event,
+			initializeResult: derived(reader => this._connection.read(reader)?.initializeResult.read(reader)),
 			listSessions: async () => (await this._requireConnection().listSessions()).map(session => this._withListedTitle(session)),
 			disposeChat: chat => this._requireConnection().disposeChat(chat),
 			disposeSession: session => this._requireConnection().disposeSession(session),
