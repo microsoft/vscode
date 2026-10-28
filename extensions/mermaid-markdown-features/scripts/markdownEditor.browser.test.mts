@@ -211,8 +211,39 @@ it('renders diagrams at their natural size in the VS Code theme, and follows edi
 	}
 });
 
+it('keeps subgraph titles clear of SVG text edge labels', async () => {
+	// No Mermaid layout reliably puts an edge label in a title's band, so place titles on a minimal diagram
+	// shaped like Mermaid's output with `htmlLabels: false`: an edge label behind the centered title.
+	const placement = await esbuild.build({
+		stdin: { contents: `import { placeSubgraphTitles } from './preview-src/shared/subgraphTitles'; window.placeSubgraphTitles = placeSubgraphTitles;`, resolveDir: extensionDir, loader: 'ts' },
+		bundle: true,
+		write: false,
+		format: 'iife',
+		platform: 'browser',
+	});
+	const browser = await chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : undefined, headless: true });
+	try {
+		const page = await browser.newPage();
+		await page.setContent(`<svg id="diagram" aria-roledescription="flowchart-v2" viewBox="0 0 216 116" xmlns="http://www.w3.org/2000/svg">
+			<g class="cluster"><rect x="8" y="8" width="200" height="100"></rect><g class="cluster-label" transform="translate(78, 16)"><foreignObject width="60" height="20"></foreignObject></g></g>
+			<g class="edgePaths"></g>
+			<g class="edgeLabel" transform="translate(108, 26)"><g class="label"><rect class="background" x="-20" y="-10" width="40" height="20"></rect><text>Label</text></g></g>
+		</svg>`);
+		await page.addScriptTag({ content: placement.outputFiles[0].text });
+		const result = await page.evaluate(() => {
+			const svg = document.querySelector('svg')!;
+			const changed = window.placeSubgraphTitles(svg);
+			return { changed, transform: svg.querySelector('.cluster-label')!.getAttribute('transform') };
+		});
+		assert.deepEqual(result, { changed: true, transform: 'translate(20, 16)' });
+	} finally {
+		await browser.close();
+	}
+});
+
 declare global {
 	interface Window {
 		mermaidTest: { setText(text: string): void; reportedHeights: number[] };
+		placeSubgraphTitles(svg: SVGSVGElement): boolean;
 	}
 }

@@ -409,8 +409,8 @@ function clipSegmentToBand(a: Point, b: Point, top: number, bottom: number): Ran
 }
 
 /**
- * Collects every edge as polylines, and every HTML edge label and every arrowhead as a box, in the
- * root SVG's coordinates.
+ * Collects every edge as polylines, and every edge label and every arrowhead as a box, in the root
+ * SVG's coordinates.
  */
 function collectObstacles(svg: SVGSVGElement): Obstacles {
 	const edges: Point[][] = [];
@@ -432,13 +432,14 @@ function collectObstacles(svg: SVGSVGElement): Obstacles {
 		arrowheads.push(...[start, end].filter(box => box !== undefined));
 	}
 
+	// HTML edge labels are sized foreign objects; SVG text edge labels (`htmlLabels: false`) have a sized
+	// background rect behind their text.
 	const labels: Box[] = [];
-	for (const label of svg.querySelectorAll('.edgeLabel foreignObject')) {
+	for (const label of svg.querySelectorAll('.edgeLabel foreignObject, .edgeLabel rect.background')) {
 		const origin = getOrigin(label, svg);
-		const width = readNumber(label, 'width');
-		const height = readNumber(label, 'height');
-		if (origin && width && height && width > 0 && height > 0) {
-			labels.push({ left: origin.x, top: origin.y, right: origin.x + width, bottom: origin.y + height });
+		const box = readBox(label);
+		if (origin && box && box.right > box.left && box.bottom > box.top) {
+			labels.push({ left: origin.x + box.left, top: origin.y + box.top, right: origin.x + box.right, bottom: origin.y + box.bottom });
 		}
 	}
 	return { edges, labels, arrowheads, endpoints };
@@ -640,11 +641,11 @@ function getTitleSize(label: Element, box: Box, position: Point): { width: numbe
 }
 
 function readBox(rect: Element): Box | undefined {
-	const x = readNumber(rect, 'x');
-	const y = readNumber(rect, 'y');
+	const x = readNumber(rect, 'x') ?? 0;
+	const y = readNumber(rect, 'y') ?? 0;
 	const width = readNumber(rect, 'width');
 	const height = readNumber(rect, 'height');
-	if (x === undefined || y === undefined || width === undefined || height === undefined) {
+	if (width === undefined || height === undefined) {
 		return undefined;
 	}
 	return { left: x, top: y, right: x + width, bottom: y + height };
