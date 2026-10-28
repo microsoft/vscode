@@ -168,7 +168,7 @@ jobs:
         continueOnError: true
 
       - ${{ if eq(parameters.os, 'windows') }}:
-        - pwsh: build/azure-pipelines/common/install-node.ps1 -Version 22.22.0 -InstallDir "$(Agent.ToolsDirectory)/sanity-node"
+        - powershell: build/azure-pipelines/common/install-node.ps1 -Version 22.22.0 -InstallDir "$(Agent.ToolsDirectory)/sanity-node"
           displayName: Install Node.js
 
       - ${{ else }}:
