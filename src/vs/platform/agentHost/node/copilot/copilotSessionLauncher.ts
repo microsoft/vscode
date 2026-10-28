@@ -433,6 +433,10 @@ export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBa
 
 export type CopilotSessionLaunchPlan = ICopilotCreateSessionLaunchPlan | ICopilotResumeSessionLaunchPlan;
 
+function getNativeAgentSelection(plan: CopilotSessionLaunchPlan): AgentCustomization | undefined {
+	return plan.snapshot.nativeAgents?.find(agent => agent.id === plan.resolvedAgentName);
+}
+
 /** How the chat surface that created a chat's owning session scopes its runtime. */
 export type CopilotChatSurface = Pick<ICopilotSessionLaunchBase, 'hasScopedEditSurface' | 'isInlineChatSurface'>;
 
@@ -1124,7 +1128,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			const errCode = getCopilotSdkErrorCode(resumeError);
 			const errMsg = getErrorMessage(resumeError);
 			this._logService.warn(`[Copilot:${plan.sessionId}] SDK resumeSession failed: code=${errCode}, message=${errMsg}`);
-			if (plan.resolvedAgentName && isCustomAgentNotFoundError(resumeError)) {
+			if (plan.resolvedAgentName && !getNativeAgentSelection(plan) && isCustomAgentNotFoundError(resumeError)) {
 				fallbackPlan = { ...plan, resolvedAgentName: undefined };
 				fallbackConfig = { ...config, agent: undefined };
 				this._logService.warn(`[Copilot:${plan.sessionId}] Stored custom agent '${plan.resolvedAgentName}' was not found; retrying resume without a custom agent`);
@@ -1209,7 +1213,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			reasoningEffort: resolveCopilotReasoningEffort(model, this._configurationService, this._logService, plan.sessionId),
 			contextTier: omittedContextDefault ? undefined : getCopilotContextTier(model, plan.longContextWindow, plan.freeLongContext),
 			...toSdkCapiSessionOptions(resolveCopilotAutoTier(model, this._configurationService, this._logService, plan.sessionId, plan.isInlineChatSurface === true)),
-			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			...(trustWorkingDirectory ? { trustWorkingDirectory } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		})));
@@ -1221,6 +1224,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		try {
 			// Avoid unpublished lazy-discovery events blocking native OTel: github/copilot-agent-runtime#27963.
 			await raw.rpc.agent.list();
+			const nativeAgent = getNativeAgentSelection(plan);
+			if (nativeAgent) {
+				await raw.rpc.agent.select({ name: nativeAgent.id });
+			}
 			await this._applyScriptSafety(raw, plan.sessionId);
 			await sandboxConfig(raw);
 			await this._configureExecutionSubagentTool(raw, config);
@@ -1639,7 +1646,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
 			workingDirectory: plan.workingDirectory?.fsPath,
 			...toolConfiguration.sessionConfig,
-			agent: plan.resolvedAgentName,
+			agent: getNativeAgentSelection(plan) ? undefined : plan.resolvedAgentName,
 			skillDirectories,
 			instructionDirectories,
 			additionalDirectories,
