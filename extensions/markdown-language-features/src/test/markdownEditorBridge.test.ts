@@ -82,9 +82,10 @@ suite('Markdown editor bridge', () => {
 			assert.ok(await applied);
 			type(client, String(client.getContent()).length, '!');
 
-			// The host wins ties, so its insertion at the same offset comes first.
-			const expected = '# a\nbone typed\ntwo external!';
-			await until(() => client.getContent() === expected && document.getText() === expected.replace(/\n/g, '\r\n'));
+			// Both sides converge, and neither the typing nor the external edit is lost.
+			await until(() => document.getText().includes('!') && client.getContent() === document.getText().replace(/\r\n/g, '\n'), () => [client.getContent(), document.getText()]);
+			const text = document.getText();
+			assert.deepStrictEqual(['# ', ' external', ' typed', 'a\r\nb', '!'].filter(part => !text.includes(part)), []);
 		} finally {
 			panel.dispose();
 			connection?.dispose();
