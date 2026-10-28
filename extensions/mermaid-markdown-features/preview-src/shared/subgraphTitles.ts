@@ -27,6 +27,12 @@ const diagramPadding = 8;
 const titleClearance = 4;
 
 /**
+ * How far outside a subgraph's side an edge may end and still count as attached to it. Mermaid ends
+ * an edge short of its target by up to the length of its arrowhead.
+ */
+const edgeAttachDistance = 20;
+
+/**
  * Space between a title's line box and its text, above and below. Edges that cannot avoid a title are
  * hidden over its line box less this.
  */
@@ -61,6 +67,8 @@ interface Obstacles {
 	readonly edges: readonly (readonly Point[])[];
 	readonly labels: readonly Box[];
 	readonly arrowheads: readonly Box[];
+	/** Where edges start and end. */
+	readonly endpoints: readonly Point[];
 }
 
 interface Cluster {
@@ -94,7 +102,8 @@ export function placeSubgraphTitlesIn(container: ParentNode): void {
  * instead. Edges that cross a title wherever it goes pass behind it, the way they pass behind edge
  * labels.
  *
- * Boxes too narrow to keep the title clear of their sides are widened first.
+ * Boxes too narrow to keep the title clear of their sides are widened first, unless edges attach to
+ * those sides.
  *
  * Only reads SVG attributes, so it also works on detached markup that has not been laid out.
  *
@@ -110,8 +119,8 @@ export function placeSubgraphTitles(svg: SVGSVGElement): boolean {
 		return false;
 	}
 
-	let changed = makeRoomForTitles(svg, clusters);
 	const obstacles = collectObstacles(svg);
+	let changed = makeRoomForTitles(svg, clusters, obstacles.endpoints);
 	const crossedTitles: Box[] = [];
 	for (const { label, origin, labelPosition, title, box } of clusters) {
 		let top = origin.y + labelPosition.y;
@@ -158,13 +167,23 @@ function collectClusters(svg: SVGSVGElement): Cluster[] {
  * them so they still contain them. Mermaid widens a subgraph for its title only after layout, so a
  * nested subgraph with a long title can otherwise stick out of its parent.
  *
+ * A subgraph keeps its width when edges end on its left or right side, as edges to the subgraph
+ * itself do in left-to-right layouts, since moving that side would leave the edges inside it. The
+ * subgraphs nested in it widen only as far as it leaves room.
+ *
  * @returns Whether any subgraph was widened.
  */
-function makeRoomForTitles(svg: SVGSVGElement, clusters: readonly Cluster[]): boolean {
+function makeRoomForTitles(svg: SVGSVGElement, clusters: readonly Cluster[], endpoints: readonly Point[]): boolean {
 	const parents = new Map(clusters.map(cluster => [cluster, findParent(cluster, clusters)]));
 	const height = (box: Box) => box.bottom - box.top;
+	const isPinned = ({ drawn }: Cluster) => endpoints.some(({ x, y }) => y >= drawn.top - 1 && y <= drawn.bottom + 1
+		&& (x >= drawn.left - edgeAttachDistance && x <= drawn.left + 1 || x >= drawn.right - 1 && x <= drawn.right + edgeAttachDistance));
+
 	// Innermost first, so each subgraph is fitted around its nested subgraphs' final boxes.
 	for (const cluster of [...clusters].sort((a, b) => height(a.drawn) - height(b.drawn))) {
+		if (isPinned(cluster)) {
+			continue;
+		}
 		let { left, right } = cluster.box;
 		const missing = cluster.title.width + 2 * titleInset - (right - left);
 		if (missing > 0) {
@@ -178,6 +197,16 @@ function makeRoomForTitles(svg: SVGSVGElement, clusters: readonly Cluster[]): bo
 			}
 		}
 		cluster.box = { ...cluster.box, left, right };
+	}
+
+	// Outermost first, so subgraphs stay inside the ones around them that could not widen.
+	for (const cluster of [...clusters].sort((a, b) => height(b.drawn) - height(a.drawn))) {
+		const parent = parents.get(cluster);
+		if (parent) {
+			const left = Math.min(cluster.drawn.left, Math.max(cluster.box.left, parent.box.left + getNestedMargin(cluster.drawn.left - parent.drawn.left)));
+			const right = Math.max(cluster.drawn.right, Math.min(cluster.box.right, parent.box.right - getNestedMargin(parent.drawn.right - cluster.drawn.right)));
+			cluster.box = { ...cluster.box, left, right };
+		}
 	}
 
 	const widened = clusters.filter(({ box, drawn }) => box.left < drawn.left || box.right > drawn.right);
@@ -296,12 +325,14 @@ function clipEdgesBehindTitles(svg: SVGSVGElement, titles: readonly Box[], arrow
  * Picks the title's left x: centered, left-aligned or right-aligned, whichever is clear first.
  * Otherwise the clear position closest to left-aligned, where the title may come as close as
  * {@link minTitleInset} to the border. When nothing is clear, the edges will pass behind the title, so
- * it goes where they cross it closest to one of its ends, preferring left-aligned.
+ * it goes where they cross it closest to one of its ends, preferring left-aligned. In a box narrower
+ * than the title and both insets, the title stays centered.
  */
 function chooseTitleX(cluster: Range, titleWidth: number, blocked: readonly Range[]): { x: number; clear: boolean } {
 	const center = (cluster.start + cluster.end - titleWidth) / 2;
-	const left = cluster.start + titleInset;
-	const right = cluster.end - titleInset - titleWidth;
+	const inset = Math.max(0, Math.min(titleInset, center - cluster.start));
+	const left = cluster.start + inset;
+	const right = cluster.end - inset - titleWidth;
 	// How far obstacles reach into the title from its nearer end, including the clearance.
 	const getIntrusion = (x: number) => Math.max(0, ...blocked.map(range => Math.min(range.end - x + titleClearance, x + titleWidth + titleClearance - range.start)));
 
@@ -312,8 +343,8 @@ function chooseTitleX(cluster: Range, titleWidth: number, blocked: readonly Rang
 	}
 
 	const gaps: Range[] = [];
-	let start = cluster.start + minTitleInset;
-	const end = cluster.end - minTitleInset - titleWidth;
+	let start = cluster.start + Math.min(minTitleInset, inset);
+	const end = cluster.end - Math.min(minTitleInset, inset) - titleWidth;
 	for (const range of [...blocked].sort((a, b) => a.start - b.start)) {
 		gaps.push({ start, end: Math.min(end, range.start - titleClearance - titleWidth) });
 		start = Math.max(start, range.end + titleClearance);
@@ -384,6 +415,7 @@ function clipSegmentToBand(a: Point, b: Point, top: number, bottom: number): Ran
 function collectObstacles(svg: SVGSVGElement): Obstacles {
 	const edges: Point[][] = [];
 	const arrowheads: Box[] = [];
+	const endpoints: Point[] = [];
 	for (const path of svg.querySelectorAll('.edgePaths path')) {
 		const origin = getOrigin(path, svg);
 		const data = path.getAttribute('d');
@@ -392,6 +424,9 @@ function collectObstacles(svg: SVGSVGElement): Obstacles {
 
 		const first = polylines[0];
 		const last = polylines[polylines.length - 1];
+		if (first && last) {
+			endpoints.push(first[0], last[last.length - 1]);
+		}
 		const start = first && getMarkerBox(svg, path, 'marker-start', first[0], getDirection(first[0], first.slice(1)));
 		const end = last && getMarkerBox(svg, path, 'marker-end', last[last.length - 1], getDirection(last[last.length - 1], last.slice(0, -1).reverse(), -1));
 		arrowheads.push(...[start, end].filter(box => box !== undefined));
@@ -406,7 +441,7 @@ function collectObstacles(svg: SVGSVGElement): Obstacles {
 			labels.push({ left: origin.x, top: origin.y, right: origin.x + width, bottom: origin.y + height });
 		}
 	}
-	return { edges, labels, arrowheads };
+	return { edges, labels, arrowheads, endpoints };
 }
 
 /**

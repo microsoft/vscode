@@ -191,6 +191,20 @@ it('renders diagrams at their natural size in the VS Code theme, and follows edi
 			return { nearLeft: insetLeft >= 4 && insetLeft <= 12, insetTop: Math.round((title.top - box.top) / scale), crossedByEdge };
 		});
 		assert.deepEqual(namespaceTitle, { nearLeft: true, insetTop: 8, crossedByEdge: false });
+
+		// A subgraph that edges attach to keeps its sides, so the edges still end at its border rather than
+		// inside it, even though its title is wider than its content.
+		await page.evaluate(() => window.mermaidTest.setText('flowchart LR\n A[Source] --> S\n subgraph S[A subgraph title wider than its content]\n  B[Step]\n end\n S --> C[Next]'));
+		await frame.locator('svg').filter({ hasText: 'wider than its content' }).waitFor();
+		const attachedEdges = await frame.evaluate(() => {
+			const box = document.querySelector('g.cluster rect')!.getBoundingClientRect();
+			const endpoint = (id: string, atEnd: boolean) => {
+				const path = document.querySelector<SVGPathElement>(`.edgePaths path[id$="-${id}"]`)!;
+				return path.getPointAtLength(atEnd ? path.getTotalLength() : 0).matrixTransform(path.getScreenCTM()!);
+			};
+			return { incomingEndsOutside: endpoint('L_A_S_0', true).x <= box.left + 0.5, outgoingStartsOutside: endpoint('L_S_C_0', false).x >= box.right - 0.5 };
+		});
+		assert.deepEqual(attachedEdges, { incomingEndsOutside: true, outgoingStartsOutside: true });
 		assert.deepEqual(errors, []);
 	} finally {
 		await browser.close();
