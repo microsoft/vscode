@@ -180,6 +180,18 @@
 	gap: var(--vscode-spacing-size80);
 	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
 	min-width: 0;
+	cursor: pointer;
+	user-select: none;
+	border-radius: calc(var(--vscode-cornerRadius-medium) - var(--vscode-strokeThickness));
+}
+
+.artifact-card-expanded > .artifact-card-heading {
+	border-bottom-left-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.artifact-card-heading:hover:not(.artifact-card-heading-control-hovered) {
+	background-color: var(--vscode-list-hoverBackground);
 }
 
 .artifact-card-title {

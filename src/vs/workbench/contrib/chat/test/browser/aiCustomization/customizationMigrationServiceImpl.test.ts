@@ -29,6 +29,7 @@ import { InMemoryFileSystemProvider } from '../../../../../../platform/files/com
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { IWorkspaceContextService, WorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { Workspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
@@ -2413,6 +2414,7 @@ suite('CustomizationMigrationService', () => {
 				activeClientService,
 				{} as IMcpService,
 				store.add(createMigrationConfiguration()),
+				new TestNotificationService(),
 			));
 			const migrationService = store.add(new CustomizationMigrationService(
 				store.add(new TestPromptsService([])),

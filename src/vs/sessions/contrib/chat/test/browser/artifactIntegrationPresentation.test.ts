@@ -567,6 +567,20 @@ suite('Artifact Integration Presentation', () => {
 			return [...panel.querySelectorAll<HTMLElement>('.artifact-activity-row')];
 		}
 
+		test('clicking anywhere on the heading toggles expansion', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			setActivities(a, [activity(a, 'first')]);
+			const panel = await open(f, a);
+			const heading = panel.querySelector<HTMLElement>('.artifact-activities .artifact-card-heading')!;
+			heading.querySelector<HTMLElement>('.artifact-activities-summary')!.click();
+			await settle(f);
+			const afterSummary = button(panel, 'Activities').getAttribute('aria-expanded');
+			heading.click();
+			await settle(f);
+			assert.deepStrictEqual({ afterSummary, afterHeading: button(panel, 'Activities').getAttribute('aria-expanded') }, { afterSummary: 'true', afterHeading: 'false' });
+		});
+
 		test('appears only with history, starts collapsed, and remembers expansion across reopening', async () => {
 			const f = fixture();
 			const a = f.artifact();
@@ -651,17 +665,18 @@ suite('Artifact Integration Presentation', () => {
 			}, { collapsed: '1 loaded', expanded: '2 loaded', described: '2 loaded', afterTitle: true, atRight: true, accessibleCount: true, historyRequests: [undefined] });
 		});
 
-		test('uses historical labels, newest-first ordering, and inert informational rows', async () => {
+		test('uses historical labels, action icons, newest-first ordering, hides skipped runs, and inert informational rows', async () => {
 			const f = fixture();
 			const a = f.artifact();
 			setActivities(a, [
 				activity(a, 'old', {
 					createdAt: 1, presentation: {
 						version: 1, source: 'manual', integrationLabel: 'Previous provider',
-						action: { label: 'Original Repair Title', iconId: 'tools' }, artifact: a.snapshot.get().artifact, details: [],
+						action: { label: 'Original Repair Title', iconId: 'wrench' }, artifact: a.snapshot.get().artifact, details: [],
 					}
 				}),
-				activity(a, 'new', { actionId: 'merge', actionKind: 'code', state: 'skipped', createdAt: 2, dispatched: false }),
+				activity(a, 'new', { actionId: 'merge', actionKind: 'code', state: 'failed', createdAt: 2 }),
+				activity(a, 'skipped', { actionId: 'reviews', state: 'skipped', createdAt: 3, dispatched: false }),
 			]);
 			const panel = await open(f, a);
 			await expand(f, panel);
@@ -671,11 +686,15 @@ suite('Artifact Integration Presentation', () => {
 			const text = accessible.provideContent();
 			assert.deepStrictEqual({
 				labels: rows(panel).map(row => row.querySelector('.artifact-activity-label')?.textContent),
+				icons: rows(panel).map(row => [...row.querySelector('.artifact-activity-icon .codicon')?.classList ?? []].find(name => name !== 'codicon' && name.startsWith('codicon-'))),
 				revealable: rows(panel).map(row => row.classList.contains('actionable')),
 				panelOpen: panel.isConnected, chats: f.openedChats,
 				readingOrder: text.indexOf('Merge Automatically:') < text.indexOf('Activities\n'),
-				reasons: text.includes('Activity new') && text.includes('Activity old'),
-			}, { labels: ['Merge: Skipped', 'Original Repair Title: Completed'], revealable: [false, false], panelOpen: true, chats: [], readingOrder: true, reasons: true });
+				reasons: text.includes('Activity new') && text.includes('Activity old') && !text.includes('Activity skipped'),
+			}, {
+				labels: ['Merge: Failed', 'Original Repair Title: Completed'], icons: ['codicon-git-merge', 'codicon-tools'],
+				revealable: [false, false], panelOpen: true, chats: [], readingOrder: true, reasons: true,
+			});
 		});
 
 		for (const destination of ['turn', 'queued', 'response'] as const) {
@@ -835,6 +854,22 @@ suite('Artifact Integration Presentation', () => {
 				summaries: [firstSummary, panel.querySelector('.artifact-activities-summary')?.textContent],
 				moreHidden: panel.querySelector<HTMLElement>('.artifact-activities-more')?.hidden,
 			}, { requests: [undefined, 'entry-10'], firstPageCount: 50, totalCount: 60, newest: 'Fix CI: Completed', summaries: ['50 loaded', '60 loaded'], moreHidden: true });
+		});
+
+		test('discovers older activity past history that was all skipped', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			const older = activity(a, 'older', { createdAt: 0, updatedAt: 0, state: 'failed' });
+			const skipped = Array.from({ length: 60 }, (_, index) => activity(a, `skipped-${index}`, { createdAt: index + 1, updatedAt: index + 1, state: 'skipped', dispatched: false }));
+			a.setHistory([older, ...skipped]);
+			setActivities(a, skipped.slice(-50));
+			const panel = await open(f, a);
+			const hidden = panel.querySelector<HTMLElement>('.artifact-activities')!.hidden;
+			await expand(f, panel);
+			assert.deepStrictEqual({
+				hidden, labels: rows(panel).map(row => row.querySelector('.artifact-activity-label')?.textContent),
+				requests: a.historyRequests, moreHidden: panel.querySelector<HTMLElement>('.artifact-activities-more')?.hidden,
+			}, { hidden: false, labels: ['Fix CI: Failed'], requests: [undefined, 'skipped-10'], moreHidden: true });
 		});
 
 		test('loading activity history remains accessible without adding a message or moving existing rows', async () => {
@@ -1728,17 +1763,44 @@ suite('Artifact Integration Presentation', () => {
 		assert.deepStrictEqual({ errors: f.errors, acquired: a.acquired, requests: a.authentications }, { errors: ['The artifact operation failed: Authentication failed'], acquired: [], requests: ['test', 'test'] });
 	});
 
-	test('missing descriptions never fall back to a status sentence, and errors stay visible', async () => {
+	test('sign-in opens the page that authorizes the current credential instead of signing in again', async () => {
 		const f = fixture();
 		const a = f.artifact();
-		a.details.main.set({ ...a.details.main.get(), description: '' }, undefined);
+		const authorizationUrl = 'https://github.com/orgs/octo/sso?authorization_request=example';
+		updateContribution(a, c => ({ ...c, authentication: { enabled: true }, view: { ...c.view, availability: { kind: 'authenticationRequired', reason: 'Authorize single sign-on.', authorizationUrl }, sections: [], lists: [] } }));
+		const panel = await open(f, a);
+		button(panel, 'Sign In').click();
+		await settle(f);
+		assert.deepStrictEqual({ opened: f.openedItems, requests: a.authentications, errors: f.errors }, { opened: [authorizationUrl], requests: [], errors: [] });
+	});
+
+	test('missing descriptions are hidden, and errors stay visible', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		a.details.main.set({ ...a.details.main.get(), description: undefined }, undefined);
 		a.details.comments.set({ ...a.details.comments.get(), items: [], availability: { kind: 'error', reason: 'Reviews could not be loaded.' } }, undefined);
 		const panel = await open(f, a);
 		assert.deepStrictEqual({
 			description: panel.querySelector('.artifact-details-description-content')?.textContent,
+			hidden: panel.querySelector<HTMLElement>('.artifact-details-description')?.hidden,
 			error: panel.querySelectorAll('.artifact-state-list-message')[1]?.textContent,
 			expand: panel.querySelector('.artifact-description-actions') === null,
-		}, { description: 'No description provided.', error: 'Reviews could not be loaded.', expand: true });
+		}, { description: '', hidden: true, error: 'Reviews could not be loaded.', expand: true });
+	});
+
+	test('refreshing after an action or Autopilot change shows no transient status', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		const panel = await open(f, a);
+		const stale = { kind: 'stale', reason: 'Refreshing.' } as const;
+		updateContribution(a, c => ({ ...c, view: { ...c.view, availability: stale } }));
+		a.details.main.set({ ...a.details.main.get(), availability: stale }, undefined);
+		a.details.comments.set({ ...a.details.comments.get(), availability: stale }, undefined);
+		await settle(f);
+		assert.deepStrictEqual({
+			state: panel.querySelector<HTMLElement>('.artifact-details-availability')?.hidden,
+			listMessages: [...panel.querySelectorAll<HTMLElement>('.artifact-state-list-message')].filter(message => !message.hidden).map(message => message.textContent),
+		}, { state: true, listMessages: [] });
 	});
 
 	test('a short description has no expansion control; remote Markdown is rendered safely as plain text', async () => {
@@ -2219,6 +2281,32 @@ suite('Artifact Integration Presentation', () => {
 				keyboard: { ringVisible: true, spansWholeTab: true, inside: true, radius: '4px', cursor: 'pointer', buttonOutline: 'none' },
 				firstFocused: true, mouseRingHidden: true, enterKeepsTabFocus: true, emptyListFocused: true,
 				collapsedByClick: { selected: null, visibleLists: 0, tabFocused: true },
+			});
+		});
+
+		test('the whole heading except the master switch toggles expansion and shows hover feedback', async () => {
+			const f = fixture();
+			const a = f.artifact();
+			const panel = await open(f, a);
+			const group = panel.querySelector<HTMLElement>('.artifact-autopilot-group')!;
+			const heading = group.querySelector<HTMLElement>('.artifact-card-heading')!;
+			const master = heading.querySelector<HTMLButtonElement>('[role="switch"]')!;
+			const expanded = () => group.querySelector('.artifact-card-disclosure')!.getAttribute('aria-expanded');
+			const states: { expanded: string | null; controlHovered?: boolean }[] = [];
+			heading.querySelector<HTMLElement>('.artifact-autopilot-summary')!.click();
+			await settle(f);
+			states.push({ expanded: expanded() });
+			master.click();
+			await settle(f);
+			master.dispatchEvent(new MouseEvent('mouseenter'));
+			states.push({ expanded: expanded(), controlHovered: heading.classList.contains('artifact-card-heading-control-hovered') });
+			master.dispatchEvent(new MouseEvent('mouseleave'));
+			heading.click();
+			await settle(f);
+			states.push({ expanded: expanded(), controlHovered: heading.classList.contains('artifact-card-heading-control-hovered') });
+			assert.deepStrictEqual({ states, configured: a.configured.length, focused: getActiveElement() === group.querySelector('.artifact-card-disclosure') }, {
+				states: [{ expanded: 'true' }, { expanded: 'true', controlHovered: true }, { expanded: 'false', controlHovered: false }],
+				configured: 1, focused: true,
 			});
 		});
 

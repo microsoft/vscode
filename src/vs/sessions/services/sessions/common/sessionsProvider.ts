@@ -31,6 +31,13 @@ export interface ISessionChangeEvent {
 	readonly changed: readonly ISession[];
 }
 
+/** Creation context to inherit instead of an existing session's execution workspace and backend. */
+export interface ISessionCreationTarget {
+	readonly providerId: string;
+	readonly sessionTypeId?: string;
+	readonly folderUri: URI;
+}
+
 /** One end of a chat move: the session and the chat's resource in it. */
 export interface IChatMoveEnd {
 	readonly session: ISession;
@@ -480,6 +487,9 @@ export interface ISessionsProvider {
 	 */
 	resolveWorkspace(workspaceUri: URI): ISessionWorkspace | undefined;
 
+	/** An alternate creation context for New Session gestures from an existing session. */
+	getNewSessionTarget?(sessionResource: URI): ISessionCreationTarget | undefined;
+
 	/**
 	 * Returns the canonical URI for a workspace represented by this provider.
 	 * Providers may use this to collapse alternate execution environments onto
@@ -670,10 +680,13 @@ export interface ISessionsProvider {
 	importSession?(sessionId: string): Promise<void>;
 
 	/**
-	 * Returns the current on-disk size of the session's isolated worktree.
+	 * Returns the current on-disk size, zero for confirmed absent storage, or undefined when measurement is unavailable.
 	 * Providers without host-owned worktrees leave this capability undefined.
 	 */
 	getSessionWorktreeDiskUsage?(sessionId: string, token?: CancellationToken): Promise<number | undefined>;
+
+	/** Cheaply checks the owning host's worktrees. False confirms all roots are absent; undefined means unavailable. */
+	sessionWorktreeExists?(sessionId: string, token?: CancellationToken): Promise<boolean | undefined>;
 
 	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
 	sessionWorktreeCleanup?(sessionId: string, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;

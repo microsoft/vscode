@@ -357,6 +357,50 @@ suite('Sessions - Actions', () => {
 		]);
 	});
 
+	test('marking a side chat as done archives and closes only that chat', async () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const { session } = createTestSession('side-chat-done');
+		const main = session.mainChat.get();
+		const side: IChat = {
+			...main,
+			resource: session.resource.with({ fragment: 'side' }),
+			origin: { kind: ChatOriginKind.SideChat, parentChat: main.resource, turnId: 'turn-1' },
+			isArchived: constObservable(false),
+			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
+		};
+		const peer: IChat = { ...side, resource: session.resource.with({ fragment: 'peer' }), origin: { kind: ChatOriginKind.User } };
+		const activeSession = upcastPartial<IActiveSession>({
+			...session,
+			chats: constObservable([main, peer, side]),
+			openChats: constObservable([main, peer, side]),
+			activeChat: constObservable(side),
+		});
+		const operations: string[] = [];
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override async archiveChat(target: ISession, chat: IChat): Promise<void> {
+				assert.strictEqual(target, activeSession);
+				operations.push(`archive:${chat.resource.toString()}`);
+			}
+		});
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(activeSession);
+			override async closeChat(target: ISession, chat: IChat): Promise<void> {
+				assert.strictEqual(target, activeSession);
+				operations.push(`close:${chat.resource.toString()}`);
+			}
+		});
+
+		await instantiationService.invokeFunction(accessor => new ArchiveChatAction().run(accessor, { session: activeSession, chat: side }));
+
+		assert.deepStrictEqual({
+			operations,
+			sessionArchived: session.isArchived.get(),
+		}, {
+			operations: [`archive:${side.resource.toString()}`, `close:${side.resource.toString()}`],
+			sessionArchived: false,
+		});
+	});
+
 	test('session row read actions target each selected main chat', async () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const sessions = [createTestSession('First').session, createTestSession('Second').session];
@@ -1733,6 +1777,7 @@ suite('Sessions - Actions', () => {
 					}
 				});
 				instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+					override getNewSessionTarget(): undefined { return undefined; }
 					override isNewSessionTargetAvailable(): boolean { return scenario.targetAvailable; }
 				});
 
@@ -1827,6 +1872,7 @@ suite('Sessions - Actions', () => {
 					}
 				});
 				instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+					override getNewSessionTarget(): undefined { return undefined; }
 					override isNewSessionTargetAvailable(folderUri: URI, options?: ICreateNewSessionOptions): boolean {
 						return isEqual(folderUri, sourceFolder)
 							&& options?.providerId === `agenthost-${agentHostAuthority(sourceAddress)}`
@@ -1937,6 +1983,10 @@ suite('Sessions - Actions', () => {
 		workspace.folders.push({ root: folder, workingDirectory: folder, name: 'workspace-section', description: undefined });
 		const selections: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
 		instantiationService.stub(INewSessionComposerService, composerService);
+		instantiationService.stub(ISessionsManagementService, {
+			getNewSessionTarget: () => undefined,
+			isNewSessionTargetAvailable: () => true,
+		});
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
 			activeSession: constObservable(undefined),
 			openNewSession: () => opening.p,
@@ -1994,6 +2044,10 @@ suite('Sessions - Actions', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const selections: string[] = [];
 		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
+		instantiationService.stub(ISessionsManagementService, {
+			getNewSessionTarget: () => undefined,
+			isNewSessionTargetAvailable: () => true,
+		});
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
 			getProvider: <T extends ISessionsProvider>(providerId: string) => providers.find(provider => provider.id === providerId) as T | undefined,
 		}));
@@ -2020,6 +2074,76 @@ suite('Sessions - Actions', () => {
 		assert.deepStrictEqual(selections, ['local-provider /local', 'cloud-provider /cloud']);
 	});
 
+	for (const grouping of ['workspace', 'repository', 'environment']) {
+		for (const available of [true, false]) {
+			test(`${grouping} section only inherits an available creation target (${available})`, async () => {
+				const instantiationService = disposables.add(new TestInstantiationService());
+				const composerService = disposables.add(new NewSessionComposerService());
+				const backendFolder = URI.parse('vscode-agent-host://sandbox/workspaces/repo');
+				const { session } = createTestSession('Cloud session', {
+					providerId: 'sandbox-backend',
+					environment: 'cloud',
+					repository: 'owner/repo',
+					workspaceResource: backendFolder,
+				});
+				const creationTarget = { providerId: 'cloud-creator', folderUri: URI.parse('github-remote-file://github/owner/repo/HEAD') };
+				const environment = { id: 'cloud', label: 'Cloud' };
+				const provider = upcastPartial<ISessionsProvider>({ id: session.providerId, environment });
+				const section = upcastPartial<ISessionSection>({
+					sessions: [session],
+					repository: grouping === 'repository' ? { owner: 'owner', name: 'repo' } : undefined,
+					environment: grouping === 'environment' ? environment : undefined,
+				});
+				const draft = upcastPartial<IActiveSession>({ sessionId: 'new-draft' });
+				const selections: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
+				const sources: { providerId: string; resource: URI }[] = [];
+				const focused: (ISession | undefined)[] = [];
+				instantiationService.stub(INewSessionComposerService, composerService);
+				instantiationService.stub(ISessionsProvidersService, {
+					getProvider: <T extends ISessionsProvider>(providerId: string) => providerId === provider.id ? provider as T : undefined,
+				});
+				instantiationService.stub(ISessionsManagementService, {
+					getNewSessionTarget: (providerId, resource) => {
+						sources.push({ providerId, resource });
+						return providerId === session.providerId && isEqual(resource, session.resource) ? creationTarget : undefined;
+					},
+					isNewSessionTargetAvailable: (folder, target) => available && isEqual(folder, creationTarget.folderUri) && target?.providerId === creationTarget.providerId,
+				});
+				instantiationService.stub(ISessionsService, {
+					activeSession: constObservable(draft),
+					openNewSession: async () => ({ session: draft, trustDeclined: false }),
+				});
+				instantiationService.stub(ISessionsPartService, {
+					getSessionView: () => upcastPartial<SessionView>({
+						selectWorkspace: (folder, options) => {
+							selections.push({ folder, options });
+							return 'applied';
+						},
+					}),
+					focusSession: session => { focused.push(session); },
+				});
+				instantiationService.stub(ICommandService, new TestCommandService());
+
+				const commands = grouping === 'repository'
+					? [NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID]
+					: [NEW_SESSION_FOR_WORKSPACE_ACTION_ID];
+				for (const commandId of commands) {
+					await CommandsRegistry.getCommand(commandId)!.handler(instantiationService, section, 'cloud');
+				}
+
+				assert.deepStrictEqual({ selections, sources, focused, userSelections: composerService.userWorkspaceSelectionVersion.get() }, {
+					selections: commands.map(() => ({
+						folder: available ? creationTarget.folderUri : backendFolder,
+						options: { providerId: available ? creationTarget.providerId : undefined, selectionOrigin: WorkspaceSelectionOrigin.User },
+					})),
+					sources: commands.map(() => ({ providerId: session.providerId, resource: session.resource })),
+					focused: commands.map(() => draft),
+					userSelections: commands.length,
+				});
+			});
+		}
+	}
+
 	test('New Session never starts like a session that only names its repository by URL', async () => {
 		const sandboxRoot = URI.parse('https://github.com/microsoft/vscode');
 		const sandbox = (title: string) => {
@@ -2031,6 +2155,10 @@ suite('Sessions - Actions', () => {
 		let opened = 0;
 		const selections: string[] = [];
 		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
+		instantiationService.stub(ISessionsManagementService, {
+			getNewSessionTarget: () => undefined,
+			isNewSessionTargetAvailable: () => true,
+		});
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
 			getProvider: <T extends ISessionsProvider>(providerId: string) => upcastPartial<ISessionsProvider>({ id: providerId, environment: { id: providerId === 'local-provider' ? 'local' : 'cloud', label: providerId } }) as T,
 		}));

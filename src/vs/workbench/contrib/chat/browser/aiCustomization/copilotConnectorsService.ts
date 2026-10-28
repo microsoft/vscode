@@ -20,7 +20,7 @@ import { localize } from '../../../../../nls.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { gitHubCopilotResource } from '../../../../../platform/agentHost/common/githubEndpoints.js';
 import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
-import { ConnectorCatalog, ConnectorPlugin, copilotConnectorsScope } from '../../../../../platform/github/common/connectors/connectors.js';
+import { ConnectorCatalog, ConnectorPlugin, copilotConnectorsScope, copilotCredentialBaselineScopes } from '../../../../../platform/github/common/connectors/connectors.js';
 import { deriveGitHubEndpoints } from '../../../../../platform/github/common/githubEndpoints.js';
 import { GitHubAuthorizationContext, GitHubRequestError, isEqualAuthorization } from '../../../../../platform/github/common/githubTypes.js';
 import { SchemaError } from '../../../../../platform/github/common/client/schema.js';
@@ -324,9 +324,11 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			throw connectorSignInRequired();
 		}
 		// Connector-owned Agent Host servers use the Copilot credential the Agent Host is given, which is resolved for
-		// the Copilot resource's scopes. Only a session that keeps those and the default session's scopes can become
-		// that credential; a narrower Connector session is never forwarded, even when it covers a narrow default session.
-		const requiredScopes = distinct([...authentication.session.scopes, ...copilotCredentialScopes]);
+		// the Copilot resource's scopes and never downgraded to a session with fewer scopes than the account's
+		// credential without Connector authorization. Only a session that keeps those, the Copilot scopes and the
+		// default session's scopes can become that credential.
+		const baselineScopes = copilotCredentialBaselineScopes(authentication.sessions, copilotCredentialScopes) ?? [];
+		const requiredScopes = distinct([...authentication.session.scopes, ...copilotCredentialScopes, ...baselineScopes]);
 		const authorized = authentication.sessions.find(session => hasConnectorScope(session, false) && requiredScopes.every(scope => session.scopes.includes(scope)));
 		if (authorized) {
 			this._authorizationRequired = false;

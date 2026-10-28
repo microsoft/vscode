@@ -524,6 +524,24 @@
             }
         },
         {
+            "key": "chat.canvases.enabled",
+            "name": "ChatCanvases",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.144",
+            "localization": {
+                "description": {
+                    "key": "chat.canvases.enabled.policy",
+                    "value": "Controls whether Copilot sessions can use Canvases to present interactive content."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
             "key": "chat.copilotCliCommand.enabled",
             "name": "CopilotCliCommand",
             "category": "InteractiveSession",

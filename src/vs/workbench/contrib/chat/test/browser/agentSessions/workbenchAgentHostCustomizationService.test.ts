@@ -20,6 +20,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
@@ -97,6 +98,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				activeClientService,
 				new class extends mock<IMcpService>() { }(),
 				configurationService,
+				new TestNotificationService(),
 			));
 			let customizationChangeCount = 0;
 			store.add(service.onDidChangeCustomizations(() => customizationChangeCount++));

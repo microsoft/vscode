@@ -16,7 +16,8 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { AgentSession, IAgentConnection, IAgentHostService, IAgentResolveSessionConfigParams, IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
-import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { InitializeResult, ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolutionPolicy } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -26,7 +27,7 @@ import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress, CloudSandboxAuthenti
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, INotification, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { createChatState, createDefaultChatSummary, createSessionState, MessageKind, RootState, SessionModelInfo, SessionStatus, TurnState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatOriginKind, createChatState, createDefaultChatSummary, createSessionState, MessageKind, RootState, SessionModelInfo, SessionStatus, TurnState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IReplayedTaskHistory } from '../../../../../../platform/agentHost/common/taskEventReplay.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -176,6 +177,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly enabled?: boolean;
 	readonly draftModels?: readonly SessionModelInfo[];
 	readonly hostModels?: readonly SessionModelInfo[];
+	readonly initializeResult?: InitializeResult;
 	readonly earlyPreparation?: boolean;
 	readonly reserveSession?: (request: ICloudSandboxReserveSessionRequest) => Promise<ICloudSandboxReservedSession>;
 	readonly sessionFeedEnabled?: boolean;
@@ -279,7 +281,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		override readonly clientId = 'editor-client';
 		override readonly rootState = upcastPartial<IAgentSubscription<RootState>>({ value: rootState, onDidChange: Event.None });
 		override readonly onDidNotification = notifications.event;
-		override readonly initializeResult = constObservable(undefined);
+		override readonly initializeResult = constObservable(options?.initializeResult);
 		override readonly resourceUris = createAgentHostResourceUriMapper(authority);
 		override async listSessions(): Promise<IAgentSessionMetadata[]> { return state.hostSessions; }
 		override async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -844,6 +846,66 @@ suite('Editor cloud sandbox discovery', () => {
 			archived: true, unarchived: false,
 			tasks: [{ taskId: discovered.taskId, archived: true }, { taskId: discovered.taskId, archived: false }],
 			connected: [],
+		});
+	});
+
+	test('archives and restores a connected sandbox side chat through its advertised host URI', async () => {
+		const h = createHarness(store, {
+			workspaceFolders: [],
+			initializeResult: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+		});
+		const main = URI.parse('host-chat:/opaque/main');
+		const side = URI.parse('host-chat:/opaque/side');
+		const sibling = URI.parse('host-chat:/opaque/sibling');
+		const chats: NonNullable<IAgentSessionMetadata['chats']> = [
+			{ chat: main, kind: 'default', summary: 'Main', status: SessionStatus.Idle },
+			{ chat: side, kind: 'peer', summary: 'Side', status: SessionStatus.Idle, origin: { kind: ChatOriginKind.SideChat, chat: main.toString(), turnId: 'turn' } },
+			{ chat: sibling, kind: 'peer', summary: 'Sibling', status: SessionStatus.Idle },
+		];
+		h.state.hostSessions[0] = { ...h.state.hostSessions[0], status: SessionStatus.Idle, chats };
+		h.state.online = true;
+		await h.refresh();
+		await h.contribution.activate();
+		await h.whenConnected;
+		const controller = h.controllers.get(sessionType)!;
+		await controller.refresh(CancellationToken.None);
+		const sideItem = h.items()[0].children![0];
+		const update = (archived: boolean) => h.notifications.fire({
+			type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://', session: backendSession.toString(),
+			changes: {
+				chats: chats.map(chat => ({
+					resource: chat.chat.toString(), title: chat.summary!, origin: chat.origin,
+					status: isEqual(chat.chat, side) && archived ? SessionStatus.Idle | SessionStatus.IsArchived : SessionStatus.Idle,
+				})),
+			},
+		});
+		const flags = () => h.items().map(item => ({ archived: item.archived, children: item.children?.map(child => [child.label, child.archived]) }));
+
+		controller.setChatSessionItemArchived!(sideItem.resource, true);
+		await timeout(0);
+		update(true);
+		const archived = flags();
+		controller.setChatSessionItemArchived!(sideItem.resource, false);
+		await timeout(0);
+		update(false);
+
+		assert.deepStrictEqual({
+			canArchive: sideItem.canArchive,
+			dispatched: h.calls.dispatched,
+			archivedTasks: h.calls.archivedTasks,
+			notifications: h.errorNotifications,
+			archived,
+			restored: flags(),
+		}, {
+			canArchive: true,
+			dispatched: [
+				[side.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }],
+				[side.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: false }],
+			],
+			archivedTasks: [],
+			notifications: [],
+			archived: [{ archived: false, children: [['Side', true], ['Sibling', false]] }],
+			restored: [{ archived: false, children: [['Side', false], ['Sibling', false]] }],
 		});
 	});
 
