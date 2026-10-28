@@ -20874,6 +20874,69 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('fresh SDK sessions reread edited host-configured agent files without changing plugin references', async () => {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const workspace = URI.file('/workspace');
+			const plugin = URI.joinPath(workspace, 'plugins', 'mutable');
+			const agentFile = URI.joinPath(plugin, 'agents', 'host.agent.md');
+			await fileService.writeFile(URI.joinPath(plugin, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"Mutable plugin"}'));
+			const content = (revision: string) => [
+				'---',
+				'name: host-agent',
+				`description: ${revision} description`,
+				`model: ${revision}-model`,
+				`tools: [${revision}-tool]`,
+				'hooks:',
+				'  PreToolUse:',
+				'    - type: command',
+				`      command: echo ${revision}`,
+				'---',
+				`${revision} prompt`,
+			].join('\n');
+			await fileService.writeFile(agentFile, VSBuffer.fromString(content('first')));
+			const client = new TestCopilotClient([]);
+			const launches: SessionConfig[] = [];
+			client.createSession = async config => {
+				launches.push(config);
+				return new MockCopilotSession(config.sessionId) as unknown as CopilotSession;
+			};
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				fileService,
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				rootConfig: { [AgentHostConfigKey.Customizations]: [{ uri: plugin.toString(), displayName: 'Mutable plugin' }] },
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				for (const revision of ['first', 'second']) {
+					if (revision === 'second') {
+						await fileService.writeFile(agentFile, VSBuffer.fromString(content(revision)));
+					}
+					const session = AgentSession.uri('copilotcli', `mutable-agent-${revision}`);
+					const chat = defaultChatUri(session);
+					await provisionSession(agent, { session, workingDirectories: [workspace] });
+					await agent.chats.sendMessage(chat, revision, [workspace], undefined, `turn-${revision}`, undefined, exactChatContext(session, chat, session));
+				}
+				assert.deepStrictEqual({
+					sdkSessions: new Set(launches.map(config => config.sessionId)).size,
+					agents: launches.map(config => config.customAgents?.filter(agent => agent.name === 'host-agent')),
+				}, {
+					sdkSessions: 2,
+					agents: ['first', 'second'].map(revision => [{
+						name: 'host-agent',
+						description: `${revision} description`,
+						model: `${revision}-model`,
+						tools: [`${revision}-tool`],
+						hooks: { PreToolUse: [{ type: 'command', command: `echo ${revision}` }] },
+						prompt: `${revision} prompt`,
+					}]),
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('getChatCustomizations publishes each discovered and live native MCP server once', async () => {
 			const fileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));

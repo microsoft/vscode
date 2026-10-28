@@ -13,9 +13,10 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
+import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { PluginFormat, type IMcpServerDefinition, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
+import { PluginFormat, toParsedAgent, type IMcpServerDefinition, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService, type IFileContent } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -54,7 +55,7 @@ import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { CopilotSessionSandbox } from '../../node/copilot/copilotSessionSandbox.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
-import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAutoTier, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
 import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import type { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
@@ -404,6 +405,24 @@ suite('CopilotSessionLauncher customization policy session', () => {
 		}, {
 			sessionId: 'hidden-policy',
 			credentialUpdates: 0,
+		});
+	});
+});
+
+suite('getCopilotCustomAgents', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reuses parsed plugin content only with a nonempty content nonce without mutating the cache', () => {
+		const parsedContent = parseFrontMatter('---\nname: retained\n---\nRetained prompt.');
+		const agent = toParsedAgent({ uri: URI.file('/plugin/agents/retained.agent.md'), name: 'retained', parsedContent });
+		const content = [undefined, '', 'content-revision'].map(nonce => getCopilotCustomAgents({
+			plugins: [{ format: PluginFormat.OpenPlugin, nonce, agents: [agent], hooks: [], mcpServers: [], skills: [], instructions: [] }],
+			discoveredAgents: [],
+			additionalRootInstructions: [],
+		})[0].parsedContent);
+		assert.deepStrictEqual({ content, cached: agent.parsedContent }, {
+			content: [undefined, undefined, parsedContent],
+			cached: parsedContent,
 		});
 	});
 });

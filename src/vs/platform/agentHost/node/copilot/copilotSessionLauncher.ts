@@ -216,9 +216,12 @@ function clientToolRegistrationNames(tools: readonly ToolDefinition[]): Readonly
 	}));
 }
 
+/** Only nonce-versioned plugin snapshots can reuse parsed content without file invalidation. */
 export function getCopilotCustomAgents(customizations: ICopilotAppliedCustomizations): readonly IParsedAgent[] {
 	return [
-		...customizations.plugins.flatMap(plugin => plugin.agents),
+		...customizations.plugins.flatMap(plugin => plugin.nonce
+			? plugin.agents
+			: plugin.agents.map(agent => ({ ...agent, parsedContent: undefined }))),
 		...customizations.discoveredAgents,
 	];
 }
