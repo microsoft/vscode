@@ -9573,12 +9573,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private _resolveCreateChatProvider(session: URI, sessionProvider: IAgent, options: IAgentCreateChatRequestOptions | undefined): IAgent {
 		const source = options?.sideChat?.source ?? options?.fork?.source;
-		const sourceOwner = source === undefined ? undefined : this._chatOwnership.getChatOwner(source.toString());
-		const sourceProvider = source === undefined ? undefined : this._providerService.getProviderForChat(sourceOwner ?? session, source);
-		if (source !== undefined && !sourceProvider) {
-			// Never fall back to the session's agent for a source chat whose own agent is unavailable.
-			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `The agent of chat ${source.toString()} is unavailable.`);
-		}
+		const sourceProvider = source === undefined ? undefined : this._resolveSourceChatProvider(session, source.toString());
 		const requested = options?.provider;
 		if (requested === undefined) {
 			return sourceProvider ?? sessionProvider;
@@ -9595,6 +9590,40 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (sourceProvider !== undefined && sourceProvider !== provider) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'A fork or side chat uses its source chat\'s agent.');
+		}
+		return provider;
+	}
+
+	/**
+	 * The agent a fork or side chat of `source` keeps: its source chat's. A source restored but not loaded (registered
+	 * from its owner's catalog only) is resolved through the state manager, whose restored summary knows its owner and
+	 * recorded agent. With chats with their own agents off, only a source that already uses its own agent imposes it;
+	 * any other fork uses its new session's agent, as before (`undefined`). Throws InvalidParams, never falling back to
+	 * the session's agent, when the source's agent is unavailable.
+	 */
+	private _resolveSourceChatProvider(session: URI, source: string): IAgent | undefined {
+		const owner = this._chatOwnership.getChatOwner(source) ?? this._stateManager.getChatOwner(source);
+		if (owner === undefined) {
+			if (!this.multipleChatProvidersEnabled) {
+				return undefined;
+			}
+			// A source the host doesn't know: a chat of the new chat's session, as an unregistered chat is routed.
+			const provider = this._providerService.getProviderForChat(session, source);
+			if (!provider) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `The agent of chat ${source} is unavailable.`);
+			}
+			return provider;
+		}
+		const ownerProvider = this._stateManager.getSessionState(owner)?.provider ?? this._providerService.getProviderForSession(owner)?.id;
+		const recorded = this._stateManager.getChatProvider(source);
+		const ownAgent = recorded !== undefined && recorded !== ownerProvider ? recorded : undefined;
+		const agent = ownAgent ?? (this.multipleChatProvidersEnabled ? ownerProvider : undefined);
+		if (agent === undefined) {
+			return undefined;
+		}
+		const provider = this._providerService.getProvider(agent);
+		if (!provider) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `The agent of chat ${source} is unavailable.`);
 		}
 		return provider;
 	}
