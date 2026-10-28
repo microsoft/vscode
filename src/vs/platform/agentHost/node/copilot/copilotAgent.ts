@@ -9812,14 +9812,19 @@ class SessionDiscoveredEntry extends Disposable {
 		super.dispose();
 	}
 
-	whenSettled(): Promise<void> {
-		return this._settled;
+	/** Waits for discovery to finish, including scans that supersede the current one. */
+	async whenSettled(): Promise<void> {
+		let settled: Promise<void>;
+		do {
+			settled = this._settled;
+			await settled;
+		} while (settled !== this._settled);
 	}
 
 	/** Re-runs discovery for changes no watched file reports, such as plugins the runtime installed. */
 	refresh(): Promise<void> {
 		this._settled = this._queueRefresh(true, 0);
-		return this._settled;
+		return this.whenSettled();
 	}
 
 	/** Whether no discovery refresh is queued or running. */

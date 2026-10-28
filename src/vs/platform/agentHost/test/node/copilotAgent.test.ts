@@ -3288,6 +3288,82 @@ suite('CopilotAgent', () => {
 			});
 		}
 
+		test('plugin uninstall waits for superseding discovery scans to publish', async () => {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const plugin = URI.file('/sdk-plugins/session-timeline');
+			const skill = URI.joinPath(plugin, 'skills', 'session-timeline', 'SKILL.md');
+			await fileService.writeFile(URI.joinPath(plugin, '.plugin', 'plugin.json'), VSBuffer.fromString(JSON.stringify({ name: 'session-timeline' })));
+			await fileService.writeFile(skill, VSBuffer.fromString('---\nname: session-timeline\ndescription: Timeline\n---\n'));
+			const scans = Array.from({ length: 3 }, () => ({
+				started: new DeferredPromise<void>(),
+				release: new DeferredPromise<void>(),
+			}));
+			let installed = true;
+			let scanIndex = 0;
+			const client = new TestCopilotClient([]);
+			client.discoverSkills = async () => {
+				if (installed) {
+					return { skills: [{ name: 'session-timeline', description: 'Timeline', path: skill.fsPath, source: 'plugin', enabled: true, userInvocable: true }] };
+				}
+				const scan = scans[scanIndex++];
+				scan.started.complete();
+				await scan.release.p;
+				return { skills: [] };
+			};
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, fileService });
+			const apply = stub(agent['_customizationInstallations'], 'apply').callsFake(async () => {
+				installed = false;
+				return undefined;
+			});
+			const published: string[][] = [];
+			disposables.add(agent.onDidChatProgress(progress => {
+				if (progress.kind === 'action' && progress.action.type === ActionType.SessionCustomizationsChanged) {
+					published.push(progress.action.customizations.filter(item => item.type === CustomizationType.Plugin).map(item => item.name));
+				}
+			}));
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'superseded-plugin-refresh');
+				const directory = URI.file('/workspace');
+				await provisionSession(agent, { session, workingDirectories: [directory] });
+				const initial = (await getDefaultChatCustomizations(agent, session))
+					.filter(item => item.type === CustomizationType.Plugin).map(item => item.name);
+				const controller = agent['_activeClients'].get(session)!.pluginController;
+				const anchor = disposables.add(controller.acquireAnchor(directory, [], false));
+				const entry = anchor.object.discoveredEntry()!;
+				published.length = 0;
+				let operationCompleted = false;
+				let settledCompleted = false;
+				const operation = agent.applyCustomizationInstallation('uninstall').then(() => {
+					operationCompleted = true;
+					return [...published];
+				});
+				await scans[0].started.p;
+				const settled = entry.whenSettled().then(() => { settledCompleted = true; });
+				const replacements: Promise<void>[] = [];
+				const completionStates: boolean[][] = [];
+				for (const scan of scans.slice(1)) {
+					replacements.push(entry.refresh());
+					await scan.started.p;
+					completionStates.push([operationCompleted, settledCompleted]);
+				}
+				await scans[2].release.complete();
+				const [publishedAtCompletion] = await Promise.all([operation, settled, ...replacements]);
+				assert.deepStrictEqual({ initial, completionStates, publishedAtCompletion }, {
+					initial: ['session-timeline'],
+					completionStates: [[false, false], [false, false]],
+					publishedAtCompletion: [[]],
+				});
+			} finally {
+				for (const scan of scans) {
+					await scan.release.complete();
+				}
+				apply.restore();
+				await disposeAgent(agent);
+			}
+		});
+
 		test('failed customization operations do not refresh discovery', async () => {
 			const client = new TestCopilotClient([]);
 			const agent = createTestAgent(disposables, { copilotClient: client });
