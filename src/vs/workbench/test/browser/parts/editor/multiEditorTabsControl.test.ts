@@ -7,6 +7,7 @@ import assert from 'assert';
 import { stub } from 'sinon';
 import { $, Dimension, EventType, ModifierKeyEmitter, reset, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -211,6 +212,116 @@ suite('MultiEditorTabsControl', () => {
 				: indicator.getBoundingClientRect().top - fill.getBoundingClientRect().top,
 		};
 	}
+
+	test('connected tab scrollbars overlay the top edge without changing header or body geometry', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		const body = $('div');
+		body.style.height = '100px';
+		group.appendChild(body);
+		openNamedEditors(['first-long-editor-name.ts', 'second-long-editor-name.ts', 'third-long-editor-name.ts']);
+		const results = [];
+		for (const modern of [false, true]) {
+			root.classList.toggle('modern-ui-tabs', modern);
+			for (const connected of [false, true]) {
+				root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+				for (const tabHeight of ['default', 'compact'] as const) {
+					container.classList.toggle('compact-height', tabHeight === 'compact');
+					for (const titleScrollbarSizing of ['default', 'large'] as const) {
+						const oldOptions = partOptions;
+						partOptions = { ...partOptions, tabHeight, titleScrollbarSizing, titleScrollbarVisibility: 'auto', editorActionsLocation: 'hidden' };
+						control.updateOptions(oldOptions, partOptions);
+						await layoutConnectedGroup(group, 300);
+						const scrollable = container.querySelector<HTMLElement>('.monaco-scrollable-element')!;
+						const scrollbar = scrollable.querySelector<HTMLElement>('.scrollbar.horizontal')!;
+						const geometry = () => ({
+							headerHeight: container.getBoundingClientRect().height,
+							tabHeights: Array.from(container.querySelectorAll<HTMLElement>('.tab')).map(tab => tab.getBoundingClientRect().height),
+							bodyTop: body.getBoundingClientRect().top,
+						});
+						scrollable.dispatchEvent(new MouseEvent(EventType.MOUSE_LEAVE));
+						const idleGeometry = geometry();
+						const hiddenAtRest = scrollbar.classList.contains('invisible') && mainWindow.getComputedStyle(scrollbar).pointerEvents === 'none';
+						scrollable.dispatchEvent(new MouseEvent(EventType.MOUSE_OVER, { bubbles: true }));
+						await timeout(0);
+						const bounds = scrollbar.getBoundingClientRect();
+						const viewport = scrollable.getBoundingClientRect();
+						results.push({
+							modern, connected, tabHeight, titleScrollbarSizing,
+							hiddenAtRest,
+							visibleOnHover: scrollbar.classList.contains('visible'),
+							correctEdge: Math.abs(modern && connected ? bounds.top - viewport.top : bounds.bottom - viewport.bottom) < 1 / 32,
+							withinHeader: bounds.top >= viewport.top && bounds.bottom <= viewport.bottom,
+							stableGeometry: JSON.stringify(geometry()) === JSON.stringify(idleGeometry),
+						});
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result, hiddenAtRest: true, visibleOnHover: true, correctEdge: true, withinHeader: true, stableGeometry: true,
+		})));
+	});
+
+	test('connected top scrollbars preserve explicit visibility settings and stay hidden without overflow', async () => {
+		const group = connectedGroup();
+		openNamedEditors(['first-long-editor-name.ts', 'second-long-editor-name.ts', 'third-long-editor-name.ts']);
+		const results = [];
+		for (const titleScrollbarVisibility of ['auto', 'visible', 'hidden'] as const) {
+			const oldOptions = partOptions;
+			partOptions = { ...partOptions, titleScrollbarVisibility, editorActionsLocation: 'hidden' };
+			control.updateOptions(oldOptions, partOptions);
+			for (const width of [300, 2000]) {
+				await layoutConnectedGroup(group, width);
+				const scrollable = container.querySelector<HTMLElement>('.monaco-scrollable-element')!;
+				const scrollbar = scrollable.querySelector<HTMLElement>('.scrollbar.horizontal')!;
+				scrollable.dispatchEvent(new MouseEvent(EventType.MOUSE_OVER, { bubbles: true }));
+				await timeout(0);
+				const visibleOnHover = scrollbar.classList.contains('visible');
+				scrollable.dispatchEvent(new MouseEvent(EventType.MOUSE_LEAVE));
+				results.push({
+					titleScrollbarVisibility, width,
+					visibleOnHover,
+					visibleAtRest: scrollbar.classList.contains('visible'),
+				});
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result,
+			visibleOnHover: result.width === 300 && result.titleScrollbarVisibility !== 'hidden',
+			visibleAtRest: result.width === 300 && result.titleScrollbarVisibility === 'visible',
+		})));
+	});
+
+	test('modern tab scrollbar paint fills the track with rounded ends in both hosts', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.style.setProperty('--vscode-cornerRadius-circle', '9999px');
+		const results = [];
+		for (const agents of [false, true]) {
+			root.classList.toggle('agent-sessions-workbench', agents);
+			for (const titleScrollbarSizing of ['default', 'large'] as const) {
+				const oldOptions = partOptions;
+				partOptions = { ...partOptions, titleScrollbarSizing };
+				control.updateOptions(oldOptions, partOptions);
+				await layoutConnectedGroup(group, 180);
+				const slider = container.querySelector<HTMLElement>('.scrollbar.horizontal > .slider')!;
+				const paint = mainWindow.getComputedStyle(slider, '::before');
+				results.push({
+					agents, titleScrollbarSizing,
+					height: slider.getBoundingClientRect().height,
+					radius: mainWindow.getComputedStyle(slider).borderRadius,
+					insets: [paint.top, paint.right, paint.bottom, paint.left],
+				});
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result,
+			height: result.titleScrollbarSizing === 'large' ? 10 : 3,
+			radius: '9999px',
+			insets: ['0px', '0px', '0px', '0px'],
+		})));
+	});
 
 	test('keeps connected layout current when an Add Tab toolbar follows the editor tabs', async () => {
 		const group = connectedGroup();
