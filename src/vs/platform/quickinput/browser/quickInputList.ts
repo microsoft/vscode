@@ -797,6 +797,7 @@ export class QuickInputList extends Disposable {
 		private parent: HTMLElement,
 		private hoverDelegate: IHoverDelegate,
 		private linkOpenerDelegate: (content: string) => void,
+		private readonly prepareForItemHover: () => void,
 		id: string,
 		private styles: IQuickInputStyles,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -1643,6 +1644,9 @@ export class QuickInputList extends Disposable {
 		if (!element.element || !element.saneTooltip) {
 			return;
 		}
+		// The hover is positioned relative to the viewport, which requires that the
+		// quick input widget is not a containing block for it before it is measured
+		this.prepareForItemHover();
 		this._lastHover = this.hoverDelegate.showHover({
 			content: element.saneTooltip,
 			target: element.element,
@@ -1654,7 +1658,10 @@ export class QuickInputList extends Disposable {
 			},
 			container: this._container,
 			position: {
-				hoverPosition: HoverPosition.RIGHT
+				hoverPosition: HoverPosition.RIGHT,
+				// Escape the clipping and sizing of the quick input widget while keeping
+				// the hover inside it, so that focusing the hover does not hide the picker
+				useFixedPosition: true
 			}
 		}, false);
 	}

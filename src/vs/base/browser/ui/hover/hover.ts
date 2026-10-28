@@ -321,6 +321,15 @@ export interface IHoverPositionOptions {
 	 * relative to the part of the target that is visible within this element.
 	 */
 	clippingElement?: HTMLElement;
+
+	/**
+	 * Position the hover's context view with `position: fixed`, relative to the viewport, so it is
+	 * neither clipped by `overflow` on ancestors of {@link IHoverOptions.container} nor sized by
+	 * their containing block. This only works while no ancestor of the container establishes a
+	 * containing block for fixed-position descendants (for example through `transform`, `filter`,
+	 * `backdrop-filter`, `will-change` or `contain`); the caller is responsible for that.
+	 */
+	useFixedPosition?: boolean;
 }
 
 export interface IHoverPersistenceOptions {

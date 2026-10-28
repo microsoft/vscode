@@ -408,7 +408,7 @@ export class HoverService extends Disposable implements IHoverService {
 
 		// Create a new ContextView for this hover with higher z-index for nested hovers
 		const container = options.container ?? this._layoutService.getContainer(getWindow(isHTMLElement(options.target) ? options.target : options.target.targetElements[0]));
-		const contextView = new ContextView(container, ContextViewDOMPosition.ABSOLUTE);
+		const contextView = new ContextView(container, options.position?.useFixedPosition ? ContextViewDOMPosition.FIXED : ContextViewDOMPosition.ABSOLUTE);
 
 		// Push to stack
 		const stackEntry: IHoverStackEntry = {
