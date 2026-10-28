@@ -5,10 +5,12 @@
 
 import { getContextMenuAutoSelectItem, IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
 import { $, addDisposableListener, EventType, getActiveElement, getWindow, isAncestor, isHTMLElement } from '../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { Menu } from '../../../base/browser/ui/menu/menu.js';
 import { ActionRunner, IRunEvent, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../base/common/actions.js';
 import { isCancellationError } from '../../../base/common/errors.js';
+import { isModifierKey, KeyCode } from '../../../base/common/keyCodes.js';
 import { combinedDisposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { IContextViewService } from './contextView.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
@@ -96,6 +98,21 @@ export class ContextMenuHandler {
 
 				menu.onDidCancel(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 				menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
+
+				// Keys the menu handles (navigation, Enter/Space, Escape, submenus) stop propagation in the menu itself.
+				// Keep all other keys from reaching global keybindings while the menu is open, like native menus do,
+				// and dismiss the menu on function keys (#99121). Modifiers pass through for alternative actions.
+				menuDisposables.add(addDisposableListener(container, EventType.KEY_DOWN, e => {
+					const event = new StandardKeyboardEvent(e);
+					if (isModifierKey(event.keyCode)) {
+						return;
+					}
+
+					e.stopPropagation();
+					if (event.keyCode >= KeyCode.F1 && event.keyCode <= KeyCode.F24) {
+						this.contextViewService.hideContextView(true);
+					}
+				}));
 				const targetWindow = getWindow(container);
 				menuDisposables.add(addDisposableListener(targetWindow, EventType.BLUR, () => this.contextViewService.hideContextView(true)));
 				menuDisposables.add(addDisposableListener(targetWindow, EventType.MOUSE_DOWN, (e: MouseEvent) => {
