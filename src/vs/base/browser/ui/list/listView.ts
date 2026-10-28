@@ -607,6 +607,11 @@ export class ListView<T> implements IListView<T> {
 		this.rangeMap.splice(index, 1, [{ size: size }]);
 		this.items[index].size = size;
 
+		if (this.scrollAnchorAtBottom) {
+			this.eventuallyUpdateScrollDimensions();
+			this.flushScrollHeight();
+		}
+
 		const renderTop = this.scrollAnchorAtBottom
 			? Math.max(0, this.contentHeight + this.paddingBottom + (this.horizontalScrolling ? 10 : 0) - this.lastRenderHeight)
 			: Math.max(0, this.lastRenderTop + heightDiff);
@@ -832,7 +837,7 @@ export class ListView<T> implements IListView<T> {
 		this._rerender(this.lastRenderTop, this.lastRenderHeight);
 	}
 
-	/** Keeps the viewport at the bottom while changed rows are dynamically measured. */
+	/** Keeps the viewport at the bottom while row heights are updated or measured. */
 	withScrollAnchorAtBottom(fn: () => void): void {
 		const previous = this.scrollAnchorAtBottom;
 		this.scrollAnchorAtBottom = true;
@@ -1153,13 +1158,16 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	setScrollTop(scrollTop: number, reuseAnimation?: boolean): void {
+		this.flushScrollHeight();
+		this.scrollableElement.setScrollPosition({ scrollTop, reuseAnimation });
+	}
+
+	private flushScrollHeight(): void {
 		if (this.scrollableElementUpdateDisposable) {
 			this.scrollableElementUpdateDisposable.dispose();
 			this.scrollableElementUpdateDisposable = null;
 			this.scrollableElement.setScrollDimensions({ scrollHeight: this.scrollHeight });
 		}
-
-		this.scrollableElement.setScrollPosition({ scrollTop, reuseAnimation });
 	}
 
 	getScrollLeft(): number {

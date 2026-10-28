@@ -438,49 +438,59 @@ suite('ListView', function () {
 		}
 	});
 
-	test('keeps the last row rendered while measuring taller preceding rows with a bottom anchor', () => {
-		const container = document.createElement('div');
-		document.body.appendChild(container);
-		type Element = { id: number; height: number };
-		const rendered: number[] = [];
-		const delegate: IListVirtualDelegate<Element> = {
-			getHeight: () => 20,
-			getTemplateId: () => 'template',
-			hasDynamicHeight: () => true,
-			getDynamicHeight: element => element.height,
-		};
-		const renderer: IListRenderer<Element, HTMLElement> = {
-			templateId: 'template',
-			renderTemplate: container => container,
-			renderElement(element, _index, container) {
-				rendered.push(element.id);
-				container.textContent = String(element.id);
-			},
-			disposeTemplate() { },
-		};
-		const list = store.add(new ListView(container, delegate, [renderer], { supportDynamicHeights: true }));
-		try {
-			const elements = [{ id: 1, height: 1000 }, { id: 2, height: 2000 }];
-			list.layout(100, 200);
-			list.withScrollAnchorAtBottom(() => list.splice(0, 0, elements));
-			assert.deepStrictEqual({ rendered: rendered.sort(), scrollTop: list.scrollTop, contentHeight: list.contentHeight, last: list.domElement(1)?.textContent }, {
-				rendered: [1, 2], scrollTop: 2900, contentHeight: 3000, last: '2',
-			});
-			const lastRow = list.domElement(1);
-			elements[0].height = 1500;
-			list.withScrollAnchorAtBottom(() => list.updateElementHeight(0, 1500, null));
-			assert.deepStrictEqual({ sameRow: list.domElement(1) === lastRow, scrollTop: list.scrollTop, rendered }, {
-				sameRow: true, scrollTop: 3400, rendered: [1, 2],
-			});
-			list.scrollTop = 0;
-			assert.throws(() => list.withScrollAnchorAtBottom(() => { throw new Error('test'); }), /test/);
-			elements[0].height = 2000;
-			list.updateElementHeight(0, 2000, null);
-			assert.strictEqual(list.scrollTop, 0, 'The bottom anchor must not outlive the operation');
-		} finally {
-			container.remove();
-		}
-	});
+	for (const precedingHeight of [1500, 2999, 3000, 3001]) {
+		test(`keeps the last row rendered while measuring taller preceding rows with a bottom anchor (${precedingHeight})`, () => {
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			type Element = { id: number; height: number };
+			const rendered: number[] = [];
+			const disposed: number[] = [];
+			const delegate: IListVirtualDelegate<Element> = {
+				getHeight: () => 20,
+				getTemplateId: () => 'template',
+				hasDynamicHeight: () => true,
+				getDynamicHeight: element => element.height,
+			};
+			const renderer: IListRenderer<Element, HTMLElement> = {
+				templateId: 'template',
+				renderTemplate: container => container,
+				renderElement(element, _index, container) {
+					rendered.push(element.id);
+					container.textContent = String(element.id);
+				},
+				disposeElement(element) {
+					disposed.push(element.id);
+				},
+				disposeTemplate() { },
+			};
+			const list = store.add(new ListView(container, delegate, [renderer], { supportDynamicHeights: true }));
+			try {
+				const elements = [{ id: 1, height: 1000 }, { id: 2, height: 2000 }];
+				list.layout(100, 200);
+				list.withScrollAnchorAtBottom(() => list.splice(0, 0, elements));
+				assert.deepStrictEqual({ rendered: rendered.sort(), scrollTop: list.scrollTop, contentHeight: list.contentHeight, last: list.domElement(1)?.textContent }, {
+					rendered: [1, 2], scrollTop: 2900, contentHeight: 3000, last: '2',
+				});
+				const lastRow = list.domElement(1);
+				assert.ok(lastRow);
+				lastRow.tabIndex = -1;
+				lastRow.focus({ preventScroll: true });
+				const disposedBefore = disposed.length;
+				elements[0].height = precedingHeight;
+				list.withScrollAnchorAtBottom(() => list.updateElementHeight(0, precedingHeight, null));
+				assert.deepStrictEqual({ sameRow: list.domElement(1) === lastRow, focused: document.activeElement === lastRow, scrollTop: list.scrollTop, rendered, disposed: disposed.slice(disposedBefore) }, {
+					sameRow: true, focused: true, scrollTop: precedingHeight + 1900, rendered: [1, 2], disposed: [],
+				});
+				list.scrollTop = 0;
+				assert.throws(() => list.withScrollAnchorAtBottom(() => { throw new Error('test'); }), /test/);
+				elements[0].height = 2000;
+				list.updateElementHeight(0, 2000, null);
+				assert.strictEqual(list.scrollTop, 0, 'The bottom anchor must not outlive the operation');
+			} finally {
+				container.remove();
+			}
+		});
+	}
 
 	test('reuses a bounded row pool while measuring appended rows', function () {
 		const container = document.createElement('div');

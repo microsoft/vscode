@@ -2384,6 +2384,60 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
+		test('counts each model clock once for split array reasoning', () => {
+			const cases: Record<string, { parts: IChatThinkingPart[]; title: string }> = {
+				equalDurations: {
+					parts: [
+						{ kind: 'thinking', value: ['First', 'Second'], reasoningDurationMs: 1200 },
+						{ kind: 'thinking', value: ['Third', 'Fourth'], reasoningDurationMs: 1200 },
+					],
+					title: 'Thought for 3s',
+				},
+				knownSpan: {
+					parts: [
+						{ kind: 'thinking', value: ['First', 'Second'], reasoningStartedAt: 1000, reasoningDurationMs: 1200 },
+						{ kind: 'thinking', value: ['Third', 'Fourth'], reasoningStartedAt: 5000, reasoningDurationMs: 1200 },
+					],
+					title: 'Thought for 6s',
+				},
+				unknownTiming: {
+					parts: [
+						{ kind: 'thinking', value: ['First', 'Second'], reasoningDurationMs: 1200 },
+						{ kind: 'thinking', value: ['Third', 'Fourth'] },
+					],
+					title: 'Thought for 1s',
+				},
+			};
+			const titles = Object.fromEntries(Object.entries(cases).map(([name, { parts }]) => {
+				const [first, ...rest] = parts.flatMap(source => (Array.isArray(source.value) ? source.value : [source.value ?? ''])
+					.map(value => ({ source, rendered: { ...source, value } })));
+				const part = createConversationSection(first.rendered, true);
+				part.setThinkingPartTimingSource(first.rendered, first.source);
+				for (const { rendered, source } of rest) {
+					part.setupThinkingContainer(rendered, source);
+				}
+				part.finalizeTitleIfDefault();
+				return [name, snapshot(part).title];
+			}));
+
+			assert.deepStrictEqual(titles, Object.fromEntries(Object.entries(cases).map(([name, { title }]) => [name, title])));
+		});
+
+		test('replaces the shared model clock when a split reasoning fragment is updated', () => {
+			const source = { ...createThinkingPart(undefined, 'shared'), value: ['First', 'Second'], reasoningDurationMs: 1200 };
+			const first = { ...source, value: 'First' };
+			const part = createConversationSection(first);
+			part.setThinkingPartTimingSource(first, source);
+			part.setupThinkingContainer({ ...source, value: 'Second' }, source);
+			part.updateThinking({ ...source, value: 'Second updated', reasoningDurationMs: 2500 });
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({ title: snapshot(part).title, ariaLabel: snapshot(part).ariaLabel }, {
+				title: 'Thought for 3s',
+				ariaLabel: 'Thought for 3s',
+			});
+		});
+
 		test('never generates a title or promotes a reasoning heading', async () => {
 			let modelSelections = 0;
 			mockLanguageModelsService.selectLanguageModels = async () => {
@@ -2443,21 +2497,30 @@ suite('ChatThinkingContentPart', () => {
 						suppressProgressShimmer: progress !== 'legacy',
 						isConversation: progress === 'conversation',
 					};
-					const content: IChatThinkingPart = {
-						...createThinkingPart('**Reviewing code**\n\nDetails.\n\n**Planning tests**\n\nMore details.'),
-						reasoningDurationMs: 1200,
-						generatedTitle: 'Previously generated summary',
-					};
-					const part = store.add(instantiationService.createInstance(ChatThinkingContentPart, content, context, mockMarkdownRenderer, true));
-					part.finalizeTitleIfDefault();
-					part.expandContent();
-					part.collapseContent();
-					titles.push(part.domNode.querySelector('.monaco-button')?.textContent);
+					for (const split of [false, true]) {
+						const values = ['**Reviewing code**\n\nDetails.', '**Planning tests**\n\nMore details.'];
+						const source: IChatThinkingPart = {
+							...createThinkingPart(),
+							value: split ? values : values.join('\n\n'),
+							reasoningDurationMs: 1200,
+							generatedTitle: 'Previously generated summary',
+						};
+						const content = split ? { ...source, value: values[0] } : source;
+						const part = store.add(instantiationService.createInstance(ChatThinkingContentPart, content, context, mockMarkdownRenderer, true));
+						if (split) {
+							part.setThinkingPartTimingSource(content, source);
+							part.setupThinkingContainer({ ...source, value: values[1] }, source);
+						}
+						part.finalizeTitleIfDefault();
+						part.expandContent();
+						part.collapseContent();
+						titles.push(part.domNode.querySelector('.monaco-button')?.textContent);
+					}
 				}
 			}
 			await timeout(0);
 			assert.deepStrictEqual({ titles, modelSelections }, {
-				titles: Array.from({ length: Object.values(ThinkingDisplayMode).length * 3 }, () => 'Thought for 2s'),
+				titles: Array.from({ length: Object.values(ThinkingDisplayMode).length * 3 * 2 }, () => 'Thought for 2s'),
 				modelSelections: 0,
 			});
 		});

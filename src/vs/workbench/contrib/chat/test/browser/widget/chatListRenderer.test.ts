@@ -11154,6 +11154,49 @@ suite('ChatListRenderer', () => {
 		}
 	}));
 
+	test('completed tool chains keep tool headers while progressive content drains', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { disposables, configurationService, model, request, response, renderer, template, node } = createPersistentProgressRenderer({
+			progressVerbosity: ChatProgressVerbosity.Compact,
+			rendererOptions: { progressMessageAtBottomOfResponse: () => false },
+		});
+		try {
+			configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 20 }, (_, index) => `intro${index}`).join(' ')) });
+			for (const toolCallId of ['first', 'second']) {
+				model.acceptResponseProgress(request, {
+					kind: 'toolInvocationSerialized', toolId: 'read_file', toolCallId,
+					invocationMessage: 'Read file', pastTenseMessage: 'Read file',
+					isComplete: true, isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					originMessage: undefined, presentation: undefined, source: ToolDataSource.Internal,
+				});
+			}
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 80 }, (_, index) => `answer${index}`).join(' ')) });
+			request.response!.complete();
+			await timeout(1);
+			response.renderData = { lastRenderTime: Date.now(), renderedWordCount: 20, renderedParts: [] };
+			renderer.renderElement(node, 0, template);
+			const button = template.value.querySelector<HTMLElement>('.chat-tool-chain-collapsible .monaco-button');
+			const during = {
+				draining: !!response.renderData,
+				visible: button?.checkVisibility(),
+				hasLabel: !!button?.textContent?.trim(),
+				reasoningDuration: button?.textContent?.startsWith('Thought for '),
+			};
+			await timeout(1000);
+			assert.deepStrictEqual({
+				during,
+				draining: !!response.renderData,
+				reasoningDuration: template.value.querySelector('.chat-tool-chain-collapsible .monaco-button')?.textContent?.startsWith('Thought for '),
+			}, {
+				during: { draining: true, visible: true, hasLabel: true, reasoningDuration: false },
+				draining: false,
+				reasoningDuration: false,
+			});
+		} finally {
+			disposables.dispose();
+		}
+	}));
+
 	test('disposes the turn summary displaced by retained progress while completed markdown drains', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { disposables, instantiationService, model, request, response, renderer, template, node } = createPersistentProgressRenderer({
 			sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/progress-summary' }),
@@ -13632,6 +13675,58 @@ suite('ChatListRenderer', () => {
 	}
 
 	suite('section completion and working progress', () => {
+		for (const values of [['First', 'Second'], ['', 'First', 'Second']]) {
+			test(`restored array reasoning counts a recorded duration once (${JSON.stringify(values)})`, () => {
+				const seed = createPersistentProgressRenderer();
+				seed.model.acceptResponseProgress(seed.request, { kind: 'markdownContent', content: new MarkdownString('Done') });
+				seed.request.response!.complete();
+				const serialized = seed.model.toJSON();
+				seed.disposables.dispose();
+				const value = {
+					...serialized,
+					requests: [{
+						...serialized.requests[0],
+						response: [{
+							kind: 'thinking' as const, id: 'timed-array', value: values, reasoningDurationMs: 1200,
+						}, ...(serialized.requests[0].response ?? [])],
+					}],
+				};
+				const { renderer, template, node } = createPersistentProgressRenderer({
+					persistentProgress: ChatProgressAnimation.Off,
+					thinkingStyle: ThinkingDisplayMode.Collapsed,
+					initialData: { value, serializer: new ChatSessionOperationLog() },
+				});
+				renderer.renderElement(node, 0, template);
+				const button = template.value.querySelector<HTMLElement>('.chat-thinking-box > .chat-used-context-label .monaco-button');
+				button?.click();
+				const text = template.value.querySelector<HTMLElement>('.chat-thinking-box')?.innerText;
+				assert.deepStrictEqual({
+					title: button?.textContent,
+					first: text?.includes('First'),
+					second: text?.includes('Second'),
+				}, { title: 'Thought for 2s', first: true, second: true });
+			});
+		}
+
+		test('array reasoning reads timing recorded on the model after rendering', () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
+			const { disposables, model, request, renderer, template, node } = createPersistentProgressRenderer({
+				persistentProgress: ChatProgressAnimation.Off,
+				thinkingStyle: ThinkingDisplayMode.Collapsed,
+			});
+			try {
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Before') });
+				model.acceptResponseProgress(request, { kind: 'thinking', id: 'live-array', value: ['First', 'Second'] });
+				renderer.renderElement(node, 0, template);
+				await timeout(2500);
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Done') });
+				request.response!.complete();
+				renderer.renderElement(node, 0, template);
+				assert.strictEqual(template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button')?.textContent, 'Thought for 3s');
+			} finally {
+				disposables.dispose();
+			}
+		}));
+
 		for (const sectionMarkers of [false, true]) {
 			test(`completed response bookkeeping checks active sections linearly (sectionMarkers=${sectionMarkers})`, () => {
 				const { model, request, renderer, template, node } = createPersistentProgressRenderer();

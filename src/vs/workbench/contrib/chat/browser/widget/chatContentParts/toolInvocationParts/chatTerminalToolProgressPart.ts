@@ -866,7 +866,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			? migrateLegacyTerminalToolSpecificData(this.toolInvocation.toolSpecificData)
 			: this._terminalData;
 		if (currentTerminalData.isPty === false) {
-			if (this._outputSource?.exitCode !== undefined || currentTerminalData.terminalCommandState?.exitCode !== undefined) {
+			const source = this._outputSource ?? (currentTerminalData.terminalToolSessionId ? this._terminalChatService.getOutputSource(currentTerminalData.terminalToolSessionId) : undefined);
+			if (source?.hasExited || currentTerminalData.terminalCommandState?.exitCode !== undefined) {
 				return false;
 			}
 			if (!IChatToolInvocation.isComplete(this.toolInvocation)) {
@@ -1226,6 +1227,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		onCommandExecuted.fire();
 		if (source.hasExited) {
 			onCommandFinished.fire();
+			this.markCollapsibleWrapperComplete();
 		}
 		this._decoration.update();
 		this._updateToolbarContextKeys(undefined, this._terminalData.terminalToolSessionId);

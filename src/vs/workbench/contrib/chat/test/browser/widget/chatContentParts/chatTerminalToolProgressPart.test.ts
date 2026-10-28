@@ -86,6 +86,7 @@ class TestTerminalChatService extends mock<ITerminalChatService>() {
 	constructor(
 		private readonly continueInBackgroundEmitter: Emitter<string>,
 		private readonly terminalInstance: ITerminalInstance,
+		private readonly outputSource?: IChatTerminalOutputSource,
 	) {
 		super();
 		this.onDidContinueInBackground = continueInBackgroundEmitter.event;
@@ -114,7 +115,7 @@ class TestTerminalChatService extends mock<ITerminalChatService>() {
 	}
 
 	override getOutputSource() {
-		return undefined;
+		return this.outputSource;
 	}
 
 	override getAhpCommandSource() {
@@ -278,7 +279,7 @@ interface ITerminalFullOutputPartOptions {
 	readonly runningInBackground?: boolean;
 }
 
-async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add'>) {
+async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add'>, outputSource?: IChatTerminalOutputSource) {
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const configurationService = instantiationService.get(IConfigurationService);
 	if (!(configurationService instanceof TestConfigurationService)) {
@@ -315,7 +316,7 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 		override readonly capabilities = capabilities;
 	}();
 	const continueInBackgroundEmitter = store.add(new Emitter<string>());
-	instantiationService.stub(ITerminalChatService, new TestTerminalChatService(continueInBackgroundEmitter, terminalInstance));
+	instantiationService.stub(ITerminalChatService, new TestTerminalChatService(continueInBackgroundEmitter, terminalInstance, outputSource));
 	instantiationService.stub(IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
 		override getOpenAriaHint(): null {
 			return null;
@@ -397,6 +398,7 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 			intention: options.intention,
 			language: 'shellscript',
 			isPty: false,
+			terminalToolSessionId: outputSource ? `full-output-${toolCallId}` : undefined,
 			terminalCommandUri: terminal,
 			terminalCommandState: options.exitCode === undefined ? undefined : { exitCode: options.exitCode },
 			didContinueInBackground: options.runningInBackground,
@@ -422,6 +424,7 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 		const element = Object.assign(Object.create(null) as IChatResponseViewModel, {
 			id: `response-${toolCallId}`,
 			isComplete: true,
+			isTerminalCommand: false,
 			sessionResource,
 			setVote() { },
 			get model() { return {} as IChatResponseViewModel['model']; },
@@ -654,6 +657,28 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		await retry(async () => assert.ok(part.domNode.querySelector('.chat-terminal-output-container.expanded')), 10, 100);
 		assert.deepStrictEqual({ mirrors: harness.terminalCreationCount, output: snapshotText(harness.raw(part)) }, { mirrors: 1, output: 'Live command output' });
 	});
+
+	for (const exitCode of [0, undefined]) {
+		test(`retained exited background output starts completed without creating an offscreen mirror (exitCode=${exitCode})`, async () => {
+			const source: IChatTerminalOutputSource = {
+				onDidChange: Event.None,
+				output: 'Finished command output',
+				outputPosition: { generation: 1, start: 0 },
+				hasExited: true,
+				exitCode,
+			};
+			const harness = await createTerminalFullOutputHarness(store, source);
+			harness.container.style.cssText = 'position: fixed; top: 20000px; left: 0; width: 800px;';
+			const { part } = harness.createPart({ mode: 'thinking', hasReference: false, runningInBackground: true });
+			await observeIntersection(part.domNode);
+			const button = part.domNode.querySelector<HTMLElement>('.chat-terminal-thinking-collapsible > .chat-used-context-label .monaco-button');
+			assert.deepStrictEqual({
+				completed: button?.textContent?.startsWith('Ran '),
+				expanded: button?.ariaExpanded,
+				mirrors: harness.terminalCreationCount,
+			}, { completed: true, expanded: 'false', mirrors: 0 });
+		});
+	}
 
 	for (const [key, keyCode] of [['Enter', 13], [' ', 32]] as const) {
 		test(`keyboard expansion loads restored terminal output immediately (${keyCode})`, async () => {

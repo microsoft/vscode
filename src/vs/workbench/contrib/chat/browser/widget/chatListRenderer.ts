@@ -5876,12 +5876,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			let lastPart: IChatContentPart | undefined = context.isConversation ? this.getLastThinkingPart(templateData.renderedParts, context.contentIndex) : undefined;
 			for (const item of content.value) {
 				if (item) {
+					const itemContent = { ...content, value: item };
 					const lastThinkingPart = lastPart instanceof ChatThinkingContentPart && lastPart.getIsActive() ? lastPart : undefined;
 					if (lastThinkingPart) {
-						lastThinkingPart.setupThinkingContainer({ ...content, value: item });
+						lastThinkingPart.setupThinkingContainer(itemContent, content);
 					} else {
-						const itemContent = { ...content, value: item };
 						const itemPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, itemContent, thinkingContext, this.chatContentMarkdownRenderer, streamingCompleted);
+						itemPart.setThinkingPartTimingSource(itemContent, content);
 						lastPart = itemPart;
 					}
 				}
