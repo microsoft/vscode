@@ -690,6 +690,36 @@ suite('WorkspaceTrustedUrisTable', () => {
 			assert.deepStrictEqual(trustService.getTrustedUris().map(uri => uri.toString()), [hostB.toString()]);
 		});
 
+		test('deletes the merge target, not another folder rewritten by the same save', async () => {
+			const hostAOther = URI.parse('vscode-remote://ssh-remote+hostA/home/other');
+			const legacy = URI.parse('vscode-remote://ssh-remote+hostB/home/legacy');
+			createTableWithUris([hostA, hostAOther, legacy]);
+			trustService.canonicalize = uri => uri.with({ path: uri.path.replace(/(?<last>.)\/$/, '$<last>').replace(/^\/home\/legacy$/, '/home/modern') });
+			const gate = new DeferredPromise<void>();
+			trustService.completionGate = gate.p;
+
+			table.acceptEdit({ uri: hostAOther, parentOfWorkspaceItem: false }, hostA.with({ path: '/home/a/' }));
+			const deletion = table.delete({ uri: hostAOther, parentOfWorkspaceItem: false });
+			gate.complete();
+			await deletion;
+
+			assert.deepStrictEqual(trustService.getTrustedUris().map(uri => uri.toString()), [legacy.with({ path: '/home/modern' }).toString()]);
+		});
+
+		test('deletes the saved form of an edited folder that the service rewrites', async () => {
+			createTableWithUris([hostA, hostB]);
+			trustService.canonicalize = uri => uri.with({ path: uri.path.replace(/^\/home\/b2-alias$/, '/home/b2') });
+			const gate = new DeferredPromise<void>();
+			trustService.completionGate = gate.p;
+
+			table.acceptEdit({ uri: hostB, parentOfWorkspaceItem: false }, hostB.with({ path: '/home/b2-alias' }));
+			const deletion = table.delete({ uri: hostB, parentOfWorkspaceItem: false });
+			gate.complete();
+			await deletion;
+
+			assert.deepStrictEqual(trustService.getTrustedUris().map(uri => uri.path), ['/home/a']);
+		});
+
 		test('opens the editor of the latest edit only, after all queued saves', async () => {
 			const hostC = URI.parse('vscode-remote://ssh-remote+hostC/home/c');
 			const labelService = createTableWithUris([hostA, hostB, hostC]);

@@ -404,12 +404,14 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 
 			await this.workspaceTrustManagementService.setTrustedUris(trustedFolders);
 
-			// The service stores a canonical form of the URI and drops duplicates, so find the entry
-			// that this edit saved, letting actions queued for this row act on the entry that is shown.
+			// The service stores a canonical form of every URI and drops duplicates, so find the entry
+			// that this edit saved, letting actions queued for this row act on the entry that is shown:
+			// the edited URI as normalized by the service itself, or else the only entry the save added.
+			// Other folders can be rewritten by the same save, so an addition must not take precedence.
 			const savedFolders = this.workspaceTrustManagementService.getTrustedUris();
-			const added = savedFolders.filter(saved => !previousFolders.some(previous => this.uriService.extUri.isEqual(previous, saved)));
 			const normalized = this.uriService.extUri.removeTrailingPathSeparator(uri);
-			const saved = added.length === 1 ? added[0] : savedFolders.find(folder => this.uriService.extUri.isEqual(folder, normalized));
+			const added = savedFolders.filter(saved => !previousFolders.some(previous => this.uriService.extUri.isEqual(previous, saved)));
+			const saved = savedFolders.find(folder => this.uriService.extUri.isEqual(folder, normalized)) ?? (added.length === 1 ? added[0] : undefined);
 			if (saved) {
 				this.editedUris.set(item.uri, saved);
 			}
@@ -418,11 +420,6 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 		this.endInlineEdit();
 	}
 
-	/**
-	 * Runs this table's changes to the trusted folders one at a time: the trust service
-	 * clears its list while it saves, so a change must not read or write it before the
-	 * previous one is done. Label refreshes are deferred until all changes are saved.
-	 */
 	/**
 	 * Waits until all of this table's changes to the trusted folders are saved and the rows are rebuilt
 	 * from them, then resolves the row that is now shown for `item`, following an accepted edit of it.
@@ -443,6 +440,11 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 		return index === -1 ? undefined : this.table.row(index);
 	}
 
+	/**
+	 * Runs this table's changes to the trusted folders one at a time: the trust service
+	 * clears its list while it saves, so a change must not read or write it before the
+	 * previous one is done. Label refreshes are deferred until all changes are saved.
+	 */
 	private updateTrust(task: () => Promise<void>): Promise<void> {
 		this.queuedTrustUpdateCount++;
 		const update = this.trustUpdates.queue(task);
