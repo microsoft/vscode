@@ -15,8 +15,8 @@ import { fromAgentHostChatHarness, toAgentHostChatHarness } from '../../common/a
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
-import { ChatInteractivity, ChatOriginKind, getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
-import { buildOpenSessionLinkForChat, buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
+import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_ID, getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { AGENT_HOST_CHAT_LINK_PATTERN, buildOpenSessionLinkForChat, buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
@@ -2024,6 +2024,10 @@ export function getArchiveChatArgs(rawArgs: unknown, sessions: readonly IAgentSe
 		throw new Error(`Invalid ${SessionServerToolName.ArchiveChat} input: chat must be an agent-host-session:// link targeting a known chat (see list_sessions).`);
 	}
 	const chatId = parseOpenSessionLinkChatId(chatInput);
+	// An explicit selector reads as absent when it is empty or cannot be decoded; it must not fall back to the whole session.
+	if (chatId === undefined && AGENT_HOST_CHAT_LINK_PATTERN.test(chatInput) && URI.parse(chatInput).query.split('&').some(part => part.startsWith('chat=') && part !== `chat=${DEFAULT_CHAT_ID}`)) {
+		throw new Error(`Invalid ${SessionServerToolName.ArchiveChat} input: chat must name a valid chat id; omit the chat id to archive the whole session.`);
+	}
 	const defaultChat = resolveDefaultChat(sessions, session, getDefaultChat);
 	const isDefaultChatId = chatId !== undefined && defaultChat !== undefined && (defaultChat.toString() === chatId || getAgentHostChatId(defaultChat) === chatId);
 	const chat = chatId === undefined || isDefaultChatId ? defaultChat : resolveLinkedChat(sessions, session, chatId);

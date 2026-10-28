@@ -3450,6 +3450,9 @@ suite('SessionServerTools', () => {
 			alreadyArchivedSession: await run('agent-host-session://copilot/s3'),
 			alreadyArchivedChat: await run('agent-host-session://copilot/s2?chat=c9'),
 			unknownChat: await run('agent-host-session://copilot/s2?chat=missing'),
+			emptyChatSelector: await run('agent-host-session://copilot/s2?chat='),
+			malformedChatSelector: await run('agent-host-session://copilot/s2?chat=%ZZ'),
+			explicitDefaultChatSelector: await run('agent-host-session://copilot/s2?chat=default'),
 			unknownSession: await run('agent-host-session://copilot/missing'),
 		};
 		assert.deepStrictEqual({ results, calls }, {
@@ -3464,6 +3467,9 @@ suite('SessionServerTools', () => {
 				alreadyArchivedSession: 'Session agent-host-session://copilot/s3 is already archived.',
 				alreadyArchivedChat: 'Chat agent-host-session://copilot/s2?chat=c9 is already archived.',
 				unknownChat: 'error: Invalid archive_chat input: chat must target a known chat of its session.',
+				emptyChatSelector: 'error: Invalid archive_chat input: chat must name a valid chat id; omit the chat id to archive the whole session.',
+				malformedChatSelector: 'error: Invalid archive_chat input: chat must name a valid chat id; omit the chat id to archive the whole session.',
+				explicitDefaultChatSelector: 'Archived session agent-host-session://copilot/s2 with all of its chats.',
 				unknownSession: 'error: Invalid archive_chat input: chat must be an agent-host-session:// link targeting a known chat (see list_sessions).',
 			},
 			calls: [
@@ -3471,6 +3477,7 @@ suite('SessionServerTools', () => {
 				'session copilot:/s2',
 				'session copilot:/s2',
 				`chat ${peer}`,
+				'session copilot:/s2',
 			],
 		});
 	});
