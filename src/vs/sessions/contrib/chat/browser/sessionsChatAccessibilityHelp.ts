@@ -9,7 +9,7 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { getModePickerAccessibilityHelp } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { getBackgroundShellsPillAccessibilityHelp } from '../../../../workbench/contrib/chat/browser/sessionBackgroundShellsControl.js';
-import { getChatInputSessionLinkAccessibilityHelp, getChatViewModeAccessibilityHelp, getCloudSandboxPreparationAccessibilityHelp, getModelPickerConfigurationAccessibilityHelp } from '../../../../workbench/contrib/chat/browser/actions/chatAccessibilityHelp.js';
+import { getChatInputSessionLinkAccessibilityHelp, getChatThinkingTitleAccessibilityHelp, getChatViewModeAccessibilityHelp, getCloudSandboxPreparationAccessibilityHelp, getModelPickerConfigurationAccessibilityHelp } from '../../../../workbench/contrib/chat/browser/actions/chatAccessibilityHelp.js';
 import { isResponseSelectionSupported } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
@@ -277,6 +277,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(getBackgroundShellsPillAccessibilityHelp());
 		if (!accessor.get(IChatEntitlementService).sentiment.hidden && configurationService.getValue<boolean>('chat.disableAIFeatures') !== true) {
 			content.push(getChatViewModeAccessibilityHelp());
+			content.push(getChatThinkingTitleAccessibilityHelp());
 		}
 		const chatTabsMode = configurationService.getValue<SessionsChatTabsMode>(SESSIONS_CHAT_TABS_SETTING) ?? SESSIONS_CHAT_TABS_DEFAULT;
 		content.push(chatTabsMode === SessionsChatTabsMode.Single

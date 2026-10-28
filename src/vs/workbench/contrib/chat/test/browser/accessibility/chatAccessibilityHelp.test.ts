@@ -614,15 +614,19 @@ suite('Chat Accessibility Help', () => {
 		}, { readOnlyPreview: true, settingOverride: true, keyboardExpansion: true });
 	});
 
-	test('describes duration-only thinking headers without hiding reasoning details', () => {
+	test('describes visible-only generated thinking titles without hiding reasoning details', () => {
 		const help = getAccessibilityHelpText('panelChat', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
-			duration: help.includes('Completed thinking headers show Thought for followed by the elapsed seconds, with a minimum of 1s'),
+			fallback: help.includes('Completed thinking headers show Finished thinking until a summary is available'),
+			singleHeader: help.includes('A single extracted reasoning heading is used directly without a model request'),
+			multipleHeaders: help.includes('Multiple headings remain in the details and are used as the input for a generated summary'),
 			allStyles: help.includes('in every thinking style and progress layout'),
-			noRequests: help.includes('Headers do not generate summaries or make additional model requests'),
+			visibleOnly: help.includes('only when a live section finishes with its header in view'),
+			background: help.includes('Sections that finish off-screen or in background chats do not request titles'),
+			noBackfill: help.includes('Opening a chat, returning to it, scrolling or expanding existing sections never generates titles'),
 			details: help.includes('All reasoning headings and content remain available in the expandable details'),
-			legacySetting: help.includes('chat.agent.thinking.generateTitles'),
-		}, { duration: true, allStyles: true, noRequests: true, details: true, legacySetting: false });
+			setting: help.includes('chat.agent.thinking.generateTitles'),
+		}, { fallback: true, singleHeader: true, multipleHeaders: true, allStyles: true, visibleOnly: true, background: true, noBackfill: true, details: true, setting: true });
 	});
 
 	test('uses the configured Mark as Done wording for nudge help', () => {

@@ -241,6 +241,15 @@ suite('Chat configuration', () => {
 		})));
 	});
 
+	test('enables generated thinking titles only for visible headers by default', () => {
+		const setting = legacyChatThinkingConfigurationProperties[ChatConfiguration.ThinkingGenerateTitles];
+		assert.deepStrictEqual({
+			default: setting.default,
+			visibility: setting.description.includes('only when a live thinking section finishes with its header in view'),
+			fallback: setting.description.includes('Finished thinking'),
+		}, { default: true, visibility: true, fallback: true });
+	});
+
 	for (const { legacyKey, key, values } of [
 		{
 			legacyKey: 'chat.experimental.persistentProgress',

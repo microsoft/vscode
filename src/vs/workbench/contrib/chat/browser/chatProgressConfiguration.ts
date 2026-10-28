@@ -45,9 +45,9 @@ export const chatProgressConfigurationProperties = {
 		enumDescriptions: [
 			localize('chat.progressVerbosity.verbose', "Keep tool calls in expanded, headerless chains without an internal scrolling limit."),
 			localize('chat.progressVerbosity.compact', "Preview tool calls while they run, then collapse each group to a single expandable summary row when the response moves on."),
-			localize('chat.progressVerbosity.conversation', "Collapse reasoning and tool calls together into a single section that names the current tool call or reasoning heading while it runs, then how long it took once it finishes."),
+			localize('chat.progressVerbosity.conversation', "Collapse reasoning and tool calls together into a single section that names the current tool call or reasoning heading while it runs, then shows a generated summary or Finished thinking once it finishes."),
 		],
-		markdownDescription: localize('chat.experimental.persistentProgressVerbosity', "Control tool call details when {0} is enabled. Compact is the default and collapses tool groups in place when thinking or response text resumes, or the response finishes. When Agent Host activity data is available, headers summarize up to three activity groups, prioritizing edits and commands, without language model requests. Remaining activity is counted as other steps. Failed, skipped, denied, and unfinished tool invocations remain explicit, including in the other-steps count. Completed shell invocations count as commands without tracking later background process status. Groups with no recognized activity or outcome use a step count. Expand a summary to inspect all its tool calls. Conversation collapses reasoning and tool calls between response text into one section that starts collapsed, names the current tool call, or the heading of the current reasoning summary (Thinking when the reasoning has no heading), while it runs, and reports how long it took once it finishes. Has no effect when persistent progress is Off. Changes apply immediately.", `\`#${ChatConfiguration.PersistentProgress}#\``),
+		markdownDescription: localize('chat.experimental.persistentProgressVerbosity', "Control tool call details when {0} is enabled. Compact is the default and collapses tool groups in place when thinking or response text resumes, or the response finishes. When Agent Host activity data is available, headers summarize up to three activity groups, prioritizing edits and commands, without language model requests. Remaining activity is counted as other steps. Failed, skipped, denied, and unfinished tool invocations remain explicit, including in the other-steps count. Completed shell invocations count as commands without tracking later background process status. Groups with no recognized activity or outcome use a step count. Expand a summary to inspect all its tool calls. Conversation collapses reasoning and tool calls between response text into one section that starts collapsed, names the current tool call, or the heading of the current reasoning summary (Thinking when the reasoning has no heading), while it runs, and shows a generated summary or Finished thinking once it finishes. Has no effect when persistent progress is Off. Changes apply immediately.", `\`#${ChatConfiguration.PersistentProgress}#\``),
 		tags: ['experimental'],
 		experiment: { mode: 'auto', name: `config.${legacyPersistentProgressVerbositySetting}` },
 	},
@@ -71,9 +71,8 @@ export const legacyChatThinkingConfigurationProperties = {
 	},
 	[ChatConfiguration.ThinkingGenerateTitles]: {
 		type: 'boolean',
-		default: false,
-		description: localize('chat.agent.thinking.generateTitles', "Thinking section headers show elapsed time instead of generated summaries."),
-		deprecationMessage: localize('chat.agent.thinking.generateTitles.deprecated', "Thinking title generation is no longer supported. This setting has no effect."),
+		default: true,
+		description: localize('chat.agent.thinking.generateTitles', "Generate a summary only when a live thinking section finishes with its header in view. A single extracted reasoning heading is used directly without a model request; multiple headings are used as summary input. Opening a chat, returning to it, scrolling or expanding existing sections never generates titles. Sections that finish off-screen or in background chats keep their existing title or Finished thinking."),
 		tags: ['experimental'],
 	},
 	'chat.agent.thinking.collapsedTools': {

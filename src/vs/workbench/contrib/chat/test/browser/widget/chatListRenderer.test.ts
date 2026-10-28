@@ -8,7 +8,7 @@ import * as sinon from 'sinon';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
-import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, retry, timeout } from '../../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, readUInt16LE, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -75,6 +75,7 @@ import { ChatToolConfirmationCarouselPart } from '../../../browser/widget/chatCo
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
 import { getSubagentEditorResource, OpenSubagentChatActionViewItem } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { ChatThinkingContentPart } from '../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
+import { IChatThinkingTitleRequest, IChatThinkingTitleService } from '../../../common/chatThinkingTitleService.js';
 import { ChatMarkdownContentPart } from '../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
 import { ChatTurnPillsContentPart } from '../../../browser/widget/chatContentParts/chatTurnPillsPart.js';
 import { aggregateChatEditDiffs } from '../../../browser/widget/chatContentParts/chatEditStatsButton.js';
@@ -8632,7 +8633,7 @@ suite('ChatListRenderer', () => {
 	for (const incremental of [false, true]) {
 		for (const grouped of [false, true]) {
 			for (const completeResponse of [false, true]) {
-				test(`persistent reasoning keeps headings under its duration header (incremental=${incremental}, grouped=${grouped}, completeResponse=${completeResponse})`, () => {
+				test(`persistent reasoning reuses a single heading and keeps its details (incremental=${incremental}, grouped=${grouped}, completeResponse=${completeResponse})`, () => {
 					const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer();
 					configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
 					configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
@@ -8660,8 +8661,8 @@ suite('ChatListRenderer', () => {
 						body: Array.from(template.value.querySelectorAll('.chat-persistent-reasoning .chat-thinking-item p'), paragraph => paragraph.textContent?.trim()),
 					}, {
 						initialTitle: 'Thinking',
-						completedTitle: 'Thought for 1s',
-						ariaLabel: 'Thought for 1s',
+						completedTitle: 'Evaluating code and build processes',
+						ariaLabel: 'Evaluating code and build processes',
 						body: grouped ? ['Evaluating code and build processes', 'Check the renderer.', 'Check the build.'] : ['Evaluating code and build processes', 'Check the renderer.'],
 					});
 					if (!completeResponse) {
@@ -9931,7 +9932,7 @@ suite('ChatListRenderer', () => {
 		renderer.renderElement(node, 0, template);
 	});
 
-	test('conversation progress collapses reasoning and tool calls into one section that reports how long it took', async () => {
+	test('conversation progress collapses reasoning and tool calls into one section with its extracted heading', async () => {
 		const clock = sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
 		try {
 			const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity: ChatProgressVerbosity.Conversation });
@@ -9982,7 +9983,7 @@ suite('ChatListRenderer', () => {
 				thinking: { title: 'Planning the fix', expanded: 'false', order: ['section', 'progress'] },
 				reading: { title: 'Reading renderer.ts', expanded: 'false', order: ['section', 'progress'] },
 				thinkingAgain: { title: 'Thinking', expanded: 'false', order: ['section', 'progress'] },
-				finished: { title: 'Thought for 5s', expanded: 'false', order: ['section', 'markdown', 'progress'] },
+				finished: { title: 'Planning the fix', expanded: 'false', order: ['section', 'markdown', 'progress'] },
 				rows: ['reasoning', 'tool', 'reasoning'],
 				toolChains: 0,
 			});
@@ -13675,8 +13676,57 @@ suite('ChatListRenderer', () => {
 	}
 
 	suite('section completion and working progress', () => {
+		test('generates a title when visible streamed reasoning finishes, but not when completed history is reopened', async () => {
+			const setup = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
+			const { instantiationService, model, request, renderer, template, node, container } = setup;
+			container.style.cssText = 'position:fixed;top:0;left:0;width:500px;height:300px;overflow:auto';
+			const generated = new DeferredPromise<void>();
+			const requests: string[] = [];
+			instantiationService.stub(IChatThinkingTitleService, 'generateTitle', async (input: IChatThinkingTitleRequest) => {
+				requests.push(input.content);
+				generated.complete();
+				return 'Reviewed the implementation';
+			});
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'live-reasoning', value: 'Considering the implementation.' });
+			renderer.renderElement(node, 0, template);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The answer.') });
+			request.response!.complete();
+			renderer.renderElement(node, 0, template);
+			await raceTimeout(generated.p, 5000, () => assert.fail('The visible live completion did not request a title'));
+			await timeout(0);
+			const title = template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button')?.textContent;
+			const serialized = model.toJSON();
+			setup.disposables.dispose();
+
+			const restoredData = {
+				...serialized,
+				requests: [{
+					...serialized.requests[0],
+					response: [
+						{ kind: 'thinking' as const, id: 'untitled-history', value: 'Earlier reasoning without a saved title.' },
+						{ kind: 'markdownContent' as const, content: new MarkdownString('Earlier answer.') },
+					],
+				}],
+			};
+			const restored = createPersistentProgressRenderer({ initialData: { value: restoredData, serializer: new ChatSessionOperationLog() } });
+			restored.container.style.cssText = 'position:fixed;top:0;left:0;width:500px;height:300px;overflow:auto';
+			restored.instantiationService.stub(IChatThinkingTitleService, 'generateTitle', async () => {
+				requests.push('unexpected history backfill');
+				return 'Unexpected';
+			});
+			restored.renderer.renderElement(restored.node, 0, restored.template);
+			restored.renderer.setVisible(false);
+			restored.renderer.setVisible(true);
+			await timeout(400);
+			assert.deepStrictEqual({
+				requests, title,
+				restoredTitle: restored.template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button')?.textContent,
+			}, { requests: ['Considering the implementation.'], title: 'Reviewed the implementation', restoredTitle: 'Finished thinking' });
+		});
+
 		for (const values of [['First', 'Second'], ['', 'First', 'Second']]) {
-			test(`restored array reasoning counts a recorded duration once (${JSON.stringify(values)})`, () => {
+			test(`restored array reasoning preserves all text with the Finished thinking fallback (${JSON.stringify(values)})`, () => {
 				const seed = createPersistentProgressRenderer();
 				seed.model.acceptResponseProgress(seed.request, { kind: 'markdownContent', content: new MarkdownString('Done') });
 				seed.request.response!.complete();
@@ -13704,11 +13754,11 @@ suite('ChatListRenderer', () => {
 					title: button?.textContent,
 					first: text?.includes('First'),
 					second: text?.includes('Second'),
-				}, { title: 'Thought for 2s', first: true, second: true });
+				}, { title: 'Finished thinking', first: true, second: true });
 			});
 		}
 
-		test('array reasoning reads timing recorded on the model after rendering', () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
+		test('array reasoning keeps the Finished thinking fallback when timing arrives later', () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
 			const { disposables, model, request, renderer, template, node } = createPersistentProgressRenderer({
 				persistentProgress: ChatProgressAnimation.Off,
 				thinkingStyle: ThinkingDisplayMode.Collapsed,
@@ -13721,7 +13771,7 @@ suite('ChatListRenderer', () => {
 				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Done') });
 				request.response!.complete();
 				renderer.renderElement(node, 0, template);
-				assert.strictEqual(template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button')?.textContent, 'Thought for 3s');
+				assert.strictEqual(template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button')?.textContent, 'Finished thinking');
 			} finally {
 				disposables.dispose();
 			}

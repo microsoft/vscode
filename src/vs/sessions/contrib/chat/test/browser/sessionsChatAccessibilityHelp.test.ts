@@ -61,7 +61,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 				modes: help.includes('View Mode to select Compact, Verbose, or Conversation'),
 				checked: help.includes('The active mode is checked'),
 				setting: help.includes('Selecting a mode updates chat.persistentProgressVerbosity'),
-			}, { modes: !aiDisabled && !hidden, checked: !aiDisabled && !hidden, setting: !aiDisabled && !hidden });
+				thinking: help.includes('only when a live section finishes with its header in view'),
+				noBackfill: help.includes('Opening a chat, returning to it, scrolling or expanding existing sections never generates titles'),
+			}, { modes: !aiDisabled && !hidden, checked: !aiDisabled && !hidden, setting: !aiDisabled && !hidden, thinking: !aiDisabled && !hidden, noBackfill: !aiDisabled && !hidden });
 		});
 	}
 

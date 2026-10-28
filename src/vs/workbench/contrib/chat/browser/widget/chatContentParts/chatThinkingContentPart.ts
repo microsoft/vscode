@@ -357,48 +357,8 @@ export function buildPhrasePool(defaults: string[], configurationService: IConfi
 	return [...defaults];
 }
 
-/**
- * Measures a thinking section from the earliest start to the latest end of its reasoning and
- * tool calls. Any reasoning or tool call this client did not time from start to finish, such as
- * restored history, makes the duration unknown. Reasoning recorded without start times can only
- * be totaled when the section has no tool calls.
- */
-function getThinkingSectionDurationMs(thinkingParts: Iterable<IChatThinkingPart>, toolInvocations: readonly (IChatToolInvocation | IChatToolInvocationSerialized)[]): number | undefined {
-	const spans: [start: number, end: number][] = [];
-	let reasoningMs = 0;
-	let hasUnplacedReasoning = false;
-	for (const part of thinkingParts) {
-		if (part.reasoningDurationMs === undefined) {
-			// Untimed parts without text add no time: the placeholder a section starts with before
-			// a tool call, or the marker that ends a reasoning block. Timed parts count either way.
-			if (extractTextFromPart(part)) {
-				return undefined;
-			}
-			continue;
-		}
-		reasoningMs += part.reasoningDurationMs;
-		if (part.reasoningStartedAt === undefined) {
-			hasUnplacedReasoning = true;
-		} else {
-			spans.push([part.reasoningStartedAt, part.reasoningStartedAt + part.reasoningDurationMs]);
-		}
-	}
-	for (const tool of toolInvocations) {
-		if (tool.startedAt === undefined || tool.completedAt === undefined) {
-			return undefined;
-		}
-		spans.push([tool.startedAt, tool.completedAt]);
-	}
-	if (hasUnplacedReasoning) {
-		return toolInvocations.length === 0 ? reasoningMs : undefined;
-	}
-	return spans.length ? Math.max(...spans.map(([, end]) => end)) - Math.min(...spans.map(([start]) => start)) : undefined;
-}
-
-/** Titles a finished thinking section in seconds, with a minimum of one second. */
-export function getFinishedThinkingTitle(durationMs: number | undefined): string {
-	const seconds = durationMs !== undefined && Number.isFinite(durationMs) ? Math.max(1, Math.ceil(durationMs / 1000)) : 1;
-	return localize('chat.thinking.thoughtFor', "Thought for {0}s", seconds);
+function getFinishedThinkingTitle(): string {
+	return localize('chat.thinking.finishedThinking', "Finished thinking");
 }
 
 export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implements IChatContentPart {
@@ -454,7 +414,10 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	private isActive: boolean = true;
 	private toolInvocations: (IChatToolInvocation | IChatToolInvocationSerialized)[] = [];
 	private allThinkingParts: IChatThinkingPart[] = [];
-	private thinkingPartTimingSources: WeakMap<IChatThinkingPart, IChatThinkingPart> | undefined;
+	private thinkingPartSources: WeakMap<IChatThinkingPart, IChatThinkingPart> | undefined;
+	private readonly thinkingHeadersByPart = new WeakMap<IChatThinkingPart, readonly string[]>();
+	private readonly titleGeneration = this._register(new MutableDisposable());
+	private readonly renderedWhileStreaming: boolean;
 	private hookCount: number = 0;
 	private singleItemInfo: { element: HTMLElement; thinkingWrapper: HTMLElement; originalParent: HTMLElement; originalNextSibling: Node | null; restoreToOriginalParent: boolean; toolInvocation?: IChatToolInvocation | IChatToolInvocationSerialized } | undefined;
 	private lazyItems: ILazyItem[] = [];
@@ -542,7 +505,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		const extractedTitle = extractTitleFromThinkingContent(initialText)
 			?? localize('chat.thinking.header.initial', 'Thinking');
 		const initialTitle = streamingCompleted && !context.isToolChain
-			? getFinishedThinkingTitle(content.reasoningDurationMs)
+			? getFinishedThinkingTitle()
 			: context.suppressProgressShimmer && !context.isToolChain
 				? localize('chat.thinking.header.initial', 'Thinking')
 				: extractedTitle;
@@ -563,6 +526,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 			showTarget: () => this.renderConversationTitle(),
 		})) : undefined;
 		this.containsReasoning = containsReasoning;
+		this.renderedWhileStreaming = !streamingCompleted && !context.element.isComplete;
 		this.id = content.id;
 		this.content = content;
 		this.allThinkingParts.push(content);
@@ -1648,11 +1612,11 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		if (this._store.isDisposed) {
 			return;
 		}
-		// Track the latest model part, since the model records reasoning timing on it.
+		// Keep generated titles attached to the latest model part, including split array values.
 		if (!this.allThinkingParts.includes(content)) {
 			const index = this.allThinkingParts.indexOf(this.content);
 			if (index !== -1) {
-				const sources = this.thinkingPartTimingSources;
+				const sources = this.thinkingPartSources;
 				if (sources) {
 					const previous = sources.get(this.content) ?? this.content;
 					const replacement = sources.get(content) ?? content;
@@ -1679,6 +1643,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		const raw = extractTextFromPart(content);
 		this.recordReasoningContent(raw);
 		const next = raw;
+		this.thinkingHeadersByPart.delete(content);
 		const needsInitialRender = this.textContainer ? !this.textContainer.hasChildNodes() : this.isPersistentReasoning || this.isConversation;
 		if (next === this.currentThinkingValue && !needsInitialRender) {
 			return;
@@ -1758,6 +1723,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	}
 
 	public finalizeTitleIfDefault(): void {
+		const newlyCompleted = this.renderedWhileStreaming && !this.streamingCompleted;
 		this.processPendingRemovals();
 
 		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
@@ -1802,19 +1768,95 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 			return;
 		}
 
-		// Conversation sections report how long they took instead of a generated summary.
-		if (this.isConversation) {
-			// A lone tool call returns to the response unless reasoning, rendered or still queued, shares its section.
-			if (this.containsReasoning || !this.restoreSingleItemToOriginalPosition()) {
-				this.setFallbackTitle();
-			}
+		if (!this.containsReasoning && this.restoreSingleItemToOriginalPosition()) {
 			return;
 		}
-
-		if (!this.isToolChain && this.restoreSingleItemToOriginalPosition()) {
+		const headers = this.getTitleHeaders();
+		if (headers.length === 1) {
+			this.acceptGeneratedTitle(headers[0]);
+			return;
+		}
+		const isValidTitle = (title: string) => headers.length < 2 || !headers.includes(renderAsPlaintext(new MarkdownString(title)).trim());
+		const existingTitle = this.allThinkingParts.find(part => part.generatedTitle && isValidTitle(part.generatedTitle))?.generatedTitle
+			?? this.toolInvocations.find(tool => tool.generatedTitle && isValidTitle(tool.generatedTitle))?.generatedTitle;
+		if (existingTitle) {
+			this.acceptGeneratedTitle(existingTitle);
 			return;
 		}
 		this.setFallbackTitle();
+		if (!this.titleGeneration.value && this._collapseButton && this.context.registerThinkingTitle) {
+			this.titleGeneration.value = this.context.registerThinkingTitle(this._collapseButton.element, () => ({
+				sessionResource: this.element.sessionResource,
+				legacyId: this.toolInvocations.at(-1)?.toolCallId ?? this.allThinkingParts.find(part => part.id)?.id,
+				content: this.getTitleGenerationContent(),
+				isValidTitle,
+			}), title => this.acceptGeneratedTitle(title), newlyCompleted);
+		}
+	}
+
+	private getTitleHeaders(): string[] {
+		return this.allThinkingParts.flatMap(part => {
+			let headers = this.thinkingHeadersByPart.get(part);
+			if (!headers) {
+				headers = getThinkingHeaders(extractTextFromPart(part)).map(header => header.title);
+				this.thinkingHeadersByPart.set(part, headers);
+			}
+			return headers;
+		});
+	}
+
+	private getTitleGenerationContent(): string {
+		const context: string[] = [];
+		let remaining = 2000;
+		const append = (text: string) => {
+			if (text && remaining > 0) {
+				const chunk = text.slice(0, remaining);
+				context.push(chunk);
+				remaining -= chunk.length + 1;
+			}
+		};
+		const headers = this.getTitleHeaders();
+		if (headers.length) {
+			append(headers.join('\n'));
+		} else {
+			for (const part of this.allThinkingParts) {
+				if (remaining <= 0) {
+					break;
+				}
+				append(extractTextFromPart(part));
+			}
+		}
+		for (const tool of this.toolInvocations) {
+			if (remaining <= 0) {
+				break;
+			}
+			if (IChatToolInvocation.isEffectivelyHidden(tool)) {
+				continue;
+			}
+			const message = tool.pastTenseMessage ?? tool.invocationMessage;
+			append(typeof message === 'string' ? message : renderAsPlaintext(message));
+		}
+		return context.join('\n');
+	}
+
+	private acceptGeneratedTitle(title: string): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		for (const part of this.allThinkingParts) {
+			part.generatedTitle = title;
+			const source = this.thinkingPartSources?.get(part);
+			if (source) {
+				source.generatedTitle = title;
+			}
+		}
+		for (const tool of this.toolInvocations) {
+			tool.generatedTitle = title;
+		}
+		this.currentTitle = title;
+		this.fallbackTitle = undefined;
+		this.titleGeneration.clear();
+		this.showFinalizedTitle(title);
 	}
 
 	private restoreSingleItemToOriginalPosition(): boolean {
@@ -1900,9 +1942,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 
 	private getFallbackTitle(): string {
 		if (!this.isToolChain) {
-			const sources = this.thinkingPartTimingSources;
-			const thinkingParts = sources ? new Set(this.allThinkingParts.map(part => sources.get(part) ?? part)) : this.allThinkingParts;
-			return getFinishedThinkingTitle(getThinkingSectionDurationMs(thinkingParts, this.toolInvocations));
+			return getFinishedThinkingTitle();
 		}
 
 		const visibleItemCount = this.appendedItemCount - this.hiddenToolCallIds.size;
@@ -2615,15 +2655,15 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		}
 	}
 
-	/** Keeps a rendered array fragment associated with its original model part's clock. */
-	public setThinkingPartTimingSource(content: IChatThinkingPart, source: IChatThinkingPart): void {
+	/** Persists generated titles on the original model part rather than only on its display fragments. */
+	public setThinkingPartSource(content: IChatThinkingPart, source: IChatThinkingPart): void {
 		if (!this._store.isDisposed) {
-			(this.thinkingPartTimingSources ??= new WeakMap()).set(content, source);
+			(this.thinkingPartSources ??= new WeakMap()).set(content, source);
 		}
 	}
 
 	// makes a new text container. when we update, we now update this container.
-	public setupThinkingContainer(content: IChatThinkingPart, timingSource?: IChatThinkingPart) {
+	public setupThinkingContainer(content: IChatThinkingPart, source?: IChatThinkingPart) {
 		// Avoid creating new containers after disposal
 		if (this._store.isDisposed) {
 			return;
@@ -2631,8 +2671,8 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		if (!this.textContainer && this.currentThinkingValue) {
 			this.lazyItems.push({ kind: 'thinking', textContainer: $('.chat-thinking-item.markdown-content'), content: this.content });
 		}
-		if (timingSource) {
-			this.setThinkingPartTimingSource(content, timingSource);
+		if (source) {
+			this.setThinkingPartSource(content, source);
 		}
 		this.appendedItemCount++;
 		this.allThinkingParts.push(content);
@@ -2820,7 +2860,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 
 	override dispose(): void {
 		this.isActive = false;
-		this.thinkingPartTimingSources = undefined;
+		this.thinkingPartSources = undefined;
 		if (this.workingSpinnerElement) {
 			this.removeThinkingSpinnerRow(this.workingSpinnerElement);
 			this.workingSpinnerElement = undefined;
