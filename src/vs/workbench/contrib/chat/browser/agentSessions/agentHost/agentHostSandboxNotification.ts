@@ -73,6 +73,7 @@ export class AgentHostSandboxNotification extends Disposable {
 	private _localNetworkMessage: string | undefined;
 	private readonly _disableCommandId = `_chat.disableSandboxing.${generateUuid()}`;
 	private _canDisable = false;
+	private _required = false;
 
 	constructor(
 		private readonly _sessionResource: URI,
@@ -177,8 +178,13 @@ export class AgentHostSandboxNotification extends Disposable {
 	}
 
 	private _canDisableSandboxing(state: SessionState | Error | undefined): boolean {
+		return this._readSandboxControl(state).canDisable;
+	}
+
+	/** Mirrors the permissions picker: `required` is a managed floor without bypass, which locks the toggle on. */
+	private _readSandboxControl(state: SessionState | Error | undefined): { readonly required: boolean; readonly canDisable: boolean } {
 		if (!state || state instanceof Error) {
-			return false;
+			return { required: false, canDisable: false };
 		}
 		const policy = readSessionSandboxPolicy(state);
 		const connection = this._connectionsService.resolveSessionResource(this._sessionResource)?.connection;
@@ -187,13 +193,16 @@ export class AgentHostSandboxNotification extends Disposable {
 		const { chat, config } = this._readChat(state);
 		const value = config?.values[SessionConfigKey.SandboxEnabled] ?? config?.schema.properties[SessionConfigKey.SandboxEnabled]?.default;
 		const confirmedEnabled = readAgentHostChatSandboxState(state, chat)?.enabled;
-		return !isAgentHostSandboxDisablingBlocked({
+		const required = isAgentHostSandboxDisablingBlocked({
 			sessionEnabled: value === AgentSandboxEnabledValue.On ? true : value === AgentSandboxEnabledValue.Off ? false : confirmedEnabled,
 			confirmedEnabled,
 			managedEnabled: policy ? policy.enabled && !policy.failClosed : useLocalPolicy && this._enablementService.managedSandboxEnforced.get(),
 			allowsBypass: policy ? policy.allowBypass === true : useLocalPolicy && this._enablementService.managedSandboxAllowsBypass.get(),
-		})
-			&& this._configurationService.inspect(AgentSandboxSettingId.AgentSandboxEnabled).policyValue === undefined;
+		});
+		return {
+			required,
+			canDisable: !required && this._configurationService.inspect(AgentSandboxSettingId.AgentSandboxEnabled).policyValue === undefined,
+		};
 	}
 
 	/** Shows optional certificate guidance only in the focused chat, independently of dependency warnings. */
@@ -384,12 +393,13 @@ export class AgentHostSandboxNotification extends Disposable {
 				? localize('agentHost.sandboxLocalNetworkManaged', "Your organization disables local network access, which some sandboxing features need. {0}", localNetworkLink)
 				: localize('agentHost.sandboxLocalNetworkRequired', "Sandboxing requires access to local network. {0}", localNetworkLink)
 			: undefined;
-		const canDisable = this._canDisableSandboxing(state);
-		if (equals(this._reasons ?? [], reasons ?? []) && this._canDisable === canDisable && this._localNetworkMessage === localNetworkMessage) {
+		const { required, canDisable } = this._readSandboxControl(state);
+		if (equals(this._reasons ?? [], reasons ?? []) && this._canDisable === canDisable && this._required === required && this._localNetworkMessage === localNetworkMessage) {
 			return;
 		}
 		this._reasons = reasons;
 		this._canDisable = canDisable;
+		this._required = required;
 		this._localNetworkMessage = localNetworkMessage;
 		if (!reasons && !localNetworkMessage) {
 			this._notificationService.deleteNotification(this._id);
@@ -418,13 +428,18 @@ export class AgentHostSandboxNotification extends Disposable {
 				});
 			}
 		}
+		const requiredButUnavailable = reasons !== undefined && required;
 		this._notificationService.setNotification({
 			id: this._id,
 			severity: localNetworkMessage ? ChatInputNotificationSeverity.Info : ChatInputNotificationSeverity.Warning,
 			message: localNetworkMessage
 				? new MarkdownString(localNetworkMessage, { isTrusted: { enabledCommands: [OPEN_SETTINGS_COMMAND] } })
-				: localize('agentHost.sandboxMayNotWorkAsExpected', "Sandboxing might not work as expected"),
-			description: reasons?.[0],
+				: requiredButUnavailable
+					? localize('agentHost.sandboxRequiredUnavailable', "Sandboxing is required by your organization but isn't available on this machine")
+					: localize('agentHost.sandboxMayNotWorkAsExpected', "Sandboxing might not work as expected"),
+			description: requiredButUnavailable
+				? localize('agentHost.sandboxRequiredUnavailableDetail', "Terminal commands can't run until this machine meets the sandbox requirements or your admin changes the policy. {0}", reasons[0])
+				: reasons?.[0],
 			actions,
 			dismissible: true,
 			onDismiss: () => {
