@@ -1542,17 +1542,6 @@ async function openMcpConfigurationFile(fileService: IFileService, editorService
 const emptyVscodeMcpConfiguration = { servers: {} };
 const emptyCopilotGlobalMcpConfiguration = { mcpServers: {} };
 
-abstract class OpenMcpResourceCommand extends Action2 {
-	protected abstract getURI(accessor: ServicesAccessor): Promise<URI>;
-
-	async run(accessor: ServicesAccessor) {
-		const fileService = accessor.get(IFileService);
-		const editorService = accessor.get(IEditorService);
-		const resource = await this.getURI(accessor);
-		await openMcpConfigurationFile(fileService, editorService, resource, emptyVscodeMcpConfiguration);
-	}
-}
-
 /** Options accepted by {@link McpCommandIds.OpenUserMcp}. */
 export interface IOpenUserMcpConfigurationOptions {
 	/** Opens VS Code's user `mcp.json` directly instead of offering every user configuration. */
@@ -1628,7 +1617,7 @@ export class OpenUserMcpResourceCommand extends Action2 {
 	}
 }
 
-export class OpenRemoteUserMcpResourceCommand extends OpenMcpResourceCommand {
+export class OpenRemoteUserMcpResourceCommand extends Action2 {
 	constructor() {
 		super({
 			id: McpCommandIds.OpenRemoteUserMcp,
@@ -1642,11 +1631,53 @@ export class OpenRemoteUserMcpResourceCommand extends OpenMcpResourceCommand {
 		});
 	}
 
-	protected override async getURI(accessor: ServicesAccessor): Promise<URI> {
-		const userDataProfileService = accessor.get(IUserDataProfileService);
-		const remoteUserDataProfileService = accessor.get(IRemoteUserDataProfilesService);
-		const remoteProfile = await remoteUserDataProfileService.getRemoteProfile(userDataProfileService.currentProfile);
-		return remoteProfile.mcpResource;
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const fileService = accessor.get(IFileService);
+		const editorService = accessor.get(IEditorService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const labelService = accessor.get(ILabelService);
+		const copilotGlobalConfigurationService = accessor.get(IMcpCopilotGlobalConfigurationService);
+		const remoteProfile = await accessor.get(IRemoteUserDataProfilesService).getRemoteProfile(accessor.get(IUserDataProfileService).currentProfile);
+		const vscodeResource = remoteProfile.mcpResource;
+
+		// The service resolves against the connected remote's home directory, never the local one.
+		const copilotResource = await copilotGlobalConfigurationService.getConfigurationResource();
+		if (!copilotResource) {
+			await openMcpConfigurationFile(fileService, editorService, vscodeResource, emptyVscodeMcpConfiguration);
+			return;
+		}
+
+		const [hasCopilot, hasVscode] = await Promise.all([fileService.exists(copilotResource), fileService.exists(vscodeResource)]);
+		// The VS Code file is only offered when it already exists, so new configuration goes to Copilot; with nothing else to choose from, open it directly.
+		if (!hasVscode) {
+			await openMcpConfigurationFile(fileService, editorService, copilotResource, emptyCopilotGlobalMcpConfiguration);
+			return;
+		}
+
+		type RemoteConfigurationItem = IQuickPickItem & { readonly configuration: { readonly resource: URI; readonly empty: object } };
+		const items: RemoteConfigurationItem[] = [{
+			label: localize('mcp.remoteUserConfig.copilot', "Copilot Remote Configuration"),
+			description: hasCopilot ? localize('mcp.remoteUserConfig.recommended', "Recommended") : localize('mcp.remoteUserConfig.recommendedNotExisting', "Recommended, not existing"),
+			detail: labelService.getUriLabel(copilotResource),
+			tooltip: labelService.getUriLabel(copilotResource),
+			configuration: { resource: copilotResource, empty: emptyCopilotGlobalMcpConfiguration },
+		}, {
+			label: localize('mcp.remoteUserConfig.vscode', "VS Code Remote User Configuration"),
+			description: localize('mcp.remoteUserConfig.vscodeProfile', "VS Code profile"),
+			detail: labelService.getUriLabel(vscodeResource),
+			tooltip: labelService.getUriLabel(vscodeResource),
+			configuration: { resource: vscodeResource, empty: emptyVscodeMcpConfiguration },
+		}];
+
+		const selected = await quickInputService.pick(items, {
+			title: localize('mcp.remoteUserConfig.title', "Open Remote User MCP Configuration"),
+			placeHolder: localize('mcp.remoteUserConfig.placeholder', "Select the remote configuration to open"),
+			matchOnDescription: true,
+			matchOnDetail: true,
+		});
+		if (selected) {
+			await openMcpConfigurationFile(fileService, editorService, selected.configuration.resource, selected.configuration.empty);
+		}
 	}
 }
 
