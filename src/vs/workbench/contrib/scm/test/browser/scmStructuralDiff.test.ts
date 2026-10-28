@@ -333,12 +333,13 @@ suite('SCM structural diff tree', () => {
 				glyph: [...template.status.classList].filter(value => value.startsWith('codicon-')),
 				color,
 				text: template.label.element.textContent,
+				annotation: template.annotation.textContent,
 				activeHovers: hoverService.active,
 				aria: template.label.element.getAttribute('aria-label'),
 			};
 		});
 		renderer.renderElement(makeNode(parent), 0, template);
-		const containerState = { hidden: template.status.style.display === 'none', activeHovers: hoverService.active };
+		const containerState = { hidden: template.metadata.style.display === 'none', activeHovers: hoverService.active };
 		renderer.renderElement(makeNode(modified), 0, template);
 		renderer.disposeElement(makeNode(modified), 0, template);
 		assert.deepStrictEqual({
@@ -346,9 +347,9 @@ suite('SCM structural diff tree', () => {
 			decorative: template.status.getAttribute('aria-hidden'),
 		}, {
 			rows: [
-				{ glyph: ['codicon-diff-added'], color: 'rgb(10, 110, 30)', text: 'run(value: number)', activeHovers: 1, aria: 'run, method, Added, (value: number)' },
-				{ glyph: ['codicon-diff-removed'], color: 'rgb(160, 20, 40)', text: 'run', activeHovers: 1, aria: 'run, method, Deleted' },
-				{ glyph: ['codicon-diff-modified'], color: 'rgb(30, 80, 170)', text: 'runimpl', activeHovers: 1, aria: 'run, method, Implementation changed' },
+				{ glyph: ['codicon-diff-added'], color: 'rgb(10, 110, 30)', text: 'run(value: number)', annotation: '', activeHovers: 1, aria: 'run, method, Added, (value: number)' },
+				{ glyph: ['codicon-diff-removed'], color: 'rgb(160, 20, 40)', text: 'run', annotation: '', activeHovers: 1, aria: 'run, method, Deleted' },
+				{ glyph: ['codicon-diff-modified'], color: 'rgb(30, 80, 170)', text: 'run', annotation: '[impl]', activeHovers: 1, aria: 'run, method, Implementation changed' },
 			],
 			containerState: { hidden: true, activeHovers: 0 }, hovers: ['Added', 'Deleted', 'Implementation changed', 'Implementation changed'],
 			activeAfterUnrender: 0, decorative: 'true',
@@ -375,6 +376,7 @@ suite('SCM structural diff tree', () => {
 			}, 0, template);
 			return {
 				text: template.label.element.textContent,
+				annotation: template.annotation.textContent,
 				aria: template.label.element.getAttribute('aria-label'),
 				modifiedIcon: template.status.classList.contains('codicon-diff-modified'),
 			};
@@ -388,13 +390,64 @@ suite('SCM structural diff tree', () => {
 		const added = render({ ...child, node: { ...withChanges([], [StructuralDiffClassification.Header]).node, original: undefined } });
 		assert.deepStrictEqual({ rows, ancestor, added, hovers: hoverService.labels }, {
 			rows: [
-				{ text: 'rundecl, (value: number)', aria: 'run, method, Declaration changed, (value: number)', modifiedIcon: true },
-				{ text: 'runimpl, (value: number)', aria: 'run, method, Implementation changed, (value: number)', modifiedIcon: true },
-				{ text: 'rundecl+impl, (value: number)', aria: 'run, method, Declaration and implementation changed, (value: number)', modifiedIcon: true },
+				{ text: 'run(value: number)', annotation: '[decl]', aria: 'run, method, Declaration changed, (value: number)', modifiedIcon: true },
+				{ text: 'run(value: number)', annotation: '[impl]', aria: 'run, method, Implementation changed, (value: number)', modifiedIcon: true },
+				{ text: 'run(value: number)', annotation: '[decl+impl]', aria: 'run, method, Declaration and implementation changed, (value: number)', modifiedIcon: true },
 			],
-			ancestor: { text: 'Calculator', aria: 'Calculator, class', modifiedIcon: false },
-			added: { text: 'run(value: number)', aria: 'run, method, Added, (value: number)', modifiedIcon: false },
+			ancestor: { text: 'Calculator', annotation: '', aria: 'Calculator, class', modifiedIcon: false },
+			added: { text: 'run(value: number)', annotation: '', aria: 'run, method, Added, (value: number)', modifiedIcon: false },
 			hovers: ['Declaration changed', 'Implementation changed', 'Declaration and implementation changed', 'Added'],
+		});
+	});
+
+	test('right-aligns bracketed annotations before status icons without squeezing them for long names', () => {
+		const container = $('.monaco-workbench.scm-view');
+		container.style.width = '240px';
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const renderer = new SCMStructuralDiffRenderer(NullHoverService);
+		const cases = [
+			{ name: 'aVeryLongMethodNameThatMustBeTruncatedBeforeTheAnnotation', classifications: [StructuralDiffClassification.Header] },
+			{ name: 'run', classifications: [StructuralDiffClassification.Implementation] },
+			{ name: 'calculate', classifications: [StructuralDiffClassification.Header, StructuralDiffClassification.Implementation] },
+		];
+		const templates = cases.map(({ name, classifications }) => {
+			const row = $('.monaco-list-row');
+			row.style.position = 'relative';
+			row.style.width = '100%';
+			row.style.height = '22px';
+			container.appendChild(row);
+			const template = store.add(renderer.renderTemplate(row));
+			const element = {
+				...child,
+				node: {
+					...child.node,
+					modified: { ...child.node.modified!, name },
+					modifiedChanges: classifications.map(classification => ({ textChangeIndex: 0, range: new Range(3, 2, 3, 5), classification })),
+				},
+			};
+			renderer.renderElement(new class extends mock<ITreeNode<SCMStructuralDiffElement, FuzzyScore>>() {
+				override readonly element = element;
+				override readonly filterData = FuzzyScore.Default;
+			}, 0, template);
+			return template;
+		});
+		const firstAnnotationRight = templates[0].annotation.getBoundingClientRect().right;
+		const firstStatusRight = templates[0].status.getBoundingClientRect().right;
+		const nameContainer = templates[0].label.element.querySelector('.monaco-icon-label-container');
+		assert.ok(nameContainer);
+		assert.deepStrictEqual({
+			annotations: templates.map(template => template.annotation.textContent),
+			annotationEdgesAligned: templates.every(template => Math.abs(template.annotation.getBoundingClientRect().right - firstAnnotationRight) < 1),
+			statusEdgesAligned: templates.every(template => Math.abs(template.status.getBoundingClientRect().right - firstStatusRight) < 1),
+			noOverlap: templates.every(template => template.label.element.getBoundingClientRect().right <= template.annotation.getBoundingClientRect().left),
+			annotationsNotClipped: templates.every(template => template.annotation.scrollWidth <= template.annotation.clientWidth),
+			longNameTruncated: nameContainer.scrollWidth > nameContainer.clientWidth,
+			metadataHiddenFromScreenReaders: templates.every(template => template.metadata.getAttribute('aria-hidden') === 'true'),
+		}, {
+			annotations: ['[decl]', '[impl]', '[decl+impl]'],
+			annotationEdgesAligned: true, statusEdgesAligned: true, noOverlap: true,
+			annotationsNotClipped: true, longNameTruncated: true, metadataHiddenFromScreenReaders: true,
 		});
 	});
 

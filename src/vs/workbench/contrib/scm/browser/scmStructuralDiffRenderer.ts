@@ -19,6 +19,7 @@ import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ScrollType } from '../../../../editor/common/editorCommon.js';
 import { IEditorOptions, TextEditorSelectionSource } from '../../../../platform/editor/common/editor.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { localize } from '../../../../nls.js';
 import { DEFAULT_EDITOR_ASSOCIATION } from '../../../common/editor.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import '../../../../editor/contrib/symbolIcons/browser/symbolIcons.js';
@@ -26,6 +27,8 @@ import '../../../../editor/contrib/symbolIcons/browser/symbolIcons.js';
 interface StructuralDiffTemplate extends IDisposable {
 	readonly icon: HTMLElement;
 	readonly label: IconLabel;
+	readonly metadata: HTMLElement;
+	readonly annotation: HTMLElement;
 	readonly status: HTMLElement;
 	readonly elementDisposables: DisposableStore;
 }
@@ -43,10 +46,13 @@ export class SCMStructuralDiffRenderer implements ICompressibleTreeRenderer<SCMS
 		const icon = append(row, $('.scm-structural-change-icon'));
 		icon.setAttribute('aria-hidden', 'true');
 		const label = disposables.add(new IconLabel(append(row, $('.name')), { supportHighlights: true }));
-		const status = append(row, $('.scm-structural-change-status'));
+		const metadata = append(row, $('.scm-structural-change-metadata'));
+		metadata.setAttribute('aria-hidden', 'true');
+		const annotation = append(metadata, $('span.scm-structural-change-annotation'));
+		const status = append(metadata, $('.scm-structural-change-status'));
 		status.setAttribute('aria-hidden', 'true');
 		const elementDisposables = disposables.add(new DisposableStore());
-		return { icon, label, status, elementDisposables, dispose: () => disposables.dispose() };
+		return { icon, label, metadata, annotation, status, elementDisposables, dispose: () => disposables.dispose() };
 	}
 
 	renderElement(node: ITreeNode<SCMStructuralDiffElement, FuzzyScore>, _index: number, template: StructuralDiffTemplate): void {
@@ -58,19 +64,19 @@ export class SCMStructuralDiffRenderer implements ICompressibleTreeRenderer<SCMS
 		template.icon.className = 'scm-structural-change-icon';
 		template.icon.classList.add(...ThemeIcon.asClassNameArray(entity ? SymbolKinds.toIcon(entity.kind) : Codicon.warning));
 		template.icon.classList.toggle('codicon-colored', !!entity);
-		const description = [annotation?.label, entity?.detail].filter(value => !!value).join(', ') || undefined;
-		template.label.setLabel(getSCMStructuralDiffLabel(element), description, {
+		template.label.setLabel(getSCMStructuralDiffLabel(element), entity?.detail, {
 			title: getSCMStructuralDiffAriaLabel(element),
-			descriptionTitle: annotation ? [annotation.description, entity?.detail].filter(value => !!value).join(', ') : undefined,
 			matches: createMatches(node.filterData),
 			labelEscapeNewLines: true,
 		});
+		template.annotation.textContent = annotation ? localize('structuralDiff.bracketedAnnotation', "[{0}]", annotation.label) : '';
+		template.annotation.style.display = annotation ? '' : 'none';
 		template.status.className = 'scm-structural-change-status';
-		template.status.style.display = change ? '' : 'none';
+		template.metadata.style.display = change ? '' : 'none';
 		if (change) {
 			const icon = change.type === 'added' ? Codicon.diffAdded : change.type === 'deleted' ? Codicon.diffRemoved : Codicon.diffModified;
 			template.status.classList.add(change.type, ...ThemeIcon.asClassNameArray(icon));
-			template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.status, {
+			template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.metadata, {
 				content: annotation?.description ?? change.label,
 				style: HoverStyle.Mouse,
 			}, { groupId: this.hoverGroupId }));

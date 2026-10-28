@@ -291,7 +291,7 @@
 }
 
 .scm-view .scm-structural-change > .scm-structural-change-icon,
-.scm-view .scm-structural-change > .scm-structural-change-status {
+.scm-view .scm-structural-change-status {
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
@@ -302,8 +302,22 @@
 	margin-right: var(--vscode-spacing-size60);
 }
 
-.scm-view .scm-structural-change > .scm-structural-change-status {
+.scm-view .scm-structural-change > .name {
+	min-width: 0;
+}
+
+.scm-view .scm-structural-change > .scm-structural-change-metadata {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size60);
 	margin-left: var(--vscode-spacing-size60);
+}
+
+.scm-view .scm-structural-change-annotation {
+	font-size: var(--vscode-fontSize-label1);
+	white-space: nowrap;
+	opacity: 0.7;
 }
 
 .scm-view .scm-structural-change-status.added {
