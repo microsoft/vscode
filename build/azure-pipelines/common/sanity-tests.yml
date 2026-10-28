@@ -165,6 +165,7 @@ jobs:
           path: $(Agent.ToolsDirectory)/sanity-node
         displayName: Restore Node.js cache
         retryCountOnTaskFailure: 2
+        continueOnError: true
 
       - ${{ if eq(parameters.os, 'windows') }}:
         - pwsh: build/azure-pipelines/common/install-node.ps1 -Version 22.22.0 -InstallDir "$(Agent.ToolsDirectory)/sanity-node"
