@@ -19,7 +19,8 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { createWorkbenchDialogOptions } from '../../../../browser/parts/dialogs/dialog.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -32,12 +33,12 @@ import { IWorkbenchLayoutService } from '../../../../services/layout/browser/lay
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatSetupController } from './chatSetupController.js';
-import { IChatSetupResult, ChatSetupAnonymous, ChatSetupDialogVisibleContext, ChatSetupError, InstallChatEvent, InstallChatClassification, ChatSetupSource, ChatSetupStrategy, ChatSetupResultValue, IChatSetupRunOptions } from './chatSetup.js';
+import { IChatSetupResult, ChatSetupAnonymous, ChatSetupDialogVisibleContext, ChatSetupError, InstallChatEvent, InstallChatClassification, ChatSetupSource, ChatSetupStrategy, ChatSetupResultValue, IChatSetupRunOptions, CHAT_SETUP_NATIVE_LOKI_MICROSOFT_SIGN_IN_COMMAND_ID } from './chatSetup.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { raceTimeout } from '../../../../../base/common/async.js';
+import { raceCancellation, raceTimeout } from '../../../../../base/common/async.js';
 import { IChatMicrosoftSignInProbeService } from './chatSetupMicrosoftProbe.js';
 
 type ChatSetupDialogShownEvent = {
@@ -256,6 +257,7 @@ function offersProviderSignIn(entitlement: ChatEntitlement, options: IChatSetupR
 
 export function getChatSetupDialogButtons(entitlement: ChatEntitlement, options: IChatSetupRunOptions | undefined, enterpriseAuthentication: boolean, showMicrosoftProvider: boolean, providers: IChatSetupDialogProviders = defaultChat.provider): IChatSetupDialogButton[] {
 	const button = (label: string, strategy: ChatSetupStrategy, ...classes: string[]): IChatSetupDialogButton => ({ label, strategy, classes });
+	const microsoftProviderButton = button(localize('continueWith', "Continue with {0}", providers.microsoft.name), ChatSetupStrategy.SetupWithMicrosoftProvider, 'continue-button', 'microsoft');
 
 	if (offersProviderSignIn(entitlement, options)) {
 		const defaultProviderButton = button(localize('continueWith', "Continue with {0}", providers.default.name), ChatSetupStrategy.SetupWithoutEnterpriseProvider, 'continue-button', 'default');
@@ -264,9 +266,7 @@ export function getChatSetupDialogButtons(entitlement: ChatEntitlement, options:
 		const enterpriseProviderLink = button(enterpriseProviderButton.label, enterpriseProviderButton.strategy, 'link-button');
 		const googleProviderButton = button(localize('continueWith', "Continue with {0}", providers.google.name), ChatSetupStrategy.SetupWithGoogleProvider, 'continue-button', 'google');
 		const appleProviderButton = button(localize('continueWith', "Continue with {0}", providers.apple.name), ChatSetupStrategy.SetupWithAppleProvider, 'continue-button', 'apple');
-		const microsoftProviderButton = button(localize('continueWith', "Continue with {0}", providers.microsoft.name), ChatSetupStrategy.SetupWithMicrosoftProvider, 'continue-button', 'microsoft');
-
-		const socialProviderButtons = [googleProviderButton, appleProviderButton, ...(showMicrosoftProvider ? [microsoftProviderButton] : [])];
+		const socialProviderButtons = [googleProviderButton, appleProviderButton, ...((showMicrosoftProvider || options?.directMicrosoftSignIn) ? [microsoftProviderButton] : [])];
 		const providerButtons = enterpriseAuthentication
 			? [enterpriseProviderButton, ...socialProviderButtons, defaultProviderLink]
 			: [defaultProviderButton, ...socialProviderButtons, enterpriseProviderLink];
@@ -330,6 +330,8 @@ export class ChatSetup {
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatMicrosoftSignInProbeService private readonly microsoftSignInProbeService: IChatMicrosoftSignInProbeService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ICommandService private readonly commandService: ICommandService,
 	) { }
 
 	skipDialog(): void {
@@ -383,6 +385,7 @@ export class ChatSetup {
 		}
 
 		let setupStrategy: ChatSetupStrategy;
+		let nativeLokiOffered = false;
 		if (options?.setupStrategy !== undefined) {
 			setupStrategy = options.setupStrategy; // caller provided a specific strategy, skip dialog
 		} else if (!options?.forceSignInDialog && (dialogSkipped || isProUser(this.chatEntitlementService.entitlement) || this.chatEntitlementService.entitlement === ChatEntitlement.Free)) {
@@ -390,7 +393,9 @@ export class ChatSetup {
 		} else if (options?.forceAnonymous === ChatSetupAnonymous.EnabledWithoutDialog) {
 			setupStrategy = ChatSetupStrategy.DefaultSetup; // anonymous setup without a dialog
 		} else {
-			setupStrategy = await this.showDialog(options);
+			const dialog = await this.showDialog(options);
+			setupStrategy = dialog.strategy;
+			nativeLokiOffered = dialog.nativeLokiOffered;
 		}
 
 		const signedInAccount = options?.autoDismissOnSignIn ? this.defaultAccountService.currentDefaultAccount : undefined;
@@ -401,7 +406,9 @@ export class ChatSetup {
 		let success: ChatSetupResultValue = undefined;
 		let setupError: Error | undefined;
 		let errorAlreadyHandled = false;
+		let nativeLokiSignInCompleted = false;
 		const setupCancellation = new CancellationTokenSource(options?.cancellationToken);
+		const directMicrosoftSignIn = setupStrategy === ChatSetupStrategy.SetupWithMicrosoftProvider && options?.directMicrosoftSignIn;
 		try {
 			if (entersProviderAuthentication(setupStrategy) || (setupStrategy === ChatSetupStrategy.DefaultSetup && !signedInAccount)) {
 				options?.onSignInStarted?.(() => setupCancellation.cancel());
@@ -427,6 +434,37 @@ export class ChatSetup {
 					success = await this.controller.value.setupWithProvider({ useEnterpriseProvider: false, useSocialProvider: 'google', additionalScopes: options?.additionalScopes, forceAnonymous: options?.forceAnonymous, cancellationToken: setupCancellation.token });
 					break;
 				case ChatSetupStrategy.SetupWithMicrosoftProvider:
+					if (directMicrosoftSignIn) {
+						if (!setupCancellation.token.isCancellationRequested) {
+							await raceCancellation(directMicrosoftSignIn(), setupCancellation.token);
+							success = setupCancellation.token.isCancellationRequested ? undefined : true;
+						}
+						break;
+					}
+					if (!this.environmentService.isBuilt) {
+						const token = setupCancellation.token;
+						if (token.isCancellationRequested) {
+							break;
+						}
+						if (nativeLokiOffered || await this.isNativeLokiMicrosoftSignInAvailable()) {
+							const result = await raceCancellation(this.commandService.executeCommand<boolean | undefined>(CHAT_SETUP_NATIVE_LOKI_MICROSOFT_SIGN_IN_COMMAND_ID, 'signIn', token), token);
+							if (!token.isCancellationRequested && result === false) {
+								throw new Error(localize('nativeLokiSignInUnavailable', "Microsoft 365 Copilot sign-in is no longer available. Try again."));
+							}
+							success = token.isCancellationRequested ? undefined : result;
+							nativeLokiSignInCompleted = success === true;
+							break;
+						}
+						await raceCancellation(this.extensionService.activateByEvent('onCommand:_workbench.chat.probeMicrosoftRuntime'), token);
+						if (token.isCancellationRequested) {
+							break;
+						}
+						if (CommandsRegistry.getCommand('_workbench.chat.probeMicrosoftRuntime')) {
+							// Command RPC transports a cancellation token only as its final argument.
+							await raceCancellation(this.commandService.executeCommand('_workbench.chat.probeMicrosoftRuntime', token), token);
+							break;
+						}
+					}
 					success = await this.controller.value.setupWithProvider({ useEnterpriseProvider: false, useSocialProvider: 'microsoft', additionalScopes: options?.additionalScopes, forceAnonymous: options?.forceAnonymous, cancellationToken: setupCancellation.token });
 					break;
 				case ChatSetupStrategy.DefaultSetup:
@@ -454,7 +492,7 @@ export class ChatSetup {
 			);
 		}
 
-		if (success) {
+		if (success && !directMicrosoftSignIn && !nativeLokiSignInCompleted) {
 			this.context.update({ completed: true });
 		}
 
@@ -501,28 +539,44 @@ export class ChatSetup {
 		}
 	}
 
-	private async showDialog(options?: IChatSetupRunOptions): Promise<ChatSetupStrategy> {
+	private async isNativeLokiMicrosoftSignInAvailable(): Promise<boolean> {
+		return !this.environmentService.isBuilt
+			&& !!CommandsRegistry.getCommand(CHAT_SETUP_NATIVE_LOKI_MICROSOFT_SIGN_IN_COMMAND_ID)
+			&& await this.commandService.executeCommand<boolean>(CHAT_SETUP_NATIVE_LOKI_MICROSOFT_SIGN_IN_COMMAND_ID, 'isAvailable') === true;
+	}
+
+	private async isNativeDualMicrosoftSignInAvailable(): Promise<boolean> {
+		return !this.environmentService.isBuilt
+			&& !!CommandsRegistry.getCommand(CHAT_SETUP_NATIVE_LOKI_MICROSOFT_SIGN_IN_COMMAND_ID)
+			&& await this.commandService.executeCommand<boolean>(CHAT_SETUP_NATIVE_LOKI_MICROSOFT_SIGN_IN_COMMAND_ID, 'isDualAvailable') === true;
+	}
+
+	private async showDialog(options?: IChatSetupRunOptions): Promise<{ strategy: ChatSetupStrategy; nativeLokiOffered: boolean }> {
 		if (options?.cancellationToken?.isCancellationRequested) {
-			return ChatSetupStrategy.Canceled;
+			return { strategy: ChatSetupStrategy.Canceled, nativeLokiOffered: false };
 		}
 		const enterpriseAuthentication = this.defaultAccountService.getDefaultAccountAuthenticationProvider().enterprise;
+		const nativeLokiOffered = await this.isNativeLokiMicrosoftSignInAvailable();
+		const nativeDualOffered = nativeLokiOffered && await this.isNativeDualMicrosoftSignInAvailable();
 		const entitlement = this.context.state.entitlement;
-		let showMicrosoftProvider = false;
-		if (offersProviderSignIn(entitlement, options)) {
+		let showMicrosoftProvider = nativeLokiOffered;
+		if (!nativeLokiOffered && offersProviderSignIn(entitlement, options)) {
 			this.microsoftSignInProbeService.notifySignInShown();
-			showMicrosoftProvider = this.microsoftSignInProbeService.offerMicrosoftSignIn.get();
+			showMicrosoftProvider ||= this.microsoftSignInProbeService.offerMicrosoftSignIn.get();
 		}
 		const buttons = getChatSetupDialogButtons(entitlement, options, enterpriseAuthentication, showMicrosoftProvider);
 		const dialog = this.instantiationService.createInstance(ChatSetupDialog, this.layoutService.activeContainer, {
-			title: this.getDialogTitle(options),
+			title: options?.dialogTitle ?? (nativeLokiOffered ? localize('nativeLokiSignInTitle', "Sign in to use Copilot") : this.getDialogTitle(options)),
 			buttons,
 			icon: options?.dialogIcon ?? Codicon.copilotLarge,
 			disableCloseButton: options?.disableCloseButton ?? false,
-			footer: getChatSetupDialogFooter(options?.forceAnonymous, this.telemetryService.telemetryLevel, this.defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings)),
+			footer: options?.directMicrosoftSignIn || nativeLokiOffered
+				? getNativeCopilotSignInFooter(nativeDualOffered, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl)
+				: getChatSetupDialogFooter(options?.forceAnonymous, this.telemetryService.telemetryLevel, this.defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings)),
 			extraClasses: options?.dialogExtraClasses,
 			renderFooter: options?.renderDialogFooter,
 		});
-		return showChatSetupDialogWithCancellation(dialog, options?.cancellationToken, options?.onDidDismissDialog, () => {
+		const strategy = await showChatSetupDialogWithCancellation(dialog, options?.cancellationToken, options?.onDidDismissDialog, () => {
 			const source = options?.telemetrySource;
 			this.telemetryService.publicLog2<ChatSetupDialogShownEvent, ChatSetupDialogShownClassification>('chatSetup.dialogShown', {
 				source: source !== undefined && Object.values(ChatSetupSource).includes(source) ? source : ChatSetupSource.Unknown,
@@ -532,6 +586,7 @@ export class ChatSetup {
 				forceSignInDialog: options?.forceSignInDialog === true,
 			});
 		}, options?.autoDismissOnSignIn ? this.defaultAccountService : undefined);
+		return { strategy, nativeLokiOffered };
 	}
 
 	private getDialogTitle(options?: IChatSetupRunOptions): string {
@@ -554,6 +609,12 @@ export class ChatSetup {
 		return localize('startUsing', "Start using AI Features");
 	}
 
+}
+
+export function getNativeCopilotSignInFooter(dualProvider: boolean, termsUrl: string, privacyUrl: string): string {
+	return dualProvider
+		? localize('nativeDualMicrosoftSignInFooter', "GitHub Copilot uses GitHub's [Terms]({0}) and [Privacy Statement]({1}). Continue with Microsoft enables GitHub Copilot, Microsoft 365 Copilot, or both, depending on what's available to your account.", termsUrl, privacyUrl)
+		: localize('directMicrosoftSignInFooter', "GitHub sign-in choices use GitHub's [Terms]({0}) and [Privacy Statement]({1}). Continue with Microsoft signs in directly to Microsoft 365 Copilot without a GitHub exchange.", termsUrl, privacyUrl);
 }
 
 //#endregion

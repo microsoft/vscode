@@ -6,8 +6,10 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { NATIVE_LOKI_PROTECTED_RESOURCE } from '../../../../../../platform/agentHost/common/meta/nativeLoki.js';
 import type { RootState } from '../../../../../../platform/agentHost/common/state/protocol/channels-root/state.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -17,9 +19,10 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
-import { AgentHostSignedOutModelsNotificationContribution } from '../../../browser/agentSessions/agentHost/agentHostSignedOutModelsNotification.js';
-import { type IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
+import { AGENT_HOST_NATIVE_LOKI_SIGN_IN_COMMAND_ID, AgentHostSignedOutModelsNotificationContribution } from '../../../browser/agentSessions/agentHost/agentHostSignedOutModelsNotification.js';
+import { ChatInputNotificationActionKind, type IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
+import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import { type ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ILanguageModelsConfigurationService, type ILanguageModelsProviderGroup } from '../../../common/languageModelsConfiguration.js';
 
@@ -83,6 +86,53 @@ suite('AgentHostSignedOutModelsNotification', () => {
 		fixture.clock.restore();
 	});
 
+	test('keeps the Sign In choice while routing native Loki to the provider dialog', async () => {
+		const fixture = await createFixture({ nativeLoki: true });
+		const notification = fixture.notifications.getShown();
+		assert.ok(notification);
+		assert.deepStrictEqual({
+			description: notification.description,
+			actions: notification.actions.map(action => ({ label: action.label, commandId: action.kind === ChatInputNotificationActionKind.Command ? action.commandId : undefined })),
+		}, {
+			description: 'Sign in to use GitHub Copilot models, or add a model with your own API key.',
+			actions: [
+				{ label: 'Add Models', commandId: MANAGE_CHAT_COMMAND_ID },
+				{ label: 'Sign In', commandId: AGENT_HOST_NATIVE_LOKI_SIGN_IN_COMMAND_ID },
+			],
+		});
+		fixture.signIn();
+		assert.strictEqual(fixture.notifications.isShown(), true);
+		fixture.clock.restore();
+	});
+
+	test('does not ask for GitHub sign-in when native Loki models remain available', async () => {
+		const fixture = await createFixture({ nativeLoki: true, nativeModelCount: 14 });
+		assert.strictEqual(fixture.notifications.isShown(), false);
+		fixture.clock.restore();
+	});
+
+	test('updates the sign-in action if the Copilot harness switches to native Loki', async () => {
+		const fixture = await createFixture();
+		const initial = fixture.notifications.getShown();
+		fixture.setAgentState(true, 0);
+		const nativeLoki = fixture.notifications.getShown();
+		fixture.setAgentState(true, 1);
+		assert.deepStrictEqual({
+			initialSignIn: initial?.actions.at(-1),
+			nativeSignIn: nativeLoki?.actions.at(-1),
+			availableModelsHidePrompt: !fixture.notifications.isShown(),
+		}, {
+			initialSignIn: {
+				kind: 'command', label: 'Sign In', commandId: 'workbench.action.chat.triggerSetup', keepOpen: true,
+			},
+			nativeSignIn: {
+				kind: 'command', label: 'Sign In', commandId: AGENT_HOST_NATIVE_LOKI_SIGN_IN_COMMAND_ID, keepOpen: true,
+			},
+			availableModelsHidePrompt: true,
+		});
+		fixture.clock.restore();
+	});
+
 	test('never shows while a signed-in entitlement resolves after startup', async () => {
 		const fixture = await createFixture({ entitlement: ChatEntitlement.Unresolved });
 		const shownWhileUnresolved = fixture.notifications.isShown();
@@ -139,7 +189,21 @@ suite('AgentHostSignedOutModelsNotification', () => {
 		fixture.clock.restore();
 	});
 
-	async function createFixture(options: { configuredVendors?: string[]; resolvedVendors?: string[]; entitlement?: ChatEntitlement } = {}) {
+	function createRootState(nativeLoki: boolean, nativeModelCount: number): RootState {
+		return {
+			agents: [{
+				provider: 'copilotcli',
+				displayName: 'Copilot',
+				description: '',
+				models: Array.from({ length: nativeModelCount }, (_, index) => ({
+					id: `loki-${index}`, provider: 'copilotcli', name: `Loki ${index}`
+				})),
+				protectedResources: nativeLoki ? [NATIVE_LOKI_PROTECTED_RESOURCE] : [],
+			}],
+		};
+	}
+
+	async function createFixture(options: { configuredVendors?: string[]; resolvedVendors?: string[]; entitlement?: ChatEntitlement; nativeLoki?: boolean; nativeModelCount?: number } = {}) {
 		const clock = sinon.useFakeTimers({ shouldAdvanceTime: false });
 		const notifications = new TestChatInputNotificationService();
 		const languageModels = new TestLanguageModelsService(options.resolvedVendors ?? ['anthropic']);
@@ -154,9 +218,10 @@ suite('AgentHostSignedOutModelsNotification', () => {
 		instantiationService.stub(IDefaultAccountService, account);
 		instantiationService.stub(ILanguageModelsService, languageModels);
 		instantiationService.stub(ILanguageModelsConfigurationService, languageModelsConfiguration);
+		const rootState = store.add(new TestRootStateSubscription(createRootState(options.nativeLoki ?? false, options.nativeModelCount ?? 0)));
 		instantiationService.stub(IAgentHostService, {
 			onAgentHostStart: Event.None,
-			rootState: new TestRootStateSubscription({ agents: [{ provider: 'copilotcli' }] } as RootState),
+			rootState,
 		});
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IChatEntitlementService, chatEntitlement);
@@ -175,6 +240,7 @@ suite('AgentHostSignedOutModelsNotification', () => {
 			addConfiguredVendor: (vendor: string) => languageModelsConfiguration.addVendor(vendor),
 			signIn: () => account.setSignedIn(),
 			setEntitlement: (entitlement: ChatEntitlement) => chatEntitlement.setEntitlement(entitlement),
+			setAgentState: (nativeLoki: boolean, modelCount: number) => rootState.set(createRootState(nativeLoki, modelCount)),
 		};
 	}
 });
@@ -193,6 +259,9 @@ class TestChatInputNotificationService implements Partial<IChatInputNotification
 	}
 	isShown(): boolean {
 		return this._notifications.size > 0;
+	}
+	getShown(): IChatInputNotification | undefined {
+		return this._notifications.values().next().value;
 	}
 }
 
@@ -287,13 +356,19 @@ class TestChatEntitlementService implements Partial<IChatEntitlementService> {
 	}
 }
 
-class TestRootStateSubscription {
-	readonly onDidChange = Event.None;
+class TestRootStateSubscription extends Disposable {
+	private readonly _onDidChange = this._register(new Emitter<RootState>());
+	readonly onDidChange = this._onDidChange.event;
 	readonly onDidError = Event.None;
 	readonly onWillApplyAction = Event.None;
 	readonly onDidApplyAction = Event.None;
 
-	constructor(readonly value: RootState) { }
+	constructor(public value: RootState) { super(); }
+
+	set(value: RootState): void {
+		this.value = value;
+		this._onDidChange.fire(value);
+	}
 
 	get verifiedValue(): RootState {
 		return this.value;

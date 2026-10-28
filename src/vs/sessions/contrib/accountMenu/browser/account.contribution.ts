@@ -42,7 +42,7 @@ import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../co
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IAuthenticationAccessService } from '../../../../workbench/services/authentication/browser/authenticationAccessService.js';
 import { IAuthenticationUsageService } from '../../../../workbench/services/authentication/browser/authenticationUsageService.js';
-import { ACCOUNTS_AVATAR_SETTING, IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { ACCOUNTS_AVATAR_SETTING, IAuthenticationService, type AuthenticationSession } from '../../../../workbench/services/authentication/common/authentication.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatDashboardService } from '../../../browser/chatDashboardService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -51,8 +51,11 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { MANAGE_CHAT_COMMAND_ID } from '../../../../workbench/contrib/chat/common/constants.js';
 import { fromNow, safeIntl } from '../../../../base/common/date.js';
 import { language } from '../../../../base/common/platform.js';
-import { AgentHostCodexAgentEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { ICodexAccountRateLimitInfo } from '../../../../platform/agentHost/common/codexAccount.js';
+import { isNativeEmuResource, isNativeLokiResource, readNativeCopilotModelProvider, readNativeLokiActiveAccountId } from '../../../../platform/agentHost/common/meta/nativeLoki.js';
+import type { RootState } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
@@ -73,8 +76,41 @@ const accountDateFormatter = safeIntl.DateTimeFormat(language, { month: 'short',
 const accountFullDateFormatter = safeIntl.DateTimeFormat(language, { month: 'short', day: 'numeric', year: 'numeric' });
 const accountTimeFormatter = safeIntl.DateTimeFormat(language, { hour: 'numeric', minute: 'numeric' });
 
-export function shouldShowAccountPanelSummary(state: Pick<IAccountTitleBarState, 'source' | 'kind'>, hasCopilotDashboard: boolean, isAccountLoading: boolean): boolean {
-	return !hasCopilotDashboard && !isAccountLoading && !(state.source === 'copilot' && state.kind === 'prominent');
+export function shouldShowAccountPanelSummary(state: Pick<IAccountTitleBarState, 'source' | 'kind'>, hasCopilotDashboard: boolean, isAccountLoading: boolean, hasActiveLokiAccount = false): boolean {
+	return !hasActiveLokiAccount && !hasCopilotDashboard && !isAccountLoading && !(state.source === 'copilot' && state.kind === 'prominent');
+}
+
+interface INativeMicrosoftAccountInfo {
+	readonly id: string;
+	readonly githubCopilot: boolean;
+	readonly microsoft365Copilot: boolean;
+}
+
+export function getAuthenticatedNativeMicrosoftAccount(state: RootState | Error | undefined): INativeMicrosoftAccountInfo | undefined {
+	if (!state || state instanceof Error) {
+		return undefined;
+	}
+	const agent = state.agents.find(agent => agent.provider === 'copilotcli');
+	const loki = agent?.protectedResources?.find(resource => isNativeLokiResource(resource.resource));
+	const emu = agent?.protectedResources?.find(resource => isNativeEmuResource(resource.resource));
+	const lokiAccountId = readNativeLokiActiveAccountId(loki);
+	const emuAccountId = readNativeLokiActiveAccountId(emu);
+	const id = lokiAccountId ?? emuAccountId;
+	if (!id) {
+		return undefined;
+	}
+	return {
+		id,
+		githubCopilot: emuAccountId === id && !!agent?.models.some(model => model.id !== 'auto' && readNativeCopilotModelProvider(model) === 'copilot'),
+		microsoft365Copilot: lokiAccountId === id && (!emu || !!agent?.models.some(model => {
+			const provider = readNativeCopilotModelProvider(model);
+			return provider === 'loki' || provider?.startsWith('loki:');
+		})),
+	};
+}
+
+export function getAuthenticatedNativeLokiAccountLabel(sessions: readonly AuthenticationSession[], accountId: string): string | undefined {
+	return sessions.find(session => session.account.id === accountId)?.account.label;
 }
 
 export function getChatGPTRateLimitResetHover(rateLimit: ICodexAccountRateLimitInfo): string | undefined {
@@ -198,8 +234,10 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 	private accountProviderId: string | undefined;
 	private accountProviderLabel: string | undefined;
 	private accountIcon: URI | undefined;
+	private nativeLokiAccount: INativeMicrosoftAccountInfo & { readonly label?: string } | undefined;
 	private isAccountLoading = true;
 	private accountRequestCounter = 0;
+	private nativeLokiAccountRequestCounter = 0;
 	private avatarRequestCounter = 0;
 	private currentAvatarUrl: string | undefined;
 	private loadedAvatarUrl: string | undefined;
@@ -231,6 +269,8 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		@ICodexAccountService private readonly codexAccountService: ICodexAccountService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IAgentHostService private readonly agentHostService: IAgentHostService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(undefined, action, options);
 		this.lastCodexAccount = this.codexAccountService.account;
@@ -244,7 +284,25 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		});
 
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.refreshAccount()));
-		this._register(this.authenticationService.onDidChangeSessions(() => this.refreshAccount()));
+		this._register(this.authenticationService.onDidChangeSessions(event => {
+			void this.refreshAccount();
+			if (event.providerId === 'microsoft') {
+				void this.refreshNativeLokiAccount(true);
+			}
+		}));
+		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(event => {
+			if (event.id === 'microsoft') {
+				void this.refreshNativeLokiAccount(true);
+			}
+		}));
+		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(event => {
+			if (event.id === 'microsoft') {
+				void this.refreshNativeLokiAccount(true);
+			}
+		}));
+		this._register(this.agentHostService.rootState.onDidChange(() => {
+			void this.refreshNativeLokiAccount();
+		}));
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.renderState()));
@@ -272,6 +330,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		// setting switches between them while the window is open.
 		this._register(runOnChange(this.allowSignedOutWhenUsable, () => this.renderState()));
 		this.refreshAccount();
+		void this.refreshNativeLokiAccount();
 		this.refreshCodexAvatar();
 	}
 
@@ -325,6 +384,43 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		this.renderState();
 	}
 
+	private async refreshNativeLokiAccount(force = false): Promise<void> {
+		const account = getAuthenticatedNativeMicrosoftAccount(this.agentHostService.rootState.value);
+		const previous = this.nativeLokiAccount;
+		if (!force && account?.id === previous?.id
+			&& account?.githubCopilot === previous?.githubCopilot
+			&& account?.microsoft365Copilot === previous?.microsoft365Copilot) {
+			return;
+		}
+		const requestId = ++this.nativeLokiAccountRequestCounter;
+		this.nativeLokiAccount = account ? { ...account, label: account.id === previous?.id ? previous.label : undefined } : undefined;
+		this.clickPanelDisposable.clear();
+		this.renderState();
+		if (!account || !this.authenticationService.isAuthenticationProviderRegistered('microsoft')
+			|| (!force && account.id === previous?.id && !!previous?.label)) {
+			return;
+		}
+
+		try {
+			const sessions = await this.authenticationService.getSessions('microsoft');
+			if (requestId !== this.nativeLokiAccountRequestCounter || this._store.isDisposed) {
+				return;
+			}
+			const label = getAuthenticatedNativeLokiAccountLabel(sessions, account.id);
+			if (!label) {
+				this.logService.warn('[Sessions][Account] The active Loki account is missing from Microsoft authentication sessions.');
+			}
+			this.nativeLokiAccount = { ...account, label };
+		} catch (error) {
+			if (requestId !== this.nativeLokiAccountRequestCounter || this._store.isDisposed) {
+				return;
+			}
+			this.logService.warn(`[Sessions][Account] Failed to resolve the active Microsoft account (${error instanceof Error ? error.name : typeof error}).`);
+		}
+		this.clickPanelDisposable.clear();
+		this.renderState();
+	}
+
 	private renderState(): void {
 		if (!this.container || !this.avatarElement || !this.iconElement || !this.labelElement || !this.badgeElement) {
 			return;
@@ -332,13 +428,19 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 
 		// When we have a session but entitlement hasn't resolved yet,
 		// treat as Unresolved to avoid showing "Agents Signed Out".
-		const entitlement = this.accountName && this.chatEntitlementService.entitlement === ChatEntitlement.Unknown
+		const accountName = this.accountName ?? this.nativeLokiAccount?.label ?? (this.nativeLokiAccount ? localize('nativeLokiAccountFallback', "Microsoft account") : undefined);
+		const entitlement = accountName && this.chatEntitlementService.entitlement === ChatEntitlement.Unknown
 			? ChatEntitlement.Unresolved
 			: this.chatEntitlementService.entitlement;
+		const nativeProviderLabel = this.nativeLokiAccount?.githubCopilot
+			? this.nativeLokiAccount.microsoft365Copilot
+				? localize('nativeDualAccountProvider', "GitHub and Microsoft 365 Copilot")
+				: localize('nativeEmuAccountProvider', "GitHub Copilot via Microsoft")
+			: localize('nativeLokiAccountProvider', "Microsoft 365 Copilot");
 		const state = getAccountTitleBarState({
 			isAccountLoading: this.isAccountLoading,
-			accountName: this.accountName,
-			accountProviderLabel: this.accountProviderLabel,
+			accountName,
+			accountProviderLabel: this.accountProviderLabel ?? (this.nativeLokiAccount ? nativeProviderLabel : undefined),
 			entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
@@ -349,7 +451,9 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		this.container.classList.remove('kind-default', 'kind-accent', 'kind-warning', 'kind-prominent');
 		this.container.classList.add(`kind-${state.kind}`);
 		this.container.classList.toggle('menu-visible', this.isMenuVisible);
-		this.container.setAttribute('aria-label', state.ariaLabel);
+		this.container.setAttribute('aria-label', this.accountName && this.nativeLokiAccount
+			? localize('accountWithNativeMicrosoftAria', "{0}. Microsoft account {1} provides access to {2}", state.ariaLabel, this.nativeLokiAccount.label ?? localize('nativeLokiAccountId', "Account ID: {0}", this.nativeLokiAccount.id), nativeProviderLabel)
+			: state.ariaLabel);
 
 		const badgeKey = getAccountTitleBarBadgeKey(state);
 		if (badgeKey !== this.lastBadgeKey) {
@@ -358,7 +462,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		}
 
 		const shouldShowDotBadge = !!badgeKey && badgeKey !== this.dismissedBadgeKey;
-		const loadedAvatarUrl = !this.isAccountLoading ? this.loadedAvatarUrl : undefined;
+		const loadedAvatarUrl = !this.isAccountLoading && this.accountName ? this.loadedAvatarUrl : undefined;
 		const hasLoadedAvatar = !!loadedAvatarUrl;
 		const titleBarIcon = state.dotBadge ? Codicon.account : state.icon;
 
@@ -646,7 +750,37 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 				this.hoverService.hideHover(true);
 				this.clickPanelDisposable.clear();
 			}));
-			signInActionBar.push(partitioned.signIn, { icon: false, label: true });
+			signInActionBar.push(this.nativeLokiAccount?.githubCopilot
+				? panelStore.add(new Action(
+					'copilot.signInWithGitHub',
+					localize('signInWithGitHub', "Sign in with GitHub"),
+					undefined,
+					true,
+					() => this.commandService.executeCommand(CHAT_SETUP_ACTION_ID),
+				))
+				: partitioned.signIn, { icon: false, label: true });
+		}
+
+		if (this.nativeLokiAccount) {
+			const accountSection = append(identities, $('section.sessions-account-titlebar-panel-provider-account', {
+				'aria-label': this.nativeLokiAccount.githubCopilot
+					? localize('nativeCopilotAccountSectionLabel', "Microsoft account for Copilot")
+					: localize('nativeLokiAccountSectionLabel', "Microsoft 365 Copilot account")
+			}));
+			const accountIdentity = append(accountSection, $('.sessions-account-titlebar-panel-provider-identity'));
+			const accountIcon = append(accountIdentity, $('span.sessions-account-titlebar-panel-provider-icon', { 'aria-hidden': 'true' }));
+			accountIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.account));
+			const details = append(accountIdentity, $('.sessions-account-titlebar-panel-provider-details'));
+			const accountName = append(details, $('.sessions-account-titlebar-panel-provider-name'));
+			accountName.textContent = this.nativeLokiAccount.label ?? localize('nativeLokiAccountId', "Account ID: {0}", this.nativeLokiAccount.id);
+			const description = append(details, $('.sessions-account-titlebar-panel-provider-description'));
+			description.textContent = this.nativeLokiAccount.githubCopilot
+				? this.nativeLokiAccount.microsoft365Copilot
+					? localize('nativeDualAccountDescription', "Used for GitHub Copilot and Microsoft 365 Copilot models")
+					: localize('nativeEmuAccountDescription', "Used for GitHub Copilot via Microsoft")
+				: this.nativeLokiAccount.microsoft365Copilot
+					? localize('nativeLokiAccountDescription', "Used for Microsoft 365 Copilot (Loki) models")
+					: localize('nativeAccountWithoutModels', "Microsoft account connected; no Copilot models available");
 		}
 
 		if (hasSignedInCodexChatGPTAccount(codexAccount, codexAccountVisible)) {
@@ -759,7 +893,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 			}
 		}
 
-		if (shouldShowAccountPanelSummary(this.lastState, this.shouldShowCopilotDashboardHover(), this.isAccountLoading)) {
+		if (shouldShowAccountPanelSummary(this.lastState, this.shouldShowCopilotDashboardHover(), this.isAccountLoading, !!this.nativeLokiAccount)) {
 			const contentSection = append(panel, $('.sessions-account-titlebar-panel-content'));
 			const summary = append(contentSection, $('.sessions-account-titlebar-panel-summary'));
 			summary.textContent = this.lastState.ariaLabel;

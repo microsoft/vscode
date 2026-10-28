@@ -11,6 +11,7 @@ import assert from 'assert';
 import { agentEntitlementHintMeta } from '../../common/meta/agentEntitlementHintMeta.js';
 import { spy, stub, useFakeTimers } from 'sinon';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
+import { NATIVE_EMU_PROTECTED_RESOURCE, NATIVE_LOKI_PROTECTED_RESOURCE, readNativeCopilotModelProvider } from '../../common/meta/nativeLoki.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { constants as fsConstants } from 'fs';
 import * as fs from 'fs/promises';
@@ -3600,6 +3601,46 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	for (const enableEmu of [false, true]) {
+		test(`local native runtime advertises only enabled Microsoft scopes and fails closed without a catalog (EMU: ${enableEmu})`, async () => {
+			const key = 'VSCODE_AGENT_HOST_NATIVE_LOKI_RUNTIME';
+			const dualKey = 'VSCODE_NATIVE_LOKI_DUAL_PROVIDER';
+			const previous = process.env[key];
+			const previousDual = process.env[dualKey];
+			process.env[key] = '/local/runtime';
+			if (enableEmu) {
+				process.env[dualKey] = '1';
+			} else {
+				delete process.env[dualKey];
+			}
+			const agent = createTestAgent(disposables);
+			try {
+				assert.deepStrictEqual({
+					resources: agent.getProtectedResources(),
+					acceptsGitHub: await agent.authenticate('https://api.github.com', 'github-token'),
+					models: agent.models.get(),
+				}, {
+					resources: enableEmu ? [NATIVE_LOKI_PROTECTED_RESOURCE, NATIVE_EMU_PROTECTED_RESOURCE] : [NATIVE_LOKI_PROTECTED_RESOURCE],
+					acceptsGitHub: false,
+					models: [],
+				});
+				await assert.rejects(agent['_validateModelSelection']({ id: 'auto' }), /not available/);
+			} finally {
+				if (previous === undefined) {
+					delete process.env[key];
+				} else {
+					process.env[key] = previous;
+				}
+				if (previousDual === undefined) {
+					delete process.env[dualKey];
+				} else {
+					process.env[dualKey] = previousDual;
+				}
+				await disposeAgent(agent);
+			}
+		});
+	}
+
 	test('installs client identity, Copilot home, and the GitHub telemetry callback in CopilotClientOptions', async () => {
 		const client = new TestCopilotClient([]);
 		const agent = createTestAgent(disposables, { copilotClient: client }) as TestableCopilotAgent;
@@ -3609,6 +3650,7 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual({
 				clientInfo: clientOptions?.clientInfo,
 				copilotHome: clientOptions?.env?.['COPILOT_HOME'],
+				integrationId: clientOptions?.env?.['GITHUB_COPILOT_INTEGRATION_ID'],
 				onGitHubTelemetry: typeof clientOptions?.onGitHubTelemetry,
 			}, {
 				clientInfo: {
@@ -3616,6 +3658,7 @@ suite('CopilotAgent', () => {
 					applicationVersion: '1.2.3',
 				},
 				copilotHome: join(URI.file('/mock-home').fsPath, '.copilot'),
+				integrationId: 'code-oss',
 				onGitHubTelemetry: 'function',
 			});
 		} finally {
@@ -3659,6 +3702,78 @@ suite('CopilotAgent', () => {
 			} else {
 				process.env.COPILOT_HOME = previous;
 			}
+		}
+	});
+
+	test('pairs the CLI OAuth integration and distinct model metadata with the opt-in native EMU provider', async () => {
+		const runtimeRoot = await fs.mkdtemp(join(os.tmpdir(), 'copilot-native-emu-'));
+		const runtimeDirectory = join(runtimeRoot, 'prebuilds', `${process.platform}-${process.arch}`);
+		await fs.mkdir(runtimeDirectory, { recursive: true });
+		await fs.writeFile(join(runtimeDirectory, 'runtime.node'), '');
+		await fs.writeFile(join(runtimeDirectory, process.platform === 'win32' ? 'copilot-runtime.exe' : 'copilot-runtime'), '');
+		const runtimeKey = 'VSCODE_AGENT_HOST_NATIVE_LOKI_RUNTIME';
+		const dualKey = 'VSCODE_NATIVE_LOKI_DUAL_PROVIDER';
+		const previousRuntime = process.env[runtimeKey];
+		const previousDual = process.env[dualKey];
+		const actual: { enableEmu: boolean; integrationId: string | undefined }[] = [];
+		try {
+			process.env[runtimeKey] = runtimeRoot;
+			for (const enableEmu of [false, true]) {
+				if (enableEmu) {
+					process.env[dualKey] = '1';
+				} else {
+					delete process.env[dualKey];
+				}
+				const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) }) as TestableCopilotAgent;
+				try {
+					await agent.listChatsToMigrate();
+					const options = getCreatedClientOptions(agent).at(-1);
+					const bridge = agent['_nativeLoki'];
+					assert.ok(bridge);
+					const lokiId = `@native/${Buffer.from('loki:fixture-account').toString('base64url')}/claude-sonnet-5`;
+					const models = stub(bridge, 'listModels').resolves([
+						...(enableEmu ? [{ ...toSdkModelInfo({ id: 'claude-sonnet-5', name: 'Claude Sonnet 5', supportedReasoningEfforts: ['low', 'medium', 'high'] }), modelProviderId: 'copilot' as const }] : []),
+						{ ...toSdkModelInfo({ id: lokiId, name: 'Claude Sonnet 5', supportedReasoningEfforts: ['low', 'medium', 'high'] }), modelProviderId: 'loki:fixture-account' as const },
+					]);
+					try {
+						const listed = (await agent['_listModels'](await agent['_ensureClient'](), 'fixture-github-token')).models;
+						assert.deepStrictEqual(listed.map(model => ({
+							id: model.id,
+							name: model.name,
+							provider: readNativeCopilotModelProvider(model),
+							group: model._meta?.modelGroupId,
+							thinkingLevel: model.configSchema?.properties?.thinkingLevel?.default,
+						})), [
+							...(enableEmu ? [{ id: 'claude-sonnet-5', name: 'Claude Sonnet 5 (GitHub Copilot)', provider: 'copilot', group: undefined, thinkingLevel: 'high' }] : []),
+							{ id: lokiId, name: enableEmu ? 'Claude Sonnet 5 (Microsoft 365 Copilot)' : 'Claude Sonnet 5', provider: 'loki:fixture-account', group: 'copilotcli', thinkingLevel: 'high' },
+						]);
+					} finally {
+						models.restore();
+					}
+					actual.push({
+						enableEmu,
+						integrationId: options?.env?.['GITHUB_COPILOT_INTEGRATION_ID'],
+					});
+				} finally {
+					await disposeAgent(agent);
+				}
+			}
+			assert.deepStrictEqual(actual, [
+				{ enableEmu: false, integrationId: 'code-oss' },
+				{ enableEmu: true, integrationId: 'copilot-developer-cli' },
+			]);
+		} finally {
+			if (previousRuntime === undefined) {
+				delete process.env[runtimeKey];
+			} else {
+				process.env[runtimeKey] = previousRuntime;
+			}
+			if (previousDual === undefined) {
+				delete process.env[dualKey];
+			} else {
+				process.env[dualKey] = previousDual;
+			}
+			await fs.rm(runtimeRoot, { recursive: true, force: true });
 		}
 	});
 

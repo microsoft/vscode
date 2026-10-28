@@ -5,6 +5,7 @@
 
 import { PolicyUnavailableAgentHostContentProvider } from './agentHostPolicyUnavailableSession.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -13,6 +14,7 @@ import { mark } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { isNativeEmuResource, isNativeLokiResource } from '../../../../../../platform/agentHost/common/meta/nativeLoki.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -20,6 +22,7 @@ import { NotificationType } from '../../../../../../platform/agentHost/common/st
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -40,10 +43,12 @@ import { createCustomizationMcpServerCompatibilityScope } from './agentHostMcpSe
 import { AgentHostMcpServerMigrationProvider } from './agentHostMcpServerMigrationProvider.js';
 import { AgentHostCustomizationMarketplaceInstallProvider } from './agentHostCustomizationMarketplaceInstallProvider.js';
 import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
-import { autoAuthenticateMcpServer, authenticateAgentProtectedResourcesWithToken, authenticateProtectedResources, authenticateProtectedResourcesWithToken, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from './agentHostAuth.js';
+import { autoAuthenticateMcpServer, authenticateAgentProtectedResourcesWithToken, authenticateNativeLokiWithMicrosoft, authenticateProtectedResources, authenticateProtectedResourcesWithToken, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
+import { AGENT_HOST_NATIVE_LOKI_SIGN_IN_COMMAND_ID } from './agentHostSignedOutModelsNotification.js';
+import { CHAT_SETUP_NATIVE_LOKI_MICROSOFT_SIGN_IN_COMMAND_ID } from '../../chatSetup/chatSetup.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { IAgentHostProtectedResourcesService } from './agentHostProtectedResourcesService.js';
@@ -162,6 +167,45 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._isLocalAgentHost = !environmentService.remoteAuthority;
 		this._connectionAuthority = environmentService.remoteAuthority ? agentHostAuthority(`vscode-remote://${environmentService.remoteAuthority}`) : LOCAL_AGENT_HOST_AUTHORITY;
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
+
+		this._register(CommandsRegistry.registerCommand(AGENT_HOST_NATIVE_LOKI_SIGN_IN_COMMAND_ID, () => {
+			const resources = this._protectedResourcesService.getProtectedResources('copilotcli')
+				?.filter(resource => isNativeLokiResource(resource.resource) || isNativeEmuResource(resource.resource));
+			if (!resources?.length) {
+				throw new Error(localize('agentHost.nativeLokiSignInUnavailable', "Microsoft 365 Copilot sign-in is unavailable because the native agent is not running."));
+			}
+			return this._resolveAuthenticationInteractively(resources, true);
+		}));
+		this._register(CommandsRegistry.registerCommand(CHAT_SETUP_NATIVE_LOKI_MICROSOFT_SIGN_IN_COMMAND_ID, async (_accessor, operation: 'isAvailable' | 'isDualAvailable' | 'signIn', token?: CancellationToken) => {
+			const protectedResources = this._protectedResourcesService.getProtectedResources('copilotcli');
+			const resources = protectedResources?.filter(resource => isNativeLokiResource(resource.resource));
+			const emuResource = protectedResources?.find(resource => isNativeEmuResource(resource.resource));
+			if (operation === 'isAvailable') {
+				return this._agentHostEnablementService.enabled.get() && resources?.length === 1;
+			}
+			if (operation === 'isDualAvailable') {
+				return this._agentHostEnablementService.enabled.get() && resources?.length === 1 && !!emuResource;
+			}
+			if (operation !== 'signIn' || resources?.length !== 1 || !CancellationToken.isCancellationToken(token)) {
+				throw new Error(localize('agentHost.nativeLokiMicrosoftSignInUnavailable', "Microsoft 365 Copilot sign-in is not available."));
+			}
+			const generation = this._authenticationGeneration;
+			this._logService.info('[AgentHost][Native Loki] Microsoft sign-in requested from Chat setup');
+			try {
+				const result = await authenticateNativeLokiWithMicrosoft(this._authenticationService, resources[0], {
+					authTokenCache: this._authTokenCache,
+					logPrefix: '[AgentHost]',
+					isCurrent: () => this._isAuthenticationCurrent(generation) && !token.isCancellationRequested,
+					authenticate: request => this._authenticateIfCurrent(request, generation),
+				}, emuResource ? { resource: emuResource, logService: this._logService } : undefined);
+				return result.authenticated;
+			} catch (error) {
+				if (isCancellationError(error)) {
+					return undefined;
+				}
+				throw error;
+			}
+		}));
 
 		this._register(autorun(reader => {
 			const enabled = this._agentHostEnablementService.enabled.read(reader);
@@ -535,8 +579,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * creates a session (which triggers the login UI), and pushes the token
 	 * to the server. Returns true if authentication succeeded.
 	 */
-	private async _resolveAuthenticationInteractively(protectedResources: readonly ProtectedResourceMetadata[]): Promise<boolean> {
-		return this._resolveAuthenticationInteractivelyForSession(protectedResources);
+	private async _resolveAuthenticationInteractively(protectedResources: readonly ProtectedResourceMetadata[], forceSignInDialog = false): Promise<boolean> {
+		return this._resolveAuthenticationInteractivelyForSession(protectedResources, undefined, forceSignInDialog);
 	}
 
 	private async _resolveMarketplaceAuthenticationInteractively(protectedResources: readonly ProtectedResourceMetadata[]): Promise<boolean> {
@@ -549,7 +593,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		return account ? this._resolveAuthenticationInteractivelyForSession(protectedResources, account.sessionId) : false;
 	}
 
-	private async _resolveAuthenticationInteractivelyForSession(protectedResources: readonly ProtectedResourceMetadata[], preferredSessionId?: string): Promise<boolean> {
+	private async _resolveAuthenticationInteractivelyForSession(protectedResources: readonly ProtectedResourceMetadata[], preferredSessionId?: string, forceSignInDialog = false): Promise<boolean> {
 		const generation = this._authenticationGeneration;
 		if (!this._isAuthenticationCurrent(generation)) {
 			return false;
@@ -563,12 +607,15 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			});
 			return protectedResources.length > 0;
 		}
+		const optionalEmuResource = protectedResources.find(resource => isNativeEmuResource(resource.resource));
 		return this._instantiationService.invokeFunction(resolveAuthenticationInteractively, protectedResources, {
 			authTokenCache: this._authTokenCache,
 			logPrefix: '[AgentHost]',
 			preferredSessionId,
 			isCurrent: () => this._isAuthenticationCurrent(generation),
 			authenticate: request => this._authenticateIfCurrent(request, generation),
+			...(forceSignInDialog ? { forceSignInDialog } : {}),
+			...(optionalEmuResource ? { optionalEmuResource } : {}),
 		});
 	}
 

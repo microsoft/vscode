@@ -14,6 +14,7 @@ import type { ProtectedResourceMetadata } from '../common/state/protocol/state.j
 import { authenticationAccountId, authenticationAccountMeta, IAgentAuthenticationAccount, readAuthenticationAccount } from '../common/meta/agentAuthenticationAccount.js';
 import { isScopedCredentialUsable, normalizeAuthenticationScopes, type IAgentHostAuthenticationScope, type IAgentHostCredentialPrincipal, type IAgentHostCredentialSource, type IAgentHostScopedCredential } from '../common/agentHostCredentials.js';
 import { AhpErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
+import { isNativeEmuResource, isNativeEntraTokenReply, isNativeLokiResource, nativeLokiAuthenticationMeta, readNativeLokiAuthentication } from '../common/meta/nativeLoki.js';
 
 export const SESSION_CREDENTIAL_PRINCIPAL_KEY = 'vscode.credentialPrincipal';
 
@@ -55,6 +56,7 @@ interface IStoredAuthToken {
 	readonly token: string;
 	readonly expiresAt: number | undefined;
 	readonly account?: IAgentAuthenticationAccount;
+	readonly nativeAccountId?: string;
 }
 
 interface IAuthenticationRequest {
@@ -189,6 +191,9 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		if (this._authenticationRequests.get(key) !== request) {
 			return { authenticated };
 		}
+		if (isNativeEntraTokenReply(params)) {
+			return { authenticated };
+		}
 		const previous = this._tokens.get(key);
 		const previousToken = previous?.token;
 		if (!authenticated && !rejected) {
@@ -201,10 +206,13 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			this._revocations.set(key, (this._revocations.get(key) ?? 0) + 1);
 		} else if (authenticated) {
 			const account = readAuthenticationAccount(params);
-			this._tokens.set(key, { resource: params.resource, scopes, token: params.token, expiresAt, account });
+			const nativeAccountId = isNativeLokiResource(params.resource) || isNativeEmuResource(params.resource)
+				? readNativeLokiAuthentication(params)?.accountId : undefined;
+			this._tokens.set(key, { resource: params.resource, scopes, token: params.token, expiresAt, account, nativeAccountId });
 		}
 		const token = this._tokens.get(key)?.token;
-		if (previousToken !== token || authenticationAccountId(previous?.account) !== authenticationAccountId(this._tokens.get(key)?.account)) {
+		if (previousToken !== token || authenticationAccountId(previous?.account) !== authenticationAccountId(this._tokens.get(key)?.account)
+			|| previous?.nativeAccountId !== this._tokens.get(key)?.nativeAccountId) {
 			this._onDidChangeAuthToken.fire({ resource: params.resource, scopes, token });
 		}
 		return { authenticated };
@@ -230,9 +238,13 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				continue;
 			}
 			const expiresIn = getRemainingTimeInSeconds(stored.expiresAt, now);
+			const metadata = {
+				...(stored.account ? authenticationAccountMeta(stored.account) : {}),
+				...(stored.nativeAccountId ? nativeLokiAuthenticationMeta({ accountId: stored.nativeAccountId }) : {}),
+			};
 			const params: AuthenticateParams = {
 				resource: stored.resource, scopes: stored.scopes, token: stored.token, expiresIn,
-				...(stored.account ? { _meta: authenticationAccountMeta(stored.account) } : {}),
+				...(Object.keys(metadata).length ? { _meta: metadata } : {}),
 			};
 			if (protectedResources.has(stored.resource)) {
 				try {

@@ -15,6 +15,7 @@ import { Disposable, DisposableStore, MutableDisposable, IReference, IDisposable
 import { Schemas } from '../../../base/common/network.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import { isNativeEntraTokenReply } from '../common/meta/nativeLoki.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { newAgentHostSessionUri } from '../common/agentHostSessionIdentity.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey } from '../common/meta/agentHostSessionUrisMeta.js';
@@ -1936,6 +1937,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			...normalizedParams,
 			scopes: normalizedParams.scopes ? [...normalizedParams.scopes] : undefined,
 		});
+		if (isNativeEntraTokenReply(normalizedParams)) {
+			return { authenticated: true };
+		}
 		const key = this._authenticationKey(normalizedParams);
 		if (params.token) {
 			this._authentication.set(key, { params: normalizedParams, expiresAt });

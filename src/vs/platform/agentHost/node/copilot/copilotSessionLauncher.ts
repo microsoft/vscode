@@ -45,6 +45,7 @@ import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
 import { toSdkClientToolName, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
+import type { CopilotNativeLoki } from './copilotNativeLoki.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from './copilotSessionWrapper.js';
 import type { ILocalModelProvider, ILocalModelSessionConfigContribution } from './localModelBridge/localModelProvider.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
@@ -840,6 +841,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	private _byokProxyHandle: Promise<IByokLmProxyHandle> | undefined;
 
 	constructor(
+		private readonly _nativeLoki: Pick<CopilotNativeLoki, 'prepareSession'> | undefined,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostManagedSettingsService private readonly _managedSettingsService: IAgentHostManagedSettingsService,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
@@ -1032,7 +1034,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const raw = await this._withTraceContext(plan.sessionId, () => this._openWithSandboxConfig(plan.sessionId, config, openConfig => plan.client.createSession({
 			...openConfig,
 			sessionId: plan.sessionId,
-			model: plan.model?.id,
+			model: this._nativeLoki ? undefined : model?.id,
 			reasoningEffort: resolveCopilotReasoningEffort(model, this._configurationService, this._logService, plan.sessionId),
 			contextTier: omittedContextDefault ? undefined : getCopilotContextTier(model, plan.longContextWindow, plan.freeLongContext),
 			...toSdkCapiSessionOptions(resolveCopilotAutoTier(model, this._configurationService, this._logService, plan.sessionId)),
@@ -1045,6 +1047,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, plan: CopilotSessionLaunchPlan, modelId: string | undefined, config: ResumeSessionConfig, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
 		plan.stageRecorder?.mark('finalize');
 		try {
+			await this._nativeLoki?.prepareSession(raw, modelId);
 			await this._applyScriptSafety(raw, plan.sessionId);
 			await sandboxConfig(raw);
 			if (this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true) {
