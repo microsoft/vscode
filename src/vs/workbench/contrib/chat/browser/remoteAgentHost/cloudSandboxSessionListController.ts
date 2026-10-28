@@ -311,7 +311,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 			if (this._store.isDisposed) {
 				throw new CancellationError();
 			}
-			if (resource.scheme !== this.sessionType || resource.fragment) {
+			if (resource.scheme !== this.sessionType) {
 				throw new Error(localize('cloudSandbox.archiveInvalidSession', "The session does not belong to this sandbox."));
 			}
 			const rawId = AgentSession.id(resource);
