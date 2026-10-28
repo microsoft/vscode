@@ -14552,12 +14552,13 @@ suite('ChatListRenderer', () => {
 					}());
 					const command = 'git switch -c DileepY/sandbox_sessionPicker; if ($LASTEXITCODE -eq 0) { git --no-pager status --short --branch }';
 					const title = 'Run in terminal outside the sandbox?';
+					const message = 'Create branch and verify working tree status';
 					const tool = toolCallStateToInvocation({
 						status: ToolCallStatus.PendingConfirmation,
 						toolCallId: 'sandbox-terminal',
 						toolName: 'powershell',
 						displayName: 'PowerShell',
-						invocationMessage: 'Create branch and verify working tree status',
+						invocationMessage: message,
 						toolInput: command,
 						confirmationTitle: title,
 						_meta: { toolKind: 'terminal', language: 'powershell', 'agentHost.sandboxBypass': true },
@@ -14576,6 +14577,7 @@ suite('ChatListRenderer', () => {
 					assert.ok(editor);
 					const displayed = {
 						terminal: !!container.querySelector('.chat-confirmation-message-terminal'),
+						reason: container.querySelector('.chat-confirmation-message-terminal-reason')?.textContent?.replaceAll('\u00a0', ' ').trim(),
 						command: editor.getValue(),
 						readOnly: editor.getRawOptions().readOnly,
 						ariaLabel: editor.getRawOptions().ariaLabel,
@@ -14599,7 +14601,7 @@ suite('ChatListRenderer', () => {
 						...displayed, labels, moreLabels,
 						confirmed: IChatToolInvocation.executionConfirmedOrDenied(tool),
 					}, {
-						terminal: true, command, readOnly: true, ariaLabel: title,
+						terminal: true, reason: message, command, readOnly: true, ariaLabel: `${title}\n${message}`,
 						labels: ['Allow in this Session', 'Skip'],
 						moreLabels: ['Allow Once'],
 						confirmed: {
