@@ -9,7 +9,7 @@ Two bounded paths:
 
 Rules:
 
-- Translate only enterprise `policyValue`, never user/workspace values. Personal approval preferences remain overridable by Allow All.
+- Legacy permission translation and approval mappings use only enterprise `policyValue`, never user/workspace values. Personal approval preferences remain overridable by Allow All. The network-domain bridge retains the global-layer precedence described in the [bridge contract](./sdk-runtime-policy.md#legacy-setting-bridge).
 - Map only to an equivalent runtime capability; keep it restrictive and never synthesize permissive authorization. The runtime owns grammar and enforcement.
 - Keep existing enforcement until the runtime replacement is effective, and validate emitted rules across the real SDK boundary (create/resume, removal, default and peer sessions, diagnostics).
 
