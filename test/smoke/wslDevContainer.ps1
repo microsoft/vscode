@@ -52,9 +52,10 @@ function Format-WslResult($Result) {
 }
 
 function Save-Download([string] $Url, [string] $Destination) {
-	# A transfer that runs until --max-time is already past --retry-max-time and isn't retried, so a transfer too slow
-	# to finish in time is stopped early enough to be retried.
-	curl.exe --fail --location --retry 5 --retry-all-errors --retry-max-time 120 --connect-timeout 30 --max-time 180 --speed-limit 1048576 --speed-time 30 --output $Destination $Url
+	# curl only retries until --retry-max-time has passed, so it is longer than --max-time, or a transfer that runs until
+	# --max-time would never be retried. Below 1 MiB/s, the 210-325 MiB downloads can't finish within --max-time, so such
+	# a transfer is stopped after 30 seconds and retried on a fresh connection.
+	curl.exe --fail --location --retry 5 --retry-all-errors --retry-max-time 300 --connect-timeout 30 --max-time 180 --speed-limit 1048576 --speed-time 30 --output $Destination $Url
 	if ($LASTEXITCODE -ne 0) {
 		throw "Download failed with exit code ${LASTEXITCODE}: $Url"
 	}
