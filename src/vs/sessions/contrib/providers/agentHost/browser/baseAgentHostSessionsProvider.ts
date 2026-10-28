@@ -32,6 +32,7 @@ import { AgentHostPrewarmSessionsSettingId, type IAgentCanvasInfo, IAgentConnect
 import { readSessionArtifacts } from '../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { fromAgentHostUri, type AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { IAgentHostManagedWorktree } from '../../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { isCopilotAgentHostProvider } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -7399,7 +7400,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const repositories = new ResourceSet([
 			...knownRepositories.map(repository => fromAgentHostUri(repository)),
 			...workspaces.flatMap(workspace => workspace.folders.flatMap(folder => folder.gitRepository ? [fromAgentHostUri(folder.gitRepository.uri)] : [])),
-		]);
+		].filter(repository => repository.scheme === Schemas.file));
 		const worktrees = await this.connection?.listManagedWorktrees?.([...repositories]) ?? [];
 		return worktrees.map(worktree => ({
 			...worktree,

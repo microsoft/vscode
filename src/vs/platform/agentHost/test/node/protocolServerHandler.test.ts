@@ -63,6 +63,7 @@ import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotation
 import { rootReducer } from '../../common/state/sessionReducers.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, AHP_AUTH_REQUIRED, type AhpNotification, type InitializeResult, type ProtocolMessage, type JsonRpcResponse, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
+import { supportsAgentHostManagedWorktrees } from '../../common/meta/agentHostWorktreeCleanupMeta.js';
 import { ROOT_STATE_URI, AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChangesetState, type ChatState, type Message, type RootState, type SessionState, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
 import { ChatInputResponseKind, SessionInputRequestKind, TerminalClaimKind, type AutomationEntry, type JsonPrimitive } from '../../common/state/protocol/state.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
@@ -2488,24 +2489,38 @@ suite('ProtocolServerHandler', () => {
 			await rm(root, { recursive: true, force: true });
 		});
 
-		test('routes managed inventory and explicit cleanup without a session identity', async () => {
-			const calls: string[][] = [];
-			agentService.listManagedWorktrees = async repositories => {
-				calls.push(repositories.map(repository => repository.toString()));
-				return [];
-			};
-			agentService.cleanupManagedWorktree = async (repository, worktree, branch) => {
-				calls.push([repository.toString(), worktree.toString(), branch]);
-			};
-			const transport = connectClient('managed-worktrees');
-			const inventory = waitForResponse(transport, 20);
-			transport.simulateMessage(request(20, 'vscode/listManagedWorktrees', { repositories: ['file:///repo'] }));
-			assert.deepStrictEqual(await inventory, { jsonrpc: '2.0', id: 20, result: [] });
-			const cleanup = waitForResponse(transport, 21);
-			transport.simulateMessage(request(21, 'vscode/cleanupManagedWorktree', { repository: 'file:///repo', worktree: 'file:///repo.worktrees/recovered', branch: 'agents/recovered' }));
-			await cleanup;
-			assert.deepStrictEqual(calls, [['file:///repo'], ['file:///repo', 'file:///repo.worktrees/recovered', 'agents/recovered']]);
-		});
+		for (const allowExtensionMethods of [true, false]) {
+			test(`advertises and routes managed inventory and cleanup with generic extension methods ${allowExtensionMethods ? 'enabled' : 'disabled'}`, async () => {
+				const localServer = disposables.add(new MockProtocolServer());
+				disposables.add(new ProtocolServerHandler(
+					agentService, stateManager, localServer, { allowExtensionMethods },
+					disposables.add(new AgentHostFileSystemProvider()), logService, agentHostTelemetryService, managedSettingsService, clientConnections, devContainerService,
+					NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+				));
+				const calls: string[][] = [];
+				agentService.listManagedWorktrees = async repositories => {
+					calls.push(repositories.map(repository => repository.toString()));
+					return [];
+				};
+				agentService.cleanupManagedWorktree = async (repository, worktree, branch) => {
+					calls.push([repository.toString(), worktree.toString(), branch]);
+				};
+				const transport = disposables.add(new MockProtocolTransport());
+				const initialization = waitForResponse(transport, 1);
+				localServer.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'managed-worktrees' }));
+				const initialized = await initialization;
+				assert.ok(hasKey(initialized, { result: true }));
+				assert.strictEqual(supportsAgentHostManagedWorktrees(initialized.result as InitializeResult), true);
+				const inventory = waitForResponse(transport, 20);
+				transport.simulateMessage(request(20, 'vscode/listManagedWorktrees', { repositories: ['file:///repo'] }));
+				assert.deepStrictEqual(await inventory, { jsonrpc: '2.0', id: 20, result: [] });
+				const cleanup = waitForResponse(transport, 21);
+				transport.simulateMessage(request(21, 'vscode/cleanupManagedWorktree', { repository: 'file:///repo', worktree: 'file:///repo.worktrees/recovered', branch: 'agents/recovered' }));
+				await cleanup;
+				assert.deepStrictEqual(calls, [['file:///repo'], ['file:///repo', 'file:///repo.worktrees/recovered', 'agents/recovered']]);
+			});
+		}
 
 		test('rejects managed cleanup without its expected branch', async () => {
 			agentService.cleanupManagedWorktree = async () => { throw new Error('Must not be called'); };

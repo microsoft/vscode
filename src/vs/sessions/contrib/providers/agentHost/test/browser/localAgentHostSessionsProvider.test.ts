@@ -999,7 +999,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('managed inventory includes recent repositories without a remaining session and excludes other hosts', async () => {
+	test('managed inventory includes recent repositories without a remaining session and excludes other hosts and non-file repositories', async () => {
 		const recent: ReturnType<ISessionsRecentWorkspacesService['getRecentWorkspaces']> = [];
 		const provider = createProvider(disposables, agentHost, undefined, {
 			recentWorkspacesService: upcastPartial<ISessionsRecentWorkspacesService>({
@@ -1018,7 +1018,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			calls.push(repositories.map(repository => repository.toString()));
 			return [{ repository: repository.toString(), worktree: URI.file('/repo.worktrees/recovered').toString(), branch: 'agents/recovered', cleanupStatus: { state: 'unknown' } }];
 		};
-		const inventory = await provider.listManagedWorktrees();
+		const inventory = await provider.listManagedWorktrees([URI.parse('https://github.com/microsoft/vscode')]);
 		assert.deepStrictEqual({ calls, paths: inventory.map(worktree => worktree.worktree), sessions: provider.getSessions() }, {
 			calls: [[repository.toString()]], paths: [URI.file('/repo.worktrees/recovered').toString()], sessions: [],
 		});
