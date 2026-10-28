@@ -20,6 +20,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentSession, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService, type IAgentHostSessionResolutionPolicy, type IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostWorktreeDiskUsageMeta.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -29,6 +30,7 @@ import { IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostCon
 import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
+import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ResourceType, type ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatOriginKind, ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, SessionOriginKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -690,6 +692,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	for (const status of [ProtocolSessionStatus.Idle, ProtocolSessionStatus.InProgress, ProtocolSessionStatus.InputNeeded]) {
 		test(`forwards the advertised identity so the host decides whether all worktree owners are idle (${status})`, async () => {
+			connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } }, undefined);
 			const sessions: (string | undefined)[] = [];
 			connection.measureWorktreeDiskUsage = async (_root, _token, session) => {
 				sessions.push(session?.toString());
@@ -708,8 +711,31 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	}
 
+	for (const availability of ['available', 'disconnected', 'unsupported', 'missing-method']) {
+		test(`distinguishes removed storage from unavailable worktree measurement (${availability})`, async () => {
+			let measurements = 0;
+			if (availability !== 'unsupported') {
+				connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } }, undefined);
+			}
+			if (availability !== 'missing-method') {
+				connection.measureWorktreeDiskUsage = async () => { measurements++; return undefined; };
+			}
+			const provider = createProvider(disposables, connection, { noConnection: availability === 'disconnected' });
+			provider.seedSessions([createSession('removed-worktree', {
+				session: URI.parse('other-host:/opaque/session'),
+				project: { uri: URI.file('/repo'), displayName: 'repo' },
+				workingDirectory: URI.file('/repo.worktrees/removed-worktree'),
+			})]);
+			assert.deepStrictEqual({
+				size: await provider.getSessionWorktreeDiskUsage(provider.getSessions()[0].sessionId),
+				measurements,
+			}, { size: availability === 'available' ? 0 : undefined, measurements: availability === 'available' ? 1 : 0 });
+		});
+	}
+
 	for (const sandbox of [false, true]) {
 		test(sandbox ? 'does not measure cloud sandbox worktrees' : 'continues measuring ordinary remote worktrees', async () => {
+			connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } }, undefined);
 			let resourceRequests = 0;
 			const aggregateRequests: URI[] = [];
 			connection.measureWorktreeDiskUsage = async root => {
@@ -724,6 +750,10 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				resourceRequests++;
 				return { entries: [] };
 			};
+			connection.addSession(createSession('worktree-session', {
+				project: { uri: URI.file('/repo'), displayName: 'repo' },
+				workingDirectory: URI.file('/repo.worktrees/worktree-session'),
+			}));
 			const provider = createProvider(disposables, connection, {
 				ctor: sandbox ? CloudSandboxSessionsProvider : RemoteAgentHostSessionsProvider,
 			});
@@ -734,17 +764,20 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			const session = provider.getSessions()[0];
 
 			const sizeBytes = await provider.getSessionWorktreeDiskUsage(session.sessionId);
+			const exists = await provider.sessionWorktreeExists(session.sessionId);
 
 			assert.deepStrictEqual({
 				hasWorktree: session.workspace.get()?.folders.some(folder => !!folder.gitRepository?.workTreeUri),
 				sizeBytes,
+				exists,
 				aggregateRequests: aggregateRequests.map(root => root.toString()),
 				resourceRequests,
 			}, {
 				hasWorktree: true,
 				sizeBytes: sandbox ? undefined : 0,
+				exists: sandbox ? undefined : true,
 				aggregateRequests: sandbox ? [] : [URI.file('/repo.worktrees/worktree-session').toString()],
-				resourceRequests: 0,
+				resourceRequests: sandbox ? 0 : 1,
 			});
 		});
 	}
@@ -790,6 +823,54 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			assert.deepStrictEqual(marks(restored), { 'Automation run': true, 'Plain': false });
 		});
 	});
+
+	for (const result of ['exists', 'absent', 'permission', 'unavailable', 'unsupported', 'disconnected'] as const) {
+		test(`checks worktree existence through its owning host without a measurement extension (${result})`, async () => {
+			const requests: { uri: string; followSymlinks: boolean | undefined }[] = [];
+			connection.resourceResolve = async params => {
+				requests.push({ uri: params.uri, followSymlinks: params.followSymlinks });
+				if (result !== 'exists') {
+					throw new ProtocolError(result === 'absent' ? AhpErrorCodes.NotFound : result === 'permission' ? AhpErrorCodes.PermissionDenied : result === 'unavailable' ? JsonRpcErrorCodes.InternalError : JsonRpcErrorCodes.MethodNotFound, result);
+				}
+				return { uri: params.uri, type: ResourceType.Directory };
+			};
+			const provider = createProvider(disposables, connection, { noConnection: result === 'disconnected' });
+			provider.seedSessions([createSession('existence', {
+				session: URI.parse('other-host:/opaque/session'),
+				project: { uri: toAgentHostUri(URI.file('/repo'), 'test-host'), displayName: 'repo' },
+				workingDirectory: toAgentHostUri(URI.file('/repo.worktrees/existence'), 'test-host'),
+			})]);
+			const check = provider.sessionWorktreeExists(provider.getSessions()[0].sessionId);
+			if (result === 'permission' || result === 'unavailable' || result === 'unsupported') {
+				await assert.rejects(check, { code: result === 'permission' ? AhpErrorCodes.PermissionDenied : result === 'unavailable' ? JsonRpcErrorCodes.InternalError : JsonRpcErrorCodes.MethodNotFound });
+			} else {
+				assert.strictEqual(await check, result === 'disconnected' ? undefined : result === 'exists');
+			}
+			assert.deepStrictEqual(requests, result === 'disconnected' ? [] : [{ uri: 'file:///repo.worktrees/existence', followSymlinks: false }]);
+		});
+	}
+
+	for (const lastExists of [false, true]) {
+		test(`requires all worktree roots to be absent without listing contents (last root exists: ${lastExists})`, async () => {
+			const requests: string[] = [];
+			connection.resourceResolve = async params => {
+				requests.push(params.uri);
+				if (!lastExists || !params.uri.endsWith('/second')) {
+					throw new ProtocolError(AhpErrorCodes.NotFound, 'Missing');
+				}
+				return { uri: params.uri, type: ResourceType.Directory };
+			};
+			const provider = createProvider(disposables, connection);
+			provider.seedSessions([{
+				...createSession('multiple', { session: URI.parse('other-host:/opaque/multiple'), project: { uri: URI.file('/repo'), displayName: 'repo' } }),
+				workingDirectories: [URI.file('/repo.worktrees/first'), URI.file('/repo.worktrees/second'), URI.file('/repo.worktrees/first')],
+			}]);
+			assert.deepStrictEqual({
+				exists: await provider.sessionWorktreeExists(provider.getSessions()[0].sessionId),
+				requests,
+			}, { exists: lastExists, requests: ['file:///repo.worktrees/first', 'file:///repo.worktrees/second'] });
+		});
+	}
 
 	test('retries worktree cleanup through the owning connection without changing archive state', async () => {
 		const calls: { session: string; retry: boolean }[] = [];
