@@ -6,6 +6,9 @@
 interface IChangedFile {
 	readonly filename: string;
 	readonly previous_filename?: string;
+	readonly status?: string;
+	/** The unified diff of the change, which GitHub omits for large diffs. */
+	readonly patch?: string;
 }
 
 interface IListFilesParameters {
@@ -151,6 +154,30 @@ export function shouldSkipTestJobs(path: string): boolean {
 }
 
 /**
+ * Whether a change only updates the microsoft/vscode-distro commit in the `distro` field of package.json, as
+ * `npm run update-distro` does. Only the product builds read the commit: they download the distro and mix it into the
+ * build (see build/azure-pipelines/distro/). No pull request check downloads it, so such a change runs only Compile &
+ * Hygiene, whose node_modules cache key includes the field. A change without a patch, which GitHub omits for large
+ * diffs, counts as any other change to package.json.
+ */
+export function isDistroUpdate(file: IChangedFile): boolean {
+	if (file.filename !== 'package.json' || file.status !== 'modified' || file.patch === undefined) {
+		return false;
+	}
+	const changedLines = file.patch.split('\n').filter(line => line.startsWith('+') || line.startsWith('-'));
+	return changedLines.length > 0 && changedLines.every(line => /^[+-] {2}"distro": "[0-9a-f]*",?$/.test(line));
+}
+
+/**
+ * Returns the paths of the changed files, and the paths that renamed files had before, except package.json when the
+ * change only updates the distro commit (see isDistroUpdate).
+ */
+export function changedPaths(files: readonly IChangedFile[]): string[] {
+	return files.flatMap(file => isDistroUpdate(file) ? []
+		: file.previous_filename ? [file.filename, file.previous_filename] : [file.filename]);
+}
+
+/**
  * Built-in extensions whose files the core unit tests read: the component fixtures load the themes and
  * these grammars. build/lib/test/detectChanges.test.ts fails when a test starts reading another extension.
  */
@@ -192,7 +219,7 @@ function matchesAny(path: string, patterns: readonly string[]): boolean {
 	return patterns.some(pattern => pattern.endsWith('/') ? path.startsWith(pattern) : path === pattern);
 }
 
-async function listChangedPaths(github: IGitHub, context: IContext, core: ICore): Promise<readonly string[] | undefined> {
+async function listChangedFiles(github: IGitHub, context: IContext, core: ICore): Promise<readonly IChangedFile[] | undefined> {
 	let files: readonly IChangedFile[];
 	try {
 		files = await github.paginate(github.rest.pulls.listFiles, {
@@ -213,12 +240,12 @@ async function listChangedPaths(github: IGitHub, context: IContext, core: ICore)
 		return undefined;
 	}
 
-	return files.flatMap(file =>
-		file.previous_filename ? [file.filename, file.previous_filename] : [file.filename]);
+	return files;
 }
 
 export async function detectChanges(github: IGitHub, context: IContext, core: ICore): Promise<void> {
-	const paths = await listChangedPaths(github, context, core);
+	const files = await listChangedFiles(github, context, core);
+	const paths = files && changedPaths(files);
 
 	for (const rule of rules) {
 		const changedPath = paths?.find(path => matchesAny(path, sharedPaths) || matchesAny(path, rule.paths));
@@ -234,9 +261,9 @@ export async function detectChanges(github: IGitHub, context: IContext, core: IC
 	for (const rule of coreTestRules) {
 		const changedPath = paths?.find(path => !rule.canSkip(path));
 		// An empty file list carries no evidence that the checks are unaffected.
-		const affected = paths === undefined || paths.length === 0 || changedPath !== undefined;
-		const reason = paths === undefined ? 'changed files unavailable'
-			: paths.length === 0 ? 'no changed files reported'
+		const affected = files === undefined || files.length === 0 || changedPath !== undefined;
+		const reason = files === undefined ? 'changed files unavailable'
+			: files.length === 0 ? 'no changed files reported'
 				: changedPath !== undefined ? `changed ${changedPath}`
 					: 'only changes the tests cannot read';
 
