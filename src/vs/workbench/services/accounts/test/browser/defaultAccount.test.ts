@@ -12,6 +12,7 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -1143,7 +1144,7 @@ suite('DefaultAccountProvider', () => {
 		});
 	});
 
-	test('a failed session lookup keeps the signed-in account and satisfied refresh gate', async () => {
+	test('a failed session lookup keeps the signed-in account and satisfied refresh gate', () => runWithFakedTimers({}, async () => {
 		let sessionLookupFails = false;
 		const requestService = new TestRequestService(async options => {
 			if (options.url?.endsWith('/copilot_internal/user')) {
@@ -1195,9 +1196,9 @@ suite('DefaultAccountProvider', () => {
 			afterLookupFailure: expected(),
 			observedSessionIds: [],
 		});
-	});
+	}));
 
-	test('a failed session lookup without a known account still reports a missing token', async () => {
+	test('a failed session lookup without a known account still reports a missing token', () => runWithFakedTimers({}, async () => {
 		const provider = await createProvider(
 			new TestRequestService(async options => {
 				throw new Error(`Unexpected request: ${options.url}`);
@@ -1224,7 +1225,7 @@ suite('DefaultAccountProvider', () => {
 				hasLastAttempt: false,
 			},
 		});
-	});
+	}));
 
 	test('native false disables a cached server refresh requirement', async () => {
 		const requestService = new TestRequestService(async () => {

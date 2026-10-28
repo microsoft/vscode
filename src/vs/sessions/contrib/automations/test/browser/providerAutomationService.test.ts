@@ -279,6 +279,44 @@ suite('ProviderAutomationService', () => {
 		});
 	});
 
+	test('hiding an available host only removes it from creation choices, not its catalogue, runs or refresh', async () => {
+		const host = new TestAuthority('agenthost-ssh');
+		const run: IAutomationRun = { id: 'run', automationId: `${host.providerId}-automation`, status: 'running', trigger: 'manual', startedAt: '2026-01-02T00:00:00Z' };
+		host.runs.set([run], undefined);
+		host.historyState.set('error', undefined);
+		host.isRefreshing.set(true, undefined);
+		const visibility = observableValue('visibility', true);
+		const availability = observableValue('availability', true);
+		const { service } = setup([upcastPartial<IAgentHostSessionsProvider>({
+			...provider(host), isVisibleInEnvironmentPicker: visibility, isAvailableInEnvironmentPicker: availability,
+		})]);
+		const snapshot = () => ({
+			catalogue: service.catalogueState.get(), choices: service.availableProviders.get().map(provider => provider.id),
+			automations: service.automations.get().map(automation => automation.id),
+			runs: service.runsFor(run.automationId).get().map(run => run.id),
+			history: service.historyState.get(), refreshing: service.isRefreshing.get(),
+			unavailable: service.unavailableProviders.get().map(provider => provider.id),
+		});
+		const shown = snapshot();
+		visibility.set(false, undefined);
+		const hidden = snapshot();
+		await service.refresh();
+		await service.updateAutomation(run.automationId, { name: 'Changed' });
+		await service.runAutomation(run.automationId);
+		host.catalogueState.set('unavailable', undefined);
+		const disconnected = snapshot();
+		host.catalogueState.set('ready', undefined);
+		visibility.set(true, undefined);
+		assert.deepStrictEqual({ shown, hidden, disconnected, restored: snapshot(), refreshes: host.refreshOptions, calls: host.calls }, {
+			shown: { catalogue: 'ready', choices: [host.providerId], automations: [run.automationId], runs: [run.id], history: 'error', refreshing: true, unavailable: [] },
+			hidden: { catalogue: 'ready', choices: [], automations: [run.automationId], runs: [run.id], history: 'error', refreshing: true, unavailable: [] },
+			disconnected: { catalogue: 'unavailable', choices: [], automations: [run.automationId], runs: [run.id], history: 'error', refreshing: true, unavailable: [host.providerId] },
+			restored: shown, refreshes: [undefined], calls: ['update', 'run'],
+		});
+		availability.set(false, undefined);
+		assert.deepStrictEqual({ automations: service.automations.get(), runs: service.runs.get() }, { automations: [], runs: [] });
+	});
+
 	test('session-only environments are excluded from the catalogue', () => {
 		const local = new TestAuthority('local');
 		const environment = new TestAuthority('agenthost-github-environment');

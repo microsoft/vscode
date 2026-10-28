@@ -16,6 +16,7 @@ export const testIds = [
 	'unit-node',
 	'unit-browser-chromium',
 	'unit-browser-webkit',
+	'integration-agent-host-e2e',
 	'integration-electron',
 	'integration-browser-chromium',
 	'integration-browser-firefox',

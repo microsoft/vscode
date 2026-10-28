@@ -248,7 +248,11 @@ export class HoverService extends Disposable implements IHoverService {
 	}
 
 	private _createHover(options: IHoverOptions, skipLastFocusedUpdate?: boolean): ICreateHoverResult | undefined {
-		this._currentDelayedHover?.dispose();
+		const delayedHoverIndex = this._hoverStack.findIndex(entry => entry.hover === this._currentDelayedHover);
+		// Keep a shown delayed hover alive when it owns the target of a nested hover.
+		if (delayedHoverIndex < 0 || delayedHoverIndex > this._getContainingHoverIndex(options.target)) {
+			this._currentDelayedHover?.dispose();
+		}
 		this._currentDelayedHover = undefined;
 
 		if (options.content === '') {

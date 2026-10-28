@@ -7,8 +7,6 @@ import './media/chatContextUsageWidget.css';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { EventType, addDisposableListener } from '../../../../../../base/browser/dom.js';
 import { IDelayedHoverOptions } from '../../../../../../base/browser/ui/hover/hover.js';
-import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -60,13 +58,11 @@ export function isSameContextUsageData(a: IChatContextUsageData | undefined, b: 
 		return false;
 	}
 	return a.usedTokens === b.usedTokens
-		&& a.hasContextUsage === b.hasContextUsage
 		&& a.completionTokens === b.completionTokens
 		&& a.totalContextWindow === b.totalContextWindow
 		&& a.percentage === b.percentage
 		&& a.outputBufferPercentage === b.outputBufferPercentage
 		&& a.sessionCost === b.sessionCost
-		&& a.sessionCostStatus === b.sessionCostStatus
 		&& equals(a.promptTokenDetails, b.promptTokenDetails, (x, y) =>
 			x.category === y.category && x.label === y.label && x.percentageOfPrompt === y.percentageOfPrompt);
 }
@@ -137,7 +133,6 @@ export class ChatContextUsageWidget extends Disposable {
 	readonly domNode: HTMLElement;
 
 	private readonly progressIndicator: CircularProgressIndicator;
-	private readonly infoIcon: HTMLElement;
 	private readonly percentageLabel: HTMLElement;
 
 	private readonly _isVisible = observableValue<boolean>(this, false);
@@ -146,7 +141,6 @@ export class ChatContextUsageWidget extends Disposable {
 	private readonly _lastRequestDisposable = this._register(new MutableDisposable());
 	private readonly _modelConfigurationListener = this._register(new MutableDisposable());
 	private _currentResponse: IChatResponseModel | undefined;
-	private _currentSession: IChatRequestModel['session'] | undefined;
 	private _currentModelId: string | undefined;
 	/**
 	 * The model the user currently has selected in the picker. When set it
@@ -196,8 +190,6 @@ export class ChatContextUsageWidget extends Disposable {
 		const iconContainer = this.domNode.appendChild($('.icon-container'));
 		this.progressIndicator = new CircularProgressIndicator();
 		iconContainer.appendChild(this.progressIndicator.domNode);
-		this.infoIcon = iconContainer.appendChild(renderIcon(Codicon.info));
-		this.infoIcon.style.display = 'none';
 
 		// Percentage label (visible on hover/focus)
 		this.percentageLabel = this.domNode.appendChild($('.percentage-label'));
@@ -307,10 +299,6 @@ export class ChatContextUsageWidget extends Disposable {
 		this._lastRequestDisposable.clear();
 		this._currentResponse = undefined;
 		this._currentModelId = undefined;
-		if (this._currentSession !== lastRequest?.session) {
-			this._currentData.set(undefined, undefined);
-			this._currentSession = lastRequest?.session;
-		}
 
 		if (!lastRequest) {
 			// New/empty chat session clear everything
@@ -318,7 +306,6 @@ export class ChatContextUsageWidget extends Disposable {
 			this.hide();
 			return;
 		}
-		this.updateSessionCost(lastRequest.session.sessionCost, lastRequest.session.sessionCostStatus);
 
 		if (!lastRequest.response || !lastRequest.modelId) {
 			// Pending request keep old data visible if available
@@ -342,18 +329,10 @@ export class ChatContextUsageWidget extends Disposable {
 		});
 	}
 
-	updateSessionCost(sessionCost: number, sessionCostStatus?: IChatContextUsageData['sessionCostStatus']): void {
+	updateSessionCost(sessionCost: number): void {
 		const data = this._currentData.get();
-		if (!data || data.hasContextUsage === false) {
-			if (sessionCost > 0 || sessionCostStatus !== undefined) {
-				this.render({ hasContextUsage: false, usedTokens: 0, completionTokens: 0, totalContextWindow: 0, percentage: 0, sessionCost, sessionCostStatus });
-				this.show();
-			} else {
-				this._currentData.set(undefined, undefined);
-				this.hide();
-			}
-		} else if (data.sessionCost !== sessionCost || data.sessionCostStatus !== sessionCostStatus) {
-			this.render({ ...data, sessionCost, sessionCostStatus });
+		if (data && data.sessionCost !== sessionCost) {
+			this.render({ ...data, sessionCost });
 		}
 	}
 
@@ -462,22 +441,13 @@ export class ChatContextUsageWidget extends Disposable {
 		this.render({
 			usedTokens, completionTokens, totalContextWindow,
 			percentage, outputBufferPercentage,
-			promptTokenDetails, sessionCost: response.session.sessionCost, sessionCostStatus: response.session.sessionCostStatus,
+			promptTokenDetails, sessionCost: response.session.sessionCost,
 		});
 		this.show();
 	}
 
 	private render(data: IChatContextUsageData): void {
 		this._currentData.set(data, undefined);
-		const hasContextUsage = data.hasContextUsage !== false;
-		this.progressIndicator.domNode.style.display = hasContextUsage ? '' : 'none';
-		this.infoIcon.style.display = hasContextUsage ? 'none' : '';
-		this.domNode.classList.remove('warning', 'error');
-		if (!hasContextUsage) {
-			this.percentageLabel.textContent = localize('sessionCostLabel', "Cost");
-			this.domNode.setAttribute('aria-label', localize('sessionInfoLabel', "Session Info"));
-			return;
-		}
 
 		// Pie chart shows actual usage percentage only
 		this.progressIndicator.setProgress(data.percentage);
@@ -488,6 +458,7 @@ export class ChatContextUsageWidget extends Disposable {
 		this.domNode.setAttribute('aria-label', localize('contextUsagePercentageLabel', "Context window usage: {0}%", roundedPercentage));
 
 		// Color based on actual usage percentage
+		this.domNode.classList.remove('warning', 'error');
 		if (data.percentage >= 90) {
 			this.domNode.classList.add('error');
 		} else if (data.percentage >= 75) {

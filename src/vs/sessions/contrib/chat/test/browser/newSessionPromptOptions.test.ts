@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IDelayedHoverOptions, IHoverLifecycleOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverStyle, IDelayedHoverOptions, IHoverLifecycleOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -12,9 +12,8 @@ import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { INewSessionPromptOption, INewSessionPromptOptionsController, NewSessionPromptOptionsProgress, NewSessionPromptOptionsState } from '../../browser/newSessionComposerService.js';
-import { NewSessionPromptOptionsWidget } from '../../browser/newSessionPromptOptions.js';
+import { NewSessionPromptOptionsPresenter, NewSessionPromptOptionsWidget } from '../../browser/newSessionPromptOptions.js';
 
 interface IPromptOptionsRefreshHarness {
 	readonly _promptOptionsRefresh: MutableDisposable<CancellationTokenSource>;
@@ -41,18 +40,20 @@ interface IReplacePromptHarness {
 	readonly _promptTemplatePlaceholder: { readonly value: { setPlaceholder(placeholder: string): void } };
 }
 
-const refreshPromptOptions = Reflect.get(NewChatInputWidget.prototype, 'refreshPromptOptions') as (this: IPromptOptionsRefreshHarness, token?: CancellationToken) => Promise<boolean>;
-const replacePrompt = Reflect.get(NewChatInputWidget.prototype, '_replacePrompt') as (this: IReplacePromptHarness, text: string, placeholder: string, expectedValue: string) => boolean;
+const refreshPromptOptions = Reflect.get(NewSessionPromptOptionsPresenter.prototype, 'refreshPromptOptions') as (this: IPromptOptionsRefreshHarness, token?: CancellationToken) => Promise<boolean>;
+const replacePrompt = Reflect.get(NewSessionPromptOptionsPresenter.prototype, '_replacePrompt') as (this: IReplacePromptHarness, text: string, placeholder: string, expectedValue: string) => boolean;
 
 class TestHoverService extends mock<IHoverService>() {
 	readonly contents: string[] = [];
+	readonly presentations: { style: HoverStyle | undefined; groupId: string | undefined }[] = [];
 
 	override setupDelayedHover(
 		_target: HTMLElement,
 		hoverOptions: (() => IDelayedHoverOptions) | IDelayedHoverOptions,
-		_lifecycleOptions?: IHoverLifecycleOptions,
+		lifecycleOptions?: IHoverLifecycleOptions,
 	): IDisposable {
 		const options = typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions;
+		this.presentations.push({ style: options.style, groupId: lifecycleOptions?.groupId });
 		const content = options.content;
 		if (typeof content === 'string') {
 			this.contents.push(content);
@@ -65,6 +66,33 @@ class TestHoverService extends mock<IHoverService>() {
 
 suite('NewSessionPromptOptionsWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('suggestions share pointer hovers within each widget, but not across widgets', () => {
+		const hoverService = new TestHoverService();
+		const render = () => {
+			const widget = disposables.add(new NewSessionPromptOptionsWidget(document.createElement('div'), {
+				selectOption: async () => true,
+				onDidSelectOption: () => { },
+				onDidClose: () => undefined,
+			}, hoverService));
+			widget.setState({ kind: 'resolved', options: [option('feature', 'Implement a feature'), option('bug', 'Fix a bug')] });
+		};
+		render();
+		render();
+		const presentations = hoverService.presentations;
+
+		assert.deepStrictEqual({
+			styles: presentations.map(presentation => presentation.style),
+			grouped: !!presentations[0].groupId && presentations[0].groupId === presentations[1].groupId,
+			independent: presentations[0].groupId !== presentations[2].groupId,
+			secondGrouped: presentations[2].groupId === presentations[3].groupId,
+		}, {
+			styles: [HoverStyle.Pointer, HoverStyle.Pointer, HoverStyle.Pointer, HoverStyle.Pointer],
+			grouped: true,
+			independent: true,
+			secondGrouped: true,
+		});
+	});
 
 	test('renders loading, preserves disabled selection, and clears selection for empty input', async () => {
 		const container = document.createElement('div');

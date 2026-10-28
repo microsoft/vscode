@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { EventType } from '../../../base/browser/dom.js';
+import { $, EventType } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Event } from '../../../base/common/event.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock } from '../../../base/test/common/mock.js';
@@ -17,6 +17,8 @@ import { ThemeIcon } from '../../../base/common/themables.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
+import { DraggedSessionIdentifier, getSessionChatDragData, SessionsDataTransfers } from '../../browser/dnd.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { ToggleMenuAction } from '../../../base/browser/ui/toolbar/toolbar.js';
@@ -27,7 +29,7 @@ import { CLOSE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { IChat, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
+import { ChatOriginKind, IChat, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 
 function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: ISessionCapabilities = { supportsMultipleChats: false }, mainChatStatus = SessionStatus.Completed) {
@@ -38,14 +40,15 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 		override readonly onDidChangeScreenReaderOptimized = Event.None;
 		override readonly onDidChangeReducedMotion = Event.None;
 		override isScreenReaderOptimized(): boolean { return false; }
+		override isMotionReduced(): boolean { return false; }
 	}());
 	const statusIconReads: boolean[] = [];
 	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = Event.None;
 		override isSessionPinned(): boolean { return false; }
-		override getStatusIcon(_status: SessionStatus, isRead: boolean): ThemeIcon {
+		override getStatusIcon(status: SessionStatus, isRead: boolean): ThemeIcon {
 			statusIconReads.push(isRead);
-			return ThemeIcon.fromId('circle');
+			return status === SessionStatus.NeedsInput ? Codicon.commentUnresolved : Codicon.circle;
 		}
 	}());
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -56,14 +59,14 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 	const mainChat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('test-chat://main');
 		override readonly title = observableValue(this, 'Main Chat');
-		override readonly status = constObservable(mainChatStatus);
+		override readonly status = observableValue(this, mainChatStatus);
 		override readonly isRead = observableValue(this, true);
 		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canArchive: false, canDelete: false });
 	}();
 	const secondChat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('test-chat://second');
 		override readonly title = observableValue(this, 'Second Chat');
-		override readonly status = constObservable(SessionStatus.Completed);
+		override readonly status = observableValue(this, SessionStatus.Completed);
 		override readonly isRead = observableValue(this, true);
 		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canArchive: true, canDelete: true });
 	}();
@@ -72,15 +75,15 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 		override readonly sessionId = 'session';
 		override readonly resource = URI.parse('test-session://session');
 		override readonly providerId = 'test';
-		override readonly title: IObservable<string> = constObservable('My Session');
-		override readonly status: IObservable<SessionStatus> = constObservable(SessionStatus.Completed);
+		override readonly title = observableValue(this, 'My Session');
+		override readonly status = observableValue<SessionStatus>(this, SessionStatus.Completed);
 		override readonly isRead = observableValue(this, true);
 		override readonly isArchived: IObservable<boolean> = constObservable(false);
 		override readonly isCreated: IObservable<boolean> = constObservable(true);
 		override readonly sticky: IObservable<boolean> = constObservable(false);
 		override readonly mainChat: IObservable<IChat> = constObservable(mainChat);
 		override readonly activeChat: IObservable<IChat> = activeChat;
-		override readonly chats: IObservable<readonly IChat[]> = constObservable([mainChat, secondChat]);
+		override readonly chats = observableValue<readonly IChat[]>(this, [mainChat, secondChat]);
 		override readonly openChats: IObservable<readonly IChat[]> = constObservable([mainChat, secondChat]);
 		override readonly closedChats: IObservable<readonly IChat[]> = constObservable([]);
 		override readonly visibleChatTabs: IObservable<readonly IChat[]> = constObservable([mainChat, secondChat]);
@@ -157,8 +160,11 @@ suite('Sessions - Headers', () => {
 	// A native drag always fires dragstart with `target` set to the draggable
 	// container itself (not the descendant the gesture began on), so a real
 	// mousedown must precede it for the header's exclusion logic to see it.
-	function simulateDragFrom(header: SessionHeader, gestureOrigin: HTMLElement): DragEvent {
-		gestureOrigin.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true, cancelable: true }));
+	function simulateDragFrom(header: SessionHeader | ChatHeader, gestureOrigin: HTMLElement, position?: MouseEventInit): DragEvent {
+		disposables.add(toDisposable(() => {
+			LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>().clearData(DraggedSessionIdentifier.prototype);
+		}));
+		gestureOrigin.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true, cancelable: true, ...position }));
 
 		const dragEvent = new DragEvent(EventType.DRAG_START, { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
 		header.element.dispatchEvent(dragEvent);
@@ -183,6 +189,186 @@ suite('Sessions - Headers', () => {
 
 		assert.strictEqual(dragEvent.defaultPrevented, false);
 	});
+
+	for (const paneClass of ['session-view', 'chat-group-view']) {
+		test(`${paneClass} headers leave a six-pixel drag-free buffer by resize boundaries`, () => {
+			const { store, instantiationService, header: sessionHeader, session, activeChat } = createHarness(disposables);
+			const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
+			chatHeader.setChat({ session, chat: activeChat, activate: () => { } });
+			const header = paneClass === 'session-view' ? sessionHeader : chatHeader;
+			const pane = $(`.${paneClass}`);
+			pane.style.width = '400px';
+			pane.style.height = '200px';
+			pane.appendChild(header.element);
+			mainWindow.document.body.appendChild(pane);
+			store.add(toDisposable(() => pane.remove()));
+			const bounds = pane.getBoundingClientRect();
+			const results = [
+				[5, 16], [6, 16],
+				[bounds.width - 5, 16], [bounds.width - 6, 16],
+				[100, 5], [100, 6], [100, 16],
+			].map(([x, y]) => {
+				const event = simulateDragFrom(header, header.element, { clientX: bounds.left + x, clientY: bounds.top + y });
+				const result = { blocked: event.defaultPrevented, hasPayload: event.dataTransfer!.types.length > 0 };
+				header.element.dispatchEvent(new DragEvent(EventType.DRAG_END));
+				return result;
+			});
+			assert.deepStrictEqual(results, [true, false, true, false, true, false, false].map(blocked => ({ blocked, hasPayload: !blocked })));
+		});
+	}
+
+	test('a sub-session header drags only its represented chat, not the parent session', () => {
+		const { store, instantiationService, header, session, activeChat, secondChat } = createHarness(disposables);
+		activeChat.set(secondChat, undefined);
+		const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
+		chatHeader.setChat({ session, chat: activeChat, activate: () => { } });
+		const transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
+		const describeDrag = (target: SessionHeader | ChatHeader) => {
+			const event = simulateDragFrom(target, target.element);
+			return {
+				draggable: target.element.draggable,
+				prevented: event.defaultPrevented,
+				chat: getSessionChatDragData(event),
+				session: event.dataTransfer?.getData(SessionsDataTransfers.SESSION),
+				transfersParent: transfer.hasData(DraggedSessionIdentifier.prototype),
+			};
+		};
+		assert.deepStrictEqual([describeDrag(header), describeDrag(chatHeader)], [0, 1].map(() => ({
+			draggable: true,
+			prevented: false,
+			chat: { sessionId: session.sessionId, resource: secondChat.resource.toString() },
+			session: '',
+			transfersParent: false,
+		})));
+	});
+
+	test('a main-chat group header drags its chat while the session header still drags the session', () => {
+		const { store, instantiationService, header, session, activeChat, mainChat } = createHarness(disposables);
+		const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
+		chatHeader.setChat({ session, chat: activeChat, activate: () => { } });
+		const chatDrag = simulateDragFrom(chatHeader, chatHeader.element);
+		const sessionDrag = simulateDragFrom(header, header.element);
+		header.element.dispatchEvent(new DragEvent(EventType.DRAG_END));
+		assert.deepStrictEqual({
+			chat: getSessionChatDragData(chatDrag),
+			session: JSON.parse(sessionDrag.dataTransfer!.getData(SessionsDataTransfers.SESSION)),
+			cleaned: !LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>().hasData(DraggedSessionIdentifier.prototype),
+		}, {
+			chat: { sessionId: session.sessionId, resource: mainChat.resource.toString() },
+			session: { sessionId: session.sessionId, resource: session.resource.toString() },
+			cleaned: true,
+		});
+	});
+
+	test('chat header toolbar gestures and title editing do not start a drag', () => {
+		const { store, instantiationService, header, session, activeChat } = createHarness(disposables, { supportsRename: true, supportsMultipleChats: true });
+		const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
+		chatHeader.setChat({ session, chat: activeChat, activate: () => { } });
+		const toolbarDrag = simulateDragFrom(chatHeader, chatHeader.element.querySelector<HTMLElement>('.chat-composite-bar-title-actions')!);
+		header.startTitleEditing();
+		const editingDrag = simulateDragFrom(header, header.element);
+		assert.deepStrictEqual([toolbarDrag.defaultPrevented, editingDrag.defaultPrevented], [true, true]);
+	});
+
+	test('headers use a drag cursor without a drag-handle icon', () => {
+		const { header } = createHarness(disposables);
+		const container = header.element.parentElement!;
+		mainWindow.document.body.appendChild(container);
+		try {
+			const title = header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title-text')!;
+			const before = title.getBoundingClientRect().left;
+			header.element.classList.add('hovered');
+			assert.deepStrictEqual({
+				hasDragHandle: header.element.querySelector('.session-header-drag-handle') !== null,
+				cursor: mainWindow.getComputedStyle(header.element).cursor,
+				titleMoved: title.getBoundingClientRect().left !== before,
+			}, {
+				hasDragHandle: false,
+				cursor: 'grab',
+				titleMoved: false,
+			});
+		} finally {
+			container.remove();
+		}
+	});
+
+	test('standalone header descriptions follow ancestry and parent renames and clear for the main chat', () => {
+		const { header, session, activeChat, mainChat, secondChat } = createHarness(disposables);
+		const nestedChat: IChat = {
+			...secondChat,
+			resource: URI.parse('test-chat://nested'),
+			title: constObservable('Nested Chat'),
+			origin: { kind: ChatOriginKind.SideChat, parentChat: secondChat.resource },
+		};
+		session.chats.set([mainChat, secondChat, nestedChat], undefined);
+		header.setSession({ ...session, scopedChatResource: nestedChat.resource });
+		const describe = () => ({
+			title: header.element.querySelector('.label-name')?.textContent,
+			description: header.element.querySelector('.label-description')?.textContent ?? '',
+			hasSeparator: header.element.querySelector('.chat-composite-bar-session-title')?.classList.contains('has-description'),
+			label: header.element.getAttribute('aria-label'),
+		});
+		activeChat.set(nestedChat, undefined);
+		const nested = describe();
+		session.title.set('Renamed Session', undefined);
+		secondChat.title.set('Renamed Parent', undefined);
+		const renamed = describe();
+		activeChat.set(mainChat, undefined);
+		assert.deepStrictEqual({ nested, renamed, main: describe() }, {
+			nested: { title: 'Nested Chat', description: 'My Session / Second Chat', hasSeparator: true, label: 'Chat: My Session / Second Chat / Nested Chat' },
+			renamed: { title: 'Nested Chat', description: 'Renamed Session / Renamed Parent', hasSeparator: true, label: 'Chat: Renamed Session / Renamed Parent / Nested Chat' },
+			main: { title: 'Main Chat', description: '', hasSeparator: false, label: 'Chat: Main Chat' },
+		});
+	});
+
+	test('ancestry tolerates missing and cyclic parents and clears with the header context', () => {
+		const { header, session, activeChat, mainChat, secondChat } = createHarness(disposables);
+		const child: IChat = { ...secondChat, origin: { kind: ChatOriginKind.SideChat, parentChat: secondChat.resource } };
+		activeChat.set(child, undefined);
+		const cyclic = header.element.getAttribute('aria-label');
+		const orphan: IChat = { ...secondChat, origin: { kind: ChatOriginKind.SideChat, parentChat: URI.parse('test-chat://missing') } };
+		session.chats.set([mainChat, orphan], undefined);
+		activeChat.set(orphan, undefined);
+		const missing = header.element.getAttribute('aria-label');
+		header.setSession(undefined);
+		assert.deepStrictEqual({
+			cyclic, missing,
+			cleared: header.element.querySelector('.label-name')?.textContent === '',
+			label: header.element.getAttribute('aria-label'),
+		}, {
+			cyclic: 'Chat: My Session / Second Chat',
+			missing: 'Chat: My Session / Second Chat',
+			cleared: true,
+			label: null,
+		});
+	});
+
+	for (const standalone of [false, true]) {
+		test(`headers use the same title, dot and parent-description pattern as tabs (standalone: ${standalone})`, () => {
+			const { header, session, activeChat, secondChat, store } = createHarness(disposables, { supportsMultipleChats: true, supportsRename: true });
+			activeChat.set(secondChat, undefined);
+			header.setSession(standalone ? { ...session, scopedChatResource: secondChat.resource } : session);
+			const container = header.element.parentElement!;
+			mainWindow.document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			const title = header.element.querySelector('.chat-composite-bar-session-title')!;
+			const description = title.querySelector('.label-description');
+			const before = {
+				name: title.querySelector('.label-name')?.textContent,
+				parent: description?.textContent ?? '',
+				dot: description ? mainWindow.getComputedStyle(description, '::before').content : 'none',
+				hasBreadcrumbs: header.element.querySelector('.session-header-breadcrumbs') !== null,
+			};
+			header.startTitleEditing();
+			assert.deepStrictEqual({
+				before,
+				renameValue: header.element.querySelector<HTMLInputElement>('.chat-composite-bar-session-title-input')?.value,
+			}, {
+				before: { name: 'Second Chat', parent: standalone ? 'My Session' : '', dot: standalone ? '"\u00b7"' : 'none', hasBreadcrumbs: false },
+				renameValue: 'Second Chat',
+			});
+		});
+	}
 
 	test('activates its chat group before a header action can run', () => {
 		const { store, instantiationService, session, activeChat } = createHarness(disposables);
@@ -304,6 +490,118 @@ suite('Sessions - Headers', () => {
 		});
 	});
 
+	test('stops the spinner when its chat completes while a peer chat keeps the session in progress', () => {
+		const { store, instantiationService, session, mainChat, secondChat } = createHarness(disposables);
+		session.status.set(SessionStatus.InProgress, undefined);
+		mainChat.status.set(SessionStatus.InProgress, undefined);
+		secondChat.status.set(SessionStatus.InProgress, undefined);
+		const createChatHeader = (chat: IChat) => {
+			const header = store.add(instantiationService.createInstance(ChatHeader));
+			header.setChat({ session, chat: constObservable(chat), activate: () => { } });
+			return header;
+		};
+		const mainHeader = createChatHeader(mainChat);
+		const secondHeader = createChatHeader(secondChat);
+		const spinners = () => ({
+			main: mainHeader.element.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])') !== null,
+			second: secondHeader.element.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])') !== null,
+		});
+
+		const bothInProgress = spinners();
+		secondChat.status.set(SessionStatus.Completed, undefined);
+
+		assert.deepStrictEqual({ bothInProgress, secondCompleted: spinners() }, {
+			bothInProgress: { main: true, second: true },
+			secondCompleted: { main: true, second: false },
+		});
+	});
+
+	for (const kind of [ChatOriginKind.User, ChatOriginKind.Fork, ChatOriginKind.SideChat, ChatOriginKind.Tool]) {
+		test(`keeps session and pane header status independent of a ${kind} chat`, () => {
+			const { store, instantiationService, header, session, activeChat, mainChat, secondChat } = createHarness(disposables);
+			const child = { ...secondChat, origin: { kind } };
+			session.chats.set([mainChat, child], undefined);
+			const createChatHeader = (chat: IChat) => {
+				const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
+				chatHeader.setChat({ session, chat: constObservable(chat), activate: () => { } });
+				return chatHeader;
+			};
+			const mainHeader = createChatHeader(mainChat);
+			const childHeader = createChatHeader(child);
+			const status = (target: SessionHeader | ChatHeader) => {
+				if (target.element.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])')) {
+					return SessionStatus.InProgress;
+				}
+				return target.element.querySelector('.codicon-comment-unresolved:not([data-icon-fading-out])')
+					? SessionStatus.NeedsInput : SessionStatus.Completed;
+			};
+			const snapshot = () => [header, mainHeader, childHeader].map(status);
+			const snapshots = [snapshot()];
+
+			child.status.set(SessionStatus.InProgress, undefined);
+			session.status.set(SessionStatus.InProgress, undefined);
+			snapshots.push(snapshot());
+			mainChat.status.set(SessionStatus.NeedsInput, undefined);
+			session.status.set(SessionStatus.NeedsInput, undefined);
+			snapshots.push(snapshot());
+			mainChat.status.set(SessionStatus.Completed, undefined);
+			session.status.set(SessionStatus.InProgress, undefined);
+			snapshots.push(snapshot());
+			child.status.set(SessionStatus.NeedsInput, undefined);
+			session.status.set(SessionStatus.NeedsInput, undefined);
+			snapshots.push(snapshot());
+			activeChat.set(child, undefined);
+			snapshots.push(snapshot());
+			activeChat.set(mainChat, undefined);
+			mainChat.status.set(SessionStatus.InProgress, undefined);
+			snapshots.push(snapshot());
+			mainChat.status.set(SessionStatus.Completed, undefined);
+			snapshots.push(snapshot());
+			child.status.set(SessionStatus.Completed, undefined);
+			session.status.set(SessionStatus.Completed, undefined);
+			snapshots.push(snapshot());
+
+			const completed = SessionStatus.Completed;
+			const working = SessionStatus.InProgress;
+			const waiting = SessionStatus.NeedsInput;
+			assert.deepStrictEqual(snapshots, [
+				[completed, completed, completed],
+				[completed, completed, working],
+				[waiting, waiting, working],
+				[completed, completed, working],
+				[completed, completed, waiting],
+				[waiting, completed, waiting],
+				[working, working, waiting],
+				[completed, completed, waiting],
+				[completed, completed, completed],
+			]);
+		});
+	}
+
+	for (const aggregateStatus of [SessionStatus.InProgress, SessionStatus.NeedsInput]) {
+		test(`does not inherit aggregate status ${aggregateStatus} or unread state when no chat is bound`, () => {
+			const { store, instantiationService, session, mainChat, statusIconReads } = createHarness(disposables);
+			const chat = observableValue<IChat | undefined>('headerChat', mainChat);
+			const bar = store.add(instantiationService.createInstance(SessionHeaderBar, undefined));
+			bar.setContext({ session, chat });
+			session.status.set(aggregateStatus, undefined);
+			session.isRead.set(false, undefined);
+			chat.set(undefined, undefined);
+
+			assert.deepStrictEqual({
+				title: bar.element.querySelector('.label-name')?.textContent,
+				inProgress: bar.element.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])') !== null,
+				needsInput: bar.element.querySelector('.codicon-comment-unresolved:not([data-icon-fading-out])') !== null,
+				isRead: statusIconReads.at(-1),
+			}, {
+				title: 'New Session',
+				inProgress: false,
+				needsInput: false,
+				isRead: true,
+			});
+		});
+	}
+
 	test('shows New Session for an untitled nested session', () => {
 		const { store, instantiationService, session, activeChat, secondChat } = createHarness(disposables);
 		secondChat.title.set('', undefined);
@@ -315,7 +613,7 @@ suite('Sessions - Headers', () => {
 			activate: () => { },
 		});
 
-		assert.strictEqual(header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title-text')?.textContent, 'New Session');
+		assert.strictEqual(header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title-text .label-name')?.textContent, 'New Session');
 	});
 
 	test('renders the overflow action before the small close control', () => {
@@ -332,7 +630,7 @@ suite('Sessions - Headers', () => {
 							instantiationService.createInstance(MenuItemAction, { id: CLOSE_CHAT_COMMAND_ID, title: 'Close', icon: Codicon.closeSmall }, undefined, menuOptions, undefined, undefined),
 						],
 					], [
-						'secondary/1_session',
+						'secondary/4_manage',
 						[
 							instantiationService.createInstance(MenuItemAction, { id: 'sessions.rename', title: 'Rename' }, undefined, menuOptions, undefined, undefined),
 						],

@@ -97,7 +97,7 @@ suite('SessionCustomizationDiscovery', () => {
 		]);
 	});
 
-	test('projects SDK-native plugin customizations as a plugin container', async () => {
+	test('projects SDK-native GitHub marketplace plugin customizations as a plugin container', async () => {
 		const errors: string[] = [];
 		const logService = new class extends NullLogService {
 			override error(message: string | Error): void {
@@ -107,7 +107,7 @@ suite('SessionCustomizationDiscovery', () => {
 		instantiationService.stub(ILogService, logService);
 
 		const pluginRoot = '/home/.copilot/installed-plugins/example';
-		await seed(`${pluginRoot}/.plugin/plugin.json`, JSON.stringify({ name: 'example-plugin', version: '1.2.3' }));
+		await seed(`${pluginRoot}/.github/plugin/plugin.json`, JSON.stringify({ name: 'example-plugin', version: '1.2.3' }));
 		const pluginAgent = await seed(`${pluginRoot}/agents/reviewer.agent.md`, '---\nname: reviewer\ndescription: Reviews changes\n---\n');
 		const pluginSkill = await seed(`${pluginRoot}/skills/example/SKILL.md`, '---\nname: example\ndescription: Example skill\n---\n');
 		const pluginRule = await seed(`${pluginRoot}/rules/example.instructions.md`, '---\nname: Example instruction\n---\n');
@@ -173,6 +173,79 @@ suite('SessionCustomizationDiscovery', () => {
 					{ type: CustomizationType.Agent, uri: pluginAgent.toString() },
 					{ type: CustomizationType.Skill, uri: pluginSkill.toString() },
 					{ type: CustomizationType.Rule, uri: pluginRule.toString() },
+				],
+			}],
+		});
+	});
+
+	test('keeps plugin, workspace, and user agents in their source containers', async () => {
+		const pluginRoot = '/home/.copilot/installed-plugins/multi-agent';
+		await seed(`${pluginRoot}/.github/plugin/plugin.json`, JSON.stringify({ name: 'multi-agent-plugin', version: '1.0.0' }));
+		const pluginParent = await seed(`${pluginRoot}/agents/parent.agent.md`, '---\nname: plugin-parent\ndescription: Delegates work\n---\n');
+		const pluginSibling = await seed(`${pluginRoot}/agents/sibling.agent.md`, '---\nname: plugin-sibling\ndescription: Completes delegated work\n---\n');
+		const workspaceAgent = await seed('/workspace/.github/agents/workspace.agent.md', '---\nname: workspace-agent\ndescription: Works in the repository\n---\n');
+		const userAgent = await seed('/home/.copilot/agents/user.agent.md', '---\nname: user-agent\ndescription: Works across repositories\n---\n');
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = {
+			rpc: {
+				agents: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({
+						agents: [
+							{ id: 'plugin-parent', name: 'plugin-parent', description: 'Delegates work', path: pluginParent.path, source: 'plugin', userInvocable: true },
+							{ id: 'plugin-sibling', name: 'plugin-sibling', description: 'Completes delegated work', path: pluginSibling.path, source: 'plugin', userInvocable: true },
+							{ id: 'workspace-agent', name: 'workspace-agent', description: 'Works in the repository', path: workspaceAgent.path, source: 'project', userInvocable: true },
+							{ id: 'user-agent', name: 'user-agent', description: 'Works across repositories', path: userAgent.path, source: 'user', userInvocable: true },
+						],
+					}),
+				},
+				instructions: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({ sources: [] }),
+				},
+				skills: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({ skills: [] }),
+				},
+			},
+		} as unknown as CopilotClient;
+
+		const customizations = await discovery.discover(client, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			agentDirectories: customizations
+				.filter(customization => customization.type === CustomizationType.Directory
+					&& customization.contents === CustomizationType.Agent
+					&& customization.children?.length)
+				.map(customization => ({
+					uri: URI.parse(customization.uri).path,
+					children: customization.children?.map(child => ({ name: child.name, uri: URI.parse(child.uri).path })),
+				}))
+				.sort((a, b) => a.uri.localeCompare(b.uri)),
+			plugins: customizations
+				.filter(customization => customization.type === CustomizationType.Plugin)
+				.map(customization => ({
+					uri: URI.parse(customization.uri).path,
+					name: customization.name,
+					children: customization.children?.map(child => ({ name: child.name, uri: URI.parse(child.uri).path })),
+				})),
+		}, {
+			agentDirectories: [
+				{
+					uri: '/home/.copilot/agents',
+					children: [{ name: 'user-agent', uri: '/home/.copilot/agents/user.agent.md' }],
+				},
+				{
+					uri: '/workspace/.github/agents',
+					children: [{ name: 'workspace-agent', uri: '/workspace/.github/agents/workspace.agent.md' }],
+				},
+			],
+			plugins: [{
+				uri: pluginRoot,
+				name: 'multi-agent-plugin',
+				children: [
+					{ name: 'plugin-parent', uri: `${pluginRoot}/agents/parent.agent.md` },
+					{ name: 'plugin-sibling', uri: `${pluginRoot}/agents/sibling.agent.md` },
 				],
 			}],
 		});

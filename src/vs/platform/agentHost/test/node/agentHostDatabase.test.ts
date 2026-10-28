@@ -233,6 +233,144 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('worktree sizes survive reopening, invalidate on session changes, and are deleted with the session', async () => {
+		const path = join(temporaryDirectory!, 'agent-host.db');
+		const session = 'session://disk-usage';
+		const worktree = 'file:///worktree';
+		database = new AgentHostDatabase(path);
+		await database.registerSessionV2(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+		const revision = (await database.getWorktreeDiskUsageRevision(session, worktree))!;
+		await database.writeWorktreeDiskUsage(session, worktree, revision, 0);
+		await database.close();
+		database = new AgentHostDatabase(path);
+		const restored = await database.readWorktreeDiskUsage(session, worktree, revision);
+		await database.updateSessionModifiedTime(session, 2);
+		const updatedRevision = (await database.getWorktreeDiskUsageRevision(session, worktree))!;
+		const invalidated = await database.readWorktreeDiskUsage(session, worktree, updatedRevision);
+		await database.tombstoneAndUnregisterSession(session);
+		assert.deepStrictEqual({
+			restored, invalidated,
+			revisionChanged: revision !== updatedRevision,
+			deleted: await database.readWorktreeDiskUsage(session, worktree, revision),
+			unknown: await database.getWorktreeDiskUsageRevision(session, worktree),
+		}, { restored: 0, invalidated: undefined, revisionChanged: true, deleted: undefined, unknown: undefined });
+	});
+
+	test('worktree size revisions include central session state and shared worktree owners', async () => {
+		const path = join(temporaryDirectory!, 'agent-host.db');
+		const session = 'session://disk-usage';
+		const coOwner = 'session://co-owner';
+		const worktree = 'file:///worktree';
+		database = new AgentHostDatabase(path);
+		for (const resource of [session, coOwner]) {
+			await database.registerSessionV2(resource, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+		}
+		await database.importSessionState(session, {
+			importVersion: 1, importedAt: 1, values: {}, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true,
+		});
+		const raw = await openDatabase(path);
+		try {
+			await exec(raw, `INSERT INTO worktree_co_owners VALUES ('${worktree}', '${coOwner}', 'file:///repo', 'branch')`);
+		} finally {
+			await close(raw);
+		}
+		const initial = await database.getWorktreeDiskUsageRevision(session, worktree);
+		await database.bumpSessionStateRowsRevision(session);
+		const stateChanged = await database.getWorktreeDiskUsageRevision(session, worktree);
+		await database.updateSessionModifiedTime(coOwner, 2);
+		const coOwnerChanged = await database.getWorktreeDiskUsageRevision(session, worktree);
+		assert.deepStrictEqual({
+			stateChanged: initial !== stateChanged,
+			coOwnerChanged: stateChanged !== coOwnerChanged,
+		}, { stateChanged: true, coOwnerChanged: true });
+	});
+
+	test('worktree sizes use metadata without changing session revisions or registrations', async () => {
+		const path = join(temporaryDirectory!, 'agent-host.db');
+		const session = 'session://disk-usage';
+		const other = 'session://other';
+		const worktree = 'file:///worktree';
+		database = new AgentHostDatabase(path);
+		for (const resource of [session, other]) {
+			await database.registerSessionV2(resource, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+		}
+		const revision = (await database.getWorktreeDiskUsageRevision(session, worktree))!;
+		const generation = await database.getRegistrationGeneration();
+		await database.writeWorktreeDiskUsage(session, worktree, revision, 42);
+		await database.writeWorktreeDiskUsage(session, 'file:///another-worktree', revision, 64);
+		await database.writeWorktreeDiskUsage('session://unknown', worktree, revision, 100);
+		const raw = await openDatabase(path);
+		try {
+			assert.deepStrictEqual({
+				record: await all(raw, 'SELECT value FROM metadata WHERE key = ?', [`worktreeDiskUsage:${worktree}`]),
+				table: await all(raw, `SELECT name FROM sqlite_master WHERE name = 'worktree_disk_usage'`),
+				version: await all(raw, 'PRAGMA user_version'),
+				revision: await database.getWorktreeDiskUsageRevision(session, worktree),
+				generation: await database.getRegistrationGeneration(),
+				unrelated: await database.readWorktreeDiskUsage(other, worktree, revision),
+				another: await database.readWorktreeDiskUsage(session, 'file:///another-worktree', revision),
+			}, {
+				record: [{ value: JSON.stringify({ session, revision, sizeBytes: 42 }) }],
+				table: [],
+				version: [{ user_version: 21 }],
+				revision,
+				generation,
+				unrelated: undefined,
+				another: 64,
+			});
+		} finally {
+			await close(raw);
+		}
+	});
+
+	for (const operation of ['tombstone', 'unregisterRuntime', 'unregisterV2', 'exclude'] as const) {
+		test(`${operation} removes worktree size metadata without removing other sessions' sizes`, async () => {
+			const path = join(temporaryDirectory!, 'agent-host.db');
+			const session = 'session://disk-usage';
+			const other = 'session://other';
+			database = new AgentHostDatabase(path);
+			for (const resource of [session, other]) {
+				await database.registerSessionV2(resource, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+				await database.writeWorktreeDiskUsage(resource, `${resource}/worktree`, 'revision', 42);
+			}
+			if (operation === 'tombstone') {
+				await database.tombstoneAndUnregisterSession(session);
+			} else if (operation === 'unregisterRuntime') {
+				await database.unregisterRuntimeSession(session);
+			} else if (operation === 'unregisterV2') {
+				await database.unregisterSessionV2(session);
+			} else {
+				await database.excludeSessionV2({ provider: 'copilotcli', session, reason: 'staleExternal', fingerprint: 'test' }, {
+					identity: await database.getSessionV2Registration(session), catalog: undefined,
+				});
+			}
+			await database.writeWorktreeDiskUsage(session, `${session}/worktree`, 'revision', 99);
+			const raw = await openDatabase(path);
+			try {
+				assert.deepStrictEqual(await all(raw, `SELECT key FROM metadata WHERE key >= 'worktreeDiskUsage:' AND key < 'worktreeDiskUsage;'`), [
+					{ key: `worktreeDiskUsage:${other}/worktree` },
+				]);
+			} finally {
+				await close(raw);
+			}
+		});
+	}
+
+	test('invalidating a worktree size leaves other metadata and worktrees unchanged', async () => {
+		database = new AgentHostDatabase(join(temporaryDirectory!, 'agent-host.db'));
+		const session = 'session://disk-usage';
+		await database.registerSessionV2(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+		await database.setSessionAgentMergeEnabled(session, true);
+		await database.writeWorktreeDiskUsage(session, 'file:///worktree', 'revision', 42);
+		await database.writeWorktreeDiskUsage(session, 'file:///other', 'revision', 64);
+		await database.deleteWorktreeDiskUsage('file:///worktree');
+		assert.deepStrictEqual({
+			deleted: await database.readWorktreeDiskUsage(session, 'file:///worktree', 'revision'),
+			other: await database.readWorktreeDiskUsage(session, 'file:///other', 'revision'),
+			agentMergeEnabled: await database.listAgentMergeEnabledSessions(),
+		}, { deleted: undefined, other: 64, agentMergeEnabled: [session] });
+	});
+
 	test('creates the central catalog schema without changing the legacy registry', async () => {
 		const path = join(temporaryDirectory!, 'agent-host.db');
 		database = new AgentHostDatabase(path);
@@ -271,8 +409,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				sessionV2ForeignKeys,
 				sessionChatColumns: sessionChatColumns.map(row => row.name),
 			}, {
-				version: [{ user_version: 19 }],
-				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2'],
+				version: [{ user_version: 21 }],
+				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'scratch_folders', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2', 'worktree_co_owners'],
 				sessionColumns: ['session_uri', 'provider', 'start_time', 'external', 'registration_source', 'modified_time'],
 				sessionV2Columns: [
 					'session_uri', 'provider', 'start_time', 'external', 'registration_source', 'session_generation',
@@ -285,6 +423,17 @@ suite('AgentHostDatabase sessions_v2', () => {
 		} finally {
 			await close(rawDatabase);
 		}
+	});
+
+	test('migrates a fresh database in a single write transaction', async () => {
+		const path = join(temporaryDirectory!, 'agent-host.db');
+		database = new AgentHostDatabase(path);
+		await database.isSessionRegistryEmpty();
+		await database.close();
+		database = undefined;
+
+		// SQLite's file change counter (header offset 24) counts committed write transactions, each of which flushes the disk.
+		assert.strictEqual((await fs.readFile(path)).readUInt32BE(24), 1);
 	});
 
 	test('stores revisioned authoritative peer-chat membership', async () => {
@@ -741,7 +890,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					directCurrent: await upgraded.getSessionV2Registration(direct),
 				}, {
 					version,
-					schemaVersion: [{ user_version: 19 }],
+					schemaVersion: [{ user_version: 21 }],
 					foreignKeys: [],
 					published: undefined,
 					directLegacy: undefined,
@@ -757,7 +906,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			} finally {
 				await upgraded.close();
 			}
-		}).timeout(10_000);
+		});
 	}
 
 	test('applies the catalog migration after upstream v4', async () => {
@@ -788,12 +937,69 @@ suite('AgentHostDatabase sessions_v2', () => {
 				version: await all(rawDatabase, 'PRAGMA user_version'),
 				tables: (await all(rawDatabase, `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)).map(row => row.name),
 			}, {
-				version: [{ user_version: 19 }],
-				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2'],
+				version: [{ user_version: 21 }],
+				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'scratch_folders', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2', 'worktree_co_owners'],
 			});
 		} finally {
 			await close(rawDatabase);
 		}
+	});
+
+	test('rolls back every pending migration when a later one fails, and retries them on the next open', async () => {
+		const path = join(temporaryDirectory!, 'agent-host-upstream-v4.db');
+		const execRaw = async (sql: string) => {
+			const raw = await openDatabase(path);
+			try {
+				await exec(raw, sql);
+			} finally {
+				await close(raw);
+			}
+		};
+		const readSchema = async () => {
+			const raw = await openDatabase(path);
+			try {
+				return {
+					version: await all(raw, 'PRAGMA user_version'),
+					tables: (await all(raw, `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)).map(row => row.name),
+				};
+			} finally {
+				await close(raw);
+			}
+		};
+		await createUpstreamVersion4Database(path);
+		// Migration 18 keeps an existing removal table, so one without the later columns makes migration 20's rebuild fail.
+		await execRaw('CREATE TABLE pending_worktree_removals (kind TEXT NOT NULL, owner TEXT NOT NULL, PRIMARY KEY (kind, owner)) WITHOUT ROWID');
+
+		database = new AgentHostDatabase(path);
+		await assert.rejects(database.isSessionRegistryEmpty(), /no such column/);
+		await database.close();
+		database = undefined;
+		const afterFailure = await readSchema();
+
+		await execRaw('DROP TABLE pending_worktree_removals');
+		database = new AgentHostDatabase(path);
+		const registration = await database.getSessionV2Registration('copilotcli:/upstream-v4');
+		await database.close();
+		database = undefined;
+
+		assert.deepStrictEqual({ afterFailure, registration, afterRetry: await readSchema() }, {
+			afterFailure: {
+				version: [{ user_version: 4 }],
+				tables: ['metadata', 'pending_worktree_removals', 'sessions'],
+			},
+			registration: {
+				session: 'copilotcli:/upstream-v4',
+				provider: 'copilotcli',
+				startTime: 10,
+				modifiedTime: 20,
+				external: false,
+				source: 'explicit',
+			},
+			afterRetry: {
+				version: [{ user_version: 21 }],
+				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'scratch_folders', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2', 'worktree_co_owners'],
+			},
+		});
 	});
 
 	test('normalizes a pre-release v7 catalog and requires payload reseeding', async () => {
@@ -881,7 +1087,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredRevision: 0,
 				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://v11', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 19 }],
+			version: [{ user_version: 21 }],
 		});
 	});
 
@@ -918,7 +1124,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredRevision: 0,
 				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://future-v20', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 20 }],
+			version: [{ user_version: 21 }],
 			columns: ['session_uri', 'chat_uri', 'chat_order', 'provider_data', 'origin', 'inherited_turn_id', 'archived', 'parent_chat', 'storage_resource', 'is_read'],
 		});
 	});
@@ -957,10 +1163,10 @@ suite('AgentHostDatabase sessions_v2', () => {
 				external: false,
 				source: 'explicit',
 			},
-			version: [{ user_version: 19 }],
+			version: [{ user_version: 21 }],
 			marker: [{ name: 'future_v6_marker' }],
 		});
-	}).timeout(10_000);
+	});
 
 	test('increments dirty markers and clears only the observed marker', async () => {
 		database = new AgentHostDatabase(':memory:');
@@ -1091,7 +1297,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				migratedRows: [{ session_uri: 'session://upgrade-3', provider: 'copilot', start_time: 3, external: 0, registration_source: 'restore', verified: 0 }],
 			},
 		]);
-	}).timeout(10_000);
+	});
 
 	test('round trips one complete verified row', async () => {
 		database = new AgentHostDatabase(':memory:');
@@ -1401,7 +1607,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			current: { session, provider: 'copilot', startTime: 1, modifiedTime: 1, external: true, source: 'discovery' },
 			sourceRevision: 3,
 		});
-	}).timeout(10_000);
+	});
 
 	test('runtime legacy mirror failure rolls back current registration', async () => {
 		const path = join(temporaryDirectory!, 'runtime-rollback.db');
@@ -1461,7 +1667,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			oldBuildSession: { session: 'session://old-build', provider: 'copilot', startTime: 2, modifiedTime: 0, external: true, source: 'discovery' },
 			oldBuildSessionV2: undefined,
 		});
-	}).timeout(10_000);
+	});
 
 	test('legacy row absence is not current deletion', async () => {
 		const path = join(temporaryDirectory!, 'old-build-orphan.db');
@@ -1906,6 +2112,64 @@ suite('AgentHostDatabase sessions_v2', () => {
 			return { sessionGeneration: source.sessionGeneration, sourceRevision: source.sourceRevision, payloadHash: source.payloadHash, catalogRevision };
 		}
 
+		test('a legacy peer row that never recorded a read state is read, as the aggregate of a new peer says', async () => {
+			const instance = new AgentHostDatabase(':memory:');
+			database = instance;
+			const payload = stableStringify({
+				payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+				data: {
+					modifiedTime: 110, isRead: true, isArchived: false, workingDirectories: [],
+					chats: [
+						{ uri: peer, kind: 'peer', order: 0, isRead: true },
+						{ uri: defaultChat, kind: 'default', order: 1, isRead: true },
+					],
+				},
+			});
+			await database.registerSessionV2(session, { provider: 'copilot', startTime: 100, source: 'explicit' }, { checkTombstone: true });
+			await database.upsertSessionV2(createEnvelope(session, 'catalog-generation', 10, { payload }), undefined);
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write the legacy row a peer is created with: no read state.
+			await exec(await instance['_ensureDatabase'](), `PRAGMA foreign_keys = OFF;
+				INSERT INTO session_chats (session_uri, chat_uri, chat_order) VALUES ('${session}', '${peer}', 0);
+				PRAGMA foreign_keys = ON;`);
+			const source = createEnvelope(session, 'catalog-generation', 10, { payload });
+
+			const result = await instance.ensureChatCatalogV2(session, { sessionGeneration: source.sessionGeneration, sourceRevision: source.sourceRevision, payloadHash: source.payloadHash, catalogRevision: 0 }, {
+				defaultChat: { chat: defaultChat, order: 1, storageResource: 'storage://default' },
+				peers: [{ chat: peer, order: 0, storageResource: 'storage://peer' }],
+				privateDescendants: [],
+			});
+
+			assert.deepStrictEqual(result.status, 'applied');
+		});
+
+		test('a legacy peer row without a read state still differs from an aggregate that says the peer is unread', async () => {
+			const instance = new AgentHostDatabase(':memory:');
+			database = instance;
+			const payload = stableStringify({
+				payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+				data: {
+					modifiedTime: 110, isRead: true, isArchived: false, workingDirectories: [],
+					chats: [
+						{ uri: peer, kind: 'peer', order: 0, isRead: false },
+						{ uri: defaultChat, kind: 'default', order: 1, isRead: true },
+					],
+				},
+			});
+			await database.registerSessionV2(session, { provider: 'copilot', startTime: 100, source: 'explicit' }, { checkTombstone: true });
+			await database.upsertSessionV2(createEnvelope(session, 'catalog-generation', 10, { payload }), undefined);
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write the legacy row a peer is created with: no read state.
+			await exec(await instance['_ensureDatabase'](), `PRAGMA foreign_keys = OFF;
+				INSERT INTO session_chats (session_uri, chat_uri, chat_order) VALUES ('${session}', '${peer}', 0);
+				PRAGMA foreign_keys = ON;`);
+			const source = createEnvelope(session, 'catalog-generation', 10, { payload });
+
+			await assert.rejects(() => instance.ensureChatCatalogV2(session, { sessionGeneration: source.sessionGeneration, sourceRevision: source.sourceRevision, payloadHash: source.payloadHash, catalogRevision: 0 }, {
+				defaultChat: { chat: defaultChat, order: 1, storageResource: 'storage://default' },
+				peers: [{ chat: peer, order: 0, storageResource: 'storage://peer' }],
+				privateDescendants: [],
+			}), /Legacy peer state differs/);
+		});
+
 		test('records the session each chat is created in; rows without it read as created in their owner', async () => {
 			const path = join(temporaryDirectory!, 'chat-origin.db');
 			let instance = new AgentHostDatabase(path);
@@ -1939,8 +2203,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				written: [defaultChat, peer, privateChat].sort().map(chat => ({ chat_uri: chat, origin_session_uri: session })),
 				olderBuildRow: session,
 				reopened: {
-					15: { listed: [session, session, session], version: [{ user_version: 19 }] },
-					17: { listed: [session, session, session], version: [{ user_version: 19 }] },
+					15: { listed: [session, session, session], version: [{ user_version: 21 }] },
+					17: { listed: [session, session, session], version: [{ user_version: 21 }] },
 				},
 			});
 		});
@@ -2300,7 +2564,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				18: '',
 			};
 			for (const version of [15, 17, 18]) {
-				test(`a database at version ${version} migrates to 19 with the projection marker, and normalized catalogs start as candidates`, async () => {
+				test(`a database at version ${version} migrates to 20 with the projection marker, and normalized catalogs start as candidates`, async () => {
 					const path = join(tmpdir(), `agent-host-projected-revision-${generateUuid()}.db`);
 					try {
 						let instance = new AgentHostDatabase(path);
@@ -2327,7 +2591,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 							worktreeRemovals: (await all(raw, `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'pending_worktree_removals'`)).length,
 							candidates,
 							recorded: (await all(raw, 'SELECT revision = projected_revision AS current FROM session_chat_catalogs WHERE session_uri = ?', [session]))[0].current,
-						}, { version: [{ user_version: 19 }], columns: { projectedRevision: true, chatOrigins: true }, worktreeRemovals: 1, candidates: [session], recorded: 1 });
+						}, { version: [{ user_version: 21 }], columns: { projectedRevision: true, chatOrigins: true }, worktreeRemovals: 1, candidates: [session], recorded: 1 });
 					} finally {
 						await database?.close();
 						database = undefined;
@@ -2689,7 +2953,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					retained: (await all(inspect, `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('session_chats', 'sessions_v2') ORDER BY name`)).map(row => row.name),
 					legacy: (await database.getSessionChatCatalog(session))?.chats.map(chat => chat.chat),
 				}, {
-					restarted: before, before, version: [{ user_version: 19 }],
+					restarted: before, before, version: [{ user_version: 21 }],
 					retained: ['session_chats', 'sessions_v2'], legacy: [peer],
 				});
 			} finally {
@@ -3492,7 +3756,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		}
 
 		function noState(chats: readonly string[] = []) {
-			return { expectedSourceRevision: 1, expectedTargetRevision: 1, chats: chats.map(chat => ({ chat, workingDirectories: ['file:///project'] })), folders: [] };
+			return { expectedSourceRevision: 1, expectedTargetRevision: 1, chats: chats.map(chat => ({ chat, workingDirectories: ['file:///project'] })), folders: [], values: { source: {}, target: {} } };
 		}
 
 		async function seedAll(): Promise<{ instance: AgentHostDatabase; raw: Database }> {
@@ -3517,6 +3781,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		test('moves a peer with its private descendant, compacts both catalogs and keeps storage', async () => {
 			const { instance, raw } = await seedAll();
 			const result = await instance.moveChatV2({
+				coOwnedWorktrees: [],
 				chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: `${sessionB}#default`,
 				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionB),
 				workingDirectories: ['file:///project/packages/app'],
@@ -3529,6 +3794,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 						// Rule 3: B already tracks the folder, so B's row wins and A keeps its own (data is never dropped).
 						{ kind: 'github', sourceKey: 'key:project', targetKey: 'key:project', keepInSource: false },
 					],
+					values: { source: {}, target: {} },
 				},
 			});
 			const stateA = await instance.readSessionState(sessionA);
@@ -3585,6 +3851,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			await exec(raw, 'INSERT INTO chats_v2 SELECT * FROM hidden');
 
 			const result = await instance.moveChatV2({
+				coOwnedWorktrees: [],
 				chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: `${sessionB}#default`,
 				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionB),
 				workingDirectories: undefined, state: noState([`${sessionA}#peer`]),
@@ -3599,10 +3866,12 @@ suite('AgentHostDatabase sessions_v2', () => {
 		test('places a chat first without an anchor and keeps its first origin across moves', async () => {
 			const { instance, raw } = await seedAll();
 			const first = await instance.moveChatV2({
+				coOwnedWorktrees: [],
 				chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: undefined,
 				expectedSourceRevision: 1, expectedTargetRevision: 1, workingDirectories: undefined, state: noState([`${sessionA}#peer`]),
 			});
 			const second = await instance.moveChatV2({
+				coOwnedWorktrees: [],
 				chat: `${sessionA}#peer`, source: sessionB, target: sessionC, after: `${sessionC}#peer`,
 				expectedSourceRevision: 2, expectedTargetRevision: 1, workingDirectories: undefined,
 				state: { ...noState([`${sessionA}#peer`]), expectedSourceRevision: 2 },
@@ -3638,12 +3907,14 @@ suite('AgentHostDatabase sessions_v2', () => {
 			raw.removeListener('trace', onTrace);
 			const scansBeforeAnyMove = statements.filter(sql => sql.includes('FROM chats_v2')).length;
 			await instance.moveChatV2({
+				coOwnedWorktrees: [],
 				chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: undefined,
 				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionB),
 				workingDirectories: undefined, state: noState([`${sessionA}#peer`]),
 			});
 			const moved = await instance.listMovedChatsV2();
 			await instance.moveChatV2({
+				coOwnedWorktrees: [],
 				chat: `${sessionA}#peer`, source: sessionB, target: sessionA, after: undefined,
 				expectedSourceRevision: await revision(instance, sessionB), expectedTargetRevision: await revision(instance, sessionA),
 				workingDirectories: undefined, state: { ...noState([`${sessionA}#peer`]), expectedSourceRevision: 2, expectedTargetRevision: 2 },
@@ -3661,6 +3932,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			// Only a move records copies: one out and back again.
 			for (const [source, target, expected] of [[sessionA, sessionB, 1], [sessionB, sessionA, 2]] as const) {
 				await instance.moveChatV2({
+					coOwnedWorktrees: [],
 					chat: `${sessionA}#peer`, source, target, after: undefined,
 					expectedSourceRevision: await revision(instance, source), expectedTargetRevision: await revision(instance, target),
 					workingDirectories: undefined, state: { ...noState([`${sessionA}#peer`]), expectedSourceRevision: expected, expectedTargetRevision: expected },
@@ -3712,6 +3984,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				await instance.hasMovedChatsV2();
 			});
 			await instance.moveChatV2({
+				coOwnedWorktrees: [],
 				chat: `${sessionB}#peer`, source: sessionB, target: sessionC, after: undefined,
 				expectedSourceRevision: await revision(instance, sessionB), expectedTargetRevision: await revision(instance, sessionC),
 				workingDirectories: undefined, state: noState([`${sessionB}#peer`]),
@@ -3731,7 +4004,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		test('refuses invalid moves without changing anything', async () => {
 			const { instance, raw } = await seedAll();
 			const before = await rows(raw, sessionA, sessionB);
-			const move = { chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: undefined, expectedSourceRevision: 1, expectedTargetRevision: 1, workingDirectories: undefined, state: noState([`${sessionA}#peer`]) };
+			const move = { chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: undefined, expectedSourceRevision: 1, expectedTargetRevision: 1, workingDirectories: undefined, state: noState([`${sessionA}#peer`]), coOwnedWorktrees: [] };
 			const results = {
 				defaultChat: await instance.moveChatV2({ ...move, chat: `${sessionA}#default` }),
 				privateChat: await instance.moveChatV2({ ...move, chat: `${sessionA}#sub` }),
@@ -3763,9 +4036,9 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 		function promotion(target: string, overrides: Partial<IAgentHostDatabaseChatV2Promotion> = {}): IAgentHostDatabaseChatV2Promotion {
 			return {
-				chat: `${sessionA}#peer`, source: sessionA, target, provider: 'copilot', startTime: 500, expectedSourceRevision: 1,
+				chat: `${sessionA}#peer`, source: sessionA, target, provider: 'copilot', startTime: 500, expectedSourceRevision: 1, coOwnedWorktrees: [],
 				state: {
-					expectedSourceRevision: 1, importVersion: 1, importedAt: 600, legacyMirrorBase: '{"v":2,"entries":{}}', values: { configValues: '{"mode":"plan"}' },
+					expectedSourceRevision: 1, importVersion: 1, importedAt: 600, legacyMirrorBase: '{"v":2,"entries":{}}', values: { configValues: '{"mode":"plan"}' }, sourceValues: {},
 					chats: [{ chat: `${sessionA}#peer`, workingDirectories: ['file:///project'] }],
 					folders: [
 						{ kind: 'git', sourceKey: '', targetKey: '', keepInSource: true },
@@ -3784,6 +4057,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			// What importing the edit leaves behind: the projection current again.
 			const imported = (session: string) => exec(raw, `UPDATE session_chat_catalogs SET projected_revision = revision WHERE session_uri = '${session}'`);
 			const move = async (source: string, target: string, chat = `${source}#peer`) => instance.moveChatV2({
+				coOwnedWorktrees: [],
 				chat, source, target, after: undefined,
 				expectedSourceRevision: await revision(instance, source), expectedTargetRevision: await revision(instance, target),
 				workingDirectories: undefined, state: { ...noState([chat]), expectedSourceRevision: (await instance.readSessionState(source))!.header.revision, expectedTargetRevision: (await instance.readSessionState(target))!.header.revision },
@@ -3838,16 +4112,18 @@ suite('AgentHostDatabase sessions_v2', () => {
 		test('a session move refuses an older build\'s edit of either chat list (Block 4a)', async () => {
 			const { instance, raw } = await seedAll();
 			await instance.moveChatV2({
+				coOwnedWorktrees: [],
 				chat: `${sessionA}#peer`, source: sessionA, target: sessionC, after: undefined,
 				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionC),
 				workingDirectories: undefined, state: noState([`${sessionA}#peer`]),
 			});
 			const sessionMove = async () => instance.moveSessionV2({
+				coOwnedWorktrees: [],
 				chat: `${sessionA}#default`, source: sessionA, target: sessionB, after: undefined,
 				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionB),
 				workingDirectories: undefined,
 				// A refused write changes no central state: A's is at 2 after the first move, B's at 1.
-				state: { expectedSourceRevision: 2, expectedTargetRevision: 1, chats: [], folders: [] },
+				state: { expectedSourceRevision: 2, expectedTargetRevision: 1, chats: [], folders: [], values: { source: {}, target: {} } },
 			});
 			const results: string[] = [];
 			// An older build lists a chat of its own in A (which lists no peers any more), and drops B's peer.
@@ -3868,15 +4144,17 @@ suite('AgentHostDatabase sessions_v2', () => {
 			const { instance, raw } = await seedAll();
 			// A keeps only its default chat.
 			await instance.moveChatV2({
+				coOwnedWorktrees: [],
 				chat: `${sessionA}#peer`, source: sessionA, target: sessionC, after: undefined,
 				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionC),
 				workingDirectories: undefined, state: noState([`${sessionA}#peer`]),
 			});
 			const sessionMove = {
+				coOwnedWorktrees: [],
 				chat: `${sessionA}#default`, source: sessionA, target: sessionB, after: `${sessionB}#default`,
 				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionB),
 				workingDirectories: undefined,
-				state: { expectedSourceRevision: 2, expectedTargetRevision: 1, chats: [], folders: [{ kind: 'github' as const, sourceKey: 'key:project', targetKey: 'key:project', keepInSource: false }] },
+				state: { expectedSourceRevision: 2, expectedTargetRevision: 1, chats: [], folders: [{ kind: 'github' as const, sourceKey: 'key:project', targetKey: 'key:project', keepInSource: false }], values: { source: {}, target: {} } },
 			};
 			const refusals = {
 				peer: await instance.moveSessionV2({ ...sessionMove, chat: `${sessionB}#peer`, source: sessionB, target: sessionC, expectedSourceRevision: await revision(instance, sessionB), expectedTargetRevision: await revision(instance, sessionC) }),
@@ -3916,6 +4194,55 @@ suite('AgentHostDatabase sessions_v2', () => {
 				ended: { tombstoned: true, catalog: undefined, state: undefined, legacy: 0 },
 				// Older builds list it as B's first peer.
 				legacyB: [[`${sessionA}#default`, 0], [`${sessionB}#peer`, 1]],
+			});
+		});
+
+		test('a move, a promotion and a session move record who shares a worktree, a transferred record changes both lists in the move, and a tombstone drops a session\'s shares (Block 5)', async () => {
+			const { instance, raw } = await seedAll();
+			const sessionN = 'session://n';
+			const worktree = (name: string) => ({ worktreePath: `file:///repo.worktrees/${name}`, repositoryRoot: 'file:///repo', branch: `agents/${name}` });
+			const transferred = JSON.stringify([{ handle: '22222222-2222-4222-8222-222222222222', workingDirectory: 'file:///repo.worktrees/own', repositoryRoot: 'file:///repo', chat: `${sessionA}#peer` }]);
+			const coOwners = async () => (await all(raw, 'SELECT worktree_path, session_uri FROM worktree_co_owners ORDER BY worktree_path, session_uri', [])).map(row => `${(row.worktree_path as string).replace('file:///repo.worktrees/', '')}:${row.session_uri}`);
+			const additional = async (session: string) => (await instance.readSessionState(session))?.values.find(value => value.key === 'agentHost.additionalWorktrees')?.value;
+			const results: string[] = [];
+
+			// Refused: nothing is recorded.
+			results.push((await instance.moveChatV2({
+				chat: `${sessionA}#peer`, source: sessionA, target: sessionC, after: undefined, expectedSourceRevision: 0, expectedTargetRevision: await revision(instance, sessionC),
+				workingDirectories: undefined, state: noState([`${sessionA}#peer`]), coOwnedWorktrees: [worktree('a')],
+			})).status);
+			const afterRefusal = await coOwners();
+			// A's peer shares A's worktree with C, and its own worktree's record moves from A's list to C's.
+			results.push((await instance.moveChatV2({
+				chat: `${sessionA}#peer`, source: sessionA, target: sessionC, after: undefined,
+				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionC),
+				workingDirectories: undefined, coOwnedWorktrees: [worktree('a')],
+				state: { ...noState([`${sessionA}#peer`]), values: { source: { 'agentHost.additionalWorktrees': null }, target: { 'agentHost.additionalWorktrees': transferred } } },
+			})).status);
+			const transfer = { source: await additional(sessionA), target: await additional(sessionC) };
+			// B's peer becomes a session sharing B's worktree.
+			results.push((await instance.promoteChatV2(promotion(sessionN, {
+				chat: `${sessionB}#peer`, source: sessionB, expectedSourceRevision: await revision(instance, sessionB), coOwnedWorktrees: [worktree('b')],
+				state: { ...promotion(sessionN).state, chats: [{ chat: `${sessionB}#peer`, workingDirectories: ['file:///project'] }] },
+			}))).status);
+			const afterPromotion = await coOwners();
+			// A, left with its default chat, moves under B: its shares continue as B's, and a worktree it now shares is B's alone.
+			results.push((await instance.moveSessionV2({
+				chat: `${sessionA}#default`, source: sessionA, target: sessionB, after: undefined,
+				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionB),
+				workingDirectories: undefined, coOwnedWorktrees: [worktree('ended')],
+				state: { expectedSourceRevision: 2, expectedTargetRevision: 2, chats: [], folders: [], values: { source: {}, target: {} } },
+			})).status);
+			const afterSessionMove = await coOwners();
+			await instance.tombstoneAndUnregisterSession(sessionC);
+
+			assert.deepStrictEqual({ results, afterRefusal, transfer, afterPromotion, afterSessionMove, afterTombstone: await coOwners() }, {
+				results: ['conflict', 'applied', 'applied', 'applied'],
+				afterRefusal: [],
+				transfer: { source: undefined, target: transferred },
+				afterPromotion: [`a:${sessionA}`, `a:${sessionC}`, `b:${sessionB}`, `b:${sessionN}`],
+				afterSessionMove: [`a:${sessionB}`, `a:${sessionC}`, `b:${sessionB}`, `b:${sessionN}`, `ended:${sessionB}`],
+				afterTombstone: [`a:${sessionB}`, `b:${sessionB}`, `b:${sessionN}`, `ended:${sessionB}`],
 			});
 		});
 

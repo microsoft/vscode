@@ -7,7 +7,7 @@ import { $, addDisposableListener, onDidUnregisterWindow, runWhenWindowIdle } fr
 import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
-import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, IReference, markAsSingleton, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { CHAT_WORKING_LOGO_DRAW_PAINT_ORDER, chatWorkingLogoFacePaths, getChatWorkingLogoDrawFrame } from './chatWorkingLogoDraw.js';
 
 export const chatWorkingLogoAtlasFrameCount = 320;
@@ -29,9 +29,15 @@ export interface IChatWorkingLogoAtlas extends IDisposable {
 	readonly height: number;
 	readonly frameWidth: number;
 	readonly frameHeight: number;
+	/** The encoded sheet, which lets the window retain its own copy after the generating owners release it. */
+	readonly blob?: Blob;
 }
 
 type AtlasFactory = (targetWindow: Window, options: IChatWorkingLogoAtlasOptions, token: CancellationToken) => Promise<IChatWorkingLogoAtlas>;
+
+function getAtlasKey(options: IChatWorkingLogoAtlasOptions): string {
+	return JSON.stringify([options.width, options.height, options.color]);
+}
 
 class AtlasEntry extends Disposable {
 	private readonly cancellation = this._register(new CancellationTokenSource());
@@ -72,6 +78,11 @@ export class ChatWorkingLogoAtlasCache extends Disposable {
 		super();
 	}
 
+	/** Whether an atlas for these options is ready or already being generated, so acquiring it adds no generation work. */
+	has(options: IChatWorkingLogoAtlasOptions): boolean {
+		return this.entries.has(getAtlasKey(options));
+	}
+
 	acquire(options: IChatWorkingLogoAtlasOptions): IReference<Promise<IChatWorkingLogoAtlas>> {
 		if (this._store.isDisposed) {
 			throw new CancellationError();
@@ -79,7 +90,7 @@ export class ChatWorkingLogoAtlasCache extends Disposable {
 		if (![options.width, options.height].every(size => Number.isInteger(size) && size > 0 && size <= 128)) {
 			throw new Error('Draw atlas dimensions must be between 1 and 128 physical pixels');
 		}
-		const key = JSON.stringify([options.width, options.height, options.color]);
+		const key = getAtlasKey(options);
 		let entry = this.entries.get(key);
 		if (!entry) {
 			const bytes = (options.width + padding * 2) * (options.height + padding * 2) * chatWorkingLogoAtlasFrameCount * 4;
@@ -121,7 +132,79 @@ export class ChatWorkingLogoAtlasCache extends Disposable {
 
 const caches = new WeakMap<Window, { cache: ChatWorkingLogoAtlasCache; store: DisposableStore; references: number }>();
 
+type AtlasSheet = Pick<IChatWorkingLogoAtlas, 'url' | 'width' | 'height' | 'frameWidth' | 'frameHeight'>;
+
+/**
+ * Completed sheets are retained until their window goes away, so later requests and remounted indicators
+ * reuse them instead of generating frames again. They are plain data with their own object URLs, which
+ * stay valid after the generating owners release their references.
+ */
+const retainedSheets = new WeakMap<Window, Map<string, AtlasSheet>>();
+
+function getRetainedSheets(targetWindow: Window): Map<string, AtlasSheet> {
+	let retained = retainedSheets.get(targetWindow);
+	if (!retained) {
+		const sheets = retained = new Map<string, AtlasSheet>();
+		retainedSheets.set(targetWindow, sheets);
+		const listeners = markAsSingleton(new DisposableStore());
+		const release = () => {
+			listeners.dispose();
+			if (retainedSheets.get(targetWindow) === sheets) {
+				retainedSheets.delete(targetWindow);
+			}
+			for (const sheet of sheets.values()) {
+				URL.revokeObjectURL(sheet.url);
+			}
+			sheets.clear();
+		};
+		listeners.add(addDisposableListener(targetWindow, 'pagehide', release));
+		listeners.add(onDidUnregisterWindow(window => {
+			if (window === targetWindow) {
+				release();
+			}
+		}));
+	}
+	return retained;
+}
+
+function retainSheet(targetWindow: Window, key: string, atlas: IChatWorkingLogoAtlas): void {
+	const bytes = atlas.width * atlas.height * 4;
+	if (!atlas.blob || bytes > maxCacheBytes) {
+		return;
+	}
+	const sheets = getRetainedSheets(targetWindow);
+	if (sheets.has(key)) {
+		return;
+	}
+	let retainedBytes = bytes;
+	for (const sheet of sheets.values()) {
+		retainedBytes += sheet.width * sheet.height * 4;
+	}
+	for (const [oldKey, sheet] of sheets) {
+		if (retainedBytes <= maxCacheBytes) {
+			break;
+		}
+		sheets.delete(oldKey);
+		URL.revokeObjectURL(sheet.url);
+		retainedBytes -= sheet.width * sheet.height * 4;
+	}
+	sheets.set(key, { url: URL.createObjectURL(atlas.blob), width: atlas.width, height: atlas.height, frameWidth: atlas.frameWidth, frameHeight: atlas.frameHeight });
+}
+
+/**
+ * Acquires the window's atlas for the given options. Retained sheets are returned immediately; otherwise
+ * indicators share one generation, which stops when no indicator needs it and is retained when it completes.
+ */
 export function acquireChatWorkingLogoAtlas(targetWindow: Window, options: IChatWorkingLogoAtlasOptions): IReference<Promise<IChatWorkingLogoAtlas>> {
+	const key = getAtlasKey(options);
+	const sheets = retainedSheets.get(targetWindow);
+	const sheet = sheets?.get(key);
+	if (sheets && sheet) {
+		// Refresh the least-recently-used order.
+		sheets.delete(key);
+		sheets.set(key, sheet);
+		return { object: Promise.resolve({ ...sheet, dispose: () => { } }), dispose: () => { } };
+	}
 	let shared = caches.get(targetWindow);
 	if (!shared) {
 		const store = new DisposableStore();
@@ -144,6 +227,7 @@ export function acquireChatWorkingLogoAtlas(targetWindow: Window, options: IChat
 		}
 		throw error;
 	}
+	atlas.object.then(result => retainSheet(targetWindow, key, result), () => { /* Failures and cancellations are reported to the acquirer. */ });
 	const owner = shared;
 	owner.references++;
 	return Object.assign(combinedDisposable(atlas, toDisposable(() => {
@@ -151,6 +235,11 @@ export function acquireChatWorkingLogoAtlas(targetWindow: Window, options: IChat
 			owner.store.dispose();
 		}
 	})), { object: atlas.object });
+}
+
+/** Whether the window has a retained or in-flight atlas for these options, so acquiring it adds no generation work. */
+export function hasChatWorkingLogoAtlas(targetWindow: Window, options: IChatWorkingLogoAtlasOptions): boolean {
+	return !!retainedSheets.get(targetWindow)?.has(getAtlasKey(options)) || !!caches.get(targetWindow)?.cache.has(options);
 }
 
 async function whenIdle(targetWindow: Window, token: CancellationToken): Promise<void> {
@@ -268,7 +357,7 @@ export async function createChatWorkingLogoAtlas(targetWindow: Window, options: 
 			throw new CancellationError();
 		}
 		const url = URL.createObjectURL(blob);
-		return Object.assign(toDisposable(() => URL.revokeObjectURL(url)), { url, width: canvas.width, height: canvas.height, frameWidth: width, frameHeight: height });
+		return Object.assign(toDisposable(() => URL.revokeObjectURL(url)), { url, blob, width: canvas.width, height: canvas.height, frameWidth: width, frameHeight: height });
 	} finally {
 		image.removeAttribute('src');
 		canvas.width = canvas.height = tile.width = tile.height = 0;

@@ -78,6 +78,7 @@ export interface IManagedSettingsResponse {
 		readonly serviceName?: string;
 		readonly resourceAttributes?: Record<string, string>;
 		readonly headers?: Record<string, string>;
+		readonly filePath?: string;
 	};
 	/** Any unknown keys in the response are accepted for forward compatibility. */
 	readonly [key: string]: unknown;

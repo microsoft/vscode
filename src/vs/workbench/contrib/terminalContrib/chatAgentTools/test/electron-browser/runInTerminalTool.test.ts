@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok, strictEqual } from 'assert';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { Separator } from '../../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -99,6 +99,8 @@ suite('RunInTerminalTool', () => {
 	let sandboxPrereqResult: ITerminalSandboxPrerequisiteCheckResult;
 	let terminalSandboxService: ITerminalSandboxService;
 	let createdTerminalInstance: ITerminalInstance;
+	let onDataEmitter: Emitter<string>;
+	let onDidInputDataEmitter: Emitter<string>;
 	let createTerminalCallCount: number;
 	let chatSessions: Map<string, ChatModel>;
 	let chatSessionContribution: ReturnType<IChatSessionsService['getChatSessionContribution']>;
@@ -134,8 +136,8 @@ suite('RunInTerminalTool', () => {
 		const onDisposedEmitter = new Emitter<ITerminalInstance>();
 		const onExitEmitter = new Emitter<number | undefined>();
 		const onDidAddCapabilityEmitter = new Emitter<{ id: TerminalCapability }>();
-		const onDidInputDataEmitter = new Emitter<string>();
-		const onDataEmitter = new Emitter<string>();
+		onDidInputDataEmitter = new Emitter<string>();
+		onDataEmitter = new Emitter<string>();
 		const marker = {
 			line: 0,
 			dispose: () => { },
@@ -670,6 +672,8 @@ suite('RunInTerminalTool', () => {
 
 		test('should automatically repair AppArmor, probe again, and execute', async () => {
 			runInTerminalTool.disableProcessIdAssociation();
+			// The mocked command finishes immediately; don't wait a real second per idle poll.
+			setConfig(TerminalChatAgentToolsSettingId.IdlePollInterval, 1);
 			let forceRefreshCalled = false;
 			terminalSandboxService.checkForSandboxingPrereqs = async forceRefresh => {
 				forceRefreshCalled ||= forceRefresh === true;
@@ -3040,6 +3044,24 @@ suite('RunInTerminalTool', () => {
 		ok(!capturedSteeringRequests[1].message.includes('exit code 0'), 'Successful completion should not print exit code 0 to chat');
 		ok(runInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Session terminal association should still be preserved after command finishes');
 		strictEqual(runInTerminalTool.sessionTerminalAssociations.get(sessionResource)!.isBackground, false, 'Terminal should still be foreground after command finishes');
+	});
+
+	test('should only treat data written to the terminal as pending input, not shell output', async () => {
+		runInTerminalTool.disableProcessIdAssociation();
+		// The mocked command finishes immediately; don't wait a real second per idle poll.
+		setConfig(TerminalChatAgentToolsSettingId.IdlePollInterval, 1);
+		await invokeToolTest({ command: 'echo hello' });
+		const toolTerminal = runInTerminalTool.sessionTerminalAssociations.get(LocalChatSessionUri.forSession('run-in-terminal-test'));
+		ok(toolTerminal, 'Expected the tool terminal to be associated with the session');
+
+		// A shell printing its prompt must not make the next command clear the prompt first
+		onDataEmitter.fire('PS C:\\> ');
+		const afterShellOutput = toolTerminal.receivedUserInput;
+		onDidInputDataEmitter.fire('partial input');
+		const afterInput = toolTerminal.receivedUserInput;
+		createdTerminalInstance.dispose();
+
+		deepStrictEqual({ afterShellOutput, afterInput }, { afterShellOutput: false, afterInput: true });
 	});
 
 	suite('auto approve warning acceptance mechanism', () => {

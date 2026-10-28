@@ -9,7 +9,7 @@ import { derived, IObservable, IReader, observableSignalFromEvent } from '../../
 import { localize } from '../../../../nls.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationCatalogueState, AutomationMutationGuard, AutomationUnavailableError, assertAutomationTargetAuthority, combineAutomationCatalogueStates, IAutomationCustomizationChoice, IAutomationProviderDescriptor, IAutomationRefreshOptions, IAutomationRunRequestResult, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, serializeAutomationEditableState, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { isAgentHostEnvironmentAvailable, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider, ISessionsProviderAutomations } from '../../../services/sessions/common/sessionsProvider.js';
 
@@ -58,7 +58,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		});
 		this.unavailableProviders = derived(this, reader => {
 			this.providersChanged.read(reader);
-			return this.getVisibleProviders(reader)
+			return this.getAvailableProviders(reader)
 				.filter(provider => provider.automations?.enabled?.read(reader) !== false && provider.automations?.catalogueState.read(reader) === 'unavailable')
 				.map(provider => {
 					const reason = provider.automations?.unavailableReason?.read(reader);
@@ -75,7 +75,8 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		});
 		this.availableProviders = derived(this, reader => {
 			this.providersChanged.read(reader);
-			return this.getVisibleProviders(reader)
+			return this.getAvailableProviders(reader)
+				.filter(provider => !isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.read(reader) !== false)
 				.filter(provider => provider.automations?.enabled?.read(reader) !== false && provider.automations?.canCreateAutomation.read(reader))
 				.map(provider => ({ id: provider.id, label: provider.label }));
 		});
@@ -187,13 +188,13 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		await store.stopRun(run);
 	}
 
-	private getVisibleProviders(reader?: IReader): ISessionsProvider[] {
+	private getAvailableProviders(reader?: IReader): ISessionsProvider[] {
 		return this.sessionsProvidersService.getProviders().filter(provider => provider.supportsWorkspaceSelection !== false
-			&& (!isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.read(reader) !== false));
+			&& (!isAgentHostProvider(provider) || isAgentHostEnvironmentAvailable(provider, reader)));
 	}
 
 	private getStores(reader?: IReader): ISessionsProviderAutomations[] {
-		return this.getVisibleProviders(reader).flatMap(provider => {
+		return this.getAvailableProviders(reader).flatMap(provider => {
 			const store = provider.automations;
 			return store && store.enabled?.read(reader) !== false ? [store] : [];
 		});

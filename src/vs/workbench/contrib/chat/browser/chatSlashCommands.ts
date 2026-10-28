@@ -21,7 +21,7 @@ import { IChatAgentService } from '../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
 import { IChatService } from '../common/chatService/chatService.js';
-import { IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../common/chatSessionsService.js';
+import { IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, isAgentHostTarget, SessionType } from '../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../common/constants.js';
 import { getChatSessionType, isUntitledChatSession } from '../common/model/chatUri.js';
 import { ACTION_ID_NEW_CHAT } from './actions/chatActions.js';
@@ -227,13 +227,53 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z2_fork',
 			executeImmediately: true,
 			silent: true,
+			completionVariants: [
+				{ label: '/fork', insertText: '', executeImmediately: true },
+				{ label: '/fork <title>', insertText: '/fork ', detail: nls.localize('fork.titleDetail', "Fork conversation with a custom title"), argumentHint: nls.localize('fork.titleArgumentHint', "title") },
+				{ label: '/fork prompt <prompt>', insertText: '/fork prompt ', detail: nls.localize('fork.promptDetail', "Fork conversation and send a prompt"), argumentHint: nls.localize('fork.promptArgumentHint', "prompt") },
+			],
 			locations: [ChatAgentLocation.Chat],
 			when: ContextKeyExpr.or(
 				ChatContextKeys.lockedToCodingAgent.negate(),
 				ChatContextKeys.chatSessionSupportsFork
 			),
-		}, async (_prompt, _progress, _history, _location, sessionResource) => {
-			await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource);
+		}, async (prompt, _progress, _history, _location, sessionResource, _token, options, executionContext) => {
+			// The callback normally receives a trimmed remainder. Retain the original
+			// input for the offset used to rebase inline attachment references.
+			const input = executionContext?.input ?? `/fork${prompt ? ` ${prompt}` : ''}`;
+			const commandEnd = input.indexOf('/fork') + '/fork'.length;
+			const afterCommand = input.slice(commandEnd);
+			const tokenMatch = /^(\s*)prompt(?=\s|$)/.exec(afterCommand);
+			const isAgentHostSession = isAgentHostTarget(getChatSessionType(sessionResource));
+			if (isAgentHostSession && tokenMatch) {
+				const afterToken = afterCommand.slice(tokenMatch[0].length);
+				if (afterToken.trim().length > 0) {
+					// Drop only the token separator. The remainder, including
+					// internal newlines and whitespace, is user-authored prompt text.
+					const separatorLength = /^\s/.test(afterToken) ? 1 : 0;
+					const textOffset = commandEnd + tokenMatch[0].length + separatorLength;
+					const text = afterToken.slice(separatorLength);
+					await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource, {
+						initialMessage: {
+							text,
+							textOffset,
+							requestOptions: options ? {
+								attachedContext: options.attachedContext,
+								resolvedVariables: options.resolvedVariables,
+							} : undefined,
+						},
+					});
+					return { followUp: [], preserveInput: true };
+				}
+				// `prompt` is reserved, but an empty prompt is intentionally the
+				// ordinary bare-fork path rather than a title named "prompt".
+				await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource);
+				return;
+			}
+
+			const title = (isAgentHostSession ? afterCommand : prompt).trim() || undefined;
+			await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource, title ? { title } : undefined);
+			return undefined;
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'rename',

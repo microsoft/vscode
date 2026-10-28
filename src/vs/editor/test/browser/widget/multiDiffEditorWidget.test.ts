@@ -13,6 +13,7 @@ import { autorun, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IActionViewItemService, NullActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -670,7 +671,7 @@ suite('MultiDiffEditorWidget', () => {
 		}
 	});
 
-	test('preserves expanded height when a collapsed template is recycled', async () => {
+	test('preserves expanded height when a collapsed template is recycled', () => runWithFakedTimers({}, async () => {
 		const services = new ServiceCollection();
 		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
 		services.set(IActionViewItemService, new NullActionViewItemService());
@@ -759,7 +760,7 @@ suite('MultiDiffEditorWidget', () => {
 				documentItem.dispose();
 			}
 		}
-	});
+	}));
 });
 
 class PendingDiffProviderFactoryService implements IDiffProviderFactoryService {

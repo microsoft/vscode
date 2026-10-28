@@ -8,20 +8,29 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
 import { PaginationLimitError } from '../../../../../platform/github/common/client/pagination.js';
+import { CoreClient } from '../../../../../platform/github/common/core/coreClient.js';
+import { PullRequestsClient } from '../../../../../platform/github/common/core/pullRequestsClient.js';
+import { createTestPullRequestResponse, FixtureApiRequestProvider } from '../../../../../platform/github/test/common/githubClientTestUtils.js';
 import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
+import { GitHubCredential } from '../../../../../platform/github/common/githubCredentialService.js';
+import { PullRequestCore, PullRequestFragment, PullRequestSnapshot, PullRequestSubscription } from '../../../../../platform/github/common/githubPullRequestService.js';
+import { IGitHubClient } from '../../../../../platform/github/common/githubService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { GitHubPRCIFetcher, computeOverallCIStatus } from '../../browser/fetchers/githubPRCIFetcher.js';
+import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
+import { GitHubPRCIFetcher } from '../../browser/fetchers/githubPRCIFetcher.js';
+import { PullRequestChecksSource } from '../../browser/fetchers/githubPRChecksSource.js';
 import { GitHubPRFetcher, computeMergeability } from '../../browser/fetchers/githubPRFetcher.js';
 import { GitHubPullRequestContextFetcher } from '../../browser/fetchers/githubPullRequestContextFetcher.js';
 import { GitHubPullRequestsFetcher } from '../../browser/fetchers/githubPullRequestsFetcher.js';
 import { GitHubRecentUserWorkFetcher } from '../../browser/fetchers/githubRecentUserWorkFetcher.js';
 import { GitHubRepositoryFetcher } from '../../browser/fetchers/githubRepositoryFetcher.js';
 import { GitHubApiClient } from '../../browser/githubApiClient.js';
-import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubPullRequest, IGitHubPullRequestReview, MergeBlockerKind } from '../../common/types.js';
+import { GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubPullRequest, IGitHubPullRequestReview, MergeBlockerKind } from '../../common/types.js';
 
 class MockApiClient extends mock<GitHubApiClient>() {
 	override readonly onDidChange = Event.None;
@@ -34,8 +43,8 @@ class MockApiClient extends mock<GitHubApiClient>() {
 	readonly tokens: CancellationToken[] = [];
 	private readonly account = upcastPartial<IGitHubAccountClient>({
 		repositories: upcastPartial<IGitHubAccountClient['repositories']>({
-			get: (repository, _signal) => this.respond('repositories.get', repository),
 			listForAuthenticatedUser: (_signal, options) => this.respond('repositories.listForAuthenticatedUser', options),
+			compare: (repository, base, head, _signal, options) => this.respond('repositories.compare', repository, base, head, options),
 		}),
 		users: upcastPartial<IGitHubAccountClient['users']>({
 			getAuthenticated: () => this.respond('users.getAuthenticated'),
@@ -49,7 +58,7 @@ class MockApiClient extends mock<GitHubApiClient>() {
 			pullRequests: (query, _signal, options) => this.respond('search.pullRequests', query, options),
 		}),
 		pullRequests: upcastPartial<IGitHubAccountClient['pullRequests']>({
-			get: (repository, number) => this.respond('pullRequests.get', repository, number),
+			get: (repository, number, _signal, options) => this.respond('pullRequests.get', repository, number, ...(options ? [options] : [])),
 			listConnection: (repository, _signal, options) => this.respond('pullRequests.listConnection', repository, options),
 			listFiles: (repository, number, _signal, options) => this.respond('pullRequests.listFiles', repository, number, options),
 		}),
@@ -65,7 +74,7 @@ class MockApiClient extends mock<GitHubApiClient>() {
 		}),
 		issues: upcastPartial<IGitHubAccountClient['issues']>({
 			listComments: (repository, number, _signal, options) => this.respond('issues.listComments', repository, number, options),
-			getClosingPullRequestCounts: (repository, numbers) => this.respond('issues.getClosingPullRequestCounts', repository, numbers),
+			getClosingPullRequestCounts: (repository, numbers, _signal, options) => this.respond('issues.getClosingPullRequestCounts', repository, numbers, ...(options ? [options] : [])),
 		}),
 		checks: upcastPartial<IGitHubAccountClient['checks']>({
 			listRuns: (repository, ref, _signal, options) => this.respond('checks.listRuns', repository, ref, options),
@@ -117,6 +126,27 @@ class MockApiClient extends mock<GitHubApiClient>() {
 
 suite('GitHubRecentUserWorkFetcher', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('forwards enrichment priority to summaries, review pages and issue linkage', async () => {
+		const mockApi = new MockApiClient();
+		const fetcher = new GitHubRecentUserWorkFetcher(mockApi);
+		const options = { priority: 'enrichment' } as const;
+		mockApi.setNextResponse({ items: [] });
+		await fetcher.getRecentAssignedIssues('o', 'r', CancellationToken.None, options);
+		mockApi.setNextResponse({ nodes: [] });
+		await fetcher.getRecentAuthoredPullRequests('o', 'r', CancellationToken.None, options);
+		mockApi.setResponses({ node_id: 'PR_1' }, { nodes: [] });
+		await fetcher.getPullRequestReviewThreads('o', 'r', 1, CancellationToken.None, options);
+		mockApi.setNextResponse({ 1: 0 });
+		await fetcher.getIssuesWithLinkedPullRequests('o', 'r', [1], CancellationToken.None, options);
+		assert.deepStrictEqual(mockApi.calls.map(call => ({ method: call.method, options: call.args.at(-1) })), [
+			{ method: 'search.issues', options: { ...options, query: { per_page: 5, sort: 'updated', order: 'desc' } } },
+			{ method: 'search.pullRequests', options: { ...options, query: { first: 5 } } },
+			{ method: 'pullRequests.get', options },
+			{ method: 'reviews.listThreadSummaries', options: { ...options, query: { first: 100 }, maxPages: 100 } },
+			{ method: 'issues.getClosingPullRequestCounts', options },
+		]);
+	});
 
 	test('queries assigned issue summaries independently', async () => {
 		const mockApi = new MockApiClient();
@@ -186,7 +216,7 @@ suite('GitHubRecentUserWorkFetcher', () => {
 		}, {
 			reviewThreads: [{ isResolved: false, latestCommentAt: '2026-08-07T10:00:00Z' }],
 			calls: [
-				{ method: 'pullRequests.get', args: [{ owner: 'o', name: 'r' }, 3] },
+				{ method: 'pullRequests.get', args: [{ owner: 'o', repo: 'r' }, 3] },
 				{ method: 'reviews.listThreadSummaries', args: ['PR_3', { query: { first: 100 }, maxPages: 100 }] },
 			],
 		});
@@ -210,7 +240,7 @@ suite('GitHubRecentUserWorkFetcher', () => {
 			calls: mockApi.calls,
 		}, {
 			linkedIssues: [1],
-			calls: [{ method: 'issues.getClosingPullRequestCounts', args: [{ owner: 'o', name: 'r' }, [1, 2]] }],
+			calls: [{ method: 'issues.getClosingPullRequestCounts', args: [{ owner: 'o', repo: 'r' }, [1, 2]] }],
 		});
 	});
 });
@@ -230,47 +260,11 @@ suite('GitHubRepositoryFetcher', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('getRepository returns mapped data', async () => {
-		mockApi.setNextResponse({
-			name: 'vscode',
-			full_name: 'microsoft/vscode',
-			owner: { login: 'microsoft' },
-			default_branch: 'main',
-			private: false,
-			description: 'Visual Studio Code',
-		});
-
-		const repo = await fetcher.getRepository('microsoft', 'vscode');
-		assert.deepStrictEqual(repo, {
-			owner: 'microsoft',
-			name: 'vscode',
-			fullName: 'microsoft/vscode',
-			defaultBranch: 'main',
-			isPrivate: false,
-			description: 'Visual Studio Code',
-		});
-		assert.deepStrictEqual(mockApi.calls, [{ method: 'repositories.get', args: [{ owner: 'microsoft', name: 'vscode' }] }]);
-	});
-
-	test('getRepository handles null description', async () => {
-		mockApi.setNextResponse({
-			name: 'test',
-			full_name: 'owner/test',
-			owner: { login: 'owner' },
-			default_branch: 'main',
-			private: true,
-			description: null,
-		});
-
-		const repo = await fetcher.getRepository('owner', 'test');
-		assert.strictEqual(repo.description, '');
-	});
-
-	test('getRepository propagates API errors', async () => {
-		mockApi.setNextError(new GitHubRequestError('Not found', 'notFound', 404));
+	test('getRepositories propagates API errors', async () => {
+		mockApi.setNextError(new GitHubRequestError('Forbidden', 'authorization', 403));
 		await assert.rejects(
-			() => fetcher.getRepository('owner', 'nonexistent'),
-			{ kind: 'notFound', statusCode: 404 },
+			() => fetcher.getRepositories('', CancellationToken.None),
+			{ kind: 'authorization', statusCode: 403 },
 		);
 	});
 
@@ -323,6 +317,18 @@ suite('GitHubRepositoryFetcher', () => {
 
 		await assert.rejects(fetcher.getRepositories('vscode', CancellationToken.None), /GitHub did not return an account/);
 		assert.deepStrictEqual(mockApi.calls.map(call => call.method), ['users.getAuthenticated', 'organizations.listForAuthenticatedUser']);
+	});
+
+	test('uses the repository full name when search omits the owner object', async () => {
+		mockApi.setResponses(
+			{ login: 'viewer' },
+			[],
+			{ items: [{ name: 'repo', full_name: 'owner/repo', owner: null, default_branch: 'main', private: true, description: null }] },
+		);
+
+		assert.deepStrictEqual(await fetcher.getRepositories('repo', CancellationToken.None), [
+			{ owner: 'owner', name: 'repo', fullName: 'owner/repo', defaultBranch: 'main', isPrivate: true, description: '' },
+		]);
 	});
 });
 
@@ -387,9 +393,9 @@ suite('GitHubPullRequestContextFetcher', () => {
 				}],
 			},
 			calls: [
-				{ method: 'pullRequests.get', args: [{ owner: 'owner', name: 'repo' }, 42] },
+				{ method: 'pullRequests.get', args: [{ owner: 'owner', repo: 'repo' }, 42] },
 				...['pullRequests.listFiles', 'issues.listComments', 'reviews.listComments'].map(method => ({
-					method, args: [{ owner: 'owner', name: 'repo' }, 42, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
+					method, args: [{ owner: 'owner', repo: 'repo' }, 42, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
 				})),
 			],
 		});
@@ -410,6 +416,31 @@ suite('GitHubPRFetcher', () => {
 	teardown(() => store.clear());
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const merged of [false, true]) {
+		test(`getPullRequest preserves closed state through real schema validation with default auto-merge text (merged=${merged})`, async () => {
+			const provider = new FixtureApiRequestProvider(createTestPullRequestResponse({
+				merged,
+				merged_at: merged ? '2026-10-02T00:00:00Z' : null,
+				auto_merge: {
+					enabled_by: { id: 2, node_id: 'U_2', login: 'reviewer', avatar_url: '', html_url: 'https://github.com/reviewer', type: 'User' },
+					merge_method: 'squash', commit_title: null, commit_message: null,
+				},
+			}));
+			const accountClient = upcastPartial<IGitHubAccountClient>({
+				pullRequests: new PullRequestsClient(new CoreClient(provider, provider)),
+			});
+			const api = new class extends mock<GitHubApiClient>() {
+				override withClient<T>(task: (client: IGitHubAccountClient, signal: AbortSignal) => Promise<T>): Promise<T> {
+					return task(accountClient, new AbortController().signal);
+				}
+			}();
+			const result = await new GitHubPRFetcher(api).getPullRequest('owner', 'repo', 1);
+			assert.deepStrictEqual({ state: result.state, draft: result.isDraft }, {
+				state: merged ? GitHubPullRequestState.Merged : GitHubPullRequestState.Closed, draft: false,
+			});
+		});
+	}
 
 	test('getPullRequest maps open PR', async () => {
 		mockApi.setNextResponse(makePRResponse({ state: 'open', merged: false, draft: false }));
@@ -505,7 +536,7 @@ suite('GitHubPRFetcher', () => {
 			pageInfo: { endCursor: 'comment-102', hasNextPage: false },
 		});
 
-		const threads = await fetcher.getReviewThreads('owner', 'repo', 1);
+		const threads = await fetcher.getReviewThreads('owner', 'repo', 1, CancellationToken.None, { priority: 'background' });
 
 		assert.deepStrictEqual({
 			threads: threads.map(thread => ({ id: thread.id, comments: thread.comments.map(comment => ({ id: comment.id, inReplyToId: comment.inReplyToId })) })),
@@ -516,9 +547,9 @@ suite('GitHubPRFetcher', () => {
 				{ id: 'thread-b', comments: [{ id: 200, inReplyToId: undefined }] },
 			],
 			calls: [
-				{ method: 'pullRequests.get', args: [{ owner: 'owner', name: 'repo' }, 1] },
-				{ method: 'reviews.listThreads', args: ['PR_1', { query: { first: 100, commentsFirst: 100 }, maxPages: 100 }] },
-				{ method: 'reviews.listThreadComments', args: ['thread-a', { query: { first: 100, after: 'comment-100' }, maxPages: 99 }] },
+				{ method: 'pullRequests.get', args: [{ owner: 'owner', repo: 'repo' }, 1, { priority: 'background' }] },
+				{ method: 'reviews.listThreads', args: ['PR_1', { priority: 'background', query: { first: 100, commentsFirst: 100 }, maxPages: 100 }] },
+				{ method: 'reviews.listThreadComments', args: ['thread-a', { priority: 'background', query: { first: 100, after: 'comment-100' }, maxPages: 99 }] },
 			],
 		});
 	});
@@ -575,7 +606,7 @@ suite('GitHubPRFetcher', () => {
 
 		assert.deepStrictEqual(mockApi.calls, [{
 			method: 'reviews.create',
-			args: [{ owner: 'owner', name: 'repo' }, 1, {
+			args: [{ owner: 'owner', repo: 'repo' }, 1, {
 				commit_id: 'abc123',
 				comments: [{
 					body: 'Please update this.',
@@ -630,7 +661,7 @@ suite('GitHubPRFetcher', () => {
 			{ id: 2, nodeId: 'PRR_2', author: { login: 'other', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-02T00:00:00Z' },
 		]);
 		assert.deepStrictEqual(mockApi.calls, [{
-			method: 'reviews.list', args: [{ owner: 'owner', name: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
+			method: 'reviews.list', args: [{ owner: 'owner', repo: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
 		}]);
 	});
 
@@ -666,7 +697,7 @@ suite('GitHubPRFetcher', () => {
 				submittedAt: undefined,
 			},
 			calls: [{
-				method: 'reviews.list', args: [{ owner: 'owner', name: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
+				method: 'reviews.list', args: [{ owner: 'owner', repo: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
 			}],
 		});
 	});
@@ -704,7 +735,7 @@ suite('GitHubPRFetcher', () => {
 				patch: '@@ -1 +1 @@\n-old\n+new',
 			},
 			calls: [{
-				method: 'pullRequests.listFiles', args: [{ owner: 'owner', name: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
+				method: 'pullRequests.listFiles', args: [{ owner: 'owner', repo: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
 			}],
 		});
 	});
@@ -715,6 +746,65 @@ suite('GitHubPRFetcher', () => {
 			mockApi.setNextError(error);
 
 			await assert.rejects(fetcher[method]('owner', 'repo', 1), candidate => candidate === error);
+		});
+	}
+
+	test('getChanges diffs the changed files from the merge base to the head commit', async () => {
+		const pullRequest = { title: 'Open changes', base: { ref: 'main', sha: 'base-tip' }, head: { sha: 'head-sha' }, changed_files: 1 };
+		mockApi.setResponses(
+			pullRequest,
+			{ merge_base_commit: { sha: 'merge-base' } },
+			[{ filename: 'src/new.ts', previous_filename: 'src/old.ts', status: 'renamed', additions: 1, deletions: 2 }],
+			pullRequest,
+		);
+
+		const changes = await fetcher.getChanges('owner', 'repo', 7);
+
+		assert.deepStrictEqual({
+			changes,
+			calls: mockApi.calls.map(call => call.method === 'repositories.compare' ? call : { method: call.method }),
+			mutableRequestOptions: mockApi.calls.filter(call => call.method !== 'repositories.compare').map(call => call.args.at(-1)),
+		}, {
+			changes: {
+				title: 'Open changes',
+				baseRef: 'main',
+				baseSha: 'merge-base',
+				headSha: 'head-sha',
+				totalFileCount: 1,
+				files: [{ filename: 'src/new.ts', previous_filename: 'src/old.ts', status: 'renamed', additions: 1, deletions: 2, patch: undefined }],
+			},
+			calls: [
+				{ method: 'pullRequests.get' },
+				{ method: 'repositories.compare', args: [{ owner: 'owner', repo: 'repo' }, 'base-tip', 'head-sha', { query: { per_page: 1 } }] },
+				{ method: 'pullRequests.listFiles' },
+				{ method: 'pullRequests.get' },
+			],
+			mutableRequestOptions: [
+				{ noCache: true },
+				{ noCache: true, query: { page: 1, per_page: 100 }, maxPages: 100 },
+				{ noCache: true },
+			],
+		});
+	});
+
+	for (const change of ['head', 'base', 'baseRef'] as const) {
+		test(`getChanges rejects a file list loaded while the pull request's ${change} changes`, async () => {
+			const pullRequest = { title: 'Open changes', base: { ref: 'main', sha: 'base-tip' }, head: { sha: 'head-1' }, changed_files: 1 };
+			mockApi.setResponses(
+				pullRequest,
+				{ merge_base_commit: { sha: 'merge-base' } },
+				[{ filename: 'new-head-file.ts', status: 'added', additions: 1, deletions: 0 }],
+				{
+					...pullRequest,
+					head: { sha: change === 'head' ? 'head-2' : pullRequest.head.sha },
+					base: {
+						ref: change === 'baseRef' ? 'release' : pullRequest.base.ref,
+						sha: change === 'base' ? 'new-base-tip' : pullRequest.base.sha,
+					},
+				},
+			);
+
+			await assert.rejects(fetcher.getChanges('owner', 'repo', 7), /Pull request #7 changed while loading its files/);
 		});
 	}
 
@@ -793,7 +883,7 @@ suite('GitHubPullRequestsFetcher', () => {
 			hasNextPage: true,
 		});
 		assert.deepStrictEqual(mockApi.calls, [{
-			method: 'pullRequests.listConnection', args: [{ owner: 'microsoft', name: 'vscode' }, { query: { first: 100, after: undefined } }],
+			method: 'pullRequests.listConnection', args: [{ owner: 'microsoft', repo: 'vscode' }, { query: { first: 100, after: undefined } }],
 		}]);
 	});
 
@@ -842,6 +932,15 @@ suite('GitHubPRCIFetcher', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('forwards visible priority to paginated check reads', async () => {
+		mockApi.setNextResponse({ check_runs: [] });
+		await fetcher.getCheckRuns('o', 'r', 'head', CancellationToken.None, { priority: 'visible' });
+		assert.deepStrictEqual(mockApi.calls, [{
+			method: 'checks.listRuns',
+			args: [{ owner: 'o', repo: 'r' }, 'head', { priority: 'visible', query: { page: 1, per_page: 100 }, maxPages: 100 }],
+		}]);
+	});
+
 	test('getCheckRuns maps check runs', async () => {
 		mockApi.setNextResponse({
 			total_count: 2,
@@ -871,7 +970,7 @@ suite('GitHubPRCIFetcher', () => {
 				detailsUrl: undefined,
 			}],
 			calls: [{
-				method: 'checks.listRuns', args: [{ owner: 'owner', name: 'repo' }, 'abc123', { query: { page: 1, per_page: 100 }, maxPages: 100 }],
+				method: 'checks.listRuns', args: [{ owner: 'owner', repo: 'repo' }, 'abc123', { query: { page: 1, per_page: 100 }, maxPages: 100 }],
 			}],
 		});
 	});
@@ -886,8 +985,8 @@ suite('GitHubPRCIFetcher', () => {
 		assert.deepStrictEqual({ result, calls: mockApi.calls }, {
 			result: '[failure] src/a.ts:10 (TS2345) type error\n[warning] src/b.ts:5-8 unused var',
 			calls: [
-				{ method: 'checks.getRun', args: [{ owner: 'owner', name: 'repo' }, 1] },
-				{ method: 'checks.listAnnotations', args: [{ owner: 'owner', name: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }] },
+				{ method: 'checks.getRun', args: [{ owner: 'owner', repo: 'repo' }, 1] },
+				{ method: 'checks.listAnnotations', args: [{ owner: 'owner', repo: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }] },
 			],
 		});
 	});
@@ -898,49 +997,49 @@ suite('GitHubPRCIFetcher', () => {
 		await fetcher.rerunFailedJobs('myOwner', 'myRepo', 12345);
 
 		assert.deepStrictEqual(mockApi.calls, [{
-			method: 'actions.rerunFailedJobs', args: [{ owner: 'myOwner', name: 'myRepo' }, 12345],
+			method: 'actions.rerunFailedJobs', args: [{ owner: 'myOwner', repo: 'myRepo' }, 12345],
 		}]);
 	});
 });
 
-suite('computeOverallCIStatus', () => {
+suite('PullRequestChecksSource', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('returns neutral for empty checks', () => {
-		assert.strictEqual(computeOverallCIStatus([]), GitHubCIOverallStatus.Neutral);
-	});
+	test('rereads the pull request before its checks until the shared resources have seen the subscribed head', async () => {
+		const withHead = (headSha: string) => upcastPartial<PullRequestSnapshot>({ core: upcastPartial<PullRequestSnapshot['core']>({ value: upcastPartial<PullRequestCore>({ headSha }) }) });
+		const snapshot = observableValue('snapshot', withHead('before-push'));
+		const refreshes: { fragment: PullRequestFragment | undefined; authoritative: boolean | undefined }[] = [];
+		const subscription = upcastPartial<PullRequestSubscription>({
+			resource: { ref: { host: 'github.com', accountId: '1', owner: 'o', repo: 'r', number: 1 }, snapshot },
+			refresh: async (fragment, _token, options) => {
+				refreshes.push({ fragment, authoritative: options?.authoritative });
+				if (fragment === 'core') {
+					snapshot.set(withHead('after-push'), undefined);
+				}
+			},
+			dispose: () => { },
+		});
+		const client = upcastPartial<IGitHubClient>({
+			credentials: upcastPartial<IGitHubClient['credentials']>({ getCredential: async () => upcastPartial<GitHubCredential>({ account: { host: 'github.com', accountId: '1' } }) }),
+			pullRequests: upcastPartial<IGitHubClient['pullRequests']>({ subscribePullRequest: () => subscription }),
+		});
+		const gitHubService = new class extends mock<IWorkbenchGitHubService>() {
+			override async acquireDefaultAccountClient() {
+				return { object: client, dispose: () => { } };
+			}
+		}();
 
-	test('returns success when all completed successfully', () => {
-		const checks = [
-			makeCheck({ status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Success }),
-			makeCheck({ status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Neutral }),
-		];
-		assert.strictEqual(computeOverallCIStatus(checks), GitHubCIOverallStatus.Success);
-	});
+		const checks = await new PullRequestChecksSource(gitHubService).subscribe('o', 'r', 1, 'after-push', new AbortController().signal);
+		await checks.refresh(false);
+		await checks.refresh(true);
+		checks.dispose();
 
-	test('returns failure when any check failed', () => {
-		const checks = [
-			makeCheck({ status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Success }),
-			makeCheck({ status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Failure }),
-		];
-		assert.strictEqual(computeOverallCIStatus(checks), GitHubCIOverallStatus.Failure);
-	});
-
-	test('returns pending when any check is in progress', () => {
-		const checks = [
-			makeCheck({ status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Success }),
-			makeCheck({ status: GitHubCheckStatus.InProgress, conclusion: undefined }),
-		];
-		assert.strictEqual(computeOverallCIStatus(checks), GitHubCIOverallStatus.Pending);
-	});
-
-	test('failure takes precedence over pending', () => {
-		const checks = [
-			makeCheck({ status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Failure }),
-			makeCheck({ status: GitHubCheckStatus.InProgress, conclusion: undefined }),
-		];
-		assert.strictEqual(computeOverallCIStatus(checks), GitHubCIOverallStatus.Failure);
+		assert.deepStrictEqual(refreshes, [
+			{ fragment: 'core', authoritative: false },
+			{ fragment: 'checks', authoritative: false },
+			{ fragment: 'checks', authoritative: true },
+		]);
 	});
 });
 
@@ -1061,21 +1160,6 @@ function makeGraphQLReviewComment(overrides: Partial<{
 			login: 'reviewer',
 			avatarUrl: 'https://example.com/avatar',
 		},
-	};
-}
-
-function makeCheck(overrides: {
-	status: GitHubCheckStatus;
-	conclusion: GitHubCheckConclusion | undefined;
-}): { id: number; name: string; status: GitHubCheckStatus; conclusion: GitHubCheckConclusion | undefined; startedAt: string | undefined; completedAt: string | undefined; detailsUrl: string | undefined } {
-	return {
-		id: 1,
-		name: 'test-check',
-		status: overrides.status,
-		conclusion: overrides.conclusion,
-		startedAt: undefined,
-		completedAt: undefined,
-		detailsUrl: undefined,
 	};
 }
 

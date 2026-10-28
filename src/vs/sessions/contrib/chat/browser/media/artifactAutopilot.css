@@ -1,0 +1,50 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.artifact-autopilot {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+}
+
+.artifact-autopilot-group .artifact-card-content:not([hidden]) {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+}
+
+.artifact-autopilot-rule {
+	width: fit-content;
+	max-width: 100%;
+}
+
+.artifact-autopilot-rule-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-height: var(--vscode-spacing-size240);
+}
+
+.artifact-autopilot-rule-label {
+	flex: 0 1 auto;
+	min-width: 0;
+	cursor: pointer;
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.artifact-autopilot-rule-row > .monaco-button {
+	width: auto;
+	flex-shrink: 0;
+}
+
+.artifact-autopilot-policy .artifact-autopilot-policy-chevron {
+	order: 1;
+}
+
+.artifact-autopilot-rule-label:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
