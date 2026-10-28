@@ -1865,6 +1865,41 @@ suite('AgentSessions', () => {
 				});
 			});
 
+			test('lists one local row through discovery, adoption, refresh and legacy provider removal', async () => {
+				return runWithFakedTimers({}, async () => {
+					const legacyController = new StaticChatSessionItemController([makeItem(legacyUri)]);
+					const hostController = new StaticChatSessionItemController([]);
+					const legacyRegistration = disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_EH_SCHEME, legacyController));
+					disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_LOCAL_AH_SCHEME, hostController));
+					viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+					const rows = () => viewModel.sessions.map(session => session.resource.toString());
+					await viewModel.resolve(undefined);
+					const beforeDiscovery = rows();
+
+					hostController.setItems([{ ...makeItem(twinUri), metadata: { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true } }]);
+					await viewModel.resolve(COPILOT_CLI_LOCAL_AH_SCHEME);
+					const discovered = rows();
+					await viewModel.resolve(COPILOT_CLI_EH_SCHEME);
+					const staleLegacyRefresh = rows();
+
+					hostController.setItems([makeItem(twinUri)]);
+					await viewModel.resolve(COPILOT_CLI_LOCAL_AH_SCHEME);
+					const adopted = rows();
+					legacyRegistration.dispose();
+					await viewModel.resolve(undefined);
+
+					assert.deepStrictEqual({
+						beforeDiscovery, discovered, staleLegacyRefresh, adopted, legacyProviderRemoved: rows(),
+					}, {
+						beforeDiscovery: [legacyUri.toString()],
+						discovered: [twinUri.toString()],
+						staleLegacyRefresh: [twinUri.toString()],
+						adopted: [twinUri.toString()],
+						legacyProviderRemoved: [twinUri.toString()],
+					});
+				});
+			});
+
 			test('a peer chat of the twin does not inherit the legacy pin', async () => {
 				return runWithFakedTimers({}, async () => {
 					await pinLegacyThenMigrate();

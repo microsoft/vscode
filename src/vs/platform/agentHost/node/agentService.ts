@@ -5550,13 +5550,13 @@ export class AgentService extends Disposable implements IAgentService {
 		now = Date.now(),
 		recentSessionKeys?: ReadonlySet<string>,
 	): boolean {
-		// An un-adopted adoptable-legacy session belongs to the extension-host provider
-		// until it is opened (and thereby adopted), except for archived legacy sessions
-		// which are surfaced directly in the Archived section so they remain accessible
-		// once the extension-host provider is retired. Adoption clears this marker (and
-		// sets `ehcliAdopted`), so an adopted session surfaces normally below.
+		// An un-adopted adoptable-legacy session is listed (while migration is enabled)
+		// so it stays reachable once the extension-host provider is retired; the
+		// editor window hides the matching legacy row. Opening it adopts it in place.
+		// Adoption clears this marker (and sets `ehcliAdopted`), so an adopted session
+		// surfaces normally below.
 		if (readSessionEhcliAdoptable(session._meta)) {
-			return this._isMigrateLegacyEnabled() && isSessionStatusArchived(session.status);
+			return this._isMigrateLegacyEnabled();
 		}
 		if (!readSessionExternal(session._meta)) {
 			return true;
@@ -5582,8 +5582,8 @@ export class AgentService extends Disposable implements IAgentService {
 	 * on the registry's `external` flag alone.
 	 *
 	 * `None` is the only mode that rejects external sessions outright. Adoptable-legacy
-	 * rows are always excluded now (they belong to the extension host until opened), so
-	 * they can never keep an external session visible.
+	 * rows are internal (never external), so the mode never applies to them and they
+	 * can never keep an external session visible.
 	 */
 	private _hidesAllExternalSessions(mode: AgentHostExternalSessionsMode): boolean {
 		return mode === AgentHostExternalSessionsMode.None;

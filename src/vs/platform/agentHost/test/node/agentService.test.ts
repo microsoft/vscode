@@ -18824,6 +18824,77 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			for (const migrate of [false, true]) {
+				test(`lists legacy sessions once across repeated discovery and restart with migration ${migrate ? 'enabled' : 'disabled'}`, async () => {
+					const database = new TransientRegistryWriteDatabase();
+					const perSession = createPerSessionDataService();
+					const active = AgentSession.uri('copilot', 'legacy-active-dedup');
+					const archived = AgentSession.uri('copilot', 'legacy-archived-dedup');
+					const modes = [AgentHostExternalSessionsMode.None, AgentHostExternalSessionsMode.Recent, AgentHostExternalSessionsMode.Last24Hours, AgentHostExternalSessionsMode.Last7Days, AgentHostExternalSessionsMode.Last30Days];
+					const discovered = [active, archived].map((session, index) => ({
+						...metadata(session, withSessionEhcliAdoptable(undefined)),
+						modifiedTime: 1,
+						status: index === 1 ? SessionStatus.Idle | SessionStatus.IsArchived : SessionStatus.Idle,
+						external: false,
+					}));
+					const start = async () => {
+						const svc = createService(database, perSession.service);
+						getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: migrate });
+						const agent = disposables.add(new DirectImportAgent('copilot'));
+						registerTestAgentProvider(svc, agent);
+						await waitForInitialProviderMigration(svc, agent);
+						return { svc, agent };
+					};
+					const listed = async (svc: AgentService) => {
+						const results = [];
+						for (const mode of modes) {
+							results.push({
+								mode,
+								sessions: (await svc.listSessions(mode)).map(session => ({
+									resource: session.session.toString(),
+									adoptable: readSessionEhcliAdoptable(session._meta),
+									archived: isSessionStatusArchived(session.status ?? SessionStatus.Idle),
+								})).sort((a, b) => a.resource.localeCompare(b.resource)),
+							});
+						}
+						return results;
+					};
+
+					const { svc, agent } = await start();
+					agent.fireDiscoveredChats(discovered);
+					await svc.whenDiscoveredChatsRegistered();
+					const initial = await listed(svc);
+					agent.fireDiscoveredChats([...discovered, ...discovered]);
+					await svc.whenDiscoveredChatsRegistered();
+					agent.fireDiscoveredChats(discovered);
+					await svc.whenDiscoveredChatsRegistered();
+					const rediscovered = await listed(svc);
+					svc.dispose();
+					const restarted = await start();
+
+					const expected = modes.map(mode => ({
+						mode,
+						sessions: migrate ? [
+							{ resource: active.toString(), adoptable: true, archived: false },
+							{ resource: archived.toString(), adoptable: true, archived: true },
+						] : [],
+					}));
+					assert.deepStrictEqual({
+						initial,
+						rediscovered,
+						restarted: await listed(restarted.svc),
+						adoptions: [agent.adoptionCalls, restarted.agent.adoptionCalls],
+						localDatabases: perSession.databaseIds(),
+					}, {
+						initial: expected,
+						rediscovered: expected,
+						restarted: expected,
+						adoptions: [0, 0],
+						localDatabases: [],
+					});
+				});
+			}
+
 			test('runtime discovery after enabling legacy migration does not claim unopened legacy sessions', async () => {
 				const database = new TransientRegistryWriteDatabase();
 				const perSession = createPerSessionDataService();
@@ -20092,7 +20163,7 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
-			test('restores import side effects without titling or surfacing adoptable sessions', async () => {
+			test('restores import side effects and surfaces adoptable sessions without titling or adopting them', async () => {
 				const database = new TransientRegistryWriteDatabase();
 				const perSession = createPerSessionDataService();
 				const external = AgentSession.uri('copilot', 'untitled-external-import');
@@ -20126,7 +20197,7 @@ suite('AgentService (node dispatcher)', () => {
 				}, {
 					scheduledTitles: [external.toString()],
 					reconciliationCalls: 1,
-					surfaced: [hostCreated.toString(), undefined],
+					surfaced: [hostCreated.toString(), adoptable.toString()],
 					adoptionCalls: 0,
 				});
 			});
@@ -21024,7 +21095,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(agent.listExternalChatsCalls, 1, 'event payload ingestion must not re-enumerate the provider');
 		});
 
-		test('does not surface adoptable legacy sessions (they belong to the extension host until opened)', async () => {
+		test('surfaces adoptable legacy sessions only while migration is enabled', async () => {
 			class AdoptableLegacyAgent extends MockAgent {
 				override readonly onDidDiscoverChats = Event.None;
 				catalog: readonly IAgentListedChat[] = [];
@@ -21037,17 +21108,24 @@ suite('AgentService (node dispatcher)', () => {
 					return undefined;
 				}
 			}
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			const agent = disposables.add(new AdoptableLegacyAgent('copilot'));
-			const legacy = AgentSession.uri('copilot', 'adoptable-legacy');
-			agent.catalog = [{ ...discoveredChat(legacy), _meta: withSessionEhcliAdoptable(undefined) }];
-			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
-			registerTestAgentProvider(svc, agent);
-			await (svc as unknown as { _awaitInitialProviderMigrationForProvider(provider: IAgent): Promise<void> })._awaitInitialProviderMigrationForProvider(agent);
+			const surfaced = async (migrate: boolean) => {
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = disposables.add(new AdoptableLegacyAgent('copilot'));
+				const legacy = AgentSession.uri('copilot', `adoptable-legacy-${migrate}`);
+				agent.catalog = [{ ...discoveredChat(legacy), _meta: withSessionEhcliAdoptable(undefined) }];
+				getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: migrate });
+				registerTestAgentProvider(svc, agent);
+				await (svc as unknown as { _awaitInitialProviderMigrationForProvider(provider: IAgent): Promise<void> })._awaitInitialProviderMigrationForProvider(agent);
+				const summary = getStateManager(svc).getSurfacedSessionSummary(legacy.toString());
+				return summary === undefined ? undefined : { adoptable: readSessionEhcliAdoptable(summary._meta), archived: isSessionStatusArchived(summary.status) };
+			};
 
-			// Un-adopted adoptable-legacy rows stay with the extension-host provider until
-			// opened, so the agent host never surfaces them even with the gate on.
-			assert.strictEqual(getStateManager(svc).getSurfacedSessionSummary(legacy.toString()), undefined);
+			// Un-adopted (and un-archived) legacy rows are listed so they stay reachable
+			// once the extension-host provider is retired; opening adopts them.
+			assert.deepStrictEqual({ enabled: await surfaced(true), disabled: await surfaced(false) }, {
+				enabled: { adoptable: true, archived: false },
+				disabled: undefined,
+			});
 		});
 
 		test('does not surface a discovered session that was already deleted', async () => {
@@ -26838,7 +26916,7 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
-		test('excludes active adoptable-legacy sessions from the list while surfacing archived ones and adopting on unarchive', async () => {
+		test('lists active and archived adoptable-legacy sessions and adopts on unarchive', async () => {
 			const activeAdoptable: IAgentSessionMetadata = {
 				session: AgentSession.uri('copilot', 'adoptable-list-gate'),
 				startTime: Date.now(),
@@ -26903,6 +26981,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(disabledSvc, disposables.add(new ArchivedAdoptableAgent()));
 			const disabledShouldInclude = (disabledSvc as unknown as { _shouldIncludeSession(s: IAgentSessionMetadata): boolean })._shouldIncludeSession.bind(disabledSvc);
 			const archivedIncludedWhenDisabled = disabledShouldInclude({ ...activeAdoptable, session: archivedAdoptableUri, status: SessionStatus.Idle | SessionStatus.IsArchived });
+			const activeIncludedWhenDisabled = disabledShouldInclude(activeAdoptable);
 			const listedWhenDisabled = (await disabledSvc.listSessions()).some(s => s.session.toString() === archivedAdoptableUri.toString());
 
 			// Read-state toggle on an unopened adoptable session does NOT adopt it.
@@ -26935,6 +27014,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				activeIncluded,
 				archivedIncluded,
+				activeIncludedWhenDisabled,
 				archivedIncludedWhenDisabled,
 				listedWhenDisabled,
 				surfacedArchivedBefore: surfacedBeforeUnarchive !== undefined && isSessionStatusArchived(surfacedBeforeUnarchive.status),
@@ -26946,8 +27026,9 @@ suite('AgentService (node dispatcher)', () => {
 				listedAfterReloadArchived: listedAfterReload !== undefined && isSessionStatusArchived(listedAfterReload.status),
 				listedAfterReloadAdoptable: readSessionEhcliAdoptable(listedAfterReload?._meta),
 			}, {
-				activeIncluded: false,
+				activeIncluded: true,
 				archivedIncluded: true,
+				activeIncludedWhenDisabled: false,
 				archivedIncludedWhenDisabled: false,
 				listedWhenDisabled: false,
 				surfacedArchivedBefore: true,
