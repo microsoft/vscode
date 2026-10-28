@@ -133,6 +133,7 @@ suite('WorkspaceTrustEditor source recovery', () => {
 	let resolved: boolean;
 	let resolveOnRetry: boolean;
 	let allowTrustChanges: boolean;
+	let trustChanges: number;
 	let retryGate: DeferredPromise<void> | undefined;
 	let retryFailure: Error | undefined;
 
@@ -141,6 +142,7 @@ suite('WorkspaceTrustEditor source recovery', () => {
 		resolved = false;
 		resolveOnRetry = false;
 		allowTrustChanges = true;
+		trustChanges = 0;
 		retryGate = undefined;
 		retryFailure = undefined;
 		container = mainWindow.document.createElement('div');
@@ -153,6 +155,7 @@ suite('WorkspaceTrustEditor source recovery', () => {
 			override getTrustedUris() { return []; }
 			override canSetWorkspaceTrust() { return resolved && allowTrustChanges; }
 			override isWorkspaceTrustSourceResolved() { return resolved; }
+			override async setWorkspaceTrust() { trustChanges++; }
 			override async resolveWorkspaceTrust() {
 				retries++;
 				await retryGate?.p;
@@ -201,7 +204,10 @@ suite('WorkspaceTrustEditor source recovery', () => {
 		assert.ok(container.querySelector('.workspace-trust-editor.untrusted'));
 		const trustButton = Array.from(container.querySelectorAll('.monaco-button')).find(button => button.textContent === 'Trust');
 		assert.ok(trustButton);
-		assert.strictEqual(mainWindow.document.activeElement, trustButton);
+		const focusedHeading = mainWindow.document.activeElement === container.querySelector('.workspace-trust-header');
+		mainWindow.document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, repeat: true, bubbles: true }));
+		await timeout(0);
+		assert.deepStrictEqual({ focusedHeading, trustChanges }, { focusedHeading: true, trustChanges: 0 });
 	});
 
 	test('an unsuccessful check stays restricted and can be retried again', async () => {

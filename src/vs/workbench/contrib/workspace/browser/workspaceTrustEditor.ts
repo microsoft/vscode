@@ -980,7 +980,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
 		this.bodyScrollBar.scanDomNode();
 		if (focusedAction) {
-			(this.actionButtons.get(focusedAction) ?? this.actionButtons.values().next().value ?? this.headerContainer).focus();
+			(this.actionButtons.get(focusedAction) ?? this.headerContainer).focus();
 		}
 		this.rendering = false;
 	}
