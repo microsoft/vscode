@@ -59,12 +59,15 @@ export class AutomationCronInput extends Disposable {
 			}));
 			this._register(DOM.addDisposableListener(input.inputElement, 'mousedown', () => this.setAllSelected(false)));
 			this._register(DOM.addDisposableListener(input.inputElement, 'beforeinput', (event: InputEvent) => {
+				if (event.inputType === 'historyUndo' || event.inputType === 'historyRedo') {
+					this.setAllSelected(false);
+				}
 				if (!event.isComposing && event.data && /[^a-zA-Z0-9*,/-]/.test(event.data)) {
 					event.preventDefault();
 				}
 			}));
 			this._register(input.onDidChange(() => {
-				if (this.updating) {
+				if (this.updating || this.acceptExpression(index, input.value)) {
 					return;
 				}
 				this.pastedValue = undefined;
@@ -104,26 +107,15 @@ export class AutomationCronInput extends Disposable {
 				}
 			}));
 			this._register(DOM.addDisposableListener(input.inputElement, 'paste', event => {
-				const text = event.clipboardData?.getData('text/plain').trim() ?? '';
-				const pasted = text.split(/\s+/);
-				const isMacro = text.startsWith('@');
-				if (pasted.length < 2 && !isMacro) {
+				const text = event.clipboardData?.getData('text/plain');
+				if (!text) {
 					return;
 				}
-				event.preventDefault();
-				const wholeExpression = this.allSelected || index === 0 || pasted.length >= fields.length || isMacro;
-				const start = wholeExpression ? 0 : index;
-				this.setAllSelected(false);
-				// Keep overflow visible and invalid rather than silently discarding pasted fields.
-				this.updating = true;
-				for (let target = start; target < this.inputs.length; target++) {
-					this.inputs[target].value = target === this.inputs.length - 1
-						? pasted.slice(target - start).join(' ')
-						: pasted[target - start] ?? '';
+				const element = input.inputElement;
+				const value = input.value.slice(0, element.selectionStart ?? 0) + text + input.value.slice(element.selectionEnd ?? 0);
+				if (this.acceptExpression(index, value)) {
+					event.preventDefault();
 				}
-				this.updating = false;
-				this.pastedValue = wholeExpression && pasted.length !== fields.length ? text : undefined;
-				this.changed();
 			}));
 			for (const type of ['copy', 'cut'] as const) {
 				this._register(DOM.addDisposableListener(input.inputElement, type, event => {
@@ -147,6 +139,30 @@ export class AutomationCronInput extends Disposable {
 		}
 		const parts = this.inputs.map(input => input.value.trim());
 		return parts.every(part => !part) ? '' : parts.map(part => part || '*').join(' ');
+	}
+
+	private acceptExpression(index: number, value: string): boolean {
+		const text = value.trim();
+		const pasted = text.split(/\s+/);
+		const isMacro = text.startsWith('@');
+		if (pasted.length < 2 && !isMacro) {
+			return false;
+		}
+		const wholeExpression = this.allSelected || index === 0 || pasted.length >= fields.length || isMacro;
+		const start = wholeExpression ? 0 : index;
+		const end = wholeExpression ? this.inputs.length : Math.min(this.inputs.length, start + pasted.length);
+		this.setAllSelected(false);
+		// Keep overflow visible and invalid rather than silently discarding pasted fields.
+		this.updating = true;
+		for (let target = start; target < end; target++) {
+			this.inputs[target].value = target === this.inputs.length - 1
+				? pasted.slice(target - start).join(' ')
+				: pasted[target - start] ?? '';
+		}
+		this.updating = false;
+		this.pastedValue = wholeExpression && pasted.length !== fields.length ? text : undefined;
+		this.changed();
+		return true;
 	}
 
 	private clear(): void {
