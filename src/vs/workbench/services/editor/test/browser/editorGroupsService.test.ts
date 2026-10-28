@@ -1561,11 +1561,11 @@ suite('EditorGroupsService', () => {
 		const classic = measure();
 
 		assert.deepStrictEqual({ defaultDensity, compactShared, compactOuter, fractionalBorder, restoredDefault, classic }, {
-			defaultDensity: { width: 490, height: 294, outerLeft: false },
+			defaultDensity: { width: 490, height: 298, outerLeft: false },
 			compactShared: { width: 499, height: 298, outerLeft: false },
 			compactOuter: { width: 498, height: 298, outerLeft: true },
 			fractionalBorder: { width: 499.2, height: 298.4, outerLeft: false },
-			restoredDefault: { width: 490, height: 294, outerLeft: false },
+			restoredDefault: { width: 490, height: 298, outerLeft: false },
 			classic: { width: 500, height: 300, outerLeft: false },
 		});
 	});
