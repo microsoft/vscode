@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import { AsyncLocalStorage } from 'async_hooks';
 import { Promises, Queue } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
@@ -57,6 +58,7 @@ import { IUserDataProfilesService } from '../../userDataProfile/common/userDataP
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IExtensionGalleryManifestService } from '../common/extensionGalleryManifest.js';
 import { getExtensionManagementStoreCoordinator } from './extensionManagementStoreCoordinator.js';
+import { UninstallExtensionInProfileTask, UninstallExtensionsProfileBatch } from './uninstallExtensionInProfileTask.js';
 
 export const INativeServerExtensionManagementService = refineServiceDecorator<IExtensionManagementService, INativeServerExtensionManagementService>(IExtensionManagementService);
 export interface INativeServerExtensionManagementService extends IExtensionManagementService {
@@ -126,6 +128,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	private readonly extensionsDownloader: ExtensionsDownloader;
 
 	private readonly extractingGalleryExtensions = new Map<string, Promise<ExtractExtensionResult>>();
+	private readonly uninstallProfileBatch = new AsyncLocalStorage<UninstallExtensionsProfileBatch>();
 
 	constructor(
 		@IExtensionGalleryService galleryService: IExtensionGalleryService,
@@ -192,7 +195,8 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	}
 
 	override uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void> {
-		return getExtensionManagementStoreCoordinator().withMutation(() => super.uninstallExtensions(extensions));
+		return getExtensionManagementStoreCoordinator().withMutation(() => this.uninstallProfileBatch.run(
+			new UninstallExtensionsProfileBatch(this.extensionsProfileScannerService), () => super.uninstallExtensions(extensions)));
 	}
 
 	getCoordinatedUninstallIdentity(): Promise<string> {
@@ -424,7 +428,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	}
 
 	protected createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask {
-		return new UninstallExtensionInProfileTask(extension, options, this.extensionsProfileScannerService);
+		return new UninstallExtensionInProfileTask(extension, options, this.uninstallProfileBatch.getStore() ?? this.extensionsProfileScannerService);
 	}
 
 	private async downloadAndExtractGalleryExtension(extensionKey: ExtensionKey, gallery: IGalleryExtension, operation: InstallOperation, options: InstallExtensionTaskOptions, token: CancellationToken): Promise<ExtractExtensionResult> {
@@ -1369,24 +1373,4 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 			/* Ignore Error */
 		}
 	}
-}
-
-class UninstallExtensionInProfileTask extends AbstractExtensionTask<void> implements IUninstallExtensionTask {
-
-	constructor(
-		readonly extension: ILocalExtension,
-		readonly options: UninstallExtensionTaskOptions,
-		private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
-	) {
-		super();
-	}
-
-	override run(): Promise<void> {
-		return getExtensionManagementStoreCoordinator().withMutation(() => super.run());
-	}
-
-	protected doRun(token: CancellationToken): Promise<void> {
-		return this.extensionsProfileScannerService.removeExtensionsFromProfile([this.extension.identifier], this.options.profileLocation);
-	}
-
 }
