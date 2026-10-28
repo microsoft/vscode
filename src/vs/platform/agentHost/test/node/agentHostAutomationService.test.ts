@@ -73,7 +73,7 @@ suite('AgentHostAutomationService', () => {
 	setup(() => {
 		disposables = new DisposableStore();
 		clientConnections = disposables.add(new AgentHostClientConnectionService());
-		systemWake = new AgentHostSystemWakeService();
+		systemWake = disposables.add(new AgentHostSystemWakeService(new NullLogService()));
 		authenticationRequests = [];
 		authenticationResult = Promise.resolve(false);
 		disposables.add(clientConnections.registerSource({
