@@ -370,7 +370,7 @@ interface IBackgroundPassiveSessionMetadataWrite {
 const PASSIVE_METADATA_SHUTDOWN_REPLAY_TIMEOUT_MS = 250;
 
 const UNMANAGEABLE_CHAT_ARCHIVE_REJECTION = 'Only a known independently manageable non-default chat can be archived.';
-/** Client identity of actions that session server tools dispatch through the client action pipeline. */
+/** Prefix of the client ids of actions that session server tools dispatch through the client action pipeline. */
 const SESSION_SERVER_TOOLS_CLIENT_ID = 'session-server-tools';
 
 interface ISessionListComputation {
@@ -1142,7 +1142,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _restoreSessionInFlight = new Map<string, Promise<void>>();
 	private readonly _savedChatContinuations = new Map<string, Promise<IAgentHostSavedChatContinuationResult>>();
 	private readonly _savedChatArchivePublications = new WeakSet<IIsArchivedChangedAction>();
-	/** Sequence of the actions session server tools dispatch as {@link SESSION_SERVER_TOOLS_CLIENT_ID}. */
+	/** Sequence of the actions session server tools dispatch under {@link SESSION_SERVER_TOOLS_CLIENT_ID}. */
 	private _serverToolActionSequence = 0;
 	private readonly _restoreSubagentInFlight = new Map<string, Promise<void>>();
 	private readonly _restoredSubagentAdmissionRetries = new Map<string, { run(): Promise<void>; cancel(): void; isCurrent(): boolean }>();
@@ -2791,8 +2791,10 @@ export class AgentService extends Disposable implements IAgentService {
 	 * the host refuses it.
 	 */
 	private async _dispatchServerToolAction(channel: string, action: SessionAction | ChatAction): Promise<void> {
+		// Dispatches are queued per client id: one per target, so a slow restore does not hold archives of other sessions.
+		const clientId = `${SESSION_SERVER_TOOLS_CLIENT_ID}:${channel}`;
 		const clientSeq = ++this._serverToolActionSequence;
-		const isOwnEnvelope = (envelope: ActionEnvelope) => envelope.origin?.clientId === SESSION_SERVER_TOOLS_CLIENT_ID && envelope.origin.clientSeq === clientSeq;
+		const isOwnEnvelope = (envelope: ActionEnvelope) => envelope.origin?.clientId === clientId && envelope.origin.clientSeq === clientSeq;
 		let outcome: { readonly rejectionReason?: string } | undefined;
 		const store = new DisposableStore();
 		try {
@@ -2806,7 +2808,7 @@ export class AgentService extends Disposable implements IAgentService {
 					outcome = { rejectionReason: envelope.rejectionReason };
 				}
 			}));
-			await this.dispatchAction(channel, action, SESSION_SERVER_TOOLS_CLIENT_ID, clientSeq);
+			await this.dispatchAction(channel, action, clientId, clientSeq);
 		} finally {
 			store.dispose();
 		}

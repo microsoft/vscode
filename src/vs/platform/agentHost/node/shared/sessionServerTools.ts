@@ -2043,11 +2043,23 @@ export function getArchiveChatArgs(rawArgs: unknown, sessions: readonly IAgentSe
 	return { kind: 'chat', session, chat };
 }
 
+/**
+ * The target session's metadata with its chats. A session that is not loaded
+ * lists its chats only in the session list, as `list_sessions` shows them.
+ */
+async function getArchiveTargetMetadata(accessor: ISessionServerToolAccessor, session: URI): Promise<IAgentSessionMetadata | undefined> {
+	const metadata = await accessor.getSession(session);
+	if (metadata?.chats?.length) {
+		return metadata;
+	}
+	return (await accessor.listSessions()).find(candidate => isEqual(candidate.session, session)) ?? metadata;
+}
+
 /** Archives a chat, or the whole session for its main session, and returns the model-facing confirmation. */
 export async function applyArchiveChatTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel: ProtocolURI): Promise<string> {
 	const chatInput = getRequiredString(((rawArgs ?? {}) as IArchiveChatArgs).chat, 'chat', SessionServerToolName.ArchiveChat);
 	const targetSession = parseOpenSessionLinkUri(chatInput) ?? URI.parse(chatInput);
-	const metadata = await accessor.getSession(targetSession);
+	const metadata = await getArchiveTargetMetadata(accessor, targetSession);
 	const sessions = metadata ? [metadata] : [];
 	const target = getArchiveChatArgs(rawArgs, sessions, currentChatUri(currentChannel), currentSessionUri(accessor, currentChannel), accessor.getDefaultChat);
 	if (target.kind === 'session') {

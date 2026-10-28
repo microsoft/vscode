@@ -6414,8 +6414,12 @@ suite('AgentService (node dispatcher)', () => {
 		class ReadPeerAgent extends MockAgent {
 			historyGate: DeferredPromise<void> | undefined;
 			historyHits = 0;
+			serverToolHost: IAgentServerToolHost | undefined;
 			readonly historyReached = new DeferredPromise<void>();
 			override async createChat(): Promise<void> { }
+			setServerToolHost(host: IAgentServerToolHost): void {
+				this.serverToolHost = host;
+			}
 			override async getSessionMessages(session: URI) {
 				if (this.historyGate) {
 					this.historyHits++;
@@ -7145,18 +7149,24 @@ suite('AgentService (node dispatcher)', () => {
 			return { archived: isSessionStatusArchived(surfaced?.status), legacyArchived: surfaced?.archived === true, read: isSessionStatusRead(surfaced?.status) };
 		}
 
-		test('the archive_chat accessor archives an unloaded chat and session without restoring them, survives restart, and reports refusals', async () => {
-			const { svc, session, peer, restart } = await createSessionWithReadPeer('normalized');
+		test('archive_chat archives a nested chat and the session of an unloaded session without restoring them, survives restart, and reports refusals', async () => {
+			const { svc, agent, session, peer, restart } = await createSessionWithReadPeer('normalized');
 			const sessionKey = session.toString();
+			const caller = await svc.createSession({ legacyChatUris: false, provider: 'copilot' });
+			const callerChat = getStateManager(svc).getDefaultChat(caller.toString())!;
 			const accessorOf = (service: AgentService) => (service as unknown as { _createSessionServerToolAccessor(): IAgentServiceSessionServerToolAccessor })._createSessionServerToolAccessor();
+			const sessionLink = buildOpenSessionLinkUri(sessionKey);
 			unloadSession(svc, session);
-			await accessorOf(svc).archiveChat(URI.parse(peer));
-			await accessorOf(svc).archiveSession(session);
+			const nestedResult = await agent.serverToolHost!.executeTool(callerChat, SessionServerToolName.ArchiveChat, { chat: buildOpenSessionLinkUri(sessionKey, getAgentHostChatId(peer)) });
+			const sessionResult = await agent.serverToolHost!.executeTool(callerChat, SessionServerToolName.ArchiveChat, { chat: sessionLink });
 			await svc.whenCatalogReconciliationIdle();
 			const unloaded = {
+				nestedResult,
+				sessionResult,
 				resident: !!getStateManager(svc).getSessionState(sessionKey),
 				peerArchived: surfacedChatFlags(svc, session, peer).archived,
 				sessionArchived: isSessionStatusArchived(getStateManager(svc).getSurfacedSessionSummary(sessionKey)?.status),
+				againResult: await agent.serverToolHost!.executeTool(callerChat, SessionServerToolName.ArchiveChat, { chat: sessionLink }),
 			};
 			const restarted = await restart();
 			await restarted.restoreSession(session);
@@ -7180,7 +7190,14 @@ suite('AgentService (node dispatcher)', () => {
 			};
 
 			assert.deepStrictEqual({ unloaded, afterRestart, refusals }, {
-				unloaded: { resident: false, peerArchived: true, sessionArchived: true },
+				unloaded: {
+					nestedResult: `Archived chat ${buildOpenSessionLinkUri(sessionKey, getAgentHostChatId(peer))}.`,
+					sessionResult: `Archived session ${sessionLink} with all of its chats.`,
+					resident: false,
+					peerArchived: true,
+					sessionArchived: true,
+					againResult: `Session ${sessionLink} is already archived.`,
+				},
 				afterRestart: { peerArchived: true, sessionArchived: true },
 				refusals: {
 					toolChat: 'Only a known independently manageable non-default chat can be archived.',

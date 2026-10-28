@@ -3475,6 +3475,27 @@ suite('SessionServerTools', () => {
 		});
 	});
 
+	test('archive_chat resolves chats of an unloaded session from the session list, and lists sessions only then', async () => {
+		const listed = sessionMeta('s2', SessionStatus.Idle, workspace);
+		const { chats: _chats, ...unloaded } = listed;
+		let listSessionsCalls = 0;
+		const archived: string[] = [];
+		const accessor = createAccessor({
+			getSession: async session => session.toString() === 'copilot:/s2' ? unloaded : sessionMeta('s1', SessionStatus.InProgress, workspace),
+			listSessions: async () => { listSessionsCalls++; return [listed]; },
+			archiveChat: async chat => { archived.push(chat.toString()); },
+		});
+		const unloadedResult = await applyArchiveChatTool(accessor, { chat: 'agent-host-session://copilot/s2?chat=peer' }, buildDefaultChatUri('copilot:/s1'));
+		const unloadedCalls = listSessionsCalls;
+		await applyArchiveChatTool(accessor, { chat: 'agent-host-session://copilot/s1?chat=peer' }, buildChatUri('copilot:/s1', 'c9'));
+		assert.deepStrictEqual({ unloadedResult, unloadedCalls, loadedCalls: listSessionsCalls - unloadedCalls, archived }, {
+			unloadedResult: 'Archived chat agent-host-session://copilot/s2?chat=peer.',
+			unloadedCalls: 1,
+			loadedCalls: 0,
+			archived: [buildChatUri('copilot:/s2', 'peer'), buildChatUri('copilot:/s1', 'peer')],
+		});
+	});
+
 	suite('move_session', () => {
 		const source = 'copilot:/s1';
 		const target = 'copilot:/s2';
