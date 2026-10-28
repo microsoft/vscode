@@ -132,6 +132,7 @@ suite('WorkspaceTrustEditor source recovery', () => {
 	let retries: number;
 	let resolved: boolean;
 	let resolveOnRetry: boolean;
+	let allowTrustChanges: boolean;
 	let retryGate: DeferredPromise<void> | undefined;
 	let retryFailure: Error | undefined;
 
@@ -139,6 +140,7 @@ suite('WorkspaceTrustEditor source recovery', () => {
 		retries = 0;
 		resolved = false;
 		resolveOnRetry = false;
+		allowTrustChanges = true;
 		retryGate = undefined;
 		retryFailure = undefined;
 		container = mainWindow.document.createElement('div');
@@ -149,7 +151,7 @@ suite('WorkspaceTrustEditor source recovery', () => {
 			override onDidChangeTrustedFolders = changed.event;
 			override isWorkspaceTrusted() { return false; }
 			override getTrustedUris() { return []; }
-			override canSetWorkspaceTrust() { return resolved; }
+			override canSetWorkspaceTrust() { return resolved && allowTrustChanges; }
 			override isWorkspaceTrustSourceResolved() { return resolved; }
 			override async resolveWorkspaceTrust() {
 				retries++;
@@ -188,6 +190,7 @@ suite('WorkspaceTrustEditor source recovery', () => {
 		retryGate = new DeferredPromise<void>();
 		resolveOnRetry = true;
 		const button = retryButton()!;
+		button.focus();
 		button.click();
 		assert.strictEqual(button.getAttribute('aria-disabled'), 'true');
 		assert.strictEqual(retries, 1);
@@ -196,18 +199,57 @@ suite('WorkspaceTrustEditor source recovery', () => {
 
 		assert.strictEqual(retryButton(), null);
 		assert.ok(container.querySelector('.workspace-trust-editor.untrusted'));
-		assert.ok(Array.from(container.querySelectorAll('.monaco-button')).some(button => button.textContent === 'Trust'));
+		const trustButton = Array.from(container.querySelectorAll('.monaco-button')).find(button => button.textContent === 'Trust');
+		assert.ok(trustButton);
+		assert.strictEqual(mainWindow.document.activeElement, trustButton);
 	});
 
 	test('an unsuccessful check stays restricted and can be retried again', async () => {
-		retryButton()!.click();
+		const button = retryButton()!;
+		button.focus();
+		button.click();
 		await timeout(150);
 
 		assert.strictEqual(retries, 1);
 		assert.strictEqual(resolved, false);
 		assert.strictEqual(retryButton()!.getAttribute('aria-disabled'), 'false');
 		assert.ok(container.textContent?.includes('source repository for this workspace could not be verified'));
+		assert.notStrictEqual(retryButton(), button);
+		assert.strictEqual(mainWindow.document.activeElement, retryButton());
 	});
+
+	test('focuses the editor heading when a successful retry leaves no trust action', async () => {
+		resolveOnRetry = true;
+		allowTrustChanges = false;
+		retryButton()!.focus();
+		retryButton()!.click();
+		await timeout(150);
+
+		assert.strictEqual(retryButton(), null);
+		assert.strictEqual(mainWindow.document.activeElement, container.querySelector('.workspace-trust-header'));
+	});
+
+	for (const phase of ['during the request', 'before the debounced render']) {
+		test(`does not take focus back when the user leaves the action ${phase}`, async () => {
+			retryGate = new DeferredPromise<void>();
+			retryButton()!.focus();
+			retryButton()!.click();
+			if (phase === 'before the debounced render') {
+				await retryGate.complete();
+				await timeout(0);
+			}
+			const otherControl = container.appendChild(mainWindow.document.createElement('button'));
+			otherControl.textContent = 'Other control';
+			otherControl.focus();
+			if (phase === 'during the request') {
+				await retryGate.complete();
+			}
+			await timeout(150);
+
+			assert.strictEqual(retries, 1);
+			assert.strictEqual(mainWindow.document.activeElement, otherControl);
+		});
+	}
 
 	test('reports retry errors and re-enables the action', async () => {
 		retryFailure = new Error('Retry failed');

@@ -5,7 +5,7 @@
 
 import { $, addDisposableListener, addStandardDisposableListener, append, clearNode, Dimension, EventHelper, EventType, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { ButtonBar } from '../../../../base/browser/ui/button/button.js';
+import { ButtonBar, IButton } from '../../../../base/browser/ui/button/button.js';
 import { IMessage, InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ITableRenderer, ITableVirtualDelegate } from '../../../../base/browser/ui/table/table.js';
@@ -895,6 +895,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	private rendering = false;
 	private readonly rerenderDisposables: DisposableStore = this._register(new DisposableStore());
+	private readonly actionButtons = new Map<string, IButton>();
 	@debounce(100)
 	private async render() {
 		// The debounced render can fire after the editor pane (and its scoped
@@ -909,7 +910,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}
 
 		this.rendering = true;
+		const focusedAction = Array.from(this.actionButtons).find(([, button]) => button.hasFocus())?.[0];
 		this.rerenderDisposables.clear();
+		this.actionButtons.clear();
 
 		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 		this.rootElement.classList.toggle('trusted', isWorkspaceTrusted);
@@ -976,6 +979,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
 		this.bodyScrollBar.scanDomNode();
+		if (focusedAction) {
+			(this.actionButtons.get(focusedAction) ?? this.actionButtons.values().next().value ?? this.headerContainer).focus();
+		}
 		this.rendering = false;
 	}
 
@@ -1100,6 +1106,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		for (const { action, keybinding } of buttonInfo) {
 			const button = buttonBar.addButtonWithDescription(defaultButtonStyles);
+			this.actionButtons.set(action.id, button);
 
 			button.label = action.label;
 			button.enabled = enabled !== undefined ? enabled : action.enabled;
