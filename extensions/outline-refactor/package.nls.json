@@ -1,0 +1,5 @@
+{
+  "displayName": "Outline Refactor",
+  "description": "Experimental outline drag-and-drop refactoring support.",
+  "command.moveSymbol": "Move Symbol from Outline"
+}
