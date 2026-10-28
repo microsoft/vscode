@@ -5,15 +5,15 @@
 
 import * as vscode from 'vscode';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import type { MarkdownEditorHost, MarkdownEditorRenderer, MarkdownNavigationState } from './markdownEditorProtocol';
+import type { MarkdownEditorHost, MarkdownEditorRenderer, MarkdownEditorVersion, MarkdownNavigationState } from './markdownEditorProtocol';
+import type { MarkdownEditorText } from './markdownEditorDocumentSync';
 
 export class MarkdownEditorNavigation implements vscode.CustomTextEditorNavigation {
 	readonly #onDidChangeSelection = new vscode.EventEmitter<vscode.Selection | undefined>();
 	readonly #lifetime = new vscode.CancellationTokenSource();
 	readonly onDidChangeSelection = this.#onDidChangeSelection.event;
 	readonly #document: vscode.TextDocument;
-	readonly #drain: () => Promise<void>;
-	readonly #snapshot: () => { text: string; editEpoch: number };
+	readonly #text: MarkdownEditorText;
 	readonly #renderer: () => Pick<MarkdownEditorRenderer, 'captureNavigationState' | 'revealRange' | 'restoreNavigationState'>;
 	readonly #waitUntilReady: (token: vscode.CancellationToken) => Promise<void>;
 	#selection: vscode.Selection | undefined;
@@ -23,14 +23,12 @@ export class MarkdownEditorNavigation implements vscode.CustomTextEditorNavigati
 
 	constructor(
 		document: vscode.TextDocument,
-		drain: () => Promise<void>,
-		snapshot: () => { text: string; editEpoch: number },
+		text: MarkdownEditorText,
 		renderer: () => Pick<MarkdownEditorRenderer, 'captureNavigationState' | 'revealRange' | 'restoreNavigationState'>,
 		waitUntilReady: (token: vscode.CancellationToken) => Promise<void>,
 	) {
 		this.#document = document;
-		this.#drain = drain;
-		this.#snapshot = snapshot;
+		this.#text = text;
 		this.#renderer = renderer;
 		this.#waitUntilReady = waitUntilReady;
 	}
@@ -39,32 +37,40 @@ export class MarkdownEditorNavigation implements vscode.CustomTextEditorNavigati
 
 	async acceptSelection(message: Parameters<MarkdownEditorHost['selectionChanged']>[0]): Promise<void> {
 		const request = ++this.#selectionRequest;
-		await this.#drain();
-		if (this.#disposed || request !== this.#selectionRequest || message.editEpoch !== this.#snapshot().editEpoch) {
-			return;
-		}
-		const mirror = this.#mirror();
 		const { selection } = message;
-		if (selection && Math.max(selection.anchor, selection.active) > mirror.getText().length) {
-			throw new Error('Invalid Markdown editor navigation selection');
+		const anchor = selection && this.#text.trackFromEditor(message.version, selection.anchor);
+		const active = selection && this.#text.trackFromEditor(message.version, selection.active);
+		try {
+			if (selection && (!anchor || !active)) {
+				// The editor reports the selection again after the change that made this one stale.
+				return;
+			}
+			await this.#text.drain();
+			if (this.#disposed || request !== this.#selectionRequest) {
+				return;
+			}
+			const mirror = this.#mirror();
+			this.#selection = anchor && active ? new vscode.Selection(
+				this.#position(mirror.positionAt(anchor.offset)), this.#position(mirror.positionAt(active.offset)),
+			) : undefined;
+			this.#onDidChangeSelection.fire(this.#selection);
+		} finally {
+			anchor?.dispose();
+			active?.dispose();
 		}
-		this.#selection = selection ? new vscode.Selection(
-			this.#position(mirror.positionAt(selection.anchor)), this.#position(mirror.positionAt(selection.active)),
-		) : undefined;
-		this.#onDidChangeSelection.fire(this.#selection);
 	}
 
 	async revealRange(range: vscode.Range, options: vscode.CustomTextEditorRevealOptions, token: vscode.CancellationToken): Promise<void> {
 		await this.#waitUntilReady(token);
 		this.#checkCurrent(token);
-		await this.#drain();
+		await this.#text.drain();
 		this.#checkCurrent(token);
 		const version = this.#document.version;
 		const generation = this.#generation;
 		const renderer = this.#renderer();
 		const state = await renderer.captureNavigationState({});
 		this.#checkCurrent(token);
-		if (version !== this.#document.version || generation !== this.#generation || state.editEpoch !== this.#snapshot().editEpoch) {
+		if (version !== this.#document.version || generation !== this.#generation || !sameVersion(state.version, this.#text.version)) {
 			throw new vscode.CancellationError();
 		}
 		if (!this.#document.validateRange(range).isEqual(range)
@@ -75,7 +81,7 @@ export class MarkdownEditorNavigation implements vscode.CustomTextEditorNavigati
 		await renderer.revealRange({
 			start: mirror.offsetAt(range.start),
 			endExclusive: mirror.offsetAt(range.end),
-			editEpoch: state.editEpoch,
+			version: state.version,
 			revision: state.revision,
 			selection: options.selection ? {
 				anchor: mirror.offsetAt(options.selection.anchor),
@@ -122,7 +128,7 @@ export class MarkdownEditorNavigation implements vscode.CustomTextEditorNavigati
 	}
 
 	#mirror(): TextDocument {
-		return TextDocument.create(this.#document.uri.toString(), 'markdown', 0, this.#snapshot().text);
+		return TextDocument.create(this.#document.uri.toString(), 'markdown', 0, this.#text.text);
 	}
 
 	#position(position: { line: number; character: number }): vscode.Position {
@@ -142,4 +148,8 @@ class MarkdownEditorViewState {
 		readonly version: number,
 		readonly state: MarkdownNavigationState,
 	) { }
+}
+
+function sameVersion(a: MarkdownEditorVersion, b: MarkdownEditorVersion | undefined): boolean {
+	return a.serverRevision === b?.serverRevision && a.clientRevision === b.clientRevision;
 }

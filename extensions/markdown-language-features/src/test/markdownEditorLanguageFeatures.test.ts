@@ -7,13 +7,14 @@ import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 import { MarkdownEditorLanguageFeatures, mapMarkdownDiagnostics, type MarkdownCompletionApi } from '../preview/markdownEditorLanguageFeatures';
+import { TestEditorText } from './testEditorText';
 
 suite('Markdown editor diagnostics and completion', () => {
-	const request = { requestId: 1, offset: 11, editEpoch: 0, automatic: false };
+	const request = { requestId: 1, offset: 11, version: { serverRevision: 1, clientRevision: 0 }, automatic: false };
 
 	async function setup(overrides: Partial<MarkdownCompletionApi> = {}) {
 		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '# Title\r\n\r\nTa' });
-		const state = { text: '# Title\n\nTa', editEpoch: 0, active: true };
+		const text = new TestEditorText('# Title\n\nTa');
 		const item = new vscode.CompletionItem('Target', vscode.CompletionItemKind.Reference);
 		item.range = new vscode.Range(2, 0, 2, 2);
 		const counts: number[] = [];
@@ -28,15 +29,14 @@ suite('Markdown editor diagnostics and completion', () => {
 			apply: async edit => {
 				applied++;
 				const result = await vscode.workspace.applyEdit(edit);
-				state.text = document.getText();
-				state.editEpoch++;
+				text.change(document.getText());
 				return result;
 			},
 			execute: async command => { commands.push(command); },
 			...overrides,
 		};
-		const features = new MarkdownEditorLanguageFeatures(document, async () => { }, () => state, () => state.active, api);
-		return { document, state, item, counts, commands, features, get applied() { return applied; } };
+		const features = new MarkdownEditorLanguageFeatures(document, text, () => true, api);
+		return { document, text, item, counts, commands, features, get applied() { return applied; } };
 	}
 
 	test('maps all diagnostic severities, source and code from CRLF documents to LF renderer offsets', async () => {
@@ -47,7 +47,7 @@ suite('Markdown editor diagnostics and completion', () => {
 			item.code = { value: 'rule', target: vscode.Uri.parse('https://example.com/rule') };
 			return item;
 		});
-		assert.deepStrictEqual(mapMarkdownDiagnostics(test.document, test.state.text, diagnostics),
+		assert.deepStrictEqual(mapMarkdownDiagnostics(test.document, test.text.text, diagnostics),
 			['error', 'warning', 'info', 'hint'].map((severity, index) => ({
 				start: 9, endExclusive: 11, message: `Message ${index}`, severity, source: 'third-party', code: 'rule', codeTarget: 'https://example.com/rule',
 			})));
@@ -107,8 +107,8 @@ suite('Markdown editor diagnostics and completion', () => {
 		for (const item of items) {
 			item.range = new vscode.Range(0, 0, 0, 1);
 		}
-		const features = new MarkdownEditorLanguageFeatures(document, async () => { },
-			() => ({ text: 'i', editEpoch: 0 }), () => true, {
+		const features = new MarkdownEditorLanguageFeatures(document,
+			new TestEditorText('i'), () => true, {
 				provide: async () => new vscode.CompletionList(items),
 				apply: async () => { throw new Error('Unexpected edit'); },
 				execute: async () => { throw new Error('Unexpected command'); },
@@ -128,7 +128,7 @@ suite('Markdown editor diagnostics and completion', () => {
 		const result = await test.features.accept({ requestId: 1, id: '0' });
 		assert.deepStrictEqual(test.counts, [0, 1]);
 		assert.strictEqual(test.document.getText(), '# Title\r\n\r\nTarget');
-		assert.deepStrictEqual(result, { offset: 17, editEpoch: 1, retrigger: false });
+		assert.deepStrictEqual(result, { offset: 17, version: { serverRevision: 2, clientRevision: 0 }, retrigger: false });
 		assert.strictEqual(test.applied, 1);
 	});
 
@@ -162,10 +162,9 @@ suite('Markdown editor diagnostics and completion', () => {
 	test('rejects stale, cancelled, and unknown sessions', async () => {
 		const test = await setup();
 		await test.features.completions(request);
-		test.state.editEpoch++;
+		test.text.change();
 		await assert.rejects(test.features.accept({ requestId: 1, id: '0' }), /document changed/);
-		test.state.editEpoch = 0;
-		await test.features.completions({ ...request, requestId: 2 });
+		await test.features.completions({ ...request, requestId: 2, version: test.text.version });
 		test.features.cancel(1);
 		await assert.rejects(test.features.accept({ requestId: 2, id: '999' }), /Unknown completion/);
 		test.features.cancel(2);
@@ -232,14 +231,13 @@ suite('Markdown editor diagnostics and completion', () => {
 		const test = await setup({
 			apply: async edit => {
 				const applied = await vscode.workspace.applyEdit(edit);
-				test.state.text = test.document.getText().replace(/\r\n/g, '\n');
-				test.state.editEpoch++;
+				test.text.change(test.document.getText().replace(/\r\n/g, '\n'));
 				return applied;
 			}
 		});
 		await test.features.completions(request);
 		assert.strictEqual((await test.features.accept({ requestId: 1, id: '0' })).offset, 15);
-		assert.strictEqual(test.state.text, '# Title\n\nTarget');
+		assert.strictEqual(test.text.text, '# Title\n\nTarget');
 	});
 
 	test('does not restore a stale caret after a follow-up command edits the document', async () => {
@@ -248,13 +246,12 @@ suite('Markdown editor diagnostics and completion', () => {
 				const edit = new vscode.WorkspaceEdit();
 				edit.insert(test.document.uri, new vscode.Position(0, 0), 'Command\n');
 				await vscode.workspace.applyEdit(edit);
-				test.state.text = test.document.getText();
-				test.state.editEpoch++;
+				test.text.change(test.document.getText());
 			}
 		});
 		test.item.command = { command: 'test.edit', title: '' };
 		await test.features.completions(request);
-		assert.deepStrictEqual(await test.features.accept({ requestId: 1, id: '0' }), { offset: undefined, editEpoch: 2, retrigger: false });
+		assert.deepStrictEqual(await test.features.accept({ requestId: 1, id: '0' }), { offset: undefined, version: { serverRevision: 3, clientRevision: 0 }, retrigger: false });
 		assert.strictEqual(test.document.getText(), 'Command\r\n# Title\r\n\r\nTarget');
 	});
 

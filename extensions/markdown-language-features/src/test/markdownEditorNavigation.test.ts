@@ -8,6 +8,7 @@ import 'mocha';
 import * as vscode from 'vscode';
 import { MarkdownEditorNavigation } from '../preview/markdownEditorNavigation';
 import type { MarkdownEditorRenderer, MarkdownNavigationState } from '../preview/markdownEditorProtocol';
+import { TestEditorText } from './testEditorText';
 
 suite('Markdown editor outline navigation', () => {
 	const disposables: vscode.Disposable[] = [];
@@ -21,8 +22,9 @@ suite('Markdown editor outline navigation', () => {
 
 	async function setup(drain: () => Promise<void> = async () => { }) {
 		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '# One\r\n\r\n## Two' });
-		const snapshot = { text: '# One\n\n## Two', editEpoch: 2 };
-		const state: MarkdownNavigationState = { editEpoch: 2, revision: 4, scrollTop: 120, selection: { anchor: 10, active: 13 } };
+		const text = new TestEditorText('# One\n\n## Two');
+		text.drain = drain;
+		const state: MarkdownNavigationState = { version: text.version, revision: 4, scrollTop: 120, selection: { anchor: 10, active: 13 } };
 		const revealed: Parameters<MarkdownEditorRenderer['revealRange']>[0][] = [];
 		const restored: MarkdownNavigationState[] = [];
 		const renderer = {
@@ -30,23 +32,23 @@ suite('Markdown editor outline navigation', () => {
 			revealRange: async (request: Parameters<MarkdownEditorRenderer['revealRange']>[0]) => { revealed.push(request); },
 			restoreNavigationState: async (request: MarkdownNavigationState) => { restored.push(request); },
 		};
-		const navigation = new MarkdownEditorNavigation(document, drain, () => snapshot, () => renderer, async () => { });
+		const navigation = new MarkdownEditorNavigation(document, text, () => renderer, async () => { });
 		disposables.push(navigation);
-		return { navigation, document, snapshot, state, revealed, restored, renderer };
+		return { navigation, document, text, state, revealed, restored, renderer };
 	}
 
 	test('maps selection and reveal between LF renderer offsets and CRLF source positions', async () => {
 		const test = await setup();
 		const selections: (vscode.Selection | undefined)[] = [];
 		disposables.push(test.navigation.onDidChangeSelection(selection => selections.push(selection)));
-		await test.navigation.acceptSelection({ editEpoch: 2, selection: { anchor: 13, active: 10 } });
+		await test.navigation.acceptSelection({ version: test.text.version, selection: { anchor: 13, active: 10 } });
 		assert.deepStrictEqual(selections, [new vscode.Selection(2, 6, 2, 3)]);
 		assert.deepStrictEqual(test.navigation.selection, selections[0]);
 		await test.navigation.revealRange(new vscode.Range(2, 0, 2, 6), {
 			selection: new vscode.Selection(2, 3, 2, 6), preserveFocus: true,
 		}, token());
 		assert.deepStrictEqual(test.revealed, [{
-			start: 7, endExclusive: 13, editEpoch: 2, revision: 4,
+			start: 7, endExclusive: 13, version: { serverRevision: 1, clientRevision: 0 }, revision: 4,
 			selection: { anchor: 10, active: 13 }, preserveFocus: true,
 		}]);
 	});
@@ -54,10 +56,10 @@ suite('Markdown editor outline navigation', () => {
 	test('isolates selection and navigation between editor instances of the same document', async () => {
 		const test = await setup();
 		const otherRevealed: Parameters<MarkdownEditorRenderer['revealRange']>[0][] = [];
-		const other = new MarkdownEditorNavigation(test.document, async () => { }, () => test.snapshot,
+		const other = new MarkdownEditorNavigation(test.document, test.text,
 			() => ({ ...test.renderer, revealRange: async request => { otherRevealed.push(request); } }), async () => { });
 		disposables.push(other);
-		await test.navigation.acceptSelection({ editEpoch: 2, selection: { anchor: 0, active: 0 } });
+		await test.navigation.acceptSelection({ version: test.text.version, selection: { anchor: 0, active: 0 } });
 		await other.revealRange(new vscode.Range(2, 0, 2, 6), { preserveFocus: true }, token());
 		assert.strictEqual(other.selection, undefined);
 		assert.deepStrictEqual(test.revealed, []);
@@ -67,12 +69,13 @@ suite('Markdown editor outline navigation', () => {
 
 	test('ignores stale selection reports and clears selection on reload', async () => {
 		const test = await setup();
-		await test.navigation.acceptSelection({ editEpoch: 1, selection: { anchor: 1, active: 1 } });
+		await test.navigation.acceptSelection({ version: { serverRevision: 0, clientRevision: 0 }, selection: { anchor: 1, active: 1 } });
 		assert.strictEqual(test.navigation.selection, undefined);
-		await test.navigation.acceptSelection({ editEpoch: 2, selection: { anchor: 1, active: 1 } });
+		await test.navigation.acceptSelection({ version: test.text.version, selection: { anchor: 1, active: 1 } });
 		test.navigation.reset();
 		assert.strictEqual(test.navigation.selection, undefined);
-		await assert.rejects(test.navigation.acceptSelection({ editEpoch: 2, selection: { anchor: 99, active: 99 } }), /Invalid/);
+		await test.navigation.acceptSelection({ version: test.text.version, selection: { anchor: 99, active: 99 } });
+		assert.strictEqual(test.navigation.selection, undefined);
 	});
 
 	test('drains accepted edits before navigating and rejects cancellation', async () => {

@@ -15,9 +15,11 @@ import '@vscode/markdown-editor/commentWidget.css';
 import './markdownEditor.css';
 import { WebviewSyntaxHighlighter } from './syntaxHighlighter';
 import { WebviewLinkPresentationProvider } from './linkPresentationProvider';
-import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type MarkdownEditorHost } from '../src/preview/markdownEditorProtocol';
+import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type MarkdownEditorHost, type MarkdownEditorVersion } from '../src/preview/markdownEditorProtocol';
 import { createMarkdownEditorRpcConnection, MarkdownEditorRpcTransport } from '../src/preview/markdownEditorRpc';
 import { LazyCodeBlockEditorFactory } from '../src/preview/lazyCodeBlockEditorFactory';
+import { TextOperation, WebEditorClient, diffText } from '@vscode/web-editors';
+import type { EditorTextVersions } from './editorTextVersions';
 import { RenameController } from './renameController';
 import { CompletionController } from './completionController';
 import { DiagnosticsController } from './diagnosticsController';
@@ -125,12 +127,14 @@ class Editor extends Disposable {
 	#imagePaste: ImagePasteController | undefined;
 	#view: EditorView | undefined;
 	#embeddedCodeEditorFactory: LazyCodeBlockEditorFactory | undefined;
-	/** Identifies the authoritative text baseline against which local edits are computed. */
-	#editEpoch: number;
+	/** Syncs the editor text with the extension host, merging changes both make at the same time. */
+	readonly #content: WebEditorClient;
+	readonly #versions: EditorTextVersions;
+	/** The text the editor started with, until the host's content arrives. */
+	#initialText: string | undefined;
 	#navigationRevision = 0;
 	#navigationReady = false;
 	#navigationReportScheduled = false;
-	readonly #pendingEdits = new Set<Promise<void>>();
 	readonly #scrollHost: HTMLElement;
 
 	readonly #comments = new CommentsModel();
@@ -170,7 +174,16 @@ class Editor extends Disposable {
 		});
 		this.#host = this.#connection.get(markdownEditorHost);
 		this.#syntaxHighlighter = new WebviewSyntaxHighlighter(this.#host);
-		this.#editEpoch = initialState.editEpoch;
+		const content = this.#content = new WebEditorClient({
+			connection: this.#connection,
+			onError: (message, detail) => console.error(`Markdown editor content sync: ${message}`, detail),
+		});
+		this.#versions = {
+			get current() { return content.version; },
+			isCurrent: version => version?.serverRevision === content.version.serverRevision && version.clientRevision === content.version.clientRevision,
+			fromHost: (version, offset) => version && content.mapOffset(version, [], offset),
+		};
+		this.#initialText = initialState.content;
 		this.#linkPresentationProvider = initialState.richLinksEnabled
 			? this._register(new WebviewLinkPresentationProvider(
 				initialState.linkPresentationRules,
@@ -187,17 +200,6 @@ class Editor extends Disposable {
 				return this.#imagePaste.readClipboardMedia(request, signal);
 			},
 			diagnosticsChanged: () => this.#diagnostics?.refresh(),
-			update: ({ content, editEpoch }) => {
-				// Applying authoritative text maps selection and clears stale pending-paragraph state.
-				this.#editEpoch = editEpoch;
-				this.isUpdatingFromExtension = true;
-				try {
-					this.model.replaceSourceText(new StringValue(content));
-				} finally {
-					this.isUpdatingFromExtension = false;
-				}
-				this.#scheduleSelectionReport();
-			},
 			codeBlockEditorProviders: ({ codeBlockEditorProviders }) => {
 				this.#codeBlockEditorProviders = codeBlockEditorProviders;
 				this.#embeddedCodeEditorFactory?.updateProviders(this.#createIframeProviders(codeBlockEditorProviders));
@@ -205,19 +207,19 @@ class Editor extends Disposable {
 			codeBlockEditorHostTransportMessage: ({ runtimeId, message }) => {
 				this.#codeBlockEditorHostTransports.get(runtimeId)?.acceptMessage(message);
 			},
-			gutterMarkers: ({ markers }) => {
+			gutterMarkers: ({ version, markers }) => {
 				const converted: GutterMarker[] = markers.map(marker => ({
-					range: OffsetRange.fromTo(marker.start, marker.endExclusive),
+					range: this.#rangeFromHost(version, marker.start, marker.endExclusive),
 					type: marker.type,
 				}));
 				this.model.gutterMarkers.set(converted, undefined);
 			},
-			comments: ({ comments, acceptsComments }) => {
+			comments: ({ version, comments, acceptsComments }) => {
 				this.#isUpdatingComments = true;
 				try {
 					this.#comments.set(comments.map(comment => ({
 						id: comment.id,
-						range: OffsetRange.fromTo(comment.start, comment.endExclusive),
+						range: this.#rangeFromHost(version, comment.start, comment.endExclusive),
 						body: comment.body,
 						author: comment.author,
 					})));
@@ -229,15 +231,19 @@ class Editor extends Disposable {
 			revealComment: ({ id }) => {
 				this.#commentsView?.revealComment(id);
 			},
-			revealLinkTarget: ({ start, endExclusive, selectionStart }) => {
-				this.#revealRange(start, endExclusive, { anchor: selectionStart, active: selectionStart }, false);
+			revealLinkTarget: ({ version, start, endExclusive, selectionStart }) => {
+				const range = this.#rangeFromHost(version, start, endExclusive, true);
+				const caret = this.#versions.fromHost(version, selectionStart);
+				if (caret === undefined) {
+					throw new Error('The Markdown document changed during navigation. Try again.');
+				}
+				this.#revealRange(range.start, range.endExclusive, { anchor: caret, active: caret }, false);
 			},
 			captureNavigationState: async (_message, _context, { signal }) => {
-				await this.#drainEdits();
 				signal.throwIfAborted();
 				const selection = this.model.selection.get();
 				return {
-					editEpoch: this.#editEpoch, revision: this.#navigationRevision,
+					version: this.#versions.current, revision: this.#navigationRevision,
 					selection: selection ? { anchor: selection.anchor, active: selection.active } : undefined,
 					scrollTop: this.#scrollHost.scrollTop,
 				};
@@ -282,10 +288,17 @@ class Editor extends Disposable {
 			},
 		}));
 		this.#createView(host, initialState.content, initialState.highlightActiveBlock);
-		this.#send('ready', this.#host.ready({
-			documentVersion: initialState.documentVersion,
-			editEpoch: this.#editEpoch,
-		}).then(() => {
+		this._register(content.onDidChangeContent(({ content: text }) => {
+			if (typeof text !== 'string') {
+				return;
+			}
+			if (this.#initialText !== undefined) {
+				this.#acceptInitialContent(this.#initialText, text);
+			} else if (text !== this.model.sourceText.get().value) {
+				this.#setTextFromHost(text);
+			}
+		}));
+		this.#send('ready', this.#host.ready({}).then(() => {
 			this.#navigationReady = true;
 			this.#scheduleSelectionReport();
 		}));
@@ -294,8 +307,47 @@ class Editor extends Disposable {
 
 	readonly #onPageHide = (): void => this.dispose();
 
-	#checkNavigationState(state: { editEpoch: number; revision: number }): void {
-		if (this.#disposed || state.editEpoch !== this.#editEpoch || state.revision !== this.#navigationRevision) {
+	/**
+	 * The host's text arrived. Typing that happened before is kept: it is
+	 * merged with the host's changes since the initial text and sent.
+	 */
+	#acceptInitialContent(initialText: string, hostText: string): void {
+		this.#initialText = undefined;
+		const current = this.model.sourceText.get().value;
+		const [hostChange, typed] = TextOperation.transform(diffText(initialText, hostText), diffText(initialText, current));
+		this.#setTextFromHost(hostChange.apply(current));
+		if (!typed.isIdentity) {
+			this.#content.applyEdits([{ kind: 'stringEdits', path: [], stringEdits: typed.toTextEdits() }]);
+		}
+	}
+
+	#setTextFromHost(text: string): void {
+		// Maps the selection and clears stale pending-paragraph state.
+		this.isUpdatingFromExtension = true;
+		try {
+			this.model.replaceSourceText(new StringValue(text));
+		} finally {
+			this.isUpdatingFromExtension = false;
+		}
+		this.#scheduleSelectionReport();
+	}
+
+	/** Maps a range the host sent into the editor text; offsets that cannot be mapped are kept, or rejected if `strict`. */
+	#rangeFromHost(version: MarkdownEditorVersion, start: number, endExclusive: number, strict = false): OffsetRange {
+		const mappedStart = this.#versions.fromHost(version, start);
+		const mappedEnd = this.#versions.fromHost(version, endExclusive);
+		if (mappedStart === undefined || mappedEnd === undefined) {
+			if (strict) {
+				throw new Error('The Markdown document changed during navigation. Try again.');
+			}
+			const length = this.model.sourceText.get().value.length;
+			return OffsetRange.fromTo(Math.min(start, length), Math.min(Math.max(start, endExclusive), length));
+		}
+		return OffsetRange.fromTo(mappedStart, Math.max(mappedStart, mappedEnd));
+	}
+
+	#checkNavigationState(state: { version: MarkdownEditorVersion; revision: number }): void {
+		if (this.#disposed || !this.#versions.isCurrent(state.version) || state.revision !== this.#navigationRevision) {
 			throw new Error('The Markdown document changed during navigation. Try again.');
 		}
 	}
@@ -316,25 +368,17 @@ class Editor extends Disposable {
 		this.#view?.revealRangeAtTop(OffsetRange.fromTo(start, endExclusive));
 	}
 
-	async #drainEdits(): Promise<void> {
-		while (this.#pendingEdits.size) {
-			await Promise.all(this.#pendingEdits);
-		}
-		if (this.#disposed) { throw new Error('Markdown editor is disposed'); }
-	}
-
 	#scheduleSelectionReport(): void {
 		if (!this.#navigationReady || this.#navigationReportScheduled || this.#disposed) { return; }
 		this.#navigationReportScheduled = true;
 		queueMicrotask(() => {
 			this.#navigationReportScheduled = false;
 			if (this.#disposed) { return; }
-			this.#send('selectionChanged', this.#drainEdits().then(() => {
-				const selection = this.model.selection.get();
-				return this.#host.selectionChanged({
-					editEpoch: this.#editEpoch,
-					selection: selection ? { anchor: selection.anchor, active: selection.active } : undefined,
-				});
+			const selection = this.model.selection.get();
+			// Sent after the edits it depends on; the host maps it into its text.
+			this.#send('selectionChanged', this.#host.selectionChanged({
+				version: this.#versions.current,
+				selection: selection ? { anchor: selection.anchor, active: selection.active } : undefined,
 			}));
 		});
 	}
@@ -358,7 +402,7 @@ class Editor extends Disposable {
 		this.#disposed = true;
 		this.#syntaxHighlighter.dispose();
 		super.dispose();
-		this.#connection.close();
+		this.#content.dispose();
 	}
 
 	#createView(host: HTMLElement, content: string, highlightActiveBlock: boolean): void {
@@ -418,16 +462,16 @@ class Editor extends Disposable {
 			},
 		}));
 		this.#view = view;
-		this.#rename = this._register(new RenameController(model, view, this.#host, () => this.#editEpoch));
-		this.#completion = this._register(new CompletionController(model, view, this.#host, () => this.#editEpoch));
-		this.#diagnostics = this._register(new DiagnosticsController(model, view, this.#host, () => this.#editEpoch));
+		this.#rename = this._register(new RenameController(model, view, this.#host, this.#versions));
+		this.#completion = this._register(new CompletionController(model, view, this.#host, this.#versions));
+		this.#diagnostics = this._register(new DiagnosticsController(model, view, this.#host, this.#versions));
 
 		// Wire history chords (undo/redo) to the extension so they run against the
 		// backing TextDocument's own undo stack. `record` is deliberately omitted:
 		// the TextDocument owns the history, and a second local stack would drift
 		// from the Edit menu, dirty state and hot exit.
 		this.#controller = this._register(new EditorController(model, view, {
-			clipboardStrategy: this.#imagePaste = this._register(new ImagePasteController(model, view, this.#host, () => this.#editEpoch)),
+			clipboardStrategy: this.#imagePaste = this._register(new ImagePasteController(model, view, this.#host, this.#versions)),
 			keyboardProfile: vscodeLocalKeyboardProfile,
 			forwardedKeyboardProfile: vscodeHostKeyboardProfile,
 			historyStrategy: {
@@ -472,7 +516,7 @@ class Editor extends Disposable {
 			if (accepts && !commentController) {
 				commentController = new CommentModeController(model, view, {
 					onSubmit: ({ text, range }) => {
-						this.#send('addComment', this.#host.addComment({ start: range.start, endExclusive: range.endExclusive, text }));
+						this.#send('addComment', this.#host.addComment({ start: range.start, endExclusive: range.endExclusive, text, version: this.#versions.current }));
 					},
 				});
 			} else if (!accepts && commentController) {
@@ -556,6 +600,7 @@ class Editor extends Disposable {
 		// Forward user edits to the extension. Edits are ignored by the model while
 		// read-only, so this is a no-op in that mode; keeping it always registered
 		// means unlocking a read-only editor immediately resumes edit forwarding.
+		// Until the host's content arrives, edits are kept and merged with it then.
 		let previousText = this.model.sourceText.get().value;
 		this._register(autorun((reader) => {
 			const text = reader.readObservable(this.model.sourceText).value;
@@ -563,13 +608,13 @@ class Editor extends Disposable {
 				this.#navigationRevision++;
 				this.#scheduleSelectionReport();
 			}
-			if (!this.isUpdatingFromExtension && text !== previousText) {
-				const edit = this.#host.edit({
-					...computeTextEdit(previousText, text),
-					editEpoch: this.#editEpoch,
-				});
-				this.#pendingEdits.add(edit);
-				this.#send('edit', edit.finally(() => this.#pendingEdits.delete(edit)));
+			if (!this.isUpdatingFromExtension && text !== previousText && this.#initialText === undefined) {
+				const edit = computeTextEdit(previousText, text);
+				this.#content.applyEdits([{
+					kind: 'stringEdits',
+					path: [],
+					stringEdits: [{ offset: edit.start, length: edit.endExclusive - edit.start, newText: edit.text }],
+				}]);
 			}
 			previousText = text;
 		}));
@@ -670,10 +715,6 @@ function isInitialState(value: unknown): value is InitialState {
 	const candidate = value as Record<string, unknown>;
 	return typeof candidate.content === 'string'
 		&& isTaskProgressLabels(candidate.taskProgressLabels)
-		&& typeof candidate.documentVersion === 'number'
-		&& typeof candidate.editEpoch === 'number'
-		&& Number.isInteger(candidate.editEpoch)
-		&& candidate.editEpoch >= 0
 		&& typeof candidate.readonly === 'boolean'
 		&& typeof candidate.highlightActiveBlock === 'boolean'
 		&& typeof candidate.richLinksEnabled === 'boolean'

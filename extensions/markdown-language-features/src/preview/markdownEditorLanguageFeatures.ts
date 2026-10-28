@@ -6,73 +6,76 @@
 import * as vscode from 'vscode';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { MarkdownCompletion, MarkdownDiagnostic, MarkdownEditorHost } from './markdownEditorProtocol';
+import type { MarkdownEditorText } from './markdownEditorDocumentSync';
 
 export class MarkdownEditorLanguageFeatures {
 	#session: CompletionSession | undefined;
 	readonly #document: vscode.TextDocument;
-	readonly #drain: () => Promise<void>;
-	readonly #snapshot: () => { text: string; editEpoch: number };
+	readonly #text: MarkdownEditorText;
 	readonly #isActive: () => boolean;
 	readonly #api: MarkdownCompletionApi;
 
-	constructor(document: vscode.TextDocument, drain: () => Promise<void>, snapshot: () => { text: string; editEpoch: number },
+	constructor(document: vscode.TextDocument, text: MarkdownEditorText,
 		isActive: () => boolean, api: MarkdownCompletionApi = completionApi) {
 		this.#document = document;
-		this.#drain = drain;
-		this.#snapshot = snapshot;
+		this.#text = text;
 		this.#isActive = isActive;
 		this.#api = api;
 	}
 
 	async diagnostics(): ReturnType<MarkdownEditorHost['getDiagnostics']> {
-		await this.#drain();
-		const snapshot = this.#snapshot();
-		return { editEpoch: snapshot.editEpoch, items: mapMarkdownDiagnostics(this.#document, snapshot.text, vscode.languages.getDiagnostics(this.#document.uri)) };
+		await this.#text.drain();
+		return { version: this.#text.version, items: mapMarkdownDiagnostics(this.#document, this.#text.text, vscode.languages.getDiagnostics(this.#document.uri)) };
 	}
 
 	async completions(request: Parameters<MarkdownEditorHost['completions']>[0]): ReturnType<MarkdownEditorHost['completions']> {
 		const session: CompletionSession = { requestId: request.requestId };
 		this.#session = session;
-		await this.#drain();
-		this.#checkCurrent(session);
-		const snapshot = this.#snapshot();
-		if (snapshot.editEpoch !== request.editEpoch || request.offset > snapshot.text.length) {
-			throw new Error(vscode.l10n.t('The document changed. Request suggestions again.'));
-		}
-		if (request.automatic) {
-			if (!vscode.workspace.getConfiguration('markdown.editor', this.#document).get<boolean>('quickSuggestions', false)) {
-				return { items: [], incomplete: false };
+		const requested = this.#text.trackFromEditor(request.version, request.offset);
+		try {
+			if (!requested) {
+				throw new Error(vscode.l10n.t('The document changed. Request suggestions again.'));
 			}
-			const quick = vscode.workspace.getConfiguration('editor', this.#document).get<boolean | { other?: boolean | string }>('quickSuggestions');
-			if (quick === false || typeof quick === 'object' && (quick.other === false || quick.other === 'off' || quick.other === 'inline')) {
-				return { items: [], incomplete: false };
+			await this.#text.drain();
+			this.#checkCurrent(session);
+			if (request.automatic) {
+				if (!vscode.workspace.getConfiguration('markdown.editor', this.#document).get<boolean>('quickSuggestions', false)) {
+					return { items: [], incomplete: false };
+				}
+				const quick = vscode.workspace.getConfiguration('editor', this.#document).get<boolean | { other?: boolean | string }>('quickSuggestions');
+				if (quick === false || typeof quick === 'object' && (quick.other === false || quick.other === 'off' || quick.other === 'inline')) {
+					return { items: [], incomplete: false };
+				}
 			}
-		}
-		const mirror = TextDocument.create(this.#document.uri.toString(), 'markdown', 0, snapshot.text);
-		const raw = mirror.positionAt(request.offset);
-		const position = new vscode.Position(raw.line, raw.character);
-		const version = this.#document.version;
-		const list = await this.#api.provide(this.#document.uri, position, 0);
-		this.#checkCurrent(session, version, snapshot.editEpoch);
-		session.prepared = { version, editEpoch: snapshot.editEpoch, position, items: list.items };
-		const items: MarkdownCompletion[] = [];
-		for (const [index, item] of list.items.entries()) {
-			const label = typeof item.label === 'string' ? item.label : item.label.label;
-			const range = completionRange(this.#document, position, item);
-			const prefix = this.#document.getText(new vscode.Range(range.start, position));
-			const normalizedPrefix = prefix.toLowerCase();
-			if (!(item.filterText ?? label).toLowerCase().startsWith(normalizedPrefix)) {
-				continue;
+			const revision = this.#text.revision;
+			const mirror = TextDocument.create(this.#document.uri.toString(), 'markdown', 0, this.#text.text);
+			const raw = mirror.positionAt(requested.offset);
+			const position = new vscode.Position(raw.line, raw.character);
+			const version = this.#document.version;
+			const list = await this.#api.provide(this.#document.uri, position, 0);
+			this.#checkCurrent(session, version, revision);
+			session.prepared = { version, revision, position, items: list.items };
+			const items: MarkdownCompletion[] = [];
+			for (const [index, item] of list.items.entries()) {
+				const label = typeof item.label === 'string' ? item.label : item.label.label;
+				const range = completionRange(this.#document, position, item);
+				const prefix = this.#document.getText(new vscode.Range(range.start, position));
+				const normalizedPrefix = prefix.toLowerCase();
+				if (!(item.filterText ?? label).toLowerCase().startsWith(normalizedPrefix)) {
+					continue;
+				}
+				items.push({
+					id: String(index), label,
+					highlightLength: label.toLowerCase().startsWith(normalizedPrefix) ? prefix.length : 0,
+					detail: item.detail ?? (typeof item.label === 'string' ? undefined : item.label.description),
+					type: item.kind === undefined ? undefined : vscode.CompletionItemKind[item.kind],
+					unsupported: item.insertText instanceof vscode.SnippetString ? vscode.l10n.t('Snippet editing is not supported in the rich editor yet.') : undefined,
+				});
 			}
-			items.push({
-				id: String(index), label,
-				highlightLength: label.toLowerCase().startsWith(normalizedPrefix) ? prefix.length : 0,
-				detail: item.detail ?? (typeof item.label === 'string' ? undefined : item.label.description),
-				type: item.kind === undefined ? undefined : vscode.CompletionItemKind[item.kind],
-				unsupported: item.insertText instanceof vscode.SnippetString ? vscode.l10n.t('Snippet editing is not supported in the rich editor yet.') : undefined,
-			});
+			return { items, incomplete: !!list.isIncomplete };
+		} finally {
+			requested?.dispose();
 		}
-		return { items, incomplete: !!list.isIncomplete };
 	}
 
 	async accept(request: Parameters<MarkdownEditorHost['acceptCompletion']>[0]): ReturnType<MarkdownEditorHost['acceptCompletion']> {
@@ -87,13 +90,13 @@ export class MarkdownEditorLanguageFeatures {
 		}
 		session.applying = true;
 		try {
-			await this.#drain();
-			const { version, editEpoch, position } = session.prepared;
-			this.#checkCurrent(session, version, editEpoch);
+			await this.#text.drain();
+			const { version, revision, position } = session.prepared;
+			this.#checkCurrent(session, version, revision);
 			// The public API resolves only a prefix of a freshly requested list, not a retained item.
 			const resolved = await this.#api.provide(this.#document.uri, position, index + 1);
-			await this.#drain();
-			this.#checkCurrent(session, version, editEpoch);
+			await this.#text.drain();
+			this.#checkCurrent(session, version, revision);
 			const item = resolved.items[index];
 			if (!item || completionIdentity(this.#document, position, item) !== completionIdentity(this.#document, position, original)) {
 				throw new Error(vscode.l10n.t('The completion list changed. Request suggestions again.'));
@@ -134,11 +137,10 @@ export class MarkdownEditorLanguageFeatures {
 					}
 				}
 			}
-			const snapshot = this.#snapshot();
-			const mirror = TextDocument.create(this.#document.uri.toString(), 'markdown', 0, snapshot.text);
+			const mirror = TextDocument.create(this.#document.uri.toString(), 'markdown', 0, this.#text.text);
 			const caret = this.#document.version === appliedVersion && this.#isActive()
 				? mirror.offsetAt(this.#document.positionAt(offset)) : undefined;
-			return { offset: caret, editEpoch: snapshot.editEpoch, retrigger, ...(warning ? { warning } : {}) };
+			return { offset: caret, version: this.#text.version, retrigger, ...(warning ? { warning } : {}) };
 		} finally {
 			if (this.#session === session) { this.#session = undefined; }
 		}
@@ -148,9 +150,9 @@ export class MarkdownEditorLanguageFeatures {
 		if (requestId === undefined || this.#session?.requestId === requestId) { this.#session = undefined; }
 	}
 
-	#checkCurrent(session: CompletionSession, version?: number, editEpoch?: number): void {
+	#checkCurrent(session: CompletionSession, version?: number, revision?: number): void {
 		if (this.#session !== session || !this.#isActive() || this.#document.isClosed) { throw new vscode.CancellationError(); }
-		if (version !== undefined && (this.#document.version !== version || this.#snapshot().editEpoch !== editEpoch)) {
+		if (version !== undefined && (this.#document.version !== version || this.#text.revision !== revision)) {
 			throw new Error(vscode.l10n.t('The document changed. Request suggestions again.'));
 		}
 	}
@@ -159,7 +161,7 @@ export class MarkdownEditorLanguageFeatures {
 interface CompletionSession {
 	readonly requestId: number;
 	applying?: boolean;
-	prepared?: { readonly version: number; readonly editEpoch: number; readonly position: vscode.Position; readonly items: readonly vscode.CompletionItem[] };
+	prepared?: { readonly version: number; readonly revision: number; readonly position: vscode.Position; readonly items: readonly vscode.CompletionItem[] };
 }
 
 export interface MarkdownCompletionApi {

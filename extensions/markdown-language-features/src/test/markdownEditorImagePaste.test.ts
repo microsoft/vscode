@@ -10,6 +10,7 @@ import { MarkdownEditorImagePaste } from '../preview/markdownEditorImagePaste';
 import { CopyFilesSettings, ResourcePasteOrDropProvider } from '../languageFeatures/copyFiles/dropOrPasteResource';
 import type { MarkdownEditorRenderer } from '../preview/markdownEditorProtocol';
 import { clipboardMediaChunkSize } from '../preview/markdownEditorMediaTransfer';
+import { TestEditorText } from './testEditorText';
 
 suite('Markdown editor image paste', () => {
 	const base64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=';
@@ -24,13 +25,13 @@ suite('Markdown editor image paste', () => {
 	};
 	let root: vscode.Uri;
 	let document: vscode.TextDocument;
-	let state: { text: string; editEpoch: number; editable: boolean };
+	let text: TestEditorText;
+	let editable: boolean;
 	let paste: MarkdownEditorImagePaste;
-	const request = () => ({ start: 9, endExclusive: 13, editEpoch: state.editEpoch, images: [image] });
+	const request = () => ({ start: 9, endExclusive: 13, version: text.version, images: [image] });
 	const apply = async (edit: vscode.WorkspaceEdit): Promise<boolean> => {
 		const result = await vscode.workspace.applyEdit(edit);
-		state.text = document.getText().replace(/\r\n/g, '\n');
-		state.editEpoch++;
+		text.change(document.getText().replace(/\r\n/g, '\n'));
 		return result;
 	};
 
@@ -40,10 +41,11 @@ suite('Markdown editor image paste', () => {
 		const uri = vscode.Uri.joinPath(root, 'document.md');
 		await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode('# Title\r\n\r\nHERE'));
 		document = await vscode.workspace.openTextDocument(uri);
-		state = { text: '# Title\n\nHERE', editEpoch: 0, editable: true };
+		text = new TestEditorText('# Title\n\nHERE');
+		editable = true;
 		files = new Map([[image.id, Uint8Array.from(atob(base64), c => c.charCodeAt(0))]]);
 		chunks = [];
-		paste = new MarkdownEditorImagePaste(document, async () => { }, () => state, () => state.editable, read, apply);
+		paste = new MarkdownEditorImagePaste(document, text, () => editable, read, apply);
 	});
 
 	teardown(async () => {
@@ -54,8 +56,7 @@ suite('Markdown editor image paste', () => {
 	test('creates exact image bytes and replaces the selection with resolved Markdown, not snippet syntax', async () => {
 		const result = await paste.paste(request());
 		assert.strictEqual(document.getText(), '# Title\r\n\r\n![alt text](image.png)');
-		assert.strictEqual(result.offset, state.text.length);
-		assert.strictEqual(result.editEpoch, 1);
+		assert.deepStrictEqual(result, { offset: text.text.length, version: { serverRevision: 2, clientRevision: 0 } });
 		assert.deepStrictEqual(Uint8Array.from(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(root, 'image.png'))), Uint8Array.from(atob(base64), c => c.charCodeAt(0)));
 	});
 
@@ -85,7 +86,7 @@ suite('Markdown editor image paste', () => {
 			}, {
 				text: `# Title\r\n\r\n<${kind} controls src="${media.name}" title="Title"></${kind}>`,
 				bytes: [1, 2, 3, 4],
-				result: { offset: state.text.length, editEpoch: 1 },
+				result: { offset: text.text.length, version: { serverRevision: 2, clientRevision: 0 } },
 			});
 		});
 	}
@@ -99,7 +100,7 @@ suite('Markdown editor image paste', () => {
 		assert.deepStrictEqual({
 			chunks,
 			bytes: Uint8Array.from(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(root, 'clip.mp4'))),
-			editEpoch: state.editEpoch,
+			revision: text.revision,
 		}, {
 			chunks: [
 				{ id: 'video', offset: 0, length: clipboardMediaChunkSize },
@@ -108,7 +109,7 @@ suite('Markdown editor image paste', () => {
 				{ id: 'image', offset: 0, length: image.size },
 			],
 			bytes,
-			editEpoch: 1,
+			revision: 1,
 		});
 	});
 
@@ -116,9 +117,9 @@ suite('Markdown editor image paste', () => {
 		for (const reason of ['stale', 'cancelled', 'read error']) {
 			paste.dispose();
 			chunks = [];
-			paste = new MarkdownEditorImagePaste(document, async () => { }, () => state, () => true, async request => {
+			paste = new MarkdownEditorImagePaste(document, text, () => true, async request => {
 				chunks.push(request);
-				if (reason === 'stale') { state.editEpoch++; }
+				if (reason === 'stale') { text.change(); }
 				if (reason === 'cancelled') { paste.dispose(); }
 				if (reason === 'read error') { throw new Error('read failed'); }
 				return { base64: Buffer.alloc(request.length).toString('base64') };
@@ -167,15 +168,15 @@ suite('Markdown editor image paste', () => {
 		}
 	});
 
-	test('rejects invalid input, stale epochs, and locked editors before creating files', async () => {
+	test('rejects invalid input, stale versions, and locked editors before creating files', async () => {
 		await assert.rejects(paste.paste({ ...request(), images: [{ ...image, name: '../escape.png' }] }), /Invalid clipboard media/);
 		await assert.rejects(paste.paste({ ...request(), images: [{ ...image, size: -1 }] }), /Invalid clipboard media/);
 		await assert.rejects(paste.paste({ ...request(), images: [image, image] }), /Invalid clipboard media/);
 		await assert.rejects(paste.paste({ ...request(), images: [{ ...image, mime: 'application/octet-stream' }] }), /Invalid clipboard media/);
-		await assert.rejects(paste.paste({ ...request(), endExclusive: 999 }), /Invalid media paste range/);
-		await assert.rejects(paste.paste({ ...request(), start: -1 }), /Invalid media paste range/);
-		await assert.rejects(paste.paste({ ...request(), editEpoch: 9 }), /editor changed/);
-		state.editable = false;
+		await assert.rejects(paste.paste({ ...request(), endExclusive: 999 }), /editor changed/);
+		await assert.rejects(paste.paste({ ...request(), start: -1 }), /editor changed/);
+		await assert.rejects(paste.paste({ ...request(), version: { serverRevision: 9, clientRevision: 0 } }), /editor changed/);
+		editable = false;
 		await assert.rejects(paste.paste(request()), /editor changed/);
 		assert.deepStrictEqual(chunks, []);
 		assert.deepStrictEqual((await vscode.workspace.fs.readDirectory(root)).map(([name]) => name), ['document.md']);
@@ -184,14 +185,16 @@ suite('Markdown editor image paste', () => {
 	test('rejects a changed document or disposal while preparing image edits', async () => {
 		let drains = 0;
 		paste.dispose();
-		paste = new MarkdownEditorImagePaste(document, async () => {
-			if (++drains === 2) { state.editEpoch++; }
-		}, () => state, () => true, read, apply);
+		text.drain = async () => {
+			if (++drains === 2) { text.change(); }
+		};
+		paste = new MarkdownEditorImagePaste(document, text, () => true, read, apply);
 		await assert.rejects(paste.paste(request()), /editor changed/);
 		assert.deepStrictEqual((await vscode.workspace.fs.readDirectory(root)).map(([name]) => name), ['document.md']);
 		const entered = Promise.withResolvers<void>();
 		const finish = Promise.withResolvers<void>();
-		paste = new MarkdownEditorImagePaste(document, async () => { entered.resolve(); await finish.promise; }, () => state, () => true, read, apply);
+		text.drain = async () => { entered.resolve(); await finish.promise; };
+		paste = new MarkdownEditorImagePaste(document, text, () => true, read, apply);
 		const result = paste.paste(request());
 		await entered.promise;
 		paste.dispose();
@@ -207,25 +210,26 @@ suite('Markdown editor image paste', () => {
 			await assert.rejects(paste.paste(request()), /disabled/);
 		} finally { await config.update('pasteAs.enabled', previous, vscode.ConfigurationTarget.Global); }
 		const untitled = await vscode.workspace.openTextDocument({ language: 'markdown', content: 'HERE' });
-		const unsaved = new MarkdownEditorImagePaste(untitled, async () => { }, () => ({ text: 'HERE', editEpoch: 0 }), () => true, read);
+		const untitledText = new TestEditorText('HERE');
+		const unsaved = new MarkdownEditorImagePaste(untitled, untitledText, () => true, read);
 		try {
-			await assert.rejects(unsaved.paste({ ...request(), start: 0, endExclusive: 4, editEpoch: 0 }), /Save the Markdown/);
+			await assert.rejects(unsaved.paste({ ...request(), start: 0, endExclusive: 4, version: untitledText.version }), /Save the Markdown/);
 		} finally { unsaved.dispose(); }
-		paste = new MarkdownEditorImagePaste(document, async () => { }, () => state, () => true, read, async () => false);
+		paste = new MarkdownEditorImagePaste(document, text, () => true, read, async () => false);
 		await assert.rejects(paste.paste(request()), /workspace rejected/);
 		assert.deepStrictEqual((await vscode.workspace.fs.readDirectory(root)).map(([name]) => name), ['document.md']);
 	});
 
 	test('does not return a stale caret when another edit follows application', async () => {
 		paste.dispose();
-		paste = new MarkdownEditorImagePaste(document, async () => { }, () => state, () => true, read, async edit => {
+		paste = new MarkdownEditorImagePaste(document, text, () => true, read, async edit => {
 			await apply(edit);
 			const followup = new vscode.WorkspaceEdit();
 			followup.insert(document.uri, new vscode.Position(0, 0), 'Other edit\n');
 			return apply(followup);
 		});
 		const result = await paste.paste(request());
-		assert.deepStrictEqual(result, { offset: undefined, editEpoch: 2 });
+		assert.deepStrictEqual(result, { offset: undefined, version: { serverRevision: 3, clientRevision: 0 } });
 		assert.ok(document.getText().includes('![alt text](image.png)'));
 	});
 });

@@ -6,23 +6,21 @@
 import * as vscode from 'vscode';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { MarkdownEditorHost } from './markdownEditorProtocol';
+import type { MarkdownEditorText } from './markdownEditorDocumentSync';
 
 export class MarkdownEditorRename {
-	readonly #drain: () => Promise<void>;
-	readonly #snapshot: () => RenameSnapshot;
+	readonly #text: MarkdownEditorText;
 	readonly #isActive: () => boolean;
 	readonly #api: MarkdownRenameApi;
 	#session: RenameSession | undefined;
 
 	constructor(
 		readonly document: vscode.TextDocument,
-		drain: () => Promise<void>,
-		snapshot: () => RenameSnapshot,
+		text: MarkdownEditorText,
 		isActive: () => boolean,
 		api: MarkdownRenameApi = renameApi,
 	) {
-		this.#drain = drain;
-		this.#snapshot = snapshot;
+		this.#text = text;
 		this.#isActive = isActive;
 		this.#api = api;
 	}
@@ -30,29 +28,36 @@ export class MarkdownEditorRename {
 	async prepare(request: Parameters<MarkdownEditorHost['prepareRename']>[0]): ReturnType<MarkdownEditorHost['prepareRename']> {
 		const session: RenameSession = { requestId: request.requestId };
 		this.#session = session;
-		await this.#drain();
-		this.#checkCurrent(session);
-		const snapshot = this.#snapshot();
-		if (request.editEpoch !== snapshot.editEpoch || request.offset > snapshot.text.length) {
-			throw new Error(vscode.l10n.t('The document changed. Start rename again.'));
+		const requested = this.#text.trackFromEditor(request.version, request.offset);
+		try {
+			if (!requested) {
+				throw new Error(vscode.l10n.t('The document changed. Start rename again.'));
+			}
+			await this.#text.drain();
+			this.#checkCurrent(session);
+			const revision = this.#text.revision;
+			const mirror = TextDocument.create(this.document.uri.toString(), 'markdown', 0, this.#text.text);
+			const position = mirror.positionAt(requested.offset);
+			const version = this.document.version;
+			const prepared = await this.#api.prepare(this.document.uri, new vscode.Position(position.line, position.character));
+			this.#checkCurrent(session);
+			const contentVersion = this.#text.version;
+			if (version !== this.document.version || revision !== this.#text.revision || !contentVersion) {
+				throw new Error(vscode.l10n.t('The document changed. Start rename again.'));
+			}
+			if (!prepared) {
+				throw new Error(vscode.l10n.t('This symbol cannot be renamed.'));
+			}
+			session.prepared = { position: new vscode.Position(position.line, position.character), version, revision };
+			return {
+				start: mirror.offsetAt(prepared.range.start),
+				endExclusive: mirror.offsetAt(prepared.range.end),
+				placeholder: prepared.placeholder,
+				version: contentVersion,
+			};
+		} finally {
+			requested?.dispose();
 		}
-		const mirror = TextDocument.create(this.document.uri.toString(), 'markdown', 0, snapshot.text);
-		const position = mirror.positionAt(request.offset);
-		const version = this.document.version;
-		const prepared = await this.#api.prepare(this.document.uri, new vscode.Position(position.line, position.character));
-		this.#checkCurrent(session);
-		if (version !== this.document.version || snapshot.editEpoch !== this.#snapshot().editEpoch) {
-			throw new Error(vscode.l10n.t('The document changed. Start rename again.'));
-		}
-		if (!prepared) {
-			throw new Error(vscode.l10n.t('This symbol cannot be renamed.'));
-		}
-		session.prepared = { position: new vscode.Position(position.line, position.character), version, editEpoch: snapshot.editEpoch };
-		return {
-			start: mirror.offsetAt(prepared.range.start),
-			endExclusive: mirror.offsetAt(prepared.range.end),
-			placeholder: prepared.placeholder,
-		};
 	}
 
 	async rename(request: Parameters<MarkdownEditorHost['rename']>[0]): Promise<void> {
@@ -75,19 +80,19 @@ export class MarkdownEditorRename {
 	}
 
 	async #apply(session: RenameSession, prepared: NonNullable<RenameSession['prepared']>, newName: string): Promise<void> {
-		await this.#drain();
+		await this.#text.drain();
 		this.#checkCurrent(session);
-		const { version, editEpoch, position } = prepared;
+		const { version, revision, position } = prepared;
 		const checkVersion = (): void => {
 			this.#checkCurrent(session);
-			if (version !== this.document.version || editEpoch !== this.#snapshot().editEpoch) {
+			if (version !== this.document.version || revision !== this.#text.revision) {
 				throw new Error(vscode.l10n.t('The document changed. Start rename again.'));
 			}
 		};
 		checkVersion();
 		const versions = new Map(vscode.workspace.textDocuments.map(document => [document.uri.toString(), document.version]));
 		const edit = await this.#api.rename(this.document.uri, position, newName);
-		await this.#drain();
+		await this.#text.drain();
 		checkVersion();
 		if (!edit) {
 			throw new Error(vscode.l10n.t('The rename provider returned no changes.'));
@@ -122,13 +127,8 @@ export class MarkdownEditorRename {
 
 interface RenameSession {
 	readonly requestId: number;
-	prepared?: { readonly position: vscode.Position; readonly version: number; readonly editEpoch: number };
+	prepared?: { readonly position: vscode.Position; readonly version: number; readonly revision: number };
 	submitting?: boolean;
-}
-
-interface RenameSnapshot {
-	readonly text: string;
-	readonly editEpoch: number;
 }
 
 export interface MarkdownRenameApi {

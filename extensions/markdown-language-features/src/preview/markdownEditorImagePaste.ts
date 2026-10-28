@@ -7,26 +7,24 @@ import * as vscode from 'vscode';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { CopyFilesSettings, ResourcePasteOrDropProvider } from '../languageFeatures/copyFiles/dropOrPasteResource';
 import type { MarkdownEditorHost, MarkdownEditorRenderer } from './markdownEditorProtocol';
+import type { MarkdownEditorText } from './markdownEditorDocumentSync';
 import { readClipboardMediaContents } from './markdownEditorMediaTransfer';
 
 export class MarkdownEditorImagePaste implements vscode.Disposable {
 	#pending: vscode.CancellationTokenSource | undefined;
-	readonly #drain: () => Promise<void>;
-	readonly #snapshot: () => { readonly text: string; readonly editEpoch: number };
+	readonly #text: MarkdownEditorText;
 	readonly #isEditable: () => boolean;
 	readonly #readClipboardMedia: MarkdownEditorRenderer['readClipboardMedia'];
 	readonly #apply: typeof vscode.workspace.applyEdit;
 
 	constructor(
 		readonly document: vscode.TextDocument,
-		drain: () => Promise<void>,
-		snapshot: () => { readonly text: string; readonly editEpoch: number },
+		text: MarkdownEditorText,
 		isEditable: () => boolean,
 		readClipboardMedia: MarkdownEditorRenderer['readClipboardMedia'],
 		apply: typeof vscode.workspace.applyEdit = edit => vscode.workspace.applyEdit(edit),
 	) {
-		this.#drain = drain;
-		this.#snapshot = snapshot;
+		this.#text = text;
 		this.#isEditable = isEditable;
 		this.#readClipboardMedia = readClipboardMedia;
 		this.#apply = apply;
@@ -35,21 +33,22 @@ export class MarkdownEditorImagePaste implements vscode.Disposable {
 	async paste(request: Parameters<MarkdownEditorHost['pasteImages']>[0]): ReturnType<MarkdownEditorHost['pasteImages']> {
 		this.dispose();
 		const pending = this.#pending = new vscode.CancellationTokenSource();
+		const start = request.start <= request.endExclusive ? this.#text.trackFromEditor(request.version, request.start) : undefined;
+		const end = start && this.#text.trackFromEditor(request.version, request.endExclusive);
 		try {
-			await this.#drain();
-			const snapshot = this.#snapshot();
+			if (!start || !end || !request.images.length) {
+				throw new Error(vscode.l10n.t('The editor changed. Paste the media again.'));
+			}
+			await this.#text.drain();
+			const revision = this.#text.revision;
 			const version = this.document.version;
 			const checkCurrent = (): void => {
 				if (pending.token.isCancellationRequested) { throw new vscode.CancellationError(); }
-				if (!this.#isEditable() || this.document.isClosed || version !== this.document.version || request.editEpoch !== this.#snapshot().editEpoch) {
+				if (!this.#isEditable() || this.document.isClosed || version !== this.document.version || revision !== this.#text.revision) {
 					throw new Error(vscode.l10n.t('The editor changed. Paste the media again.'));
 				}
 			};
 			checkCurrent();
-			if (!Number.isSafeInteger(request.start) || !Number.isSafeInteger(request.endExclusive) || request.start < 0
-				|| request.start > request.endExclusive || request.endExclusive > snapshot.text.length || !request.images.length) {
-				throw new Error(vscode.l10n.t('Invalid media paste range or empty clipboard media list.'));
-			}
 			if (this.document.isUntitled) {
 				throw new Error(vscode.l10n.t('Save the Markdown document before pasting media.'));
 			}
@@ -78,15 +77,15 @@ export class MarkdownEditorImagePaste implements vscode.Disposable {
 			});
 			const edit = await ResourcePasteOrDropProvider.createEditForMediaFiles(this.document, transfer,
 				config.get<CopyFilesSettings>('editor.paste.copyIntoWorkspace', CopyFilesSettings.MediaFiles), pending.token, true);
-			await this.#drain();
+			await this.#text.drain();
 			checkCurrent();
 			if (!edit?.additionalEdits) {
 				throw new Error(vscode.l10n.t('Media paste requires markdown.editor.paste.copyIntoWorkspace to be mediaFiles.'));
 			}
-			const mirror = TextDocument.create(this.document.uri.toString(), 'markdown', 0, snapshot.text);
-			const start = mirror.positionAt(request.start);
-			const end = mirror.positionAt(request.endExclusive);
-			const range = new vscode.Range(start.line, start.character, end.line, end.character);
+			const mirror = TextDocument.create(this.document.uri.toString(), 'markdown', 0, this.#text.text);
+			const startPosition = mirror.positionAt(start.offset);
+			const endPosition = mirror.positionAt(end.offset);
+			const range = new vscode.Range(startPosition.line, startPosition.character, endPosition.line, endPosition.character);
 			const oldLength = this.document.getText().length;
 			const oldEnd = this.document.offsetAt(range.end);
 			// Workspace edits resolve snippet defaults without starting a snippet session in a custom editor.
@@ -94,12 +93,13 @@ export class MarkdownEditorImagePaste implements vscode.Disposable {
 			if (!await this.#apply(edit.additionalEdits)) {
 				throw new Error(vscode.l10n.t('The workspace rejected the media paste.'));
 			}
-			const current = this.#snapshot();
-			const newMirror = TextDocument.create(this.document.uri.toString(), 'markdown', 0, current.text);
+			const newMirror = TextDocument.create(this.document.uri.toString(), 'markdown', 0, this.#text.text);
 			const offset = this.document.version === version + 1 && this.#isEditable() && !pending.token.isCancellationRequested
 				? newMirror.offsetAt(this.document.positionAt(oldEnd + this.document.getText().length - oldLength)) : undefined;
-			return { offset, editEpoch: current.editEpoch };
+			return { offset, version: this.#text.version };
 		} finally {
+			start?.dispose();
+			end?.dispose();
 			if (this.#pending === pending) { this.#pending = undefined; }
 			pending.dispose();
 		}

@@ -8,10 +8,10 @@ import 'mocha';
 import { ErrorCode, type InterfaceHandlers, type JsonRpcMessage } from '@vscode/hubrpc';
 import { markdownEditorHost, markdownEditorRenderer, type MarkdownEditorRenderer } from '../preview/markdownEditorProtocol';
 import { createMarkdownEditorRpcConnection, MarkdownEditorRpcTransport } from '../preview/markdownEditorRpc';
-import { RecoveringTaskQueue } from '../preview/recoveringTaskQueue';
 import { clipboardMediaChunkSize, readClipboardMediaContents } from '../preview/markdownEditorMediaTransfer';
 
 suite('Markdown editor RPC', () => {
+	const version = { serverRevision: 1, clientRevision: 0 };
 	const disposables: { dispose(): void }[] = [];
 	teardown(() => {
 		for (const disposable of disposables.splice(0).reverse()) {
@@ -30,7 +30,6 @@ suite('Markdown editor RPC', () => {
 		const renderer = createMarkdownEditorRpcConnection(rendererTransport, report);
 		host.register(markdownEditorHost, {
 			ready: () => { },
-			edit: () => { },
 			history: () => { },
 			openLink: () => { },
 			setReadonly: () => { },
@@ -45,14 +44,14 @@ suite('Markdown editor RPC', () => {
 			addComment: () => { },
 			deleteComment: () => { },
 			highlight: () => ({ tokens: [], colorMap: [] }),
-			prepareRename: () => ({ start: 0, endExclusive: 1, placeholder: 'name' }),
+			prepareRename: () => ({ start: 0, endExclusive: 1, placeholder: 'name', version }),
 			rename: () => { },
 			cancelRename: () => { },
-			getDiagnostics: () => ({ editEpoch: 0, items: [] }),
+			getDiagnostics: () => ({ version, items: [] }),
 			completions: () => ({ items: [], incomplete: false }),
-			acceptCompletion: () => ({ offset: 0, editEpoch: 0, retrigger: false }),
+			acceptCompletion: () => ({ offset: 0, version, retrigger: false }),
 			cancelCompletions: () => { },
-			pasteImages: () => ({ offset: 0, editEpoch: 0 }),
+			pasteImages: () => ({ offset: 0, version }),
 			...hostOverrides,
 		});
 		host.get(markdownEditorRenderer);
@@ -60,14 +59,13 @@ suite('Markdown editor RPC', () => {
 			readClipboardMedia: () => ({ base64: 'AQ==' }),
 			configurationChanged: () => { },
 			diagnosticsChanged: () => { },
-			update: () => { },
 			codeBlockEditorProviders: () => { },
 			codeBlockEditorHostTransportMessage: () => { },
 			gutterMarkers: () => { },
 			comments: () => { },
 			revealComment: () => { },
 			revealLinkTarget: () => { },
-			captureNavigationState: () => ({ editEpoch: 0, revision: 0, scrollTop: 0 }),
+			captureNavigationState: () => ({ version, revision: 0, scrollTop: 0 }),
 			revealRange: () => { },
 			restoreNavigationState: () => { },
 			command: () => { },
@@ -88,7 +86,7 @@ suite('Markdown editor RPC', () => {
 				assert.deepStrictEqual(request.images, [image]);
 				const contents = await readClipboardMediaContents(request.images[0], request => remote.readClipboardMedia(request), () => { });
 				assert.deepStrictEqual(contents, Uint8Array.from(bytes));
-				return { offset: 4, editEpoch: 1 };
+				return { offset: 4, version };
 			},
 		}, {
 			readClipboardMedia: request => {
@@ -97,8 +95,8 @@ suite('Markdown editor RPC', () => {
 			},
 		});
 		const remote = host.get(markdownEditorRenderer);
-		const request = { start: 0, endExclusive: 0, editEpoch: 0, images: [image] };
-		assert.deepStrictEqual(await renderer.get(markdownEditorHost).pasteImages(request), { offset: 4, editEpoch: 1 });
+		const request = { start: 0, endExclusive: 0, version, images: [image] };
+		assert.deepStrictEqual(await renderer.get(markdownEditorHost).pasteImages(request), { offset: 4, version });
 		assert.deepStrictEqual(hostInbox.messages[0], {
 			channel: 'markdownEditor', messageSecret: 'secret',
 			message: { jsonrpc: '2.0', id: 1, method: 'markdown.editor.host::pasteImages', params: request },
@@ -121,14 +119,14 @@ suite('Markdown editor RPC', () => {
 		const subscriptions = { subscribe: [{ subscriptionId: 'first', href: 'target' }], unsubscribe: [] };
 		renderer.get(markdownEditorHost).richLinkSubscriptions(subscriptions);
 		renderer.get(markdownEditorHost).codeBlockEditorDiagnostic({ message: 'test' });
-		host.get(markdownEditorRenderer).comments({ comments: [], acceptsComments: true });
+		host.get(markdownEditorRenderer).comments({ version, comments: [], acceptsComments: true });
 		host.get(markdownEditorRenderer).highlightThemeChanged({});
 		await new Promise<void>(resolve => setImmediate(resolve));
-		assert.deepStrictEqual(seen, [subscriptions, { message: 'test' }, { comments: [], acceptsComments: true }, {}]);
+		assert.deepStrictEqual(seen, [subscriptions, { message: 'test' }, { version, comments: [], acceptsComments: true }, {}]);
 		assert.deepStrictEqual([...hostInbox.messages, ...rendererInbox.messages], [
 			{ channel: 'markdownEditor', messageSecret: 'secret', message: { jsonrpc: '2.0', method: 'markdown.editor.host::richLinkSubscriptions', params: subscriptions } },
 			{ channel: 'markdownEditor', messageSecret: 'secret', message: { jsonrpc: '2.0', method: 'markdown.editor.host::codeBlockEditorDiagnostic', params: { message: 'test' } } },
-			{ channel: 'markdownEditor', messageSecret: 'secret', message: { jsonrpc: '2.0', method: 'markdown.editor.renderer::comments', params: { comments: [], acceptsComments: true } } },
+			{ channel: 'markdownEditor', messageSecret: 'secret', message: { jsonrpc: '2.0', method: 'markdown.editor.renderer::comments', params: { version, comments: [], acceptsComments: true } } },
 			{ channel: 'markdownEditor', messageSecret: 'secret', message: { jsonrpc: '2.0', method: 'markdown.editor.renderer::highlightThemeChanged', params: {} } },
 		], 'notifications must not create request IDs or acknowledgement messages');
 		assert.deepStrictEqual(errors, []);
@@ -195,7 +193,6 @@ suite('Markdown editor RPC', () => {
 			resolveCodeBlockEditor: () => ({ descriptor: { html: '<div></div>', runtimeKey: 'editor', contentType: 'text' } }),
 			addComment: params => { seen.push(params); },
 		}, {
-			update: params => { seen.push(params); },
 			codeBlockEditorHostTransportMessage: params => { seen.push(params); },
 		});
 		const client = renderer.get(markdownEditorHost);
@@ -203,8 +200,7 @@ suite('Markdown editor RPC', () => {
 		const second = await client.highlight({ source: 'second', languageId: 'text' });
 		finishFirst({ tokens: [], colorMap: ['first'] });
 		const remote = host.get(markdownEditorRenderer);
-		await remote.update({ content: 'authoritative\r\n', editEpoch: 3 });
-		await client.addComment({ start: 0, endExclusive: 2, text: 'comment' });
+		await client.addComment({ start: 0, endExclusive: 2, text: 'comment', version });
 		await remote.codeBlockEditorHostTransportMessage({ runtimeId: 'one', message: { nested: ['opaque', 2] } });
 		assert.deepStrictEqual({
 			first: await first,
@@ -216,8 +212,7 @@ suite('Markdown editor RPC', () => {
 			second: { tokens: [], colorMap: ['second'] },
 			descriptor: { descriptor: { html: '<div></div>', runtimeKey: 'editor', contentType: 'text' } },
 			seen: [
-				{ content: 'authoritative\r\n', editEpoch: 3 },
-				{ start: 0, endExclusive: 2, text: 'comment' },
+				{ start: 0, endExclusive: 2, text: 'comment', version },
 				{ runtimeId: 'one', message: { nested: ['opaque', 2] } },
 			],
 		});
@@ -226,44 +221,44 @@ suite('Markdown editor RPC', () => {
 	test('routes rename sessions and rejects invalid offsets across RPC', async () => {
 		const seen: unknown[] = [];
 		const { renderer } = pair({
-			prepareRename: params => { seen.push(params); return { start: 2, endExclusive: 8, placeholder: 'Target' }; },
+			prepareRename: params => { seen.push(params); return { start: 2, endExclusive: 8, placeholder: 'Target', version }; },
 			rename: params => { seen.push(params); },
 			cancelRename: params => { seen.push(params); },
 		});
 		const client = renderer.get(markdownEditorHost);
-		assert.deepStrictEqual(await client.prepareRename({ requestId: 4, offset: 3, editEpoch: 2 }),
-			{ start: 2, endExclusive: 8, placeholder: 'Target' });
+		assert.deepStrictEqual(await client.prepareRename({ requestId: 4, offset: 3, version }),
+			{ start: 2, endExclusive: 8, placeholder: 'Target', version });
 		await client.rename({ requestId: 4, newName: 'New target' });
 		await client.cancelRename({ requestId: 4 });
 		await assert.rejects(renderer.channel.sendRequest('markdown.editor.host::prepareRename',
-			{ requestId: 4, offset: -1, editEpoch: 2 }), { code: ErrorCode.invalidParams });
+			{ requestId: 4, offset: -1, version }), { code: ErrorCode.invalidParams });
 		assert.deepStrictEqual(seen, [
-			{ requestId: 4, offset: 3, editEpoch: 2 },
+			{ requestId: 4, offset: 3, version },
 			{ requestId: 4, newName: 'New target' },
 			{ requestId: 4 },
 		]);
 	});
 
 	test('rejects malformed parameters, unknown members, and failed handlers', async () => {
-		let edits = 0;
+		let comments = 0;
 		const { renderer } = pair({
-			edit: () => { edits++; },
+			addComment: () => { comments++; },
 			openLink: () => { throw new Error('Link resolution failed'); },
 		});
-		await assert.rejects(renderer.channel.sendRequest('markdown.editor.host::edit', { start: -1, endExclusive: 2, text: '', editEpoch: 0 }), { code: ErrorCode.invalidParams });
+		await assert.rejects(renderer.channel.sendRequest('markdown.editor.host::addComment', { start: -1, endExclusive: 2, text: '', version }), { code: ErrorCode.invalidParams });
 		await assert.rejects(renderer.channel.sendRequest('markdown.editor.host::missing', {}), { code: ErrorCode.methodNotFound });
 		await assert.rejects(renderer.get(markdownEditorHost).openLink({ href: 'target' }), /Link resolution failed/);
-		assert.strictEqual(edits, 0);
+		assert.strictEqual(comments, 0);
 	});
 
 	test('ignores unauthenticated requests and responses from nested frames or old generations', async () => {
-		let edits = 0;
+		let comments = 0;
 		let finish!: () => void;
 		const { renderer, hostInbox, rendererInbox } = pair({
-			edit: () => { edits++; },
+			addComment: () => { comments++; },
 			history: () => new Promise<void>(resolve => finish = resolve),
 		});
-		const forged = { jsonrpc: '2.0', id: 8, method: 'markdown.editor.host::edit', params: { start: 0, endExclusive: 0, text: 'attack', editEpoch: 0 } };
+		const forged = { jsonrpc: '2.0', id: 8, method: 'markdown.editor.host::addComment', params: { start: 0, endExclusive: 0, text: 'attack', version } };
 		hostInbox.deliver({ channel: 'markdownEditor', message: forged });
 		hostInbox.deliver({ channel: 'markdownEditor', messageSecret: 'old-secret', message: forged });
 		const pending = renderer.get(markdownEditorHost).history({ command: 'undo' });
@@ -271,7 +266,7 @@ suite('Markdown editor RPC', () => {
 		void pending.then(() => settled = true);
 		rendererInbox.deliver({ channel: 'markdownEditor', messageSecret: 'wrong', message: { jsonrpc: '2.0', id: 1, result: null } });
 		await Promise.resolve();
-		assert.deepStrictEqual({ edits, settled }, { edits: 0, settled: false });
+		assert.deepStrictEqual({ comments, settled }, { comments: 0, settled: false });
 		finish();
 		await pending;
 	});
@@ -314,32 +309,6 @@ suite('Markdown editor RPC', () => {
 		await assert.rejects(transport.send(message), /rejected RPC message/);
 		transport.dispose();
 		await assert.rejects(transport.send(message), /disposed/);
-	});
-
-	test('preserves edit enqueue order and the history drain barrier across RPC', async () => {
-		const events: string[] = [];
-		const queue = new RecoveringTaskQueue(async error => { throw error; }, error => { throw error; });
-		let finish!: () => void;
-		const gate = new Promise<void>(resolve => finish = resolve);
-		const { renderer } = pair({
-			edit: edit => queue.enqueue(edit.editEpoch, async () => {
-				await gate;
-				events.push(edit.text);
-			}),
-			history: async () => {
-				await queue.drain();
-				events.push('undo');
-			},
-		});
-		const client = renderer.get(markdownEditorHost);
-		const first = client.edit({ start: 0, endExclusive: 0, text: 'first', editEpoch: 0 });
-		const second = client.edit({ start: 5, endExclusive: 5, text: 'second', editEpoch: 0 });
-		const undo = client.history({ command: 'undo' });
-		finish();
-		await Promise.all([first, second, undo]);
-		queue.invalidate();
-		await client.edit({ start: 0, endExclusive: 0, text: 'stale', editEpoch: 0 });
-		assert.deepStrictEqual(events, ['first', 'second', 'undo']);
 	});
 });
 

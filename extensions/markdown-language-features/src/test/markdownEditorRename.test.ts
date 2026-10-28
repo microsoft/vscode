@@ -8,14 +8,17 @@ import * as os from 'os';
 import 'mocha';
 import * as vscode from 'vscode';
 import { MarkdownEditorRename, type MarkdownRenameApi } from '../preview/markdownEditorRename';
+import { TestEditorText } from './testEditorText';
 
 suite('Markdown editor rename', () => {
 	const prepared = { range: new vscode.Range(2, 0, 2, 6), placeholder: 'Target' };
-	const request = { requestId: 1, offset: 10, editEpoch: 0 };
+	const request = { requestId: 1, offset: 10, version: { serverRevision: 1, clientRevision: 0 } };
 
 	async function setup(overrides: Partial<MarkdownRenameApi> = {}, drain: () => Promise<void> = async () => { }) {
 		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '# Title\r\n\r\nTarget' });
-		const state = { text: '# Title\n\nTarget', editEpoch: 0, active: true };
+		const text = new TestEditorText('# Title\n\nTarget');
+		text.drain = drain;
+		const state = { active: true };
 		const calls: { uri: vscode.Uri; position: vscode.Position; name?: string }[] = [];
 		const edit = new vscode.WorkspaceEdit();
 		edit.replace(document.uri, prepared.range, 'Renamed');
@@ -26,13 +29,13 @@ suite('Markdown editor rename', () => {
 			apply: async changes => { applications++; return vscode.workspace.applyEdit(changes); },
 			...overrides,
 		};
-		const rename = new MarkdownEditorRename(document, drain, () => state, () => state.active, api);
-		return { document, state, calls, edit, rename, get applications() { return applications; } };
+		const rename = new MarkdownEditorRename(document, text, () => state.active, api);
+		return { document, text, state, calls, edit, rename, get applications() { return applications; } };
 	}
 
 	test('maps LF renderer offsets to CRLF document positions and back', async () => {
 		const test = await setup();
-		assert.deepStrictEqual(await test.rename.prepare(request), { start: 9, endExclusive: 15, placeholder: 'Target' });
+		assert.deepStrictEqual(await test.rename.prepare(request), { start: 9, endExclusive: 15, placeholder: 'Target', version: { serverRevision: 1, clientRevision: 0 } });
 		assert.deepStrictEqual(test.calls[0].position, new vscode.Position(2, 1));
 		await test.rename.rename({ requestId: 1, newName: 'Renamed' });
 		assert.deepStrictEqual(test.calls[1].position, new vscode.Position(2, 1));
@@ -41,14 +44,14 @@ suite('Markdown editor rename', () => {
 		await assert.rejects(test.rename.rename({ requestId: 1, newName: 'Again' }), /Start rename again/);
 	});
 
-	test('drains accepted edits before preparing and rejects stale epochs or offsets', async () => {
+	test('drains accepted edits before preparing and rejects stale versions or offsets', async () => {
 		const drained = Promise.withResolvers<void>();
 		const test = await setup({}, () => drained.promise);
 		const result = test.rename.prepare(request);
 		assert.strictEqual(test.calls.length, 0);
 		drained.resolve();
 		await result;
-		await assert.rejects(test.rename.prepare({ ...request, editEpoch: 1 }), /document changed/);
+		await assert.rejects(test.rename.prepare({ ...request, version: { serverRevision: 2, clientRevision: 0 } }), /document changed/);
 		await assert.rejects(test.rename.prepare({ ...request, offset: 100 }), /document changed/);
 		assert.strictEqual(test.calls.length, 1);
 	});
@@ -91,7 +94,7 @@ suite('Markdown editor rename', () => {
 	test('rejects renamed sessions after document changes, reload, or deactivation', async () => {
 		for (const invalidate of [
 			async (test: Awaited<ReturnType<typeof setup>>) => { await vscode.workspace.applyEdit(test.edit); },
-			async (test: Awaited<ReturnType<typeof setup>>) => { test.state.editEpoch++; },
+			async (test: Awaited<ReturnType<typeof setup>>) => { test.text.change(); },
 			async (test: Awaited<ReturnType<typeof setup>>) => { test.state.active = false; },
 			async (test: Awaited<ReturnType<typeof setup>>) => { test.rename.cancel(); },
 		]) {

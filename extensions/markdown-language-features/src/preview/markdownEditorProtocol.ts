@@ -8,10 +8,16 @@ import * as z from 'zod/mini';
 
 const offset = z.int().check(z.nonnegative());
 const range = z.object({ start: offset, endExclusive: offset });
+/**
+ * Identifies the text that offsets refer to, as the `ContentVersion` of the
+ * `@vscode/web-editors` session that syncs the text. The receiver maps the
+ * offsets into its current text, or ignores them if it cannot.
+ */
+const version = z.object({ serverRevision: offset, clientRevision: offset });
 const editorConfiguration = z.object({ highlightActiveBlock: z.boolean() });
 const selection = z.object({ anchor: offset, active: offset });
 export const navigationState = z.object({
-	editEpoch: offset,
+	version,
 	revision: offset,
 	selection: z.optional(selection),
 	scrollTop: z.number().check(z.nonnegative()),
@@ -118,54 +124,54 @@ const runtime = z.object({ runtimeId: z.string() });
 const runtimeMessage = z.extend(runtime, { message: z.unknown() });
 
 export const markdownEditorHost = defineInterface({ id: 'markdown.editor.host' }, {
-	ready: requestType(z.object({ documentVersion: offset, editEpoch: offset }), z.void()),
-	edit: requestType(z.extend(range, { text: z.string(), editEpoch: offset }), z.void()),
+	ready: requestType(z.object({}), z.void()),
 	history: requestType(z.object({ command: z.enum(['undo', 'redo']) }), z.void()),
 	openLink: requestType(z.object({ href: z.string() }), z.void()),
 	setReadonly: requestType(z.object({ readonly: z.boolean() }), z.void()),
 	editorFocusChanged: requestType(z.object({ focused: z.boolean() }), z.void()),
-	selectionChanged: requestType(z.object({ editEpoch: offset, selection: z.optional(selection) }), z.void()),
+	selectionChanged: requestType(z.object({ version, selection: z.optional(selection) }), z.void()),
 	richLinkSubscriptions: notificationType(richLinkSubscriptions),
 	resolveCodeBlockEditor: requestType(z.object({ providerId: z.string(), language: z.string() }), z.object({ descriptor: z.optional(resolvedCodeBlockEditor) })),
 	createCodeBlockEditorHostTransport: requestType(z.extend(runtime, { providerId: z.string(), runtimeKey: z.string() }), z.void()),
 	codeBlockEditorHostTransportMessage: requestType(runtimeMessage, z.void()),
 	disposeCodeBlockEditorHostTransport: requestType(runtime, z.void()),
 	codeBlockEditorDiagnostic: notificationType(z.object({ message: z.string() })),
-	addComment: requestType(z.extend(range, { text: z.string() }), z.void()),
+	addComment: requestType(z.extend(range, { text: z.string(), version }), z.void()),
 	deleteComment: requestType(z.object({ id: z.string() }), z.void()),
 	highlight: requestType(z.object({ source: z.string(), languageId: z.string() }), highlightResult),
-	prepareRename: requestType(z.object({ requestId: offset, offset, editEpoch: offset }), z.extend(range, { placeholder: z.string() })),
+	prepareRename: requestType(z.object({ requestId: offset, offset, version }), z.extend(range, { placeholder: z.string(), version })),
 	rename: requestType(z.object({ requestId: offset, newName: z.string() }), z.void()),
 	cancelRename: requestType(z.object({ requestId: offset }), z.void()),
-	getDiagnostics: requestType(z.object({}), z.object({ editEpoch: offset, items: z.array(diagnostic) })),
-	completions: requestType(z.object({ requestId: offset, offset, editEpoch: offset, automatic: z.boolean() }), z.object({ items: z.array(completion), incomplete: z.boolean() })),
-	acceptCompletion: requestType(z.object({ requestId: offset, id: z.string() }), z.object({ offset: z.optional(offset), editEpoch: offset, retrigger: z.boolean(), warning: z.optional(z.string()) })),
+	getDiagnostics: requestType(z.object({}), z.object({ version: z.optional(version), items: z.array(diagnostic) })),
+	completions: requestType(z.object({ requestId: offset, offset, version, automatic: z.boolean() }), z.object({ items: z.array(completion), incomplete: z.boolean() })),
+	acceptCompletion: requestType(z.object({ requestId: offset, id: z.string() }), z.object({ offset: z.optional(offset), version: z.optional(version), retrigger: z.boolean(), warning: z.optional(z.string()) })),
 	cancelCompletions: requestType(z.object({ requestId: offset }), z.void()),
 	pasteImages: requestType(z.extend(range, {
-		editEpoch: offset,
+		version,
 		images: z.array(z.object({ id: z.string(), name: z.string(), mime: z.string(), size: offset })),
-	}), z.object({ offset: z.optional(offset), editEpoch: offset })),
+	}), z.object({ offset: z.optional(offset), version: z.optional(version) })),
 });
 
 export const markdownEditorRenderer = defineInterface({ id: 'markdown.editor.renderer' }, {
 	readClipboardMedia: requestType(z.object({ id: z.string(), offset, length: offset }), z.object({ base64: z.string() })),
 	configurationChanged: notificationType(editorConfiguration),
 	diagnosticsChanged: requestType(z.object({}), z.void()),
-	update: requestType(z.object({ content: z.string(), editEpoch: offset }), z.void()),
 	codeBlockEditorProviders: notificationType(z.object({ codeBlockEditorProviders: z.readonly(z.array(codeBlockEditorProvider)) })),
 	codeBlockEditorHostTransportMessage: requestType(runtimeMessage, z.void()),
 	gutterMarkers: notificationType(z.object({
+		version,
 		markers: z.readonly(z.array(z.extend(range, { type: z.enum(['added', 'modified', 'deleted']) }))),
 	})),
 	comments: notificationType(z.object({
+		version,
 		comments: z.readonly(z.array(z.extend(range, { id: z.string(), body: z.string(), author: z.optional(z.string()) }))),
 		acceptsComments: z.boolean(),
 	})),
 	revealComment: notificationType(z.object({ id: z.string() })),
-	revealLinkTarget: requestType(z.extend(range, { selectionStart: offset }), z.void()),
+	revealLinkTarget: requestType(z.extend(range, { selectionStart: offset, version }), z.void()),
 	captureNavigationState: requestType(z.object({}), navigationState),
 	revealRange: requestType(z.extend(range, {
-		editEpoch: offset,
+		version,
 		revision: offset,
 		selection: z.optional(selection),
 		preserveFocus: z.boolean(),
@@ -178,6 +184,7 @@ export const markdownEditorRenderer = defineInterface({ id: 'markdown.editor.ren
 
 export type MarkdownEditorHost = InterfaceClient<typeof markdownEditorHost>;
 export type MarkdownEditorRenderer = InterfaceClient<typeof markdownEditorRenderer>;
+export type MarkdownEditorVersion = z.infer<typeof version>;
 export type MarkdownEditorConfiguration = z.infer<typeof editorConfiguration>;
 export type CodeBlockEditorProviderDefinition = z.infer<typeof codeBlockEditorProvider>;
 export type ResolvedCodeBlockEditor = z.infer<typeof resolvedCodeBlockEditor>;

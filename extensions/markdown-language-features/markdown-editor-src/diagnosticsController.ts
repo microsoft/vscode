@@ -7,6 +7,7 @@ import { EditorModel, EditorView, OffsetRange } from '@vscode/markdown-editor';
 import { Disposable, autorun, observableValue } from '@vscode/observables';
 import type { MarkdownDiagnostic, MarkdownEditorHost } from '../src/preview/markdownEditorProtocol';
 import { DiagnosticHover } from './diagnosticHover';
+import type { EditorTextVersions } from './editorTextVersions';
 import './languageFeatures.css';
 
 export class DiagnosticsController extends Disposable {
@@ -15,7 +16,7 @@ export class DiagnosticsController extends Disposable {
 	#disposed = false;
 	readonly #refresh: () => Promise<void>;
 
-	constructor(editor: EditorModel, view: EditorView, host: MarkdownEditorHost, epoch: () => number) {
+	constructor(editor: EditorModel, view: EditorView, host: MarkdownEditorHost, versions: EditorTextVersions) {
 		super();
 		const layer = document.createElement('div');
 		layer.className = 'md-diagnostics-layer';
@@ -33,7 +34,7 @@ export class DiagnosticsController extends Disposable {
 			const source = editor.sourceText.get().value;
 			try {
 				const result = await host.getDiagnostics({});
-				if (this.#disposed || request !== this.#request || source !== editor.sourceText.get().value || epoch() !== result.editEpoch) { return; }
+				if (this.#disposed || request !== this.#request || source !== editor.sourceText.get().value || !versions.isCurrent(result.version)) { return; }
 				this.#items.set(result.items, undefined);
 				status.hidden = true;
 			} catch (error) {
