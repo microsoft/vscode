@@ -29,7 +29,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSection, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplaceCursor, ICustomizationMarketplacePage, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceError, ICustomizationMarketplaceSourceInfo } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSection, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplaceCursor, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceError, ICustomizationMarketplaceSourceInfo } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -72,6 +72,8 @@ const catalogPageSize = 24;
 const canvasCatalogPageSize = 50;
 const browseCatalogPageSize = 100;
 const maxFilteredCatalogPagesPerLoad = 8;
+/** Bounds how many pages an in-place refresh re-fetches to restore the results the user had loaded. */
+const maxRefreshCatalogPages = 20;
 const leadingBrowseItemCount = 4;
 const loadingAnnouncementDelay = 1000;
 
@@ -185,7 +187,12 @@ interface ICatalogDiscoveryItem {
 	readonly alternativeExpanded?: boolean;
 }
 
-type DiscoveryListEntry = IInstalledDiscoveryItem | ICatalogDiscoveryItem | { readonly kind: 'loading'; readonly id: 'loading' };
+type DiscoveryListEntry = (IInstalledDiscoveryItem | ICatalogDiscoveryItem | { readonly kind: 'loading'; readonly id: 'loading' }) & {
+	// Snapshot action state so unchanged rows can be retained without leaving stale buttons.
+	readonly installationState?: CustomizationMarketplaceInstallState;
+	readonly uninstalling?: boolean;
+	readonly installError?: string;
+};
 type LinkedConnectionRole = 'connector' | 'alternative';
 
 interface IPrioritizedMarketplaceResource {
@@ -297,7 +304,10 @@ function normalizedName(value: string): string {
 	return value.trim().toLowerCase();
 }
 
-function installationStatesEqual(a: CustomizationMarketplaceInstallState, b: CustomizationMarketplaceInstallState): boolean {
+function installationStatesEqual(a: CustomizationMarketplaceInstallState | undefined, b: CustomizationMarketplaceInstallState | undefined): boolean {
+	if (!a || !b) {
+		return a === b;
+	}
 	if (a.kind === 'unavailable' && b.kind === 'unavailable') {
 		return a.message === b.message && isEqual(a.setupUrl, b.setupUrl);
 	}
@@ -310,6 +320,18 @@ function installationStatesEqual(a: CustomizationMarketplaceInstallState, b: Cus
 		);
 	}
 	return structuralEquals(a, b);
+}
+
+function discoveryListEntriesEqual(a: DiscoveryListEntry, b: DiscoveryListEntry): boolean {
+	const { installationState: aState, ...aItem } = a;
+	const { installationState: bState, ...bItem } = b;
+	if (!installationStatesEqual(aState, bState)) {
+		return false;
+	}
+	if (aItem.kind === 'installed' && bItem.kind === 'installed') {
+		return isEqual(aItem.uri, bItem.uri) && structuralEquals({ ...aItem, uri: undefined }, { ...bItem, uri: undefined });
+	}
+	return structuralEquals(aItem, bItem);
 }
 
 function hasInstallationTarget(state: CustomizationMarketplaceInstallState): state is Extract<CustomizationMarketplaceInstallState, { target: CustomizationMarketplaceInstallationTarget }> {
@@ -900,11 +922,25 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private readonly pendingDirectUninstalls = new Set<string>();
 	private readonly expandedAlternatives = new Set<string>();
 	private forceMarketplaceRefresh = false;
+	private clearMarketplaceResults = false;
+	/** Sources named by pending forced refreshes; `undefined` when any source may have changed. */
+	private changedMarketplaceSourceIds: Set<string> | undefined = new Set();
+	/** Number of catalog results to restore when an in-place background refresh reloads the current query. */
+	private refreshDepth: number | undefined;
 	private readonly marketplaceRefreshScheduler = this._register(new RunOnceScheduler(() => {
 		const force = this.forceMarketplaceRefresh;
+		const clearResults = this.clearMarketplaceResults;
+		const changedSourceIds = this.changedMarketplaceSourceIds;
 		this.forceMarketplaceRefresh = false;
+		this.clearMarketplaceResults = false;
+		this.changedMarketplaceSourceIds = new Set();
+		const selectedSourceId = this.selectedSourceId;
 		this.updateSources();
-		this.handleAvailabilityChanged(force);
+		const affectsCurrentView = force && (selectedSourceId !== this.selectedSourceId || this.isCurrentViewAffectedBySources(changedSourceIds));
+		if (force && !affectsCurrentView && changedSourceIds) {
+			this.invalidateBrowseCatalogCache(changedSourceIds);
+		}
+		this.handleAvailabilityChanged(affectsCurrentView, !clearResults);
 	}, 0));
 	private query = CustomizationDiscoveryQuery.parse('');
 	private installedItems: readonly IInstalledDiscoveryItem[] = [];
@@ -1121,9 +1157,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				this.render();
 			}
 		}));
-		this._register(this.themeService.onDidColorThemeChange(() => this.render()));
+		this._register(this.themeService.onDidColorThemeChange(() => this.render(false)));
 		if (this.marketplaceService.onDidChangeSources) {
-			this._register(this.marketplaceService.onDidChangeSources(() => this.scheduleMarketplaceRefresh(true)));
+			this._register(this.marketplaceService.onDidChangeSources(event => this.scheduleMarketplaceRefresh(true, false, event.sourceIds)));
 		}
 		this._register(this.entitlementService.onDidChangeSentiment(() => this.handleAvailabilityChanged()));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
@@ -1142,9 +1178,31 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}));
 	}
 
-	private scheduleMarketplaceRefresh(force: boolean): void {
+	private scheduleMarketplaceRefresh(force: boolean, clearResults = true, sourceIds?: readonly string[]): void {
 		this.forceMarketplaceRefresh ||= force;
+		this.clearMarketplaceResults ||= clearResults;
+		if (force) {
+			if (sourceIds) {
+				for (const sourceId of sourceIds) {
+					this.changedMarketplaceSourceIds?.add(sourceId);
+				}
+			} else {
+				this.changedMarketplaceSourceIds = undefined;
+			}
+		}
 		this.marketplaceRefreshScheduler.schedule();
+	}
+
+	private isCurrentViewAffectedBySources(sourceIds: ReadonlySet<string> | undefined): boolean {
+		return !sourceIds || this.getCurrentQuerySources().some(source => sourceIds.has(source.id));
+	}
+
+	/** Drops cached Browse results that include the changed sources so they reload when shown again. */
+	private invalidateBrowseCatalogCache(sourceIds: ReadonlySet<string>): void {
+		this.browseCatalogCache.delete('');
+		for (const sourceId of sourceIds) {
+			this.browseCatalogCache.delete(sourceId);
+		}
 	}
 
 	private updateSources(): void {
@@ -1318,6 +1376,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	private resetCatalogState(): void {
 		this.installErrors.clear();
+		this.refreshDepth = undefined;
 		const cached = this.query.isEmpty() ? this.browseCatalogCache.get(this.selectedSourceId ?? '') : undefined;
 		this.catalogPage = cached?.page;
 		if (cached) {
@@ -1405,20 +1464,27 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.searchToolbar.setActions(actions);
 	}
 
-	private handleAvailabilityChanged(force = false): void {
+	private handleAvailabilityChanged(force = false, preserveResults = false): void {
 		const enabledSourceIds = this.getEnabledCatalogSourceIds();
-		if (!force && equals(this.enabledSourceIds, enabledSourceIds)) {
+		const sameSources = equals(this.enabledSourceIds, enabledSourceIds);
+		if (!force && sameSources) {
 			return;
 		}
 		this.enabledSourceIds = enabledSourceIds;
 		this.searchScheduler.cancel();
 		this.cancelCatalogRequest();
+		const preserveDisplayedResults = preserveResults && sameSources;
+		this.refreshDepth = preserveDisplayedResults
+			? Math.max(this.refreshDepth ?? 0, this.catalogPage?.items.length ?? 0) || undefined
+			: undefined;
 		this.catalogPage = undefined;
 		this.browseCatalogCache.clear();
-		this.catalogItems = [];
-		this.curatedSections = undefined;
-		this.curatedSourceId = undefined;
-		this.sourceSections = [];
+		if (!preserveDisplayedResults) {
+			this.catalogItems = [];
+			this.curatedSections = undefined;
+			this.curatedSourceId = undefined;
+			this.sourceSections = [];
+		}
 		this.curatedSourceError = undefined;
 		this.loaded = false;
 		this.errorMessage = undefined;
@@ -1806,6 +1872,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				onUnexpectedError(error);
 			}
 		}
+		if (!token.isCancellationRequested) {
+			this.sourceSections = sections;
+		}
 	}
 
 	private cacheBrowseCatalog(): void {
@@ -1828,6 +1897,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}
 		const loadingContinuation = append;
 		const browseRequest = !append && this.query.isEmpty();
+		const refreshDepth = append ? undefined : this.refreshDepth;
+		// Keep the displayed results until the refreshed results are complete; partial progress would shrink the list.
+		const refreshingInPlace = refreshDepth !== undefined && this.catalogItems.length > 0;
 		const sequence = ++this.requestSequence;
 		this.cancelCatalogRequest();
 		const request = new CancellationTokenSource();
@@ -1862,13 +1934,13 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 						? { sourceId: progress.result.sourceId, message: progress.result.error }
 						: undefined;
 					this.noteBrowseFirstContent();
-					this.render(false);
+					this.render();
 				})
 				: undefined;
 			const sourceSectionsPromise = browseSectionsPromise && !this.selectedSourceId
 				? this.loadSourceSections(request.token, browseSectionsPromise, () => {
 					if (sequence === this.requestSequence && !request.token.isCancellationRequested) {
-						this.render(false);
+						this.render();
 					}
 				})
 				: undefined;
@@ -1877,26 +1949,32 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				const backfill = !this.query.isEmpty() && this.query.types.size > 0
 					&& (getCatalogMediaType(this.query.types) === undefined || this.query.types.has('canvas'));
 				const exhaustCanvasPages = this.isBlankCanvasBrowse();
+				const getCatalogQuery = (cursor: ICustomizationMarketplaceCursor | undefined): ICustomizationMarketplaceQuery => ({
+					query: this.query.text || undefined,
+					mediaType: getCatalogMediaType(this.query.types),
+					sourceIds: this.selectedSourceId ? [this.selectedSourceId] : undefined,
+					pageSize: exhaustCanvasPages ? canvasCatalogPageSize : this.query.isEmpty() && !this.selectedSourceId ? browseCatalogPageSize : catalogPageSize,
+					cursor,
+				});
+				const onProgress: CustomizationMarketplaceQueryProgressCallback | undefined = browseRequest ? progress => {
+					if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
+						return;
+					}
+					this.catalogLoadProgress = {
+						completed: progress.completedSourceIds.length,
+						total: progress.totalSourceCount,
+						cached: progress.cachedSourceIds.length,
+					};
+					if (!refreshingInPlace && (progress.page.items.length > 0 || this.catalogItems.length === 0)) {
+						this.updateCatalogPage(progress.page, false, !this.selectedSourceId);
+					}
+					this.render();
+				} : undefined;
 				let hasMatchingCatalogItem = false;
 				for (let pageCount = 0; pageCount < (backfill ? maxFilteredCatalogPagesPerLoad : 1); pageCount++) {
-					const page = await this.marketplaceService.query({
-						query: this.query.text || undefined,
-						mediaType: getCatalogMediaType(this.query.types),
-						sourceIds: this.selectedSourceId ? [this.selectedSourceId] : undefined,
-						pageSize: exhaustCanvasPages ? canvasCatalogPageSize : this.query.isEmpty() && !this.selectedSourceId ? browseCatalogPageSize : catalogPageSize,
-						cursor: append ? this.catalogPage?.nextCursor : undefined,
-					}, request.token, browseRequest ? progress => {
-						if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
-							return;
-						}
-						this.catalogLoadProgress = {
-							completed: progress.completedSourceIds.length,
-							total: progress.totalSourceCount,
-							cached: progress.cachedSourceIds.length,
-						};
-						this.updateCatalogPage(progress.page, false, !this.selectedSourceId);
-						this.render(false);
-					} : undefined);
+					const page = pageCount === 0 && refreshDepth !== undefined
+						? await this.queryCatalogToDepth(getCatalogQuery, refreshDepth, request.token, onProgress)
+						: await this.marketplaceService.query(getCatalogQuery(append ? this.catalogPage?.nextCursor : undefined), request.token, onProgress);
 					if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
 						return;
 					}
@@ -1931,7 +2009,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			if (browseSectionsPromise) {
 				this.loaded = true;
 				this.errorMessage = catalogError ? getErrorMessage(catalogError) : undefined;
-				this.render(false);
+				this.render();
 				this.logBrowseRendered();
 				const outcome = await browseSectionsPromise;
 				if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
@@ -1953,6 +2031,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			}
 			this.loaded = true;
 			this.errorMessage = catalogError ? getErrorMessage(catalogError) : undefined;
+			if (!catalogError) {
+				this.refreshDepth = undefined;
+			}
 			this.cacheBrowseCatalog();
 			this.logBrowseRendered();
 		} catch (error) {
@@ -1970,9 +2051,33 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				this.resetLoadingAnnouncement();
 				this.loading = false;
 				this.request.clear();
-				this.render(this.loadingMore);
+				this.render();
 			}
 		}
+	}
+
+	/**
+	 * Queries the first catalog page and requests continuation pages until at least `depth` results are
+	 * loaded, so an in-place refresh restores the results the user had already scrolled to in one update.
+	 */
+	private async queryCatalogToDepth(
+		getQuery: (cursor: ICustomizationMarketplaceCursor | undefined) => ICustomizationMarketplaceQuery,
+		depth: number,
+		token: CancellationToken,
+		onProgress: CustomizationMarketplaceQueryProgressCallback | undefined,
+	): Promise<ICustomizationMarketplacePage> {
+		let page = await this.marketplaceService.query(getQuery(undefined), token, onProgress);
+		for (let pageCount = 1; page.nextCursor && page.items.length < depth && pageCount < maxRefreshCatalogPages && !token.isCancellationRequested; pageCount++) {
+			const next = await this.marketplaceService.query(getQuery(page.nextCursor), token);
+			const sourceErrors = new Map([...page.sourceErrors ?? [], ...next.sourceErrors ?? []].map(error => [error.sourceId, error]));
+			page = {
+				items: [...page.items, ...next.items],
+				total: next.total ?? page.total,
+				nextCursor: next.nextCursor,
+				sourceErrors: sourceErrors.size ? [...sourceErrors.values()] : undefined,
+			};
+		}
+		return page;
 	}
 
 	private logBrowseRendered(): void {
@@ -2035,7 +2140,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			|| this.filteredBackfillLimitReached && this.hasNextCatalogPage() && !this.hasMatchingCatalogItems());
 	}
 
-	private render(preserveResults = false): void {
+	private render(preserveResults = true): void {
 		const sourceErrors = [...this.catalogPage?.sourceErrors ?? []];
 		if (this.curatedSourceError && !sourceErrors.some(error => error.sourceId === this.curatedSourceError?.sourceId)) {
 			sourceErrors.push(this.curatedSourceError);
@@ -2187,18 +2292,34 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const unmatchedInstalled = this.selectedSourceId && !this.query.installed
 			? []
 			: installed.filter((_, index) => !consumedInstalledIndices.has(index));
-		const entries: DiscoveryListEntry[] = [...unmatchedInstalled, ...marketplaceEntries];
+		const entries: DiscoveryListEntry[] = [...unmatchedInstalled, ...marketplaceEntries].map(entry => {
+			const resource = entry.kind === 'available' ? entry.resource : entry.catalogResource;
+			return {
+				...entry,
+				installationState: resource ? this.getInstallState(resource) : undefined,
+				uninstalling: entry.kind === 'installed' && this.pendingDirectUninstalls.has(entry.id),
+				installError: resource ? this.installErrors.get(getCustomizationMarketplaceResourceKey(resource)) : undefined,
+			};
+		});
 		const resultCount = entries.length;
 		if (this.isLoadingMore() && resultCount > 0) {
 			entries.push({ kind: 'loading', id: 'loading' });
 		}
 		let start = 0;
+		let end = this.resultList.length;
+		let newEnd = entries.length;
 		if (preserveResults) {
-			while (start < this.resultList.length && start < entries.length && structuralEquals(this.resultList.element(start), entries[start])) {
+			while (start < this.resultList.length && start < entries.length && discoveryListEntriesEqual(this.resultList.element(start), entries[start])) {
 				start++;
 			}
+			while (end > start && newEnd > start && discoveryListEntriesEqual(this.resultList.element(end - 1), entries[newEnd - 1])) {
+				end--;
+				newEnd--;
+			}
 		}
-		this.resultList.splice(start, this.resultList.length - start, entries.slice(start));
+		if (start !== end || start !== newEnd) {
+			this.resultList.splice(start, end - start, entries.slice(start, newEnd));
+		}
 
 		const installError = this.installErrors.values().next().value;
 		const catalogPending = this.isCatalogPending();

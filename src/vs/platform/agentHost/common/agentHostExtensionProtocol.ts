@@ -80,7 +80,7 @@ export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifac
 export const StopBackgroundWorkExtensionMethod = 'vscode/stopBackgroundWork';
 export const MeasureWorktreeDiskUsageExtensionMethod = 'vscode/measureWorktreeDiskUsage';
 export const CancelWorktreeDiskUsageExtensionMethod = 'vscode/cancelWorktreeDiskUsage';
-export const measureWorktreeDiskUsageParamsValidator = vObj({ uri: vString(), requestId: vString() });
+export const measureWorktreeDiskUsageParamsValidator = vObj({ uri: vString(), requestId: vString(), session: vOptionalProp(vString()) });
 export const cancelWorktreeDiskUsageParamsValidator = vObj({ requestId: vString() });
 export const ImportSessionExtensionMethod = 'vscode/importSession';
 /**

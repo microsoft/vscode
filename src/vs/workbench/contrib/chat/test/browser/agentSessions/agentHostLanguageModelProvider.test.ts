@@ -396,12 +396,26 @@ suite('AgentHostLanguageModelProvider', () => {
 			malformed: [await fusionOf({ 'vscode.chat.fusion': true }), await fusionOf({ 'vscode.chat.fusion': 'fusion' })],
 		}, {
 			models: [
-				{ name: 'Copilot Fusion', fusion: true, detail: undefined, tooltip: 'Copilot Fusion selects a single model or orchestrates multiple models to complete your task. [Learn more](https://docs.github.com/en/early-access/copilot/hydrafusion)' },
+				{ name: 'Copilot Fusion', fusion: true, detail: undefined, tooltip: 'Copilot Fusion selects a single model or orchestrates multiple models to complete your task. [Learn more](https://aka.ms/vscode-copilot-fusion)' },
 				{ name: 'gpt-5', fusion: undefined, detail: undefined, tooltip: undefined },
 			],
 			plain: undefined,
 			malformed: [undefined, undefined],
 		});
+	});
+
+	test('carries the tier Fusion\'s host pins for inline chat, only on Fusion and only when well-formed', async () => {
+		const inlineTierOf = async (id: string, meta: Record<string, unknown> | undefined) => {
+			const host = createProvider();
+			host.updateModels([makeModel(id, meta)]);
+			return (await host.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata.autoModelFusionInlineChatTier;
+		};
+		assert.deepStrictEqual({
+			pinned: await inlineTierOf('auto', withAgentModelFusionMeta(undefined, 'fast')),
+			notPinned: await inlineTierOf('auto', withAgentModelFusionMeta(undefined)),
+			notAuto: await inlineTierOf('gpt-5', withAgentModelFusionMeta(undefined, 'fast')),
+			malformed: await inlineTierOf('auto', { 'vscode.chat.fusion': { inlineChatTier: 1 } }),
+		}, { pinned: 'fast', notPinned: undefined, notAuto: undefined, malformed: undefined });
 	});
 
 	test('lists the provider\'s unavailable Auto tiers as disabled entries in the provider\'s order', async () => {

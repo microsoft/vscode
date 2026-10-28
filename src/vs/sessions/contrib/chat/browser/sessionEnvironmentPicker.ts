@@ -253,7 +253,7 @@ export class SessionEnvironmentPicker extends Disposable {
 					{ kind: ActionListItemKind.Separator, label: '' },
 					{
 						kind: ActionListItemKind.Action,
-						label: localize('environmentPicker.manage', "Manage..."),
+						label: localize('environmentPicker.manage', "Manage Remote Environments..."),
 						group: { title: '', icon: Codicon.settingsGear },
 						item: { run: async () => { await this.commandService.executeCommand(OPEN_REMOTES_EDITOR_COMMAND_ID); } },
 					},

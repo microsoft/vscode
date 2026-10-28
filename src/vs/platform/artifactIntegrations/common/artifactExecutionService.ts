@@ -16,7 +16,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { ArtifactAction, ArtifactActor, ArtifactAutomationOption, ArtifactAutomationRequest, ArtifactContributionView, ArtifactDetails, ArtifactRecord, ArtifactRequestPresentation, ArtifactRun, IArtifactActionContext, IArtifactIntegrationBinding, artifactOptionDisabledValue, getArtifactActionAvailability, getArtifactRunInitiator, isArtifactOptionEnabled, isArtifactRunSettled } from './artifactIntegration.js';
+import { ArtifactAction, ArtifactActionRejectedError, ArtifactActor, ArtifactAutomationOption, ArtifactAutomationRequest, ArtifactContributionView, ArtifactDetails, ArtifactRecord, ArtifactRequestPresentation, ArtifactRun, IArtifactActionContext, IArtifactIntegrationBinding, artifactOptionDisabledValue, getArtifactActionAvailability, getArtifactRunInitiator, isArtifactOptionEnabled, isArtifactRunSettled } from './artifactIntegration.js';
 import { artifactActionConsent, artifactOptionConsent } from './artifactAutomationConfiguration.js';
 import { ArtifactConfigurationConflictError, ArtifactIntegrationState, ArtifactIntegrationStore, ArtifactRetryLimitError, ArtifactStoredBinding } from './artifactIntegrationStore.js';
 import { isArtifactJsonValue } from './artifactIntegrationValidation.js';
@@ -368,7 +368,8 @@ export class ArtifactExecutionService extends Disposable {
 		} catch (error) {
 			run = this.getRun(runId);
 			if (!isArtifactRunSettled(run) && this.runtime.isOwner()) {
-				await this.updateRun(runId, { state: run.dispatched ? 'interrupted' : 'failed', indeterminate: run.dispatched, reason: toErrorMessage(error) });
+				const uncertain = run.dispatched && !(error instanceof ArtifactActionRejectedError);
+				await this.updateRun(runId, { state: uncertain ? 'interrupted' : 'failed', indeterminate: uncertain, reason: toErrorMessage(error) });
 			}
 			this.logService.error('[ArtifactIntegrations] Action failed', error);
 		} finally {

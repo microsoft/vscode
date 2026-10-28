@@ -792,6 +792,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 						status: item.status ?? AgentSessionStatus.Completed,
 						statusKnown: item.status !== undefined,
 						archived: item.archived,
+						canArchive: item.canArchive,
 						providerIsRead: shouldKeepOpenSessionRead ? true : item.isRead,
 						timing: item.timing,
 						changes: normalizedChanges,

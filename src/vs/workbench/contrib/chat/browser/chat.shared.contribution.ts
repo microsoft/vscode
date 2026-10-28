@@ -22,11 +22,11 @@ import { AccessibleViewRegistry } from '../../../../platform/accessibility/brows
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, CopilotTgrepEnabledSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { dynamicAutoTiersConfigurationProperties } from '../../../../platform/agentHost/common/dynamicAutoTiersConfiguration.js';
 import { imageGenerationConfigurationProperties } from '../../../../platform/agentHost/common/imageGenerationConfiguration.js';
 import { getLocalModelSafetyDisclosure, LOCAL_MODEL_MIN_GPU_MEMORY_GB_PLACEHOLDER, LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId, LocalModelUseInAutoSettingId } from '../../../../platform/agentHost/common/localModel.js';
@@ -38,7 +38,6 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { CustomizationMarketplaceConfiguration } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -198,6 +197,7 @@ import { ChatLayoutService } from './widget/chatLayoutService.js';
 import './widget/input/chatInputNoticeHub.js';
 import './widget/input/chatInputNotificationService.js';
 import { ChatInputBoxContentProvider } from './widget/input/editor/chatEditorInputContentProvider.js';
+import { ChatInputSessionLinkProvider } from './widget/input/editor/chatInputSessionLinkProvider.js';
 import { ChatEditor, IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput, ChatEditorInputSerializer } from './widgetHosts/editor/chatEditorInput.js';
 
@@ -527,6 +527,12 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostShowExternalSessionsConfigKey },
+		},
+		[ChatConfiguration.OpenSessionsInEditor]: {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('chat.agentSessions.openInEditor', "Controls whether opening an agent session, from the sessions list or a session link, shows it in an editor instead of the Chat view. Like opening a file, an editor that already shows the session is revealed, and a session shown in the Chat view moves into an editor."),
+			tags: ['experimental'],
 		},
 		[ChatConfiguration.SaveBeforeSend]: {
 			type: 'boolean',
@@ -1666,14 +1672,6 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			scope: ConfigurationScope.APPLICATION,
 		},
-		[CopilotTgrepEnabledSettingId]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.copilot.tgrep.enabled', "When enabled, local Copilot Agent Host sessions use tgrep indexed search for eligible large repositories. Requires a local Git repository on a non-virtual filesystem. Changing this setting restarts the Copilot SDK client after active turns finish."),
-			default: false,
-			experiment: { mode: 'auto' },
-			tags: ['experimental', 'advanced'],
-			scope: ConfigurationScope.APPLICATION,
-		},
 		[CopilotSearchSubagentEnabledSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.copilot.searchSubagent.enabled', "When enabled, local Copilot Agent Host sessions are offered the Copilot runtime's search subagent tool for codebase search. Applies to sessions when they launch or resume."),
@@ -1764,11 +1762,10 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.copilot.hydraFusion.enabled.v2', "Make HydraFusion v2 available, which plans with per-step reasoning effort and a wider set of models."),
 				nls.localize('chat.copilot.hydraFusion.enabled.multiRoot', "Make HydraFusion v2 available and ask the service to keep reusing the previous turn's root model when it fits the next turn's workflow, which improves prompt cache reuse. Also applies to HydraFusion tiers that Auto offers."),
 			],
-			markdownDescription: nls.localize('chat.copilot.hydraFusion.enabled', "When enabled, makes the experimental HydraFusion model available to local Copilot Agent Host sessions. Changing this setting restarts the local Copilot runtime."),
-			default: 'v2',
+			markdownDescription: nls.localize('chat.copilot.hydraFusion.enabled', "When enabled, makes the HydraFusion model available to local Copilot Agent Host sessions. Changing this setting restarts the local Copilot runtime."),
+			default: 'multiRoot',
 			experiment: { mode: 'startup' },
 			scope: ConfigurationScope.APPLICATION_MACHINE,
-			tags: ['preview', 'experimental', 'advanced'],
 		},
 		...imageGenerationConfigurationProperties,
 		...dynamicAutoTiersConfigurationProperties,
@@ -1796,10 +1793,9 @@ configurationRegistry.registerConfiguration({
 		[AgentHostCopilotMemoryEnabledSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.copilot.memory.enabled', "When enabled, local Copilot Agent Host sessions can store and recall [Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory). Your [Copilot Memory settings on GitHub](https://github.com/settings/copilot/memory) and organization policies still apply. Applies to sessions created or resumed after the setting changes."),
-			default: false,
+			default: true,
 			experiment: { mode: 'auto' },
 			scope: ConfigurationScope.APPLICATION_MACHINE,
-			tags: ['preview', 'experimental'],
 		},
 		[AgentHostCopilotLocalMemoryEnabledSettingId]: {
 			type: 'boolean',
@@ -2638,15 +2634,6 @@ configurationRegistry.registerConfiguration({
 			default: false,
 		},
 		...customizationMarketplaceConfigurationProperties,
-		[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: {
-			type: 'boolean',
-			tags: ['experimental', 'advanced'],
-			description: nls.localize('chat.customizations.copilotConnectors.enabled', "Enables Copilot connectors in the unified marketplace and exposes connected connector MCP servers in Chat Customizations and Copilot agent sessions."),
-			default: false,
-			scope: ConfigurationScope.APPLICATION,
-			experiment: { mode: 'auto' },
-			agentHost: { key: AgentHostMcpConnectorsEnabledConfigKey },
-		},
 		[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],
@@ -3366,6 +3353,7 @@ AccessibleViewRegistry.register(new ChatFindAccessibilityHelp());
 AccessibleViewRegistry.register(new ChatPetAchievementsAccessibilityHelp());
 
 registerEditorFeature(ChatInputBoxContentProvider);
+registerEditorFeature(ChatInputSessionLinkProvider);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatDebugEditorInput.ID, ChatDebugEditorInputSerializer);
 

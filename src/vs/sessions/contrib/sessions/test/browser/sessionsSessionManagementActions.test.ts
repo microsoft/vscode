@@ -28,19 +28,21 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { FocusedViewContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IView } from '../../../../../workbench/common/views.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SessionActiveChatIsDeletableContext, SessionFocusedChatIsRenameTargetContext, SessionSupportsRenameContext, SessionsFocusContext } from '../../../../common/contextkeys.js';
+import { ARCHIVE_SESSION_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { SessionActiveChatIsDeletableContext, SessionFocusedChatIsRenameTargetContext, SessionIsArchivedContext, SessionSupportsRenameContext, SessionsFocusContext } from '../../../../common/contextkeys.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
-import { ISessionChatItem, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionsList, SessionsListFocusedChatItemContext } from '../../browser/views/sessionsList.js';
+import { ISessionChatItem, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionsList, SessionsListFocusedChatItemContext } from '../../browser/views/sessionsList.js';
 import { Menus } from '../../../../browser/menus.js';
-import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
 import { createTestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
@@ -159,6 +161,54 @@ suite('Sessions - Session management actions', () => {
 
 		assert.deepStrictEqual(calls, [true, false].flatMap(read =>
 			[peer, second].map(chat => ({ sessionId: parent.sessionId, chat: chat.resource.toString(), read }))));
+	});
+
+	test('shows automation sessions in the Sessions list or hides them again from their context menus', async () => {
+		const automation: ISession = { ...createTestSession('Automation').session, isAutomation: constObservable(true) };
+		const archivedAutomation: ISession = { ...createTestSession('Archived automation', { isArchived: true }).session, isAutomation: constObservable(true) };
+		const regular = createTestSession('Regular').session;
+		const calls: { readonly method: string; readonly sessionIds: readonly string[] }[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsListModelService, upcastPartial<ISessionsListModelService>({
+			showAutomationSessions: sessions => { calls.push({ method: 'show', sessionIds: sessions.map(session => session.sessionId) }); },
+			hideAutomationSessions: sessions => { calls.push({ method: 'hide', sessionIds: sessions.map(session => session.sessionId) }); },
+		}));
+		const visibleFor = (menuId: MenuId, values: Record<string, ContextKeyValue>) => MenuRegistry.getMenuItems(menuId)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID || item.command.id === HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID)
+			.filter(item => item.when?.evaluate(context(values)) ?? true)
+			.map(item => `${item.group}: ${item.command.id}`);
+		const row = { [ChatContextKeys.enabled.key]: true, [ChatAutomationsEnabledContext.key]: true, [SessionItemIsAutomationContext.key]: true, [SessionIsArchivedContext.key]: false };
+		const visibility = {
+			automationsHidden: visibleFor(Menus.AutomationsHistoryItemContext, { ...row, [SessionItemIsInSessionsListContext.key]: false }),
+			automationsShown: visibleFor(Menus.AutomationsHistoryItemContext, { ...row, [SessionItemIsInSessionsListContext.key]: true }),
+			automationsArchivedHidden: visibleFor(Menus.AutomationsHistoryItemContext, { ...row, [SessionIsArchivedContext.key]: true, [SessionItemIsInSessionsListContext.key]: false }),
+			automationsDisabled: visibleFor(Menus.AutomationsHistoryItemContext, { ...row, [ChatAutomationsEnabledContext.key]: false, [SessionItemIsInSessionsListContext.key]: false }),
+			sessionsListAutomation: visibleFor(SessionItemContextMenuId, { ...row, [SessionItemIsInSessionsListContext.key]: true }),
+			sessionsListRegular: visibleFor(SessionItemContextMenuId, { ...row, [SessionItemIsAutomationContext.key]: false, [SessionItemIsInSessionsListContext.key]: true }),
+		};
+
+		for (const commandId of [SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID]) {
+			const handler = CommandsRegistry.getCommand(commandId)?.handler;
+			assert.ok(handler);
+			await handler(instantiationService, [automation, archivedAutomation, regular]);
+			await handler(instantiationService, [regular]);
+		}
+
+		assert.deepStrictEqual({ visibility, calls }, {
+			visibility: {
+				automationsHidden: [`2_organize: ${SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID}`],
+				automationsShown: [`2_organize: ${HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID}`],
+				automationsArchivedHidden: [],
+				automationsDisabled: [],
+				sessionsListAutomation: [`2_organize: ${HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID}`],
+				sessionsListRegular: [],
+			},
+			calls: [
+				{ method: 'show', sessionIds: ['Automation'] },
+				{ method: 'hide', sessionIds: ['Automation', 'Archived automation'] },
+			],
+		});
 	});
 
 	test('nested chat context menu offers read and unread for the clicked chat only', async () => {

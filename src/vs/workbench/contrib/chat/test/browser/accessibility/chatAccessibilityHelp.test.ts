@@ -15,6 +15,27 @@ import { isResponseSelectionSupported } from '../../../browser/chat.js';
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents optional Agent placement in Add Context only on editor chat surfaces', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('editsView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
+		].map(help => help.includes('sessions.chat.experimental.agentsPickerInAttachContextMenu')
+			&& help.includes('Non-default selections remain visible in the toolbar')
+			&& help.includes('<keybinding:workbench.action.chat.openModePicker>')), [true, true, true, false, false, false]);
+	});
+
+	test('documents opening session links from the input without sending', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false);
+		assert.deepStrictEqual({
+			withoutSending: help.includes('opened without sending your message'),
+			keyboard: help.includes('<keybinding:editor.action.openLink>'),
+		}, { withoutSending: true, keyboard: true });
+	});
+
 	test('documents the shared picker and startup lock for Cloud drafts', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false);
 		assert.deepStrictEqual({
@@ -68,7 +89,7 @@ suite('Chat Accessibility Help', () => {
 			return {
 				sessionChanges: help.includes('changes across the whole session instead of showing a Changes pill'),
 				disclosure: help.includes('Enter or Space to expand or collapse it'),
-				openFile: help.includes('Up and Down Arrow to choose a file, and Enter to open it.'),
+				openFile: help.includes('Up and Down Arrow to choose a file, and Enter to open it in a regular editor at its first edit.'),
 				headingActions: help.includes('The Keep, Undo, and View All Edits buttons after the heading keep or undo the changes to every file in the working set, or open all of them in a diff editor')
 					? 'Keep, Undo, View All Edits'
 					: help.includes('The Keep and View All Edits buttons after the heading keep the changes to every file in the working set, or open all of them in a diff editor') ? 'Keep, View All Edits' : undefined,
@@ -150,6 +171,11 @@ suite('Chat Accessibility Help', () => {
 	test('documents the sandbox policy command and report link', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.ok(help.includes('use /sandbox policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
+	});
+
+	test('documents keyboard access to sandbox diagnostic actions', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.ok(help.includes('use Tab to reach Troubleshooting Guide or, when permitted, Disable Sandboxing. Press Enter or Space to activate the button.'));
 	});
 
 	test('documents the optional sandbox certificate notice and keyboard dismissal', () => {
@@ -324,12 +350,14 @@ suite('Chat Accessibility Help', () => {
 		}, { artifacts: true, conversation: true, keyboard: true, immediateResize: true });
 	});
 
-	test('documents opening and attaching images shown in responses', () => {
+	test('documents opening, attaching, and copying images shown in responses', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
-			open: help.includes('To open an image shown in a response, use Tab to focus it and press Enter or Space'),
-			attach: help.includes('choose Add File to Chat, or drag it into the chat input'),
-		}, { open: true, attach: true });
+			open: help.includes('To open a file image shown in a response, use Tab to focus it and press Enter or Space'),
+			attach: help.includes('drag it into the chat input, or use Copy Image and paste it into the input'),
+			copy: help.includes('press Shift+F10 to open its context menu, then choose Copy Image'),
+			path: help.includes('For images stored in a file, Copy Image Path copies the file path'),
+		}, { open: true, attach: true, copy: true, path: true });
 	});
 
 	test('documents the shared editor artifacts pill and its actions', () => {

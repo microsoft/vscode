@@ -12,7 +12,8 @@
     "multiDocumentHighlightProvider",
     "codeActionAI",
     "codeActionRanges",
-    "editorHoverVerbosityLevel"
+    "editorHoverVerbosityLevel",
+    "notificationTelemetry"
   ],
   "capabilities": {
     "virtualWorkspaces": {
