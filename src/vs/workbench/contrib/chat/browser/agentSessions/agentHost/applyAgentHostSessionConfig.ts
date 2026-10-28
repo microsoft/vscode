@@ -63,10 +63,13 @@ export function getAgentHostChatOwnAgent(state: SessionState, backendChat: strin
  * Whether the host publishes each chat's complete config values: only while its
  * chats may use their own agents (root `multipleChatProviders.enabled`). Older
  * hosts, and hosts with the setting off, publish the values a chat set itself, as
- * an overlay on its session's.
+ * an overlay on its session's. The host must also declare the key in its root
+ * schema: an older host keeps the value this client mirrors to it without
+ * supporting the feature.
  */
 export function hostPublishesCompleteChatConfig(rootState: RootState | Error | undefined): boolean {
-	return !!rootState && !(rootState instanceof Error) && rootState.config?.values[ChatProvidersConfigKey.Enabled] === true;
+	const config = !!rootState && !(rootState instanceof Error) ? rootState.config : undefined;
+	return !!config?.schema.properties[ChatProvidersConfigKey.Enabled] && config.values[ChatProvidersConfigKey.Enabled] === true;
 }
 
 /**

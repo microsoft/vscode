@@ -14,7 +14,7 @@ import { IAgentHostService } from '../../../../../../platform/agentHost/common/a
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { applyAgentHostSessionConfigChange, dispatchAgentHostConfigChange, getAgentHostEffectiveChatConfig, getAgentHostSessionConfig, readAgentHostChatSandboxState } from '../../../browser/agentSessions/agentHost/applyAgentHostSessionConfig.js';
+import { applyAgentHostSessionConfigChange, dispatchAgentHostConfigChange, getAgentHostEffectiveChatConfig, getAgentHostSessionConfig, hostPublishesCompleteChatConfig, readAgentHostChatSandboxState } from '../../../browser/agentSessions/agentHost/applyAgentHostSessionConfig.js';
 import { withChatSandboxState, withSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import { buildChatUri, buildDefaultChatUri, ChatOriginKind, SessionLifecycle, SessionStatus, StateComponents, type ChatState, type ChatSummary, type ComponentToState, type RootState, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -229,6 +229,12 @@ suite('Agent Host committed configuration identity', () => {
 			return writes;
 		};
 
+		const older = [
+			{ channel: main, action: { type: ActionType.ChatConfigChanged, config: { mode: 'plan', effort: 'high' } } },
+			{ channel: backendSession.toString(), action: { type: ActionType.SessionConfigChanged, config: { isolation: 'worktree' } } },
+		];
+		// An older host keeps the setting's value this client mirrors to it, but doesn't declare it.
+		assert.deepStrictEqual(write([], { [ChatProvidersConfigKey.Enabled]: true }), older);
 		assert.deepStrictEqual({ current: write([ChatProvidersConfigKey.Enabled], { [ChatProvidersConfigKey.Enabled]: true }), gateOff: write([ChatProvidersConfigKey.Enabled], { [ChatProvidersConfigKey.Enabled]: false }), older: write([]) }, {
 			// Only what a chat alone may set reaches the default chat; each property is written once.
 			current: [
@@ -245,6 +251,16 @@ suite('Agent Host committed configuration identity', () => {
 				{ channel: main, action: { type: ActionType.ChatConfigChanged, config: { mode: 'plan', effort: 'high' } } },
 				{ channel: backendSession.toString(), action: { type: ActionType.SessionConfigChanged, config: { isolation: 'worktree' } } },
 			],
+		});
+	});
+
+	test('a host publishes complete chat values only while it declares and enables chats with their own agents', () => {
+		const publishes = (declared: boolean, value: unknown) => hostPublishesCompleteChatConfig({
+			agents: [],
+			config: { schema: { type: 'object', properties: declared ? { [ChatProvidersConfigKey.Enabled]: { type: 'boolean', title: 'Enabled' } } : {} }, values: { [ChatProvidersConfigKey.Enabled]: value } },
+		});
+		assert.deepStrictEqual({ on: publishes(true, true), off: publishes(true, false), undeclaredButOn: publishes(false, true), noRoot: hostPublishesCompleteChatConfig(undefined) }, {
+			on: true, off: false, undeclaredButOn: false, noRoot: false,
 		});
 	});
 

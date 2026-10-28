@@ -417,6 +417,57 @@ suite('AgentService - chats with their own agent', () => {
 		});
 	});
 
+	test('turning chats with their own agents off republishes only the default chat\'s own values, without a write or chat events, and it follows its session again', async () => {
+		const { service } = createService(false);
+		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+		await timeout(0);
+		const stateManager = getTestAgentStateManager(service);
+		const configuration = getTestAgentServiceComposition(service).configurationService;
+		const defaultChat = stateManager.getSessionState(session.toString())!.defaultChat!;
+		configuration.updateRootConfig({ [ChatProvidersConfigKey.Enabled]: true });
+		configuration.updateSessionConfig(session.toString(), { mode: 'ask' });
+		await timeout(0);
+		await getTestSessionStateStore(service).whenIdle(undefined);
+		const storedBefore = await getTestSessionStateStore(service).chatRows.getChatConfig(session, URI.parse(defaultChat));
+		const published: unknown[] = [];
+		let chatEvents = 0;
+		const listeners = [
+			stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.channel === defaultChat && envelope.action.type === ActionType.ChatConfigChanged) {
+					published.push(envelope.action.config);
+				}
+			}),
+			configuration.onDidChatConfigChange(() => chatEvents++),
+		];
+		let off: Record<string, unknown> | undefined;
+		try {
+			configuration.updateRootConfig({ [ChatProvidersConfigKey.Enabled]: false });
+			await timeout(0);
+			await getTestSessionStateStore(service).whenIdle(undefined);
+			off = stateManager.getChatConfig(defaultChat)?.values;
+		} finally {
+			listeners.forEach(listener => listener.dispose());
+		}
+		configuration.updateSessionConfig(session.toString(), { mode: 'agent' });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			off,
+			published,
+			chatEvents,
+			stored: await getTestSessionStateStore(service).chatRows.getChatConfig(session, URI.parse(defaultChat)),
+			followsSession: configuration.getChatConfigValues({ session: session.toString(), chat: defaultChat })?.mode,
+		}, {
+			// It set nothing itself: what it took from its session is no longer published as its own.
+			off: {},
+			// Republished once, with only its own values; no chat config change is announced.
+			published: [{}],
+			chatEvents: 0,
+			stored: storedBefore,
+			followsSession: 'agent',
+		});
+	});
+
 	test('a restored session routes a chat with its own agent to that agent with its own config', async () => {
 		const { service, second } = createService(true);
 		const { session, chat } = await createSessionWithSecondChat(service);
