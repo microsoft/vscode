@@ -66,12 +66,12 @@ suite('SessionWorktreeCleanupService', () => {
 		const cleaned: IManagedSessionWorktree[] = [];
 		const service = disposables.add(createService([], true, () => { throw new Error('Must not measure ownerless storage'); },
 			undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
-				listManagedWorktrees: async () => inventory,
-				cleanupManagedWorktree: async worktree => { cleaned.push(worktree); },
-				managedWorktreeExists: async () => false,
-				onArchive: async () => { throw new Error('Must not archive a fabricated session'); },
-				dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
-			}));
+			listManagedWorktrees: async () => inventory,
+			cleanupManagedWorktree: async worktree => { cleaned.push(worktree); },
+			managedWorktreeExists: async () => false,
+			onArchive: async () => { throw new Error('Must not archive a fabricated session'); },
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+		}));
 		const worktrees = await service.getWorktrees(0, () => { });
 		await service.cleanupWorktrees(worktrees);
 		inventory = [];
@@ -86,9 +86,9 @@ suite('SessionWorktreeCleanupService', () => {
 		let inventory = [unlinked];
 		const service = disposables.add(createService([], true, () => undefined,
 			undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
-				listManagedWorktrees: async () => inventory,
-				managedWorktreeExists: async () => undefined,
-			}));
+			listManagedWorktrees: async () => inventory,
+			managedWorktreeExists: async () => undefined,
+		}));
 		const worktrees = await service.getWorktrees(0, () => { });
 		inventory = [];
 		const refreshed = await service.refreshPendingCleanup(worktrees.map(getWorktreeCleanupId), 0);
@@ -104,14 +104,14 @@ suite('SessionWorktreeCleanupService', () => {
 		let fail = true;
 		const service = disposables.add(createService([], true, () => undefined,
 			undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
-				listManagedWorktrees: async () => inventory,
-				managedWorktreeExists: async () => {
-					if (fail) {
-						throw new Error('Host disconnected');
-					}
-					return false;
-				},
-			}));
+			listManagedWorktrees: async () => inventory,
+			managedWorktreeExists: async () => {
+				if (fail) {
+					throw new Error('Host disconnected');
+				}
+				return false;
+			},
+		}));
 		const worktrees = await service.getWorktrees(0);
 		inventory = [healthy];
 		const failed = await service.refreshPendingCleanup(worktrees.map(getWorktreeCleanupId), 0);
@@ -138,15 +138,15 @@ suite('SessionWorktreeCleanupService', () => {
 			const cancellation = disposables.add(new CancellationTokenSource());
 			const service = disposables.add(createService([], true, () => undefined,
 				undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
-					listManagedWorktrees: async () => inventory,
-					managedWorktreeExists: async () => {
-						await checking.complete();
-						if (cancelToken) {
-							cancellation.cancel();
-						}
-						throw new CancellationError();
-					},
-				}));
+				listManagedWorktrees: async () => inventory,
+				managedWorktreeExists: async () => {
+					await checking.complete();
+					if (cancelToken) {
+						cancellation.cancel();
+					}
+					throw new CancellationError();
+				},
+			}));
 			const worktrees = await service.getWorktrees(0);
 			inventory = [];
 			const refresh = service.refreshPendingCleanup(worktrees.map(getWorktreeCleanupId), 0, undefined, cancellation.token);
@@ -161,8 +161,8 @@ suite('SessionWorktreeCleanupService', () => {
 		let visible: readonly string[] = [];
 		const service = disposables.add(createService([createSession('linked', oldDate())], true, () => measurement.p,
 			undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
-				listManagedWorktrees: async () => [unlinked],
-			}));
+			listManagedWorktrees: async () => [unlinked],
+		}));
 		const loading = service.getWorktrees(0, worktrees => { visible = worktrees.map(getWorktreeCleanupId); });
 		try {
 			await timeout(0);
