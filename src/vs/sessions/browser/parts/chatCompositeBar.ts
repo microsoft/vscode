@@ -38,7 +38,7 @@ import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
@@ -48,6 +48,9 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
 import { getSessionToolbarSecondaryActionsPosition, getSessionChatAncestors } from './sessionHeaderBar.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
+import { HoverStyle } from '../../../base/browser/ui/hover/hover.js';
+import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -109,6 +112,8 @@ export interface IChatCompositeBarDelegate {
  */
 export class ChatCompositeBar extends Disposable {
 
+	private readonly _hoverDelegate = this._register(createInstantHoverDelegate());
+	private readonly _tabHoverLifecycleOptions = { groupId: generateUuid() };
 	private readonly _container: HTMLElement;
 	private readonly _tabsRow: HTMLElement;
 	private readonly _tabsContainer: HTMLElement;
@@ -194,6 +199,7 @@ export class ChatCompositeBar extends Disposable {
 		const sessionToolbarContainer = $('.chat-composite-bar-toolbar');
 		this._sessionActionsContainer.appendChild(sessionToolbarContainer);
 		this._sessionToolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, sessionToolbarContainer, Menus.SessionBarToolbar, {
+			hoverDelegate: this._hoverDelegate,
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
 			getSecondaryActionsPosition: getSessionToolbarSecondaryActionsPosition,
@@ -409,7 +415,7 @@ export class ChatCompositeBar extends Disposable {
 		tab.appendChild(inputContainer);
 
 		// Delayed hover showing the full chat title (useful when the title is truncated)
-		this._tabDisposables.add(this._hoverService.setupDelayedHover(tab, () => ({ content: titlePath })));
+		this._tabDisposables.add(this._hoverService.setupDelayedHover(tab, () => ({ content: titlePath, style: HoverStyle.Pointer }), this._tabHoverLifecycleOptions));
 		this._tabDisposables.add(addDisposableListener(tab, EventType.MOUSE_ENTER, () => {
 			this._connectedTabOverflowEdge.classList.toggle('connected-tab-hovered', tab.classList.contains('active'));
 		}));
@@ -463,6 +469,7 @@ export class ChatCompositeBar extends Disposable {
 			const actionsContainer = $('.chat-composite-bar-tab-actions');
 			tab.appendChild(actionsContainer);
 			tabToolbar = this._tabDisposables.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, Menus.SessionChatTab, {
+				hoverDelegate: this._hoverDelegate,
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
 				menuOptions: { args: [session, chat] },
 				toolbarOptions: { primaryGroup: () => true },
@@ -607,9 +614,26 @@ export class ChatCompositeBar extends Disposable {
 			}
 		}));
 
+		const closeAction = this._tabDisposables.add(new Action(CLOSE_CHAT_COMMAND_ID, localize('chatTab.close', "Close"), undefined, true, async () => {
+			if (session) {
+				this._cancelTabEditing();
+				await this._commandService.executeCommand(CLOSE_CHAT_COMMAND_ID, session, chat);
+			}
+		}));
+		const markReadAction = this._tabDisposables.add(new Action(MARK_SESSION_READ_COMMAND_ID, localize('chatTab.markRead', "Mark as Read"), undefined, true, async () => {
+			if (session) {
+				await this._commandService.executeCommand(MARK_SESSION_READ_COMMAND_ID, { session, chat });
+			}
+		}));
+		const markUnreadAction = this._tabDisposables.add(new Action(MARK_SESSION_UNREAD_COMMAND_ID, localize('chatTab.markUnread', "Mark as Unread"), undefined, true, async () => {
+			if (session) {
+				await this._commandService.executeCommand(MARK_SESSION_UNREAD_COMMAND_ID, { session, chat });
+			}
+		}));
+
 		// Delete permanently removes the chat (destructive). Only non-main chats
 		// can be deleted; the main chat lives and dies with its session.
-		const deleteAction = this._tabDisposables.add(new Action('sessionCompositeBar.deleteChat', localize('deleteChat', "Delete Chat"), undefined, true, async () => {
+		const deleteAction = this._tabDisposables.add(new Action('sessionCompositeBar.deleteChat', localize('deleteChat', "Delete..."), undefined, true, async () => {
 			if (delegate) {
 				await this._sessionsManagementService.deleteChat(delegate.session, chat.resource);
 			}
@@ -651,13 +675,18 @@ export class ChatCompositeBar extends Disposable {
 					const capabilities = getChatCapabilities(chat, session, undefined);
 					const provider = session && this._sessionsProvidersService.getProvider(session.providerId);
 					const canRename = isMainChat ? !!session?.capabilities.get().supportsRename : capabilities.canRename;
+					const canSetReadState = !!session && !chat.isArchived.get() && (isMainChat || session.capabilities.get().supportsIndependentChatReadState === true);
 					return Separator.join(
+						!isMainChat && session ? [closeAction] : [],
 						[
-							...(canRename ? [renameAction] : []),
+							...(canSetReadState ? [chat.isRead.get() ? markUnreadAction : markReadAction] : []),
 							...(capabilities.canArchive ? [chat.isArchived.get() ? unarchiveAction : archiveAction] : []),
 						],
-						capabilities.canDelete ? [deleteAction] : [],
 						provider && isAgentHostProvider(provider) ? [copyLinkAction] : [],
+						[
+							...(canRename ? [renameAction] : []),
+							...(capabilities.canDelete ? [deleteAction] : []),
+						],
 					);
 				},
 				getKeyBinding: action => this._keybindingService.lookupKeybinding(action.id) ?? undefined,

@@ -184,6 +184,7 @@ export interface ITerminalConfiguration {
 	showExitAlert: boolean;
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsUseConptyDll?: boolean;
+	windowsReparentConsoleWindow?: boolean;
 	wordSeparators: string;
 	enableFileLinks: 'off' | 'on' | 'notRemote';
 	allowedLinkSchemes: string[];
@@ -309,6 +310,10 @@ export interface ITerminalProcessManager extends IDisposable, ITerminalProcessIn
 	setDimensions(cols: number, rows: number, sync: false, pixelWidth?: number, pixelHeight?: number): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: true, pixelWidth?: number, pixelHeight?: number): void;
 	clearBuffer(): Promise<void>;
+	/**
+	 * Sets the window hosting the terminal so the console window is owned by it (Windows only).
+	 */
+	setParentWindow(windowId: number): Promise<void>;
 	setUnicodeVersion(version: '6' | '11'): Promise<void>;
 	setNextCommandId(commandLine: string, commandId: string): Promise<void>;
 	acknowledgeDataEvent(charCount: number): void;

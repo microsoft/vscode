@@ -798,6 +798,26 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		);
 	}));
 
+	test('does not report an idle HydraFusion phase chat as hung', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-root');
+		// A review phase's chat opens after its single call and stays idle until the root turn ends.
+		agent.fireProgress({
+			kind: 'subagent_started',
+			chat: URI.parse(defaultChatUri),
+			toolCallId: 'fusion:fusion-1:judge',
+			agentName: 'hydrafusion-phase',
+			agentDisplayName: 'Review',
+			subagentKind: 'fusionPhase',
+			model: 'gpt-6-sol',
+		});
+		await timeout(TURN_HANG_THRESHOLD_MS);
+
+		assert.deepStrictEqual(hangEvents().map(e => ({ turnId: e.data.turnId, isSubagentSession: e.data.isSubagentSession })), [
+			{ turnId: 'turn-root', isSubagentSession: false },
+		]);
+	}));
+
 	test('does not report a turn that a truncation removed from the chat', () => runWithFakedTimers({}, async () => {
 		setupSession();
 		startTurn('turn-truncated');

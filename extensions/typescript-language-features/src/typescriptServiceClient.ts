@@ -399,7 +399,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			vscode.window.showWarningMessage(getSafeNotificationMessage(
 				vscode.l10n.t("The path {0} doesn't point to a valid tsserver install. Falling back to bundled TypeScript version.", version.path),
 				vscode.l10n.t("The configured path doesn't point to a valid tsserver install. Falling back to bundled TypeScript version."),
-			));
+			), { notificationId: 'typescript.invalidServerPath' });
 
 			this._versionManager.reset();
 			version = this._versionManager.currentVersion;

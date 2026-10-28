@@ -174,7 +174,7 @@ export class ReadSessionsListTool implements IToolImpl {
 
 	private getViewState(view: SessionsView & { readonly sessionsControl: SessionsList }) {
 		const list = view.sessionsControl;
-		const filterOptions = getSessionFilterOptions(this.sessionsManagementService.getSessions(), this.sessionsProvidersService.getProviders().map(provider => provider.environment));
+		const filterOptions = getSessionFilterOptions(this.sessionsManagementService.getSessions(), this.sessionsProvidersService.getProviders().map(provider => provider.environment), session => list.isSessionListed(session));
 		return {
 			grouping: view.grouping,
 			sorting: view.sorting,
@@ -361,7 +361,7 @@ Placement follows the list's precedence: archived > pinned > custom group > ungr
 		const compact = optionalBoolean(operation, 'compact');
 		const externalSection = optionalBoolean(operation, 'externalSection');
 		const resetFilters = optionalBoolean(operation, 'resetFilters');
-		const filters = this.readFilters(operation);
+		const filters = this.readFilters(operation, list);
 
 		// Validate before changing anything, so a rejected operation changes nothing.
 		if (resetFilters) {
@@ -390,14 +390,14 @@ Placement follows the list's precedence: archived > pinned > custom group > ungr
 		}
 	}
 
-	private readFilters(operation: Record<string, unknown>): { readonly filter: SessionFilter; readonly included: boolean }[] {
+	private readFilters(operation: Record<string, unknown>, list: SessionsList): { readonly filter: SessionFilter; readonly included: boolean }[] {
 		if (operation.filters === undefined) {
 			return [];
 		}
 		if (!Array.isArray(operation.filters)) {
 			throw new SessionsListToolInputError('"filters" must be an array.');
 		}
-		const options = new Map(getSessionFilterOptions(this.sessionsManagementService.getSessions(), this.sessionsProvidersService.getProviders().map(provider => provider.environment))
+		const options = new Map(getSessionFilterOptions(this.sessionsManagementService.getSessions(), this.sessionsProvidersService.getProviders().map(provider => provider.environment), session => list.isSessionListed(session))
 			.map(option => [sessionFilterKey(option.filter), option.filter]));
 		return operation.filters.map((entry: unknown) => {
 			if (!isObject(entry)) {

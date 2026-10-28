@@ -15,6 +15,8 @@ import { canvasOwnerKey, compareCanvasDefinitions, type CanvasDefinitionSnapshot
 /** The chat whose registered canvas types a {@link CanvasDefinitionStore} lists. */
 export interface ICanvasDefinitionSource {
 	readonly owner: ICanvasOwner;
+	/** Defaults to definitions that can be opened without additional input. */
+	readonly includeDefinition?: (definition: ICanvasDefinition) => boolean;
 	/** Returns `undefined` while unsettled; `source` must re-evaluate when an authoritative snapshot is available. */
 	listCanvases(): Promise<CanvasDefinitionSnapshot>;
 }
@@ -30,12 +32,13 @@ interface ILoadedCanvasDefinitions {
 }
 
 /**
- * Lists the openable canvas types registered for one chat at a time, refreshing whenever `source` re-evaluates.
+ * Lists selected canvas types registered for one chat at a time, refreshing whenever `source` re-evaluates.
+ * Sources list definitions that can be opened without additional input by default.
  * Pending, failed, and non-authoritative refreshes retain the current list; authoritative results replace it, including with an empty list.
  */
 export class CanvasDefinitionStore extends Disposable {
 
-	/** The current owner's openable definitions in menu order, empty until a listing for that owner succeeds. */
+	/** The current owner's selected definitions in menu order, empty until a listing for that owner succeeds. */
 	readonly definitions: IObservable<readonly ICanvasDefinition[]>;
 
 	private readonly loaded = observableValue<ILoadedCanvasDefinitions | undefined>(this, undefined);
@@ -84,7 +87,8 @@ export class CanvasDefinitionStore extends Disposable {
 			const definitions = await request.source.listCanvases();
 			// Ignore unsettled and stale snapshots so the last authoritative definitions remain visible.
 			if (definitions !== undefined && this.isCurrent(request)) {
-				this.loaded.set({ ownerKey: request.ownerKey, definitions: definitions.filter(isOpenableExtensionCanvasDefinition).sort(compareCanvasDefinitions) }, undefined);
+				const includeDefinition = request.source.includeDefinition ?? isOpenableExtensionCanvasDefinition;
+				this.loaded.set({ ownerKey: request.ownerKey, definitions: definitions.filter(includeDefinition).sort(compareCanvasDefinitions) }, undefined);
 			}
 		} catch (error) {
 			if (this.isCurrent(request)) {

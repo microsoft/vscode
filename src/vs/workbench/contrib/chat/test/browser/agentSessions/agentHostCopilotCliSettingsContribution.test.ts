@@ -12,7 +12,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostDynamicAutoTiersEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, CopilotTgrepEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostDynamicAutoTiersEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ClientAnnotationsAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ConfigPropertySchema, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -108,7 +108,6 @@ const fullSchema: Record<string, ConfigPropertySchema> = {
 	[CopilotCliConfigKey.Opus48Prompt]: { type: 'boolean', title: 'Opus 4.8 Agent Prompt' },
 	[CopilotCliConfigKey.StabilityOrderedPrompt]: { type: 'boolean', title: 'Stability-Ordered System Prompt' },
 	[CopilotCliConfigKey.ClaudeAdvisor]: { type: 'boolean', title: 'Claude Advisor Tool' },
-	[CopilotCliConfigKey.Tgrep]: { type: 'boolean', title: 'Indexed Search (tgrep)' },
 	[CopilotCliConfigKey.SearchSubagent]: { type: 'boolean', title: 'Search Subagent' },
 	[CopilotCliConfigKey.SearchSubagentModel]: { type: 'string', title: 'Search Subagent Model' },
 	[CopilotCliConfigKey.ExploreAgent]: { type: 'boolean', title: 'Explore Agent' },
@@ -173,7 +172,6 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[AgentHostOpus48PromptEnabledSettingId]: true,
 			[CopilotStabilityOrderedPromptEnabledSettingId]: true,
 			[CopilotClaudeAdvisorEnabledSettingId]: true,
-			[CopilotTgrepEnabledSettingId]: true,
 			[CopilotSearchSubagentEnabledSettingId]: true,
 			[CopilotSearchSubagentModelSettingId]: 'gpt-5',
 			[CopilotExploreAgentEnabledSettingId]: false,
@@ -196,14 +194,13 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		// The shared forwarder dispatches one RootConfigChanged per key; merge them
 		// and assert the full forwarded set (order-independent). Dynamic Auto Tiers
 		// is mirrored by the protocol client to every host rather than by this local-only forwarder.
-		assert.strictEqual(agentHostService.dispatchedActions.length, 23);
+		assert.strictEqual(agentHostService.dispatchedActions.length, 22);
 		const merged = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
 		assert.deepStrictEqual(merged, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
 			[CopilotCliConfigKey.Opus48Prompt]: true,
 			[CopilotCliConfigKey.StabilityOrderedPrompt]: true,
 			[CopilotCliConfigKey.ClaudeAdvisor]: true,
-			[CopilotCliConfigKey.Tgrep]: true,
 			[CopilotCliConfigKey.SearchSubagent]: true,
 			[CopilotCliConfigKey.SearchSubagentModel]: 'gpt-5',
 			[CopilotCliConfigKey.ExploreAgent]: false,
@@ -414,7 +411,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		]);
 	});
 
-	test('disables HydraFusion when preview features are disabled', async () => {
+	test('does not gate HydraFusion on the preview-features policy', async () => {
 		const { agentHostService, defaultAccountService } = setup(disposables, {
 			[AgentHostHydraFusionEnabledSettingId]: true,
 		}, { chat_preview_features_enabled: false });
@@ -422,21 +419,19 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.HydraFusion]: fullSchema[CopilotCliConfigKey.HydraFusion],
 		}));
 		await flush();
-
-		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
-			[CopilotCliConfigKey.HydraFusion]: false,
-		});
+		const previewDisabled = agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config);
 
 		agentHostService.dispatchedActions.length = 0;
 		defaultAccountService.setPreviewFeaturesEnabled(true);
 		await flush();
 
-		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
-			[CopilotCliConfigKey.HydraFusion]: true,
+		assert.deepStrictEqual({ previewDisabled, afterPolicyChange: agentHostService.dispatchedActions.length }, {
+			previewDisabled: [{ [CopilotCliConfigKey.HydraFusion]: true }],
+			afterPolicyChange: 0,
 		});
 	});
 
-	test('forwards HydraFusion, its v2 version, and multi-root from the setting value when preview features are allowed', async () => {
+	test('forwards HydraFusion, its v2 version, and multi-root from the setting value regardless of preview features', async () => {
 		const hydraFusionSchema = {
 			[CopilotCliConfigKey.HydraFusion]: fullSchema[CopilotCliConfigKey.HydraFusion],
 			[CopilotCliConfigKey.HydraFusionV2]: fullSchema[CopilotCliConfigKey.HydraFusionV2],
@@ -464,12 +459,12 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			multiRoot: 'true/true/true',
 			disabled: 'false/false/false',
 			unknown: 'false/false/false',
-			v2PreviewFeaturesDisabled: 'false/false/false',
-			multiRootPreviewFeaturesDisabled: 'false/false/false',
+			v2PreviewFeaturesDisabled: 'true/true/false',
+			multiRootPreviewFeaturesDisabled: 'true/true/true',
 		});
 	});
 
-	test('forwards Copilot Memory and local memory only when opted in and preview features are allowed', async () => {
+	test('forwards Copilot Memory regardless of preview policy, and local memory only when preview features are allowed', async () => {
 		const memorySchema = {
 			[CopilotCliConfigKey.Memory]: fullSchema[CopilotCliConfigKey.Memory],
 			[CopilotCliConfigKey.LocalMemory]: fullSchema[CopilotCliConfigKey.LocalMemory],
@@ -498,8 +493,8 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			policyEnabled: mergedConfig(agentHostService),
 		}, {
 			defaultOff: { [CopilotCliConfigKey.Memory]: false, [CopilotCliConfigKey.LocalMemory]: false },
-			policyDisabled: { [CopilotCliConfigKey.Memory]: false, [CopilotCliConfigKey.LocalMemory]: false },
-			policyEnabled: { [CopilotCliConfigKey.Memory]: true, [CopilotCliConfigKey.LocalMemory]: true },
+			policyDisabled: { [CopilotCliConfigKey.Memory]: true, [CopilotCliConfigKey.LocalMemory]: false },
+			policyEnabled: { [CopilotCliConfigKey.LocalMemory]: true },
 		});
 	});
 
@@ -557,6 +552,18 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		assert.deepStrictEqual(agentHostService.dispatchedActions as readonly unknown[], []);
 	});
 
+	test('does not forward the removed tgrep setting to a legacy host', async () => {
+		const { agentHostService } = setup(disposables, {
+			'chat.copilot.tgrep.enabled': false,
+		});
+		agentHostService.setRootState(makeRootStateWithSchema({
+			tgrep: { type: 'boolean', title: 'Indexed Search (tgrep)' },
+		}));
+		await flush();
+
+		assert.deepStrictEqual(agentHostService.dispatchedActions, []);
+	});
+
 	test('does not re-dispatch when the root config already carries structurally equal values', async () => {
 		const { agentHostService } = setup(disposables, {
 			[AgentHostCopilotSdkLogLevelSettingId]: 'trace',
@@ -568,7 +575,6 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.Opus48Prompt]: true,
 			[CopilotCliConfigKey.StabilityOrderedPrompt]: false,
 			[CopilotCliConfigKey.ClaudeAdvisor]: false,
-			[CopilotCliConfigKey.Tgrep]: false,
 			[CopilotCliConfigKey.SearchSubagent]: false,
 			[CopilotCliConfigKey.SearchSubagentModel]: '',
 			[CopilotCliConfigKey.ExploreAgent]: true,

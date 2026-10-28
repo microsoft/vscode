@@ -20,6 +20,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILoggerService, NullLogger, NullLogService } from '../../../../../platform/log/common/log.js';
 import { AllowedMcpServersService } from '../../../../../platform/mcp/common/allowedMcpServersService.js';
+import { createEnvVarResolver } from '../../../../../platform/mcp/common/envVarResolution.js';
 import { IAllowedMcpServersService, mcpAccessConfig, McpAccessValue, mcpAllowedServersConfig, mcpAutoStartConfig, McpAutoStartValue, mcpDeniedServersConfig } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
@@ -51,7 +52,7 @@ suite('Workbench - MCP - McpService', () => {
 			[IWorkbenchEnvironmentService, {}],
 			[ITelemetryService, NullTelemetryService],
 			[IProductService, TestProductService],
-			[IAllowedMcpServersService, allowedMcpServersService ?? { _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowedBeforeResolution: () => true, isServerAllowed: () => true }],
+			[IAllowedMcpServersService, allowedMcpServersService ?? { _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowedBeforeResolution: () => true, isServerAllowed: () => true, getServerPolicyVariableValues: () => [] }],
 		);
 
 		const parentInstantiationService = store.add(new TestInstantiationService(services));
@@ -141,6 +142,89 @@ suite('Workbench - MCP - McpService', () => {
 			});
 		};
 
+		test('a name match does not authorize a different resolved endpoint', async () => {
+			const { server, configurationService, resolution, transports } = createPolicyServer('https://trusted.example/mcp', 'https://other.example/mcp');
+			await configurationService.setUserConfiguration(mcpAllowedServersConfig, [
+				{ serverName: 'Test Server' },
+				{ serverUrl: 'https://trusted.example/mcp' },
+			]);
+			const state = await server.start();
+			assert.deepStrictEqual({ state: state.state, resolved: resolution.callCount, started: transports.length }, {
+				state: McpConnectionState.Kind.Error, resolved: 1, started: 0,
+			});
+		});
+
+		test('resolves policy values on the selected host before starting and retains deny enforcement', async () => {
+			const { server, configurationService, registry, transports } = createPolicyServer('https://trusted.example/mcp');
+			await configurationService.setUserConfiguration(mcpAllowedServersConfig, [{ serverUrl: 'https://${MCP_HOST}/mcp' }]);
+			const requested: string[][] = [];
+			const resolve = createEnvVarResolver({ MCP_HOST: 'trusted.example' }, false);
+			const host = sinon.stub(registry.delegates.get()[0], 'resolvePolicyVariables').callsFake(async values => {
+				requested.push([...values]);
+				return Object.fromEntries(values.map(value => [value, resolve(value)]));
+			});
+			store.add(toDisposable(() => host.restore()));
+
+			const started = await server.start();
+			await setDeniedUrls(configurationService, ['https://${MCP_HOST}/mcp']);
+			const blocked = server.connectionState.get();
+			const restarted = await server.start();
+			assert.deepStrictEqual({
+				started: started.state, blocked: blocked.state, restarted: restarted.state,
+				requested, transports: transports.length,
+			}, {
+				started: McpConnectionState.Kind.Running, blocked: McpConnectionState.Kind.Error, restarted: McpConnectionState.Kind.Error,
+				requested: [['https://${MCP_HOST}/mcp'], ['https://${MCP_HOST}/mcp']], transports: 1,
+			});
+		});
+
+		test('stdio name fallback cannot bypass a final command mismatch', async () => {
+			const configuration = new TestConfigurationService({
+				[mcpAllowedServersConfig]: [{ serverName: 'Test Server' }, { serverCommand: ['echo', 'approved'] }],
+			});
+			const policy = store.add(new AllowedMcpServersService(configuration));
+			const { mcpService, registry } = createMcpService(policy);
+			let started = 0;
+			registry.makeTestTransport = () => {
+				started++;
+				return store.add(new TestMcpMessageTransport());
+			};
+			mcpService.updateCollectedServers();
+			const state = await mcpService.servers.get()[0].start();
+			assert.deepStrictEqual({ state: state.state, started }, { state: McpConnectionState.Kind.Error, started: 0 });
+		});
+
+		test('disposal while resolving host policy values does not start or retain a connection', async () => {
+			const { server, configurationService, registry, transports } = createPolicyServer('https://trusted.example/mcp');
+			await configurationService.setUserConfiguration(mcpAllowedServersConfig, [{ serverUrl: 'https://${HOST}/mcp' }]);
+			const resolving = new DeferredPromise<void>();
+			const resolved = new DeferredPromise<Readonly<Record<string, string>>>();
+			const host = sinon.stub(registry.delegates.get()[0], 'resolvePolicyVariables').callsFake(() => {
+				resolving.complete();
+				return resolved.p;
+			});
+			store.add(toDisposable(() => host.restore()));
+			const starting = server.start();
+			await resolving.p;
+			server.dispose();
+			resolved.complete({ 'https://${HOST}/mcp': 'https://trusted.example/mcp' });
+			const state = await starting;
+			assert.deepStrictEqual({ state: state.state, started: transports.length, connected: !!server.connection.get() }, {
+				state: McpConnectionState.Kind.Stopped, started: 0, connected: false,
+			});
+		});
+
+		test('missing host policy resolutions report an explicit error before execution', async () => {
+			const { server, configurationService, transports } = createPolicyServer('https://trusted.example/mcp');
+			await configurationService.setUserConfiguration(mcpAllowedServersConfig, [{ serverUrl: 'https://${HOST}/mcp' }]);
+			const state = await server.start();
+			assert.deepStrictEqual({
+				state: state.state,
+				message: state.state === McpConnectionState.Kind.Error && state.message.includes('policy environment variables have not been resolved'),
+				started: transports.length,
+			}, { state: McpConnectionState.Kind.Error, message: true, started: 0 });
+		});
+
 		const provideCachedMetadata = (registry: TestMcpRegistry) => {
 			const createTransport = registry.makeTestTransport;
 			registry.makeTestTransport = () => {
@@ -186,6 +270,7 @@ suite('Workbench - MCP - McpService', () => {
 				tools: server.tools.get().length,
 				prompts: server.prompts.get().length,
 			});
+
 			return { ...context, snapshot };
 		};
 

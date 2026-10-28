@@ -66,6 +66,8 @@ import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemServi
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
+import { getSessionApplication } from '../../../../common/sessionApplication.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING } from '../../../../common/sessionConfig.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
 import { automationRunWithLocalProgress } from '../../browser/views/automationRunProgress.js';
 import { AUTOMATION_TEMPLATES } from '../../browser/views/automationTemplates.js';
@@ -81,7 +83,7 @@ import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/a
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
-import { MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { TestCommandService } from './sessionsListTestUtils.js';
 
 
@@ -489,13 +491,16 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 	readonly isRead = observableValue<boolean>(this, false);
 	readonly secondIsRead = observableValue<boolean>(this, false);
 	readonly isArchived = observableValue<boolean>(this, false);
+	readonly isAutomation = observableValue<boolean>(this, false);
 	readonly sessionStatus = observableValue<SessionStatus>(this, SessionStatus.Completed);
 	readonly capabilities = observableValue(this, { supportsMultipleChats: false, supportsDelete: true, supportsRename: true });
+	readonly application = observableValue('application', getSessionApplication('vscode'));
 	readonly session = upcastPartial<ISession>({
 		resource: SESSION_RESOURCE,
 		sessionId: 'test/session-1',
 		providerId: 'test',
 		sessionType: 'test',
+		application: this.application,
 		icon: Codicon.account,
 		createdAt: new Date(),
 		workspace: constObservable({
@@ -507,6 +512,7 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 			isVirtualWorkspace: false,
 		}),
 		isQuickChat: constObservable(false),
+		isAutomation: this.isAutomation,
 		title: constObservable('Daily review'),
 		updatedAt: constObservable(new Date()),
 		isRead: this.isRead,
@@ -650,6 +656,10 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		this.capabilities.set({ supportsMultipleChats: false, supportsDelete, supportsRename }, undefined);
 	}
 
+	setApplication(id: string, label?: string): void {
+		this.application.set(getSessionApplication(id, label), undefined);
+	}
+
 	addSession(resource: URI, title: string): void {
 		this.additionalSessions.set(resource.toString(), upcastPartial<ISession>({
 			...this.session,
@@ -751,9 +761,11 @@ suite('AutomationsCardsWidget', () => {
 		const refreshErrors: string[] = [];
 		instantiationService.stub(INotificationService, { error: message => refreshErrors.push(String(message)) });
 		instantiationService.stub(ITelemetryService, telemetryService);
+		const shownAutomationSessionIds = new Set<string>();
 		instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 			override readonly onDidChange = Event.None;
 			override isSessionPinned(): boolean { return false; }
+			override isSessionListed(session: ISession): boolean { return !session.isAutomation?.get() || shownAutomationSessionIds.has(session.sessionId); }
 			override getStatusIcon() { return Codicon.circleSmallFilled; }
 		});
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
@@ -782,7 +794,7 @@ suite('AutomationsCardsWidget', () => {
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, telemetryService, widget, refreshErrors, opened, chatModels, windowFocus, actionFactories };
+		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, shownAutomationSessionIds, telemetryService, widget, refreshErrors, opened, chatModels, windowFocus, actionFactories };
 	}
 
 	function renderRefreshButton({ instantiationService, contextKeyService, actionFactories }: ReturnType<typeof setup>): HTMLElement {
@@ -1459,6 +1471,37 @@ suite('AutomationsCardsWidget', () => {
 		}, { cloud: true, repository: 'owner/private', separators: 1, time: 'now', description: '', accessibleStatus: true });
 	});
 
+	test('event trigger labels remain visible throughout history row hover and focus states', async () => {
+		const { widget, automationService, configurationService, sessionsManagementService } = setup();
+		configurationService.setUserConfiguration(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, ExternalSessionApplicationBadgeMode.Title);
+		sessionsManagementService.setApplication('github/issue_labeled', 'Issue labeled');
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run({ externalResource: URI.parse('https://github.com/owner/private/tasks/exact') })]);
+		await waitForSessionActions();
+		const row = widget.element.querySelector<HTMLElement>('.automations-run-session-list .monaco-list-row')!;
+		const badge = row.querySelector<HTMLElement>('.session-external-application-badge-title')!;
+		const display = () => getWindow(badge).getComputedStyle(badge).display;
+		const atRest = display();
+		row.classList.add('hovered');
+		const hovered = display();
+		row.classList.remove('hovered');
+		row.classList.add('focused');
+		const focused = display();
+		assert.deepStrictEqual({
+			text: badge.textContent,
+			atRest,
+			hovered,
+			focused,
+			accessible: row.getAttribute('aria-label')?.includes('created in Issue labeled'),
+		}, {
+			text: 'Issue labeled',
+			atRest: 'flex',
+			hovered: 'flex',
+			focused: 'flex',
+			accessible: true,
+		});
+	});
+
 	test('removing a focused external row restores focus when other history remains', () => {
 		const { widget, automationService } = setup();
 		automationService.setAutomations([automation()]);
@@ -1544,7 +1587,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			grouped,
 			tooltips,
-			accessibleGroups: ['Your automations', 'Repository automations', 'These automations are visible to anyone with repository access, and can be edited by anyone with write access.'].map(label => accessible.includes(label)),
+			accessibleGroups: ['Your automations', 'Shared automations', 'These automations are visible to anyone with repository access, and can be edited by anyone with write access.'].map(label => accessible.includes(label)),
 			accessibleOrder: accessible.indexOf('Legacy review') < accessible.indexOf('Repository review'),
 			remaining: Array.from(widget.element.querySelectorAll('.automations-ownership-title'), element => element.textContent),
 			emptyPersonal: {
@@ -1557,13 +1600,13 @@ suite('AutomationsCardsWidget', () => {
 			grouped: [
 				{ title: 'Your automations', open: true, cards: ['Legacy review', 'Personal review', 'Local review'], description: null, info: undefined },
 				{
-					title: 'Repository automations', open: false, cards: ['Repository review'],
+					title: 'Shared automations', open: false, cards: ['Repository review'],
 					description: 'These automations are visible to anyone with repository access, and can be edited by anyone with write access.',
 					info: { hidden: 'true', codicon: true, tabIndex: -1 },
 				},
 			],
 			tooltips: ['These automations are visible to anyone with repository access, and can be edited by anyone with write access.'],
-			accessibleGroups: [true, true, true], accessibleOrder: true, remaining: ['Your automations', 'Repository automations'],
+			accessibleGroups: [true, true, true], accessibleOrder: true, remaining: ['Your automations', 'Shared automations'],
 			emptyPersonal: {
 				title: 'No automations yet',
 				description: 'Describe what you want to automate, then choose when it runs.',
@@ -3367,6 +3410,28 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('duplicate preserves the source ownership', async () => {
+		const initialOwnership = async (ownership: IAutomationDescriptor['ownership']) => {
+			const { automationDialogService, automationService, instantiationService } = setup();
+			const source = automation({ ownership });
+			automationService.setAutomations([source]);
+			const command = CommandsRegistry.getCommand('sessions.automations.duplicate');
+			assert.ok(command);
+			await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+			return automationDialogService.lastOptions?.initialValues?.ownership;
+		};
+
+		assert.deepStrictEqual({
+			repository: await initialOwnership('repository'),
+			user: await initialOwnership('user'),
+			legacy: await initialOwnership(undefined),
+		}, {
+			repository: 'repository',
+			user: 'user',
+			legacy: undefined,
+		});
+	});
+
 	test('duplicate dialog failures are logged and reported to the user', async () => {
 		const { automationDialogService, automationService, dialogService, instantiationService, logService } = setup();
 		const source = automation();
@@ -3437,6 +3502,50 @@ suite('AutomationsCardsWidget', () => {
 			dialogErrors: [],
 			inlineErrors: ['create failed'],
 		});
+	});
+
+	test('event-triggered automations do not offer Duplicate', () => {
+		const { automationService, contextKeyService, contextMenuService, instantiationService, widget } = setup();
+		const menuActions = (item: IAutomationDescriptor) => {
+			automationService.setAutomations([item]);
+			const delegate = openAutomationCardMenu(widget, contextMenuService);
+			return instantiationService.get(IMenuService).getMenuActions(
+				Menus.AutomationCardContext,
+				delegate.contextKeyService ?? contextKeyService,
+				delegate.menuActionOptions,
+			).flatMap(([, actions]) => actions).map(action => action.id);
+		};
+		const scheduled = menuActions(automation({ cloudTrigger: { triggers: {} }, ownership: 'user' }));
+		const eventTriggered = menuActions(automation({
+			schedule: { ...hourly(), interval: 'custom', timeZone: 'UTC' },
+			cloudTrigger: { triggers: { issue_labeled: { types: ['labeled'] } } },
+			ownership: 'user',
+		}));
+
+		assert.deepStrictEqual({
+			scheduled: scheduled.includes('sessions.automations.duplicate'),
+			eventTriggered: eventTriggered.includes('sessions.automations.duplicate'),
+		}, { scheduled: true, eventTriggered: false });
+	});
+
+	test('cloud automations do not offer Export', () => {
+		const { automationService, contextKeyService, contextMenuService, instantiationService, widget } = setup();
+		const menuActions = (item: IAutomationDescriptor) => {
+			automationService.setAutomations([item]);
+			const delegate = openAutomationCardMenu(widget, contextMenuService);
+			return instantiationService.get(IMenuService).getMenuActions(
+				Menus.AutomationCardContext,
+				delegate.contextKeyService ?? contextKeyService,
+				delegate.menuActionOptions,
+			).flatMap(([, actions]) => actions).map(action => action.id);
+		};
+		const local = menuActions(automation());
+		const cloud = menuActions(automation({ cloudTrigger: { triggers: {} }, ownership: 'user' }));
+
+		assert.deepStrictEqual({
+			local: local.includes('sessions.automations.export'),
+			cloud: cloud.includes('sessions.automations.export'),
+		}, { local: true, cloud: false });
 	});
 
 	test('Enable and Disable are the first menu action and toggle with Automation state', async () => {
@@ -4034,22 +4143,61 @@ suite('AutomationsCardsWidget', () => {
 		}, {
 			unreadActionIds: [
 				MARK_SESSION_READ_COMMAND_ID,
+				'sessionsViewPane.archiveSession',
 				'vs.actions.separator',
 				'sessionsViewPane.renameSession',
-				'sessionsViewPane.archiveSession',
 			],
 			archiveLabel: 'Archive',
 			readActionIds: [
 				MARK_SESSION_UNREAD_COMMAND_ID,
+				'sessionsViewPane.archiveSession',
 				'vs.actions.separator',
 				'sessionsViewPane.renameSession',
-				'sessionsViewPane.archiveSession',
 			],
 			commandCalls: [{
 				commandId: MARK_SESSION_READ_COMMAND_ID,
 				argCount: 1,
 				hasExpectedSessions: true,
 			}],
+		});
+	});
+
+	test('history context menu shows an automation run in the Sessions list or hides it again', async () => {
+		const { automationService, commandService, contextMenuService, sessionsManagementService, shownAutomationSessionIds, widget } = setup();
+		sessionsManagementService.isAutomation.set(true, undefined);
+		sessionsManagementService.setRead(true);
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run()]);
+		await waitForSessionActions();
+		const row = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
+		assert.ok(row);
+		const openContextMenu = () => {
+			dispatchContextMenu(row);
+			const delegate = contextMenuService.delegate;
+			assert.ok(delegate);
+			return { delegate, actions: delegate.getActions() };
+		};
+
+		const unlisted = openContextMenu();
+		const show = unlisted.actions.find(action => action.id === SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID);
+		assert.ok(show);
+		await unlisted.delegate.actionRunner?.run(show, unlisted.delegate.getActionsContext?.());
+		unlisted.delegate.onHide?.(false);
+		shownAutomationSessionIds.add(sessionsManagementService.session.sessionId);
+		const listed = openContextMenu();
+		listed.delegate.onHide?.(false);
+
+		assert.deepStrictEqual({
+			unlisted: unlisted.actions.map(action => action.id),
+			listed: listed.actions.map(action => action.id),
+			commandCalls: commandService.calls.map(call => ({
+				commandId: call.commandId,
+				forwardsSession: Array.isArray(call.args[0]) && call.args[0].length === 1 && call.args[0][0] === sessionsManagementService.session,
+			})),
+		}, {
+			unlisted: [MARK_SESSION_UNREAD_COMMAND_ID, 'sessionsViewPane.archiveSession', 'vs.actions.separator', SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, 'vs.actions.separator', 'sessionsViewPane.renameSession'],
+			listed: [MARK_SESSION_UNREAD_COMMAND_ID, 'sessionsViewPane.archiveSession', 'vs.actions.separator', HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, 'vs.actions.separator', 'sessionsViewPane.renameSession'],
+			commandCalls: [{ commandId: SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, forwardsSession: true }],
 		});
 	});
 
@@ -4555,6 +4703,19 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(provider.provideContent().includes('When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required.'));
 	});
 
+	test('accessibility help explains showing run sessions in the Sessions list', () => {
+		const { instantiationService } = setup();
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
+		assert.ok(help);
+		const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
+		assert.ok(provider);
+		disposables.add(provider);
+		assert.deepStrictEqual(provider.provideContent().split('\n').filter(line => line.includes('Show in Sessions List')), [
+			'Run sessions are listed here rather than in the Sessions list. Open a run\'s context menu and choose Show in Sessions List to also list its session there, or Hide from Sessions List to list it only here again, even after later messages. The sessions.list.showAutomationSessions setting controls when run sessions automatically also appear in the Sessions list: always, after you send a message in one, or never.',
+		]);
+	});
+
 	test('accessibility help explains the unified Trigger picker and local weekdays', () => {
 		const { instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
@@ -4575,8 +4736,10 @@ suite('AutomationsCardsWidget', () => {
 			requiredFields: content.includes('Required event fields appear directly below the Trigger and Event row'),
 			requiredHover: content.includes('Create remains unavailable until they are completed, and its hover explains what is missing'),
 			sharedFilters: content.includes('it appears once and applies to each of those events'),
-			eventDuplication: content.includes('event-triggered cloud automations must be duplicated on GitHub'),
-		}, { localWeekdays: true, cloudRestriction: true, unifiedTrigger: true, eventControls: true, preservation: true, eventColumn: true, advancedFilters: true, requiredFields: true, requiredHover: true, sharedFilters: true, eventDuplication: true });
+			eventDuplication: content.includes('is unavailable for event-triggered automations'),
+			cloudExport: content.includes('Cloud automations do not currently offer Export'),
+			sharedOwnership: content.includes('Your automations and Shared automations sections'),
+		}, { localWeekdays: true, cloudRestriction: true, unifiedTrigger: true, eventControls: true, preservation: true, eventColumn: true, advancedFilters: true, requiredFields: true, requiredHover: true, sharedFilters: true, eventDuplication: true, cloudExport: true, sharedOwnership: true });
 	});
 
 	test('accessibility help describes the cloud switch whenever cloud automations are enabled', () => {
@@ -4590,13 +4753,13 @@ suite('AutomationsCardsWidget', () => {
 			disposables.add(provider);
 			return provider.provideContent();
 		};
-		const disabled = content().includes('a Run in the cloud switch follows the Name field');
+		const disabled = content().includes('a Run in the cloud switch, described as Preview, follows the Name field');
 		sessionsManagementService.providerSessionTypes = [{ providerId: 'cloud', sessionType: { id: 'cloud-agent', label: 'Cloud', icon: Codicon.cloud, authRequirement: SessionTypeAuthRequirement.None } }];
 		automationService.getProviderConfiguration = id => id === 'cloud' ? upcastPartial<IAutomationProviderConfiguration>({ sessionTypes: ['cloud-agent'] }) : undefined;
 		const enabled = content();
 		assert.deepStrictEqual({
 			disabled,
-			enabledBeforeCreation: enabled.includes('a Run in the cloud switch follows the Name field'),
+			enabledBeforeCreation: enabled.includes('When creating an automation and cloud automations are enabled, a Run in the cloud switch, described as Preview, follows the Name field'),
 			triggerPlacement: enabled.includes('Trigger follows the tools controls'),
 		}, { disabled: false, enabledBeforeCreation: true, triggerPlacement: true });
 	});

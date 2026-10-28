@@ -20,6 +20,15 @@ const copilotApprovalValues = new Set(['manual', 'assisted', 'allow-all']);
 const vscodeIsolationValues = new Set(['folder', 'worktree']);
 const copilotIsolationValues = new Set(['workspace', 'worktree']);
 
+/** Copilot creation-time integration options are not user-facing chat controls. */
+export function isHiddenSessionConfigProperty(key: string): boolean {
+	return key === 'remoteSession'
+		|| key === 'enableManagedSettings'
+		|| key === 'enableSessionStore'
+		|| key === 'imageGeneration'
+		|| key === 'allowTranscriptRecovery';
+}
+
 function getEnumProperty(schema: SessionConfigSchema | undefined, key: string, values: ReadonlySet<string>, required: string): ISessionConfigProperty | undefined {
 	const property = schema?.properties[key];
 	return property?.type === 'string' && !property.enumDynamic && Array.isArray(property.enum) && property.enum.includes(required)

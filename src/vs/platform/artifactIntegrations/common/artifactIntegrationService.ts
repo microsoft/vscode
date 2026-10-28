@@ -12,7 +12,7 @@ import { autorun, constObservable, derived, IObservable, observableSignal, obser
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { ArtifactActor, ArtifactAuthenticationRequest, ArtifactAuthenticationRequiredError, ArtifactAutomationConfiguration, ArtifactAutomationOption, ArtifactContributionSnapshot, ArtifactContributionView, ArtifactRecord, ArtifactSnapshot, IArtifactDetailsModel, IArtifactIntegrationAccess, IArtifactModel, artifactBindingId, isArtifactOptionEnabled, isArtifactRunSettled } from './artifactIntegration.js';
+import { ArtifactActor, ArtifactAuthenticationRequest, ArtifactAuthenticationRequiredError, ArtifactAutomationConfiguration, ArtifactAutomationOption, artifactBindingId, ArtifactContributionSnapshot, ArtifactContributionView, ArtifactRecord, ArtifactSnapshot, getArtifactMainContribution, IArtifactDetailsModel, IArtifactIntegrationAccess, IArtifactModel, isArtifactOptionEnabled, isArtifactRunSettled } from './artifactIntegration.js';
 import { applyArtifactAutomationSelection, artifactOptionConsent, disableArtifactAutomation, emptyArtifactConfiguration, reconcileArtifactAutomationOptions, validateArtifactAutomationSelection } from './artifactAutomationConfiguration.js';
 import { isArtifactActionDescriptor, isArtifactAuthenticationRequest, isArtifactJsonValue } from './artifactIntegrationValidation.js';
 import { hasValidArtifactPresentationReferences, isArtifactContributionView, isArtifactDetails } from './artifactPresentationValidation.js';
@@ -83,7 +83,7 @@ export class ArtifactIntegrationService extends Disposable implements IArtifactI
 							: await this.models.get(JSON.stringify([notice.session, notice.artifact.id]))?.promise;
 						if (!this._store.isDisposed && this.runtime.isOwner()) {
 							const snapshot = model?.snapshot.read(undefined);
-							const iconId = snapshot?.contributions.find(contribution => contribution.integrationId === snapshot.mainIntegrationId)?.view.main?.icon.id;
+							const iconId = snapshot ? getArtifactMainContribution(snapshot)?.view.main?.icon.id : undefined;
 							await this.runtime.postNotice!({ ...notice, iconId });
 						}
 					}).catch(error => this.logService.error('[ArtifactIntegrations] Could not post automation notice', error));
@@ -198,7 +198,11 @@ export class ArtifactIntegrationService extends Disposable implements IArtifactI
 						try {
 							const details = await model.acquireDetails(integrationId, detailsId);
 							const lease = toDisposable(() => { details.dispose(); reference.dispose(); });
-							return { details: details.details, loadMore: details.loadMore ? token => details.loadMore!(token) : undefined, dispose: () => lease.dispose() };
+							return {
+								details: details.details, dispose: () => lease.dispose(),
+								loadMore: details.loadMore ? token => details.loadMore!(token) : undefined,
+								runItemAction: details.runItemAction ? (itemId, actionId, token) => details.runItemAction!(itemId, actionId, token) : undefined,
+							};
 						} catch (error) {
 							reference.dispose();
 							throw error;
@@ -548,6 +552,7 @@ class ArtifactBinding extends Disposable {
 			const view = this.view.read(reader);
 			return {
 				integrationId: registration.id, label: registration.label,
+				...(registration.groupLabel ? { groupLabel: registration.groupLabel } : {}),
 				options: [...registration.options, ...stored?.options.filter(option => !registration.options.some(current => current.id === option.id)) ?? []],
 				configuration: stored?.configuration ?? this.configuration.read(reader), view,
 				actions: this.provider.value?.object.binding.actions.map(action => ({ id: action.id, label: action.label, iconId: action.iconId, kind: action.kind, consentVersion: action.consentVersion })) ?? [],
@@ -818,6 +823,7 @@ class ArtifactBinding extends Disposable {
 				return details;
 			}),
 			loadMore: current.model.loadMore ? token => current.model.loadMore!(token) : undefined,
+			runItemAction: current.model.runItemAction ? (itemId, actionId, token) => current.model.runItemAction!(itemId, actionId, token) : undefined,
 			dispose: () => lease.dispose(),
 		};
 	}

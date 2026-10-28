@@ -9,7 +9,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { constObservable, derived } from '../../../../../base/common/observable.js';
+import { constObservable, derived, ISettableObservable, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -19,7 +19,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/ser
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
@@ -31,7 +31,7 @@ import { IDesktopLayoutContext } from '../../browser/desktop/desktopLayoutStrate
 import { DesktopOwnerCompositionStore } from '../../browser/desktop/desktopOwnerCompositionStore.js';
 import { FilesDetailsState, getFilesDetailsState } from '../../browser/desktop/desktopSharedHelpers.js';
 import { SessionVisibilityProfile, DesktopVisibilityProfileStore } from '../../browser/desktop/desktopVisibilityProfileStore.js';
-import { createTestHarness, ICreateOptions, ITestLayoutHarness, makeSession, TestStubEditorInput } from './layoutControllerTestUtils.js';
+import { createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeSession, TestStubEditorInput } from './layoutControllerTestUtils.js';
 
 interface ITestContextState {
 	isRestoringSessionLayout: boolean;
@@ -215,6 +215,40 @@ suite('Desktop layout strategies', () => {
 		assert.deepStrictEqual({ nowVisible, calls: harness.setPartHiddenCalls }, {
 			nowVisible: true,
 			calls: [{ hidden: false, part: Parts.AUXILIARYBAR_PART }],
+		});
+	});
+
+	test('Existing Session keeps observing Changes after a batched incoming editor restore', () => {
+		harness = createTestHarness(store);
+		const { ctx, state } = createStrategyTestContext(store, harness);
+		const sessionA = makeSession(URI.parse('session:/outgoing'), { changes: [makeChange('/repo/outgoing.ts')] });
+		const sessionB = makeSession(URI.parse('session:/incoming'));
+		const editorA = store.add(new TestStubEditorInput(harness.sessionChangesService.getChangesEditorResource(sessionA.resource)));
+		const editorB = store.add(new TestStubEditorInput(harness.sessionChangesService.getChangesEditorResource(sessionB.resource)));
+		harness.activeGroupEditors.push(editorA);
+		harness.activeEditorInput = editorA;
+		activate(sessionA);
+		store.add(harness.instaService.createInstance(DesktopExistingSessionStrategy, ctx, createVisibilityStore(), createDetailPanel()));
+		harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+
+		state.isRestoringSessionLayout = true;
+		transaction(tx => {
+			harness.activeGroupEditors.splice(0, 1, editorB);
+			harness.activeEditorInput = editorB;
+			harness.onDidActiveEditorChange.fire();
+			harness.activeSessionObs.set(sessionB, tx);
+			harness.visibleSessionsObs.set([sessionB], tx);
+		});
+		state.isRestoringSessionLayout = false;
+		state.endSessionLayoutRestore();
+		const afterRestore = harness.partVisibility.get(Parts.AUXILIARYBAR_PART);
+		(sessionB.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/repo/incoming.ts')], undefined);
+		const afterChangesArrive = harness.partVisibility.get(Parts.AUXILIARYBAR_PART);
+		(sessionB.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([], undefined);
+		assert.deepStrictEqual({ afterRestore, afterChangesArrive, afterChangesDisappear: harness.partVisibility.get(Parts.AUXILIARYBAR_PART) }, {
+			afterRestore: false,
+			afterChangesArrive: true,
+			afterChangesDisappear: false,
 		});
 	});
 

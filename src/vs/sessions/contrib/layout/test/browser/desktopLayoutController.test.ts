@@ -25,9 +25,11 @@ import { StorageScope } from '../../../../../platform/storage/common/storage.js'
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { DesktopChangesEditorTransitionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { CustomEditorInput } from '../../../../../workbench/contrib/customEditor/browser/customEditorInput.js';
@@ -40,7 +42,10 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
 import { IEditorWillOpenEvent, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
 import { DesktopLayoutController, TOGGLE_DETAILS_COMMAND_ID } from '../../browser/desktopLayoutController.js';
-import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
+import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
+import { ChangesViewPane } from '../../../changes/browser/changesView.js';
+import { REVEAL_CI_CHECKS_COMMAND_ID } from '../../../changes/browser/checksActions.js';
+import { GitHubCheckConclusion, GitHubCheckStatus } from '../../../github/common/types.js';
 import '../../../changes/browser/changesActions.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { NewChangesTabAction, NewFileTabAction } from '../../../editor/browser/addTabActions.js';
@@ -59,6 +64,10 @@ suite('DesktopLayoutController', () => {
 		}
 		getViewState(sessionResource: URI) {
 			return this._viewStateBySession.get(sessionResource);
+		}
+		getComposition(session: IActiveSession) {
+			const key = this._ownerKeyFor(session);
+			return key && this._compositionStore?.get(key);
 		}
 	}
 
@@ -110,6 +119,233 @@ suite('DesktopLayoutController', () => {
 
 	teardown(() => store.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const isCreated of [false, true]) {
+		for (const status of [GitHubCheckStatus.InProgress, GitHubCheckStatus.Completed]) {
+			test(`[review] empty Changes retains populated checks and Reveal Checks (created=${isCreated}, status=${status})`, async () => {
+				createDesktopController({ activateAux: true, desktopLayout: true });
+				const session = makeSession(URI.parse('session:checks'), { isCreated });
+				harness.activeSessionObs.set(session, undefined);
+				harness.visibleSessionsObs.set([session], undefined);
+				await settle();
+				harness.activeEditorInput = makeChangesEditor(session.resource);
+				harness.onDidActiveEditorChange.fire();
+				harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+				harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+				await settle();
+				const initiallyHidden = !harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+				harness.ciChecksObs.set([{
+					id: 1, name: 'CI', status,
+					conclusion: status === GitHubCheckStatus.Completed ? GitHubCheckConclusion.Failure : undefined,
+					startedAt: undefined, completedAt: undefined, detailsUrl: undefined,
+				}], undefined);
+				await settle();
+				const visibleWithChecks = harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+				harness.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+				const opened: string[] = [];
+				let revealed = false;
+				const view = new class extends mock<ChangesViewPane>() {
+					override revealChecks(): void { revealed = true; }
+				}();
+				harness.instaService.stub(IViewsService, 'openView', async (id: string) => {
+					opened.push(id);
+					harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+					return view;
+				});
+				const handler = CommandsRegistry.getCommand(REVEAL_CI_CHECKS_COMMAND_ID)?.handler;
+				assert.ok(handler);
+				await handler(harness.instaService);
+				await settle();
+				const visibleAfterReveal = harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+				harness.ciChecksObs.set([], undefined);
+				await settle();
+				assert.deepStrictEqual({
+					initiallyHidden, visibleWithChecks, opened, revealed,
+					visibleAfterReveal, hiddenAfterChecksDisappear: !harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART),
+				}, {
+					initiallyHidden: true, visibleWithChecks: true, opened: [CHANGES_VIEW_ID], revealed: true,
+					visibleAfterReveal: true, hiddenAfterChecksDisappear: true,
+				});
+			});
+		}
+	}
+
+	for (const mode of ['session-shared', 'chat-shared', 'chat'] as const) {
+		for (const replaceResource of [false, true]) {
+			for (const detailsVisible of [false, true]) {
+				test(`[review] submits empty Changes without losing Details intent (mode=${mode}, replace=${replaceResource}, visible=${detailsVisible})`, async () => {
+					const controller = createDesktopController({ activateAux: true, desktopLayout: true, chatLayoutMode: mode, workspaceFolders: [{ uri: URI.file('/repo') }] });
+					if (mode === 'chat-shared') {
+						const existing = makeSession(URI.parse('session:shared-details'), { changes: [makeChange('/repo/shared.ts')] });
+						harness.activeSessionObs.set(existing, undefined);
+						harness.visibleSessionsObs.set([existing], undefined);
+						await settle();
+						harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+						harness.layoutService.setPartHidden(!detailsVisible, Parts.AUXILIARYBAR_PART);
+						await settle();
+					}
+					const draft = makeSession(URI.parse('session:submit-empty'), { isCreated: false, changes: [makeChange('/repo/file.ts')] });
+					harness.activeSessionObs.set(draft, undefined);
+					harness.visibleSessionsObs.set([draft], undefined);
+					await settle();
+					harness.activeEditorInput = makeChangesEditor(draft.resource);
+					harness.onDidActiveEditorChange.fire();
+					harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+					harness.layoutService.setPartHidden(!detailsVisible, Parts.AUXILIARYBAR_PART);
+					harness.selectedChangesObs.set([], undefined);
+					await settle();
+					const hiddenBeforeSubmit = !harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+					const committed = replaceResource ? makeSession(URI.parse('session:submitted-empty')) : draft;
+					transaction(tx => {
+						(draft.isCreated as ISettableObservable<boolean>).set(true, tx);
+						harness.activeSessionObs.set(committed, tx);
+						harness.visibleSessionsObs.set([committed], tx);
+					});
+					if (replaceResource) {
+						harness.onDidReplaceSession.fire({ from: draft, to: committed });
+					}
+					await settle();
+					harness.activeEditorInput = makeChangesEditor(committed.resource);
+					harness.onDidActiveEditorChange.fire();
+					await settle();
+					const hiddenAfterSubmit = !harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+					const savedDetails = mode === 'session-shared'
+						? JSON.parse(harness.storageService.get('sessions.singlePane.sidePaneVisibility', StorageScope.WORKSPACE)!).existingSession.auxiliaryBarVisible
+						: controller.getComposition(committed)?.auxiliaryBar;
+					harness.selectedChangesObs.set([makeChange('/repo/first.ts')], undefined);
+					await settle();
+					assert.deepStrictEqual({
+						hiddenBeforeSubmit, hiddenAfterSubmit, savedDetails,
+						detailsAfterChanges: harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART),
+					}, {
+						hiddenBeforeSubmit: true, hiddenAfterSubmit: true, savedDetails: detailsVisible,
+						detailsAfterChanges: detailsVisible,
+					});
+				});
+			}
+		}
+	}
+
+	test('[review] incoming chat keeps its saved hidden Details after another chat automatically hides them', async () => {
+		const controller = createDesktopController({ activateAux: true, desktopLayout: true, chatLayoutMode: 'chat', workspaceFolders: [{ uri: URI.file('/repo') }] });
+		const session = makeSession(URI.parse('session:owner-details'), { changes: [makeChange('/repo/main.ts')] });
+		const main = session.mainChat.get();
+		const peer = addPeerChat(session, URI.parse('chat:owner-details-peer'));
+		(peer.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/repo/peer.ts')], undefined);
+		harness.activeSessionObs.set(session, undefined);
+		harness.visibleSessionsObs.set([session], undefined);
+		await settle();
+		setActiveChat(session, peer);
+		await settle();
+		harness.activeEditorInput = makeChangesEditor(session.resource);
+		harness.onDidActiveEditorChange.fire();
+		harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+		harness.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+		await settle();
+		const savedPeer = controller.getComposition(session);
+		setActiveChat(session, main);
+		await settle();
+		harness.activeEditorInput = makeChangesEditor(session.resource);
+		harness.onDidActiveEditorChange.fire();
+		harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+		harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+		(main.changes as ISettableObservable<readonly ISessionFileChange[]>).set([], undefined);
+		await settle();
+		const mainHiddenAutomatically = !harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+		setActiveChat(session, peer);
+		await settle();
+		harness.activeEditorInput = makeChangesEditor(session.resource);
+		harness.onDidActiveEditorChange.fire();
+		await settle();
+		assert.deepStrictEqual({
+			savedPeer, mainHiddenAutomatically,
+			incomingDetails: harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART),
+			incomingComposition: controller.getComposition(session),
+		}, {
+			savedPeer: { editor: true, auxiliaryBar: false }, mainHiddenAutomatically: true,
+			incomingDetails: false, incomingComposition: { editor: true, auxiliaryBar: false },
+		});
+	});
+
+	for (const isCreated of [false, true]) {
+		for (const chatLayoutMode of ['session-shared', 'chat-shared', 'chat'] as const) {
+			test(`[desktop] hides empty Changes details without changing preferences (created=${isCreated}, mode=${chatLayoutMode})`, async () => {
+				const controller = createDesktopController({ activateAux: true, desktopLayout: true, chatLayoutMode });
+				const session = makeSession(URI.parse('session:empty-details'), { isCreated, changes: [makeChange('/repo/file.ts')] });
+				harness.activeSessionObs.set(session, undefined);
+				harness.visibleSessionsObs.set([session], undefined);
+				await settle();
+				harness.activeEditorInput = makeChangesEditor(session.resource);
+				harness.onDidActiveEditorChange.fire();
+				harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+				harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+				await settle();
+				const state = () => ({
+					editor: harness.partVisibility.get(Parts.EDITOR_PART),
+					details: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+					hasDockedDetails: harness.contextKeyService.getContextKeyValue(HasDockedDetailsContext.key),
+				});
+				const withChanges = state();
+				const savedProfile = harness.storageService.get('sessions.singlePane.sidePaneVisibility', StorageScope.WORKSPACE);
+				transaction(tx => {
+					harness.changesetLoadingObs.set(true, tx);
+					harness.selectedChangesObs.set([], tx);
+				});
+				const loadingFromChanges = state();
+				harness.changesetLoadingObs.set(false, undefined);
+				const empty = state();
+				const emptyToggle = controller.toggleDetails();
+				harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+				await settle();
+				const explicitRevealWhileEmpty = state();
+				harness.changesetLoadingObs.set(true, undefined);
+				const loadingFromEmpty = state();
+				transaction(tx => {
+					harness.selectedChangesObs.set([makeChange('/repo/next.ts')], tx);
+					harness.changesetLoadingObs.set(false, tx);
+				});
+				await settle();
+				const changesReturned = state();
+				const profilePreserved = harness.storageService.get('sessions.singlePane.sidePaneVisibility', StorageScope.WORKSPACE) === savedProfile;
+				controller.runWithRestore(() => harness.selectedChangesObs.set([], undefined));
+				await settle();
+				const afterRestore = state();
+				harness.selectedChangesObs.set([makeChange('/repo/next.ts')], undefined);
+				await settle();
+				harness.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+				harness.selectedChangesObs.set([], undefined);
+				harness.selectedChangesObs.set([makeChange('/repo/next.ts')], undefined);
+				await settle();
+				const manualHidePreserved = state();
+				harness.layoutService.setPartHidden(true, Parts.EDITOR_PART);
+				harness.selectedChangesObs.set([], undefined);
+				harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+				await settle();
+				const detailsOnly = state();
+				harness.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+				harness.selectedChangesObs.set([makeChange('/repo/next.ts')], undefined);
+				await settle();
+
+				assert.deepStrictEqual({
+					withChanges, loadingFromChanges, empty, emptyToggle, explicitRevealWhileEmpty,
+					loadingFromEmpty, changesReturned, profilePreserved, afterRestore, manualHidePreserved, detailsOnly, closedPane: state(),
+				}, {
+					withChanges: { editor: true, details: true, hasDockedDetails: true },
+					loadingFromChanges: { editor: true, details: true, hasDockedDetails: true },
+					empty: { editor: true, details: false, hasDockedDetails: false },
+					emptyToggle: false,
+					explicitRevealWhileEmpty: { editor: true, details: false, hasDockedDetails: false },
+					loadingFromEmpty: { editor: true, details: false, hasDockedDetails: false },
+					changesReturned: { editor: true, details: true, hasDockedDetails: true },
+					profilePreserved: true,
+					afterRestore: { editor: true, details: false, hasDockedDetails: false },
+					manualHidePreserved: { editor: true, details: false, hasDockedDetails: true },
+					detailsOnly: { editor: false, details: true, hasDockedDetails: true },
+					closedPane: { editor: false, details: false, hasDockedDetails: true },
+				});
+			});
+		}
+	}
 
 	test('[desktop] keeps editor and detail visibility unchanged when switching sessions', async () => {
 		createDesktopController();
@@ -459,7 +695,7 @@ suite('DesktopLayoutController', () => {
 		createDesktopController({ activateAux: true });
 		await timeout(0);
 
-		const session = makeSession(URI.parse('session:1'));
+		const session = makeSession(URI.parse('session:1'), { changes: [makeChange('/repo/file.ts')] });
 		harness.activeSessionObs.set(session, undefined);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
@@ -534,7 +770,7 @@ suite('DesktopLayoutController', () => {
 		createDesktopController({ activateAux: true });
 		await timeout(0);
 
-		const session = makeSession(URI.parse('session:1'));
+		const session = makeSession(URI.parse('session:1'), { changes: [makeChange('/repo/file.ts')] });
 		harness.activeSessionObs.set(session, undefined);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
@@ -743,7 +979,7 @@ suite('DesktopLayoutController', () => {
 		const controller = createDesktopController({ activateAux: true });
 		await settle();
 		const sessionA = makeSession(URI.parse('session:a'));
-		const sessionB = makeSession(URI.parse('session:b'));
+		const sessionB = makeSession(URI.parse('session:b'), { changes: [makeChange('/repo/file.ts')] });
 		harness.activeSessionObs.set(sessionA, undefined);
 		harness.activeEditorInput = makeFileEditor();
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
@@ -3345,17 +3581,21 @@ suite('DesktopLayoutController', () => {
 		await settle();
 		const afterReopen = state();
 
-		// Opening Changes from the empty group's Add Tab actions brings the detail panel back.
+		// Empty Changes stays editor-only until a file change arrives.
 		await openManagedTabs();
 		harness.editorGroupsHaveContent = true;
 		harness.activeEditorInput = harness.activeGroupEditors.find(editor => editor.resource && isEqual(editor.resource, harness.sessionChangesService.getChangesEditorResource(session.resource)));
 		harness.onDidActiveEditorChange.fire();
 		await settle();
+		const afterOpeningChanges = state();
+		(session.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/repo/file.ts')], undefined);
+		await settle();
 
-		assert.deepStrictEqual({ beforeClose, afterReopen, afterOpeningChanges: state() }, {
+		assert.deepStrictEqual({ beforeClose, afterReopen, afterOpeningChanges, afterChangesArrive: state() }, {
 			beforeClose: { editorVisible: true, detailVisible: false, editors: 0 },
 			afterReopen: { editorVisible: true, detailVisible: false, editors: 0 },
-			afterOpeningChanges: { editorVisible: true, detailVisible: true, editors: 2 },
+			afterOpeningChanges: { editorVisible: true, detailVisible: false, editors: 2 },
+			afterChangesArrive: { editorVisible: true, detailVisible: true, editors: 2 },
 		});
 	});
 

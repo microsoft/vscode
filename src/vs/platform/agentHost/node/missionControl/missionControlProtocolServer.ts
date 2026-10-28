@@ -157,6 +157,8 @@ const maxInFlightChunkFrames = 4;
 const maxInFlightPublishes = 64;
 const maxInFlightPublishBytes = 4 * 1024 * 1024;
 const publishAckTimeoutMs = 30_000;
+const maxQueuedResourceRequests = 1024;
+const maxQueuedResourceRequestBytes = 16 * 1024 * 1024;
 
 function newConnectionGeneration(): number {
 	return randomInt(1, 2 ** 48);
@@ -191,6 +193,11 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	private _handshakeId: number | string | undefined;
 	private _acceptsBatch = false;
 	private readonly _earlyMessages: ProtocolMessage[] = [];
+	private readonly _resourceRequests = new Set<number | string>();
+	private _inFlightResourceRequests = 0;
+	private readonly _queuedResourceRequests: { readonly message: ProtocolMessage; readonly bytes: number }[] = [];
+	private _queuedResourceRequestBytes = 0;
+	private _resourceDrainScheduled = false;
 	readonly generation = newConnectionGeneration();
 	lastReceived = Date.now();
 	get isClosed(): boolean { return this._closed; }
@@ -198,7 +205,7 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	private readonly _ahpLogger: AhpJsonlLogger | undefined;
 	get acceptsBatch(): boolean { return !this._closed && this._acceptsBatch; }
 
-	constructor(readonly clientId: string, readonly passive: boolean, private readonly _publish: (group: string, message: unknown, generation: number) => void, private readonly _prefix: string, private readonly _authentication?: MissionControlAuthentication, private readonly _rehandshake?: (lane: MissionControlLane, message: object) => void, private readonly _didClose?: (lane: MissionControlLane) => void, createAhpLogger?: (clientId: string, generation: number) => AhpJsonlLogger) {
+	constructor(readonly clientId: string, readonly passive: boolean, private readonly _publish: (group: string, message: unknown, generation: number, onDidPublish?: () => void) => void, private readonly _prefix: string, private readonly _authentication?: MissionControlAuthentication, private readonly _rehandshake?: (lane: MissionControlLane, message: object) => void, private readonly _didClose?: (lane: MissionControlLane) => void, createAhpLogger?: (clientId: string, generation: number) => AhpJsonlLogger) {
 		super();
 		this._ahpLogger = createAhpLogger ? this._register(createAhpLogger(clientId, this.generation)) : undefined;
 		if (_authentication) {
@@ -244,14 +251,61 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 			}
 			return;
 		}
-		this._onMessage.fire(message as ProtocolMessage);
+		this._dispatch(message as ProtocolMessage);
 	}
 
 	activate(): void {
 		this._active = true;
 		for (const message of this._earlyMessages.splice(0)) {
-			this._onMessage.fire(message);
+			if (this._closed) {
+				break;
+			}
+			this._dispatch(message);
 		}
+	}
+
+	private _dispatch(message: ProtocolMessage): void {
+		if (hasKey(message, { id: true, method: true })
+			&& (message.method === 'resourceRead' || message.method === 'resourceResolve' || message.method === 'resourceList')) {
+			if (this._resourceRequests.has(message.id)) {
+				this.dispose();
+				throw new Error('Mission Control resource request ID is already pending');
+			}
+			if (this._inFlightResourceRequests >= maxInFlightPublishes || this._queuedResourceRequests.length > 0) {
+				const bytes = Buffer.byteLength(JSON.stringify(message));
+				if (this._queuedResourceRequests.length >= maxQueuedResourceRequests || this._queuedResourceRequestBytes + bytes > maxQueuedResourceRequestBytes) {
+					this.dispose();
+					throw new Error('Mission Control resource request backlog exceeded its limit');
+				}
+				this._resourceRequests.add(message.id);
+				this._queuedResourceRequests.push({ message, bytes });
+				this._queuedResourceRequestBytes += bytes;
+				return;
+			}
+			this._resourceRequests.add(message.id);
+			this._inFlightResourceRequests++;
+		}
+		this._onMessage.fire(message);
+	}
+
+	private _resourceResponsePublished(): void {
+		if (this._closed) {
+			return;
+		}
+		this._inFlightResourceRequests--;
+		if (this._resourceDrainScheduled || this._queuedResourceRequests.length === 0) {
+			return;
+		}
+		this._resourceDrainScheduled = true;
+		queueMicrotask(() => {
+			this._resourceDrainScheduled = false;
+			while (!this._closed && this._inFlightResourceRequests < maxInFlightPublishes && this._queuedResourceRequests.length > 0) {
+				const request = this._queuedResourceRequests.shift()!;
+				this._queuedResourceRequestBytes -= request.bytes;
+				this._inFlightResourceRequests++;
+				this._onMessage.fire(request.message);
+			}
+		});
 	}
 
 	setReceiveCapabilities(accepts: readonly string[]): void {
@@ -271,7 +325,13 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 		}
 		try {
 			this._ahpLogger?.log(message, 's2c');
-			this._publish(`${this._prefix}.${response ? 'to-client' : 'broadcast'}`, message, this.generation);
+			const resourceRequestId = response && !hasKey(message, { method: true }) && message.id !== null && this._resourceRequests.has(message.id) ? message.id : undefined;
+			if (resourceRequestId !== undefined) {
+				this._resourceRequests.delete(resourceRequestId);
+			}
+			// Admission credit follows relay acceptance, not completion of the filesystem operation.
+			this._publish(`${this._prefix}.${response ? 'to-client' : 'broadcast'}`, message, this.generation,
+				resourceRequestId !== undefined ? () => this._resourceResponsePublished() : undefined);
 		} catch (error) {
 			this.dispose();
 			throw error;
@@ -281,6 +341,11 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	override dispose(): void {
 		if (!this._closed) {
 			this._closed = true;
+			this._earlyMessages.length = 0;
+			this._resourceRequests.clear();
+			this._inFlightResourceRequests = 0;
+			this._queuedResourceRequests.length = 0;
+			this._queuedResourceRequestBytes = 0;
 			this._authentication?.dispose();
 			this._onClose.fire();
 			this._didClose?.(this);
@@ -313,6 +378,7 @@ interface PublishGroup {
 	ackLatencyMs: number;
 	maxAckLatencyMs: number;
 	cancelled?: boolean;
+	readonly onDidPublish?: () => void;
 }
 
 interface QueuedPublish extends PublishFrame {
@@ -691,10 +757,21 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		this._scheduleAckTimeout();
 	}
 
-	private _reportPublishFailure(failure: MissionControlPublishFailure): void {
+	private _reportPublishFailure(failure: MissionControlPublishFailure, detail?: string): void {
 		if (!this._closed) {
+			if (failure === 'mirrorBackpressure') {
+				emitConnectionDiagnostic(this._onDiagnostic, {
+					operationId: '', phase: 'relayPublish', timestamp: Date.now(), outcome: 'failed', failure,
+				});
+				return;
+			}
+			let oldestAckAgeMs = 0;
+			for (const pending of this._pending.values()) {
+				oldestAckAgeMs = Math.max(oldestAckAgeMs, pending.publish.publication.watch.elapsed() - pending.sentMs);
+			}
 			emitConnectionDiagnostic(this._onDiagnostic, {
 				operationId: '', phase: 'relayPublish', timestamp: Date.now(), outcome: 'failed', failure,
+				detail: `queuedFrames=${this._outboundFrames}; queuedBytes=${this._outboundBytes}; inFlightFrames=${this._pending.size}; inFlightBytes=${this._pendingBytes}; oldestAckAgeMs=${oldestAckAgeMs}; lanes=${this._lanes.size}${detail ? `; ${detail}` : ''}`,
 			});
 		}
 	}
@@ -730,7 +807,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		this._send({ type: 'joinGroup', group, ackId });
 	}
 
-	private _publish(group: string, payload: unknown, generation: number, lane: MissionControlLane): void {
+	private _publish(group: string, payload: unknown, generation: number, lane: MissionControlLane, onDidPublish?: () => void): void {
 		const frames = buildPublish({ group, payload, generation, nextAckId: () => ++this._ackId }).map(frame => ({
 			ackId: frame.ackId,
 			frame: JSON.stringify(frame),
@@ -739,7 +816,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 			batch: frame.data.kind === 'message' ? { lane, group, generation } : undefined,
 		}));
 		try {
-			this._enqueue(`client:${lane.clientId}`, frames);
+			this._enqueue(`client:${lane.clientId}`, frames, undefined, onDidPublish);
 		} catch (error) {
 			if (!this._closed) {
 				const queue = this._outbound.get(`client:${lane.clientId}`);
@@ -781,13 +858,13 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		return undefined;
 	}
 
-	private _enqueue(key: string, frames: readonly PublishFrame[], mirrorStream?: PublishGroup['mirrorStream']): void {
+	private _enqueue(key: string, frames: readonly PublishFrame[], mirrorStream?: PublishGroup['mirrorStream'], onDidPublish?: () => void): void {
 		const bytes = frames.reduce((total, frame) => total + Buffer.byteLength(frame.frame), 0);
 		// A bounded closure reserve lets an overloaded client close without taking down other lanes.
 		const closure = frames.every(frame => frame.closure);
 		if (this._closed || this._outboundFrames + this._pending.size + frames.length > 512 + (closure ? 32 : 0)
 			|| this._outboundBytes + this._pendingBytes + bytes > 64 * 1024 * 1024 + (closure ? 32 * 1024 : 0)) {
-			this._reportPublishFailure('queueLimit');
+			this._reportPublishFailure('queueLimit', `attemptedFrames=${frames.length}; attemptedBytes=${bytes}`);
 			throw new Error('Mission Control ordered publish queue exceeded its limit');
 		}
 		let queue = this._outbound.get(key);
@@ -798,7 +875,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		const publication: PublishGroup = {
 			queue, order: ++this._publicationOrder, mirrorStream,
 			watch: StopWatch.create(false), frameCount: frames.length, bytes, chunkGroup: frames[0].chunkGroup,
-			remaining: frames.length, peakInFlight: 0, ackLatencyMs: 0, maxAckLatencyMs: 0,
+			remaining: frames.length, peakInFlight: 0, ackLatencyMs: 0, maxAckLatencyMs: 0, onDidPublish,
 		};
 		if (mirrorStream) {
 			this._mirrorPublications.add(publication);
@@ -887,12 +964,16 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		}
 		let mirrorFrames = 0;
 		let mirrorBytes = 0;
+		const publicationCallbacks: (() => void)[] = [];
 		for (const queued of queue.frames.splice(0, count)) {
 			this._outboundBytes -= queued.bytes;
 			mirrorFrames += queued.mirrorFrames;
 			mirrorBytes += queued.mirrorBytes;
 			if (count > 1) {
 				this._mirrorPublications.delete(queued.publication);
+				if (queued.publication.onDidPublish) {
+					publicationCallbacks.push(queued.publication.onDidPublish);
+				}
 			}
 		}
 		this._outboundFrames -= count;
@@ -901,6 +982,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 			queue, order: first.publication.order, mirrorStream: first.publication.mirrorStream,
 			watch: first.publication.watch, frameCount: 1, bytes,
 			remaining: 1, peakInFlight: 0, ackLatencyMs: 0, maxAckLatencyMs: 0,
+			onDidPublish: publicationCallbacks.length > 0 ? () => publicationCallbacks.forEach(callback => callback()) : undefined,
 		};
 		if (publication.mirrorStream) {
 			this._mirrorPublications.add(publication);
@@ -1045,6 +1127,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 							}
 						}
 						if (!publication.cancelled) {
+							publication.onDidPublish?.();
 							emitConnectionDiagnostic(this._onDiagnostic, {
 								operationId: String(id), phase: 'relayPublish', timestamp: Date.now(), outcome: 'succeeded',
 								durationMs: publication.watch.elapsed(),
@@ -1201,7 +1284,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 
 	private _createLane(clientId: string, passive: boolean): MissionControlLane {
 		const prefix = `user.${this._owner}.env.${this._environment}.client.${clientId}`;
-		const lane: MissionControlLane = new MissionControlLane(clientId, passive, (group, payload, generation) => this._publish(group, payload, generation, lane), prefix, this._authenticationFactory?.(), (previous, message) => {
+		const lane: MissionControlLane = new MissionControlLane(clientId, passive, (group, payload, generation, onDidPublish) => this._publish(group, payload, generation, lane, onDidPublish), prefix, this._authenticationFactory?.(), (previous, message) => {
 			if (this._closed || this._lanes.get(clientId) !== previous) {
 				return;
 			}

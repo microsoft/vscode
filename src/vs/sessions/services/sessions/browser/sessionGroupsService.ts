@@ -17,14 +17,16 @@ import { ISession } from '../common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionSectionOrderService, ISessionSectionPositions, resolveSectionOrder, restoreSectionOrderPositions, spliceSectionOrder } from './sessionSectionOrderService.js';
 
-/**
- * A user-created group of sessions in the sessions list. Groups render like
- * section headers and can be reordered, renamed and deleted. Their order among
- * their siblings is fully user-managed (see {@link ISessionGroupsService.getTree});
- * this type only carries identity, name, creation time and nesting. Membership
- * of a session in a group is tracked separately (see {@link ISessionGroupsService}).
- */
-export interface ISessionGroup {
+/** Local icon and theme-color overrides for custom groups and grouping sections. */
+export interface ISessionGroupAppearance {
+	/** Theme icon id chosen by the user. */
+	readonly icon?: string;
+	/** Theme color id applied to the group icon. */
+	readonly color?: string;
+}
+
+/** A user-created sessions group; membership is tracked separately by {@link ISessionGroupsService}. */
+export interface ISessionGroup extends ISessionGroupAppearance {
 	/** Stable identifier (uuid). */
 	readonly id: string;
 	/** User-provided display name. */
@@ -180,7 +182,7 @@ export class SessionGroupTree {
 export interface ISessionGroupsService {
 	readonly _serviceBrand: undefined;
 
-	/** Fires when groups, their nesting, their child order, or membership change. */
+	/** Fires when groups, appearance, nesting, child order, or membership change. */
 	readonly onDidChange: Event<ISessionGroupsChangeEvent>;
 
 	/** All groups at any depth, including currently-empty ones. */
@@ -206,6 +208,21 @@ export interface ISessionGroupsService {
 
 	/** Rename an existing group. No-op if the group does not exist. */
 	renameGroup(groupId: string, name: string): void;
+
+	/** Set a group's icon, or restore the default with `undefined`. */
+	setGroupIcon(groupId: string, icon: string | undefined): void;
+
+	/** Set a group's icon color, or restore the default with `undefined`. */
+	setGroupColor(groupId: string, color: string | undefined): void;
+
+	/** Appearance of a workspace, repository, or environment section, keyed by its stable section id. */
+	getSectionAppearance(sectionId: string): ISessionGroupAppearance | undefined;
+
+	/** Set a grouping section's icon, or restore its default with `undefined`. */
+	setSectionIcon(sectionId: string, icon: string | undefined): void;
+
+	/** Set a grouping section's icon color, or restore its default with `undefined`. */
+	setSectionColor(sectionId: string, color: string | undefined): void;
 
 	/**
 	 * Nest a group in another group, or make it a top-level group when `parentId`
@@ -283,6 +300,7 @@ interface ISerializedState {
 	/** sessionId -> groupId */
 	readonly membership: Readonly<Record<string, string>>;
 	readonly sectionMembership?: Readonly<Record<string, string>>;
+	readonly sectionAppearance?: Readonly<Record<string, ISessionGroupAppearance>>;
 	readonly [EXPLICITLY_UNGROUPED_FIELD]?: readonly string[];
 	/** Mixed child order, retaining its original storage field for compatibility. */
 	readonly subgroupOrders?: Readonly<Record<string, readonly string[]>>;
@@ -306,6 +324,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	/** sessionId -> groupId */
 	private readonly _membership = new Map<string, string>();
 	private readonly _sectionMembership = new Map<string, string>();
+	private readonly _sectionAppearance = new Map<string, ISessionGroupAppearance>();
 	private _defaultChildIds: Map<string, string[]> | undefined;
 	private readonly _explicitlyUngroupedSessionIds = new Set<string>();
 
@@ -536,6 +555,52 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		this._groups.set(groupId, { ...group, name });
 		this.save();
 		this._onDidChange.fire({ groupsChanged: true, membershipChanged: new Set() });
+	}
+
+	setGroupIcon(groupId: string, icon: string | undefined): void {
+		const group = this._groups.get(groupId);
+		if (!group || group.icon === icon) {
+			return;
+		}
+		this._groups.set(groupId, { ...group, icon });
+		this.save();
+		this._onDidChange.fire({ groupsChanged: true, membershipChanged: new Set() });
+	}
+
+	setGroupColor(groupId: string, color: string | undefined): void {
+		const group = this._groups.get(groupId);
+		if (!group || group.color === color) {
+			return;
+		}
+		this._groups.set(groupId, { ...group, color });
+		this.save();
+		this._onDidChange.fire({ groupsChanged: true, membershipChanged: new Set() });
+	}
+
+	getSectionAppearance(sectionId: string): ISessionGroupAppearance | undefined {
+		return this._sectionAppearance.get(sectionId);
+	}
+
+	setSectionIcon(sectionId: string, icon: string | undefined): void {
+		this.setSectionAppearance(sectionId, { ...this._sectionAppearance.get(sectionId), icon });
+	}
+
+	setSectionColor(sectionId: string, color: string | undefined): void {
+		this.setSectionAppearance(sectionId, { ...this._sectionAppearance.get(sectionId), color });
+	}
+
+	private setSectionAppearance(sectionId: string, appearance: ISessionGroupAppearance): void {
+		const previous = this._sectionAppearance.get(sectionId);
+		if (previous?.icon === appearance.icon && previous?.color === appearance.color) {
+			return;
+		}
+		if (appearance.icon === undefined && appearance.color === undefined) {
+			this._sectionAppearance.delete(sectionId);
+		} else {
+			this._sectionAppearance.set(sectionId, appearance);
+		}
+		this.save();
+		this._onDidChange.fire({ groupsChanged: false, membershipChanged: new Set() });
 	}
 
 	moveGroup(groupId: string, parentId: string | undefined, placement?: ISessionGroupPlacement): void {
@@ -836,6 +901,8 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 							id: group.id,
 							name: group.name,
 							createdAt: typeof group.createdAt === 'number' ? group.createdAt : Date.now(),
+							...(typeof group.icon === 'string' ? { icon: group.icon } : {}),
+							...(typeof group.color === 'string' ? { color: group.color } : {}),
 						}, typeof group.parentId === 'string' ? group.parentId : undefined));
 					}
 				}
@@ -852,6 +919,16 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 				for (const [sectionId, parentId] of Object.entries(parsed.sectionMembership)) {
 					if (typeof parentId === 'string' && this._groups.has(parentId)) {
 						this._sectionMembership.set(sectionId, parentId);
+					}
+				}
+			}
+			if (parsed.sectionAppearance && typeof parsed.sectionAppearance === 'object') {
+				for (const [sectionId, appearance] of Object.entries(parsed.sectionAppearance)) {
+					if (appearance && (typeof appearance.icon === 'string' || typeof appearance.color === 'string')) {
+						this._sectionAppearance.set(sectionId, {
+							...(typeof appearance.icon === 'string' ? { icon: appearance.icon } : {}),
+							...(typeof appearance.color === 'string' ? { color: appearance.color } : {}),
+						});
 					}
 				}
 			}
@@ -878,7 +955,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	private save(): void {
 		// Invalidate derived children before synchronous change listeners query the updated state.
 		this._defaultChildIds = undefined;
-		if (this._groups.size === 0 && this._explicitlyUngroupedSessionIds.size === 0) {
+		if (this._groups.size === 0 && this._explicitlyUngroupedSessionIds.size === 0 && this._sectionAppearance.size === 0) {
 			this.storageService.remove(SessionGroupsService.STORAGE_KEY, StorageScope.PROFILE);
 			return;
 		}
@@ -887,6 +964,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 			groups: [...this._groups.values()],
 			membership: Object.fromEntries(this._membership),
 			...(this._sectionMembership.size > 0 ? { sectionMembership: Object.fromEntries(this._sectionMembership) } : {}),
+			...(this._sectionAppearance.size > 0 ? { sectionAppearance: Object.fromEntries(this._sectionAppearance) } : {}),
 			[EXPLICITLY_UNGROUPED_FIELD]: [...this._explicitlyUngroupedSessionIds],
 			...(childOrders.length > 0 ? { subgroupOrders: Object.fromEntries(childOrders) } : {}),
 		};
@@ -928,8 +1006,8 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 
 /** The group nested in `parentId`, or as a top-level group when it is `undefined`. */
 function withParent(group: ISessionGroup, parentId: string | undefined): ISessionGroup {
-	const { id, name, createdAt } = group;
-	return parentId === undefined ? { id, name, createdAt } : { id, name, createdAt, parentId };
+	const { parentId: _, ...properties } = group;
+	return parentId === undefined ? properties : { ...properties, parentId };
 }
 
 registerSingleton(ISessionGroupsService, SessionGroupsService, InstantiationType.Delayed);

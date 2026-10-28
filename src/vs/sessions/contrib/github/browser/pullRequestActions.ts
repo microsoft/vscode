@@ -11,9 +11,9 @@ import { IClipboardService } from '../../../../platform/clipboard/common/clipboa
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { SessionHasPullRequestContext } from '../../../common/contextkeys.js';
+import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
@@ -48,9 +48,14 @@ class OpenPullRequestAction extends Action2 {
 			f1: false,
 			menu: [{
 				id: Menus.SessionItemContextMenu,
-				group: '2_pullRequest',
-				order: 0,
+				group: 'navigation',
+				order: 4,
 				when: SessionHasPullRequestContext
+			}, {
+				id: Menus.SessionActivityBar,
+				group: SessionActivityBarGroup.SidePanel,
+				order: 100,
+				when: sessionActivityBarChatActionContext(OpenPullRequestAction.ID)
 			}],
 		});
 	}
@@ -113,8 +118,8 @@ class CopyPullRequestUrlAction extends Action2 {
 			f1: false,
 			menu: [{
 				id: Menus.SessionItemContextMenu,
-				group: '2_pullRequest',
-				order: 1,
+				group: '3_copy',
+				order: 2,
 				when: SessionHasPullRequestContext
 			}],
 		});

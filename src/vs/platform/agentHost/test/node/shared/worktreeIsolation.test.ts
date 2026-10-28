@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
@@ -155,6 +155,7 @@ suite('WorktreeIsolation', () => {
 			addWorktree: async (_root, options) => {
 				addWorktreeCalls.push(options);
 				mkdirSync(options.path.fsPath, { recursive: true });
+				writeFileSync(join(options.path.fsPath, '.git'), 'gitdir: fake');
 			},
 			copyWorktreeIncludeFiles: async (repositoryRoot, worktree, globs, sessionId, _onProgress, excludedFolders = []) => {
 				worktreeSetupCalls.push('includeFiles');
@@ -174,6 +175,7 @@ suite('WorktreeIsolation', () => {
 			addExistingWorktree: async (_root, worktree, branch) => {
 				addExistingCalls.push({ worktree, branchName: branch });
 				mkdirSync(worktree.fsPath, { recursive: true });
+				writeFileSync(join(worktree.fsPath, '.git'), 'gitdir: fake');
 			},
 			removeWorktree: async (_root, worktree, options) => {
 				removeCalls.push({ worktree, force: options?.force === true });
@@ -815,6 +817,42 @@ suite('WorktreeIsolation', () => {
 			branchDefault: 'main',
 			branchEnum: ['main'],
 			startPoint: 'main',
+			diffBaseBranch: 'main',
+		});
+	});
+
+	test('snapshots the working tree when the selected branch is unborn', async () => {
+		headCommit = undefined;
+		const gitService = createGitService();
+		const commitTreeCalls: Parameters<IAgentHostGitService['commitTree']>[] = [];
+		gitService.getCurrentBranch = async () => 'main';
+		gitService.getBranch = async () => undefined;
+		gitService.getDefaultBranch2 = async () => undefined;
+		gitService.captureWorkingTreeAsTree = async () => 'snapshot-tree';
+		gitService.commitTree = async (...args) => {
+			commitTreeCalls.push(args);
+			return 'snapshot-commit';
+		};
+		const isolation = createIsolation(disposables, { gitService });
+
+		await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: repoRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'main',
+			},
+			prompt: 'do a thing',
+		});
+
+		assert.deepStrictEqual({
+			commitTreeCalls,
+			startPoint: addWorktreeCalls[0]?.commitish,
+			diffBaseBranch: await db.getMetadata('agentHost.diffBaseBranch'),
+		}, {
+			commitTreeCalls: [[repoRoot, 'snapshot-tree', undefined, 'Initialize isolated worktree', { useInternalIdentity: true }]],
+			startPoint: 'snapshot-commit',
 			diffBaseBranch: 'main',
 		});
 	});
@@ -2542,6 +2580,27 @@ suite('WorktreeIsolation', () => {
 			// Only checks: the folder is removed later by the clean-up service.
 			removeCalls: [],
 		});
+	});
+
+	test('cleanup removes deregistered residue without committing in a containing repository', async () => {
+		const gitService = createGitService();
+		gitService.isWorktreeRegistered = async () => false;
+		const isolation = createIsolation(disposables, { gitService });
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		assert.ok(worktree);
+		hasUncommittedChanges = true;
+		const outcome = await isolation.removeRecordedWorktree(sessionId, { worktree, repositoryRoot: repoRoot, branchName }, 'commit');
+		assert.deepStrictEqual({ outcome, commits: commitCalls.length, exists: existsSync(worktree.fsPath) }, { outcome: 'removed', commits: 0, exists: false });
+	});
+
+	test('archive refuses a registered checkout with missing Git metadata instead of committing in its parent', async () => {
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		assert.ok(worktree);
+		rmSync(join(worktree.fsPath, '.git'));
+		hasUncommittedChanges = true;
+		await assert.rejects(isolation.removeRecordedWorktree(sessionId, { worktree, repositoryRoot: repoRoot, branchName }, 'commit'), /its .git file is missing/);
+		assert.deepStrictEqual({ commits: commitCalls.length, removals: removeCalls.length, exists: existsSync(worktree.fsPath) }, { commits: 0, removals: 0, exists: true });
 	});
 
 	test('a deletion force-removes the worktree without needing its branch, and prunes a folder that is already gone', async () => {

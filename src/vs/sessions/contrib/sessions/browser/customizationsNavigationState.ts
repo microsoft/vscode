@@ -24,9 +24,12 @@ import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/c
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
 import { readTotalCustomizationCount } from './customizationsToolbar.contribution.js';
+import { IAgentsWindowExtensionSuggestionsService } from '../../extensions/browser/agentsWindowExtensionSuggestions.js';
 
 export class CustomizationsNavigationState extends Disposable {
 	readonly totalCount: IObservable<number>;
+	/** Whether the Customizations entry shows a badge for installed extensions that can be enabled in the Agents window. */
+	readonly extensionSuggestionsAvailable: IObservable<boolean>;
 	private readonly migrationAvailableValue = observableValue(this, false);
 	readonly migrationAvailable: IObservable<boolean> = this.migrationAvailableValue;
 
@@ -43,6 +46,7 @@ export class CustomizationsNavigationState extends Disposable {
 		@IAICustomizationWorkspaceService workspaceService: IAICustomizationWorkspaceService,
 		@IStorageService storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
+		@IAgentsWindowExtensionSuggestionsService extensionSuggestionsService: IAgentsWindowExtensionSuggestionsService,
 	) {
 		super();
 
@@ -59,6 +63,7 @@ export class CustomizationsNavigationState extends Disposable {
 				harnessService,
 			);
 		});
+		this.extensionSuggestionsAvailable = derived(this, reader => enabled.read(reader) && extensionSuggestionsService.showBadge.read(reader));
 
 		const migrationCategories = homepageMigrationCategories.map(getCustomizationMigrationCategory);
 		const configurationChanged = observableSignalFromEvent(this, Event.filter(

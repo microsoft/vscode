@@ -35,8 +35,11 @@ EXTRA_ARGS=()
 BUILD_ARGS=()
 RUN_FILE=""
 RUN_GLOB=""
+RUN_LIST=""
 GREP_PATTERN=""
 SUITE_FILTER=""
+ONLY_NODE_TESTS=false
+ONLY_EXTENSION_HOST_TESTS=false
 HELP=false
 AGENT_HOST_E2E_GLOB="**/agentHost/test/node/e2e/{providers/*AgentHostE2E,conformance/*}.integrationTest.js"
 
@@ -66,9 +69,27 @@ while [[ $# -gt 0 ]]; do
 			EXTRA_ARGS+=("$1" "$2")
 			shift 2
 			;;
+		--runList)
+			RUN_LIST="$2"
+			EXTRA_ARGS+=("$1" "$2")
+			shift 2
+			;;
+		--runList=*)
+			RUN_LIST="${1#--runList=}"
+			EXTRA_ARGS+=("$1")
+			shift
+			;;
 		--suite)
 			SUITE_FILTER="$2"
 			shift 2
+			;;
+		--only-node-tests)
+			ONLY_NODE_TESTS=true
+			shift
+			;;
+		--only-extension-host-tests)
+			ONLY_EXTENSION_HOST_TESTS=true
+			shift
 			;;
 		*)
 			EXTRA_ARGS+=("$1")
@@ -87,8 +108,9 @@ if $HELP; then
 	echo "(node.js integration tests + extension host tests) are run."
 	echo "Agent Host E2E suites are not included; run them with scripts/test-agent-host-e2e.sh."
 	echo ""
-	echo "--run and --runGlob select which node.js integration test files to load."
-	echo "Extension host tests are skipped when these options are used."
+	echo "--run and --runGlob select which node.js integration test files to load, and"
+	echo "--runList runs only the files that a list names. Extension host tests are"
+	echo "skipped when these options are used."
 	echo ""
 	echo "--grep filters test cases by name across all test runners. When used alone,"
 	echo "the pattern is applied to both node.js integration tests and all extension"
@@ -97,13 +119,19 @@ if $HELP; then
 	echo "--suite selects which extension host test suites to run."
 	echo "Node.js integration tests are skipped when this option is used."
 	echo ""
+	echo "--only-node-tests and --only-extension-host-tests run one of the two parts,"
+	echo "for example in separate CI steps."
+	echo ""
 	echo "Options:"
 	echo "  --build                      use the out-build directory for node.js and JSON tests"
 	echo "  --run <file>                  run tests from a specific file (src/ path)"
 	echo "  --runGlob, --glob <pattern>   select test files by path glob (e.g. '**/editor/**/*.integrationTest.js')"
+	echo "  --runList <file>              run only the test files listed in <file>, one per line (src/ paths)"
 	echo "  --grep, -g, -f <pattern>      filter test cases by name (matched against test titles)"
 	echo "  --suite <pattern>             run only matching extension host test suites"
 	echo "                                supports comma-separated list and glob patterns"
+	echo "  --only-node-tests             run only the node.js integration tests"
+	echo "  --only-extension-host-tests   run only the extension host tests"
 	echo "  --help, -h                    show this help"
 	echo ""
 	echo "Available suites: $KNOWN_SUITES"
@@ -124,8 +152,17 @@ if $HELP; then
 fi
 
 HAS_FILTER=false
-if [[ -n "$RUN_FILE" || -n "$RUN_GLOB" ]]; then
+if [[ -n "$RUN_FILE" || -n "$RUN_GLOB" || -n "$RUN_LIST" ]]; then
 	HAS_FILTER=true
+fi
+
+if $ONLY_NODE_TESTS && { $ONLY_EXTENSION_HOST_TESTS || [[ -n "$SUITE_FILTER" ]]; }; then
+	echo "Error: --only-node-tests cannot be combined with --only-extension-host-tests or --suite"
+	exit 1
+fi
+if $ONLY_EXTENSION_HOST_TESTS && $HAS_FILTER; then
+	echo "Error: --only-extension-host-tests cannot be combined with --run, --runGlob or --runList"
+	exit 1
 fi
 
 # Check whether a given suite name matches the --suite filter.
@@ -195,7 +232,7 @@ fi
 
 # Unit tests
 
-if [[ -z "$SUITE_FILTER" ]]; then
+if [[ -z "$SUITE_FILTER" ]] && ! $ONLY_EXTENSION_HOST_TESTS; then
 	start_suite "node.js integration tests"
 	node --input-type=module -e "import { getAgentHostTestProfile } from './src/vs/platform/agentHost/test/node/agentHostTestProfile.ts'; console.log('Agent Host test profile:', getAgentHostTestProfile(), '(' + (process.env.AGENT_HOST_TEST_PROFILE_REASON ?? 'default') + ')');"
 	if [[ -z "$RUN_GLOB" && -z "$RUN_FILE" ]]; then
@@ -210,6 +247,11 @@ fi
 if [[ -z "$SUITE_FILTER" ]] && $HAS_FILTER; then
 	echo ""
 	echo "Filter active, skipping extension host tests."
+	rm -rf -- "$VSCODEUSERDATADIR"
+	exit 0
+fi
+
+if $ONLY_NODE_TESTS; then
 	rm -rf -- "$VSCODEUSERDATADIR"
 	exit 0
 fi

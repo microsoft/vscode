@@ -9254,6 +9254,61 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('createNewSession applies a managed default approval over remembered and configured picks while keeping the configured mode', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
+			[SessionConfigKey.AutoApprove]: 'default',
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const config = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const base = super.inspect<T>(key);
+				if (key === 'chat.defaultConfiguration') {
+					// Managed settings project only the approval default.
+					return { ...base, policyValue: { approvals: 'assisted' } as unknown as T };
+				}
+				return base;
+			}
+		}({ 'chat.defaultConfiguration': { mode: 'plan', approvals: 'manual' } });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config, storageService });
+		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+
+		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config, {
+			mode: 'plan',
+			autoApprove: 'assisted',
+			isolation: 'worktree',
+		});
+	});
+
+	test('createNewSession applies a managed default approval over a remembered host-native approvalMode', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({ approvalMode: 'manual' }), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const base = super.inspect<T>(key);
+				return key === 'chat.defaultConfiguration' ? { ...base, policyValue: { approvals: 'assisted' } as unknown as T } : base;
+			}
+		}();
+		agentHost.resolveSessionConfigResult = {
+			schema: {
+				type: 'object', properties: {
+					approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'], default: 'manual', sessionMutable: true },
+					availableApprovalModes: { type: 'array', title: 'Available approvals', readOnly: true },
+				}
+			},
+			values: { approvalMode: 'manual', availableApprovalModes: ['manual', 'assisted', 'allow-all'] },
+		};
+		agentHost.resolveSessionConfigHandler = request => ({
+			...agentHost.resolveSessionConfigResult,
+			values: { ...agentHost.resolveSessionConfigResult.values, approvalMode: request.config?.approvalMode ?? 'manual' },
+		});
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService, storageService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session, config => config?.values.approvalMode === 'assisted');
+
+		assert.deepStrictEqual(provider.getCreateSessionConfig(session.sessionId), { approvalMode: 'assisted' });
+	});
+
 	test('getSessionByResource resolves current new session without listing it', () => {
 		const provider = createProvider(disposables, agentHost);
 		const workspaceUri = URI.parse('file:///home/user/my-project');
@@ -10966,6 +11021,37 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('a chat that moved away with its Agent Merge leaves its folder off for the chats that stay, at once', () => {
+			const provider = createProvider(disposables, agentHost);
+			const directory = URI.file('/workspace-moved-away');
+			const session = setupMultiChatSession(provider, 'agent-merge-moved-away', [directory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'agent-merge-moved-away').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const movedChat = buildChatUri(sessionUri, 'moved');
+			const meta = withWorkingDirectoryKey(undefined, directory.toString(), directory.toString());
+			const setConfigValues = (values: Record<string, unknown>) => agentHost.setSessionState('agent-merge-moved-away', 'copilotcli', {
+				...makeState([makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [directory.toString()])], { defaultChat, meta, workingDirectories: [directory.toString()] }),
+				config: { schema: { type: 'object', properties: {} }, values },
+			});
+			const mainChat = session.mainChat.get();
+			const observable = provider.getAgentMergeClientStateObservable(session.sessionId, mainChat.resource);
+			const read = () => ({ state: provider.getAgentMergeSessionState(session.sessionId, mainChat.resource)?.enabled, observable: observable.get()?.enabled });
+			setConfigValues({ [SessionConfigKey.AgentMergeFolders]: { [directory.toString()]: { enabled: true, chat: movedChat } } });
+			const before = read();
+			// What the host publishes for the source of the move: the folder is off, with nothing of the chat's.
+			setConfigValues({ [SessionConfigKey.AgentMergeFolders]: { [directory.toString()]: { enabled: false } } });
+			const afterMove = read();
+			setConfigValues({ [SessionConfigKey.AgentMergeFolders]: { [directory.toString()]: { enabled: true, chat: movedChat } } });
+			// Had the host removed the folder's entry instead, clients would keep showing it on.
+			setConfigValues({ [SessionConfigKey.AgentMergeFolders]: {} });
+
+			assert.deepStrictEqual({ before, afterMove, afterRemoval: read() }, {
+				before: { state: true, observable: true },
+				afterMove: { state: false, observable: false },
+				afterRemoval: { state: true, observable: true },
+			});
+		});
+
 		test('uses host-published folder keys and scope ids for mixed-case remote paths', () => {
 			const provider = createProvider(disposables, agentHost);
 			const primaryDirectory = URI.file('/work/MyRepo');
@@ -11127,11 +11213,126 @@ suite('LocalAgentHostSessionsProvider', () => {
 					owners: [['peer-pr', peer.resource.toString()], ['main-pr', main.resource.toString()]],
 					restrictedMain: [1],
 					restrictedPeer: [2],
-					automaticMain: [1, 2],
-					automaticPeer: [2, 1],
+					// Each PR was recorded by one chat, so only that chat shows it.
+					automaticMain: [1],
+					automaticPeer: [2],
 				});
 			});
 		}
+
+		test('shows a pull request icon only on the chat that recorded it', () => {
+			const provider = createProviderWithPullRequestModels();
+			const directory = URI.file('/work/vscode');
+			const session = setupMultiChatSession(provider, 'multi-pr-icon', [directory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-pr-icon').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			const discovered: SessionState['_meta'] = {
+				githubData: {
+					[directory.toString()]: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/2'] },
+				},
+			};
+			const chats = [
+				makeChatSummary(defaultChat, 'Main', ProtocolSessionStatus.Idle, [directory.toString()]),
+				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [directory.toString()]),
+			];
+			const readIcons = () => {
+				const peer = session.chats.get().find(chat => chat.resource.fragment === 'peer-1');
+				return {
+					session: session.completedStateIcon?.get()?.id,
+					main: session.mainChat.get().completedStateIcon?.get()?.id,
+					peer: peer?.completedStateIcon?.get()?.id,
+				};
+			};
+
+			// Discovered on the shared worktree only: the main chat owns the session folder.
+			agentHost.setSessionState('multi-pr-icon', 'copilotcli', makeState(chats, { defaultChat, meta: discovered }));
+			const discoveredOnly = readIcons();
+
+			agentHost.setSessionState('multi-pr-icon', 'copilotcli', makeState(chats, {
+				defaultChat,
+				meta: withSessionArtifacts(discovered, [
+					{ id: 'peer-pr', chat: peerChat, type: SessionArtifactType.PullRequest, label: 'Peer PR', isArtifact: true, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/2' },
+				]),
+			}));
+			const recordedByPeer = readIcons();
+
+			// An owner that is not a listed chat keeps its pull request off every listed chat.
+			agentHost.setSessionState('multi-pr-icon', 'copilotcli', makeState(chats, {
+				defaultChat,
+				meta: withSessionArtifacts(discovered, [
+					{ id: 'unknown-pr', chat: 'custom-chat://host/conversation/unknown', type: SessionArtifactType.PullRequest, label: 'Unknown PR', isArtifact: true, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/2' },
+				]),
+			}));
+			const recordedByUnknownChat = readIcons();
+
+			// Only one of these is the folder's primary pull request, yet each chat shows its own while their live state loads.
+			agentHost.setSessionState('multi-pr-icon', 'copilotcli', makeState(chats, {
+				defaultChat,
+				meta: withSessionArtifacts({
+					githubData: {
+						[directory.toString()]: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/2', 'https://github.com/microsoft/vscode/pull/5'] },
+					},
+				}, [
+					{ id: 'main-pr', chat: defaultChat, type: SessionArtifactType.PullRequest, label: 'Main PR', isArtifact: true, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/5' },
+					{ id: 'peer-pr', chat: peerChat, type: SessionArtifactType.PullRequest, label: 'Peer PR', isArtifact: true, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/2' },
+				]),
+			}));
+			const recordedByEach = readIcons();
+
+			const openIcon = computePullRequestIcon(GitHubPullRequestState.Open).id;
+			assert.deepStrictEqual({ discoveredOnly, recordedByPeer, recordedByUnknownChat, recordedByEach }, {
+				discoveredOnly: { session: openIcon, main: openIcon, peer: undefined },
+				recordedByPeer: { session: undefined, main: undefined, peer: openIcon },
+				recordedByUnknownChat: { session: undefined, main: undefined, peer: undefined },
+				recordedByEach: { session: openIcon, main: openIcon, peer: openIcon },
+			});
+		});
+
+		test('shows a pull request another folder discovered on the chat that recorded it', () => {
+			const provider = createProviderWithPullRequestModels();
+			const sessionDirectory = URI.file('/work/vscode');
+			const worktreeDirectory = URI.file('/work/vscode.worktrees/feature');
+			const session = setupMultiChatSession(provider, 'multi-folder-pr-icon', [sessionDirectory, worktreeDirectory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-folder-pr-icon').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			let discovered: SessionState['_meta'] = {
+				githubData: {
+					[sessionDirectory.toString()]: { owner: 'microsoft', repo: 'vscode' },
+					[worktreeDirectory.toString()]: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/4'] },
+				},
+			};
+			discovered = withWorkingDirectoryKey(discovered, sessionDirectory.toString(), sessionDirectory.toString());
+			discovered = withWorkingDirectoryKey(discovered, worktreeDirectory.toString(), worktreeDirectory.toString());
+			// Both chats work in the worktree, where pull request 4 was discovered.
+			const chats = [
+				makeChatSummary(defaultChat, 'Main', ProtocolSessionStatus.Idle, [sessionDirectory.toString(), worktreeDirectory.toString()]),
+				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [worktreeDirectory.toString()]),
+			];
+			const readIcons = () => ({
+				main: session.mainChat.get().completedStateIcon?.get()?.id,
+				peer: session.chats.get().find(chat => chat.resource.fragment === 'peer-1')?.completedStateIcon?.get()?.id,
+			});
+
+			agentHost.setSessionState('multi-folder-pr-icon', 'copilotcli', makeState(chats, { defaultChat, meta: discovered }));
+			const discoveredOnly = readIcons();
+
+			agentHost.setSessionState('multi-folder-pr-icon', 'copilotcli', makeState(chats, {
+				defaultChat,
+				meta: withSessionArtifacts(discovered, [
+					{ id: 'peer-pr', chat: peerChat, type: SessionArtifactType.PullRequest, label: 'Peer PR', isArtifact: true, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/4' },
+				]),
+			}));
+			const recordedByPeer = readIcons();
+
+			const openIcon = computePullRequestIcon(GitHubPullRequestState.Open).id;
+			assert.deepStrictEqual({ discoveredOnly, recordedByPeer }, {
+				// A pull request no chat recorded belongs to the chats working in its folder.
+				discoveredOnly: { main: openIcon, peer: openIcon },
+				recordedByPeer: { main: undefined, peer: openIcon },
+			});
+		});
 
 		test('remaps artifact ownership when a single chat catalog hydrates without attributing unknown owners', () => {
 			const provider = createProviderWithPullRequestModels();
@@ -11736,7 +11937,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
-		test('tells session lists when a subscribed session reorders its chats, also when its root summary stays the same (Block 5)', async () => {
+		test('a subscribed session reorders its chats through its chats observable, also when its root summary stays the same (Block 5)', async () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'reorder-notify');
 			const sessionUri = AgentSession.uri('copilotcli', 'reorder-notify').toString();
@@ -11745,15 +11946,44 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const [first, second] = ['first', 'second'].map(id => buildDefaultChatUri(AgentSession.uri('copilotcli', id).toString()));
 			const peer = (resource: string, title: string): ChatSummary => ({ ...makeChatSummary(resource, title), origin: { kind: ProtocolChatOriginKind.User }, movable: true });
 			agentHost.setSessionState('reorder-notify', 'copilotcli', makeState([makeChatSummary(defaultChat, ''), peer(first, 'First'), peer(second, 'Second')], { defaultChat }));
-			const changed: string[][] = [];
-			disposables.add(provider.onDidChangeSessions(e => changed.push(e.changed.filter(candidate => candidate.sessionId === session.sessionId).map(candidate => candidate.chats.get().map(chat => chat.title.get()).join(',')))));
+			// Session lists read `chats` reactively, so a reorder reaches them without a session change event.
+			const observed: string[] = [];
+			disposables.add(autorun(reader => observed.push(session.chats.read(reader).map(chat => chat.title.read(reader)).join(','))));
 
 			agentHost.setSessionState('reorder-notify', 'copilotcli', makeState([makeChatSummary(defaultChat, ''), peer(second, 'Second'), peer(first, 'First')], { defaultChat }));
-			// An added chat reaches session lists with the root summary change, not again from the catalog.
 			const third = buildDefaultChatUri(AgentSession.uri('copilotcli', 'third').toString());
 			agentHost.setSessionState('reorder-notify', 'copilotcli', makeState([makeChatSummary(defaultChat, ''), peer(second, 'Second'), peer(first, 'First'), peer(third, 'Third')], { defaultChat }));
 
-			assert.deepStrictEqual(changed.filter(entry => entry.length > 0), [['Session,Second,First']]);
+			assert.deepStrictEqual(observed, ['Session,First,Second', 'Session,Second,First', 'Session,Second,First,Third']);
+		});
+
+		test('observing chat details applies a cached chat reorder without telling session lists while they observe', async () => {
+			const rawId = 'observe-cached-reorder';
+			const sessionUri = AgentSession.uri('copilotcli', rawId).toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const [first, second] = ['first', 'second'].map(id => buildChatUri(sessionUri, id));
+			agentHost.addSession(createSession(rawId, {
+				summary: 'Session',
+				chats: [
+					{ chat: URI.parse(defaultChat), kind: 'default', summary: 'Default' },
+					{ chat: URI.parse(first), kind: 'peer', summary: 'First' },
+					{ chat: URI.parse(second), kind: 'peer', summary: 'Second' },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost);
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(candidate => AgentSession.id(candidate.resource.toString()) === rawId);
+			assert.ok(session);
+			// Another client already holds the session's state, which orders its chats differently.
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([makeChatSummary(defaultChat, 'Default'), makeChatSummary(second, 'Second'), makeChatSummary(first, 'First')], { defaultChat }));
+			const notified: string[] = [];
+			disposables.add(provider.onDidChangeSessions(e => notified.push(...e.changed.filter(candidate => candidate.sessionId === session.sessionId).map(candidate => candidate.sessionId))));
+
+			// Session list rows observe chat details while the list renders them, and must not be re-entered.
+			disposables.add(autorun(reader => session.chats.read(reader).at(-1)?.title.read(reader)));
+
+			assert.deepStrictEqual({ notified, chats: session.chats.get().map(chat => chat.title.get()) }, { notified: [], chats: ['Default', 'Second', 'First'] });
 		});
 
 		test('explains a workspace-less refusal by whether the chat shares its scratch folder with another chat (Block 9)', async () => {
@@ -12162,25 +12392,80 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
-		test('side chats cannot be archived independently', () => {
+		test('side chats can be archived and restored without archiving their session or siblings', async () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'side-chat-archive');
 			const sessionUri = AgentSession.uri('copilotcli', 'side-chat-archive').toString();
 			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer');
 			const sideChat = buildChatUri(sessionUri, 'side');
 			agentHost.setSessionState('side-chat-archive', 'copilotcli', makeState([
 				makeChatSummary(defaultChat, ''),
+				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.InProgress),
 				{
 					...makeChatSummary(sideChat, 'Side Chat'),
 					origin: { kind: ProtocolChatOriginKind.SideChat, chat: defaultChat, turnId: 'turn-1' },
 				},
 			], { defaultChat }));
+			const [main, peer, side] = session.chats.get();
 
-			assert.deepStrictEqual(getChatCapabilities(session.chats.get()[1], session, undefined), {
-				canRename: true,
-				canArchive: false,
-				canDelete: true,
+			await provider.archiveChat(session.sessionId, side.resource);
+			const archived = {
+				capabilities: getChatCapabilities(side, session, undefined),
+				session: session.isArchived.get(),
+				chats: [main, peer, side].map(chat => chat.isArchived.get()),
+				peerStatus: peer.status.get(),
+				sideInteractivity: side.interactivity.get(),
+			};
+			await provider.unarchiveChat(session.sessionId, side.resource);
+
+			assert.deepStrictEqual({
+				archived,
+				restored: side.isArchived.get(),
+				restoredInteractivity: side.interactivity.get(),
+				actions: agentHost.dispatchedActions
+					.filter(dispatch => dispatch.action.type === ActionType.ChatIsArchivedChanged || dispatch.action.type === ActionType.SessionIsArchivedChanged)
+					.map(dispatch => ({ channel: dispatch.channel, action: dispatch.action })),
+			}, {
+				archived: {
+					capabilities: { canRename: true, canArchive: true, canDelete: true },
+					session: false,
+					chats: [false, false, true],
+					peerStatus: SessionStatus.InProgress,
+					sideInteractivity: ChatInteractivity.ReadOnly,
+				},
+				restored: false,
+				restoredInteractivity: ChatInteractivity.Full,
+				actions: [
+					{ channel: sideChat, action: { type: ActionType.ChatIsArchivedChanged, isArchived: true } },
+					{ channel: sideChat, action: { type: ActionType.ChatIsArchivedChanged, isArchived: false } },
+				],
 			});
+		});
+
+		test('side chat archival follows negotiated protocol support', async () => {
+			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: '0.8.0' }, undefined);
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'side-chat-archive-version');
+			const sessionUri = AgentSession.uri('copilotcli', 'side-chat-archive-version').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.setSessionState('side-chat-archive-version', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				{
+					...makeChatSummary(buildChatUri(sessionUri, 'side'), 'Side Chat'),
+					origin: { kind: ProtocolChatOriginKind.SideChat, chat: defaultChat, turnId: 'turn-1' },
+				},
+			], { defaultChat }));
+			const side = session.chats.get()[1];
+			const unsupported = getChatCapabilities(side, session, undefined).canArchive;
+			await assert.rejects(provider.archiveChat(session.sessionId, side.resource), /Archiving this chat is unavailable/);
+
+			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: '0.9.0' }, undefined);
+			assert.deepStrictEqual({
+				unsupported,
+				supported: getChatCapabilities(side, session, undefined).canArchive,
+				actions: agentHost.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.ChatIsArchivedChanged),
+			}, { unsupported: false, supported: true, actions: [] });
 		});
 
 		test('subagent chats surface as read-only peers even without multi-chat support, but user peers do not', () => {
@@ -12249,6 +12534,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 				whileNew: SessionStatus.Untitled,
 				afterSent: SessionStatus.Completed,
 			});
+		});
+
+		test('a new peer chat stops being Untitled when the host reports a turn sent by another client', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-new-remote');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-new-remote').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			(session as AgentHostSessionAdapter).markChatAsNew('peer-1');
+			const state = (status: ProtocolSessionStatus) => makeState([makeChatSummary(defaultChat, ''), makeChatSummary(peerChat, 'Peer', status)], { defaultChat });
+			const peer = () => session.chats.get().find(c => c.resource.fragment === 'peer-1')!.status.get();
+
+			agentHost.setSessionState('multi-new-remote', 'copilotcli', state(ProtocolSessionStatus.Idle));
+			const idle = peer();
+			agentHost.setSessionState('multi-new-remote', 'copilotcli', state(ProtocolSessionStatus.InProgress));
+			const running = peer();
+			agentHost.setSessionState('multi-new-remote', 'copilotcli', state(ProtocolSessionStatus.Idle));
+
+			assert.deepStrictEqual({ idle, running, finished: peer() }, { idle: SessionStatus.Untitled, running: SessionStatus.InProgress, finished: SessionStatus.Completed });
 		});
 
 		test('a peer catalog collapsed while capabilities were absent re-expands when they hydrate', () => {
@@ -13093,6 +13397,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				const support = provider.getNestedChatWorkspaceSupport(sessionId, undefined);
 				return support && {
 					sessionFolder: support.sessionFolder?.toString(),
+					sessionFolderWorktree: support.sessionFolderWorktree,
 					multipleFolders: support.multipleFolders,
 					browseActions: support.browseActions === provider.browseActions,
 				};
@@ -13167,8 +13472,66 @@ suite('LocalAgentHostSessionsProvider', () => {
 					workspace: describeSupport(provider, workspaceSession.sessionId),
 					workspaceless: describeSupport(provider, quickSession.sessionId),
 				}, {
-					workspace: { sessionFolder: repo.toString(), multipleFolders: true, browseActions: true },
-					workspaceless: { sessionFolder: undefined, multipleFolders: true, browseActions: true },
+					workspace: { sessionFolder: repo.toString(), sessionFolderWorktree: undefined, multipleFolders: true, browseActions: true },
+					workspaceless: { sessionFolder: undefined, sessionFolderWorktree: undefined, multipleFolders: true, browseActions: true },
+				});
+			}));
+
+			test('reports whether the session folder is the session\'s worktree, with its branch and repository', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				enableCreateChatWorkspace(true);
+				const provider = createProvider(disposables, agentHost);
+				const checkout = setupWorkspaceSession(provider, 'nested-checkout');
+
+				const worktree = URI.file('/work/repo.worktrees/fix-it');
+				const worktreeSession = setupMultiChatSession(provider, 'nested-worktree', [repo]);
+				const sessionUri = AgentSession.uri('copilotcli', 'nested-worktree').toString();
+				const defaultChat = buildDefaultChatUri(sessionUri);
+				const meta = withSessionGitState(undefined, { branchName: 'agents/fix-it', baseBranchName: 'main' });
+				agentHost.setSessionState('nested-worktree', 'copilotcli', makeState([
+					makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [worktree.toString()]),
+				], { defaultChat, meta, workingDirectories: [worktree.toString()] }));
+				fireSessionSummaryChanged(agentHost, 'nested-worktree', {
+					project: { uri: repo.toString(), displayName: 'repo' },
+					workingDirectories: [worktree.toString()],
+					_meta: meta,
+				});
+
+				const describe = (session: ISession) => {
+					const support = provider.getNestedChatWorkspaceSupport(session.sessionId, undefined);
+					return support && { sessionFolder: support.sessionFolder?.toString(), sessionFolderWorktree: support.sessionFolderWorktree };
+				};
+				assert.deepStrictEqual({ checkout: describe(checkout), worktree: describe(worktreeSession) }, {
+					checkout: { sessionFolder: repo.toString(), sessionFolderWorktree: undefined },
+					worktree: { sessionFolder: worktree.toString(), sessionFolderWorktree: { branch: 'agents/fix-it', repositoryLabel: 'repo' } },
+				});
+			}));
+
+			test('reports the worktree of the session folder when the session workspace lists another folder first', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				enableCreateChatWorkspace(true);
+				const provider = createProvider(disposables, agentHost);
+				const worktree = URI.file('/work/repo.worktrees/fix-it');
+				const session = setupMultiChatSession(provider, 'nested-aggregate', [repo]);
+				const sessionUri = AgentSession.uri('copilotcli', 'nested-aggregate').toString();
+				const defaultChat = buildDefaultChatUri(sessionUri);
+				const meta = withSessionGitState(undefined, { branchName: 'agents/fix-it', baseBranchName: 'main' });
+				agentHost.setSessionState('nested-aggregate', 'copilotcli', makeState([
+					makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [worktree.toString()]),
+				], { defaultChat, meta, workingDirectories: [worktree.toString()] }));
+				fireSessionSummaryChanged(agentHost, 'nested-aggregate', {
+					project: { uri: repo.toString(), displayName: 'repo' },
+					workingDirectories: [repo.toString(), worktree.toString()],
+					_meta: meta,
+				});
+
+				const support = provider.getNestedChatWorkspaceSupport(session.sessionId, undefined);
+				assert.deepStrictEqual({
+					folders: session.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
+					sessionFolder: support?.sessionFolder?.toString(),
+					sessionFolderWorktree: support?.sessionFolderWorktree,
+				}, {
+					folders: [repo.toString(), worktree.toString()],
+					sessionFolder: worktree.toString(),
+					sessionFolderWorktree: { branch: undefined, repositoryLabel: 'repo' },
 				});
 			}));
 
@@ -13191,7 +13554,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				], { defaultChat: quickDefault, meta: quickMeta, workingDirectories: quickDirectories }));
 				fireSessionSummaryChanged(agentHost, 'nested-wl-primary', { workingDirectories: quickDirectories, _meta: quickMeta });
 
-				assert.deepStrictEqual(describeSupport(provider, quickSession.sessionId), { sessionFolder: undefined, multipleFolders: true, browseActions: true });
+				assert.deepStrictEqual(describeSupport(provider, quickSession.sessionId), { sessionFolder: undefined, sessionFolderWorktree: undefined, multipleFolders: true, browseActions: true });
 			}));
 
 			test('a single-folder agent may only give a nested chat the session folder', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

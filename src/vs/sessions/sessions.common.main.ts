@@ -485,6 +485,7 @@ import './contrib/chat/browser/sideChatProvider.contribution.js';
 import './contrib/sessionComparison/browser/sessionComparison.contribution.js';
 import './contrib/providers/agentHost/browser/exportDebugLogsAction.js';
 import './contrib/providers/agentHost/browser/agentHostSessionConfigPicker.js';
+import './contrib/providers/agentHost/browser/agentHostPolicyContinuationPresenter.js';
 import './contrib/providers/agentHost/browser/agentHostForkActions.js';
 import './contrib/chat/browser/customizationsDebugLog.contribution.js';
 import './contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.js';
@@ -522,6 +523,7 @@ import '../workbench/contrib/onboarding/browser/onboarding.contribution.js';
 import '../workbench/contrib/chat/browser/onboarding/modelPickerTryout.contribution.js';
 import '../workbench/contrib/codeEditor/browser/diffEditorTryout.contribution.js';
 import './contrib/onboardingTours/browser/onboardingTours.contribution.js';
+import './contrib/getStarted/browser/getStarted.contribution.js';
 
 import './services/sessions/browser/sessionsManagementService.js';
 //#endregion

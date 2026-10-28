@@ -269,6 +269,19 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('contributes image guidance only to remote Copilot sessions even without user customizations', async () => {
+		const results = [];
+		for (const sessionType of ['remote-sandbox-copilot', 'remote-sandbox-claude', 'remote-sandbox-codex', SessionType.AgentHostCopilot]) {
+			const bundler = new FakeBundler();
+			await resolveCustomizationRefs(makeFileService(), makePromptsService(new Map()), new FakeSyncProvider(), makeAgentPluginService(), makeMcpService(), makeConfigurationResolverService(), toBundlers(bundler), sessionType, undefined);
+			results.push(bundler.received.flat().map(file => ({
+				type: file.type, name: file.uri.path.split('/').pop(), alwaysApply: file.content?.includes('alwaysApply: true'),
+				view: file.content?.includes('call `view` on the path once first'),
+			})));
+		}
+		assert.deepStrictEqual(results, [[{ type: PromptsType.instructions, name: 'vscode-local-images.mdc', alwaysApply: true, view: true }], [], [], []]);
+	});
+
 	test('passes built-in skills to the bundler as loose files', async () => {
 		const builtin = URI.file('/builtin/create-pr/SKILL.md');
 		const promptsService = makePromptsService(new Map([

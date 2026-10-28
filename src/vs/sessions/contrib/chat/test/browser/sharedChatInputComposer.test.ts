@@ -18,6 +18,7 @@ import { ChatDynamicVariableModel } from '../../../../../workbench/contrib/chat/
 import { IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IChatVariablesService, IDynamicVariable } from '../../../../../workbench/contrib/chat/common/attachments/chatVariables.js';
 import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IModelPickerComparison } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IChatSlashCommandService, IChatSlashData } from '../../../../../workbench/contrib/chat/common/participants/chatSlashCommands.js';
 import { IPromptsService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
@@ -301,5 +302,27 @@ suite('SharedChatInputComposer', () => {
 		sending.set(false, undefined);
 		busyStore.dispose();
 		assert.deepStrictEqual(busy.filter(value => value !== ''), ['sending']);
+	}));
+
+	test('uses the model picker progress instead of a separate busy action for comparison sends', () => runWithFakedTimers({}, async () => {
+		const busyStore = new DisposableStore();
+		const sending = observableValue('sending', false);
+		const summary = observableValue<string | undefined>('summary', '3 Attempts');
+		const busy: string[] = [];
+		const composer: { _renderBusyState(key: { set(value: string): void }): void } = Object.assign(Object.create(SharedChatInputComposer.prototype), {
+			_store: busyStore,
+			_sending: sending,
+			options: {
+				loading: constObservable(false),
+				modelPickerComparison: upcastPartial<IModelPickerComparison>({ summary }),
+			},
+		});
+		composer._renderBusyState({ set: value => busy.push(value) });
+		sending.set(true, undefined);
+		await timeout(1000);
+		sending.set(false, undefined);
+		busyStore.dispose();
+
+		assert.deepStrictEqual(busy.filter(value => value !== ''), []);
 	}));
 });

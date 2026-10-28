@@ -28,10 +28,11 @@ import { PromptFileParser } from '../../../../common/promptSyntax/promptFilePars
 import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
 import { MockPromptsService } from '../../../common/promptSyntax/service/mockPromptsService.js';
-import { createVSCodeHarnessDescriptor, ICustomizationHarnessService, type IAgentFileToolInventoryEntry } from '../../../../common/customizationHarnessService.js';
+import { createVSCodeHarnessDescriptor, ICustomizationHarnessService, type IAgentFileToolInventoryEntry, type ICustomizationItem } from '../../../../common/customizationHarnessService.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import type { AgentModelCatalogStatus } from '../../../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
 import { Event } from '../../../../../../../base/common/event.js';
+import { AICustomizationSources } from '../../../../common/aiCustomizationWorkspaceService.js';
 
 suite('PromptValidator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -42,6 +43,8 @@ suite('PromptValidator', () => {
 	let modelCatalogueStatus: ISettableObservable<AgentModelCatalogStatus | undefined>;
 	let copilotToolInventory: readonly IAgentFileToolInventoryEntry[] | Error | undefined;
 	let otherCopilotToolInventory: readonly IAgentFileToolInventoryEntry[] | Error | undefined;
+	let copilotSkillInventory: ICustomizationItem[] | Error | undefined;
+	let otherCopilotSkillInventory: ICustomizationItem[] | Error | undefined;
 
 	const existingRef1 = URI.parse('myFs://test/reference1.md');
 	const existingRef2 = URI.parse('myFs://test/reference2.md');
@@ -52,6 +55,8 @@ suite('PromptValidator', () => {
 		modelCatalogueStatus = observableValue('modelCatalogueStatus', 'pending');
 		copilotToolInventory = undefined;
 		otherCopilotToolInventory = undefined;
+		copilotSkillInventory = undefined;
+		otherCopilotSkillInventory = undefined;
 
 		testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
@@ -196,7 +201,12 @@ suite('PromptValidator', () => {
 			modelCatalogueStatus,
 			itemProvider: {
 				onDidChange: Event.None,
-				provideChatSessionCustomizations: async () => [],
+				provideChatSessionCustomizations: async () => {
+					if (copilotSkillInventory instanceof Error) {
+						throw copilotSkillInventory;
+					}
+					return copilotSkillInventory;
+				},
 				provideAgentFileTools: async () => {
 					if (copilotToolInventory instanceof Error) {
 						throw copilotToolInventory;
@@ -212,7 +222,12 @@ suite('PromptValidator', () => {
 			modelCatalogueStatus,
 			itemProvider: {
 				onDidChange: Event.None,
-				provideChatSessionCustomizations: async () => [],
+				provideChatSessionCustomizations: async () => {
+					if (otherCopilotSkillInventory instanceof Error) {
+						throw otherCopilotSkillInventory;
+					}
+					return otherCopilotSkillInventory;
+				},
 				provideAgentFileTools: async () => {
 					if (otherCopilotToolInventory instanceof Error) {
 						throw otherCopilotToolInventory;
@@ -1191,6 +1206,49 @@ suite('PromptValidator', () => {
 			});
 		});
 
+		test('validates github-copilot skills from authoritative matching inventories', async () => {
+			copilotSkillInventory = [
+				createSkill('review'),
+				createSkill('disabled', { enabled: false }),
+				createSkill('unavailable', { status: 'error' }),
+			];
+			otherCopilotSkillInventory = [createSkill('testing', { source: AICustomizationSources.plugin })];
+			const content = [
+				'---',
+				'description: Test',
+				'target: github-copilot',
+				'skills: [review, testing, disabled, unavailable, missing]',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => ({ message: marker.message, tags: marker.tags })), [
+				{ message: `Skill 'disabled' is recognized but disabled for the matching GitHub Copilot harness.`, tags: [MarkerTag.Unnecessary] },
+				{ message: `Skill 'unavailable' is recognized but currently unavailable for the matching GitHub Copilot harness.`, tags: [MarkerTag.Unnecessary] },
+				{ message: `Skill 'missing' is not recognized by the matching GitHub Copilot harness.`, tags: [MarkerTag.Unnecessary] },
+			]);
+		});
+
+		test('github-copilot skill validation remains fail-open until every inventory is ready', async () => {
+			const content = [
+				'---',
+				'description: Test',
+				'target: github-copilot',
+				'skills: [missing]',
+				'---',
+			].join('\n');
+			const states: (ICustomizationItem[] | Error | undefined)[] = [undefined, new Error('inventory failed')];
+			const results: string[][] = [];
+			for (const state of states) {
+				copilotSkillInventory = state;
+				otherCopilotSkillInventory = [];
+				results.push((await validate(content, PromptsType.agent)).map(marker => marker.message));
+			}
+
+			assert.deepStrictEqual(results, [[], []]);
+		});
+
 		test('github-copilot infer is accepted as legacy', async () => {
 			const content = [
 				'---',
@@ -1210,6 +1268,19 @@ suite('PromptValidator', () => {
 				tags: [MarkerTag.Deprecated],
 			}]);
 		});
+
+		function createSkill(name: string, overrides: Partial<ICustomizationItem> = {}): ICustomizationItem {
+			return {
+				uri: URI.parse(`test:/skills/${name}/SKILL.md`),
+				type: PromptsType.skill,
+				name,
+				source: AICustomizationSources.local,
+				extensionId: undefined,
+				pluginUri: undefined,
+				enabled: true,
+				...overrides,
+			};
+		}
 
 		test('github-copilot validates local and remote MCP servers', async () => {
 			const content = [
