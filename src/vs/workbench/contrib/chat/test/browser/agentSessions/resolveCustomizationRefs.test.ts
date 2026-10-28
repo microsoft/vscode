@@ -8,6 +8,7 @@ import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -93,12 +94,13 @@ function makeAgentPluginService(plugins: readonly IAgentPlugin[] = [], profileEn
 	} as unknown as IAgentPluginService;
 }
 
-function makePlugin(uri: URI, options: { label?: string; enabled?: boolean; enablement?: ContributionEnablementState; agents?: number; mcpServers?: number } = {}): IAgentPlugin {
+function makePlugin(uri: URI, options: { label?: string; enabled?: boolean; enablement?: ContributionEnablementState; agents?: number; mcpServers?: number; copilotCliInstallation?: IAgentPlugin['copilotCliInstallation'] } = {}): IAgentPlugin {
 	const { label = 'Plugin', enabled = true, enablement = enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile, agents = 0, mcpServers = 0 } = options;
 	return {
 		uri,
 		format: PluginFormat.Copilot,
 		label,
+		copilotCliInstallation: options.copilotCliInstallation,
 		enablement: observableValue('enablement', enablement),
 		hooks: observableValue('hooks', []),
 		commands: observableValue('commands', []),
@@ -484,6 +486,60 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.deepStrictEqual(refs.map(r => ({ uri: r.uri, name: r.name })), [
 			{ uri: pluginUri.toString(), name: 'MCP Only' },
 		]);
+	});
+
+	for (const scenario of [
+		{ name: 'local Copilot owner', sessionType: SessionType.AgentHostCopilot, scheme: Schemas.file, authority: '', windowRemoteAuthority: null, hydrated: false, enabled: false, forward: false },
+		{ name: 'remote-window Copilot owner', sessionType: SessionType.AgentHostCopilot, scheme: Schemas.vscodeRemote, authority: 'ssh-remote+host', windowRemoteAuthority: 'ssh-remote+host', hydrated: true, enabled: true, forward: false },
+		{ name: 'another remote machine', sessionType: SessionType.AgentHostCopilot, scheme: Schemas.vscodeRemote, authority: 'ssh-remote+other', windowRemoteAuthority: 'ssh-remote+host', hydrated: false, enabled: true, forward: true },
+		{ name: 'local plugin in a remote window', sessionType: SessionType.AgentHostCopilot, scheme: Schemas.file, authority: '', windowRemoteAuthority: 'ssh-remote+host', hydrated: true, enabled: false, forward: true },
+		{ name: 'remote plugin in a local window', sessionType: SessionType.AgentHostCopilot, scheme: Schemas.vscodeRemote, authority: 'ssh-remote+host', windowRemoteAuthority: null, hydrated: false, enabled: true, forward: true },
+		{ name: 'separate remote Copilot host', sessionType: 'remote-other-copilotcli', scheme: Schemas.file, authority: '', windowRemoteAuthority: null, hydrated: true, enabled: false, forward: true },
+		{ name: 'another provider', sessionType: 'agent-host-claude', scheme: Schemas.file, authority: '', windowRemoteAuthority: null, hydrated: false, enabled: true, forward: true },
+		{ name: 'non-agent-host Copilot', sessionType: SessionType.CopilotCLI, scheme: Schemas.file, authority: '', windowRemoteAuthority: null, hydrated: true, enabled: false, forward: true },
+	]) {
+		test(`leaves SDK-owned plugins to the ${scenario.name} only when it owns discovery`, async () => {
+			const pluginUri = URI.from({ scheme: scenario.scheme, authority: scenario.authority, path: '/plugins/foundry' });
+			const promptFile = URI.joinPath(pluginUri, 'skills', 'helper', 'SKILL.md');
+			const refs = await resolveCustomizationRefs(
+				makeFileService(),
+				makePromptsService(new Map(scenario.hydrated ? [
+					[`${PromptsType.skill}/${PromptsStorage.plugin}`, [makePromptPath(promptFile, PromptsType.skill, PromptsStorage.plugin)]],
+				] : [])),
+				new FakeSyncProvider(),
+				makeAgentPluginService([makePlugin(pluginUri, {
+					mcpServers: 1,
+					enabled: scenario.enabled,
+					copilotCliInstallation: { name: 'foundry', marketplace: 'test' },
+				})], new Map([[pluginUri.toString(), scenario.enabled]])),
+				makeMcpService(),
+				makeConfigurationResolverService(),
+				toBundlers(new FakeBundler()),
+				scenario.sessionType,
+				undefined,
+				[],
+				scenario.windowRemoteAuthority,
+			);
+			assert.deepStrictEqual(refs.map(ref => ({ uri: ref.uri, enablement: ref.enablement })), scenario.forward
+				? [{ uri: pluginUri.toString(), enablement: globalEnablement(scenario.enabled) }]
+				: []);
+		});
+	}
+
+	test('still forwards plugins without SDK installation provenance to local Copilot', async () => {
+		const pluginUri = URI.file('/plugins/foundry');
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService([makePlugin(pluginUri, { label: 'foundry', agents: 1 })]),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			toBundlers(new FakeBundler()),
+			SessionType.AgentHostCopilot,
+			undefined,
+		);
+		assert.deepStrictEqual(refs.map(ref => ref.uri), [pluginUri.toString()]);
 	});
 
 	test('includes plugins discovered through their agents before prompt-file hydration', async () => {

@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isRemoteAgentHostSessionType, parseAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -23,6 +24,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 import { AgentHostMcpServerDelivery, resolveMcpServersForAgentHostDelivery } from './agentHostMcpServerSupport.js';
+import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE } from './agentHostToolSetEnablementService.js';
 
 /**
  * Prompt types that participate in auto-sync to an agent host harness.
@@ -268,6 +270,15 @@ export async function resolveCustomizationRefs(
 	const looseFiles: ISyncableFile[] = [];
 
 	const addPluginRef = (plugin: IAgentPlugin) => {
+		const isRuntimeOwned = sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE
+			&& plugin.copilotCliInstallation !== undefined
+			&& (windowRemoteAuthority
+				? plugin.uri.scheme === Schemas.vscodeRemote && plugin.uri.authority === windowRemoteAuthority
+				: plugin.uri.scheme === Schemas.file);
+		// The owning runtime loads these installations; forwarding a copy starts their extensions twice.
+		if (isRuntimeOwned) {
+			return;
+		}
 		const key = plugin.uri.toString();
 		if (!pluginRefs.has(key)) {
 			const promise = (async (): Promise<ClientPluginCustomization> => {

@@ -32,7 +32,7 @@ import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
 import { AICustomizationDiscoveryPage } from '../../../browser/aiCustomization/aiCustomizationDiscoveryPage.js';
 import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
@@ -259,10 +259,11 @@ suite('AICustomizationDiscoveryPage', () => {
 			override readonly plugins = constObservable(installedPlugins);
 		}());
 		const mcpChanges = store.add(new Emitter<IWorkbenchMcpServer | undefined>());
+		let installedMcpServers: IWorkbenchMcpServer[] = [];
 		instantiationService.stub(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 			override readonly onChange = mcpChanges.event;
 			override readonly onReset = Event.None;
-			override readonly local = [];
+			override get local() { return installedMcpServers; }
 			override readonly whenInitialLocalMcpServersLoaded = Promise.resolve();
 		}());
 		const creationEvents: string[] = [];
@@ -301,6 +302,10 @@ suite('AICustomizationDiscoveryPage', () => {
 			},
 			notifyInstallChange: () => installChanges.fire(),
 			notifyMcpChange: () => mcpChanges.fire(undefined),
+			setInstalledMcpServers: (servers: IWorkbenchMcpServer[]) => {
+				installedMcpServers = servers;
+				mcpChanges.fire(undefined);
+			},
 			setInstalledSkills: (items: readonly IAICustomizationListItem[]) => installedSkills.set(items, undefined),
 			setRepairHandler: (handler: (resource: ICustomizationMarketplaceResource) => Promise<void>) => { onRepair = handler; },
 			setRecoveryAction: (action: ICustomizationMarketplaceSourceRecoveryAction) => { recoveryActions.set('other', action); },
@@ -1448,6 +1453,83 @@ suite('AICustomizationDiscoveryPage', () => {
 		await timeout(0);
 
 		assert.strictEqual(fixture.page.getAccessibilityContent().includes('shared-name'), true);
+	});
+
+	test('merges local and provider plugin entries into the installed marketplace row', async () => {
+		const uri = URI.file('/plugins/handy-commands');
+		const plugin = new class extends mock<IAgentPlugin>() {
+			override readonly uri = uri;
+			override readonly label = 'handy-commands';
+		}();
+		const candidate = resource('handy-commands', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin });
+		const fixture = createPage(undefined, [AICustomizationManagementSection.Plugins], [plugin], undefined, [], undefined, {}, [{
+			uri, type: 'plugin', name: 'handy-commands', source: 'plugin', extensionId: undefined, pluginUri: undefined,
+		}]);
+		fixture.setInstallState(candidate, { kind: 'installed', target: { kind: 'plugin', uri, name: 'handy-commands' } });
+		fixture.notifyInstallChange();
+		fixture.page.setSearchQuery('@installed handy');
+		fixture.page.setVisible(true);
+		await timeout(0);
+
+		const rows = [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent);
+		const accessibleNames = fixture.page.getAccessibilityContent().split('\n').filter(line => line === 'handy-commands');
+		const actions = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-result-actions .monaco-button')];
+		actions[0]?.click();
+		await timeout(0);
+		assert.deepStrictEqual({ rows, accessibleNames, actions: actions.map(action => action.textContent), uninstalls: fixture.uninstalls }, {
+			rows: ['handy-commands'], accessibleNames: ['handy-commands'], actions: ['Uninstall'], uninstalls: ['handy-commands'],
+		});
+	});
+
+	test('merges an installed MCP catalog alias into the linked connector alternative', async () => {
+		const installed = resource('installed-slack', { displayName: 'slack' });
+		const alternative = resource('slack-gallery', { displayName: 'Slack MCP', connectorIds: ['slack'] });
+		const connector = resource('slack-connector', {
+			displayName: 'Slack', sourceId: 'copilotConnectors', installation: { kind: 'copilotConnector', name: 'slack' },
+		});
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.setInstalledMcpServers([new class extends mock<IWorkbenchMcpServer>() {
+			override readonly id = 'installed-slack-server';
+			override readonly label = 'slack';
+			override readonly installState = McpServerInstallState.Installed;
+			override readonly local = new class extends mock<NonNullable<IWorkbenchMcpServer['local']>>() { }();
+		}()]);
+		for (const candidate of [installed, alternative]) {
+			fixture.setInstallState(candidate, { kind: 'installed', target: { kind: 'mcp', id: 'installed-slack-server' } });
+		}
+		fixture.notifyInstallChange();
+		fixture.page.setSearchQuery('slack');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [alternative, connector] });
+		await timeout(0);
+		fixture.container.querySelector<HTMLButtonElement>('.linked-alternative .customization-discovery-result-linked-label')?.click();
+		await timeout(0);
+		const rows = [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent);
+		const accessibleNames = fixture.page.getAccessibilityContent().split('\n').filter(line => /^(slack|Slack|Slack MCP)$/.test(line)).sort();
+		const alternativeAction = fixture.container.querySelector<HTMLElement>('.linked-alternative .monaco-button');
+		const label = alternativeAction?.textContent;
+		alternativeAction?.click();
+		await timeout(0);
+		assert.deepStrictEqual({ rows, accessibleNames, label, uninstalls: fixture.uninstalls }, {
+			rows: ['Slack', 'slack'], accessibleNames: ['Slack', 'Slack MCP'], label: 'Uninstall', uninstalls: ['slack-gallery'],
+		});
+	});
+
+	test('retains distinct installed targets with the same catalog display name', async () => {
+		const first = resource('first-handy', { displayName: 'handy', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin });
+		const second = resource('second-handy', { displayName: 'handy', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin });
+		const fixture = createPage(undefined, [AICustomizationManagementSection.Plugins]);
+		for (const candidate of [first, second]) {
+			fixture.setInstallState(candidate, { kind: 'installed', target: { kind: 'plugin', uri: URI.file(`/plugins/${candidate.identifier}`), name: 'handy' } });
+		}
+		fixture.notifyInstallChange();
+		fixture.page.setSearchQuery('@installed handy');
+		fixture.page.setVisible(true);
+		await timeout(0);
+		assert.deepStrictEqual({
+			rows: [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent),
+			actions: [...fixture.container.querySelectorAll('.customization-discovery-result-actions .monaco-button')].map(element => element.textContent),
+		}, { rows: ['handy', 'handy'], actions: ['Uninstall', 'Uninstall'] });
 	});
 
 	test('plugin-only search finds a match after the first 24 filtered items', async () => {
