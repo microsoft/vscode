@@ -18854,39 +18854,57 @@ suite('AgentService (node dispatcher)', () => {
 									resource: session.session.toString(),
 									adoptable: readSessionEhcliAdoptable(session._meta),
 									archived: isSessionStatusArchived(session.status ?? SessionStatus.Idle),
+									read: isSessionStatusRead(session.status ?? SessionStatus.Idle),
 								})).sort((a, b) => a.resource.localeCompare(b.resource)),
 							});
 						}
 						return results;
+					};
+					const announced = (svc: AgentService) => [active, archived].map(session => {
+						const summary = getStateManager(svc).getSurfacedSessionSummary(session.toString());
+						return summary && { read: isSessionStatusRead(summary.status), defaultChat: summary.defaultChat, chats: summary.chats?.map(chat => chat.resource) };
+					});
+					// A chat-level read toggle on an un-opened legacy session must not adopt it, with or without its announcement.
+					const toggleDefaultChatRead = async (svc: AgentService) => {
+						const defaultChat = (await svc.listSessions()).find(session => session.session.toString() === active.toString())?.chats?.find(chat => chat.kind === 'default')?.chat;
+						if (defaultChat) {
+							await svc.dispatchAction(defaultChat.toString(), { type: ActionType.ChatIsReadChanged, isRead: false }, 'client-1', 1);
+							await timeout(10);
+						}
 					};
 
 					const { svc, agent } = await start();
 					agent.fireDiscoveredChats(discovered);
 					await svc.whenDiscoveredChatsRegistered();
 					const initial = await listed(svc);
+					const initialAnnouncements = announced(svc);
 					agent.fireDiscoveredChats([...discovered, ...discovered]);
 					await svc.whenDiscoveredChatsRegistered();
 					agent.fireDiscoveredChats(discovered);
 					await svc.whenDiscoveredChatsRegistered();
 					const rediscovered = await listed(svc);
+					await toggleDefaultChatRead(svc);
 					svc.dispose();
 					const restarted = await start();
+					await toggleDefaultChatRead(restarted.svc);
 
 					const expected = modes.map(mode => ({
 						mode,
 						sessions: migrate ? [
-							{ resource: active.toString(), adoptable: true, archived: false },
-							{ resource: archived.toString(), adoptable: true, archived: true },
+							{ resource: active.toString(), adoptable: true, archived: false, read: true },
+							{ resource: archived.toString(), adoptable: true, archived: true, read: true },
 						] : [],
 					}));
 					assert.deepStrictEqual({
 						initial,
+						initialAnnouncements,
 						rediscovered,
 						restarted: await listed(restarted.svc),
 						adoptions: [agent.adoptionCalls, restarted.agent.adoptionCalls],
 						localDatabases: perSession.databaseIds(),
 					}, {
 						initial: expected,
+						initialAnnouncements: migrate ? [active, archived].map(session => ({ read: true, defaultChat: buildDefaultChatUri(session), chats: [buildDefaultChatUri(session)] })) : [undefined, undefined],
 						rediscovered: expected,
 						restarted: expected,
 						adoptions: [0, 0],
