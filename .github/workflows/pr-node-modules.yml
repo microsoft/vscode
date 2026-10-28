@@ -289,6 +289,42 @@ jobs:
       NPM_ARCH: x64
       VSCODE_ARCH: x64
     steps:
+      # Installing the dependencies on the OS disk takes 16 to 20 minutes, against about 12 on the Dev Drive
+      # of the Windows test jobs, and pull requests miss the cache until this job saves it. The same step as
+      # in pr-win32-test.yml, which explains it; build/lib/test/detectMissingCaches.test.ts keeps them equal.
+      - name: Move the workspace to a Dev Drive
+        shell: pwsh
+        working-directory: ${{ runner.temp }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $workspace = $env:GITHUB_WORKSPACE
+          $mount = Split-Path $workspace -Parent
+          $vhd = Join-Path $env:RUNNER_TEMP 'workspace.vhdx'
+          try {
+            if (Get-ChildItem -Force $workspace) { throw "$workspace is not empty" }
+            @(
+              "create vdisk file=`"$vhd`" maximum=204800 type=expandable"
+              "select vdisk file=`"$vhd`""
+              'attach vdisk'
+              'create partition primary'
+              'assign letter=W'
+            ) | Set-Content diskpart.txt
+            diskpart /s diskpart.txt | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw "diskpart exited with $LASTEXITCODE" }
+            Format-Volume -DriveLetter W -DevDrive -Confirm:$false -Force | Out-Host
+            Remove-Item $workspace
+            if (Get-ChildItem -Force $mount) { throw "$mount holds more than the workspace" }
+            Add-PartitionAccessPath -DriveLetter W -AccessPath "$mount\"
+            # Without a drive letter, the native realpath of the workspace files stays under $mount.
+            Remove-PartitionAccessPath -DriveLetter W -AccessPath 'W:\'
+            New-Item -ItemType Directory -Path $workspace | Out-Null
+            fsutil devdrv query $mount | Out-Host
+          } catch {
+            Write-Output "::warning::The workspace stays on the OS disk: $_"
+            New-Item -ItemType Directory -Path $workspace -Force | Out-Null
+          }
+          exit 0
+
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
