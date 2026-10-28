@@ -95,6 +95,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 	private readonly workspaceExtensionManagementService: WorkspaceExtensionsManagementService;
 	private readonly coordinatedUninstallRecovery: Promise<void>;
 	private readonly activeCoordinatedUninstalls = new Set<string>();
+	private coordinatedUninstallIdentity: Promise<string> | undefined;
 
 	constructor(
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
@@ -285,25 +286,32 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 			const local = server.extensionManagementService;
 			const remote = this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService;
 			await this.coordinatedUninstallRecovery;
-			if (await local.supportsCoordinatedUninstall?.() && await remote.supportsCoordinatedUninstall?.()) {
-				const remoteIdentity = await remote.getCoordinatedUninstallIdentity!();
-				await this.recoverCoordinatedUninstalls(remoteIdentity);
-				const id = generateUuid();
-				const profileLocation = this.userDataProfileService.currentProfile.extensionsResource;
-				const batch = extensions.map(({ extension, options }) => ({ extension, options: { ...options, profileLocation: options?.profileLocation ?? profileLocation } }));
-				this.activeCoordinatedUninstalls.add(id);
-				try {
+			try {
+				if (await local.supportsCoordinatedUninstall?.() && await remote.supportsCoordinatedUninstall?.()) {
+					const remoteIdentity = await this.getCachedCoordinatedUninstallIdentity(remote);
+					await this.recoverCoordinatedUninstalls(remoteIdentity);
+					const id = generateUuid();
+					const profileLocation = this.userDataProfileService.currentProfile.extensionsResource;
+					const batch = extensions.map(({ extension, options }) => ({ extension, options: { ...options, profileLocation: options?.profileLocation ?? profileLocation } }));
+					this.activeCoordinatedUninstalls.add(id);
+					let commitConfirmed = false;
 					try {
-						await local.prepareLocalUninstall!(id, batch, this.coordinatedUninstallTarget(remoteIdentity));
-						checkForRemoteDependents(await remote.reserveLocalUninstall!(id, profileLocation, remoteIdentity));
-						await local.commitLocalUninstall!(id);
+						try {
+							await local.prepareLocalUninstall!(id, batch, this.coordinatedUninstallTarget(remoteIdentity));
+							checkForRemoteDependents(await remote.reserveLocalUninstall!(id, profileLocation, remoteIdentity));
+							await local.commitLocalUninstall!(id);
+							commitConfirmed = true;
+						} finally {
+							await this.finishCoordinatedUninstall(id, local, remote, remoteIdentity, commitConfirmed);
+						}
 					} finally {
-						await this.finishCoordinatedUninstall(id, local, remote, remoteIdentity);
+						this.activeCoordinatedUninstalls.delete(id);
 					}
-				} finally {
-					this.activeCoordinatedUninstalls.delete(id);
+					return;
 				}
-				return;
+			} catch (error) {
+				this.coordinatedUninstallIdentity = undefined;
+				throw error;
 			}
 			// Older backends retain the original ordered checks without snapshot reuse.
 			for (const { extension } of extensions) {
@@ -318,28 +326,41 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		return server.extensionManagementService.uninstallExtensions(extensions);
 	}
 
+	private getCachedCoordinatedUninstallIdentity(remote: IExtensionManagementService): Promise<string> {
+		// Reserve and release verify this identity in their transaction, including after reconnect.
+		return this.coordinatedUninstallIdentity ??= remote.getCoordinatedUninstallIdentity!();
+	}
+
 	private coordinatedUninstallTarget(remoteIdentity: string): string {
 		return JSON.stringify([remoteIdentity, this.workspaceContextService.getWorkspace().id, this.userDataProfileService.currentProfile.location.toString()]);
 	}
 
 	private async recoverCoordinatedUninstalls(remoteIdentity?: string): Promise<void> {
-		const local = this.extensionManagementServerService.localExtensionManagementServer?.extensionManagementService;
-		const remote = this.extensionManagementServerService.remoteExtensionManagementServer?.extensionManagementService;
-		if (!local || !remote || !await local.supportsCoordinatedUninstall?.() || !await remote.supportsCoordinatedUninstall?.()) {
-			return;
-		}
-		remoteIdentity ??= await remote.getCoordinatedUninstallIdentity!();
-		const ids = await local.getPendingLocalUninstalls!(this.coordinatedUninstallTarget(remoteIdentity));
-		for (const id of ids) {
-			if (!this.activeCoordinatedUninstalls.has(id)) {
-				await this.finishCoordinatedUninstall(id, local, remote, remoteIdentity);
+		try {
+			const local = this.extensionManagementServerService.localExtensionManagementServer?.extensionManagementService;
+			const remote = this.extensionManagementServerService.remoteExtensionManagementServer?.extensionManagementService;
+			if (!local || !remote || !await local.supportsCoordinatedUninstall?.() || !await remote.supportsCoordinatedUninstall?.()) {
+				return;
 			}
+			remoteIdentity ??= await this.getCachedCoordinatedUninstallIdentity(remote);
+			const ids = await local.getPendingLocalUninstalls!(this.coordinatedUninstallTarget(remoteIdentity));
+			for (const id of ids) {
+				if (!this.activeCoordinatedUninstalls.has(id)) {
+					await this.finishCoordinatedUninstall(id, local, remote, remoteIdentity);
+				}
+			}
+		} catch (error) {
+			this.coordinatedUninstallIdentity = undefined;
+			throw error;
 		}
 	}
 
-	private async finishCoordinatedUninstall(id: string, local: IExtensionManagementService, remote: IExtensionManagementService, remoteIdentity: string): Promise<void> {
+	private async finishCoordinatedUninstall(id: string, local: IExtensionManagementService, remote: IExtensionManagementService, remoteIdentity: string, commitConfirmed = false): Promise<void> {
 		// Fencing waits for in-flight backend work and prevents a delayed commit from restarting it.
-		await local.abortLocalUninstall!(id);
+		// A confirmed commit already persisted its terminal fence before replying.
+		if (!commitConfirmed) {
+			await local.abortLocalUninstall!(id);
+		}
 		await remote.releaseLocalUninstall!(id, remoteIdentity);
 		await local.acknowledgeLocalUninstall!(id);
 	}
