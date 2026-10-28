@@ -22,6 +22,7 @@ steps:
       path: $(Agent.ToolsDirectory)/node/$(NODE_TOOLCACHE_VERSION)
     displayName: Restore Node.js tool cache
     retryCountOnTaskFailure: 2
+    continueOnError: true
 
   - task: NodeTool@0
     inputs:
