@@ -12,7 +12,7 @@ import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { hasKey, Mutable } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
-import { parseFrontMatter } from '../../../base/common/yaml.js';
+import { MarkdownNode, parseFrontMatter } from '../../../base/common/yaml.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../mcp/common/mcpPlatformTypes.js';
 import { CustomizationType, McpServerStatus, type AgentCustomization, type HookCustomization, type McpServerCustomization, type RuleCustomization, type SkillCustomization } from '../../agentHost/common/state/protocol/state.js';
 import { DEFAULT_MCP_APP } from '../../agentHost/common/state/protocol/mcpAppDefaults.js';
@@ -103,6 +103,8 @@ export interface INamedPluginResource {
 
 /** A parsed agent resource with the frontmatter metadata shared by providers. */
 export interface IAgentPluginResource extends INamedPluginResource {
+	/** Retains the parsed frontmatter and body for consumers that need the full agent configuration. */
+	readonly parsedContent?: MarkdownNode;
 	readonly model?: string;
 	readonly tools?: readonly string[];
 	readonly disableModelInvocation?: boolean;
@@ -1251,6 +1253,7 @@ export async function readAgentComponents(
 			return {
 				uri: file.uri,
 				name: parsed.name || file.name,
+				...(parsed.parsedContent ? { parsedContent: parsed.parsedContent } : {}),
 				...(parsed.description ? { description: parsed.description } : {}),
 				...(parsed.model ? { model: parsed.model } : {}),
 				...(parsed.tools?.length ? { tools: parsed.tools } : {}),
@@ -1275,7 +1278,7 @@ export async function readAgentComponents(
 	return result;
 }
 
-export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean; model?: string; tools?: readonly string[]; disableModelInvocation?: boolean }> {
+export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean; model?: string; tools?: readonly string[]; disableModelInvocation?: boolean; parsedContent?: MarkdownNode }> {
 	// Use regex to strip the trailing `.agent.md` or .md before parsing, so we can fall back to a cleaner name if frontmatter is missing or broken.
 	const nameFromFile = basename(uri).replace(/(\.agent)?\.md$/i, '');
 	try {
@@ -1288,7 +1291,7 @@ export async function parseAgentFile(uri: URI, fileService: IFileService): Promi
 		const tools = frontmatter?.getStringArrayValue('tools')?.map(value => value.trim()).filter(Boolean);
 		const infer = frontmatter?.getBooleanValue('infer');
 		const disableModelInvocation = resolveAgentDisableModelInvocation(infer, frontmatter?.getBooleanValue('disable-model-invocation'));
-		return { name, description, userInvocable, model, tools, disableModelInvocation };
+		return { name, description, userInvocable, model, tools, disableModelInvocation, parsedContent: frontmatter };
 	} catch {
 		return { name: nameFromFile };
 	}

@@ -14,7 +14,7 @@ import { parseFrontMatter, type MarkdownNode, type YamlNode } from '../../../../
 import { IFileService } from '../../../files/common/files.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
-import { resolveAgentDisableModelInvocation, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookCommand, type IParsedHookGroup, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { resolveAgentDisableModelInvocation, type IAgentPluginResource, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookCommand, type IParsedHookGroup, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import type { ChildCustomization } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
@@ -171,7 +171,7 @@ function getCustomAgentHooks(md: MarkdownNode): CustomAgentConfig['hooks'] {
 /**
  * Converts parsed plugin agents into the SDK's `customAgents` config.
  *
- * Each agent file is read and (when present) its YAML frontmatter is parsed:
+ * Reuses retained parsed content, reading and parsing only agents supplied as file references.
  *  - `name` falls back to the agent's resource name (filename stem).
  *  - `description` is forwarded verbatim.
  *  - Extension-qualified `tools` references are translated to their SDK registration names;
@@ -181,7 +181,7 @@ function getCustomAgentHooks(md: MarkdownNode): CustomAgentConfig['hooks'] {
  *    full file content when there is no frontmatter).
  */
 export async function toSdkCustomAgents(
-	agents: readonly INamedPluginResource[],
+	agents: readonly IAgentPluginResource[],
 	fileService: IFileService,
 	availableModelIds?: ReadonlySet<string>,
 	clientToolNames?: ReadonlyMap<string, string>,
@@ -189,13 +189,12 @@ export async function toSdkCustomAgents(
 	const configs: ICopilotCustomAgentConfig[] = [];
 	for (const agent of agents) {
 		try {
-			const content = await fileService.readFile(agent.uri);
-			const raw = content.value.toString();
-			const md = parseFrontMatter(raw);
+			const content = agent.parsedContent?.body ?? (await fileService.readFile(agent.uri)).value.toString();
+			const md = agent.parsedContent ?? parseFrontMatter(content);
 			if (!md) {
 				configs.push({
 					name: agent.name,
-					prompt: raw,
+					prompt: content,
 				});
 			} else {
 				// Match `parseAgentFile`'s name derivation (trim + falsy fallback) so
@@ -213,7 +212,7 @@ export async function toSdkCustomAgents(
 				if (infer === undefined && disableModelInvocation === true) {
 					infer = false;
 				}
-				const prompt = md.body ?? raw;
+				const prompt = md.body ?? content;
 				const scalarModel = md.getStringValue('model') || undefined;
 				const models = md.getStringArrayValue('model') ?? undefined;
 				const model = scalarModel ?? models?.find(model => availableModelIds?.has(model)) ?? models?.[0];
@@ -247,7 +246,7 @@ export function mapCopilotCustomAgentTools<T extends CustomAgentConfig>(agents: 
 
 /** The agents contributed by a plugin. */
 export interface IPluginAgentsForSdk {
-	readonly agents: readonly INamedPluginResource[];
+	readonly agents: readonly IAgentPluginResource[];
 }
 
 /**
@@ -608,7 +607,7 @@ export function parsedPluginsEqual(a: readonly ComparablePlugin[], b: readonly C
 					disableModelInvocation: s.disableModelInvocation,
 					disableUserInvocation: s.disableUserInvocation,
 				})),
-				agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
+				agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name, parsedContent: p.nonce ? undefined : a.parsedContent })),
 				instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
 			}, (_key, value) => {
 				// Tagged segments distinguish a relocated root from literal placeholder text.

@@ -6,8 +6,9 @@
 import assert from 'assert';
 import { writeFileSync, unlinkSync } from 'fs';
 import { fileURLToPath } from 'url';
+import { spy } from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -16,8 +17,8 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
-import { mapCopilotCustomAgentTools, toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, findRelocatedAgentName, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
-import { PluginFormat, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
+import { mapCopilotCustomAgentTools, toChildCustomizations, toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, findRelocatedAgentName, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
+import { parsePlugin, PluginFormat, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 
 function stubMcpCustomization(name = 'test'): McpServerCustomization {
@@ -224,6 +225,129 @@ suite('copilotPluginConverters', () => {
 	// ---- toSdkCustomAgents ----------------------------------------------
 
 	suite('toSdkCustomAgents', () => {
+
+		for (const content of [
+			'Plain agent body.',
+			'',
+			'---\nname: retained\n---\n',
+			'---\nname: not-closed\nKeep the entire file.',
+		]) {
+			test(`reuses parsed plugin content without reading again: ${JSON.stringify(content)}`, async () => {
+				const root = URI.from({ scheme: Schemas.inMemory, path: '/plugin' });
+				const agentUri = URI.joinPath(root, 'agents', 'retained.agent.md');
+				await fileService.writeFile(URI.joinPath(root, 'plugin.json'), VSBuffer.fromString('{"name":"test"}'));
+				await fileService.writeFile(agentUri, VSBuffer.fromString(content));
+				const reads = spy(fileService, 'readFile');
+				disposables.add(toDisposable(() => reads.restore()));
+
+				const plugin = await parsePlugin(root, fileService, undefined, root);
+				const readsAfterParsing = reads.callCount;
+				await fileService.del(agentUri);
+				const configs = await toSdkSessionCustomAgents([plugin], fileService);
+
+				assert.deepStrictEqual({
+					configs,
+					agentReads: reads.getCalls().filter(call => call.args[0].toString() === agentUri.toString()).length,
+					conversionReads: reads.callCount - readsAfterParsing,
+				}, {
+					configs: [{ name: 'retained', tools: null, prompt: content.startsWith('---\nname: retained\n---') ? '' : content }],
+					agentReads: 1,
+					conversionReads: 0,
+				});
+			});
+		}
+
+		test('reuses all authored plugin agent fields while reprojecting models and tool names', async () => {
+			const root = URI.from({ scheme: Schemas.inMemory, path: '/plugin' });
+			const agentUri = URI.joinPath(root, 'agents', 'retained.agent.md');
+			await fileService.writeFile(URI.joinPath(root, 'plugin.json'), VSBuffer.fromString('{"name":"test"}'));
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: "  Retained Agent  "',
+				'description: "  Original description  "',
+				'tools: [publisher.extension/toolXY, view]',
+				'model: [first-model, second-model]',
+				'reasoning-effort: max',
+				'skills: [review]',
+				'infer: false',
+				'user-invocable: false',
+				'hooks:',
+				'  PreToolUse:',
+				'    - invalid',
+				'    - type: command',
+				'      command: echo retained',
+				'      timeout: 5',
+				'---',
+				'Original prompt.',
+			].join('\n')));
+			const reads = spy(fileService, 'readFile');
+			disposables.add(toDisposable(() => reads.restore()));
+			const plugin = await parsePlugin(root, fileService, undefined, root);
+			const readsAfterParsing = reads.callCount;
+			await fileService.writeFile(agentUri, VSBuffer.fromString('Changed on disk.'));
+			const configs = [];
+			for (const model of ['first-model', 'second-model']) {
+				configs.push(await toSdkCustomAgents(plugin.agents, fileService, new Set([model]), new Map([['publisher.extension/toolXY', `${model}-tool`]])));
+			}
+
+			assert.deepStrictEqual({
+				configs,
+				userInvocationDisabled: plugin.agents[0].disableUserInvocation,
+				conversionReads: reads.callCount - readsAfterParsing,
+			}, {
+				configs: ['first-model', 'second-model'].map(model => [{
+					name: 'Retained Agent',
+					description: '  Original description  ',
+					model,
+					reasoningEffort: 'max',
+					tools: [`${model}-tool`, 'view'],
+					skills: ['review'],
+					infer: false,
+					disableModelInvocation: true,
+					hooks: { PreToolUse: [{ type: 'command', command: 'echo retained', timeout: 5 }] },
+					prompt: 'Original prompt.',
+				}]),
+				userInvocationDisabled: true,
+				conversionReads: 0,
+			});
+		});
+
+		test('refreshes retained plugin agent content when reparsed', async () => {
+			const root = URI.from({ scheme: Schemas.inMemory, path: '/plugin' });
+			const agentUri = URI.joinPath(root, 'agents', 'retained.agent.md');
+			await fileService.writeFile(URI.joinPath(root, 'plugin.json'), VSBuffer.fromString('{"name":"test"}'));
+			await fileService.writeFile(agentUri, VSBuffer.fromString('Original prompt.'));
+			const original = await parsePlugin(root, fileService, undefined, root);
+			await fileService.writeFile(agentUri, VSBuffer.fromString('Updated prompt.'));
+			const updated = await parsePlugin(root, fileService, undefined, root);
+
+			assert.deepStrictEqual({
+				original: await toSdkCustomAgents(original.agents, fileService),
+				updated: await toSdkCustomAgents(updated.agents, fileService),
+				equalWithoutNonce: parsedPluginsEqual([original], [updated]),
+				equalWithSameNonce: parsedPluginsEqual([{ ...original, nonce: 'content-revision' }], [{ ...updated, nonce: 'content-revision' }]),
+			}, {
+				original: [{ name: 'retained', tools: null, prompt: 'Original prompt.' }],
+				updated: [{ name: 'retained', tools: null, prompt: 'Updated prompt.' }],
+				equalWithoutNonce: false,
+				equalWithSameNonce: true,
+			});
+		});
+
+		test('keeps retained agent content out of protocol children', async () => {
+			const root = URI.from({ scheme: Schemas.inMemory, path: '/plugin' });
+			const agentUri = URI.joinPath(root, 'agents', 'retained.agent.md');
+			await fileService.writeFile(URI.joinPath(root, 'plugin.json'), VSBuffer.fromString('{"name":"test"}'));
+			await fileService.writeFile(agentUri, VSBuffer.fromString('Private prompt.'));
+			const plugin = await parsePlugin(root, fileService, undefined, root);
+
+			assert.deepStrictEqual(toChildCustomizations([plugin]), [{
+				type: CustomizationType.Agent,
+				id: agentUri.toString(),
+				uri: agentUri.toString(),
+				name: 'retained',
+			}]);
+		});
 
 		test('reads agent files without frontmatter and creates configs', async () => {
 			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/helper.md' });
