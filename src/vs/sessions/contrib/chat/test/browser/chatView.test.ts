@@ -3670,6 +3670,107 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
+		test(`fades only the top edge of pinned progress without blurring text (${theme})`, () => {
+			const highContrast = theme === 'hc-black' || theme === 'hc-light';
+			const workbench = dom.$(`.monaco-workbench.agent-sessions-workbench.${theme}`);
+			workbench.style.setProperty('--vscode-chat-list-background', '#123456');
+			workbench.style.setProperty('--vscode-spacing-size20', '2px');
+			workbench.style.setProperty('--vscode-spacing-size160', '16px');
+			workbench.style.setProperty('--vscode-strokeThickness', '1px');
+			workbench.style.setProperty('--vscode-contrastBorder', '#ffffff');
+			const part = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
+			const chatView = dom.append(part, dom.$('.chat-view'));
+			const session = dom.append(chatView, dom.$('.interactive-session.chat-floating-persistent-content'));
+			const inputPart = dom.append(session, dom.$('.interactive-input-part'));
+			const persistentContent = dom.append(inputPart, dom.$('.chat-input-persistent-content.chat-persistent-content-visible'));
+			const sticky = dom.append(persistentContent, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+			const targetWindow = dom.getWindow(workbench);
+			targetWindow.document.body.appendChild(workbench);
+			disposables.add(toDisposable(() => workbench.remove()));
+			const empty = targetWindow.getComputedStyle(sticky, '::before').content;
+			const inputTop = inputPart.getBoundingClientRect().top;
+			const progress = dom.append(sticky, dom.$('.chat-working-progress', undefined, '1 confirmation pending'));
+			progress.style.height = '22px';
+			const fade = targetWindow.getComputedStyle(sticky, '::before');
+			const pinned = {
+				content: fade.content,
+				matchesSurface: fade.backgroundImage === 'linear-gradient(rgba(0, 0, 0, 0) 0px, rgb(18, 52, 86) 16px)',
+				aboveProgress: !highContrast && Number.parseFloat(fade.top) === -16 && fade.height === '16px',
+				pointerEvents: fade.pointerEvents,
+				textFilter: targetWindow.getComputedStyle(progress).filter,
+				outline: targetWindow.getComputedStyle(sticky).outlineStyle,
+				inputTop: inputPart.getBoundingClientRect().top,
+			};
+			progress.remove();
+			assert.deepStrictEqual({
+				empty,
+				pinned,
+				returnedInline: targetWindow.getComputedStyle(sticky, '::before').content,
+			}, {
+				empty: 'none',
+				pinned: {
+					content: highContrast ? 'none' : '""',
+					matchesSurface: true,
+					aboveProgress: !highContrast,
+					pointerEvents: 'none',
+					textFilter: 'none',
+					outline: highContrast ? 'solid' : 'none',
+					inputTop,
+				},
+				returnedInline: 'none',
+			});
+		});
+	}
+
+	for (const host of ['.part.sessionspart', '.chat-editor-relative']) {
+		test(`keeps sticky progress above the pills without changing their height or alignment (${host})`, () => {
+			const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+			workbench.style.setProperty('--vscode-spacing-size20', '2px');
+			workbench.style.setProperty('--vscode-spacing-size40', '4px');
+			workbench.style.setProperty('--vscode-spacing-size60', '6px');
+			workbench.style.setProperty('--vscode-spacing-size160', '16px');
+			workbench.style.setProperty('--vscode-spacing-size240', '24px');
+			workbench.style.setProperty('--vscode-chat-font-size-body-m', '13px');
+			const part = dom.append(workbench, dom.$(host));
+			const session = dom.append(part, dom.$('.interactive-session.chat-floating-persistent-content'));
+			session.style.cssText = 'position: relative; width: 500px; height: 400px;';
+			const response = dom.append(session, dom.$('.interactive-item-container.interactive-response.chat-persistent-progress'));
+			const value = dom.append(response, dom.$('.value'));
+			const emptyAnchor = dom.append(value, dom.$('.chat-working-progress-anchor'));
+			const inputPart = dom.append(session, dom.$('.interactive-input-part'));
+			inputPart.style.cssText = 'position: absolute; top: 300px; width: 500px; padding: 4px 24px; margin: 0; box-sizing: border-box;';
+			const persistentContent = dom.append(inputPart, dom.$('.chat-input-persistent-content.chat-persistent-content-visible'));
+			const pills = dom.append(persistentContent, dom.$('.chat-pills'));
+			pills.style.height = '28px';
+			dom.getWindow(workbench).document.body.appendChild(workbench);
+			disposables.add(toDisposable(() => workbench.remove()));
+			const before = { height: persistentContent.getBoundingClientRect().height, top: pills.getBoundingClientRect().top };
+			const sticky = dom.prepend(persistentContent, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+			const progress = dom.append(sticky, dom.$('.chat-working-progress'));
+			progress.style.height = '22px';
+			const bounds = progress.getBoundingClientRect();
+			const withPills = {
+				position: dom.getWindow(sticky).getComputedStyle(sticky).position,
+				height: persistentContent.getBoundingClientRect().height,
+				pillTop: pills.getBoundingClientRect().top,
+				bottom: bounds.bottom,
+				left: bounds.left,
+			};
+			pills.style.display = 'none';
+			persistentContent.classList.remove('chat-persistent-content-visible');
+			assert.deepStrictEqual({
+				withPills,
+				withoutPills: progress.getBoundingClientRect().bottom,
+				emptyAnchorHeight: emptyAnchor.getBoundingClientRect().height,
+			}, {
+				withPills: { position: 'absolute', height: before.height, pillTop: before.top, bottom: before.top - 2, left: persistentContent.getBoundingClientRect().left + 24 },
+				withoutPills: inputPart.getBoundingClientRect().top - 2,
+				emptyAnchorHeight: 22,
+			});
+		});
+	}
+
 	test('keeps sticky request chrome transparent over chat backgrounds', () => {
 		const workbench = dom.$('.monaco-workbench.vs-dark.agent-sessions-workbench');
 		workbench.style.setProperty('--vscode-sideBar-background', '#ff0000');

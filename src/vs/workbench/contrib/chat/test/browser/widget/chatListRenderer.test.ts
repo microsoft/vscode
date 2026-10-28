@@ -2341,6 +2341,61 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
+	test('sticky progress preserves provider updates before the response is mounted', async () => {
+		const { model, request, container, renderer } = createPersistentProgressRenderer();
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		renderer.setWorkingProgressContainer(sticky, () => true);
+		const progress = sticky.querySelector('.chat-working-progress');
+		assert.ok(progress);
+		model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Connecting to the workspace') });
+		await timeout(0);
+		assert.deepStrictEqual({
+			sameComponent: sticky.querySelector('.chat-working-progress') === progress,
+			label: progress.querySelector('.progress-step')?.textContent,
+			copies: container.querySelectorAll('.chat-working-progress').length,
+		}, {
+			sameComponent: true,
+			label: 'Connecting to the workspace',
+			copies: 1,
+		});
+	});
+
+	test('sticky progress relocation does not reannounce or recreate the working status', () => {
+		const { disposables, configurationService, container, renderer, template, node } = createPersistentProgressRenderer();
+		const announcements = dom.$('div');
+		setARIAContainer(announcements);
+		disposables.add(toDisposable(() => announcements.remove()));
+		configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		let outside = false;
+		renderer.setWorkingProgressContainer(sticky, () => outside);
+		renderer.renderElement(node, 0, template);
+		const progress = template.value.querySelector('.chat-working-progress');
+		assert.ok(progress);
+		const initialAnnouncements = [...announcements.querySelectorAll('.monaco-alert')].map(alert => alert.textContent);
+		outside = true;
+		renderer.updateStickyProgress();
+		const pinned = sticky.contains(progress);
+		const pinnedAnnouncements = [...announcements.querySelectorAll('.monaco-alert')].map(alert => alert.textContent);
+		outside = false;
+		renderer.updateStickyProgress();
+		assert.deepStrictEqual({
+			pinned,
+			restored: template.value.contains(progress),
+			copies: container.querySelectorAll('.chat-working-progress').length,
+			initialAnnouncements,
+			pinnedAnnouncements,
+			returnedAnnouncements: [...announcements.querySelectorAll('.monaco-alert')].map(alert => alert.textContent),
+		}, {
+			pinned: true,
+			restored: true,
+			copies: 1,
+			initialAnnouncements: ['Working', ''],
+			pinnedAnnouncements: ['Working', ''],
+			returnedAnnouncements: ['Working', ''],
+		});
+	});
+
 	suite('single-tool completed response collapse', () => {
 		async function addCompletionResponse({ model, request }: ReturnType<typeof createPersistentProgressRenderer>, serialized: boolean): Promise<void> {
 			for (const id of ['initial-work', 'follow-up-work', 'final-bookkeeping']) {
