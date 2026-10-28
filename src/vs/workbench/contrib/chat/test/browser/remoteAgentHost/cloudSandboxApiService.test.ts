@@ -2791,8 +2791,9 @@ suite('CloudSandboxApiService repository resolution', () => {
 suite('CloudSandboxApiService pagination', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const incremental of [false, true]) {
-		test(`follows cursor links beyond ten pages and through empty pages in every discovery scope (incremental=${incremental})`, async () => {
+	for (const { incremental, relation } of [false, true].flatMap(incremental =>
+		['rel="next"', 'rel=next', 'type="application/json"; rel="next"'].map(relation => ({ incremental, relation })))) {
+		test(`follows cursor links beyond ten pages and through empty pages in every discovery scope (incremental=${incremental}, ${relation})`, async () => {
 			const date = 'Tue, 22 Sep 2026 10:00:00 GMT';
 			const tasks: ITestTask[] = [
 				task('repo', 'Repository', 42, 'repo-session', 'repo-environment'),
@@ -2826,7 +2827,7 @@ suite('CloudSandboxApiService pagination', () => {
 					query.set('cursor', cursors[page]);
 					const link = `?${query}`;
 					expectedContinuations.push(new URL(link, url).href);
-					return jsonResponse({ tasks: [] }, 200, { date, link: ['<?page=1>; rel="first"', `<${link}>; rel="next"`] });
+					return jsonResponse({ tasks: [] }, 200, { date, link: ['<?page=1>; rel="first"', `<${link}>; ${relation}`] });
 				},
 			});
 			if (incremental) {
@@ -4025,6 +4026,35 @@ suite('CloudSandboxApiService incremental discovery', () => {
 			details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/agents/tasks/')).length,
 		}, { firstKind: 'partial', recovered: 101, since: checkpoint, details: 1 });
 	});
+
+	for (const incremental of [false, true]) {
+		test(`malformed continuations preserve cached sessions and the checkpoint (incremental=${incremental})`, async () => {
+			const tasks = [updatedTask('current', checkpoint), updatedTask('older', checkpoint)];
+			let malformed = false;
+			let date = firstScanDate;
+			const { service, requestedUrls } = createService(store, {
+				tasks, repositories: new Map(), discoveryDate: () => date,
+				onRequest: url => malformed && url.pathname === '/agents/tasks'
+					&& url.searchParams.get('with_repo') === 'false' && url.searchParams.get('is_archived') === 'false'
+					? jsonResponse({ tasks: [tasks[0]] }, 200, { date, link: '<>; rel=next' })
+					: undefined,
+			});
+			await service.listSessions(CancellationToken.None);
+			malformed = true;
+			date = 'Tue, 22 Sep 2026 10:05:00 GMT';
+			const partial = await service.listSessions(CancellationToken.None, { incremental });
+			malformed = false;
+			requestedUrls.length = 0;
+			const recovered = await service.listSessions(CancellationToken.None, { incremental: true });
+
+			assert.deepStrictEqual({
+				firstKind: partial.kind,
+				recovered: recovered.kind === 'failed' ? [] : recovered.sessions.map(session => session.taskId),
+				since: new URL(requestedUrls[0]).searchParams.get('since'),
+				details: requestedUrls.filter(url => new URL(url).pathname.startsWith('/agents/tasks/')).length,
+			}, { firstKind: 'partial', recovered: ['current', 'older'], since: checkpoint, details: 0 });
+		});
+	}
 
 	test('retries missing bindings and repository names even if the task falls outside the incremental window', async () => {
 		const tasks = [updatedTask('binding'), updatedTask('repository', undefined, 42)];

@@ -28,29 +28,52 @@ suite('GitHub response helpers', () => {
 			laterLink: nextLink('</previous>; rel="prev", </next>; rel="next"'),
 			multipleRelations: nextLink('<../next?page=2>; rel="prev next"'),
 			extraParameters: nextLink('</next>; rel="next"; type="application/json"'),
+			unquotedRelation: nextLink('<?cursor=second>; rel=next'),
+			laterRelation: nextLink('<?cursor=second>; type="application/json"; rel="next"'),
+			caseInsensitiveRelation: nextLink('</next>; REL=Next'),
+			quotedSeparators: nextLink('<?cursor=a,b;c>; title="first, second; \\"quoted\\""; rel=next'),
+			escapedRelation: nextLink('</next>; rel="n\\ext"'),
 			firstMatch: nextLink('</first>; rel="next", </second>; rel="next"'),
+			firstRelationWins: nextLink('</previous>; rel=prev; rel=next, </next>; rel=next'),
 		}, {
 			single: 'https://api.github.com/repos/o/r/issues?page=2&per_page=100',
 			laterLink: '/next',
 			multipleRelations: '../next?page=2',
 			extraParameters: '/next',
+			unquotedRelation: '?cursor=second',
+			laterRelation: '?cursor=second',
+			caseInsensitiveRelation: '/next',
+			quotedSeparators: '?cursor=a,b;c',
+			escapedRelation: '/next',
 			firstMatch: '/first',
+			firstRelationWins: '/next',
 		});
 	});
 
-	test('nextLink ignores missing, malformed and non-next relations', () => {
+	test('nextLink ignores missing and non-next relations', () => {
 		const headers = [
 			undefined,
 			'',
 			'not a link',
-			'<>; rel="next"',
 			'</last>; rel="last"',
 			'</next>; rel="next-page"',
-			'</next>; rel="Next"',
-			'</next>; rel=next',
-			'</next>; title="next"; rel="next"',
+			'</previous>; title="first; rel=next, second"; rel=prev',
+			'</previous>; rel=prev; rel=next',
 		];
 		assert.deepStrictEqual(headers.map(nextLink), headers.map(() => undefined));
+	});
+
+	test('nextLink rejects malformed advertised continuations without including the URL', () => {
+		for (const header of [
+			'<>; rel="next"',
+			'not-a-link; rel=next',
+			'<?cursor=opaque; rel=next',
+			'<?cursor=opaque>junk; rel=next',
+			'<?cursor=opaque>; rel="next',
+			'<?cursor=opaque>; rel=next extra',
+		]) {
+			assertMalformedResponse(() => nextLink(header), 'GitHub returned an invalid pagination link');
+		}
 	});
 
 	test('object readers return the original objects', () => {

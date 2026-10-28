@@ -5,15 +5,31 @@
 
 import { GitHubRequestError } from './githubTransport.js';
 
+/** Returns the first next target, rejecting malformed relation parameters or advertised continuations. */
 export function nextLink(link: string | undefined): string | undefined {
 	if (!link) {
 		return undefined;
 	}
-	for (const part of link.split(',')) {
-		const match = /^\s*<(?<url>[^>]+)>\s*;\s*rel="(?<rel>[^"]+)"/.exec(part);
-		if (match?.groups?.rel.split(/\s+/).includes('next')) {
-			return match.groups.url;
+	// Delimiters inside targets or quoted parameters are not link or parameter separators.
+	for (const part of link.match(/(?:<[^>]*>|"(?:\\.|[^"\\])*"|[^,])+/g) ?? []) {
+		const parameters = part.match(/(?:<[^>]*>|"(?:\\.|[^"\\])*"|[^;])+/g) ?? [];
+		const relation = parameters.find(parameter => /^\s*rel\s*(?:=|$)/i.test(parameter));
+		if (!relation) {
+			continue;
 		}
+		const match = /^\s*rel\s*=\s*(?:"(?<quoted>(?:\\.|[^"\\])*)"|(?<token>[\w!#$%&'*+.^`|~-]+))\s*$/i.exec(relation);
+		if (!match?.groups) {
+			throw new GitHubRequestError('GitHub returned an invalid pagination link', 'malformedResponse');
+		}
+		const relations = (match.groups.quoted ?? match.groups.token).replace(/\\(?<character>.)/g, '$<character>');
+		if (!relations.toLowerCase().split(/\s+/).includes('next')) {
+			continue;
+		}
+		const target = /^\s*<(?<url>[^<>]+)>\s*$/.exec(parameters[0]);
+		if (!target?.groups?.url.trim()) {
+			throw new GitHubRequestError('GitHub returned an invalid pagination link', 'malformedResponse');
+		}
+		return target.groups.url;
 	}
 	return undefined;
 }
