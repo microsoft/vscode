@@ -461,6 +461,22 @@ suite('Chat Accessibility Help', () => {
 		}, { finished: true, subagentTail: true, parentTail: true });
 	});
 
+	test('documents View Mode keyboard access and the renamed progress controls', () => {
+		assert.deepStrictEqual((['panelChat', 'agentView', 'editsView'] as const).map(type => {
+			const help = getAccessibilityHelpText(type, new MockKeybindingService(), true);
+			return {
+				modes: help.includes('View Mode to select Compact, Verbose, or Conversation'),
+				checked: help.includes('The active mode is checked'),
+				keyboard: help.includes('Press Right Arrow to open the submenu, Up or Down Arrow to choose a mode, Enter to apply it'),
+				settings: help.includes('chat.persistentProgressVerbosity') && help.includes('chat.persistentProgress'),
+				legacyNames: help.includes('chat.experimental.persistentProgress'),
+				deprecation: help.includes('Legacy thinking presentation settings will be deprecated'),
+			};
+		}), Array.from({ length: 3 }, () => ({
+			modes: true, checked: true, keyboard: true, settings: true, legacyNames: false, deprecation: true,
+		})));
+	});
+
 	test('documents keyboard access to subagent chats and inline details', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({

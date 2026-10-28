@@ -23,7 +23,7 @@ import { IRange } from '../../../../../editor/common/core/range.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, ICommandPaletteOptions, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -57,7 +57,7 @@ import { ElicitationState, IChatService, IChatToolInvocation } from '../../commo
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/widget/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionTypeAndReason } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, getDefaultNewChatSessionTypeAndReason } from '../../common/constants.js';
 import { AICustomizationManagementCommands } from '../aiCustomization/aiCustomizationManagement.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
@@ -1510,6 +1510,51 @@ export function registerChatActions() {
 				isPartialQuery: true,
 			});
 		}
+	});
+
+	for (const [order, { mode, title }] of [
+		{ mode: ChatProgressVerbosity.Compact, title: localize2('chat.viewMode.compact', "Compact") },
+		{ mode: ChatProgressVerbosity.Verbose, title: localize2('chat.viewMode.verbose', "Verbose") },
+		{ mode: ChatProgressVerbosity.Conversation, title: localize2('chat.viewMode.conversation', "Conversation") },
+	].entries()) {
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.chat.viewMode.${mode}`,
+					title,
+					category: CHAT_CATEGORY,
+					precondition: ChatContextKeys.enabled,
+					toggled: ContextKeyExpr.and(
+						ContextKeyExpr.notEquals(`config.${ChatConfiguration.PersistentProgress}`, ChatProgressAnimation.Off),
+						ContextKeyExpr.equals(`config.${ChatConfiguration.PersistentProgressVerbosity}`, mode),
+					),
+					menu: {
+						id: MenuId.ChatViewMode,
+						group: '1_state',
+						order,
+						when: ChatContextKeys.enabled,
+					},
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const configurationService = accessor.get(IConfigurationService);
+				const updatePreference = (key: ChatConfiguration, value: string) => configurationService.updateValue(key, value,
+					configurationService.inspect(key).workspaceValue === undefined ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE);
+				await updatePreference(ChatConfiguration.PersistentProgressVerbosity, mode);
+				if (configurationService.getValue<string>(ChatConfiguration.PersistentProgress) === ChatProgressAnimation.Off) {
+					await updatePreference(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+				}
+			}
+		});
+	}
+
+	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+		submenu: MenuId.ChatViewMode,
+		title: localize2('chat.viewMode', "View Mode"),
+		group: '3_configure',
+		order: 14,
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 	});
 
 	registerAction2(class OpenChatFeatureSettingsAction extends Action2 {
