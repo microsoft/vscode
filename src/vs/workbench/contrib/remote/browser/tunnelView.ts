@@ -1311,10 +1311,11 @@ export namespace OpenPortInPreviewAction {
 		const tunnel = model.forwarded.get(key) || model.detected.get(key);
 		if (tunnel) {
 			const remoteHost = tunnel.remoteHost.includes(':') ? `[${tunnel.remoteHost}]` : tunnel.remoteHost;
-			const sourceUri = URI.parse(`http://${remoteHost}:${tunnel.remotePort}`);
+			const sourceHref = `${tunnel.protocol}://${remoteHost}:${tunnel.remotePort}`;
+			const sourceUri = URI.parse(sourceHref);
 			const opener = await externalOpenerService.getOpener(tunnel.localUri, { sourceUri }, CancellationToken.None);
 			if (opener) {
-				return opener.openExternalUri(tunnel.localUri, { sourceUri }, CancellationToken.None);
+				return opener.openExternalUri(tunnel.localUri.toString(), { sourceUri, sourceHref }, CancellationToken.None);
 			}
 			return openerService.open(tunnel.localUri);
 		}

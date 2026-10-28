@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { INotification, INotificationHandle, INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
@@ -653,6 +653,7 @@ suite('ManagePluginMarketplacesAction', () => {
 		const removeCalls: { name: string; force?: boolean }[] = [];
 		const provider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => [{
 				name: 'VS Code Marketplace',
 				source: 'GitHub: microsoft/vscode-marketplace',
@@ -705,6 +706,7 @@ suite('ManagePluginMarketplacesAction', () => {
 		const removeCalls: string[] = [];
 		const provider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => [{
 				name: 'removable-marketplace',
 				source: 'GitHub: owner/removable-marketplace',
@@ -761,6 +763,7 @@ suite('ManagePluginMarketplacesAction', () => {
 		let listCalls = 0;
 		const provider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => {
 				listCalls++;
 				return [{
@@ -806,6 +809,7 @@ suite('ManagePluginMarketplacesAction', () => {
 			const addCalls: string[] = [];
 			const provider: ICustomizationMarketplaceManagementProvider = {
 				onDidChange: Event.None,
+				onDidChangeMarketplaces: Event.None,
 				list: async () => [],
 				add: async (_session, source) => {
 					addCalls.push(source);
@@ -850,6 +854,7 @@ suite('ManagePluginMarketplacesAction', () => {
 	test('cancelling the direct provider marketplace input does not open management', async () => {
 		const provider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => [],
 			add: async () => { throw new Error('Cancelled input must not add a marketplace'); },
 			queryMarketplace: async () => ({ items: [], total: 0 }),
@@ -871,6 +876,7 @@ suite('ManagePluginMarketplacesAction', () => {
 		const addCalls: { session: URI; source: string }[] = [];
 		const provider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => [],
 			add: async (session, source) => {
 				addCalls.push({ session, source });
@@ -951,6 +957,7 @@ suite('ManagePluginMarketplacesAction', () => {
 	test('validates provider marketplace input while typing and before adding', async () => {
 		const provider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => [{
 				name: 'existing', source: 'owner/existing', isDefault: false, managed: false, available: true,
 			}],
@@ -998,6 +1005,7 @@ suite('ManagePluginMarketplacesAction', () => {
 			const finished = new DeferredPromise<void>();
 			const provider: ICustomizationMarketplaceManagementProvider = {
 				onDidChange: Event.None,
+				onDidChangeMarketplaces: Event.None,
 				list: async () => [],
 				add: async (_session, source) => {
 					try {
@@ -1041,6 +1049,7 @@ suite('ManagePluginMarketplacesAction', () => {
 		const addCalls: string[] = [];
 		const provider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
 			list: async () => [],
 			add: async (_session, source) => {
 				addCalls.push(source);
@@ -1166,6 +1175,7 @@ suite('ManagePluginMarketplacesAction', () => {
 				};
 				const provider: ICustomizationMarketplaceManagementProvider = {
 					onDidChange: Event.None,
+					onDidChangeMarketplaces: Event.None,
 					list: async () => [marketplace],
 					add: async () => { throw new Error('Browsing must not add a marketplace'); },
 					queryMarketplace: async () => ({ items: [], total: 0 }),
@@ -1202,25 +1212,89 @@ suite('ManagePluginMarketplacesAction', () => {
 		}
 	}
 
-	test('shows plugins from the default marketplace using its public feed replacement', async () => {
+	test('hides the default marketplace from management when the public feed replaces it', async () => {
 		const marketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
 		const fixture = createFixture({
 			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
 			[ChatConfiguration.ExtraMarketplaces]: {},
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 		}, true);
-		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'showPlugins');
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual({
+			items: fixture.quickInputService.pickSnapshots[0],
+			configurationUpdates: fixture.configurationService.updates,
+		}, {
+			items: [
+				{ id: 'addMarketplace', label: '$(add) Add Marketplace...', type: 'item' },
+				{ id: 'browseMarketplaces', label: 'Browse All Marketplaces', type: 'item' },
+			],
+			configurationUpdates: [],
+		});
+	});
+
+	test('keeps the hidden default marketplace in add validation', async () => {
+		const marketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
+			[ChatConfiguration.ExtraMarketplaces]: {},
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
+		}, true);
+		fixture.quickInputService.pickIds.push('addMarketplace');
+		fixture.quickInputService.inputValue = marketplace.rawValue;
+		fixture.quickInputService.inputBackAfterAccept = true;
 
 		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
 
-		assert.deepStrictEqual(fixture.commands, [{
-			id: AICustomizationManagementCommands.OpenMarketplace,
-			args: [{
-				section: AICustomizationManagementSection.Plugins,
-				searchQuery: '',
-				sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+		assert.deepStrictEqual({
+			items: fixture.quickInputService.pickSnapshots[0],
+			validation: fixture.quickInputService.inputValidationSnapshots,
+			configurationUpdates: fixture.configurationService.updates,
+		}, {
+			items: [
+				{ id: 'addMarketplace', label: '$(add) Add Marketplace...', type: 'item' },
+				{ id: 'browseMarketplaces', label: 'Browse All Marketplaces', type: 'item' },
+			],
+			validation: [{
+				phase: 'accept',
+				value: marketplace.rawValue,
+				message: 'This marketplace is already configured.',
+				severity: Severity.Error,
 			}],
-		}]);
+			configurationUpdates: [],
+		});
+	});
+
+	test('filters provider Awesome Copilot from management when toggling the feed', async () => {
+		const marketplaces = ['awesome-copilot', 'team-plugins'].map(name => ({
+			name, source: `GitHub: github/${name}`, isDefault: name === 'awesome-copilot', managed: false, available: true,
+		}));
+		const provider: ICustomizationMarketplaceManagementProvider = {
+			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
+			list: async () => marketplaces,
+			add: async () => { throw new Error('Unexpected add'); },
+			queryMarketplace: async () => ({ items: [], total: 0 }),
+			remove: async () => { throw new Error('Unexpected remove'); },
+			refresh: async () => [],
+		};
+		const fixture = createFixture({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+		}, true, provider);
+		const actual = [];
+		for (const enabled of [false, true, false]) {
+			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, enabled);
+			await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+			actual.push(fixture.quickInputService.pickSnapshots.at(-1)!
+				.filter(pick => marketplaces.some(marketplace => marketplace.name === pick.id)).map(pick => pick.id));
+		}
+		assert.deepStrictEqual(actual, [
+			['awesome-copilot', 'team-plugins'],
+			['team-plugins'],
+			['awesome-copilot', 'team-plugins'],
+		]);
 	});
 
 	test('shows plugins from the default marketplace using its configured source under strict policy', async () => {

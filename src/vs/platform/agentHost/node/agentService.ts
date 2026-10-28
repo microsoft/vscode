@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { withMessageRequestHiddenFromTranscript } from '../common/meta/agentMessageMeta.js';
+import { withMessageReplacedTurn, withMessageRequestHiddenFromTranscript } from '../common/meta/agentMessageMeta.js';
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Barrier, DeferredPromise, disposableTimeout, Limiter, raceTimeout, Sequencer, SequencerByKey, ThrottlerByKey } from '../../../base/common/async.js';
 import { IAgentHostWorktreeDiskUsageService } from './worktreeDiskUsage.js';
@@ -30,7 +30,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { chatUriFormatOf, createChatUriError, mintDefaultChatUri, subagentChatUri } from '../common/agentHostChatMinting.js';
-import { AgentChatMigrationDeferred, type AgentCanvasDefinitionSnapshot, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, type IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, type IAgentExtensionInventory, IAgentLegacyChat, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { AgentChatMigrationDeferred, type AgentCanvasDefinitionSnapshot, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, getChatSurfaceOptions, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, type IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, type IAgentExtensionInventory, IAgentLegacyChat, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentCreateChatInitialMessageContext, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService, type IAgentServiceCreateSessionConfig } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
@@ -764,8 +764,16 @@ function withChatWorkingDirectories(sessionWorkingDirectories: readonly string[]
 	}
 	const result = [...sessionWorkingDirectories];
 	const keys = new Set(result.map(getWorkingDirectoryKey));
-	// Archived chats are detached from the session workspace until they are unarchived.
-	for (const directory of chats?.flatMap(chat => chat.archived ? [] : chat.workingDirectories ?? []) ?? []) {
+	const chatSummaries = chats?.map((chat): ChatSummary => ({
+		resource: chat.uri,
+		title: chat.title ?? '',
+		status: withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsArchived, chat.archived === true),
+		modifiedAt: '',
+		origin: chat.origin,
+		workingDirectories: chat.workingDirectories?.slice(),
+	})) ?? [];
+	const inUse = getChatsInUse(chatSummaries, { inheritedFolders: sessionWorkingDirectories });
+	for (const directory of inUse.flatMap(chat => chat.workingDirectories ?? [])) {
 		const key = getWorkingDirectoryKey(directory);
 		if (!keys.has(key)) {
 			keys.add(key);
@@ -815,12 +823,19 @@ export interface IAgentServiceOptions {
 }
 
 type ChatNotice = SystemNotificationResponsePart & { readonly content: string };
+/** Combines an earlier notice with the next one, or returns `undefined` when they stay separate. */
+type ChatNoticeMerge = (previous: SystemNotificationResponsePart, next: ChatNotice) => ChatNotice | undefined;
+
+interface IPendingChatNotice {
+	readonly part: ChatNotice;
+	readonly merge?: ChatNoticeMerge;
+}
 
 export interface IAgentServiceCallbacks {
 	readonly canEvictChangeset: (changeset: string) => boolean;
 	readonly startAgentMergeTurn: IAgentMergeControllerOptions['startTurn'];
 	readonly cancelAgentMergeTurn: IAgentMergeControllerOptions['cancelTurn'];
-	readonly postChatNotice: (chat: string, part: ChatNotice) => void;
+	readonly postChatNotice: (chat: string, part: ChatNotice, merge?: ChatNoticeMerge) => void;
 	readonly resolveWorkingDirectoryBeforeSend: NonNullable<IAgentSideEffectsOptions['resolveWorkingDirectoryBeforeSend']>;
 	readonly resolveChatAttachmentTurns: NonNullable<IAgentSideEffectsOptions['resolveChatAttachmentTurns']>;
 	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor;
@@ -1018,6 +1033,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _provisionalSessionKeys = new Set<string>();
 	private _provisionalSessionKeysLoaded: Promise<void> | undefined;
+	private _hiddenSessionsAtStartup: ReturnType<AgentSessionRegistry['listHidden']> | undefined;
 	private _movedChatOriginsLoaded: Promise<void> | undefined;
 	/** Copies moved chats' pre-move attachments into their own storage (Block 4b). */
 	private readonly _attachmentMigration: AgentHostAttachmentMigration;
@@ -1325,7 +1341,7 @@ export class AgentService extends Disposable implements IAgentService {
 			canEvictChangeset: changeset => this._canEvictChangeset(changeset),
 			startAgentMergeTurn: (chat, turnId, prompt, credentials) => this._startAgentMergePrompt(chat, turnId, prompt, credentials),
 			cancelAgentMergeTurn: (chat, turnId) => this._cancelAgentMergePrompt(chat, turnId),
-			postChatNotice: (chat, part) => this._postChatNotice(chat, part),
+			postChatNotice: (chat, part, merge) => this._postChatNotice(chat, part, merge),
 			resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
 			resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),
 			sessionServerToolAccessor: this._createSessionServerToolAccessor(),
@@ -1783,7 +1799,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const resolved = await this._resolveWorkingDirectoryForResume(URI.parse(params.session), sessionId, pickedFolderUri);
 
 			const config = this._configurationService.getSessionConfigValues(params.session);
-			if (config?.[SessionConfigKey.Isolation] === 'folder') {
+			if (config?.[SessionConfigKey.Isolation] === 'folder' && !this._stateManager.isEphemeralSession(params.session)) {
 				const session = URI.parse(params.session);
 				const scope = resolveBranchChangesetScopeForSource(this._stateManager, params.chat);
 				const source = resolveBranchChangesetScopeForOwner(this._stateManager, scope.ownerUri)?.sourceUri ?? params.chat;
@@ -1976,6 +1992,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _onDidRegisterProvider(provider: IAgent): void {
+		void this._disposeHiddenSessions(provider).catch(err => this._logService.warn(`[AgentService] Failed to sweep hidden sessions for ${provider.id}`, err));
 		this._registerSkillCompletionProvider();
 		const initialMigration = this._trackInitialProviderMigration(provider, this._ensureSessionsV2Imported(provider));
 		// Persisted enablement must resume without a client opening the session.
@@ -1983,6 +2000,35 @@ export class AgentService extends Disposable implements IAgentService {
 			.then(() => initialMigration)
 			.then(() => this._restoreAgentMergeMonitoredSessions())
 			.catch(err => this._logService.warn('[AgentService] Failed to restore Agent-Merge-enabled sessions', err));
+	}
+
+	/** Retries teardown of hidden sessions left behind by a previous host. */
+	private async _disposeHiddenSessions(provider: IAgent): Promise<void> {
+		if (this._store.isDisposed) {
+			return;
+		}
+		const hiddenSessions = await (this._hiddenSessionsAtStartup ??= this._sessionRegistry.listHidden());
+		for (const { session, provider: providerId } of hiddenSessions) {
+			if (this._store.isDisposed || this._providerService.getProvider(provider.id) !== provider) {
+				return;
+			}
+			if (providerId !== provider.id || this._stateManager.getSessionState(session.toString())) {
+				continue;
+			}
+			try {
+				this._providerService.associateSession(session, provider.id);
+				const creation = this._sessionCreationSequencer.peek(AgentSession.id(session));
+				await this._sessionResidency.runDisposal(session, async () => {
+					await creation?.catch(() => undefined);
+					// Rechecked once a concurrent creation settles: it may have revived the URI.
+					if (!this._stateManager.getSessionState(session.toString()) && await this._sessionRegistry.isHidden(session)) {
+						await this._doDisposeSession(session, 'delete');
+					}
+				});
+			} catch (err) {
+				this._logService.warn(`[AgentService] Failed to dispose hidden session ${session.toString()}`, err);
+			}
+		}
 	}
 
 	private _trackInitialProviderMigration(provider: IAgent, migration: Promise<void>): Promise<void> {
@@ -2477,19 +2523,27 @@ export class AgentService extends Disposable implements IAgentService {
 		return true;
 	}
 
-	/** Publishes a durable host-only notice without displacing an active agent turn. */
-	private _postChatNotice(chat: string, part: ChatNotice): void {
+	/**
+	 * Publishes a durable host-only notice without displacing an active agent
+	 * turn. When `merge` combines the chat's latest notice with this one, the
+	 * combined notice replaces it, as long as no other turn followed it.
+	 */
+	private _postChatNotice(chat: string, part: ChatNotice, merge?: ChatNoticeMerge): void {
 		if (this._stateManager.getChatState(chat)?.activeTurn) {
 			const pending = this._pendingChatNotices.get(chat);
-			if (pending) {
-				pending.push(part);
+			const last = pending?.at(-1);
+			const merged = last && merge?.(last.part, part);
+			if (pending && merged) {
+				pending[pending.length - 1] = { part: merged, merge };
+			} else if (pending) {
+				pending.push({ part, merge });
 			} else {
-				this._pendingChatNotices.set(chat, [part]);
+				this._pendingChatNotices.set(chat, [{ part, merge }]);
 			}
 			this._logService.debug(`[AgentService] Deferring a system notice until the chat is idle: chat=${chat}`);
 			return;
 		}
-		this._writeChatNotice(chat, part);
+		this._writeChatNotice(chat, part, merge);
 	}
 
 	/** Emits the notices that were waiting for a chat's turn to end. */
@@ -2499,8 +2553,8 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		this._pendingChatNotices.delete(chat);
-		for (const part of pending) {
-			this._writeChatNotice(chat, part);
+		for (const { part, merge } of pending) {
+			this._writeChatNotice(chat, part, merge);
 		}
 	}
 
@@ -2511,8 +2565,8 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		this._pendingChatNotices.delete(from);
-		for (const part of pending) {
-			this._postChatNotice(to, part);
+		for (const { part, merge } of pending) {
+			this._postChatNotice(to, part, merge);
 		}
 	}
 
@@ -2525,14 +2579,24 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** Writes a completed local turn that survives provider transcript restoration. */
-	private _writeChatNotice(channel: string, part: ChatNotice): void {
+	private _writeChatNotice(channel: string, part: ChatNotice, merge?: ChatNoticeMerge): void {
 		const session = this._chatOwnership.getChatOwner(channel);
+		const replaced = merge && session !== undefined ? this._mergeLastChatNotice(channel, part, merge) : undefined;
+		if (replaced && session !== undefined) {
+			// Standard actions express the update, so any client can follow it.
+			this._stateManager.dispatchServerAction(channel, replaced.keptTurnId === undefined
+				? { type: ActionType.ChatTruncated }
+				: { type: ActionType.ChatTruncated, turnId: replaced.keptTurnId });
+			this._localTurns.deleteLocals(session, channel, [replaced.turnId]);
+			part = replaced.part;
+		}
 		const turnId = generateUuid();
+		const message = withMessageRequestHiddenFromTranscript({ text: part.content, origin: { kind: MessageKind.SystemNotification } }, true);
 		this._stateManager.dispatchServerAction(channel, {
 			type: ActionType.ChatTurnStarted,
 			turnId,
 			startedAt: new Date().toISOString(),
-			message: withMessageRequestHiddenFromTranscript({ text: part.content, origin: { kind: MessageKind.SystemNotification } }, true),
+			message: replaced ? withMessageReplacedTurn(message, replaced.turnId) : message,
 		});
 		this._stateManager.dispatchServerAction(channel, {
 			type: ActionType.ChatResponsePart,
@@ -2545,6 +2609,26 @@ export class AgentService extends Disposable implements IAgentService {
 		if (session !== undefined && turns && recorded) {
 			this._localTurns.record(session, channel, recorded, this._localTurns.findAnchorTurnId(channel, turns, turnId));
 		}
+	}
+
+	/**
+	 * Merges a notice into the chat's last turn when that turn is an earlier
+	 * host-written notice, returning the combined notice and the turn it replaces.
+	 */
+	private _mergeLastChatNotice(channel: string, next: ChatNotice, merge: ChatNoticeMerge): { readonly turnId: string; readonly keptTurnId: string | undefined; readonly part: ChatNotice } | undefined {
+		const state = this._stateManager.getChatState(channel);
+		const last = state?.turns.at(-1);
+		if (!state || state.activeTurn || !last || last.responseParts.length !== 1 || !this._localTurns.isLocal(channel, last.id)) {
+			return undefined;
+		}
+		const keptTurnId = state.turns.at(-2)?.id;
+		// Clearing every turn would also drop the cursor to older turns that are not loaded.
+		if (keptTurnId === undefined && state.turnsNextCursor !== undefined) {
+			return undefined;
+		}
+		const [previous] = last.responseParts;
+		const part = previous.kind === ResponsePartKind.SystemNotification ? merge(previous, next) : undefined;
+		return part && { turnId: last.id, keptTurnId, part };
 	}
 
 	/**
@@ -3723,7 +3807,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private _agentMergeRestore: Promise<void> = Promise.resolve();
 	private _agentMergeIndexWrites: Promise<void> = Promise.resolve();
 	/** Agent Merge notices waiting for a session's in-flight turn to finish. */
-	private readonly _pendingChatNotices = new Map<string, ChatNotice[]>();
+	private readonly _pendingChatNotices = new Map<string, IPendingChatNotice[]>();
 
 	/** Test surface: settles once the startup Agent Merge restore pass and the index writes it enqueued have run. */
 	async whenAgentMergeSessionsRestored(): Promise<void> {
@@ -4091,7 +4175,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * sessions are never resurrected: registration goes through
 	 * {@link AgentSessionRegistry.register}, which atomically declines to
 	 * (re-)register a session that is (or concurrently becomes)
-	 * tombstoned, rather than trusting a separate up-front tombstone check that
+	 * tombstoned or hidden, rather than trusting a separate up-front suppression check that
 	 * could race a concurrent {@link disposeSession}.
 	 *
 	 * `undefined` from the provider means it cannot enumerate yet (its SDK may
@@ -4234,7 +4318,7 @@ export class AgentService extends Disposable implements IAgentService {
 					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
 					return false;
 				}
-				if (!isEqual(session, providerSession) && await this._sessionRegistry.isTombstoned(providerSession)) {
+				if (!isEqual(session, providerSession) && await this._sessionRegistry.isSuppressed(providerSession)) {
 					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
 					return false;
 				}
@@ -4287,7 +4371,7 @@ export class AgentService extends Disposable implements IAgentService {
 					}
 				} else {
 					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
-					this._logService.trace(`[AgentService] discovery: ${session.toString()} was not registered (tombstoned)`);
+					this._logService.trace(`[AgentService] discovery: ${session.toString()} was not registered (suppressed)`);
 				}
 				return registered;
 			} catch (err) {
@@ -4764,7 +4848,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	/** Returns registered candidates. Tombstones remain candidates so registration can reject them atomically. */
+	/** Returns registered candidates. Suppressed sessions remain candidates so registration can reject them atomically. */
 	private async _filterKnownSessions(provider: AgentProvider, sessions: readonly URI[]): Promise<ReadonlySet<string>> {
 		const registered = await this._sessionRegistry.listSessionKeys();
 		const resolutions = usesStandardSessionUris(provider)
@@ -5023,7 +5107,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const storageAccessesAtStart = this._storageAccessCounts();
 		// The registry is the source of truth for top-level sessions. Internal
 		// chat backings and subagent sessions never enter it; ephemeral sessions
-		// are tombstoned at creation. A transiently missing provider snapshot no
+		// are hidden at creation. A transiently missing provider snapshot no
 		// longer evicts a session.
 		let allRegistered = await this._listRegisteredSessions();
 		if (allRegistered.length === 0) {
@@ -5768,7 +5852,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._announcedSurfacedKeys.add(key);
 		try {
-			if (await this._sessionRegistry.isTombstoned(meta.session)) {
+			if (await this._sessionRegistry.isSuppressed(meta.session)) {
 				this._announcedSurfacedKeys.delete(key);
 				return;
 			}
@@ -5890,7 +5974,7 @@ export class AgentService extends Disposable implements IAgentService {
 				const keys = await this._sessionRegistry.listRuntimeCompatibleSessionKeys();
 				if ([...keys].some(key => AgentSession.id(key) === AgentSession.id(requested))
 					|| await this._fileService.exists(this._sessionDataService.getSessionDataDir(requested))
-					|| await this._sessionRegistry.isTombstoned(requested)) {
+					|| await this._sessionRegistry.isSuppressed(requested)) {
 					throw new Error(`Session storage identity is already in use: ${requested.toString()}`);
 				}
 			}
@@ -5961,8 +6045,8 @@ export class AgentService extends Disposable implements IAgentService {
 		if (isEphemeral) {
 			try {
 				await this._retryRegistryMutation(
-					() => this._sessionRegistry.tombstone(session),
-					`tombstoning ephemeral session ${session.toString()}`,
+					() => this._sessionRegistry.hide(session, provider.id),
+					`hiding ephemeral session ${session.toString()}`,
 				);
 				if (!isIdleProvisional) {
 					this._invalidateSessionList();
@@ -7630,7 +7714,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const load = (async () => {
 			// A passive metadata update in progress finishes before this load reads the state it writes.
 			await this._passiveMetadataSequencer.queue(sessionKey, async () => { });
-			if (await this._sessionRegistry.isTombstoned(session)) {
+			if (await this._sessionRegistry.isSuppressed(session)) {
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionKey}`);
 			}
 			if (await this._isWorkspaceConversionQuarantined(session)) {
@@ -7759,6 +7843,7 @@ export class AgentService extends Disposable implements IAgentService {
 		} else {
 			this._checkMovedChat(sourceKey, chat);
 		}
+		await this._checkChatStarted(chat);
 		const after = destination.after?.toString();
 		if (after === chat) {
 			refuse(AgentChatMoveRefusal.InvalidAnchor, 'A chat can\'t be placed after itself.');
@@ -7779,6 +7864,18 @@ export class AgentService extends Disposable implements IAgentService {
 		// Its data only when the source's is too: a chat of a loaded source may be opened while it moves (C15b).
 		await this._restoreForMove(target, AgentChatMoveRefusal.DestinationNotFound, leases, sourceDataOnly);
 		return { kind: 'move', destination };
+	}
+
+	/**
+	 * Refuses moving a chat whose first turn hasn't started: only its composer exists. A chat the host hasn't
+	 * loaded since a restart is not opened for a move (C15) and counts as started; one registered without turns reads
+	 * its history first, as it may just not be hydrated yet.
+	 */
+	private async _checkChatStarted(chat: string): Promise<void> {
+		const state = this._stateManager.getChatState(chat);
+		if (state && !this._hasStartedTurn(state) && !this._hasStartedTurn(await this._resolveChatForMove(chat))) {
+			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotStarted, `Chat ${chat} has no turns yet; send a message before moving it.`);
+		}
 	}
 
 	/**
@@ -8023,6 +8120,15 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			artifactsHold?.dispose();
 			artifactsHold = undefined;
+			// A chat that never started a turn hasn't announced its worktree yet: its first send does.
+			if (handOver && this._hasStartedTurn(this._stateManager.getChatState(chatKey))) {
+				this._chatContributions.didHandOverWorktree(targetKey, chatKey);
+			}
+			for (const transfer of worktreePlan.transfers) {
+				if (transfer.chat !== undefined && this._hasStartedTurn(this._stateManager.getChatState(transfer.chat))) {
+					this._chatContributions.didHandOverWorktree(targetKey, transfer.chat);
+				}
+			}
 			await this._completeMovedWorktrees(session, target, worktreePlan, handOver, sessionMove);
 			// The target lists the chat now, so the folders prepared for it are in use rather than reserved.
 			this._consumePreparedChatWorkingDirectories(target, chatFolders);
@@ -9397,7 +9503,7 @@ export class AgentService extends Disposable implements IAgentService {
 		do {
 			session = AgentSession.uri(legacy ? provider.id : 'ahp-session', generateUuid());
 		} while (registeredIds.has(AgentSession.id(session))
-		|| await this._sessionRegistry.isTombstoned(session)
+		|| await this._sessionRegistry.isSuppressed(session)
 			|| await this._fileService.exists(this._sessionDataService.getSessionDataDir(session)));
 		return session;
 	}
@@ -9416,7 +9522,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			await this._orchestratorDatabase.prepareSessionStorage?.(session.toString(), provider.id);
 			const providerConfig = config ? this._toProviderConfig(config) : undefined;
-			const generation = await this._sessionRegistry.isTombstoned(session) ? generateUuid() : undefined;
+			const generation = await this._sessionRegistry.isSuppressed(session) ? generateUuid() : undefined;
 			const defaultChatUri = URI.parse(mintDefaultChatUri(this._creatorUsesLegacyChatUris(config) ? 'shaped' : 'opaque', session.toString(), generation));
 			this._orchestratorDatabase.recordChatStorageIdentity(session.toString(), defaultChatUri.toString(), { kind: 'default', generation });
 			if (config?.credentials) {
@@ -9822,7 +9928,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private _toCreateChatOptions(config: IAgentCreateSessionConfig): IAgentCreateChatOptions {
 		return {
 			...(config.session && this._stateManager.isEphemeralSession(config.session.toString()) ? { isEphemeral: true } : {}),
-			...(readChatSurfaceMeta(config)?.surface === 'editorInline' ? { hasScopedEditSurface: true } : {}),
+			...getChatSurfaceOptions(readChatSurfaceMeta(config)?.surface),
 			...(config.model ? { model: config.model } : {}),
 			...(config.agent ? { agent: config.agent } : {}),
 			...(config.workingDirectories ? { workingDirectories: config.workingDirectories } : {}),
@@ -10389,7 +10495,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let peerChatDeletionBegun = false;
 		let sessionStateDeletion: { dispose(): void } | undefined;
 		try {
-			const isEphemeral = this._stateManager.isEphemeralSession(sessionKey);
+			const isHidden = this._stateManager.isEphemeralSession(sessionKey) || await this._sessionRegistry.isHidden(session);
 			const isIdleProvisional = this._stateManager.isIdleProvisionalSession(sessionKey);
 			const sessionChats = this._stateManager.getSessionState(session.toString())?.chats ?? [];
 			for (const chat of sessionChats) {
@@ -10472,17 +10578,11 @@ export class AgentService extends Disposable implements IAgentService {
 			const stateDeletion = this._sessionStateStore.beginDeletion(session);
 			sessionStateDeletion = stateDeletion;
 			await stateDeletion.whenDrained;
-			if (!isEphemeral) {
-				traceStage('tombstone');
-				await this._retryRegistryMutation(
-					() => this._sessionRegistry.tombstone(session, worktreeRemovals),
-					`unregistration for ${session.toString()}`,
-				);
-			} else {
-				for (const removal of worktreeRemovals) {
-					await this._orchestratorDatabase.upsertPendingWorktreeRemoval(removal);
-				}
-			}
+			traceStage('tombstone');
+			await this._retryRegistryMutation(
+				() => this._sessionRegistry.tombstone(session, worktreeRemovals),
+				`unregistration for ${session.toString()}`,
+			);
 			// Also when the session records no removal: it may have kept another session's worktree in use.
 			this._worktreeCleanup.schedule();
 			// The sessions it shared worktrees with may no longer share them: their older-build copy follows (Block 5).
@@ -10533,11 +10633,11 @@ export class AgentService extends Disposable implements IAgentService {
 			// The durable marker is dropped with the registration itself; keep the
 			// mirror listing reads in step with it.
 			this._provisionalSessionKeys.delete(sessionKey);
-			if (isEphemeral) {
-				traceStage('clearEphemeralTombstone');
+			if (isHidden) {
+				traceStage('clearHiddenTombstone');
 				await this._retryRegistryMutation(
 					() => this._sessionRegistry.clearTombstone(session),
-					`clearing ephemeral session tombstone for ${session.toString()}`,
+					`clearing hidden session tombstone for ${session.toString()}`,
 				);
 			}
 		} finally {
@@ -11282,7 +11382,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Returns `'restore'`, leaving the caller to restore, when its surfaced
 	 * summary does not list the chat; `'deleting'`, writing nothing, when the
 	 * session is being deleted; and `'unmanageable'`, writing nothing, for an
-	 * archive toggle on a default, tool or side chat. Callers must run it
+	 * archive toggle on a default or tool chat. Callers must run it
 	 * through {@link _queuePassiveMetadataUpdate} and resolve `session` from
 	 * the chat's recorded owner.
 	 */
@@ -11293,7 +11393,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return 'restore';
 		}
 		if (action.type === ActionType.ChatIsArchivedChanged
-			&& (this._chatOwnership.isDefaultChat(session, chat) || target.origin?.kind === ChatOriginKind.Tool || target.origin?.kind === ChatOriginKind.SideChat)) {
+			&& (this._chatOwnership.isDefaultChat(session, chat) || target.origin?.kind === ChatOriginKind.Tool)) {
 			return 'unmanageable';
 		}
 		const sessionUri = URI.parse(session);
@@ -11325,9 +11425,10 @@ export class AgentService extends Disposable implements IAgentService {
 				this._stateManager.setSurfacedSessionStatusAndChats(session, current.status, chats);
 				if (isChatInSessionReadAggregate(target.resource, target.origin, target.interactivity)) {
 					const sessionIsRead = isSessionStatusRead(current.status);
-					const lastUnreadChatRead = isRead && !chatWasRead && !sessionIsRead && chats
-						.filter(candidate => isChatInSessionReadAggregate(candidate.resource, candidate.origin, candidate.interactivity))
-						.every(candidate => isSessionStatusRead(candidate.status ?? current.status));
+					const aggregateChats = chats.filter(candidate => isChatInSessionReadAggregate(candidate.resource, candidate.origin, candidate.interactivity));
+					// A redundant read keeps a multi-chat session marked unread, but a sole chat's read state is its session's.
+					const lastUnreadChatRead = isRead && !sessionIsRead && (!chatWasRead || aggregateChats.length === 1)
+						&& aggregateChats.every(candidate => isSessionStatusRead(candidate.status ?? current.status));
 					if (lastUnreadChatRead || (!isRead && sessionIsRead)) {
 						aggregateChanged = true;
 						const applied = await this._applyPassiveSessionMetadata(session, { type: ActionType.SessionIsReadChanged, isRead });
@@ -12201,16 +12302,7 @@ export class AgentService extends Disposable implements IAgentService {
 		});
 	}
 
-	/**
-	 * Detaches an archived chat's folders from the aggregate session workspace,
-	 * or attaches them back when the chat is unarchived. The folders of the
-	 * subagents and side chats it spawned are detached with it; on unarchive,
-	 * its own and its side chats' folders are attached back, as a subagent's
-	 * folders are never considered. The chats keep their own folders either
-	 * way. A folder stays attached while it is the primary folder or another
-	 * unarchived chat uses it, including a chat that inherits the complete
-	 * session workspace. Worktrees are never deleted.
-	 */
+	/** Detaches an archived chat family's unused folders without deleting worktrees or changing chat folders. Only chats in use regain their folders on restore; primary and shared folders stay attached. */
 	setArchivedChatWorkspaceAttached(session: URI, chat: URI, attached: boolean): Promise<void> {
 		const sessionKey = session.toString();
 		return this._additionalWorktreeSequencer.queue(sessionKey, async () => {
@@ -12231,7 +12323,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const isAttached = (directory: string) => workingDirectories.some(candidate => isEqual(URI.parse(candidate), URI.parse(directory)));
 			if (attached) {
-				const missing = chatDirectories.filter(directory => !isAttached(directory));
+				const usedScopes = this._getWorkingDirectoriesInUse(state.chats, undefined, this._sessionFoldersOfChatWithoutOwn(sessionKey));
+				const missing = chatDirectories.filter(directory => !isAttached(directory)
+					&& usedScopes.some(scope => scope?.some(other => isEqual(URI.parse(other), URI.parse(directory)))));
 				for (const directory of missing) {
 					await this._attachSessionWorkingDirectoryForChat(session, URI.parse(directory));
 				}
@@ -12634,7 +12728,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// The origin is recorded on the chat summary, so a chat whose history is not materialized is checked too.
 		const chatOrigin = this._stateManager.getChatOrigin(channel);
 		if (action.type === ActionType.ChatIsArchivedChanged
-			&& (owner === undefined || this._chatOwnership.isDefaultChat(owner, channel) || chatOrigin?.kind === ChatOriginKind.Tool || chatOrigin?.kind === ChatOriginKind.SideChat)) {
+			&& (owner === undefined || this._chatOwnership.isDefaultChat(owner, channel) || chatOrigin?.kind === ChatOriginKind.Tool)) {
 			this._stateManager.rejectClientAction(channel, action, origin, UNMANAGEABLE_CHAT_ARCHIVE_REJECTION);
 			return true;
 		}
@@ -13244,13 +13338,8 @@ export class AgentService extends Disposable implements IAgentService {
 		if (this._stateManager.getSessionState(sessionStr)) {
 			return;
 		}
-		// A session explicitly deleted (tombstoned) must not be revived by a
-		// stale restore request — e.g. a client re-subscribing to a URI it
-		// still remembers after the session was deleted. Failing fast here
-		// (before any provider-side restoration work) also avoids the
-		// registration below silently declining later and leaving state
-		// partially hydrated.
-		if (await this._sessionRegistry.isTombstoned(session)) {
+		// Refuse deleted or hidden sessions before provider restoration can partially hydrate them.
+		if (await this._sessionRegistry.isSuppressed(session)) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
 		}
 		const unresolvedRegistration = await this._orchestratorDatabase.getSessionV2Registration(sessionStr);
@@ -13286,8 +13375,8 @@ export class AgentService extends Disposable implements IAgentService {
 				readable = false;
 				this._logService.warn(`[AgentService] restore: initial catalog migration for provider ${agent.id} failed; a metadata miss will be reported as unavailable, not missing`, err);
 			}
-			// This wait can be lengthy, so re-check that a delete has not landed meanwhile.
-			if (await this._sessionRegistry.isTombstoned(session)) {
+			// This wait can be lengthy, so re-check that the session was not deleted or hidden meanwhile.
+			if (await this._sessionRegistry.isSuppressed(session)) {
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
 			}
 			return readable;
@@ -13446,7 +13535,7 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionUri}`);
 		}
 		const ownerKey = owner.toString();
-		// Live throwaway sessions are deliberately tombstoned to exclude them from discovery.
+		// Live throwaway sessions are hidden and deliberately unregistered.
 		if (this._stateManager.isEphemeralSession(ownerKey)) {
 			return;
 		}
@@ -13922,10 +14011,7 @@ export class AgentService extends Disposable implements IAgentService {
 			`registration for restored session ${session.toString()}`,
 		);
 		if (!registered) {
-			// Tombstoned between the early check in `_doRestoreSession` and
-			// here (e.g. a concurrent `disposeSession` landed while this
-			// restore was reading turns/metadata). Fail the same way an
-			// up-front tombstone would, before any state-manager mutation.
+			// Refuse a session deleted or hidden during restoration before mutating state.
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
 		}
 		this._invalidateSessionList();
@@ -14941,8 +15027,8 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._resourceProviders.resolve(params);
 	}
 
-	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined> {
-		return this._worktreeDiskUsage.measure(root, token);
+	measureWorktreeDiskUsage(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined> {
+		return this._worktreeDiskUsage.measure(root, token, session);
 	}
 
 	sessionWorktreeCleanup(session: URI, retry: boolean) {
