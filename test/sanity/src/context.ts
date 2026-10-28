@@ -106,6 +106,9 @@ const maxCapturedLogFileBytes = 2 * 1024 * 1024;
 /** How many bytes of logs {@link TestContext.captureLogs} copies at most per capture. */
 const maxCapturedLogBytes = 10 * 1024 * 1024;
 
+/** The experiment service (ExP) that assigns treatments to the workbench. */
+const experimentsUrlPattern = /^https:\/\/[^/]*exp-tas\.com\//i;
+
 /**
  * Provides context and utilities for VS Code sanity tests.
  */
@@ -1378,13 +1381,17 @@ export class TestContext {
 	}
 
 	/**
-	 * Awaits a page promise and sets the default timeout.
+	 * Awaits a page promise, sets the default timeout and blocks experiment assignments.
+	 * Sanity tests check the build itself, so they run without the experiment treatments (ExP)
+	 * that are live for users at the time, which change without a build. Desktop apps also get
+	 * `--disable-experiments`, which a browser workbench has no equivalent for.
 	 * @param pagePromise The promise that resolves to a Page.
 	 * @returns The page with the timeout configured.
 	 */
 	public async getPage(pagePromise: Promise<Page>): Promise<Page> {
 		const page = await pagePromise;
 		page.setDefaultTimeout(3 * 60 * 1000);
+		await page.route(experimentsUrlPattern, route => route.abort('blockedbyclient'));
 		return page;
 	}
 

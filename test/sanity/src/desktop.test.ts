@@ -264,7 +264,8 @@ export function setup(context: TestContext) {
 
 	async function testDesktopApp(entryPoint: string, dataDir?: string, setuidSandbox = false) {
 		const test = new UITest(context, dataDir);
-		const args = dataDir ? [] : [
+		const args = dataDir ? ['--disable-experiments'] : [
+			'--disable-experiments',
 			'--extensions-dir', test.extensionsDir,
 			'--user-data-dir', test.userDataDir,
 		];
