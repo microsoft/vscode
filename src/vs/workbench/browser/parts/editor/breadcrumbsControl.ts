@@ -338,7 +338,6 @@ export class BreadcrumbsControl {
 		this._widget.onDidSelectItem(this._onSelectEvent, this, this._disposables);
 		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
 		this._widget.onDidChangeFocus(this._updateCkBreadcrumbsActive, this, this._disposables);
-		this._disposables.add(this._cfShowInUntitledFiles.onDidChange(() => this.update()));
 
 		if (this._options.showEditorTypePicker) {
 			this._disposables.add(this._cfShowEditorType.onDidChange(() => this._updateEditorTypeControl()));
@@ -840,6 +839,15 @@ export class BreadcrumbsControlFactory {
 				// ignore if the scheme of the breadcrumbs resource is not affected
 				return;
 			}
+			if (this._control?.update()) {
+				this._onDidEnablementChange.fire();
+			}
+		}));
+
+		// Notify the owner when visibility changes, so it can reapply its own rules (e.g. hiding
+		// breadcrumbs in inactive groups with a single tab).
+		const showInUntitledFiles = this._disposables.add(BreadcrumbsConfig.ShowInUntitledFiles.bindTo(configurationService));
+		this._disposables.add(showInUntitledFiles.onDidChange(() => {
 			if (this._control?.update()) {
 				this._onDidEnablementChange.fire();
 			}

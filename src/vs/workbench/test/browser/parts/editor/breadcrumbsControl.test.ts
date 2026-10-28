@@ -24,10 +24,10 @@ import { IFileService, IFileStatWithMetadata } from '../../../../../platform/fil
 import { IQuickAccessController } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { BreadcrumbsService, IBreadcrumbsService } from '../../../../browser/parts/editor/breadcrumbs.js';
-import { BreadcrumbsControl } from '../../../../browser/parts/editor/breadcrumbsControl.js';
+import { BreadcrumbsControl, BreadcrumbsControlFactory, IBreadcrumbsControlOptions } from '../../../../browser/parts/editor/breadcrumbsControl.js';
 import { BreadcrumbsPicker } from '../../../../browser/parts/editor/breadcrumbsPicker.js';
 import { IEditorGroupsView, IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
-import { IVisibleEditorPane } from '../../../../common/editor.js';
+import { IEditorPartOptions, IVisibleEditorPane } from '../../../../common/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IOutline, IOutlineService } from '../../../../services/outline/browser/outline.js';
@@ -104,7 +104,7 @@ suite('BreadcrumbsControl', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function createControl(withOutline = false, nestedOutline = false, editorResource = resource): Promise<void> {
+	async function createControl(withOutline = false, nestedOutline = false, editorResource = resource, viaFactory = false): Promise<BreadcrumbsControlFactory | undefined> {
 		const outline: IOutline<string> = {
 			uri: resource,
 			outlineKind: 'test',
@@ -148,6 +148,8 @@ suite('BreadcrumbsControl', () => {
 			override focus() { group.focus(); }
 		};
 		const groupsView = new class extends mock<IEditorGroupsView>() {
+			override readonly partOptions = upcastPartial<IEditorPartOptions>({});
+			override readonly onDidChangeEditorPartOptions = Event.None;
 			override activateGroup(target: IEditorGroupView) {
 				activeGroup = target;
 				return target;
@@ -172,13 +174,20 @@ suite('BreadcrumbsControl', () => {
 		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
 			override get activeGroup() { return activeGroup; }
 		});
-		control = disposables.add(instantiationService.createInstance(BreadcrumbsControl, container, {
+		const options: IBreadcrumbsControlOptions = {
 			showFileIcons: false,
 			showSymbolIcons: true,
 			showDecorationColors: false,
 			showPlaceholder: false,
 			dragEditor: false
-		}, group));
+		};
+		let factory: BreadcrumbsControlFactory | undefined;
+		if (viaFactory) {
+			factory = disposables.add(instantiationService.createInstance(BreadcrumbsControlFactory, container, group, options));
+			control = factory.control!;
+		} else {
+			control = disposables.add(instantiationService.createInstance(BreadcrumbsControl, container, options, group));
+		}
 		control.update();
 		control.layout(new Dimension(600, BreadcrumbsControl.HEIGHT));
 		widget = instantiationService.get(IBreadcrumbsService).getWidget(group.id)!;
@@ -186,6 +195,7 @@ suite('BreadcrumbsControl', () => {
 			await Event.toPromise(control.model.onDidUpdate);
 		}
 		focusEditor();
+		return factory;
 	}
 
 	async function waitForPicker(): Promise<void> {
@@ -243,15 +253,17 @@ suite('BreadcrumbsControl', () => {
 		}
 	}
 
-	test('untitled files are hidden unless breadcrumbs.showInUntitledFiles is enabled', async () => {
-		await createControl(true, false, URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' }));
+	test('enabling breadcrumbs.showInUntitledFiles shows untitled files and notifies the owner', async () => {
+		await configurationService.setUserConfiguration('breadcrumbs.enabled', true);
+		const factory = (await createControl(true, false, URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' }), true))!;
 		const hiddenByDefault = control.isHidden();
+		let ownerNotifications = 0;
+		disposables.add(factory.onDidEnablementChange(() => ownerNotifications++));
 
 		await configurationService.setUserConfiguration('breadcrumbs.showInUntitledFiles', true);
 		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: section => section === 'breadcrumbs.showInUntitledFiles' }));
-		const hiddenWhenEnabled = control.isHidden();
 
-		assert.deepStrictEqual({ hiddenByDefault, hiddenWhenEnabled }, { hiddenByDefault: true, hiddenWhenEnabled: false });
+		assert.deepStrictEqual({ hiddenByDefault, hiddenWhenEnabled: control.isHidden(), ownerNotifications }, { hiddenByDefault: true, hiddenWhenEnabled: false, ownerNotifications: 1 });
 	});
 
 	test('untitled files show their symbol path without file path elements', async () => {
