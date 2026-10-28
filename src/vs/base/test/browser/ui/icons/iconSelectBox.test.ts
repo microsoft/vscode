@@ -34,10 +34,19 @@ suite('IconSelectBox', () => {
 
 	test('search and grid expose the same labelled active option', () => {
 		const { box, input, grid } = setup();
+		const first = grid.querySelector<HTMLElement>('.focused')!;
+		const initial = {
+			activeElement: mainWindow.document.activeElement === input,
+			inputActive: input.getAttribute('aria-activedescendant'),
+			gridActive: grid.getAttribute('aria-activedescendant'),
+			selected: first.ariaSelected,
+			label: box.domNode.querySelector('.icon-select-id-label')?.textContent,
+		};
 		box.focusNextRow();
 		box.focusNext();
 		const option = grid.querySelector<HTMLElement>('.focused')!;
 		assert.deepStrictEqual({
+			initial,
 			role: option.role,
 			label: option.ariaLabel,
 			selected: option.ariaSelected,
@@ -46,6 +55,13 @@ suite('IconSelectBox', () => {
 			gridActive: grid.getAttribute('aria-activedescendant'),
 			activeElement: mainWindow.document.activeElement === grid,
 		}, {
+			initial: {
+				activeElement: true,
+				inputActive: first.id,
+				gridActive: first.id,
+				selected: 'true',
+				label: 'Icon name: add',
+			},
 			role: 'option',
 			label: icons[1].id,
 			selected: 'true',
@@ -66,10 +82,22 @@ suite('IconSelectBox', () => {
 			positions.push(box.getFocus()[0]);
 		}
 		box.focusPreviousRow();
-		assert.deepStrictEqual({ entered, positions, returnedToSearch: mainWindow.document.activeElement === input }, {
+		assert.deepStrictEqual({
+			entered,
+			positions,
+			returnedToSearch: mainWindow.document.activeElement === input,
+			focus: box.getFocus(),
+			inputActive: input.getAttribute('aria-activedescendant'),
+			gridActive: grid.getAttribute('aria-activedescendant'),
+			label: box.domNode.querySelector('.icon-select-id-label')?.textContent,
+		}, {
 			entered: { focus: [0], grid: true },
 			positions: [3, 4, 7, 7, 4, 1],
 			returnedToSearch: true,
+			focus: [1],
+			inputActive: `${box.domId}_icons_1`,
+			gridActive: `${box.domId}_icons_1`,
+			label: 'Icon name: lightbulb',
 		});
 	});
 
@@ -101,9 +129,10 @@ suite('IconSelectBox', () => {
 			message: grid.querySelector('.icon-no-results')?.textContent,
 		};
 		search('rocket');
-		assert.deepStrictEqual({ empty, recovered: box.getFocusedIcon()?.id }, {
+		assert.deepStrictEqual({ empty, recovered: box.getFocusedIcon()?.id, label: box.domNode.querySelector('.icon-select-id-label')?.textContent }, {
 			empty: { options: 0, focus: [], icon: undefined, inputActive: null, gridActive: null, message: 'No results' },
 			recovered: 'rocket',
+			label: 'Icon name: rocket',
 		});
 	});
 
@@ -145,5 +174,41 @@ suite('IconSelectBox', () => {
 			return event.defaultPrevented;
 		}));
 		assert.deepStrictEqual({ prevented, leaked, focus: box.getFocus() }, { prevented: modifiers.flatMap(() => [false, false, false, false]), leaked: [], focus: [0] });
+	});
+
+	test('focusing the grid preserves the initial selected option and its non-interactive caption', () => {
+		const { box, grid } = setup();
+		grid.focus();
+		const caption = box.domNode.querySelector<HTMLElement>('.icon-select-id-label')!;
+		const initial = {
+			gridFocused: mainWindow.document.activeElement === grid,
+			focus: box.getFocus(),
+			active: grid.getAttribute('aria-activedescendant'),
+			caption: caption.textContent,
+			captionTabIndex: caption.tabIndex,
+			interactiveCaption: caption.querySelector('button, a, input, [tabindex]'),
+		};
+		grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
+		assert.deepStrictEqual({ initial, focus: box.getFocus(), caption: caption.textContent }, {
+			initial: {
+				gridFocused: true,
+				focus: [0],
+				active: `${box.domId}_icons_0`,
+				caption: 'Icon name: add',
+				captionTabIndex: -1,
+				interactiveCaption: null,
+			},
+			focus: [1],
+			caption: 'Icon name: lightbulb',
+		});
+	});
+
+	test('the caption highlights only the matching icon name', () => {
+		const { box, search } = setup();
+		search('rock');
+		assert.deepStrictEqual({
+			caption: box.domNode.querySelector('.icon-select-id-label')?.textContent,
+			highlights: [...box.domNode.querySelectorAll('.icon-select-id-label .highlight')].map(element => element.textContent),
+		}, { caption: 'Icon name: rocket', highlights: ['rock'] });
 	});
 });

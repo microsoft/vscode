@@ -1930,6 +1930,14 @@ export class SessionConversationActionsContribution extends Disposable implement
 
 for (const menu of SessionHeaderMenus) {
 	MenuRegistry.appendMenuItem(menu, {
+		submenu: MenuId.ChatViewMode,
+		title: localize2('chat.viewMode', "View Mode"),
+		group: 'secondary/4_manage',
+		order: 10,
+		when: ChatContextKeys.enabled,
+	});
+
+	MenuRegistry.appendMenuItem(menu, {
 		submenu: Menus.SessionConversations,
 		title: localize2('chatCompositeBar.sideChats', "Side Chats"),
 		icon: Codicon.commentDiscussion,

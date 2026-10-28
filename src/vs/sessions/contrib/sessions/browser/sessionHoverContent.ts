@@ -270,7 +270,8 @@ function toHoverPullRequests(refs: Iterable<SessionPullRequestRef>, openerServic
 		title: ref.title ?? `#${ref.number}`,
 		icon: ref.icon,
 		uri: ref.uri,
-		onOpen: () => openerService.open(ref.uri, { openExternal: true }).catch(onUnexpectedError),
+		// Contributed openers let an installed extension (e.g. GitHub Pull Requests) open the pull request in product.
+		onOpen: () => openerService.open(ref.uri, { openExternal: true, allowContributedOpeners: true, fromUserGesture: true }).catch(onUnexpectedError),
 	}));
 	return pullRequests.length ? pullRequests : undefined;
 }

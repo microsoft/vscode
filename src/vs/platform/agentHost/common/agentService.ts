@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { AgentChatMoveDestination } from './agentHostChatMove.js';
-import type { IAgentHostWorktreeCleanupStatus } from './agentHostWorktreeCleanup.js';
+import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from './agentHostWorktreeCleanup.js';
 import type { CancellationToken } from '../../../base/common/cancellation.js';
 import type { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
@@ -945,6 +945,11 @@ export interface IAgentHostManagementService {
 	 */
 	setSystemFullyAwake(fullyAwake: boolean): Promise<void>;
 	/**
+	 * Local-only bridge for the owning client process to report whether the network is online after a full wake, so
+	 * scheduled work waits for it.
+	 */
+	setSystemNetworkOnline(online: boolean): Promise<void>;
+	/**
 	 * Local-only bridge for the owning client process to report that macOS changed which apps it trusts to control the
 	 * computer through Accessibility.
 	 */
@@ -1011,6 +1016,9 @@ export interface IAgentService {
 	readSavedChat?(session: URI, chat?: URI): Promise<IAgentHostSavedChat>;
 	/** Records a verified Copilot continuation and archives only safely covered saved chats. */
 	completeSavedChatContinuation?(request: IAgentHostSavedChatContinuation): Promise<IAgentHostSavedChatContinuationResult>;
+	/** Removes an Automation and returns exact backend session URIs deleted by this request. */
+	deleteAutomation?(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[], requestId?: string): Promise<readonly string[]>;
+	acknowledgeAutomationDeletion?(requestId: string): Promise<void>;
 	/** Permanently adopts an external session without sending a message. */
 	importSession?(session: URI): Promise<void>;
 	/** Removes a recorded artifact or reference, awaiting host metadata persistence. */
@@ -1257,6 +1265,8 @@ export interface IAgentService {
 
 	/** Reports background removal state, optionally retrying cleanup of an archived session. */
 	sessionWorktreeCleanup?(session: URI, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	listManagedWorktrees?(repositories: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
+	cleanupManagedWorktree?(repository: URI, worktree: URI, branch: string): Promise<void>;
 
 	/**
 	 * Read stored content by URI from the agent host (e.g. file edit snapshots,
@@ -1415,6 +1425,9 @@ export interface IAgentConnection {
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	/** Requires the Automation history capability; returns exact backend session URIs deleted by this request. */
+	deleteAutomation?(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[], requestId?: string): Promise<readonly string[]>;
+	acknowledgeAutomationDeletion?(requestId: string): Promise<void>;
 	/** Requires the VS Code session import capability advertised by initialize. */
 	importSession?(session: URI): Promise<void>;
 	/**
@@ -1536,6 +1549,8 @@ export interface IAgentConnection {
 	/** Estimates reclaimable allocation on local or remote hosts, optionally cached for an idle session. Unsupported hosts must not fall back to per-file RPCs. */
 	measureWorktreeDiskUsage?(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined>;
 	sessionWorktreeCleanup?(session: URI, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	listManagedWorktrees?(repositories: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
+	cleanupManagedWorktree?(repository: URI, worktree: URI, branch: string): Promise<void>;
 	resourceList(uri: URI): Promise<ResourceListResult>;
 	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
 	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult>;

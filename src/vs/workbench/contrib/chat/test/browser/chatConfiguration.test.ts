@@ -6,13 +6,13 @@
 import * as assert from 'assert';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, getConfigurationExperimentName, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
-import { chatProgressConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
+import { chatProgressConfigurationProperties, legacyChatThinkingConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties, isAgentFinderPublicFeedAvailable, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
 import { CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import '../../browser/agentSessionsConfiguration.js';
@@ -186,7 +186,7 @@ suite('Chat configuration', () => {
 			type: 'string',
 			default: 'draw',
 			tags: ['experimental'],
-			experiment: { mode: 'auto' },
+			experiment: { mode: 'auto', name: 'config.chat.experimental.persistentProgress' },
 		});
 	});
 
@@ -200,7 +200,7 @@ suite('Chat configuration', () => {
 			labels: setting.enumItemLabels,
 			descriptions: setting.enumDescriptions.length,
 		}, {
-			settings: ['chat.experimental.persistentProgress', 'chat.experimental.persistentProgressVerbosity'],
+			settings: ['chat.persistentProgress', 'chat.persistentProgressVerbosity'],
 			type: 'string',
 			default: 'draw',
 			values: ['off', 'draw', 'drawMonochrome', 'drawMonochromeNoIcon'],
@@ -208,6 +208,84 @@ suite('Chat configuration', () => {
 			descriptions: 4,
 		});
 	});
+
+	test('preserves both existing ExP treatment names and experimental metadata', () => {
+		assert.deepStrictEqual(([
+			ChatConfiguration.PersistentProgress,
+			ChatConfiguration.PersistentProgressVerbosity,
+		] as const).map(key => {
+			const setting = chatProgressConfigurationProperties[key];
+			return { key, tags: setting.tags, mode: setting.experiment.mode, treatment: getConfigurationExperimentName(key, setting.experiment) };
+		}), [
+			{ key: 'chat.persistentProgress', tags: ['experimental'], mode: 'auto', treatment: 'config.chat.experimental.persistentProgress' },
+			{ key: 'chat.persistentProgressVerbosity', tags: ['experimental'], mode: 'auto', treatment: 'config.chat.experimental.persistentProgressVerbosity' },
+		]);
+	});
+
+	test('marks legacy thinking controls for future deprecation without removing their behavior', () => {
+		assert.deepStrictEqual(([
+			ChatConfiguration.ThinkingStyle,
+			'chat.agent.thinking.collapsedTools',
+			ChatConfiguration.TerminalToolsInThinking,
+			ChatConfiguration.ThinkingPhrases,
+		] as const).map(key => {
+			const setting = legacyChatThinkingConfigurationProperties[key];
+			return {
+				default: setting.default,
+				futureDeprecation: setting.markdownDeprecationMessage?.includes('will be deprecated in a future release'),
+				progress: setting.markdownDeprecationMessage?.includes('`#chat.persistentProgress#`'),
+				verbosity: setting.markdownDeprecationMessage?.includes('`#chat.persistentProgressVerbosity#`'),
+			};
+		}), ['fixedScrolling', 'always', true, { mode: 'append', phrases: [] }].map(value => ({
+			default: value, futureDeprecation: true, progress: true, verbosity: true,
+		})));
+	});
+
+	test('enables generated thinking titles only for visible headers by default', () => {
+		const setting = legacyChatThinkingConfigurationProperties[ChatConfiguration.ThinkingGenerateTitles];
+		assert.deepStrictEqual({
+			default: setting.default,
+			visibility: setting.description.includes('only when a live thinking section finishes with its header in view'),
+			fallback: setting.description.includes('Finished thinking'),
+		}, { default: true, visibility: true, fallback: true });
+	});
+
+	for (const { legacyKey, key, values } of [
+		{
+			legacyKey: 'chat.experimental.persistentProgress',
+			key: ChatConfiguration.PersistentProgress,
+			values: [['off', 'off'], ['draw', 'draw'], ['drawMonochrome', 'drawMonochrome'], ['drawMonochromeNoIcon', 'drawMonochromeNoIcon'], ['weave', 'draw'], ['orbit', 'draw'], ['accordion', 'draw'], ['dial', 'draw'], ['ribbon', 'draw'], ['unsupported', 'unsupported']],
+		},
+		{
+			legacyKey: 'chat.experimental.persistentProgressVerbosity',
+			key: ChatConfiguration.PersistentProgressVerbosity,
+			values: [['compact', 'compact'], ['verbose', 'verbose'], ['conversation', 'conversation'], ['notVerbose', 'compact'], ['unsupported', 'unsupported']],
+		},
+	]) {
+		test(`migrates explicit ${legacyKey} values to the renamed setting`, async () => {
+			const migration = migrations.find(migration => migration.key === legacyKey);
+			assert.ok(migration);
+			assert.deepStrictEqual({
+				includeApplication: migration.includeApplication,
+				results: await Promise.all(values.map(([value]) => migration.migrateFn(value, () => undefined))),
+			}, {
+				includeApplication: true,
+				results: values.map(([, value]) => [[legacyKey, { value: undefined }], [key, { value }]]),
+			});
+		});
+
+		test(`preserves an existing ${key} preference and leaves absent legacy values alone`, async () => {
+			const migration = migrations.find(migration => migration.key === legacyKey);
+			assert.ok(migration);
+			assert.deepStrictEqual({
+				configured: await migration.migrateFn('old', candidate => candidate === key ? 'explicit' : undefined),
+				absent: await migration.migrateFn(undefined, () => undefined),
+			}, {
+				configured: [[legacyKey, { value: undefined }]],
+				absent: [],
+			});
+		});
+	}
 
 	test('migrates removed progress animations to Draw', async () => {
 		assert.deepStrictEqual(await Promise.all(

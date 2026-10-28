@@ -41,7 +41,7 @@ import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
-import { resolveMcpServerAuthentication, agentHostMcpServerId, autoAuthenticateMcpServer, authenticateCopilotConnectorCredential, isCopilotConnectorMcpAuthentication, type IAgentHostAuthenticateRequest } from './agentHostAuth.js';
+import { resolveMcpServerAuthentication, agentHostMcpServerId, autoAuthenticateMcpServer, authenticateCopilotConnectorCredential, type IAgentHostAuthenticateRequest } from './agentHostAuth.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IMcpService } from '../../../../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
@@ -493,11 +493,17 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	async authenticateMcpServer(sessionResource: URI, serverId: string): Promise<boolean> {
 		const target = this._resolveTarget(sessionResource);
 		if (!target) {
+			this._logService.warn(`[AgentHost] Cannot authenticate MCP server '${serverId}': the session ${sessionResource.toString()} is not available`);
 			status(localize('agentHost.mcpAuthenticationUnavailable', "The MCP server is no longer available for authentication."));
 			return false;
 		}
 		const server = this._findMcpServer(target.customizations, serverId);
 		if (!server || server.state.kind !== McpServerStatus.AuthRequired) {
+			if (server) {
+				this._logService.info(`[AgentHost] Not authenticating MCP server '${server.name}': it no longer requires authentication (${server.state.kind})`);
+			} else {
+				this._logService.warn(`[AgentHost] Cannot authenticate MCP server '${serverId}': the session no longer has this server`);
+			}
 			status(localize('agentHost.mcpAuthenticationNotPending', "The MCP server is no longer awaiting authentication."));
 			return false;
 		}
@@ -523,6 +529,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				authenticate: request => target.authenticate(request),
 			});
 			if (!forwarded) {
+				this._logService.info(`[AgentHost] No MCP token was forwarded for '${server.name}'; authentication was cancelled or no session could be resolved for ${server.state.resource.resource}`);
 				status(localize('agentHost.mcpAuthenticationIncomplete', "Authentication for {0} did not complete.", label));
 				return false;
 			}
@@ -713,10 +720,13 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	}
 }
 
-/** Whether a server is owned by a Copilot Connector, by host metadata or by its Connector-scope challenge. */
+/**
+ * Whether the host reports a server as owned by a Copilot Connector. Only the host can tell, from the runtime's
+ * Connector state: a challenge that asks for the Connector scope may come from any server given a
+ * Connector-authorized credential, such as the built-in GitHub MCP server asking to step up that credential.
+ */
 function isCopilotConnectorMcpServer(server: McpServerCustomization): boolean {
-	return readMcpServerConnectorName(server) !== undefined
-		|| server.state.kind === McpServerStatus.AuthRequired && isCopilotConnectorMcpAuthentication(server.state.requiredScopes);
+	return readMcpServerConnectorName(server) !== undefined;
 }
 
 /** Runs Copilot Connector authorization for a Connector-owned MCP server on behalf of its Sign In. */
@@ -740,6 +750,7 @@ class AgentHostCopilotConnectorAuthorization {
 		} catch (error) {
 			if (isCancellationError(error)) {
 				status(localize('agentHost.mcpAuthenticationCancelled', "Authentication for {0} was cancelled.", label));
+				this._logService.info(`[AgentHost] Copilot Connector authorization for ${label} was cancelled`);
 			} else {
 				this._logService.warn(`[AgentHost] Copilot Connector authorization for ${label} failed`, error);
 				this._notificationService.notify({

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import type { IAgentHostWorktreeCleanupStatus } from '../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
+import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from '../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
@@ -690,6 +690,9 @@ export interface ISessionsProvider {
 
 	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
 	sessionWorktreeCleanup?(sessionId: string, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	listManagedWorktrees?(repositories?: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
+	cleanupManagedWorktree?(worktree: IAgentHostManagedWorktree): Promise<void>;
+	managedWorktreeExists?(worktree: IAgentHostManagedWorktree): Promise<boolean | undefined>;
 
 	/**
 	 * Unarchive a session.

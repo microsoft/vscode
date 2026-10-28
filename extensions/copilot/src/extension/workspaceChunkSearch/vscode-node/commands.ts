@@ -49,7 +49,7 @@ export function register(accessor: ServicesAccessor): IDisposable {
 			return;
 		}
 
-		vscode.window.showWarningMessage(t`External ingest is disabled by your organization's policy.`);
+		vscode.window.showWarningMessage(t`External ingest is disabled by your organization.`);
 	})));
 
 	disposableStore.add(vscode.commands.registerCommand(deleteExternalIngestWorkspaceIndexCommandId, onlyRunOneAtATime(async () => {

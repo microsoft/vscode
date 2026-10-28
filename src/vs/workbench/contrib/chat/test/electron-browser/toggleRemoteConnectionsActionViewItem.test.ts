@@ -286,7 +286,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			actions: ['remoteConnections.off', 'remoteConnections.devTunnel'],
 			updates: [[GitHubEnvironmentsEnabledSettingId, false]],
 			sharing: [],
-			message: new Error('GitHub Environments are disabled by your settings or organization policy.'),
+			message: new Error('GitHub Environments are disabled by your settings or your organization.'),
 		});
 	});
 
