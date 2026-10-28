@@ -207,7 +207,7 @@ jobs:
     name: macOS
     needs: caches
     if: ${{ !cancelled() && (needs.caches.result != 'success' || needs.caches.outputs.macOS == 'true') }}
-    runs-on: macos-26-xlarge
+    runs-on: vscode-large-runners-macos-5-core
     env:
       NPM_ARCH: arm64
       VSCODE_ARCH: arm64

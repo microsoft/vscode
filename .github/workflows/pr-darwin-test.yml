@@ -64,7 +64,7 @@ jobs:
   electron-unit:
     name: Electron-Unit
     if: ${{ inputs.electron_unit_affected }}
-    runs-on: macos-26-xlarge
+    runs-on: vscode-large-runners-macos-5-core
     env:
       ARTIFACT_NAME: electron-unit
       ELECTRON_TESTS: 'true'
@@ -362,7 +362,7 @@ jobs:
   electron:
     name: Electron
     if: ${{ inputs.electron_affected }}
-    runs-on: macos-26-xlarge
+    runs-on: vscode-large-runners-macos-5-core
     env:
       ARTIFACT_NAME: electron
       ELECTRON_TESTS: 'true'
@@ -379,7 +379,7 @@ jobs:
   electron-smoke-1:
     name: Electron-Smoke (shard 1/2)
     if: ${{ inputs.electron_smoke_affected }}
-    runs-on: macos-26-xlarge
+    runs-on: vscode-large-runners-macos-5-core
     env:
       ARTIFACT_NAME: electron-smoke-shard1
       ELECTRON_TESTS: 'true'
@@ -391,7 +391,7 @@ jobs:
   electron-smoke-2:
     name: Electron-Smoke (shard 2/2)
     if: ${{ inputs.electron_smoke_affected }}
-    runs-on: macos-26-xlarge
+    runs-on: vscode-large-runners-macos-5-core
     env:
       ARTIFACT_NAME: electron-smoke-shard2
       ELECTRON_TESTS: 'true'
@@ -403,7 +403,7 @@ jobs:
   browser-unit:
     name: Browser-Unit
     if: ${{ inputs.browser_unit_affected }}
-    runs-on: macos-26-xlarge
+    runs-on: vscode-large-runners-macos-5-core
     env:
       ARTIFACT_NAME: browser-unit
       BROWSER_TESTS: 'true'
@@ -414,7 +414,7 @@ jobs:
   browser:
     name: Browser
     if: ${{ inputs.browser_affected }}
-    runs-on: macos-26-xlarge
+    runs-on: vscode-large-runners-macos-5-core
     env:
       ARTIFACT_NAME: browser
       BROWSER_TESTS: 'true'
@@ -425,7 +425,7 @@ jobs:
   remote:
     name: Remote
     if: ${{ inputs.remote_affected }}
-    runs-on: macos-26-xlarge
+    runs-on: vscode-large-runners-macos-5-core
     env:
       ARTIFACT_NAME: remote
       REMOTE_TESTS: 'true'

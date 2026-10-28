@@ -50,7 +50,7 @@ function readRepositoryFile(relativePath: string): Buffer {
 const runners: Record<string, { platform: string; arch: string; os: ICacheWarmingJob['os']; electronCachePath: string }> = {
 	'1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64': { platform: 'linux', arch: 'x64', os: 'Linux', electronCachePath: '/home/cloudtest/.cache/electron' },
 	'vscode-large-runners-windows-8-core': { platform: 'win32', arch: 'x64', os: 'Windows', electronCachePath: 'C:\\Users\\runneradmin\\AppData\\Local\\electron\\Cache' },
-	'macos-26-xlarge': { platform: 'darwin', arch: 'arm64', os: 'macOS', electronCachePath: '/Users/runner/Library/Caches/electron' },
+	'vscode-large-runners-macos-5-core': { platform: 'darwin', arch: 'arm64', os: 'macOS', electronCachePath: '/Users/runner/Library/Caches/electron' },
 };
 
 function getRunner(job: IJob, name: string) {
