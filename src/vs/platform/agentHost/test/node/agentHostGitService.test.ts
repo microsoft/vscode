@@ -618,6 +618,18 @@ suite('AgentHostGitService', () => {
 			assert.strictEqual(summarizeStderrForError('fatal: invalid reference: x\n'), 'fatal: invalid reference: x');
 		});
 
+		test('keeps the lock failure instead of trailing lock removal advice', () => {
+			const diagnostic = 'fatal: Unable to create \'/repo/.git/worktrees/session/index.lock\': File exists.';
+			assert.strictEqual(summarizeStderrForError([
+				diagnostic, '',
+				'Another git process seems to be running in this repository, e.g.',
+				'an editor opened by \'git commit\'. Please make sure all processes',
+				'are terminated then try again. If it still fails, a git process',
+				'may have crashed in this repository earlier:',
+				'remove the file manually to continue.',
+			].join('\n')), diagnostic);
+		});
+
 		test('truncates very long lines with an ellipsis', () => {
 			const long = `fatal: ${'a'.repeat(500)}`;
 			const result = summarizeStderrForError(long);
