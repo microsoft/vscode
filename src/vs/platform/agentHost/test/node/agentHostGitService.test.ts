@@ -335,6 +335,15 @@ suite('AgentHostGitService', () => {
 		]);
 	});
 
+	test('reads fetch remote URLs of partial clones', () => {
+		assert.deepStrictEqual(parseFetchRemoteUrls([
+			'origin\thttps://github.com/microsoft/vscode.git (fetch) [blob:none]',
+			'origin\thttps://github.com/microsoft/vscode.git (push)',
+		].join('\n')), [
+			'https://github.com/microsoft/vscode.git',
+		]);
+	});
+
 	test('prefers the branch upstream remote before origin', () => {
 		assert.deepStrictEqual(parseFetchRemoteUrls([
 			'origin\thttps://github.com/me/vscode.git (fetch)',
