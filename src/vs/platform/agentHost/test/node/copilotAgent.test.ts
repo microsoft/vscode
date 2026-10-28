@@ -8,6 +8,8 @@ import { mock } from '../../../../base/test/common/mock.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { X509Certificate } from 'crypto';
+import { rootCertificates } from 'tls';
 import { agentEntitlementHintMeta } from '../../common/meta/agentEntitlementHintMeta.js';
 import { spy, stub, useFakeTimers } from 'sinon';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
@@ -44,7 +46,7 @@ import { ILogService, LogLevel, NullLogService } from '../../../log/common/log.j
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
+import { AgentHostProxyResolver, IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import type { IAgentHostClientProxyConnection } from '../../common/agentHostClientProxyChannel.js';
 import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
@@ -1377,6 +1379,16 @@ class RecordingReleaseOTelService implements IAgentHostOTelService {
 
 class TestProxyResolver implements IAgentHostProxyResolver {
 	declare readonly _serviceBrand: undefined;
+	clientCertificates: readonly string[] = [];
+	registerCertificateProvider(): IDisposable { return Disposable.None; }
+	async loadClientCertificates(): Promise<readonly string[]> { return this.clientCertificates; }
+	setClientCertificates(_clientId: string, certificates: readonly string[]): void {
+		this.clientCertificates = certificates;
+		this._onDidChangeConfiguration.fire();
+	}
+	async loadCertificates(): Promise<string[]> {
+		return [...this.clientCertificates];
+	}
 	private readonly _onDidRegisterConnection = new Emitter<void>();
 	readonly onDidRegisterConnection = this._onDidRegisterConnection.event;
 	private readonly _onDidChangeConfiguration = new Emitter<void>();
@@ -7542,7 +7554,7 @@ suite('CopilotAgent', () => {
 				[AgentHostProxyConfigKey.NoProxy]: ['legacy.example'],
 				[AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: 'HTTP/legacy.example',
 			});
-			const watermark = agent as unknown as { _appliedProxy: string; _appliedNoProxy: string; _appliedProxyKerberosSpn: string };
+			const watermark = agent as unknown as { _appliedProxyState: { proxy: string; noProxy: string; kerberosSpn: string; certificates: readonly string[] } };
 			const session = AgentSession.uri('copilotcli', 'scoped-proxy-watermark');
 			const chat = defaultChatUri(session);
 			const directory = URI.file(process.cwd());
@@ -7561,7 +7573,7 @@ suite('CopilotAgent', () => {
 				await agent.chats.prepareTurn!(chat, 'turn', [directory], { ...exactChatContext(session, chat, session), credentials });
 				const scopedOptions = options.find(options => options.gitHubToken !== undefined)!;
 				assert.deepStrictEqual({
-					proxy: watermark._appliedProxy, noProxy: watermark._appliedNoProxy, kerberos: watermark._appliedProxyKerberosSpn,
+					proxy: watermark._appliedProxyState.proxy, noProxy: watermark._appliedProxyState.noProxy, kerberos: watermark._appliedProxyState.kerberosSpn,
 					scopedProxy: scopedOptions.env?.HTTPS_PROXY, scopedNoProxy: scopedOptions.env?.NO_PROXY,
 					legacyStops: clients[0].stopCallCount,
 				}, {
@@ -13007,6 +13019,115 @@ suite('CopilotAgent', () => {
 				});
 			} finally {
 				await disposeAgent(agent);
+			}
+		});
+
+		test('waits for the client certificate pull before starting the Copilot runtime', async () => {
+			const directory = await fs.mkdtemp(join(os.tmpdir(), 'copilot-client-certificate-pull-'));
+			const pending = new DeferredPromise<readonly string[]>();
+			const requested = new DeferredPromise<void>();
+			const client = new TestCopilotClient([]);
+			const proxyResolver = new class extends TestProxyResolver {
+				override async loadClientCertificates(): Promise<readonly string[]> {
+					requested.complete();
+					this.clientCertificates = await pending.p;
+					return this.clientCertificates;
+				}
+			}();
+			const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: client, proxyResolver });
+			const environment = instantiationService.invokeFunction(accessor => accessor.get(INativeEnvironmentService));
+			const environmentStub = stub(environment, 'userDataPath').value(directory);
+			try {
+				const startup = agent.listChatsToMigrate();
+				await requested.p;
+				assert.strictEqual(client.startCallCount, 0);
+				pending.complete([rootCertificates[0]]);
+				await startup;
+				const path = getCreatedClientOptions(agent).at(-1)?.env?.NODE_EXTRA_CA_CERTS;
+				assert.ok(path);
+				assert.deepStrictEqual({ starts: client.startCallCount, bundle: await fs.readFile(path, 'utf8') }, {
+					starts: 1, bundle: new X509Certificate(rootCertificates[0]).toString(),
+				});
+			} finally {
+				if (!pending.isSettled) {
+					pending.complete([]);
+				}
+				await disposeAgent(agent);
+				environmentStub.restore();
+				await fs.rm(directory, { recursive: true, force: true });
+			}
+		});
+
+		test('starts the Copilot runtime when the client certificate bundle cannot be written', async () => {
+			const directory = await fs.mkdtemp(join(os.tmpdir(), 'copilot-client-certificate-write-'));
+			const userDataPath = join(directory, 'user-data');
+			await fs.writeFile(userDataPath, '');
+			const client = new TestCopilotClient([]);
+			const proxyResolver = new TestProxyResolver();
+			proxyResolver.clientCertificates = [rootCertificates[0]];
+			const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: client, proxyResolver });
+			const environment = instantiationService.invokeFunction(accessor => accessor.get(INativeEnvironmentService));
+			const environmentStub = stub(environment, 'userDataPath').value(userDataPath);
+			try {
+				await agent.listChatsToMigrate();
+				assert.deepStrictEqual({
+					starts: client.startCallCount,
+					bundle: getCreatedClientOptions(agent).at(-1)?.env?.NODE_EXTRA_CA_CERTS,
+				}, { starts: 1, bundle: process.env.NODE_EXTRA_CA_CERTS });
+			} finally {
+				await disposeAgent(agent);
+				environmentStub.restore();
+				await fs.rm(directory, { recursive: true, force: true });
+			}
+		});
+
+		test('refreshes a running Copilot runtime after reconnect pulls changed client certificates', async () => {
+			const directory = await fs.mkdtemp(join(os.tmpdir(), 'copilot-client-certificates-'));
+			const environmentBefore = { ...process.env };
+			const client = new TestCopilotClient([]);
+			const logService = new NullLogService();
+			const proxyConfiguration = disposables.add(new AgentConfigurationService(disposables.add(new AgentHostStateManager(logService)), logService));
+			const certificates = rootCertificates.slice(0, 3).map(certificate => new X509Certificate(certificate).toString());
+			const proxyResolver = disposables.add(new class extends AgentHostProxyResolver {
+				protected override async _loadNativeCertificates(): Promise<string[]> {
+					return [certificates[2]];
+				}
+			}(proxyConfiguration, logService));
+			disposables.add(proxyResolver.registerCertificateProvider('client', async () => [certificates[0]]));
+			const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: client, proxyResolver });
+			const environmentService = instantiationService.invokeFunction(accessor => accessor.get(INativeEnvironmentService));
+			const environmentStub = stub(environmentService, 'userDataPath').value(directory);
+			try {
+				await agent.listChatsToMigrate();
+				const firstPath = getCreatedClientOptions(agent).at(-1)?.env?.NODE_EXTRA_CA_CERTS;
+				assert.ok(firstPath);
+				const firstContent = await fs.readFile(firstPath, 'utf8');
+				disposables.add(proxyResolver.registerCertificateProvider('client', async () => [certificates[0], certificates[0]]));
+				await proxyRefresh(agent);
+				assert.strictEqual(client.stopCallCount, 0);
+				disposables.add(proxyResolver.registerCertificateProvider('client', async () => [certificates[1]]));
+				await client.waitForCalls(() => client.stopCallCount >= 1);
+				await proxyRefresh(agent);
+				await agent.listChatsToMigrate();
+				const secondPath = getCreatedClientOptions(agent).at(-1)?.env?.NODE_EXTRA_CA_CERTS;
+				assert.ok(secondPath);
+				assert.deepStrictEqual({
+					firstContent,
+					secondContent: await fs.readFile(secondPath, 'utf8'),
+					sharedDirectory: [firstPath, secondPath].every(path => path.startsWith(join(directory, 'certificates'))),
+					distinctBundles: firstPath !== secondPath,
+					environmentUnchanged: JSON.stringify(process.env) === JSON.stringify(environmentBefore),
+				}, {
+					firstContent: [certificates[0], certificates[2]].sort().join('\n'),
+					secondContent: [certificates[1], certificates[2]].sort().join('\n'),
+					sharedDirectory: true,
+					distinctBundles: true,
+					environmentUnchanged: true,
+				});
+			} finally {
+				await disposeAgent(agent);
+				environmentStub.restore();
+				await fs.rm(directory, { recursive: true, force: true });
 			}
 		});
 
