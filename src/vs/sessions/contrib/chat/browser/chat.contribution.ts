@@ -63,7 +63,7 @@ import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_ACTION_ID, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
 import { DesktopLayoutContext, IsPhoneLayoutContext, SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../common/contextkeys.js';
-import { SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
+import { AGENT_HOST_BRANCH_NAME_USE_GIT_SETTINGS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
 import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID } from '../../../browser/layoutActions.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsChatViewStateService, SessionsChatViewStateService } from './chatViewStateService.js';
@@ -767,6 +767,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('chat.agentHost.runWorktreeCreatedTasks', "Whether to automatically run tasks tagged with `\"runOptions\": { \"runOn\": \"worktreeCreated\" }` when a new agent host session worktree is created. Manual `Run Task` invocations are unaffected."),
+		},
+		[AGENT_HOST_BRANCH_NAME_USE_GIT_SETTINGS_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.RESOURCE,
+			markdownDescription: localize('chat.agentHost.branchName.useGitSettings', "Use `#git.branchPrefix#` instead of `agents/` for new Agent Host branches. Local sessions also use Git's random branch naming settings when `#git.branchRandomName.enable#` is enabled."),
 		},
 		[AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING]: {
 			type: 'boolean',

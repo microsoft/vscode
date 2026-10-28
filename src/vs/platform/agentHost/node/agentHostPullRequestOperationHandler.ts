@@ -28,7 +28,7 @@ import { type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 import { AgentHostUtilityModelUnavailableError, AgentHostUtilityModelUnavailableReason, IAgentHostUtilityModelService, type IAgentHostUtilityModelContext } from './agentHostUtilityModelService.js';
 import { buildConversationContext } from '../common/agentHostConversationContext.js';
 import { IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
-import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { getAgentBranchNaming, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { readAgentMergeFolderState, withAgentMergeFolderState } from '../common/agentMerge.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { createPullRequestDetailsResult, readPullRequestConversationMeta, readPullRequestOperationMeta, readPullRequestValidationMeta, type IPullRequestContext, type IPullRequestCreateOptions, type IPullRequestDetails } from '../common/meta/agentPullRequestOperationMeta.js';
@@ -383,6 +383,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 					githubToken: authToken,
 					signal,
 					branchPrefix: typeof branchPrefix === 'string' ? branchPrefix : undefined,
+					...getAgentBranchNaming(sessionState.config?.values),
 					branchNameCollides: candidate => this._gitService.branchExists(workingDirectory, candidate).catch(() => true),
 				});
 

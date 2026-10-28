@@ -37,7 +37,7 @@ import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SES
 import { EDIT_ATTRIBUTION_RESOURCE_SCHEME, IAgentEditAttributionService } from '../common/fileEditAttribution.js';
 import { MCP_RESOURCE_SCHEME, TOOL_RESULT_RESOURCE_SCHEME } from '../common/mcpResourceUri.js';
 import { SESSION_DB_SCHEME } from '../common/sessionDbUri.js';
-import { getPersistedSessionConfigValues, getSessionPullRequestUrl, omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { getAgentBranchNaming, getPersistedSessionConfigValues, getSessionPullRequestUrl, omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { filterChatConfigValues, getSessionApprovalProperty, validateChatConfigWrite, validateSessionConfigWrite } from '../common/sessionConfigProperties.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
@@ -467,7 +467,7 @@ function getPullRequestSessionGitHubState(session: URI, config: Record<string, u
 		return undefined;
 	}
 	const branchPrefix = config?.[SessionConfigKey.WorktreeBranchPrefix];
-	const branchName = getPullRequestSessionBranchName(pullRequest.number, AgentSession.id(session), typeof branchPrefix === 'string' ? branchPrefix : undefined);
+	const branchName = getPullRequestSessionBranchName(pullRequest.number, AgentSession.id(session), typeof branchPrefix === 'string' ? branchPrefix : undefined, getAgentBranchNaming(config)?.useGitSettings);
 	return { owner: pullRequest.owner, repo: pullRequest.repo, ...withMostRecentRelatedSessionPullRequest(undefined, pullRequestUrl, branchName) };
 }
 
@@ -500,6 +500,7 @@ const HOST_OWNED_SESSION_CONFIG_KEYS = [
 	SessionConfigKey.Isolation,
 	SessionConfigKey.Branch,
 	SessionConfigKey.WorktreeBranchPrefix,
+	SessionConfigKey.WorktreeBranchNaming,
 	SessionConfigKey.WorktreeIncludeFiles,
 	SessionConfigKey.WorktreeSymlinkFolders,
 	SessionConfigKey.PullRequestUrl,
@@ -10339,6 +10340,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (iso.worktreeBranchPrefixProperty) {
 			properties[SessionConfigKey.WorktreeBranchPrefix] = iso.worktreeBranchPrefixProperty.protocol;
 		}
+		if (iso.worktreeBranchNamingProperty) {
+			properties[SessionConfigKey.WorktreeBranchNaming] = iso.worktreeBranchNamingProperty.protocol;
+		}
 		if (iso.worktreeIncludeFilesProperty) {
 			properties[SessionConfigKey.WorktreeIncludeFiles] = iso.worktreeIncludeFilesProperty.protocol;
 		}
@@ -10353,6 +10357,10 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (iso.worktreeBranchPrefixProperty && typeof params.config?.[SessionConfigKey.WorktreeBranchPrefix] === 'string') {
 			values[SessionConfigKey.WorktreeBranchPrefix] = params.config[SessionConfigKey.WorktreeBranchPrefix];
+		}
+		const branchNaming = getAgentBranchNaming(params.config);
+		if (iso.worktreeBranchNamingProperty && branchNaming) {
+			values[SessionConfigKey.WorktreeBranchNaming] = branchNaming;
 		}
 		const pullRequestUrl = getSessionPullRequestUrl(params.config);
 		if (pullRequestUrl !== undefined) {

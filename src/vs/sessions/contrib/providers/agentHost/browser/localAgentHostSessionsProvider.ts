@@ -21,6 +21,7 @@ import { workspacelessScratchDir } from '../../../../../platform/agentHost/commo
 import { findDevContainerSample, getDevContainerSampleUrl } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { type ISessionGitState, readSessionEhcliAdoptable } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -38,6 +39,7 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
+import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
 import { ICopilotHomeService } from '../../../../../workbench/services/environment/common/copilotHomeService.js';
@@ -200,6 +202,8 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
 		this.initializeDevContainerSupport(devContainerAgentHostService, sessionsProvidersService, workspaceTrustRequestService);
@@ -359,6 +363,31 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 	}
 
 	// -- BaseAgentHostSessionsProvider hooks ---------------------------------
+
+	protected override async _prepareRandomBranchName(resource: URI): Promise<{ branchName: string; branchPrefix: string } | undefined> {
+		if (resource.scheme !== Schemas.file) {
+			return undefined;
+		}
+		const disposables = new DisposableStore();
+		let exited = false;
+		try {
+			disposables.add(this._agentHostService.onAgentHostExit(() => { exited = true; }));
+			let candidate: { branchName: string; branchPrefix: string } | undefined;
+			try {
+				candidate = await this._extensionService.getExtension('vscode.git')
+					? await this._commandService.executeCommand<{ branchName: string; branchPrefix: string } | undefined>('git.api.generateRandomBranchName', resource.toString())
+					: undefined;
+			} catch (error) {
+				this._logService.warn('[LocalAgentHostSessionsProvider] Failed to prepare a Git branch name; using prompt-derived naming.', error);
+			}
+			if (exited) {
+				throw new Error('Agent host exited while preparing its branch name.');
+			}
+			return candidate;
+		} finally {
+			disposables.dispose();
+		}
+	}
 
 	protected override _adoptCachedSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata | undefined {
 		if (meta.session.scheme === 'ahp-session' && meta.provider === 'ahp-session') {

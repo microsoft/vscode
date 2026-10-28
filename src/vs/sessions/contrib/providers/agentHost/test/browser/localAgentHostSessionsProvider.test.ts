@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IExtensionService } from '../../../../../../workbench/services/extensions/common/extensions.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { resolveSignedOutWindowGate, SignedOutWindowGate } from '../../../../../browser/sessionsAuthGate.js';
@@ -51,7 +53,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../../pl
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, type IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
@@ -120,6 +122,7 @@ function createVSCodeSessionConfigSchema(overrides: SessionConfigSchema['propert
 			autoApprove: { type: 'string', title: 'Permissions', enum: ['default', 'assisted', 'autoApprove', 'autopilot'], sessionMutable: true },
 			mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan', 'autopilot'], sessionMutable: true },
 			worktreeBranchPrefix: { type: 'string', title: 'Branch prefix', readOnly: true, sessionMutable: false },
+			worktreeBranchNaming: { type: 'object', title: 'Branch naming', readOnly: true, sessionMutable: false },
 			worktreeIncludeFiles: { type: 'array', title: 'Included files', items: { type: 'string', title: 'Pattern' }, readOnly: true, sessionMutable: false },
 			worktreeSymlinkFolders: { type: 'array', title: 'Symlinked folders', items: { type: 'string', title: 'Pattern' }, readOnly: true, sessionMutable: false },
 			pullRequestUrl: { type: 'string', title: 'Pull request', readOnly: true, sessionMutable: false },
@@ -724,10 +727,14 @@ class BackendSchemeTestProvider extends LocalAgentHostSessionsProvider {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { chatSessionsService?: Partial<IChatSessionsService>; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; getChatModel?: (resource: URI) => IChatModel | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
+], options?: { chatSessionsService?: Partial<IChatSessionsService>; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; getChatModel?: (resource: URI) => IChatModel | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider; commandService?: Partial<ICommandService>; extensionService?: Partial<IExtensionService> }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
+	instantiationService.stub(ICommandService, options?.commandService ?? new class extends mock<ICommandService>() { }());
+	instantiationService.stub(IExtensionService, options?.extensionService ?? new class extends mock<IExtensionService>() {
+		override async getExtension() { return undefined; }
+	}());
 	instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
 		private readonly _resources = new ResourceMap<URI>();
 		private readonly _changed = disposables.add(new Emitter<void>());
@@ -1014,10 +1021,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(provider.getSessions(), []);
 	});
 
-	test('Copilot schema discovery prevents VS defaults and approval reports entering creation', async () => {
+	test('Copilot schema discovery prevents VS defaults and approval reports entering creation and first send', async () => {
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
 		await configurationService.setUserConfiguration('git.branchPrefix', 'user/');
+		await configurationService.setUserConfiguration('chat.agentHost.branchName.useGitSettings', true);
+		await configurationService.setUserConfiguration('git.branchRandomName.enable', true);
 		agentHost.resolveSessionConfigResult = {
 			schema: {
 				type: 'object', properties: {
@@ -1029,18 +1038,31 @@ suite('LocalAgentHostSessionsProvider', () => {
 			},
 			values: { approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'], target: 'workspace' },
 		};
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+		let sentConfig: Record<string, unknown> | undefined;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService,
+			openSession: true,
+			sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
+				sentConfig = options?.agentHostSessionConfig;
+				agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
+				return { kind: 'sent', data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await waitForSessionConfig(provider, session, config => config?.values.target === 'workspace');
 		await timeout(0);
-		assert.deepStrictEqual({
+		const beforeSend = {
 			discovery: agentHost.resolveSessionConfigRequests.map(request => request.config),
 			creation: provider.getCreateSessionConfig(session.sessionId),
 			eager: agentHost.createSessionConfigs.at(-1)?.config,
-		}, {
+		};
+		const chat = await provider.createNewChat(session.sessionId);
+		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		assert.deepStrictEqual({ ...beforeSend, sentConfig }, {
 			discovery: [undefined],
 			creation: { approvalMode: 'assisted', target: 'workspace' },
 			eager: { approvalMode: 'assisted', target: 'workspace' },
+			sentConfig: { approvalMode: 'assisted', target: 'workspace' },
 		});
 	});
 
@@ -8170,6 +8192,168 @@ suite('LocalAgentHostSessionsProvider', () => {
 			discovery: undefined,
 			forwardedToAgentHost: { isolation: 'worktree', worktreeBranchPrefix: 'user/', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'], worktreeSymlinkFolders: ['node_modules/**', '.cache/**'] },
 		});
+	});
+
+	for (const enabled of [false, true]) {
+		test(`Git branch naming is opt-in even when random names are already enabled (opt-in=${enabled})`, async () => {
+			const configService = new TestConfigurationService();
+			configService.setUserConfiguration('chat.agentHost.branchName.useGitSettings', enabled);
+			configService.setUserConfiguration('git.branchRandomName.enable', true);
+			const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
+			const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+			await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+			assert.deepStrictEqual(provider.getSessionConfig(session.sessionId, session.mainChat.get().resource)?.values[SessionConfigKey.WorktreeBranchNaming],
+				enabled ? { useGitSettings: true } : undefined);
+		});
+	}
+
+	test('prepares a random Git name only on first send and forwards the complete candidate and its prefix', async () => {
+		const requests: string[] = [];
+		class NamingProvider extends LocalAgentHostSessionsProvider {
+			protected override async _prepareRandomBranchName(resource: URI) {
+				requests.push(resource.toString());
+				return { branchName: 'repo/quiet-otter', branchPrefix: 'repo/' };
+			}
+		}
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('chat.agentHost.branchName.useGitSettings', true);
+		configService.setUserConfiguration('git.branchRandomName.enable', true);
+		let sentConfig: Record<string, unknown> | undefined;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: configService,
+			providerCtor: NamingProvider,
+			openSession: true,
+			sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
+				sentConfig = options?.agentHostSessionConfig;
+				agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
+				return { kind: 'sent', data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+		const chat = await provider.createNewChat(session.sessionId);
+		assert.deepStrictEqual(requests, []);
+		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		assert.deepStrictEqual({
+			requests,
+			naming: sentConfig?.[SessionConfigKey.WorktreeBranchNaming],
+			prefix: sentConfig?.[SessionConfigKey.WorktreeBranchPrefix],
+		}, {
+			requests: ['file:///home/user/project'],
+			naming: { useGitSettings: true, preferredBranchName: 'repo/quiet-otter' },
+			prefix: 'repo/',
+		});
+	});
+
+	for (const [optIn, randomEnabled] of [[false, true], [true, false], [true, true]]) {
+		test(`first send retains prompt naming without applicable Git random support (opt-in=${optIn}, random=${randomEnabled})`, async () => {
+			const configService = new TestConfigurationService();
+			configService.setUserConfiguration('chat.agentHost.branchName.useGitSettings', optIn);
+			configService.setUserConfiguration('git.branchRandomName.enable', randomEnabled);
+			configService.setUserConfiguration('git.branchPrefix', 'team/');
+			let sentConfig: Record<string, unknown> | undefined;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: configService,
+				openSession: true,
+				sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
+					sentConfig = options?.agentHostSessionConfig;
+					agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
+					return { kind: 'sent', data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+				},
+			});
+			const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+			await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+			const chat = await provider.createNewChat(session.sessionId);
+			await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+			assert.deepStrictEqual({
+				naming: sentConfig?.[SessionConfigKey.WorktreeBranchNaming],
+				prefix: sentConfig?.[SessionConfigKey.WorktreeBranchPrefix],
+			}, { naming: optIn ? { useGitSettings: true } : undefined, prefix: 'team/' });
+		});
+	}
+
+	for (const failure of ['lookup', 'generation']) {
+		test(`first send falls back to prompt naming when Git ${failure} fails`, async () => {
+			const configService = new TestConfigurationService();
+			configService.setUserConfiguration('chat.agentHost.branchName.useGitSettings', true);
+			configService.setUserConfiguration('git.branchRandomName.enable', true);
+			configService.setUserConfiguration('git.branchPrefix', 'team/');
+			const error = new Error(`Git ${failure} failed`);
+			let sentConfig: Record<string, unknown> | undefined;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: configService,
+				openSession: true,
+				extensionService: {
+					getExtension: async () => {
+						if (failure === 'lookup') {
+							throw error;
+						}
+						return new class extends mock<IExtensionDescription>() { }();
+					},
+				},
+				commandService: { executeCommand: async () => { throw error; } },
+				sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
+					sentConfig = options?.agentHostSessionConfig;
+					agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
+					return { kind: 'sent', data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+				},
+			});
+			const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+			await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+			const chat = await provider.createNewChat(session.sessionId);
+			await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+			assert.deepStrictEqual({
+				naming: sentConfig?.[SessionConfigKey.WorktreeBranchNaming],
+				prefix: sentConfig?.[SessionConfigKey.WorktreeBranchPrefix],
+			}, { naming: { useGitSettings: true }, prefix: 'team/' });
+		});
+	}
+
+	for (const failedLookup of [false, true]) {
+		test(`host exit while preparing a Git name still aborts first send (lookup failed=${failedLookup})`, async () => {
+			const configService = new TestConfigurationService();
+			configService.setUserConfiguration('chat.agentHost.branchName.useGitSettings', true);
+			configService.setUserConfiguration('git.branchRandomName.enable', true);
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: configService,
+				extensionService: {
+					getExtension: async () => {
+						agentHost.fireAgentHostExit();
+						if (failedLookup) {
+							throw new Error('Git lookup failed during host exit');
+						}
+						return undefined;
+					},
+				},
+			});
+			const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+			await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+			const chat = await provider.createNewChat(session.sessionId);
+			await assert.rejects(provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' }), /Agent host exited while preparing its branch name/);
+		});
+	}
+
+	test('disposing a draft discards a pending Git naming candidate', async () => {
+		const started = new DeferredPromise<void>();
+		const candidate = new DeferredPromise<{ branchName: string; branchPrefix: string }>();
+		class PendingNamingProvider extends LocalAgentHostSessionsProvider {
+			protected override async _prepareRandomBranchName() {
+				started.complete();
+				return candidate.p;
+			}
+		}
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('chat.agentHost.branchName.useGitSettings', true);
+		configService.setUserConfiguration('git.branchRandomName.enable', true);
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, providerCtor: PendingNamingProvider });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+		const chat = await provider.createNewChat(session.sessionId);
+		const sent = assert.rejects(provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' }), /disposed/);
+		await started.p;
+		provider.deleteNewSession(session.sessionId);
+		candidate.complete({ branchName: 'team/quiet-otter', branchPrefix: 'team/' });
+		await sent;
 	});
 
 	test('createNewSession forwards enabled custom hook and agent locations', async () => {
