@@ -1673,6 +1673,10 @@ class AutomationHistorySection extends Disposable {
 	private updateHistoryOwners(owners: ReadonlyMap<string, IAutomationRun>): void {
 		for (const id of this.persistentOwnerRows.keys()) {
 			if (!owners.has(id)) {
+				const row = this.persistentOwnerRows.get(id);
+				if (row && DOM.isAncestorOfActiveElement(row.element)) {
+					this.focusFallback.focus();
+				}
 				this.persistentOwnerRows.deleteAndDispose(id);
 			}
 		}
