@@ -106,7 +106,7 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		if (!isEqual(resource, AgentSession.uri('ahp-session', AgentSession.id(resource))) || await this.raw.getSessionV2Registration(session) || await this.raw.getSession(session)) {
 			return;
 		}
-		if (await this.raw.isSessionTombstoned(session) || await this.raw.isSessionTombstoned(storage)) {
+		if (await this.raw.isSessionSuppressed(session) || await this.raw.isSessionSuppressed(storage)) {
 			return;
 		}
 		if (await this.raw.getSessionV2Registration(storage) || await this.raw.getSession(storage)) {
@@ -136,6 +136,18 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		// Removal requests keep runtime spellings: they address sessions and folders, not storage.
 		const result = await this._allocations.queue(() => this.raw.tombstoneAndUnregisterSession(this.identity.toStorage(session), worktreeRemovals));
 		return this.identity.record(result, 'runtime');
+	}
+
+	async hideSession(...[session, provider]: Parameters<IAgentHostDatabase['hideSession']>): ReturnType<IAgentHostDatabase['hideSession']> {
+		return this._allocations.queue(() => this.raw.hideSession(this.identity.toStorage(session), provider));
+	}
+
+	async isSessionHidden(...[session]: Parameters<IAgentHostDatabase['isSessionHidden']>): ReturnType<IAgentHostDatabase['isSessionHidden']> {
+		return this.raw.isSessionHidden(this.identity.toStorage(session));
+	}
+
+	async listHiddenSessions(...[]: Parameters<IAgentHostDatabase['listHiddenSessions']>): ReturnType<IAgentHostDatabase['listHiddenSessions']> {
+		return (await this.raw.listHiddenSessions()).map(({ session, provider }) => ({ session: this.identity.toRuntime(session), provider }));
 	}
 
 	async updateSessionExternal(...[updates]: Parameters<IAgentHostDatabase['updateSessionExternal']>): ReturnType<IAgentHostDatabase['updateSessionExternal']> {
@@ -260,6 +272,10 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 	async isSessionTombstoned(...[session]: Parameters<IAgentHostDatabase['isSessionTombstoned']>): ReturnType<IAgentHostDatabase['isSessionTombstoned']> {
 		const result = await this.raw.isSessionTombstoned(this.identity.toStorage(session));
 		return this.identity.record(result, 'runtime');
+	}
+
+	async isSessionSuppressed(...[session]: Parameters<IAgentHostDatabase['isSessionSuppressed']>): ReturnType<IAgentHostDatabase['isSessionSuppressed']> {
+		return this.raw.isSessionSuppressed(this.identity.toStorage(session));
 	}
 
 	async markSessionTombstoned(...[session]: Parameters<IAgentHostDatabase['markSessionTombstoned']>): ReturnType<IAgentHostDatabase['markSessionTombstoned']> {

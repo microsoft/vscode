@@ -86,7 +86,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -96,7 +96,7 @@ import { ChatAgentService, IChatAgentService } from '../../../../../workbench/co
 import { ToolDataSource } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../../../../workbench/contrib/chat/test/common/chatService/mockChatService.js';
 import { getChatSummaryHoverData, getDistinctChatHarnessLabel, getSessionDiffStats, getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
-import { createListHarness, createTestSession, IListHarnessOptions, ISortChangeRecord, TestSessionsManagementService } from './sessionsListTestUtils.js';
+import { createListHarness, createTestSession, IListHarnessOptions, ISortChangeRecord, ITestSessionOptions, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
 import { renderSessionsHeader } from '../../browser/views/sessionsView.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
@@ -1470,6 +1470,64 @@ suite('Sessions - SessionsList', () => {
 
 			needsInputStatus.set(SessionStatus.InProgress, undefined);
 			assert.strictEqual(renderer.automationStatus.get(), SessionStatus.InProgress);
+		});
+
+		test('ignores runs whose session the Sessions list shows while that row reflects the run', () => {
+			const needsInput = createSession('needs-input', { resource: URI.parse('test-session:/needs-input') });
+			const unread = createSession('unread', { isRead: false, resource: URI.parse('test-session:/unread') });
+			const needsInputStatus = needsInput.status as ReturnType<typeof observableValue<SessionStatus>>;
+			needsInputStatus.set(SessionStatus.NeedsInput, undefined);
+			const run = (id: string, status: IAutomationRun['status'], sessionResource?: URI): IAutomationRun => ({ id, automationId: 'automation', status, trigger: 'schedule', sessionResource, startedAt: '2026-08-10T00:00:00.000Z' });
+			const runs = observableValue<readonly IAutomationRun[]>('automationRuns', [run('running', 'running', needsInput.resource), run('completed', 'completed', unread.resource)]);
+			const listed = observableValue<ReadonlySet<string>>('listed', new Set());
+			const renderer = new SessionSectionRenderer(
+				true,
+				() => { },
+				constObservable(true),
+				constObservable(new Set<string>()),
+				noHeaderStatusTrigger,
+				new class extends mock<IInstantiationService>() { },
+				NullHoverService,
+				new class extends mock<IContextKeyService>() { },
+				new class extends mock<IAutomationService>() { override readonly runs = runs; },
+				constObservable([needsInput, unread]),
+				new class extends mock<IUriIdentityService>() { override readonly extUri = new ExtUri(() => false); },
+				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
+				noKeybindingService,
+				constObservable(false),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				(session, reader) => listed.read(reader).has(session.sessionId),
+			);
+			const statuses: (SessionStatus | undefined)[] = [];
+			disposables.add(autorun(reader => { statuses.push(renderer.automationStatus.read(reader)); }));
+
+			listed.set(new Set(['needs-input']), undefined);
+			listed.set(new Set(['needs-input', 'unread']), undefined);
+			needsInputStatus.set(SessionStatus.InProgress, undefined);
+			listed.set(new Set(['unread']), undefined);
+			listed.set(new Set(['needs-input', 'unread']), undefined);
+			runs.set([...runs.get(), run('pending', 'pending')], undefined);
+			runs.set(runs.get().filter(({ id }) => id !== 'pending'), undefined);
+			needsInputStatus.set(SessionStatus.Completed, undefined);
+
+			assert.deepStrictEqual(statuses, [
+				SessionStatus.NeedsInput,
+				SessionStatus.Completed,
+				undefined,
+				SessionStatus.InProgress,
+				undefined,
+				SessionStatus.InProgress,
+				undefined,
+				SessionStatus.InProgress,
+			]);
 		});
 	});
 
@@ -4354,7 +4412,6 @@ suite('Sessions - SessionsList', () => {
 					createSession('archived', { isExternal: true, isArchived: true }),
 					createSession('external-workspace', { workspaceLabel: 'Alpha', isExternal: true }),
 					createSession('external-chat', { isExternal: true }),
-					createSession('automation', { isExternal: true, isAutomation: true }),
 					createSession('regular', { workspaceLabel: 'Alpha' }),
 				];
 				const sections = groupSessionsForList(sessions, grouping, SessionsSorting.Created,
@@ -4499,28 +4556,6 @@ suite('Sessions - SessionsList', () => {
 					{ id: 'pinned', sessions: ['pinned'] },
 					{ id: 'environment:local', sessions: ['quick', 'regular'] },
 				],
-			]);
-		});
-
-		test('excludes automation sessions from every section', () => {
-			const sessions = [
-				createSession('workspace-automation', { workspaceLabel: 'Alpha', isAutomation: true }),
-				createSession('quick-automation', { isAutomation: true }),
-				createSession('archived-automation', { workspaceLabel: 'Beta', isArchived: true, isAutomation: true }),
-				createSession('visible', { workspaceLabel: 'Gamma' }),
-			];
-			const sections = groupSessionsForList(
-				sessions,
-				SessionsGrouping.Workspace,
-				SessionsSorting.Created,
-				session => session.sessionId === 'workspace-automation',
-			);
-
-			assert.deepStrictEqual(sections.map(section => ({
-				id: section.id,
-				sessions: section.sessions.map(session => session.sessionId),
-			})), [
-				{ id: 'workspace:Gamma', sessions: ['visible'] },
 			]);
 		});
 	});
@@ -4755,6 +4790,44 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				actions: ['Configure External Sessions', 'Mark All as Done'],
 				options: ['None', 'Recent', 'Last 24 Hours', 'Last 7 Days', 'Last 30 Days', 'separator', 'Show in External Section'],
+			});
+		});
+	});
+
+	suite('automation sessions', () => {
+		function automationSession(title: string, options: ITestSessionOptions = {}): ISession {
+			return { ...createTestSession(title, options).session, isAutomation: constObservable(true) };
+		}
+
+		function placements(list: SessionsList): string[] {
+			const label = (node: SessionsListSnapshotNode): string => node.type === 'session' ? node.session.title.get() : node.label;
+			return list.getTreeSnapshot().map(node => node.type === 'session' ? label(node) : `${node.label}: ${node.children.map(label).join(', ')}`);
+		}
+
+		test('lists automation sessions only while they are shown, with ordinary placement and filters', () => {
+			const regular = createTestSession('Regular', { workspaceLabel: 'Alpha' }).session;
+			const automation = automationSession('Automation', { workspaceLabel: 'Beta' });
+			const pinned = automationSession('Pinned automation', { workspaceLabel: 'Alpha' });
+			const remote = automationSession('Remote automation', { workspaceLabel: 'Beta', environment: 'remote' });
+			const harness = createListHarness(disposables, [regular, automation, pinned, remote], { pinnedSessionIds: new Set([pinned.sessionId]) });
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(400, 700), {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(700, 400);
+			list.filters.setExcluded({ kind: 'environment', id: 'remote' }, true);
+			const listModel = harness.instantiationService.get(ISessionsListModelService);
+
+			const initial = placements(list);
+			listModel.showAutomationSessions([automation, pinned, remote]);
+			const shown = placements(list);
+			listModel.hideAutomationSessions([automation]);
+
+			assert.deepStrictEqual({ initial, shown, hidden: placements(list) }, {
+				initial: ['Alpha: Regular'],
+				shown: ['Pinned: Pinned automation', 'Alpha: Regular', 'Beta: Automation'],
+				hidden: ['Pinned: Pinned automation', 'Alpha: Regular'],
 			});
 		});
 	});
@@ -9484,6 +9557,31 @@ suite('Sessions - SessionsList', () => {
 				.sort();
 
 			assert.deepStrictEqual(chatRowDepths, ['Patch active: 1', 'Patch done: 0']);
+		});
+
+		test('steps in the twistie of a session in a nested group with the session row', () => {
+			const main = createChat('Patch main');
+			const session: ISession = {
+				...createTestSession('Patch CVE').session,
+				chats: constObservable([main, createChat('Patch active', ChatOriginKind.User)]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const release: ISessionGroup = { id: 'release', name: 'Release work', createdAt: 1 };
+			const hotfixes: ISessionGroup = { id: 'hotfixes', name: 'Hotfixes', createdAt: 2, parentId: release.id };
+			const harness = createListHarness(disposables, [session], { groups: [release, hotfixes], memberships: new Map([[session.sessionId, hotfixes.id]]) });
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(500, 600);
+			const row = list.getItemRow({ session: session.resource });
+
+			assert.deepStrictEqual({
+				session: row?.querySelector<HTMLElement>('.session-item')?.style.getPropertyValue('--session-group-depth'),
+				twistie: row?.querySelector<HTMLElement>('.monaco-tl-twistie.session-chat-twistie')?.style.getPropertyValue('--session-group-depth'),
+			}, { session: '1', twistie: '1' });
 		});
 
 		test('switches the primary action from delete to done when a nested session is committed', async () => {

@@ -25,6 +25,9 @@ steps:
       inlineScript: npm run setup
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Setup copilot test environment
+    # The Azure login and secret fetch can fail transiently. `npm run setup`
+    # replaces its .env entries by key, so a retry is safe.
+    retryCountOnTaskFailure: 2
 
   # Compute the path to the VS Code build executable
   - ${{ if eq(parameters.OS, 'linux') }}:

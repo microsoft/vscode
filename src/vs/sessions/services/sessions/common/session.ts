@@ -852,6 +852,12 @@ export interface IChat {
 	readonly modelSource: IObservable<ChatModelSource | undefined>;
 	/** Currently selected mode identifier and kind. */
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
+	/**
+	 * Provider-owned icon for the source-control outcome of this chat, such as
+	 * the pull request it recorded. When present, consumers show it instead of
+	 * deriving an icon from the chat's workspace, which other chats may share.
+	 */
+	readonly completedStateIcon?: IObservable<ThemeIcon | undefined>;
 	/** Whether the chat is archived. */
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the chat has been read. */
@@ -981,7 +987,11 @@ export interface ISession {
 	readonly updatedAt: IObservable<Date>;
 	/** Current session status. */
 	readonly status: IObservable<SessionStatus>;
-	/** Provider-owned icon for the latest completed source-control workflow outcome. */
+	/**
+	 * Provider-owned icon for the latest completed source-control workflow
+	 * outcome of the session's main chat. When present, consumers show it
+	 * instead of deriving an icon from the session's workspace.
+	 */
 	readonly completedStateIcon?: IObservable<ThemeIcon | undefined>;
 	/** Summary of file changes produced by the session. */
 	readonly changesSummary?: IObservable<ISessionChangesSummary | undefined>;

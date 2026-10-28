@@ -13,7 +13,6 @@
 	max-width: 960px;
 	margin: 0 auto;
 	padding: var(--vscode-spacing-size240);
-	container-type: inline-size;
 }
 
 .session-worktree-cleanup-intro,
@@ -77,6 +76,16 @@
 	width: auto;
 }
 
+.session-worktree-cleanup-select-all {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.session-worktree-cleanup-select-all > span {
+	cursor: pointer;
+}
+
 .session-worktree-cleanup-info {
 	display: inline-flex;
 	align-items: center;
@@ -137,13 +146,35 @@
 }
 
 .session-worktree-cleanup-row {
-	display: grid;
-	grid-template-columns: 28px minmax(120px, 2fr) minmax(80px, 1fr) minmax(80px, 120px) minmax(70px, 100px);
-	align-items: center;
-	gap: var(--vscode-spacing-size80);
-	min-height: 36px;
-	padding: 0 var(--vscode-spacing-size120);
+	box-sizing: border-box;
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
+.session-worktree-cleanup-table-body {
+	width: 100%;
+	padding-bottom: var(--vscode-spacing-size120);
+}
+
+.session-worktree-cleanup-list .monaco-table-th,
+.session-worktree-cleanup-list .monaco-table-td {
+	padding: 0 var(--vscode-spacing-size80);
+}
+
+.session-worktree-cleanup-list .monaco-table-th {
+	background: var(--vscode-editorWidget-background);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-worktree-cleanup-row .title,
+.session-worktree-cleanup-row .selection {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	line-height: normal;
+}
+
+.session-worktree-cleanup-row .selection {
+	align-items: center;
 }
 
 .session-worktree-cleanup-reason {
@@ -172,52 +203,6 @@
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: 2px;
 	border-radius: var(--vscode-cornerRadius-small);
-}
-
-@container (max-width: 600px) {
-	.session-worktree-cleanup-row {
-		grid-template-columns: 28px minmax(0, 1fr) auto;
-		row-gap: var(--vscode-spacing-size40);
-		padding-top: var(--vscode-spacing-size80);
-		padding-bottom: var(--vscode-spacing-size80);
-	}
-
-	.session-worktree-cleanup-row > :first-child {
-		grid-row: 1 / 4;
-	}
-
-	.session-worktree-cleanup-row > :nth-child(2) {
-		grid-column: 2;
-	}
-
-	.session-worktree-cleanup-row > :nth-child(3) {
-		grid-column: 2;
-		grid-row: 2;
-	}
-
-	.session-worktree-cleanup-row > :nth-child(4) {
-		grid-column: 2;
-		grid-row: 3;
-	}
-
-	.session-worktree-cleanup-row > :nth-child(5) {
-		grid-column: 3;
-		grid-row: 3;
-	}
-}
-
-.session-worktree-cleanup-row.header {
-	border-top: 0;
-	background: var(--vscode-editorWidget-background);
-	font-weight: var(--vscode-fontWeight-semiBold);
-}
-
-.session-worktree-cleanup-row .title,
-.session-worktree-cleanup-row .workspace {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 }
 
 .session-worktree-cleanup-automatic {
