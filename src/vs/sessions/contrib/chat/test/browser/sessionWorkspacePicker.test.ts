@@ -1402,7 +1402,7 @@ suite('WorkspacePicker - Connection Status', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-		for (const sandboxStatus of [RemoteAgentHostConnectionStatus.connected, RemoteAgentHostConnectionStatus.disconnected]) {
+	for (const sandboxStatus of [RemoteAgentHostConnectionStatus.connected, RemoteAgentHostConnectionStatus.disconnected]) {
 		test(`excludes ${sandboxStatus.kind} GitHub sandbox hosts and workspaces from the unified picker`, async () => {
 			const sandboxSessions: ISession[] = [];
 			const selectedBrowseProviders: string[] = [];
@@ -1902,17 +1902,17 @@ suite('WorkspacePicker - Connection Status', () => {
 			get isVisible() { return visible; },
 			show: () => {
 				visible = true;
-					showCount++;
-				},
-				hide: () => {
-					visible = false;
-					hideCount++;
-				},
-				updateItems: (items, _focusItemId, options) => {
-					updates.push(items);
-					preserveOpenPanel.push(options?.preserveHover === true);
-				},
+				showCount++;
 			},
+			hide: () => {
+				visible = false;
+				hideCount++;
+			},
+			updateItems: (items, _focusItemId, options) => {
+				updates.push(items);
+				preserveOpenPanel.push(options?.preserveHover === true);
+			},
+		},
 		);
 		picker.showPicker(false, document.createElement('button'));
 
@@ -2021,17 +2021,17 @@ suite('WorkspacePicker - Connection Status', () => {
 			get isVisible() { return visible; },
 			show: () => {
 				visible = true;
-					showCount++;
-				},
-				hide: () => {
-					visible = false;
-					hideCount++;
-				},
-				updateItems: (items, _focusItemId, options) => {
-					updates.push(items);
-					preserveOpenPanel.push(options?.preserveHover === true);
-				},
+				showCount++;
 			},
+			hide: () => {
+				visible = false;
+				hideCount++;
+			},
+			updateItems: (items, _focusItemId, options) => {
+				updates.push(items);
+				preserveOpenPanel.push(options?.preserveHover === true);
+			},
+		},
 		);
 		picker.showPicker(false, document.createElement('button'));
 
@@ -2071,17 +2071,17 @@ suite('WorkspacePicker - Connection Status', () => {
 			get isVisible() { return visible; },
 			show: () => {
 				visible = true;
-					showCount++;
-				},
-				hide: () => {
-					visible = false;
-					hideCount++;
-				},
-				updateItems: (items, _focusItemId, options) => {
-					updates.push(items);
-					preserveOpenPanel.push(options?.preserveHover === true);
-				},
+				showCount++;
 			},
+			hide: () => {
+				visible = false;
+				hideCount++;
+			},
+			updateItems: (items, _focusItemId, options) => {
+				updates.push(items);
+				preserveOpenPanel.push(options?.preserveHover === true);
+			},
+		},
 		);
 		picker.showPicker(false, document.createElement('button'));
 

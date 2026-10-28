@@ -910,6 +910,15 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		const optionsTray = view.element.querySelector<HTMLElement>('.new-chat-session-options');
 		assert(!!optionsToggle && !!sessionOptions && !!optionsTray && !sessionOptions.hidden && !sessionOptions.inert,
 			'Session options must be expanded by default.');
+		const nextComposerSurface = view.element.querySelector<HTMLElement>(commentCount > 0
+			? '.new-session-feedback-banners'
+			: phoneLayout && withAutoModel
+				? '.new-chat-bottom-container'
+				: '.new-chat-input-container');
+		assert(!!nextComposerSurface);
+		const isTrayDocked = () => Math.abs(optionsTray.getBoundingClientRect().bottom
+			+ parseFloat(targetWindow.getComputedStyle(nextComposerSurface).marginTop)
+			- nextComposerSurface.getBoundingClientRect().top) < 1;
 		if (withControlPickers && width >= 800) {
 			assert([...sessionOptions.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label')].every(label => label.checkVisibility()),
 				'Wide composers must initially show every picker label.');
@@ -923,8 +932,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		const promptBounds = promptBox.getBoundingClientRect();
 		assert(!!(optionsTray.compareDocumentPosition(promptBox) & Node.DOCUMENT_POSITION_FOLLOWING),
 			'The tray must precede the prompt in reading and keyboard order.');
-		assert(Math.abs(collapsedTrayBounds.bottom - promptBounds.top) < 1,
-			'The collapsed tray must sit flush with the prompt.');
+		assert(isTrayDocked(),
+			'The collapsed tray must dock to the next composer surface with its configured spacing.');
 		if (phoneLayout) {
 			assert(Math.abs(collapsedTrayBounds.left - promptBounds.left) < 1
 				&& Math.abs(collapsedTrayBounds.right - promptBounds.right) < 1,
@@ -959,8 +968,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			assert(Math.abs(trayBounds.height - collapsedTrayBounds.height) < 1,
 				'Expanding the tray must compact pickers rather than increase its height.');
 		}
-		assert(Math.abs(trayBounds.bottom - promptBox.getBoundingClientRect().top) < 1,
-			'The tray must remain flush with the prompt after expansion.');
+		assert(isTrayDocked(),
+			'The tray must remain docked to the next composer surface after expansion.');
 		const trayStyle = targetWindow.getComputedStyle(optionsTray);
 		const inputArea = promptBox.querySelector<HTMLElement>('.chat-input-container');
 		assert(!!inputArea);
