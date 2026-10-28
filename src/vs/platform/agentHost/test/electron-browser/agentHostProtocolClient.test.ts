@@ -657,6 +657,44 @@ suite('AgentHostProtocolClient', () => {
 	});
 
 	suite('worktree cleanup', () => {
+		test('does not send managed cleanup requests without the capability', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const before = transport.sentMessages.length;
+			const worktrees = await client.listManagedWorktrees([URI.file('/repo')]);
+			await assert.rejects(client.cleanupManagedWorktree(URI.file('/repo'), URI.file('/repo.worktrees/session'), 'agents/session'), /does not support/);
+			assert.deepStrictEqual({ worktrees, requests: transport.sentMessages.slice(before) }, { worktrees: [], requests: [] });
+		});
+
+		test('validates managed inventory and forwards an explicit branch-bound cleanup', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.managedWorktrees': true });
+			const inventory = client.listManagedWorktrees([URI.file('/repo')]);
+			const listRequest = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: listRequest.id, result: [{ repository: 'file:///repo', worktree: 'file:///repo.worktrees/recovered', branch: 'agents/recovered', cleanupStatus: { state: 'unknown' } }] });
+			const worktrees = await inventory;
+			const cleanup = client.cleanupManagedWorktree(URI.parse(worktrees[0].repository), URI.parse(worktrees[0].worktree), worktrees[0].branch);
+			const cleanupRequest = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: cleanupRequest.id, result: null });
+			await cleanup;
+			assert.deepStrictEqual({
+				list: { method: listRequest.method, params: listRequest.params },
+				cleanup: { method: cleanupRequest.method, params: cleanupRequest.params },
+			}, {
+				list: { method: 'vscode/listManagedWorktrees', params: { repositories: ['file:///repo'] } },
+				cleanup: { method: 'vscode/cleanupManagedWorktree', params: { repository: 'file:///repo', worktree: 'file:///repo.worktrees/recovered', branch: 'agents/recovered' } },
+			});
+		});
+
+		test('rejects malformed managed inventory', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.managedWorktrees': true });
+			const inventory = client.listManagedWorktrees([URI.file('/repo')]);
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: [{ worktree: 'file:///repo.worktrees/recovered' }] });
+			await assert.rejects(inventory, /invalid worktree inventory/);
+		});
+
 		for (const capability of [undefined, false, 'true', {}]) {
 			test(`does not offer retry without a valid capability (${JSON.stringify(capability)})`, async () => {
 				const { client, transport } = createClient();

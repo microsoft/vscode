@@ -31,6 +31,8 @@ import { readAgentSdkSetupInfos } from '../../../../../platform/agentHost/common
 import { AgentHostPrewarmSessionsSettingId, type IAgentCanvasInfo, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { readSessionArtifacts } from '../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { fromAgentHostUri, type AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import type { IAgentHostManagedWorktree } from '../../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { isCopilotAgentHostProvider } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -4715,7 +4717,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@IStorageService protected readonly _storageService: IStorageService,
 		@IDialogService protected readonly _dialogService: IDialogService,
 		@IWorkspaceTrustManagementService protected readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
+		@ISessionsRecentWorkspacesService protected readonly recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IUriIdentityService protected readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
@@ -7418,6 +7420,47 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(localize('worktreeCleanupUnavailable', "Connect to this session's host to retry worktree cleanup."));
 		}
 		return session && connection?.sessionWorktreeCleanup?.(session.backendUri, retry);
+	}
+
+	async listManagedWorktrees(knownRepositories: readonly URI[] = []): Promise<IAgentHostManagedWorktree[]> {
+		const workspaces = [
+			...this.getSessions().flatMap(session => session.workspace.get() ?? []),
+			...this.recentWorkspacesService.getRecentWorkspaces().filter(recent => recent.providerId === this.id).map(recent => recent.workspace),
+		];
+		const repositories = new ResourceSet([
+			...knownRepositories.map(repository => fromAgentHostUri(repository)),
+			...workspaces.flatMap(workspace => workspace.folders.flatMap(folder => folder.gitRepository ? [fromAgentHostUri(folder.gitRepository.uri)] : [])),
+		].filter(repository => repository.scheme === Schemas.file));
+		const worktrees = await this.connection?.listManagedWorktrees?.([...repositories]) ?? [];
+		return worktrees.map(worktree => ({
+			...worktree,
+			repository: this.mapWorkingDirectoryUri(URI.parse(worktree.repository)).toString(),
+			worktree: this.mapWorkingDirectoryUri(URI.parse(worktree.worktree)).toString(),
+		}));
+	}
+
+	async cleanupManagedWorktree(worktree: IAgentHostManagedWorktree): Promise<void> {
+		const connection = this.connection;
+		if (!connection?.cleanupManagedWorktree) {
+			throw new Error(localize('managedWorktreeCleanupUnavailable', "Connect to this worktree's host to clean it up."));
+		}
+		await connection.cleanupManagedWorktree(fromAgentHostUri(URI.parse(worktree.repository)), fromAgentHostUri(URI.parse(worktree.worktree)), worktree.branch);
+	}
+
+	async managedWorktreeExists(worktree: IAgentHostManagedWorktree): Promise<boolean | undefined> {
+		const connection = this.connection;
+		if (!connection) {
+			return undefined;
+		}
+		try {
+			await connection.resourceResolve({ channel: 'ahp-root://', uri: fromAgentHostUri(URI.parse(worktree.worktree)).toString(), followSymlinks: false });
+			return true;
+		} catch (error) {
+			if (error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound) {
+				return false;
+			}
+			throw error;
+		}
 	}
 
 	async archiveChat(sessionId: string, chatResource: URI): Promise<void> {

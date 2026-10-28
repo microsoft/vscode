@@ -1004,6 +1004,31 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('managed inventory includes recent repositories without a remaining session and excludes other hosts and non-file repositories', async () => {
+		const recent: ReturnType<ISessionsRecentWorkspacesService['getRecentWorkspaces']> = [];
+		const provider = createProvider(disposables, agentHost, undefined, {
+			recentWorkspacesService: upcastPartial<ISessionsRecentWorkspacesService>({
+				onDidChangeRecentWorkspaces: Event.None,
+				onDidRemoveRecentWorkspaces: Event.None,
+				getRecentWorkspaces: () => recent,
+			}),
+		});
+		const repository = URI.file('/repo');
+		recent.push(
+			{ workspace: provider.resolveWorkspace(repository)!, providerId: provider.id, checked: false, source: 'agents' },
+			{ workspace: provider.resolveWorkspace(URI.file('/foreign'))!, providerId: 'other-host', checked: false, source: 'agents' },
+		);
+		const calls: string[][] = [];
+		agentHost.listManagedWorktrees = async repositories => {
+			calls.push(repositories.map(repository => repository.toString()));
+			return [{ repository: repository.toString(), worktree: URI.file('/repo.worktrees/recovered').toString(), branch: 'agents/recovered', cleanupStatus: { state: 'unknown' } }];
+		};
+		const inventory = await provider.listManagedWorktrees([URI.parse('https://github.com/microsoft/vscode')]);
+		assert.deepStrictEqual({ calls, paths: inventory.map(worktree => worktree.worktree), sessions: provider.getSessions() }, {
+			calls: [[repository.toString()]], paths: [URI.file('/repo.worktrees/recovered').toString()], sessions: [],
+		});
+	});
+
 	test('publishes a directly imported conversation without creating or sending another session', async () => {
 		const provider = createProvider(disposables, agentHost);
 		agentHost.addSession(createSession('copied', { summary: 'Copied conversation' }));

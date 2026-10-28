@@ -15150,6 +15150,14 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._worktreeCleanup.sessionWorktreeCleanup(session, retry);
 	}
 
+	listManagedWorktrees(repositories: readonly URI[]) {
+		return this._worktreeCleanup.listManagedWorktrees(repositories);
+	}
+
+	cleanupManagedWorktree(repository: URI, worktree: URI, branch: string) {
+		return this._worktreeCleanup.cleanupManagedWorktree(repository, worktree, branch);
+	}
+
 	async resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {
 		return this._resourceProviders.mkdir(params);
 	}
