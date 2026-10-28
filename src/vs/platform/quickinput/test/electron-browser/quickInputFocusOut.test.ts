@@ -300,16 +300,63 @@ suite('QuickInput hosts its context menus', () => { // https://github.com/micros
 		});
 	}
 
-	test('clicking outside an open hosted menu hides menu and picker', async () => {
+	/**
+	 * Dispatches only a mouse down on the hosted menu's mouse blocker at the given
+	 * point, like a real click outside of the menu. No focus change is simulated:
+	 * the context menu itself restores focus when it closes.
+	 */
+	function mouseDownOnBlocker(x: number, y: number): void {
+		const block = openMenu()!.menu.closest('.context-view')!.querySelector<HTMLElement>('.context-view-block')!;
+		block.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, composed: true, button: 0, clientX: x, clientY: y }));
+	}
+
+	function pointBelowWidget(): { x: number; y: number } {
+		const rect = widget().getBoundingClientRect();
+		return { x: rect.left + 5, y: rect.bottom + 100 };
+	}
+
+	test('clicking outside an open hosted menu hides menu and picker and returns focus', async () => {
 		setupController();
 		const picker = showPicker();
 		rightClickInput();
 		await settle();
-		const block = openMenu()!.menu.closest('.context-view')!.querySelector<HTMLElement>('.context-view-block')!;
-		block.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-		(activeElementDeep() as HTMLElement).blur(); // default action of clicking the non focusable block
+		const { x, y } = pointBelowWidget();
+		mouseDownOnBlocker(x, y);
 		await settle();
-		assert.deepStrictEqual([state(picker).visible, state(picker).menu], [false, 'none']);
+		assert.deepStrictEqual([state(picker).visible, state(picker).menu, state(picker).focus], [false, 'none', 'editor']);
+	});
+
+	test('clicking outside an open hosted menu with ignoreFocusOut only closes the menu', async () => {
+		setupController();
+		ignoreFocusOut = true;
+		const picker = showPicker();
+		rightClickInput();
+		await settle();
+		const { x, y } = pointBelowWidget();
+		mouseDownOnBlocker(x, y);
+		(activeElementDeep() as HTMLElement).blur(); // the menu closes on blur
+		await settle();
+		assert.deepStrictEqual([state(picker).visible, state(picker).menu], [true, 'none']);
+	});
+
+	test('mouse down on the part of a hosted menu outside the picker or within the picker keeps the picker', async () => {
+		setupController();
+		const picker = showPicker();
+		rightClickInput();
+		await settle();
+		const { menu } = openMenu()!;
+		const menuRect = menu.getBoundingClientRect();
+		const widgetRect = widget().getBoundingClientRect();
+		const menuBeyondWidget = menuRect.bottom > widgetRect.bottom;
+		const items = menu.querySelectorAll<HTMLElement>('.action-label');
+		const lastItem = items[items.length - 1];
+		const lastItemRect = lastItem.getBoundingClientRect();
+		lastItem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, composed: true, button: 0, clientX: lastItemRect.left + 5, clientY: lastItemRect.top + lastItemRect.height / 2 }));
+		await settle();
+		const afterMenuMouseDown = { visible: state(picker).visible, menu: state(picker).menu };
+		mouseDownOnBlocker(widgetRect.left + 3, widgetRect.top + 3); // over the picker, outside the menu
+		await settle();
+		assert.deepStrictEqual([menuBeyondWidget, afterMenuMouseDown, state(picker).visible], [true, { visible: true, menu: 'hosted' }, true]);
 	});
 
 	test('focus moving outside without a context menu hides the picker', async () => {
