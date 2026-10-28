@@ -1209,6 +1209,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.marketplaceSources = getVisibleCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources);
 		if (this.selectedSourceId && !this.marketplaceSources.some(source => source.id === this.selectedSourceId)) {
 			this.selectedSourceId = undefined;
+			this.callbacks.marketplaceNavigationChanged?.();
 		}
 		this.updateSourceButton();
 	}
@@ -1262,6 +1263,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			return;
 		}
 		this.selectedSourceId = sourceId;
+		this.callbacks.marketplaceNavigationChanged?.();
 		this.updateSourceButton();
 		this.cancelCatalogRequest();
 		this.searchScheduler.cancel();
@@ -1344,6 +1346,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			return;
 		}
 		this.query = next;
+		this.callbacks.marketplaceNavigationChanged?.();
 		this.resetCatalogState();
 		this.errorMessage = undefined;
 		this.cancelCatalogRequest();
@@ -1357,7 +1360,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}
 	}
 
-	private setQuery(query: CustomizationDiscoveryQuery): void {
+	private setQuery(query: CustomizationDiscoveryQuery, preserveFocus = false): void {
+		this.callbacks.marketplaceNavigationChanged?.();
 		this.query = query;
 		this.resetCatalogState();
 		this.errorMessage = undefined;
@@ -1371,7 +1375,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		if (this.shouldQueryCatalog() && !this.loaded) {
 			this.searchScheduler.schedule(0);
 		}
-		this.searchWidget.focus();
+		if (!preserveFocus) {
+			this.searchWidget.focus();
+		}
 	}
 
 	private resetCatalogState(): void {
@@ -3016,8 +3022,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.searchWidget.focus();
 	}
 
-	reset(): void {
-		this.focus();
+	reset(preserveFocus?: boolean): void {
+		if (!preserveFocus) {
+			this.focus();
+		}
 	}
 
 	resetFilters(): void {
@@ -3030,14 +3038,14 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.setQuery(CustomizationDiscoveryQuery.parse(''));
 	}
 
-	setSearchQuery(value: string): void {
-		this.setQuery(CustomizationDiscoveryQuery.parse(value));
+	setSearchQuery(value: string, preserveFocus?: boolean): void {
+		this.setQuery(CustomizationDiscoveryQuery.parse(value), preserveFocus);
 	}
 
-	showMarketplace(query: string, sourceId: string | undefined): void {
+	showMarketplace(query: string, sourceId: string | undefined, preserveFocus?: boolean): void {
 		this.selectedSourceId = sourceId;
 		this.updateSourceButton();
-		this.setQuery(CustomizationDiscoveryQuery.parse(query));
+		this.setQuery(CustomizationDiscoveryQuery.parse(query), preserveFocus);
 	}
 
 	layout(dimension: DOM.Dimension | undefined): void {

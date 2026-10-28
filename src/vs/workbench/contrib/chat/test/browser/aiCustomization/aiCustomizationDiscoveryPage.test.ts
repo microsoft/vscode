@@ -266,13 +266,14 @@ suite('AICustomizationDiscoveryPage', () => {
 			override readonly whenInitialLocalMcpServersLoaded = Promise.resolve();
 		}());
 		const creationEvents: string[] = [];
+		let marketplaceNavigationChanges = 0;
 		const openedDetails: ICustomizationMarketplaceResource[] = [];
 		const openedInstalled: NonNullable<Parameters<NonNullable<ConstructorParameters<typeof AICustomizationDiscoveryPage>[2]['openInstalled']>>[0]>[] = [];
 		instantiationService.stub(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 			override async generateCustomization(type: PromptsType): Promise<void> { creationEvents.push(type); }
 		}());
 		const page = store.add(instantiationService.createInstance(AICustomizationDiscoveryPage, container, undefined, {
-			selectSection() { creationEvents.push('navigate'); }, async createCustomization(section) { creationEvents.push(section); }, selectSectionWithMarketplace() { }, openInstalled(target) { openedInstalled.push(target); }, openMarketplaceItem(resource) { openedDetails.push(resource); }, closeEditor() { creationEvents.push('close'); }, reviewMigrations() { }, prefillChat() { },
+			selectSection() { creationEvents.push('navigate'); }, async createCustomization(section) { creationEvents.push(section); }, selectSectionWithMarketplace() { }, openInstalled(target) { openedInstalled.push(target); }, openMarketplaceItem(resource) { openedDetails.push(resource); }, marketplaceNavigationChanged() { marketplaceNavigationChanges++; }, closeEditor() { creationEvents.push('close'); }, reviewMigrations() { }, prefillChat() { },
 		}, 'Copilot'));
 		page.rebuildCards(new Set(visibleSections));
 		page.layout(new DOM.Dimension(900, 600));
@@ -285,6 +286,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		}
 		return {
 			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, prompts, promptHandles, getSourceActions, listService, creationEvents, opened, openedDetails, openedInstalled, deletions, installs, repairs, cancellations, uninstalls, commands, telemetry,
+			getMarketplaceNavigationChanges: () => marketplaceNavigationChanges,
 			getHoverContent: (target: HTMLElement) => {
 				const options = hovers.get(target);
 				return typeof options === 'function' ? options().content : options?.content;
@@ -2691,6 +2693,13 @@ suite('AICustomizationDiscoveryPage', () => {
 			availableAccessible: true,
 			accessible: true,
 		});
+	});
+
+	test('search and source changes invalidate pending marketplace navigation', async () => {
+		const fixture = createPage(['agentFinder']);
+		fixture.page.setSearchQuery('figma');
+		await fixture.selectSource('agentFinder');
+		assert.strictEqual(fixture.getMarketplaceNavigationChanges(), 2);
 	});
 
 	test('marketplace navigation applies its source and clears stale sources for general browse', async () => {
