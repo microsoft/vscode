@@ -680,10 +680,13 @@ export interface ISessionsProvider {
 	importSession?(sessionId: string): Promise<void>;
 
 	/**
-	 * Returns the current on-disk size of the session's isolated worktree.
+	 * Returns the current on-disk size, zero for confirmed absent storage, or undefined when measurement is unavailable.
 	 * Providers without host-owned worktrees leave this capability undefined.
 	 */
 	getSessionWorktreeDiskUsage?(sessionId: string, token?: CancellationToken): Promise<number | undefined>;
+
+	/** Cheaply checks the owning host's worktrees. False confirms all roots are absent; undefined means unavailable. */
+	sessionWorktreeExists?(sessionId: string, token?: CancellationToken): Promise<boolean | undefined>;
 
 	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
 	sessionWorktreeCleanup?(sessionId: string, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;

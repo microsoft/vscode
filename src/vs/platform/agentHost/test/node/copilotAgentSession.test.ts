@@ -1359,6 +1359,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	disabledRootMcpServers?: readonly string[];
 	controlPlaneRpcTimeoutMs?: number;
 	connectorRefreshTimeoutMs?: number;
+	connectorOwnershipLookupTimeoutMs?: number;
 	onConnectorRefreshRetryable?: () => void;
 	sessionCustomizations?: () => readonly Customization[];
 	resolveCustomizationEnablement?: (target: ICustomizationEnablementTarget) => CustomizationEnablementResolution;
@@ -1790,6 +1791,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			realpath: options?.realpath,
 			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
 			connectorRefreshTimeoutMs: options?.connectorRefreshTimeoutMs,
+			connectorOwnershipLookupTimeoutMs: options?.connectorOwnershipLookupTimeoutMs,
 			onConnectorRefreshRetryable: options?.onConnectorRefreshRetryable,
 			canvasHandoff: options?.canvasHandoff,
 			subagentTaskCompletionDelay: options?.subagentTaskCompletionDelay ?? 0,
@@ -7641,6 +7643,192 @@ suite('CopilotAgentSession', () => {
 			sendRequests: [],
 			responseParts: [{ kind: ResponsePartKind.Markdown, content: 'Focus done' }],
 			turnComplete: ['turn-focus'],
+		});
+	});
+
+	suite('MCP show command', () => {
+		for (const source of [undefined, 'user', 'workspace', 'builtin', 'managed'] as const) {
+			test(`shows ${source} server details without invoking the runtime command or starting servers`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables, {
+					rootValues: { [AgentHostMcpToolRoutingEnabledConfigKey]: false },
+					copilotHome: '/config',
+					getUserMcpServers: async () => ({
+						'dbt-mcp': { command: './user-mcp', args: ['--user'] },
+					}),
+					clientSnapshot: {
+						discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [],
+						mcpServers: { 'dbt-mcp': { type: McpServerType.LOCAL, command: './workspace-mcp', args: ['--workspace'] } },
+					},
+					configureMockSession: mock => {
+						mock.commandListResult = { commands: [{ name: 'mcp', kind: 'builtin', description: 'Manage MCP servers', allowDuringAgentExecution: false }] };
+						mock.mcpListResult = { servers: [{ name: 'dbt-mcp', source, status: 'connected' }] };
+						mock.mcpListToolsResult = { tools: [{ name: 'query' }] };
+					},
+				});
+				await session.send('/mcp show dbt-mcp', undefined, 'turn-mcp-show');
+				const actions = getActions(signals);
+				const output = actions.filter(a => a.type === ActionType.ChatResponsePart)
+					.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : '').join('');
+				assert.deepStrictEqual({
+					invocations: mockSession.commandInvokeCalls,
+					sends: mockSession.sendRequests,
+					materializingLists: mockSession.mcpMaterializingListCalls,
+					starts: mockSession.mcpStartServerCalls,
+					tools: mockSession.mcpListToolsCalls,
+					completed: actions.filter(a => a.type === ActionType.ChatTurnComplete).map(a => a.turnId),
+					showsDetails: output.startsWith('# MCP server: `dbt-mcp`\n'),
+					showsCorrectConfiguration: source === 'builtin' || source === 'managed'
+						? output.includes('The runtime does not expose this server\'s launch configuration')
+						: output.includes(`"command": "./${source ?? 'user'}-mcp"`),
+					showsSourceFile: (source !== 'user' && source !== undefined) || output.includes('file:///config/mcp-config.json'),
+					showsSource: output.includes(`- Source: \`${source ?? 'user'}\``),
+					showsTools: output.includes('- `query`'),
+				}, {
+					invocations: [], sends: [], materializingLists: 0, starts: [],
+					tools: [{ serverName: 'dbt-mcp' }], completed: ['turn-mcp-show'],
+					showsDetails: true, showsCorrectConfiguration: true, showsSourceFile: true, showsSource: true, showsTools: true,
+				});
+			});
+		}
+
+		for (const configuredEnabled of [true, false]) {
+			test(`shows runtime enablement after toggling configured enablement ${configuredEnabled}`, async () => {
+				const status = configuredEnabled ? 'disabled' : 'connected';
+				const { session, mockSession, signals } = await createAgentSession(disposables, {
+					rootValues: { [AgentHostMcpToolRoutingEnabledConfigKey]: false },
+					configureMockSession: mock => {
+						mock.commandListResult = { commands: [{ name: 'mcp', kind: 'builtin', description: 'Manage MCP servers', allowDuringAgentExecution: false }] };
+						mock.mcpConfiguredListResult = { servers: [{ name: 'toggled', enabled: configuredEnabled, live: { status } }] };
+						mock.mcpListToolsResult = { tools: [{ name: 'query' }] };
+					},
+				});
+				await session.send('/mcp show toggled', undefined, 'turn-mcp-toggled');
+				const output = getActions(signals).filter(a => a.type === ActionType.ChatResponsePart)
+					.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : '').join('');
+				assert.deepStrictEqual({
+					invocations: mockSession.commandInvokeCalls,
+					tools: mockSession.mcpListToolsCalls,
+					showsLiveEnabled: output.includes(`- Enabled: ${configuredEnabled ? 'No' : 'Yes'}`),
+					showsTools: output.includes('- `query`'),
+				}, {
+					invocations: [],
+					tools: configuredEnabled ? [] : [{ serverName: 'toggled' }],
+					showsLiveEnabled: true,
+					showsTools: !configuredEnabled,
+				});
+			});
+		}
+
+		test('preserves inventory details and logs a failed user configuration lookup', async () => {
+			const logService = new CapturingLogService();
+			const error = new Error('Configuration unavailable');
+			let failConfiguration = false;
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
+				logService,
+				copilotHome: '/config',
+				rootValues: { [AgentHostMcpToolRoutingEnabledConfigKey]: false },
+				getUserMcpServers: async () => {
+					if (failConfiguration) {
+						throw error;
+					}
+					return { user: { command: './user-mcp' } };
+				},
+				configureMockSession: mock => {
+					mock.commandListResult = { commands: [{ name: 'mcp', kind: 'builtin', description: 'Manage MCP servers', allowDuringAgentExecution: false }] };
+					mock.mcpListResult = { servers: [{ name: 'user', source: 'user', status: 'connected' }] };
+					mock.mcpListToolsResult = { tools: [{ name: 'query' }] };
+				},
+			});
+			await waitForSignal(signal => isAction(signal, ActionType.SessionCustomizationUpdated));
+			failConfiguration = true;
+			await session.send('/mcp show user', undefined, 'turn-mcp-user-error');
+			assert.deepStrictEqual({
+				invocations: mockSession.commandInvokeCalls,
+				tools: mockSession.mcpListToolsCalls,
+				warnings: logService.warnings.filter(warning => warning.args.includes(error)),
+				responses: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart)
+					.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : ''),
+				completed: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).map(a => a.turnId),
+			}, {
+				invocations: [], tools: [{ serverName: 'user' }],
+				warnings: [{ message: '[Copilot:test-session-1] Failed to read launch configuration for MCP server \'user\'', args: [error] }],
+				responses: [[
+					'# MCP server: `user`', '',
+					'- Status: `connected`', '- Enabled: Yes', '- Source: `user`',
+					'- Configuration file: `file:///config/mcp-config.json`', '',
+					'## Launch configuration', '',
+					'Could not read the launch configuration.', '',
+					'```text', 'Configuration unavailable', '```', '',
+					'## Available tools', '',
+					'- `query`',
+				].join('\n')],
+				completed: ['turn-mcp-user-error'],
+			});
+		});
+
+		test('uses a known plugin declaration and its original source file', async () => {
+			const pluginUri = URI.file('/plugins/tools');
+			const sourceUri = URI.file('/plugins/tools/.mcp.json');
+			const snapshot = createPluginSnapshot(pluginUri);
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostMcpToolRoutingEnabledConfigKey]: false },
+				clientSnapshot: {
+					...snapshot,
+					plugins: [{
+						...snapshot.plugins[0], sourceUri: pluginUri, disabledMcpServers: ['plugin-server'],
+						mcpServers: [{
+							name: 'plugin-server', uri: sourceUri, sdkRegistration: 'pluginDiscovery',
+							configuration: { type: McpServerType.LOCAL, command: './plugin-mcp', cwd: '/plugin-cwd' },
+							customization: { type: CustomizationType.McpServer, id: sourceUri.toString(), uri: sourceUri.toString(), name: 'plugin-server', state: { kind: McpServerStatus.Stopped } },
+						}],
+					}],
+				},
+				configureMockSession: mock => {
+					mock.commandListResult = { commands: [{ name: 'mcp', kind: 'builtin', description: 'Manage MCP servers', allowDuringAgentExecution: false }] };
+					mock.mcpConfiguredListResult = { servers: [{ name: 'plugin-server', enabled: false, live: { status: 'disabled' }, source: 'plugin', sourcePlugin: 'tools' }] };
+				},
+			});
+			await session.send('/mcp show plugin-server', undefined, 'turn-mcp-plugin');
+			const output = getActions(signals).filter(a => a.type === ActionType.ChatResponsePart)
+				.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : '').join('');
+			assert.deepStrictEqual({
+				invocations: mockSession.commandInvokeCalls,
+				tools: mockSession.mcpListToolsCalls,
+				hasPlugin: output.includes('- Plugin: `tools`'),
+				hasSource: output.includes(`- Configuration file: \`${sourceUri.toString()}\``),
+				hasCommand: output.includes('"command": "./plugin-mcp"'),
+				hasCwd: output.includes('"cwd": "/plugin-cwd"'),
+			}, { invocations: [], tools: [], hasPlugin: true, hasSource: true, hasCommand: true, hasCwd: true });
+		});
+
+		test('shows disabled servers without requesting tools and reports unknown servers', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				configureMockSession: mock => {
+					mock.commandListResult = { commands: [{ name: 'mcp', kind: 'builtin', description: 'Manage MCP servers', allowDuringAgentExecution: false }] };
+					mock.mcpConfiguredListResult = { servers: [{ name: 'disabled', enabled: false, live: { status: 'disabled' } }] };
+				},
+			});
+			await session.send('/mcp show disabled', undefined, 'turn-mcp-disabled');
+			await session.send('/mcp show missing', undefined, 'turn-mcp-missing');
+			assert.deepStrictEqual({
+				invocations: mockSession.commandInvokeCalls,
+				tools: mockSession.mcpListToolsCalls,
+				responses: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart)
+					.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : ''),
+			}, {
+				invocations: [], tools: [],
+				responses: [
+					[
+						'# MCP server: `disabled`', '',
+						'- Status: `disabled`', '- Enabled: No', '',
+						'## Launch configuration', '',
+						'The runtime does not expose this server\'s launch configuration to the agent host.', '',
+						'## Available tools', '',
+						'Tools are not loaded for this server.',
+					].join('\n'),
+					'MCP server "missing" is not configured in this session.',
+				],
+			});
 		});
 	});
 
@@ -26032,6 +26220,262 @@ Use the attached image as context.
 			mcpServers: {},
 		};
 
+		const workIqConnectors: ICopilotConnectorServers = {
+			servers: new Map([['connector-workiq', { connectorName: 'workiqmcp', displayName: 'Work IQ' }]]),
+			authorizationRequired: true,
+		};
+
+		async function createConnectorRoutingSession(options: { routingEnabled?: boolean; serverEnabled?: boolean; reconcile?: Promise<ICopilotConnectorServers | undefined> } = {}) {
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('tool-search-client', globalMcpRoutingSnapshot.tools);
+			const created = await createAgentSession(disposables, {
+				clientSnapshot: globalMcpRoutingSnapshot,
+				activeClientToolSet,
+				modelId: 'claude-opus-4.8',
+				rootValues: {
+					[CopilotCliConfigKey.ToolSearchEnabled]: true,
+					[AgentHostMcpToolRoutingEnabledConfigKey]: options.routingEnabled !== false,
+					[AgentHostMcpConnectorsEnabledConfigKey]: true,
+				},
+				...(options.serverEnabled === false ? {
+					resolveCustomizationEnablement: () => ({
+						kind: 'resolved' as const,
+						enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+						enabled: false,
+						workingDirectory: { kind: 'workspaceless' as const },
+					}),
+				} : {}),
+				configureMockSession: mock => {
+					mock.connectorStatus = {
+						...mock.connectorStatus,
+						catalog: { revision: 1, refreshedAtMs: 1, connectors: [{ name: 'workiqmcp', displayName: 'Work IQ', status: 'connected', runtimeServerIds: ['connector-workiq'] }] },
+						authorizationRequirement: { accountId: 'session-account', scope: 'write_plugin_gateway_connections' },
+						runtimeServers: [{ connectorName: 'workiqmcp', runtimeServerId: 'connector-workiq', status: 'needs_auth' }],
+					};
+					mock.mcpListResult = { servers: [{ name: 'connector-workiq', status: options.serverEnabled === false ? 'disabled' : 'needs-auth', source: 'managed', url: 'https://connectors.example.com/workiq/mcp' }] };
+					mock.mcpListToolsResult = { tools: [{ name: 'current_search', description: 'Search current Work IQ documents' }] };
+				},
+				duringLaunch: runtime => {
+					runtime.createClientSdkTools(true);
+					runtime.configureClientTools!(clientToolConfiguration(true));
+					runtime.adoptLaunchConnectorReconcile(options.reconcile ?? Promise.resolve(workIqConnectors));
+				},
+			});
+			if (!options.reconcile) {
+				await created.session.refreshConnectors();
+				for (const action of getActions(created.signals)) {
+					if (action.type === ActionType.SessionMetaChanged) {
+						created.dispatchSessionAction(action);
+					}
+				}
+			}
+			return created;
+		}
+
+		test('MCP routing registers searchable deferred Connector proxies after asynchronous launch discovery', async () => {
+			const reconcile = new DeferredPromise<ICopilotConnectorServers | undefined>();
+			const { session, mockSession, signals, waitForSignal } = await createConnectorRoutingSession({ reconcile: reconcile.p });
+			assert.strictEqual(mockSession.setToolsCalls.length, 0);
+			await reconcile.complete(workIqConnectors);
+			await session.refreshConnectors();
+			const [search, proxy] = mockSession.setToolsCalls.at(-1)!;
+			session.resetTurnState('connector-tool-search');
+			mockSession.fire('tool.execution_start', { toolCallId: 'find-workiq', toolName: search.name, arguments: { query: 'Work IQ Connector' } });
+			const resultPromise = invokeClientToolHandler(search, 'find-workiq', { query: 'Work IQ Connector' }, [{
+				name: proxy.name, description: proxy.description!, deferLoading: true,
+			}]);
+			const readySignal = await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallReady));
+			assert.ok(isAction(readySignal, ActionType.ChatToolCallReady));
+			session.handleClientToolCallComplete('find-workiq', {
+				success: true,
+				pastTenseMessage: 'Searched tools',
+				content: [{ type: ToolResultContentType.Text, text: JSON.stringify([proxy.name]) }],
+			});
+			const result = await resultPromise;
+			assert.deepStrictEqual({
+				nameIsRecognizable: proxy.name.startsWith('mcp_route_work_iq_connector_'),
+				descriptionNamesConnector: proxy.description?.includes('"Work IQ (Connector)"'),
+				defer: proxy.defer,
+				candidates: readToolCallMeta(readySignal.action as ChatToolCallReadyAction).toolSearchCandidates,
+				references: result.toolReferences,
+				routedServers: getActions(signals).flatMap(action => action.type === ActionType.SessionMetaChanged ? [...readMcpRoutingServers(action, session.chatChannelUri.toString())] : []),
+				authPrompts: getActions(signals).filter(action => action.type === ActionType.ChatToolCallAuthRequired),
+				starts: mockSession.mcpStartServerCalls,
+				discovery: mockSession.mcpListToolsCalls,
+			}, {
+				nameIsRecognizable: true,
+				descriptionNamesConnector: true,
+				defer: 'auto',
+				candidates: [{ name: proxy.name, description: proxy.description }],
+				references: [proxy.name],
+				routedServers: ['connector-workiq'],
+				authPrompts: [],
+				starts: [],
+				discovery: [],
+			});
+		});
+
+		for (const timing of ['statusOnly', 'statusWhileStarting', 'sdkCallback'] as const) {
+			test(`MCP routing requests Connector authorization only on selection (${timing})`, async () => {
+				const { session, runtime, mockSession, signals, waitForSignal } = await createConnectorRoutingSession();
+				let authentication: ReturnType<typeof runtime.handleMcpAuthRequest> | undefined;
+				if (timing === 'sdkCallback') {
+					authentication = runtime.handleMcpAuthRequest({
+						requestId: 'connector-auth',
+						serverName: 'connector-workiq',
+						serverUrl: 'https://connectors.example.com/workiq/mcp',
+						reason: 'upscope',
+						wwwAuthenticateParams: { scope: 'write:plugin_gateway_connections' },
+					}, { sessionId: 'test-session-1' });
+					await timeout(0);
+				}
+				if (timing === 'statusWhileStarting') {
+					mockSession.mcpListResult = { servers: [{ name: 'connector-workiq', status: 'pending', source: 'managed' }] };
+					mockSession.fire('session.mcp_server_status_changed', { serverName: 'connector-workiq', status: 'pending' });
+				}
+				const [, proxy] = mockSession.setToolsCalls.at(-1)!;
+				session.resetTurnState('connector-route');
+				mockSession.fire('tool.execution_start', { toolCallId: 'connect-workiq', toolName: proxy.name, arguments: {} });
+				const activation = invokeClientToolHandler(proxy, 'connect-workiq');
+				if (timing === 'statusWhileStarting') {
+					await timeout(0);
+					mockSession.mcpListResult = { servers: [{ name: 'connector-workiq', status: 'needs-auth', source: 'managed', url: 'https://connectors.example.com/workiq/mcp' }] };
+					mockSession.fire('session.mcp_server_status_changed', { serverName: 'connector-workiq', status: 'needs-auth' });
+				}
+				await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallAuthRequired));
+				const acceptsMcpToken = await session.resolveMcpAuthentication({
+					resource: 'https://connectors.example.com/workiq/mcp', scopes: ['write:plugin_gateway_connections'], token: 'not-a-connector-credential',
+				});
+				session.handleClientToolCallComplete('connect-workiq', {
+					success: false, pastTenseMessage: 'Cancelled authentication', error: { message: 'Authentication cancelled', code: 'cancelled' },
+				});
+				const result = await activation;
+				await authentication;
+				const start = getActions(signals).find(action => action.type === ActionType.ChatToolCallStart);
+				const auth = getActions(signals).filter(action => action.type === ActionType.ChatToolCallAuthRequired);
+				assert.deepStrictEqual({
+					displayName: start?.type === ActionType.ChatToolCallStart ? start.displayName : undefined,
+					auth: auth.map(action => action.type === ActionType.ChatToolCallAuthRequired ? { toolCallId: action.toolCallId, scopes: action.auth.requiredScopes } : undefined),
+					acceptsMcpToken,
+					resultType: result.resultType,
+					starts: mockSession.mcpStartServerCalls,
+					discovery: mockSession.mcpListToolsCalls,
+				}, {
+					displayName: 'Connect to Work IQ (Connector)',
+					auth: [{ toolCallId: 'connect-workiq', scopes: ['write:plugin_gateway_connections'] }],
+					acceptsMcpToken: false,
+					resultType: 'failure',
+					starts: [],
+					discovery: [],
+				});
+			});
+		}
+
+		test('MCP routing orders client tool replacement after asynchronous Connector registration', async () => {
+			const reconcile = new DeferredPromise<ICopilotConnectorServers | undefined>();
+			const { session, mockSession } = await createConnectorRoutingSession({ reconcile: reconcile.p });
+			const update = session.updateClientTools([...globalMcpRoutingSnapshot.tools, { name: 'added' }]);
+			await reconcile.complete(workIqConnectors);
+			await update;
+			const proxyName = mockSession.setToolsCalls[0][1].name;
+			assert.deepStrictEqual(mockSession.setToolsCalls.map(tools => tools.map(tool => tool.name)), [
+				[RUNTIME_TOOL_SEARCH_TOOL_NAME, proxyName],
+				[RUNTIME_TOOL_SEARCH_TOOL_NAME, 'added', proxyName],
+			]);
+		});
+
+		test('MCP routing retries failed Connector tool registration without advertising an unaccepted proxy', async () => {
+			const reconcile = new DeferredPromise<ICopilotConnectorServers | undefined>();
+			const { session, mockSession, signals } = await createConnectorRoutingSession({ reconcile: reconcile.p });
+			mockSession.setToolsError = new Error('SDK rejected the replacement tools');
+			await reconcile.complete(workIqConnectors);
+			await session.refreshConnectors();
+			const advertisedAfterFailure = getActions(signals).filter(action => action.type === ActionType.SessionMetaChanged);
+			mockSession.setToolsError = undefined;
+			session.markConnectorConfigurationChanged();
+			await session.refreshConnectors();
+			const proxyName = mockSession.setToolsCalls.at(-1)![1].name;
+			assert.deepStrictEqual({
+				advertisedAfterFailure,
+				replacements: mockSession.setToolsCalls.map(tools => tools.map(tool => tool.name)),
+				advertisedAfterRetry: getActions(signals).flatMap(action => action.type === ActionType.SessionMetaChanged ? [...readMcpRoutingServers(action, session.chatChannelUri.toString())] : []),
+			}, {
+				advertisedAfterFailure: [],
+				replacements: [[RUNTIME_TOOL_SEARCH_TOOL_NAME, proxyName], [RUNTIME_TOOL_SEARCH_TOOL_NAME, proxyName]],
+				advertisedAfterRetry: ['connector-workiq'],
+			});
+		});
+
+		test('MCP routing discovers current Connector tools after account authorization without sharing account metadata in the cache', async () => {
+			const { session, mockSession, waitForSignal, storageService } = await createConnectorRoutingSession();
+			const [, proxy] = mockSession.setToolsCalls.at(-1)!;
+			session.resetTurnState('connector-authorize');
+			mockSession.fire('tool.execution_start', { toolCallId: 'authorize-workiq', toolName: proxy.name, arguments: {} });
+			const activation = invokeClientToolHandler(proxy, 'authorize-workiq');
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallAuthRequired));
+			session.markConnectorConfigurationChanged('workiqmcp');
+			assert.strictEqual((await activation).resultType, 'failure');
+			mockSession.fire('tool.execution_complete', { toolCallId: 'authorize-workiq', success: false });
+			mockSession.fire('session.idle', {});
+			mockSession.connectorStatus = { ...mockSession.connectorStatus, authorizationRequirement: undefined };
+			mockSession.mcpListResult = { servers: [{ name: 'connector-workiq', status: 'connected', toolsLoaded: true, source: 'managed' }] };
+			await session.refreshConnectors();
+			session.resetTurnState('connector-retry');
+			const result = await invokeClientToolHandler(proxy, 'retry-workiq');
+			assert.deepStrictEqual({
+				resultType: result.resultType,
+				liveTools: result.textResultForLlm,
+				queriedConnector: mockSession.mcpListToolsCalls.some(call => call.serverName === 'connector-workiq'),
+				cache: storageService.get<unknown>('copilotMcpToolRoutingCache'),
+			}, {
+				resultType: 'success',
+				liveTools: 'The Work IQ (Connector) MCP server is connected. Search tools again to use one of its current tools: ["current_search"]',
+				queriedConnector: true,
+				cache: undefined,
+			});
+		});
+
+		test('MCP routing removes Connector proxies on catalog refresh and rejects stale activation', async () => {
+			const { session, mockSession, signals } = await createConnectorRoutingSession();
+			const [, proxy] = mockSession.setToolsCalls.at(-1)!;
+			mockSession.connectorStatus = { ...mockSession.connectorStatus, runtimeServers: [] };
+			mockSession.mcpListResult = { servers: [] };
+			session.markConnectorConfigurationChanged();
+			await session.refreshConnectors();
+			session.resetTurnState('removed-connector');
+			const result = await invokeClientToolHandler(proxy, 'stale-connector');
+			assert.deepStrictEqual({
+				tools: mockSession.setToolsCalls.at(-1)!.map(tool => tool.name),
+				routedServers: getActions(signals).flatMap(action => action.type === ActionType.SessionMetaChanged ? [[...readMcpRoutingServers(action, session.chatChannelUri.toString())]] : []).at(-1),
+				resultType: result.resultType,
+				starts: mockSession.mcpStartServerCalls,
+			}, {
+				tools: [RUNTIME_TOOL_SEARCH_TOOL_NAME],
+				routedServers: [],
+				resultType: 'failure',
+				starts: [],
+			});
+		});
+
+		test('MCP routing does not activate disabled Connectors or register their proxies when routing is off', async () => {
+			const disabled = await createConnectorRoutingSession({ serverEnabled: false });
+			const [, proxy] = disabled.mockSession.setToolsCalls.at(-1)!;
+			disabled.session.resetTurnState('disabled-connector');
+			const result = await invokeClientToolHandler(proxy, 'disabled-workiq');
+			const routingOff = await createConnectorRoutingSession({ routingEnabled: false });
+			assert.deepStrictEqual({
+				disabledResult: result.resultType,
+				starts: disabled.mockSession.mcpStartServerCalls,
+				routingOffReplacements: routingOff.mockSession.setToolsCalls,
+				routingOffTools: routingOff.runtime.createClientSdkTools(true).map(tool => tool.name),
+			}, {
+				disabledResult: 'failure',
+				starts: [],
+				routingOffReplacements: [],
+				routingOffTools: [RUNTIME_TOOL_SEARCH_TOOL_NAME],
+			});
+		});
+
 		for (const resume of [false, true]) {
 			test(`MCP routing includes uncached SDK user servers before ${resume ? 'resuming' : 'creating'} the SDK session`, async () => {
 				const configuration = { type: 'http' as const, url: 'https://mcp.atlassian.example/mcp', tools: ['*'] };
@@ -30948,6 +31392,138 @@ Use the attached image as context.
 				resolved: false,
 				settledByToken: false,
 				result: { kind: 'cancelled' },
+			});
+		});
+
+		suite('Connector ownership of an MCP authentication request', () => {
+			const connectorScopeChallenge = 'read:user user:email write:plugin_gateway_connections repo';
+
+			async function requestAuthentication(server: Awaited<ReturnType<CopilotSession['rpc']['mcp']['list']>>['servers'][number], options: {
+				readonly runtimeConnector?: string;
+				readonly getStatusError?: Error;
+				readonly getStatus?: () => Promise<Awaited<ReturnType<CopilotSession['rpc']['connectors']['getStatus']>>>;
+				readonly connectorsEnabled?: boolean;
+				readonly connectorOwnershipLookupTimeoutMs?: number;
+				readonly beforeRequest?: (session: CopilotAgentSession) => void;
+			} = {}) {
+				const resource = server.url ?? 'https://mcp.test/';
+				let getStatusCalls = 0;
+				const { session, mockSession, runtime } = await createAgentSession(disposables, {
+					rootValues: { [AgentHostMcpConnectorsEnabledConfigKey]: options.connectorsEnabled ?? true },
+					connectorOwnershipLookupTimeoutMs: options.connectorOwnershipLookupTimeoutMs,
+					configureMockSession: mock => {
+						mock.mcpListResult = { servers: [server] };
+						if (options.runtimeConnector) {
+							mock.connectorStatus = {
+								...mock.connectorStatus,
+								catalog: { revision: 1, refreshedAtMs: 1, connectors: [{ name: options.runtimeConnector, displayName: 'Work Mail', status: 'connected', runtimeServerIds: [server.name] }] },
+								runtimeServers: [{ connectorName: options.runtimeConnector, runtimeServerId: server.name, status: 'needs_auth' }],
+							};
+						}
+					},
+				});
+				if (options.getStatusError) {
+					const error = options.getStatusError;
+					mockSession.rpc.connectors.getStatus = async () => { throw error; };
+				} else if (options.getStatus) {
+					mockSession.rpc.connectors.getStatus = options.getStatus;
+				}
+				await timeout(0);
+				const getStatus = mockSession.rpc.connectors.getStatus;
+				mockSession.rpc.connectors.getStatus = () => { getStatusCalls++; return getStatus(); };
+				options.beforeRequest?.(session);
+				let settled = false;
+				const auth = runtime.handleMcpAuthRequest({
+					requestId: 'insufficient-scope',
+					serverName: server.name,
+					serverUrl: resource,
+					reason: 'upscope',
+					wwwAuthenticateParams: { scope: connectorScopeChallenge, error: 'insufficient_scope' },
+				}, { sessionId: 'test-session-1' });
+				void auth.then(() => { settled = true; });
+				await timeout(0);
+				await timeout(0);
+				return { session, resource, auth, settled: () => settled, getStatusCalls: () => getStatusCalls };
+			}
+
+			for (const server of [
+				{ name: 'github-mcp-server', status: 'connected', source: 'builtin', url: 'https://api.githubcopilot.com/mcp/' },
+				// A server configured through the session's MCP configuration reports no source.
+				{ name: 'ordinary', status: 'connected', url: 'https://ordinary.test/mcp' },
+				{ name: 'github-copilot-connector-94d26095770df60673dd', status: 'needs-auth', source: 'managed', url: 'https://api.github.com/copilot-connectors/api/v1/connectors/mail/mcp' },
+			] as const) {
+				const runtimeConnector = server.source === 'managed' ? 'mail' : undefined;
+				test(`classifies ${server.name} by the runtime's Connector state, not by its challenge`, async () => {
+					const { session, resource, auth, settled } = await requestAuthentication(server, { runtimeConnector });
+					const [published] = session.topLevelMcpCustomizations();
+					const resolved = await session.resolveMcpAuthentication({ resource, scopes: connectorScopeChallenge.split(' '), token: 'step-up-token' });
+					await timeout(0);
+					const settledByToken = settled();
+					session.cancelMcpServerAuthentication(published.id);
+
+					assert.deepStrictEqual({
+						state: published.state.kind,
+						connectorName: readMcpServerConnectorName(published),
+						displayName: readMcpServerDisplayName(published),
+						resolved,
+						settledByToken,
+						result: await auth,
+					}, runtimeConnector ? {
+						state: McpServerStatus.AuthRequired, connectorName: 'mail', displayName: 'Work Mail',
+						resolved: false, settledByToken: false, result: { kind: 'cancelled' },
+					} : {
+						state: McpServerStatus.AuthRequired, connectorName: undefined, displayName: undefined,
+						resolved: true, settledByToken: true, result: { kind: 'token', accessToken: 'step-up-token' },
+					});
+				});
+			}
+
+			test('treats a server as not Connector-owned when the runtime cannot report Connector state', async () => {
+				const server = { name: 'ordinary', status: 'connected', url: 'https://ordinary.test/mcp' } as const;
+				const { session, resource, auth } = await requestAuthentication(server, { getStatusError: new Error('connectors unavailable') });
+				const resolved = await session.resolveMcpAuthentication({ resource, scopes: connectorScopeChallenge.split(' '), token: 'mcp-token' });
+				assert.deepStrictEqual({ resolved, result: await auth }, { resolved: true, result: { kind: 'token', accessToken: 'mcp-token' } });
+			});
+
+			test('does not ask the runtime for Connector ownership when Copilot Connectors are disabled', async () => {
+				const server = { name: 'github-mcp-server', status: 'connected', source: 'builtin', url: 'https://api.githubcopilot.com/mcp/' } as const;
+				const { session, resource, auth, getStatusCalls } = await requestAuthentication(server, { connectorsEnabled: false });
+				const resolved = await session.resolveMcpAuthentication({ resource, scopes: connectorScopeChallenge.split(' '), token: 'mcp-token' });
+				assert.deepStrictEqual({ resolved, getStatusCalls: getStatusCalls(), result: await auth }, {
+					resolved: true, getStatusCalls: 0, result: { kind: 'token', accessToken: 'mcp-token' },
+				});
+			});
+
+			test('does not keep a token waiting on a Connector status read that never answers', async () => {
+				const server = { name: 'ordinary', status: 'connected', url: 'https://ordinary.test/mcp' } as const;
+				const neverAnswers = () => new Promise<never>(() => { });
+				const timedOut = await requestAuthentication(server, { getStatus: neverAnswers, connectorOwnershipLookupTimeoutMs: 1 });
+				const timedOutResolved = await timedOut.session.resolveMcpAuthentication({ resource: timedOut.resource, scopes: connectorScopeChallenge.split(' '), token: 'mcp-token' });
+
+				const cancelled = await requestAuthentication(server, { getStatus: neverAnswers });
+				const [published] = cancelled.session.topLevelMcpCustomizations();
+				const cancelledResolution = cancelled.session.resolveMcpAuthentication({ resource: cancelled.resource, scopes: connectorScopeChallenge.split(' '), token: 'mcp-token' });
+				await timeout(0);
+				cancelled.session.cancelMcpServerAuthentication(published.id);
+
+				assert.deepStrictEqual({
+					timedOut: { resolved: timedOutResolved, result: await timedOut.auth },
+					cancelled: { resolved: await cancelledResolution, result: await cancelled.auth },
+				}, {
+					timedOut: { resolved: true, result: { kind: 'token', accessToken: 'mcp-token' } },
+					cancelled: { resolved: false, result: { kind: 'cancelled' } },
+				});
+			});
+
+			test('releases a Connector request identified from runtime state when the Connector is refreshed during a turn', async () => {
+				const server = { name: 'github-copilot-connector-94d26095770df60673dd', status: 'needs-auth', source: 'managed', url: 'https://api.github.com/copilot-connectors/api/v1/connectors/mail/mcp' } as const;
+				const { session, auth, settled } = await requestAuthentication(server, {
+					runtimeConnector: 'mail',
+					beforeRequest: session => session.resetTurnState('active-turn'),
+				});
+				const beforeRefresh = settled();
+				session.markConnectorConfigurationChanged('mail');
+				assert.deepStrictEqual({ beforeRefresh, result: await auth }, { beforeRefresh: false, result: { kind: 'cancelled' } });
 			});
 		});
 

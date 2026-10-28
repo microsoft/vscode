@@ -148,8 +148,6 @@ export namespace ChatContextKeys {
 	export const hasRemoteCodingAgent = new RawContextKey<boolean>('hasRemoteCodingAgent', false, localize('hasRemoteCodingAgent', "Whether any remote coding agent is available"));
 	export const hasCanDelegateProviders = new RawContextKey<boolean>('chatHasCanDelegateProviders', false, { type: 'boolean', description: localize('chatHasCanDelegateProviders', "True when there are chat session providers with delegation support available.") });
 	export const enableRemoteCodingAgentPromptFileOverlay = new RawContextKey<boolean>('enableRemoteCodingAgentPromptFileOverlay', false, localize('enableRemoteCodingAgentPromptFileOverlay', "Whether the remote coding agent prompt file overlay feature is enabled"));
-	/** Used by the extension to skip the quit confirmation when #new wants to open a new folder */
-	export const skipChatRequestInProgressMessage = new RawContextKey<boolean>('chatSkipRequestInProgressMessage', false, { type: 'boolean', description: localize('chatSkipRequestInProgressMessage', "True when the chat request in progress message should be skipped.") });
 
 	// Re-exported from chat entitlement service
 	export const Setup = ChatEntitlementContextKeys.Setup;
@@ -183,6 +181,7 @@ export namespace ChatContextKeys {
 	export const hasCreatedSessionInAgentsWindow = new RawContextKey<boolean>('chatHasCreatedSessionInAgentsWindow', false, { type: 'boolean', description: localize('chatHasCreatedSessionInAgentsWindow', "True when the user has created at least one session in the Agents Window.") });
 	export const agentSessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('agentSessionType', "The type of the current agent session item.") });
 	export const isAgentSessionChild = new RawContextKey<boolean>('agentSessionIsChild', false, { type: 'boolean', description: localize('agentSessionIsChild', "True when the current agent session item is a child chat.") });
+	export const agentSessionChildCanArchive = new RawContextKey<boolean>('agentSessionChildCanArchive', false);
 	/**
 	 * Whether the agent session item has an associated pull request. Tri-state, so gate with
 	 * `chatSessionPullRequest != 'none'` to keep contributions visible when the state is unknown.

@@ -27,7 +27,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { getCapturedCredentialSourceKey, IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
-import { getPullRequestArtifactChecks, getPullRequestArtifactCheckState, getPullRequestArtifactThreads, GitHubPullRequestArtifactTarget, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactOptions, gitHubPullRequestArtifactWorkspaceSettingsKey, isArtifactDataObject, isCurrentPullRequestFragment, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
+import { getPullRequestArtifactChecks, getPullRequestArtifactCheckState, getPullRequestArtifactFailedChecks, getPullRequestArtifactThreads, GitHubPullRequestArtifactTarget, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactOptions, gitHubPullRequestArtifactWorkspaceSettingsKey, isArtifactDataObject, isCurrentPullRequestFragment, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
 import { AuthRequiredReason } from '../../common/state/sessionActions.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
@@ -59,7 +59,8 @@ async function withAuthenticationRecovery<T>(operation: () => Promise<T>, owner:
 			throw new CancellationError();
 		}
 		if (error instanceof GitHubRequestError && (error.kind === 'authentication' || error.kind === 'authorization')) {
-			requestAuthentication(error);
+			const ssoAuthorizationUrl = error.responseMetadata?.ssoAuthorizationUrl;
+			requestAuthentication({ message: error.message, kind: error.kind, statusCode: error.statusCode, ...(ssoAuthorizationUrl ? { ssoAuthorizationUrl } : {}) });
 			throw new GitHubRequestError(authenticationRequiredMessage(owner, error.message), error.kind, error.statusCode);
 		}
 		throw error;
@@ -392,7 +393,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			refreshWorkspace.schedule();
 		}));
 		this.actions = [
-			this.promptAction('fixCI', 'tools', localize('prArtifact.fixCI', "Fix Checks")),
+			this.promptAction('fixCI', 'github-action', localize('prArtifact.fixCI', "Fix Checks")),
 			this.promptAction('addressReviews', 'comment-discussion', localize('prArtifact.addressReviews', "Address Comments")),
 			this.promptAction('resolveConflicts', 'git-compare', localize('prArtifact.updateBranch', "Resolve Conflicts / Update Branch")),
 			this.codeAction('markReady', 'git-pull-request', localize('prArtifact.markReady', "Mark Ready")),
@@ -421,11 +422,13 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			const skipped = checkStates.filter(state => state === 'skipped').length;
 			const completedWithoutFailure = passed + skipped;
 			const checksIcon = checkIcon(failed ? 'failed' : checkStates.includes('pending') ? 'pending' : passed ? 'passed' : 'skipped');
+			// Every check is listed, but only the ones that count need a repair.
+			const failedRequired = checks.length > 0 && getPullRequestArtifactFailedChecks(snapshot).length > 0;
 			const mergeability = snapshot.mergeability;
 			const conflicting = hasCore && open && hasPresentationData(mergeability, core.headSha) && mergeability.value.mergeable === 'CONFLICTING';
 			const visibleActions = new Set([
 				...threads.length ? ['addressReviews'] : [],
-				...failed ? ['fixCI'] : [],
+				...failedRequired ? ['fixCI'] : [],
 				...hasPresentationData(mergeability, core?.headSha) && (conflicting || mergeability.value.mergeStateStatus === 'BEHIND') ? ['resolveConflicts'] : [],
 				core?.draft ? 'markReady' : 'merge',
 			]);
@@ -434,7 +437,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			return {
 				availability,
 				main: { label: `#${resource.target.number}`, icon: this.mainIcon(snapshot), detailsId: 'main', description: core ? `${this.stateLabel(snapshot)}: ${core.title}` : localize('prArtifact.loading', "Loading pull request.") },
-				...(hasCore && core ? { group: getPullRequestGroupPresentation(core, { needsRepair: open && (failed > 0 || conflicting), hasComments: threads.length > 0 }) } : {}),
+				...(hasCore && core ? { group: getPullRequestGroupPresentation(core, { needsRepair: open && (failedRequired || conflicting), hasComments: threads.length > 0 }) } : {}),
 				sections: [
 					...(checks.length ? [{
 						id: 'checks', detailsId: 'checks',
@@ -517,7 +520,10 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	private availability(snapshot: PullRequestSnapshot): ArtifactAvailability {
 		const authenticationError = this.resource.authenticationError.get();
 		if (authenticationError) {
-			return { kind: 'authenticationRequired', reason: authenticationRequiredMessage(this.resource.target.owner, authenticationError.message) };
+			return {
+				kind: 'authenticationRequired', reason: authenticationRequiredMessage(this.resource.target.owner, authenticationError.message),
+				...(authenticationError.ssoAuthorizationUrl ? { authorizationUrl: authenticationError.ssoAuthorizationUrl } : {}),
+			};
 		}
 		const core = snapshot.core;
 		if (core.error) {
@@ -715,7 +721,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		}
 		switch (actionId) {
 			case 'addressReviews': return isCurrentPullRequestFragment(snapshot.reviewThreads) && this.threads(snapshot).length > 0;
-			case 'fixCI': return isCurrentPullRequestFragment(snapshot.checks, snapshot.core.value.headSha) && getPullRequestArtifactChecks(snapshot).some(check => getPullRequestArtifactCheckState(check) === 'failed');
+			case 'fixCI': return isCurrentPullRequestFragment(snapshot.checks, snapshot.core.value.headSha) && getPullRequestArtifactFailedChecks(snapshot).length > 0;
 			case 'resolveConflicts': return isCurrentPullRequestFragment(snapshot.mergeability, snapshot.core.value.headSha)
 				&& (snapshot.mergeability.value.mergeable === 'CONFLICTING' || snapshot.mergeability.value.mergeStateStatus === 'BEHIND');
 			case 'markReady': {
@@ -856,8 +862,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			}
 			lines.push(`There are ${threads.length} eligible unresolved threads. The quoted preview is bounded; retrieve the full thread content and any remaining eligible threads before claiming all feedback is addressed.`);
 		} else if (id === 'fixCI') {
-			lines.push('Investigate and fix every failing check below, including optional checks. Read the actual diagnostics and logs. A transient failure may be rerun instead of changing code. Report missing tools or inaccessible logs as blockers; do not claim they were fixed.');
-			const failures = getPullRequestArtifactChecks(snapshot).filter(check => getPullRequestArtifactCheckState(check) === 'failed');
+			lines.push('Investigate and fix every failing check below. They are the required checks and the jobs a required check waits for. Read the actual diagnostics and logs. A transient failure may be rerun instead of changing code. Report missing tools or inaccessible logs as blockers; do not claim they were fixed.');
+			const failures = getPullRequestArtifactFailedChecks(snapshot);
 			for (const check of failures.slice(0, 100)) {
 				lines.push(quote(JSON.stringify(check)));
 			}
@@ -1067,7 +1073,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 
 	private occurrenceKey(id: string, snapshot: PullRequestSnapshot): string {
 		const state = id === 'addressReviews' ? this.threads(snapshot).map(thread => [thread.id, ...thread.comments.filter(comment => isPullRequestFeedbackAuthor(comment.author)).map(comment => [comment.id, comment.updatedAt ?? comment.createdAt, comment.body])])
-			: id === 'fixCI' ? getPullRequestArtifactChecks(snapshot).filter(check => getPullRequestArtifactCheckState(check) === 'failed').map(check => [check.id, check.status, check.conclusion])
+			: id === 'fixCI' ? getPullRequestArtifactFailedChecks(snapshot).map(check => [check.id, check.status, check.conclusion])
 				: id === 'resolveConflicts' ? snapshot.core.value?.baseSha : id;
 		return createHash('sha256').update(JSON.stringify([snapshot.core.value?.headSha, state])).digest('hex');
 	}

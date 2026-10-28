@@ -149,6 +149,14 @@ suite('Detect Changes', () => {
 			['build/azure-pipelines/win32/steps/product-build-win32-test.yml', ['false', 'false', 'false']],
 			['build/azure-pipelines/linux/setup-env.sh', ['true', 'true', 'true']],
 			['build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts', ['true', 'true', 'true']],
+			['.vscode/settings.json', ['false', 'false', 'false']],
+			['.vscode/extensions/vscode-selfhost-test-provider/src/extension.ts', ['false', 'false', 'false']],
+			['.vscode/extensions/vscode-extras/package.json', ['false', 'false', 'false']],
+			['extensions/vscode-api-tests/testWorkspace/.vscode/settings.json', ['false', 'true', 'true']],
+			['eslint.config.js', ['false', 'false', 'false']],
+			['.eslint-plugin-local/code-no-any-casts.ts', ['false', 'false', 'false']],
+			['test/sanity/src/cli.test.ts', ['false', 'false', 'false']],
+			['test/smoke/src/main.ts', ['true', 'true', 'true']],
 			['package.json', ['true', 'true', 'true']],
 		];
 		const results: [string, string[]][] = [];
@@ -199,6 +207,43 @@ suite('Detect Changes', () => {
 				'telemetry': 'false',
 			},
 			unskippableJobs: ['changes', 'compile', 'pr-gate'],
+		});
+	});
+
+	test('a change to the workspace configuration, the ESLint configuration or the sanity tests runs only Compile & Hygiene, and the Copilot checks lint with the ESLint configuration', async () => {
+		const onlyCompileAndHygiene = {
+			'cli': 'false',
+			'copilot-shim': 'false',
+			'copilot': 'false',
+			'unit-tests': 'false',
+			'browser-integration': 'false',
+			'product-tests': 'false',
+			'monaco-editor': 'false',
+			'telemetry': 'false',
+		};
+		assert.deepStrictEqual({
+			workspaceConfiguration: await detect([
+				{ filename: '.vscode/settings.json' },
+				{ filename: '.vscode/launch.json' },
+				{ filename: '.vscode/tasks.json' },
+				{ filename: '.vscode/extensions/vscode-selfhost-test-provider/src/extension.ts' },
+				{ filename: '.vscode/extensions/vscode-extras/package-lock.json' },
+			]),
+			eslintConfiguration: await detect([
+				{ filename: 'eslint.config.js' },
+				{ filename: '.eslint-ignore' },
+				{ filename: '.eslint-allowed-javascript-files' },
+				{ filename: '.eslint-allowed-bracket-notation-files' },
+				{ filename: '.eslint-plugin-local/code-no-any-casts.ts' },
+			]),
+			sanityTests: await detect([
+				{ filename: 'test/sanity/src/cli.test.ts' },
+				{ filename: 'test/sanity/package-lock.json' },
+			]),
+		}, {
+			workspaceConfiguration: onlyCompileAndHygiene,
+			eslintConfiguration: { ...onlyCompileAndHygiene, 'copilot': 'true' },
+			sanityTests: onlyCompileAndHygiene,
 		});
 	});
 
