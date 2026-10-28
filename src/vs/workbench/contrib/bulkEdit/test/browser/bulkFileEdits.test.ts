@@ -21,7 +21,7 @@ import { Progress } from '../../../../../platform/progress/common/progress.js';
 import { IUndoRedoElement, IUndoRedoService, UndoRedoGroup } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { mock } from '../../../../test/common/workbenchTestServices.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
-import { ICreateFileOperation, ICreateOperation, IDeleteOperation, IWorkingCopyFileService } from '../../../../services/workingCopy/common/workingCopyFileService.js';
+import { ICreateFileOperation, ICreateOperation, IDeleteOperation, IMoveOperation, IWorkingCopyFileService } from '../../../../services/workingCopy/common/workingCopyFileService.js';
 import { BulkFileEdits } from '../../browser/bulkFileEdits.js';
 
 suite('BulkFileEdits', function () {
@@ -172,6 +172,199 @@ suite('BulkFileEdits', function () {
 	test('delete skips undo contents exceeding the size limit', async () => {
 		assert.deepStrictEqual(await applyDelete([FileType.File], { maxSize: 2 }), [
 			{ kind: 'delete', resource: '/workspace/entry-0' }
+		]);
+	});
+
+	test('rename reverses moves order on undo and restores order on redo', async () => {
+		const operations: { kind: 'move'; source: string; target: string }[] = [];
+		const fileService = new class extends mock<IFileService>() {
+			override async exists(): Promise<boolean> {
+				return false;
+			}
+		};
+		const workingCopyFileService = new class extends mock<IWorkingCopyFileService>() {
+			override async move(moves: IMoveOperation[]): Promise<readonly IFileStatWithMetadata[]> {
+				for (const { file: { source, target } } of moves) {
+					operations.push({ kind: 'move', source: source.path, target: target.path });
+				}
+				return [];
+			}
+		};
+		let undoElement: IUndoRedoElement | undefined;
+		const undoRedoService = new class extends mock<IUndoRedoService>() {
+			override pushElement(element: IUndoRedoElement): void {
+				undoElement = element;
+			}
+		};
+
+		const instantiationService = store.add(new InstantiationService(new ServiceCollection(
+			[IConfigurationService, new TestConfigurationService()],
+			[IFileService, fileService],
+			[ILogService, new NullLogService()],
+			[ITextFileService, new class extends mock<ITextFileService>() { }],
+			[IUndoRedoService, undoRedoService],
+			[IWorkingCopyFileService, workingCopyFileService],
+		), true));
+
+		const edits = [
+			new ResourceFileEdit(URI.file('/workspace/a/b.txt'), URI.file('/workspace/b.txt')),
+			new ResourceFileEdit(URI.file('/workspace/a'), URI.file('/workspace/c'))
+		];
+		const bulkFileEdits = instantiationService.createInstance(
+			BulkFileEdits,
+			'Rename',
+			'rename',
+			new UndoRedoGroup(),
+			undefined,
+			false,
+			Progress.None,
+			CancellationToken.None,
+			edits
+		);
+
+		await bulkFileEdits.apply();
+		assert.deepStrictEqual(operations, [
+			{ kind: 'move', source: '/workspace/a/b.txt', target: '/workspace/b.txt' },
+			{ kind: 'move', source: '/workspace/a', target: '/workspace/c' }
+		]);
+
+		operations.length = 0;
+		assert.ok(undoElement);
+		await undoElement.undo();
+		assert.deepStrictEqual(operations, [
+			{ kind: 'move', source: '/workspace/c', target: '/workspace/a' },
+			{ kind: 'move', source: '/workspace/b.txt', target: '/workspace/a/b.txt' }
+		]);
+
+		operations.length = 0;
+		await undoElement.redo();
+		assert.deepStrictEqual(operations, [
+			{ kind: 'move', source: '/workspace/a/b.txt', target: '/workspace/b.txt' },
+			{ kind: 'move', source: '/workspace/a', target: '/workspace/c' }
+		]);
+	});
+
+	test('undo and redo reverse operation groups order', async () => {
+		const operations: { kind: string; resource?: string; source?: string; target?: string }[] = [];
+		const fileService = new class extends mock<IFileService>() {
+			override async exists(): Promise<boolean> {
+				return false;
+			}
+			override async resolve(resource: URI): Promise<IFileStatWithMetadata> {
+				return {
+					resource,
+					name: 'd.txt',
+					isFile: true,
+					isDirectory: false,
+					isSymbolicLink: false,
+					mtime: 0,
+					ctime: 0,
+					etag: '',
+					size: 0,
+					readonly: false,
+					locked: false,
+					executable: false,
+					children: undefined
+				};
+			}
+			override hasCapability(): boolean {
+				return false;
+			}
+			override async readFile(): Promise<IFileContent> {
+				return {
+					resource: URI.file('/workspace/d.txt'),
+					name: 'd.txt',
+					size: 0,
+					mtime: 0,
+					ctime: 0,
+					etag: '',
+					readonly: false,
+					locked: false,
+					executable: false,
+					value: VSBuffer.fromString('')
+				};
+			}
+		};
+		const workingCopyFileService = new class extends mock<IWorkingCopyFileService>() {
+			override async move(moves: IMoveOperation[]): Promise<readonly IFileStatWithMetadata[]> {
+				for (const { file: { source, target } } of moves) {
+					operations.push({ kind: 'move', source: source.path, target: target.path });
+				}
+				return [];
+			}
+			override async delete(deletes: IDeleteOperation[]): Promise<void> {
+				for (const { resource } of deletes) {
+					operations.push({ kind: 'delete', resource: resource.path });
+				}
+			}
+			override async create(creates: ICreateFileOperation[]): Promise<readonly IFileStatWithMetadata[]> {
+				for (const { resource } of creates) {
+					operations.push({ kind: 'create', resource: resource.path });
+				}
+				return [];
+			}
+			override async createFolder(): Promise<readonly IFileStatWithMetadata[]> {
+				return [];
+			}
+		};
+		let undoElement: IUndoRedoElement | undefined;
+		const undoRedoService = new class extends mock<IUndoRedoService>() {
+			override pushElement(element: IUndoRedoElement): void {
+				undoElement = element;
+			}
+		};
+
+		const textFileService = new class extends mock<ITextFileService>() {
+			override async getEncodedReadable(): Promise<any> {
+				return VSBuffer.fromString('');
+			}
+		};
+
+		const instantiationService = store.add(new InstantiationService(new ServiceCollection(
+			[IConfigurationService, new TestConfigurationService()],
+			[IFileService, fileService],
+			[ILogService, new NullLogService()],
+			[ITextFileService, textFileService],
+			[IUndoRedoService, undoRedoService],
+			[IWorkingCopyFileService, workingCopyFileService],
+		), true));
+
+		// Rename group followed by Delete group
+		const edits = [
+			new ResourceFileEdit(URI.file('/workspace/a/b.txt'), URI.file('/workspace/b.txt')),
+			new ResourceFileEdit(URI.file('/workspace/d.txt'), undefined)
+		];
+		const bulkFileEdits = instantiationService.createInstance(
+			BulkFileEdits,
+			'Mixed',
+			'mixed',
+			new UndoRedoGroup(),
+			undefined,
+			false,
+			Progress.None,
+			CancellationToken.None,
+			edits
+		);
+
+		await bulkFileEdits.apply();
+		assert.deepStrictEqual(operations, [
+			{ kind: 'move', source: '/workspace/a/b.txt', target: '/workspace/b.txt' },
+			{ kind: 'delete', resource: '/workspace/d.txt' }
+		]);
+
+		operations.length = 0;
+		assert.ok(undoElement);
+		await undoElement.undo();
+		assert.deepStrictEqual(operations, [
+			{ kind: 'create', resource: '/workspace/d.txt' },
+			{ kind: 'move', source: '/workspace/b.txt', target: '/workspace/a/b.txt' }
+		]);
+
+		operations.length = 0;
+		await undoElement.redo();
+		assert.deepStrictEqual(operations, [
+			{ kind: 'move', source: '/workspace/a/b.txt', target: '/workspace/b.txt' },
+			{ kind: 'delete', resource: '/workspace/d.txt' }
 		]);
 	});
 });
