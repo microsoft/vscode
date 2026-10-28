@@ -10,12 +10,17 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IFileDialogService, IOpenDialogOptions } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
-import { AgentContextValuePick, GitHubContextValuePick, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
+import { AgentContextValuePick, FileContextValuePick, GitHubContextValuePick, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
+import { IChatAttachmentResolveService } from '../../../browser/attachments/chatAttachmentResolveService.js';
 import { ChatContextPickService } from '../../../browser/attachments/chatContextPickService.js';
 import { IChatWidget } from '../../../browser/chat.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
+import { AUTO_RAW_MODEL_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
+import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IGitRepository, IGitService } from '../../../../git/common/gitService.js';
 
 function widget(overrides: Partial<Pick<IChatWidget, 'viewModel' | 'lockedAgentId'>>): Pick<IChatWidget, 'viewModel' | 'lockedAgentId'> {
@@ -98,6 +103,151 @@ function workspaceContextService(folders: readonly { readonly uri: URI; readonly
 suite('ChatContext', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('Files picker', () => {
+		const file = URI.file('/outside-workspace/notes.txt');
+		const image = URI.file('/outside-workspace/screenshot.webp');
+		let resources: URI[] | undefined;
+		let dialogError: Error | undefined;
+		let options: IOpenDialogOptions | undefined;
+		let resolved: URI[];
+		let warnings: string[];
+		let errors: string[];
+		let focusCount: number;
+		let pick: FileContextValuePick;
+
+		function createWidget(supportsFiles = true, supportsImages = true, vision: boolean | 'auto' = true): IChatWidget {
+			return upcastPartial<IChatWidget>({
+				attachmentCapabilities: { supportsFileAttachments: supportsFiles, supportsImageAttachments: supportsImages },
+				input: upcastPartial<ChatInputPart>({
+					selectedLanguageModel: observableValue('test', upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
+						metadata: upcastPartial<ILanguageModelChatMetadata>({
+							id: vision === 'auto' ? AUTO_RAW_MODEL_ID : 'test',
+							capabilities: { vision: vision === true },
+						}),
+					})),
+				}),
+				focusInput: () => focusCount++,
+			});
+		}
+
+		setup(() => {
+			resources = [file, image];
+			dialogError = undefined;
+			options = undefined;
+			resolved = [];
+			warnings = [];
+			errors = [];
+			focusCount = 0;
+			pick = new FileContextValuePick(
+				new class extends mock<IFileDialogService>() {
+					override async showOpenDialog(dialogOptions: IOpenDialogOptions): Promise<URI[] | undefined> {
+						options = dialogOptions;
+						if (dialogError) {
+							throw dialogError;
+						}
+						return resources;
+					}
+				}(),
+				new class extends mock<IChatAttachmentResolveService>() {
+					override async resolveEditorAttachContext(editor: Parameters<IChatAttachmentResolveService['resolveEditorAttachContext']>[0]): Promise<IChatRequestVariableEntry | undefined> {
+						assert.ok(editor.resource);
+						resolved.push(editor.resource);
+						if (editor.resource.path.endsWith('unreadable.txt')) {
+							throw new Error('Read failed');
+						}
+						if (editor.resource.path.endsWith('missing.txt')) {
+							return undefined;
+						}
+						return editor.resource.path.endsWith('.webp')
+							? { kind: 'image', id: editor.resource.toString(), name: 'screenshot.webp', value: new Uint8Array([1, 2, 3]) }
+							: { kind: 'file', id: editor.resource.toString(), name: 'notes.txt', value: editor.resource };
+					}
+				}(),
+				new class extends mock<INotificationService>() {
+					override warn(message: string): void { warnings.push(message); }
+					override error(message: string): void { errors.push(message); }
+				}(),
+			);
+		});
+
+		test('selects multiple files and images without a workspace or session', async () => {
+			const attachments = await pick.asAttachment(createWidget());
+			assert.deepStrictEqual({
+				options,
+				resolved,
+				attachments: attachments?.map(attachment => ({ id: attachment.id, kind: attachment.kind })),
+				warnings, errors, focusCount,
+			}, {
+				options: { title: 'Attach Files', openLabel: 'Attach', canSelectFiles: true, canSelectFolders: false, canSelectMany: true },
+				resolved: [file, image],
+				attachments: [{ id: file.toString(), kind: 'file' }, { id: image.toString(), kind: 'image' }],
+				warnings: [], errors: [], focusCount: 1,
+			});
+		});
+
+		test('cancelling the dialog leaves attachments unchanged and restores input focus', async () => {
+			resources = undefined;
+			const attachments = await pick.asAttachment(createWidget());
+			assert.deepStrictEqual({ attachments, resolved, warnings, errors, focusCount }, {
+				attachments: undefined, resolved: [], warnings: [], errors: [], focusCount: 1,
+			});
+		});
+
+		test('reports file dialog errors and restores input focus', async () => {
+			dialogError = new Error('Dialog failed');
+			const attachments = await pick.asAttachment(createWidget());
+			assert.deepStrictEqual({ attachments, resolved, errors, focusCount }, {
+				attachments: undefined,
+				resolved: [],
+				errors: ['Could not open the file dialog: Dialog failed'],
+				focusCount: 1,
+			});
+		});
+
+		test('requires file attachment support, including after the dialog closes', async () => {
+			const widget = createWidget(false);
+			const attachments = await pick.asAttachment(widget);
+			assert.deepStrictEqual({ enabled: [pick.isEnabled(createWidget()), pick.isEnabled(widget)], attachments, resolved, warnings, focusCount }, {
+				enabled: [true, false],
+				attachments: undefined,
+				resolved: [],
+				warnings: ['File attachments are not supported in this chat.'],
+				focusCount: 1,
+			});
+		});
+
+		test('does not attach images when the chat or selected model does not support them', async () => {
+			const results = [];
+			for (const widget of [createWidget(true, false), createWidget(true, true, false)]) {
+				results.push((await pick.asAttachment(widget))?.map(attachment => attachment.kind));
+			}
+			assert.deepStrictEqual({ results, warnings, errors, focusCount }, {
+				results: [['file'], ['file']],
+				warnings: Array(2).fill('Could not attach screenshot.webp. Image attachments are not supported by the current chat or model.'),
+				errors: [],
+				focusCount: 2,
+			});
+		});
+
+		test('supports images with automatic model selection', async () => {
+			const attachments = await pick.asAttachment(createWidget(true, true, 'auto'));
+			assert.deepStrictEqual({ kinds: attachments?.map(attachment => attachment.kind), warnings, errors }, {
+				kinds: ['file', 'image'], warnings: [], errors: [],
+			});
+		});
+
+		test('reports resolution failures and continues attaching the remaining files', async () => {
+			resources = [URI.file('/missing.txt'), URI.file('/unreadable.txt'), file];
+			const attachments = await pick.asAttachment(createWidget());
+			assert.deepStrictEqual({ kinds: attachments?.map(attachment => attachment.kind), warnings, errors, focusCount }, {
+				kinds: ['file'],
+				warnings: ['Could not attach missing.txt.'],
+				errors: ['Could not attach unreadable.txt: Read failed'],
+				focusCount: 1,
+			});
+		});
+	});
 
 	test('opens the invoking widget agent picker from Add Context without adding an attachment', async () => {
 		const pick = new AgentContextValuePick();
