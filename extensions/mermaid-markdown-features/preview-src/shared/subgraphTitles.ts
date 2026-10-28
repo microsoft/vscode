@@ -84,9 +84,9 @@ export function placeSubgraphTitlesInSvgMarkup(svgMarkup: string): string {
 }
 
 /**
- * Moves flowchart subgraph titles from the top center of their subgraph, where edges entering the
- * subgraph usually cross them, to the top left. If an edge or edge label would still cross a title
- * there, the title is centered, right-aligned, or moved into the closest gap between edges instead.
+ * Keeps flowchart subgraph titles at the top center of their subgraph, where Mermaid puts them,
+ * unless an edge or edge label crosses them there, as edges entering the subgraph usually do. Such a
+ * title moves to the top left, the top right, or into the closest gap between edges instead.
  *
  * Subgraphs too narrow to keep the title clear of their sides are widened first.
  *
@@ -232,16 +232,17 @@ function growViewBox(svg: SVGSVGElement, boxes: readonly Box[]): void {
 }
 
 /**
- * Picks the title's left x: left-aligned, centered or right-aligned, whichever is clear first.
+ * Picks the title's left x: centered, left-aligned or right-aligned, whichever is clear first.
  * Otherwise the clear position closest to left-aligned, where the title may come as close as
- * {@link minTitleInset} to the border. Falls back to left-aligned when nothing is clear.
+ * {@link minTitleInset} to the border. Falls back to centered when nothing is clear.
  */
 function chooseTitleX(cluster: Range, titleWidth: number, blocked: readonly Range[]): number {
+	const center = (cluster.start + cluster.end - titleWidth) / 2;
 	const left = cluster.start + titleInset;
 	const right = cluster.end - titleInset - titleWidth;
 	const isClear = (x: number) => blocked.every(range => range.end <= x - titleClearance || range.start >= x + titleWidth + titleClearance);
 
-	for (const x of [left, (cluster.start + cluster.end - titleWidth) / 2, right]) {
+	for (const x of [center, left, right]) {
 		if (isClear(x)) {
 			return x;
 		}
@@ -256,7 +257,7 @@ function chooseTitleX(cluster: Range, titleWidth: number, blocked: readonly Rang
 	}
 	gaps.push({ start, end });
 
-	let x = left;
+	let x = center;
 	let distance = Infinity;
 	for (const gap of gaps.filter(gap => gap.start <= gap.end)) {
 		const closest = Math.min(Math.max(left, gap.start), gap.end);

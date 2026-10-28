@@ -92,12 +92,14 @@ it('renders diagrams at their natural size in the VS Code theme, and follows edi
 		await page.evaluate(() => window.mermaidTest.setText('flowchart LR\n A[Recovered] --> B[Second]'));
 		await frame.locator('svg').filter({ hasText: 'Recovered' }).waitFor();
 
-		// Subgraph titles sit at the top left, clear of the edge that enters the subgraph at its top center,
-		// and a subgraph narrower than its title is widened to keep the title off its sides.
-		await page.evaluate(() => window.mermaidTest.setText('flowchart TD\n A[Source] --> B\n subgraph Webview\n  B[Layout graph] --> C[Render SVG]\n end\n subgraph Long[A subgraph title that is much wider than its content]\n  D[Step]\n end'));
-		await frame.locator('svg').filter({ hasText: 'Webview' }).waitFor();
+		// Subgraph titles stay centered unless an edge crosses them there, so the title of a subgraph whose
+		// edge enters at its top center moves to the top left. A subgraph narrower than its title is widened
+		// to keep the title off its sides.
+		await page.evaluate(() => window.mermaidTest.setText('flowchart TD\n A[Source] --> B\n A --> D\n A --> E\n subgraph Webview\n  B[Layout graph] --> C[Render SVG]\n end\n subgraph Children\n  D[Left child]\n  E[Right child]\n end\n subgraph Long[A subgraph title that is much wider than its content]\n  F[Step]\n end'));
+		await frame.locator('svg').filter({ hasText: 'Children' }).waitFor();
 		const subgraphTitles = await frame.evaluate(() => {
-			const [webview, long] = [...document.querySelectorAll('g.cluster')].map(cluster => {
+			const measure = (name: string) => {
+				const cluster = [...document.querySelectorAll('g.cluster')].find(cluster => cluster.querySelector('.cluster-label')!.textContent!.trim().startsWith(name))!;
 				const rect = cluster.querySelector('rect')!;
 				const box = rect.getBoundingClientRect();
 				const title = cluster.querySelector('.cluster-label foreignObject')!.getBoundingClientRect();
@@ -113,10 +115,19 @@ it('renders diagrams at their natural size in the VS Code theme, and follows edi
 					return false;
 				});
 				return { insetLeft: Math.round((title.left - box.left) / scale), insetRight: Math.round((box.right - title.right) / scale), insetTop: Math.round((title.top - box.top) / scale), crossedByEdge };
-			});
-			return { webview: { insetLeft: webview.insetLeft, insetTop: webview.insetTop, crossedByEdge: webview.crossedByEdge }, long: { insetLeft: long.insetLeft, insetRight: long.insetRight } };
+			};
+			const [webview, children, long] = ['Webview', 'Children', 'A subgraph title'].map(measure);
+			return {
+				webview: { insetLeft: webview.insetLeft, insetTop: webview.insetTop, crossedByEdge: webview.crossedByEdge },
+				children: { centered: Math.abs(children.insetLeft - children.insetRight) <= 1, crossedByEdge: children.crossedByEdge },
+				long: { insetLeft: long.insetLeft, insetRight: long.insetRight },
+			};
 		});
-		assert.deepEqual(subgraphTitles, { webview: { insetLeft: 12, insetTop: 8, crossedByEdge: false }, long: { insetLeft: 12, insetRight: 12 } });
+		assert.deepEqual(subgraphTitles, {
+			webview: { insetLeft: 12, insetTop: 8, crossedByEdge: false },
+			children: { centered: true, crossedByEdge: false },
+			long: { insetLeft: 12, insetRight: 12 },
+		});
 		assert.deepEqual(errors, []);
 	} finally {
 		await browser.close();
