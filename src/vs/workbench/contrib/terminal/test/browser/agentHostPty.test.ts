@@ -955,8 +955,10 @@ suite('AgentHostPty', () => {
 			readonly restoreError?: number;
 			readonly probe: number | 'exists';
 			readonly originalRequestDelivered?: boolean;
+			readonly exhaustReconnect?: boolean;
 		}) {
 			const reconnectRelease = new DeferredPromise<void>();
+			const createStarted = new DeferredPromise<void>();
 			const transports: ReconnectTestTransport[] = [];
 			const traces: string[] = [];
 			const wireTerminal = URI.parse('opaque-terminal:/host-selected-id');
@@ -989,6 +991,7 @@ suite('AgentHostPty', () => {
 									: reply({ type: ReconnectResultType.Replay, actions: [], missing: [wireTerminal.toString()] });
 							case 'createTerminal':
 								if (++creates === 1) {
+									void createStarted.complete();
 									return undefined;
 								}
 								if (originalCreationPending && options.meta?.[AgentHostSerializedTerminalCreationCapabilityMetaKey] === true) {
@@ -1013,7 +1016,16 @@ suite('AgentHostPty', () => {
 					transports.push(transport);
 					return transport;
 				},
-				{ displayName: 'Test Host', prepareReconnect: () => reconnectRelease.p, reconnectPolicy: { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 1 } },
+				{
+					displayName: 'Test Host',
+					prepareReconnect: async () => {
+						await reconnectRelease.p;
+						if (options.exhaustReconnect) {
+							throw new Error('Tunnel relay unavailable');
+						}
+					},
+					reconnectPolicy: { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 1 },
+				},
 				log,
 				new class extends mock<IAgentHostResourceService>() { override connectionClosed(): void { } }(),
 				new TestConfigurationService(),
@@ -1030,29 +1042,46 @@ suite('AgentHostPty', () => {
 			const pty = disposables.add(new AgentHostPty(1, client, wireTerminal, undefined, log));
 			let ready = false;
 			disposables.add(pty.onProcessReady(() => ready = true));
-			const starting = pty.start();
-			for (let attempts = 0; creates === 0; attempts++) {
-				assert.ok(attempts < 100, 'createTerminal was not sent');
-				await timeout(1);
+			let result: Awaited<ReturnType<AgentHostPty['start']>> | 'pending' = 'pending';
+			const starting = pty.start().then(value => { result = value; });
+			await createStarted.p;
+			const closed = options.exhaustReconnect ? Event.toPromise(client.onDidClose) : undefined;
+			if (options.exhaustReconnect) {
+				disposables.add(client.onDidClose(() => client.dispose()));
 			}
 			transports[0].close.fire();
 			await timeout(0);
 			await reconnectRelease.complete();
-			const result = await starting;
+			if (closed) {
+				await closed;
+				await timeout(0);
+			} else {
+				await starting;
+			}
+			const launchResult = result;
 			const pendingAtResult = originalCreationPending;
 			if (originalCreationPending) {
 				originalCreationPending = false;
 				shells++;
 			}
 			pty.shutdown(false);
+			await starting;
 			await timeout(0);
 			return {
-				result, ready, creates, shells, pendingAtResult,
+				result: launchResult, ready, creates, shells, pendingAtResult,
 				recheckedRestoreFailure: traces.some(message => message.includes('Subscription no longer available after reconnect:')) && subscribes >= 2,
 			};
 		}
 
 		const safeMeta = getAgentHostExtensionInitializeResultMeta();
+
+		test('reports the original launch error when exhausted reconnect disposes the client', async () => {
+			const actual = await runReconnectScenario({ exhaustReconnect: true, probe: 'exists', originalRequestDelivered: false });
+			assert.deepStrictEqual(actual, {
+				result: { message: 'Transport lost (reconnecting): Test Host' }, ready: false, creates: 1, shells: 0,
+				pendingAtResult: false, recheckedRestoreFailure: false,
+			});
+		});
 
 		for (const restoreError of [undefined, JSON_RPC_INTERNAL_ERROR, AhpErrorCodes.PermissionDenied]) {
 			test(`does not recreate after an inconclusive reconnect restore (${restoreError ?? 'missing list'})`, async () => {

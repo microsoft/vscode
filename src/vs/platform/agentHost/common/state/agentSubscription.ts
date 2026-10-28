@@ -1379,6 +1379,16 @@ export class AgentSubscriptionManager extends Disposable {
 		}
 	}
 
+	/** Fail pending acquired subscriptions before the closed connection is disposed. */
+	failPendingSubscriptions(error: Error): void {
+		for (const entry of [...this._subscriptions.values()]) {
+			if (entry.sub.value === undefined) {
+				entry.snapshotVersion++;
+				entry.sub.setError(error);
+			}
+		}
+	}
+
 	private _createSubscription(kind: StateComponents, key: string): ManagedSubscription {
 		switch (kind) {
 			case StateComponents.Session:

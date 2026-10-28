@@ -1141,6 +1141,30 @@ suite('AgentSubscriptionManager', () => {
 		assert.strictEqual(mgr.rootState.value, undefined);
 	});
 
+	test('closing fails pending subscriptions without losing hydrated state or accepting a late snapshot', async () => {
+		const pendingUri = URI.parse('opaque-terminal:/pending');
+		const snapshot = new DeferredPromise<IStateSnapshot>();
+		const state = makeTerminalState();
+		const mgr = createManager(async resource => resource.toString() === pendingUri.toString()
+			? snapshot.p
+			: { resource: resource.toString(), state, fromSeq: 0 });
+		const hydrated = disposables.add(mgr.getSubscription<TerminalState>(StateComponents.Terminal, URI.parse('opaque-terminal:/hydrated'), 'test'));
+		await Event.toPromise(hydrated.object.onDidChange);
+		const pending = disposables.add(mgr.getSubscription<TerminalState>(StateComponents.Terminal, pendingUri, 'test'));
+		const refreshing = mgr.refreshSubscription(pendingUri);
+		const errors: Error[] = [];
+		disposables.add(pending.object.onDidError!(error => errors.push(error)));
+		const error = new Error('Connection closed: Test Host');
+
+		mgr.failPendingSubscriptions(error);
+		await snapshot.complete({ resource: pendingUri.toString(), state, fromSeq: 0 });
+		await refreshing;
+
+		assert.deepStrictEqual({ pending: pending.object.value, hydrated: hydrated.object.value, errors }, {
+			pending: error, hydrated: state, errors: [error],
+		});
+	});
+
 	test('routes catalog updates to opaque host-advertised chat URIs', async () => {
 		const remoteSessionUri = 'ahp-session:/remote-session';
 		const remoteChatUri = 'ahp-chat:/remote-chat';

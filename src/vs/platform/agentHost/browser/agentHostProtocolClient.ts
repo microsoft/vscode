@@ -2941,6 +2941,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._grantedImplicitReadUris.clear();
 		this._implicitReadGrants.clear();
 		this._resourceService.connectionClosed(this._resourceIdentity);
+		// Close listeners may dispose subscriptions before their async requests reject.
+		this._subscriptionManager.failPendingSubscriptions(error);
 		this._transitionTo({ kind: AgentHostClientState.Closed, error });
 		this._onDidClose.fire(reason);
 	}
