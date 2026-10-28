@@ -885,6 +885,41 @@ suite('Automation dialog creation', () => {
 		await local.result;
 	});
 
+	test('Cron replaces Time in equal-width schedule columns at normal and narrow widths', async () => {
+		const results = [];
+		for (const width of [640, 360]) {
+			const dialog = openDialog({});
+			const panel = dialog.container.querySelector<HTMLElement>('.automation-dialog')!;
+			panel.style.width = `${width}px`;
+			panel.style.minWidth = '0';
+			panel.style.maxWidth = 'none';
+			const row = dialog.container.querySelector<HTMLElement>('.automation-form-schedule-row')!;
+			const trigger = row.querySelector<HTMLElement>('.automation-form-schedule-group')!;
+			const select = trigger.querySelector('select')!;
+			select.selectedIndex = Array.from(select.options).findIndex(option => option.textContent === 'Cron');
+			select.dispatchEvent(new (DOM.getWindow(select).Event)('change'));
+			const cron = row.querySelector<HTMLElement>('.automation-form-cron-group');
+			const triggerBounds = trigger.getBoundingClientRect();
+			const cronBounds = cron?.getBoundingClientRect();
+			results.push({
+				width,
+				visibleGroups: Array.from(row.children).filter(element => DOM.getWindow(row).getComputedStyle(element).display !== 'none').length,
+				equalColumns: !!cronBounds && Math.abs(triggerBounds.width - cronBounds.width) < 1,
+				aligned: !!cronBounds && Math.abs(triggerBounds.top - cronBounds.top) < 1,
+				beside: !!cronBounds && cronBounds.left > triggerBounds.right,
+				controls: Array.from(row.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select'))
+					.filter(element => element.getBoundingClientRect().width > 0)
+					.map(element => element.getAttribute('aria-label')),
+			});
+			dialog.cancelButton.click();
+			await dialog.result;
+		}
+		assert.deepStrictEqual(results, [640, 360].map(width => ({
+			width, visibleGroups: 2, equalColumns: true, aligned: true, beside: true,
+			controls: ['Trigger', 'Minute', 'Hour', 'Day of month', 'Month', 'Day of week'],
+		})));
+	});
+
 	test('Owner defaults to Only me and Repository selection uses the keyboard', async () => {
 		for (const repository of [false, true]) {
 			const dialog = openDialog({}, cloudConfiguration());
