@@ -373,6 +373,22 @@ suite('QuickInput hosts its context menus', () => { // https://github.com/micros
 		assert.deepStrictEqual([menuBeyondWidget, afterMenuMouseDown, state(picker).visible], [true, { visible: true, menu: 'hosted' }, true]);
 	});
 
+	test('the window losing focus hides the picker, with or without an open hosted menu', async () => {
+		setupController();
+		let picker = showPicker();
+		await setWebContentsFocus(false);
+		await settle();
+		const withoutMenu = state(picker).visible;
+		await setWebContentsFocus(true);
+
+		picker = showPicker();
+		rightClickInput();
+		await settle();
+		await setWebContentsFocus(false);
+		await settle();
+		assert.deepStrictEqual([withoutMenu, state(picker).visible, state(picker).menu], [false, false, 'none']);
+	});
+
 	test('focus moving outside without a context menu hides the picker', async () => {
 		setupController();
 		const picker = showPicker();
