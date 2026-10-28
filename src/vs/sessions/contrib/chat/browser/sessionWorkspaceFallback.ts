@@ -18,7 +18,6 @@ const MAX_RECENT_SESSIONS = 15;
 export interface IResolvedFolderWorkspace {
 	readonly providerId: string;
 	readonly workspace: ISessionWorkspace;
-	readonly isSessionWorkspace?: boolean;
 }
 
 /** Callbacks that keep provider-specific picker policy outside the fallback. */
@@ -97,7 +96,6 @@ export class SessionWorkspaceFallback extends Disposable {
 				workspaces.set(key, {
 					providerId: catalogResolved.providerId,
 					workspace: catalogWorkspace,
-					isSessionWorkspace: true,
 				});
 			}
 		}
