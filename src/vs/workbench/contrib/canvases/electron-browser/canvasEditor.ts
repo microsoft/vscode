@@ -52,6 +52,16 @@ type CanvasLoadClassification = {
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed milliseconds from starting browser creation through the load attempt completion.' };
 };
 
+/** Shrinks `rect` by the given per-side insets, never producing a negative size. */
+export function insetRect(rect: { readonly left: number; readonly top: number; readonly width: number; readonly height: number }, inset: { readonly top: number; readonly right: number; readonly bottom: number; readonly left: number }): { readonly left: number; readonly top: number; readonly width: number; readonly height: number } {
+	return {
+		left: rect.left + inset.left,
+		top: rect.top + inset.top,
+		width: Math.max(0, rect.width - inset.left - inset.right),
+		height: Math.max(0, rect.height - inset.top - inset.bottom),
+	};
+}
+
 export class CanvasEditor extends EditorPane {
 
 	static readonly ID = CanvasInput.EDITOR_ID;
@@ -345,7 +355,15 @@ export class CanvasEditor extends EditorPane {
 		const rect = this.wrapper.getBoundingClientRect();
 		const zoomFactor = getZoomFactor(this.window);
 		const snap = (value: number) => Math.floor(value * zoomFactor) / zoomFactor;
-		const bounds = { x: snap(rect.left), y: snap(rect.top), width: snap(rect.width), height: snap(rect.height), windowId: this.group.windowId, zoomFactor, cornerRadius: 0 };
+		const wrapperStyle = this.window.getComputedStyle(this.wrapper);
+		const content = insetRect(rect, {
+			top: parseFloat(wrapperStyle.paddingTop) || 0,
+			right: parseFloat(wrapperStyle.paddingRight) || 0,
+			bottom: parseFloat(wrapperStyle.paddingBottom) || 0,
+			left: parseFloat(wrapperStyle.paddingLeft) || 0,
+		});
+		const cornerRadius = parseFloat(this.window.getComputedStyle(this.container).borderTopLeftRadius) || 0;
+		const bounds = { x: snap(content.left), y: snap(content.top), width: snap(content.width), height: snap(content.height), windowId: this.group.windowId, zoomFactor, cornerRadius };
 		const visible = this.editorVisible.get()
 			&& bounds.width > 0
 			&& bounds.height > 0

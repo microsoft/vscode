@@ -23,7 +23,7 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { IBrowserViewModel } from '../../../browserView/common/browserView.js';
 import { WebContentsViewHost } from '../../../browserView/electron-browser/webContentsViewHost.js';
 import { CanvasInput, ICanvasService } from '../../common/canvas.js';
-import { CanvasEditor } from '../../electron-browser/canvasEditor.js';
+import { CanvasEditor, insetRect } from '../../electron-browser/canvasEditor.js';
 
 suite('CanvasEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -379,5 +379,13 @@ suite('CanvasEditor', () => {
 				'To close the canvas itself, which also notifies the canvas extension that provides it, use Close Canvas from its canvas pill.',
 			],
 		]);
+	});
+
+	test('insets the native bounds by the frame width without going negative', () => {
+		const rect = { left: 10, top: 20, width: 100, height: 50 };
+		assert.deepStrictEqual(
+			[insetRect(rect, { top: 1, right: 0, bottom: 0, left: 1 }), insetRect({ ...rect, width: 1 }, { top: 0, right: 1, bottom: 0, left: 1 })],
+			[{ left: 11, top: 21, width: 99, height: 49 }, { left: 11, top: 20, width: 0, height: 50 }]
+		);
 	});
 });

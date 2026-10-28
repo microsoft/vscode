@@ -95,6 +95,15 @@
 	border-color: var(--vscode-agentsPanel-border, var(--vscode-contrastBorder));
 }
 
+/* The canvas renders in a native view above the DOM frame overlay, so it is inset to sit inside the frame. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container .session-canvas-editor .browser-container-wrapper {
+	padding: var(--agents-part-frame-border-width, var(--vscode-strokeThickness));
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container .session-canvas-editor .browser-container {
+	border-radius: max(0px, calc(var(--agents-part-corner-radius, var(--vscode-cornerRadius-large)) - var(--vscode-strokeThickness) * 2));
+}
+
 /* Keep the whole justified upper row on the same frame baseline above the panel. */
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs.panel-alignment-justify:not(.nopanel):not(.phone-layout):not(.modern-ui-compact):not(.noeditorpane) .part.editor:not(.modal-editor-part),
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs.panel-alignment-justify:not(.dock-detail-panel):not(.nopanel):not(.phone-layout):not(.modern-ui-compact):not(.noeditorpane) .part.auxiliarybar {

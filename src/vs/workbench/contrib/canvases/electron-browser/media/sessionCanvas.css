@@ -15,6 +15,10 @@
 	inset: 0;
 }
 
+.session-canvas-editor .browser-container {
+	border-radius: 0;
+}
+
 .session-canvas-editor .session-canvas-message {
 	position: absolute;
 	inset: 0;
