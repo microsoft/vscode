@@ -75,7 +75,8 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentHostDownloadProgress } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostDownloadProgress.js';
-import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { composeSessionActiveClient, IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { IAgentHostMcpAppToolsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { AgentHostBackgroundShellOutputs } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostBackgroundShells.js';
 import type { IChatBackgroundShell } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -4693,6 +4694,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@ISessionsService protected readonly _sessionsService: ISessionsService,
 		@IAgentHostActiveClientService protected readonly _activeClientService: IAgentHostActiveClientService,
+		@IAgentHostMcpAppToolsService private readonly _mcpAppToolsService: IAgentHostMcpAppToolsService,
 		@IStorageService protected readonly _storageService: IStorageService,
 		@IDialogService protected readonly _dialogService: IDialogService,
 		@IWorkspaceTrustManagementService protected readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
@@ -5185,7 +5187,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 
-		const activeClient = scope.activeClient(connection.clientId).get();
+		// Both publishers share a client ID, so match the chat handler's composed snapshot.
+		const sessionTools = this._activeClientService.acquireSessionTools(cached.resource);
+		let activeClient: SessionActiveClient;
+		try {
+			activeClient = composeSessionActiveClient(
+				scope.activeClient(connection.clientId).get(),
+				sessionTools.object.get(),
+				this._mcpAppToolsService.getToolDefinitions(cached.resource).get(),
+			);
+		} finally {
+			sessionTools.dispose();
+		}
 		const channel = cached.backendUri.toString();
 		const subscriptionState = connection.getSubscriptionUnmanaged(StateComponents.Session, cached.backendUri)?.verifiedValue;
 		const existing = subscriptionState?.activeClients.find(client => client.clientId === activeClient.clientId);
