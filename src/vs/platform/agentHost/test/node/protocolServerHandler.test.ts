@@ -18,6 +18,7 @@ import { lstat, mkdir, mkdtemp, opendir, readFile, readdir, rm, symlink, writeFi
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { AgentHostWorktreeDiskUsageService } from '../../node/worktreeDiskUsage.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AgentHostKerberosAuthCapabilityMetaKey } from '../../common/meta/agentHostKerberosAuthMeta.js';
 import { dirname, join, parse } from '../../../../base/common/path.js';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
@@ -51,7 +52,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, LookupKerberosAuthExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
@@ -962,6 +963,25 @@ suite('ProtocolServerHandler', () => {
 			requests: [0, 1, 2, 3].map(client => ({ client, method: RequestAgentHostMcpAuthenticationExtensionMethod, params })),
 			unused: undefined,
 		});
+	});
+
+	test('requests Kerberos credentials only from advertising clients and stops after disconnect', async () => {
+		const unadvertised = connectClient('other-host-client');
+		const malformed = connectClient('malformed-capability', undefined, undefined, { [AgentHostKerberosAuthCapabilityMetaKey]: 'true' });
+		const windows = connectClient('windows', undefined, undefined, { [AgentHostKerberosAuthCapabilityMetaKey]: true });
+		const params = { spn: 'HTTP/custom' };
+		const result = clientConnections.lookupKerberosAuthorization(params);
+		const reverseRequest = findRequest(windows.sent, LookupKerberosAuthExtensionMethod);
+		assert.ok(reverseRequest);
+		windows.simulateMessage({ jsonrpc: '2.0', id: reverseRequest.id, result: { kerberosToken: 'ticket' } });
+		const token = await result;
+		windows.simulateClose();
+		assert.deepStrictEqual({
+			token, params: reverseRequest.params,
+			unadvertised: findRequest(unadvertised.sent, LookupKerberosAuthExtensionMethod),
+			malformed: findRequest(malformed.sent, LookupKerberosAuthExtensionMethod),
+		}, { token: 'ticket', params, unadvertised: undefined, malformed: undefined });
+		assert.strictEqual(await clientConnections.lookupKerberosAuthorization(params), undefined);
 	});
 
 	test('returns false for MCP authentication without connected clients', async () => {

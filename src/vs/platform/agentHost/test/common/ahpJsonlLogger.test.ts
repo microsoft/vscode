@@ -585,6 +585,16 @@ suite('AhpJsonlLogger', () => {
 	});
 
 	suite('stringifyAhpLogEntry', () => {
+		test('redacts Kerberos callback results without changing the live token', () => {
+			const result = { jsonrpc: '2.0', id: 1, result: { kerberosToken: 'private-ticket' } };
+			assert.deepStrictEqual({
+				logged: JSON.parse(stringifyAhpLogEntry(result)),
+				live: result.result.kerberosToken,
+			}, {
+				logged: { jsonrpc: '2.0', id: 1, result: { kerberosToken: '<redacted>' } },
+				live: 'private-ticket',
+			});
+		});
 
 		test('serialises a top-level URI as its string form', () => {
 			const uri = URI.parse('file:///tmp/example.txt');

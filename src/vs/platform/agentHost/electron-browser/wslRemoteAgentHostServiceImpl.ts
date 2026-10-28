@@ -5,6 +5,8 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { localize } from '../../../nls.js';
+import { isWindows } from '../../../base/common/platform.js';
+import { INativeHostService } from '../../native/common/native.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable, observableFromEvent } from '../../../base/common/observable.js';
 import { ILogService } from '../../log/common/log.js';
@@ -52,6 +54,7 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@IRequestService private readonly _requestService: IRequestService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
 	) { }
 
 	createClient(mainService: IWSLRemoteAgentHostMainService, connectionId: string, address: string, connection: IWSLConnectResult, remoteAgentHostCommand: string | undefined, onRelayReplaced?: (connectionId: string) => void): AgentHostProtocolClient {
@@ -135,6 +138,9 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 				isEnabled: () => this._configurationService.getValue<boolean>('http.systemCertificates') !== false,
 				loadCertificates: () => this._requestService.loadCertificates(),
 			},
+			...(isWindows ? {
+				kerberosAuth: ({ spn }) => this._nativeHostService.lookupKerberosToken(spn),
+			} : {}),
 			onDispose: () => {
 				disposed = true;
 				void releaseRelay(activeConnectionId);
