@@ -122,6 +122,8 @@
 		// A full run loads every test file into this one page, so each test sees the stylesheets of all the others.
 		// Load every product stylesheet up front so that a run of only some test files (a PR test plan, or one
 		// worker's share) sees the same global styles. Test fixture stylesheets are data, not workbench styles.
+		// They are imported one at a time in a fixed order, so equal-specificity rules cascade the same way in every
+		// worker, and the tests start only once every imported stylesheet has loaded.
 		const productCssUrls = [];
 		globalThis._VSCODE_TEST_INIT = promisify(require('glob'))('**/*.css', { cwd: basePath }).then(cssModules => {
 			for (const cssModule of cssModules) {
@@ -140,7 +142,18 @@
 			importMapScript.type = 'importmap';
 			importMapScript.textContent = rawImportMap;
 			document.head.append(importMapScript);
-			return Promise.allSettled(productCssUrls.map(cssUrl => import(cssUrl)));
+		}).then(async () => {
+			productCssUrls.sort();
+			for (const cssUrl of productCssUrls) {
+				await import(cssUrl);
+			}
+			// `@import` rules load asynchronously and an `@import` has no load event, its style sheet appears once loaded.
+			const cssUrls = new Set(productCssUrls);
+			const isPending = rule => rule instanceof CSSImportRule && cssUrls.has(rule.href) && !rule.styleSheet;
+			const deadline = Date.now() + 30_000;
+			while ([...style.sheet.cssRules].some(isPending) && Date.now() < deadline) {
+				await new Promise(resolve => setTimeout(resolve, 10));
+			}
 		});
 	</script>
 	<script src="./renderer.js"></script>
