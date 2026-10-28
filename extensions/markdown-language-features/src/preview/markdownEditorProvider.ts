@@ -646,6 +646,11 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			if (e.document.uri.toString() !== document.uri.toString()) {
 				return;
 			}
+			// Dirty-state changes (e.g. on save) fire without content changes. Publishing then
+			// would advance the epoch and drop edits the webview has already made.
+			if (e.contentChanges.length === 0) {
+				return;
+			}
 			diagnosticsChanged();
 			if (
 				e.document.getText() === expectedWebviewContent?.content
