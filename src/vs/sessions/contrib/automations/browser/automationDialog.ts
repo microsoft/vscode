@@ -62,6 +62,7 @@ import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/c
 import { AutomationInterval, AutomationTarget, IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationToolCatalog, IAutomationCustomizationChoice, IAutomationProviderConfiguration, IAutomationService, IAutomationTool } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { automationScheduleToUTC, DAYS_OF_WEEK, getAutomationCronValidationError } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { describeAutomationCron } from '../../../../platform/agentHost/common/automationCron.js';
 import { automationTriggerFamily, AutomationTriggerFamily } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -147,7 +148,7 @@ export function registerAutomationDialogKeyboardNavigation(
 	getFocusableElements: () => readonly HTMLElement[],
 	isPopupTarget: (target: HTMLElement) => boolean,
 	acceptPromptSuggestion: () => boolean = () => false,
-	cancelPromptSuggestion: () => boolean = () => false,
+	cancelInputPopup: () => boolean = () => false,
 ): IAutomationDialogKeyboardNavigation {
 	const store = new DisposableStore();
 	let suppressPopupEscapeKeyUp = false;
@@ -173,9 +174,9 @@ export function registerAutomationDialogKeyboardNavigation(
 		const isPopup = target instanceof targetWindow.HTMLElement && isPopupTarget(target);
 		// Keep ownership of the Escape press when the popup closes and key repeat targets the form.
 		if (event.key === 'Escape' && !event.repeat) {
-			const promptSuggestionCancelled = !isPopup && !event.altKey && !event.ctrlKey && !event.metaKey && cancelPromptSuggestion();
-			suppressPopupEscapeKeyUp = isPopup || promptSuggestionCancelled;
-			if (promptSuggestionCancelled) {
+			const inputPopupCancelled = !isPopup && !event.altKey && !event.ctrlKey && !event.metaKey && cancelInputPopup();
+			suppressPopupEscapeKeyUp = isPopup || inputPopupCancelled;
+			if (inputPopupCancelled) {
 				event.preventDefault();
 				event.stopImmediatePropagation();
 				return;
@@ -294,7 +295,7 @@ interface IRenderFormHandle {
 	readonly focusSaveError: () => void;
 	readonly getFocusableElements: () => readonly HTMLElement[];
 	readonly acceptPromptSuggestion: () => boolean;
-	readonly cancelPromptSuggestion: () => boolean;
+	readonly cancelInputPopup: () => boolean;
 }
 
 export type AutomationDialogMessageSource = 'immutableSettings' | 'repositoryWarning' | 'targetValidation' | 'scheduleValidation' | 'toolCatalogError' | 'operationError' | 'saveError';
@@ -1226,8 +1227,19 @@ export function renderForm(
 	const cronGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group.automation-form-cron-group'));
 	const cronTimeZone = state.cronTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
 	const cronInput = disposables.add(instantiationService.createInstance(AutomationCronInput, cronGroup, state.cronExpression ?? '', cronTimeZone));
+	const cronDescription = $('.automation-form-schedule-description', { role: 'status', 'aria-atomic': 'true' });
+	scheduleRow.after(cronDescription);
+	const updateCronDescription = () => {
+		const expression = state.cronExpression ?? '';
+		const description = state.interval === 'cron' && expression.trim() && !getAutomationCronValidationError(expression, cronTimeZone)
+			? describeAutomationCron(expression)
+			: '';
+		cronDescription.textContent = description;
+		DOM.setVisibility(!!description, cronDescription);
+	};
 	disposables.add(cronInput.onDidChange(value => {
 		state.cronExpression = value;
+		updateCronDescription();
 		revalidate();
 	}));
 	const applyIntervalVisibility = () => {
@@ -1237,6 +1249,7 @@ export function renderForm(
 		dayGroup.style.display = showDay ? '' : 'none';
 		cronGroup.style.display = state.interval === 'cron' ? '' : 'none';
 		scheduleRow.classList.toggle('has-cron', state.interval === 'cron');
+		updateCronDescription();
 	};
 	const updateIntervalOptions = (cloud: boolean) => {
 		intervals = INTERVALS.filter(item => !cloud || (item.value !== 'weekdays' && item.value !== 'cron'));
@@ -2239,7 +2252,10 @@ export function renderForm(
 			suggestController.acceptSelectedSuggestion(true, false);
 			return true;
 		},
-		cancelPromptSuggestion: () => {
+		cancelInputPopup: () => {
+			if (cronInput.dismissHover()) {
+				return true;
+			}
 			const suggestController = SuggestController.get(chatInput.inputEditor);
 			if (!chatInput.inputEditor.hasTextFocus() || !suggestController || suggestController.model.state === SuggestState.Idle) {
 				return false;

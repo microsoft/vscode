@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../nls.js';
+import { safeIntl } from '../../../base/common/date.js';
+import { language } from '../../../base/common/platform.js';
 
 const MINUTE_MS = 60_000;
 const DATE_SEARCH_STEP_MS = 12 * 60 * MINUTE_MS;
@@ -58,6 +60,90 @@ interface ILocalDateParts {
 export function validateAutomationCron(expression: string, timeZone: string): void {
 	parseAutomationCron(expression);
 	createDateFormatter(timeZone);
+}
+
+/** Describes the same calendar and clock constraints used by the scheduler. */
+export function describeAutomationCron(expression: string, locale = language): string {
+	const cron = parseAutomationCron(expression);
+	const minutes = [...cron.minute.values].sort((a, b) => a - b);
+	const hours = [...cron.hour.values].sort((a, b) => a - b);
+	const clock = safeIntl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
+	const hourClock = safeIntl.DateTimeFormat(locale, { hour: 'numeric', timeZone: 'UTC' });
+	const monthNames = safeIntl.DateTimeFormat(locale, { month: 'long', timeZone: 'UTC' });
+	const weekdayNames = safeIntl.DateTimeFormat(locale, { weekday: 'long', timeZone: 'UTC' });
+	const formatClock = (hour: number, minute: number) => clock.value.format(new Date(Date.UTC(2024, 0, 1, hour, minute)));
+	const formatHour = (hour: number) => hourClock.value.format(new Date(Date.UTC(2024, 0, 1, hour)));
+	const hourDescription = hours.length === 1
+		? localize('automationCron.description.singleHour', "the {0} hour", formatHour(hours[0]))
+		: localize('automationCron.description.hours', "the hours {0}", describeCronValues(hours, formatHour));
+	const minuteCadence = getCronCadence(minutes, 60);
+	const hourCadence = getCronCadence(hours, 24);
+	let time: string;
+	if (minutes.length === 60) {
+		time = hours.length === 24
+			? localize('automationCron.description.everyMinute', "every minute")
+			: localize('automationCron.description.minutesDuring', "every minute during {0}", hourDescription);
+	} else if (minuteCadence !== undefined) {
+		time = hours.length === 24
+			? localize('automationCron.description.minuteCadence', "every {0} minutes", minuteCadence)
+			: localize('automationCron.description.minuteCadenceDuring', "every {0} minutes during {1}", minuteCadence, hourDescription);
+	} else if (hours.length === 24) {
+		time = minutes.length === 1
+			? localize('automationCron.description.minuteHourly', "at minute {0} of every hour", minutes[0])
+			: localize('automationCron.description.minutesHourly', "at minutes {0} of every hour", describeCronValues(minutes));
+	} else if (minutes.length === 1 && minutes[0] === 0 && hourCadence !== undefined) {
+		time = localize('automationCron.description.hourCadence', "every {0} hours", hourCadence);
+	} else if (minutes.length * hours.length <= 6) {
+		time = localize('automationCron.description.times', "at {0}", describeCronList(hours.flatMap(hour => minutes.map(minute => formatClock(hour, minute)))));
+	} else {
+		time = minutes.length === 1
+			? localize('automationCron.description.minuteDuring', "at minute {0} past {1}", minutes[0], hourDescription)
+			: localize('automationCron.description.minutesDuringHours', "at minutes {0} past {1}", describeCronValues(minutes), hourDescription);
+	}
+
+	const days = [...cron.dayOfMonth.values].sort((a, b) => a - b);
+	const weekdays = [...cron.dayOfWeek.values].sort((a, b) => a - b);
+	const monthDays = days.length === 1
+		? localize('automationCron.description.monthDay', "on day {0} of the month", days[0])
+		: localize('automationCron.description.monthDays', "on days {0} of the month", describeCronValues(days));
+	const weekDays = localize('automationCron.description.weekdays', "on {0}",
+		describeCronValues(weekdays, day => weekdayNames.value.format(new Date(Date.UTC(2024, 0, 7 + day)))));
+	let date: string;
+	if (cron.dayOfMonth.unrestricted && cron.dayOfWeek.unrestricted) {
+		date = localize('automationCron.description.everyDay', "every day");
+	} else if (cron.dayOfMonth.unrestricted) {
+		date = weekDays;
+	} else if (cron.dayOfWeek.unrestricted) {
+		date = monthDays;
+	} else {
+		date = localize('automationCron.description.eitherDay', "{0} or {1}", monthDays, weekDays);
+	}
+	if (cron.month.values.size !== 12) {
+		const months = [...cron.month.values].sort((a, b) => a - b);
+		date = localize('automationCron.description.months', "{0} in {1}", date,
+			describeCronValues(months, month => monthNames.value.format(new Date(Date.UTC(2024, month - 1, 1)))));
+	}
+	return localize('automationCron.description', "Runs {0} {1}.", time, date);
+}
+
+function describeCronValues(values: readonly number[], format: (value: number) => string = String): string {
+	if (values.length >= 3 && values.every((value, index) => index === 0 || value === values[index - 1] + 1)) {
+		return localize('automationCron.description.range', "{0} through {1}", format(values[0]), format(values[values.length - 1]));
+	}
+	return describeCronList(values.map(format));
+}
+
+function describeCronList(items: readonly string[]): string {
+	return items.length === 1 ? items[0] : localize('automationCron.description.list', "{0} and {1}",
+		items.slice(0, -1).join(localize('automationCron.description.separator', ", ")), items[items.length - 1]);
+}
+
+function getCronCadence(values: readonly number[], span: number): number | undefined {
+	if (values.length < 2) {
+		return undefined;
+	}
+	const step = values[1] - values[0];
+	return step > 1 && span % step === 0 && values.length === span / step && values.every((value, index) => value === index * step) ? step : undefined;
 }
 
 export function nextAutomationCronOccurrence(expression: string, timeZone: string, after: Date): Date {

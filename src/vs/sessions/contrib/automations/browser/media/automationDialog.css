@@ -932,6 +932,12 @@
 	grid-column: span 2;
 }
 
+.automation-form-schedule-description {
+	font-size: var(--vscode-fontSize-body2, 11px);
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+}
+
 .automation-form-schedule-group {
 	display: flex;
 	flex-direction: column;

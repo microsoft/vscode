@@ -945,25 +945,93 @@ suite('Automation dialog creation', () => {
 		}, { width, presetColumnsEqual: true }]));
 	});
 
-	test('Escape dismisses focused Cron guidance before a separate press cancels the dialog', async () => {
+	test('Cron summary follows expression edits and hides for blank, invalid and preset schedules', async () => {
 		const dialog = openDialog();
 		const select = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
-		select.selectedIndex = Array.from(select.options).findIndex(option => option.textContent === 'Cron');
-		select.dispatchEvent(new (DOM.getWindow(select).Event)('change'));
-		const input = dialog.container.querySelector<HTMLInputElement>('.automation-cron-segments input')!;
-		input.focus();
-		const escape = () => {
-			for (const type of ['keydown', 'keyup']) {
-				input.dispatchEvent(new KeyboardEvent(type, { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
-			}
+		const inputs = Array.from(dialog.container.querySelectorAll<HTMLInputElement>('.automation-cron-segments input'));
+		const snapshot = () => {
+			const summary = dialog.container.querySelector<HTMLElement>('.automation-form-schedule-description');
+			return { text: summary?.textContent ?? '', visible: !!summary && summary.style.display !== 'none', role: summary?.getAttribute('role') ?? null };
 		};
-		escape();
-		const afterHelp = { open: !!dialog.container.querySelector('.automation-dialog'), focused: DOM.getActiveDocument().activeElement === input };
-		escape();
+		const selectInterval = (label: string) => {
+			select.selectedIndex = Array.from(select.options).findIndex(option => option.textContent === label);
+			select.dispatchEvent(new (DOM.getWindow(select).Event)('change'));
+		};
+		const before = snapshot();
+		selectInterval('Cron');
+		const empty = snapshot();
+		const data = new DataTransfer();
+		data.setData('text/plain', '*/5 * * * *');
+		inputs[0].dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+		const pasted = snapshot();
+		inputs[0].value = '7';
+		inputs[0].dispatchEvent(new InputEvent('input'));
+		const edited = snapshot();
+		inputs[2].value = 'bad';
+		inputs[2].dispatchEvent(new InputEvent('input'));
+		const invalid = snapshot();
+		inputs[2].value = '*';
+		inputs[2].dispatchEvent(new InputEvent('input'));
+		selectInterval('Daily');
+		const preset = snapshot();
+		selectInterval('Cron');
+		const restored = snapshot();
+		dialog.cancelButton.click();
 		await dialog.result;
-		assert.deepStrictEqual({ afterHelp, openAfterSecond: !!dialog.container.querySelector('.automation-dialog') }, {
-			afterHelp: { open: true, focused: true }, openAfterSecond: false,
+		const hidden = { text: '', visible: false, role: 'status' };
+		assert.deepStrictEqual({ before, empty, pasted, edited, invalid, preset, restored }, {
+			before: hidden, empty: hidden,
+			pasted: { text: 'Runs every 5 minutes every day.', visible: true, role: 'status' },
+			edited: { text: 'Runs at minute 7 of every hour every day.', visible: true, role: 'status' },
+			invalid: hidden, preset: hidden,
+			restored: { text: 'Runs at minute 7 of every hour every day.', visible: true, role: 'status' },
 		});
+	});
+
+	test('Escape dismisses focused Cron guidance before a separate press cancels the dialog', async () => {
+		const results = [];
+		for (const expression of ['0 9 * * MON-FRI', '0 24 * * MON-FRI']) {
+			for (const repeat of [false, true]) {
+				const dialog = openDialog();
+				dialog.setName('Unsaved Cron draft');
+				dialog.setPrompt('Keep this prompt');
+				const select = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
+				select.selectedIndex = Array.from(select.options).findIndex(option => option.textContent === 'Cron');
+				select.dispatchEvent(new (DOM.getWindow(select).Event)('change'));
+				const inputs = Array.from(dialog.container.querySelectorAll<HTMLInputElement>('.automation-cron-segments input'));
+				const data = new DataTransfer();
+				data.setData('text/plain', expression);
+				inputs[0].dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+				const input = inputs[1];
+				input.focus();
+				const dispatch = (type: string, repeated = false) => input.dispatchEvent(new KeyboardEvent(type, {
+					key: 'Escape', keyCode: 27, bubbles: true, cancelable: true, repeat: repeated,
+				}));
+				dispatch('keydown');
+				if (repeat) {
+					dispatch('keydown', true);
+					dispatch('keydown', true);
+				}
+				dispatch('keyup');
+				await timeout(0);
+				const afterHelp = {
+					open: !!dialog.container.querySelector('.automation-dialog'),
+					focused: DOM.getActiveDocument().activeElement === input,
+					name: dialog.nameInput.value,
+					prompt: dialog.container.querySelector('textarea')?.value,
+					expression: inputs.map(input => input.value).join(' '),
+				};
+				dispatch('keydown');
+				dispatch('keyup');
+				await dialog.result;
+				results.push({ expression, repeat, afterHelp, openAfterSecond: !!dialog.container.querySelector('.automation-dialog') });
+			}
+		}
+		assert.deepStrictEqual(results, ['0 9 * * MON-FRI', '0 24 * * MON-FRI'].flatMap(expression => [false, true].map(repeat => ({
+			expression, repeat,
+			afterHelp: { open: true, focused: true, name: 'Unsaved Cron draft', prompt: 'Keep this prompt', expression },
+			openAfterSecond: false,
+		}))));
 	});
 
 	test('Owner defaults to Only me and Repository selection uses the keyboard', async () => {
@@ -3108,6 +3176,7 @@ suite('Automation dialog layout', () => {
 				'automation-cloud-row',
 				'automation-session-section',
 				'automation-form-row automation-form-schedule-row',
+				'automation-form-schedule-description',
 				'automation-trigger-editor',
 				'automation-trigger-required-fields',
 				'automation-target-error automation-visually-hidden',

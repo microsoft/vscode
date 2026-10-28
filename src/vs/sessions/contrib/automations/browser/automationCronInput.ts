@@ -108,10 +108,9 @@ export class AutomationCronInput extends Disposable {
 				this.changed();
 			}));
 			this._register(DOM.addDisposableListener(input.inputElement, 'keydown', event => {
-				if (event.key === 'Escape' && this.hover.value?.isDisposed === false) {
+				if (event.key === 'Escape' && this.dismissHover()) {
 					event.preventDefault();
 					event.stopPropagation();
-					this.hover.clear();
 				} else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
 					event.preventDefault();
 					input.select();
@@ -165,6 +164,14 @@ export class AutomationCronInput extends Disposable {
 		}
 		const parts = this.inputs.map(input => input.value.trim());
 		return parts.every(part => !part) ? '' : parts.map(part => part || '*').join(' ');
+	}
+
+	dismissHover(): boolean {
+		if (this.hover.value?.isDisposed !== false) {
+			return false;
+		}
+		this.hover.clear();
+		return true;
 	}
 
 	private acceptExpression(index: number, value: string): boolean {

@@ -487,7 +487,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						],
 						isAutomationDialogPopupTarget,
 						() => !saveInProgress && handle.acceptPromptSuggestion(),
-						() => !saveInProgress && handle.cancelPromptSuggestion(),
+						() => !saveInProgress && handle.cancelInputPopup(),
 					));
 					focusFirst = keyboardNavigation.focusFirst;
 					for (const type of [DOM.EventType.KEY_DOWN, DOM.EventType.KEY_UP]) {
