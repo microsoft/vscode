@@ -114,6 +114,15 @@ function isRustCrate(path: string): boolean {
 	return path.startsWith('cli/') || path.startsWith('copilot_shim/');
 }
 
+/** The ESLint configuration. Entries ending in `/` match a folder; other entries match a file. */
+const eslintConfigurationPaths = [
+	'eslint.config.js',
+	'.eslint-ignore',
+	'.eslint-allowed-javascript-files',
+	'.eslint-allowed-bracket-notation-files',
+	'.eslint-plugin-local/',
+];
+
 /**
  * Paths that only Compile & Hygiene reads, so that a change to them can skip the test jobs (and the other jobs that
  * Detect Changes selects):
@@ -127,11 +136,18 @@ function isRustCrate(path: string): boolean {
  *   tsconfig.json files and linting their sources. The telemetry extractor searches the sources with ripgrep, which
  *   skips hidden folders such as .vscode/. The .vscode folders elsewhere, such as those of the test workspaces in
  *   extensions/, are test inputs.
+ * - The ESLint configuration and the local ESLint rules in .eslint-plugin-local/, which only ESLint, hygiene and the
+ *   build script tests read. Loading the gulpfiles also reads .eslint-ignore (see build/filters.ts), which Compile &
+ *   Hygiene also does. The Copilot checks lint with the same configuration, so the copilot rule lists these paths.
+ * - The sanity tests in test/sanity/, which only the product builds run against the built packages (see
+ *   build/azure-pipelines/common/sanity-tests.yml). In pull requests, only ESLint and hygiene check their sources.
  */
 export function shouldSkipTestJobs(path: string): boolean {
 	const isAzurePipelinesDefinition = path.startsWith('build/azure-pipelines/') && /\.ya?ml$/.test(path);
 	const isWorkspaceConfiguration = path.startsWith('.vscode/');
-	return isAzurePipelinesDefinition || isWorkspaceConfiguration;
+	const isEslintConfiguration = matchesAny(path, eslintConfigurationPaths);
+	const isSanityTest = path.startsWith('test/sanity/');
+	return isAzurePipelinesDefinition || isWorkspaceConfiguration || isEslintConfiguration || isSanityTest;
 }
 
 /**

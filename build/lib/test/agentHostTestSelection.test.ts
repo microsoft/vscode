@@ -49,6 +49,8 @@ suite('Agent Host PR test selection', () => {
 			'.vscode/settings.json',
 			'.vscode/extensions/vscode-extras/package.json',
 			'.vscode/extensions/vscode-selfhost-test-provider/package-lock.json',
+			'test/sanity/package.json',
+			'.eslint-plugin-local/package.json',
 			'src/vs/platform/agentHost/node/copilot/copilotAgent.ts',
 			'src/vs/base/common/async.ts',
 		]) {
@@ -56,6 +58,8 @@ suite('Agent Host PR test selection', () => {
 			results.push({ affected: outputs.affected, profile: outputs.profile });
 		}
 		assert.deepStrictEqual(results, [
+			{ affected: 'false', profile: 'pr' },
+			{ affected: 'false', profile: 'pr' },
 			{ affected: 'false', profile: 'pr' },
 			{ affected: 'false', profile: 'pr' },
 			{ affected: 'false', profile: 'pr' },
