@@ -646,9 +646,9 @@ class DOMFocusController<T> implements IDisposable {
 				if (!isHTMLElement(child)) {
 					continue;
 				}
-				if (child.hasAttribute('tabIndex') && child.tabIndex !== -1) {
+				if (child.hasAttribute('tabIndex') && child.tabIndex !== -1 && !child.matches(':disabled')) {
 					const style = getWindow(child).getComputedStyle(child);
-					if (style.visibility !== 'hidden' && style.display !== 'none') {
+					if (style.visibility !== 'hidden' && style.display !== 'none' && child.getClientRects().length > 0) {
 						return child;
 					}
 				}

@@ -149,7 +149,7 @@ suite('ListWidget', function () {
 		});
 	});
 
-	test('Tab focuses the first enabled row action', function () {
+	test('Tab focuses the first rendered enabled row action', function () {
 		const element = document.createElement('div');
 		element.style.height = '20px';
 		element.style.width = '200px';
@@ -164,11 +164,19 @@ suite('ListWidget', function () {
 		const renderer: IListRenderer<number, void> = {
 			templateId: 'template',
 			renderTemplate(container) {
+				const ignoredAction = document.createElement('button');
+				ignoredAction.tabIndex = -1;
 				const disabledAction = document.createElement('button');
-				disabledAction.tabIndex = -1;
+				disabledAction.disabled = true;
+				disabledAction.tabIndex = 0;
+				const hiddenWrapper = document.createElement('div');
+				hiddenWrapper.style.display = 'none';
+				const hiddenAction = document.createElement('button');
+				hiddenAction.tabIndex = 0;
+				hiddenWrapper.appendChild(hiddenAction);
 				const enabledAction = document.createElement('button');
 				enabledAction.tabIndex = 0;
-				container.append(disabledAction, enabledAction);
+				container.append(ignoredAction, disabledAction, hiddenWrapper, enabledAction);
 			},
 			renderElement() { },
 			disposeTemplate() { }
@@ -181,7 +189,7 @@ suite('ListWidget', function () {
 		listWidget.domFocus();
 		listWidget.getHTMLElement().dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
 
-		assert.strictEqual(document.activeElement, element.querySelectorAll('button')[1]);
+		assert.strictEqual(document.activeElement, element.querySelectorAll('button')[3]);
 	});
 
 	test('styles a .hovered row like a pointer-hovered row', function () {
