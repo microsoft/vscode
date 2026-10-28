@@ -15,6 +15,10 @@ import { unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { KeyCodeChord } from '../../../../base/common/keybindings.js';
+import { OS } from '../../../../base/common/platform.js';
+import { USLayoutResolvedKeybinding } from '../../../keybinding/common/usLayoutResolvedKeybinding.js';
 import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
@@ -209,7 +213,7 @@ suite('QuickInput hosts its context menus', () => { // https://github.com/micros
 	}
 
 	function keydown(target: Element, key: string, keyCode: number, init: KeyboardEventInit = {}): void {
-		target.dispatchEvent(new KeyboardEvent('keydown', { key, code: key, keyCode, bubbles: true, cancelable: true, ...init }));
+		target.dispatchEvent(new KeyboardEvent('keydown', { key, code: key, keyCode, bubbles: true, cancelable: true, composed: true, ...init }));
 	}
 
 	function activeElementDeep(): Element | null {
@@ -270,6 +274,35 @@ suite('QuickInput hosts its context menus', () => { // https://github.com/micros
 		await settle();
 		assert.deepStrictEqual([before, inMenu, inQuickInput()], [true, false, true]);
 	});
+
+	for (const navigateFromMenu of [false, true]) {
+		test(`quick navigation does not accept on modifier release from the hosted menu (navigation enabled ${navigateFromMenu ? 'during' : 'before'} menu focus)`, async () => {
+			setupController();
+			const picker = showPicker();
+			const accepted: boolean[] = [];
+			store.add(picker.onDidAccept(() => accepted.push(true)));
+			const windowKeys: string[] = [];
+			const onWindowKey = (e: KeyboardEvent) => windowKeys.push(`${e.type}:${e.key}`);
+			mainWindow.addEventListener('keydown', onWindowKey);
+			mainWindow.addEventListener('keyup', onWindowKey);
+			store.add(toDisposable(() => { mainWindow.removeEventListener('keydown', onWindowKey); mainWindow.removeEventListener('keyup', onWindowKey); }));
+			const quickNavigate = { keybindings: [new USLayoutResolvedKeybinding([new KeyCodeChord(true, false, false, false, KeyCode.KeyP)], OS)] };
+
+			if (!navigateFromMenu) {
+				picker.quickNavigate = quickNavigate;
+			}
+			rightClickInput();
+			await settle();
+			const menuItem = activeElementDeep()!;
+			keydown(menuItem, 'p', 80, { ctrlKey: true }); // e.g. the quick open navigation keybinding
+			if (navigateFromMenu) {
+				picker.quickNavigate = quickNavigate;
+			}
+			menuItem.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control', code: 'ControlLeft', keyCode: 17, bubbles: true, cancelable: true, composed: true }));
+			await settle();
+			assert.deepStrictEqual({ accepted, windowKeys, visible: state(picker).visible, menu: state(picker).menu }, { accepted: [], windowKeys: [], visible: true, menu: 'hosted' });
+		});
+	}
 
 	test('running a hosted menu action keeps the picker; hiding returns focus to the editor', async () => {
 		setupController();
