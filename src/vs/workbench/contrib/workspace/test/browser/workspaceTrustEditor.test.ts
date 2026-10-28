@@ -46,6 +46,7 @@ class FakeWorkspaceTrustManagementService extends TestWorkspaceTrustManagementSe
 	override onDidChangeTrustedFolders = this._onDidChangeTrustedFoldersEmitter.event;
 
 	private entries: URI[];
+	verificationGate: Promise<void> | undefined;
 	completionGate: Promise<void> | undefined;
 	failure: Error | undefined;
 	autoTrusted: ((uri: URI) => boolean) | undefined;
@@ -98,6 +99,7 @@ class FakeWorkspaceTrustManagementService extends TestWorkspaceTrustManagementSe
 	}
 
 	override async setTrustedUris(uris: URI[]): Promise<void> {
+		await this.verificationGate;
 		if (this.failure) {
 			throw this.failure;
 		}
@@ -278,6 +280,14 @@ suite('WorkspaceTrustedUrisTable', () => {
 		const row = Array.from(container.querySelectorAll('.monaco-list-row')).find(row => label(row) === name)!;
 		row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 		row.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+	}
+
+	function acceptInlineEdit(name: string, newName: string): void {
+		const row = Array.from(container.querySelectorAll('.monaco-list-row')).find(row => label(row) === name)!;
+		row.querySelector<HTMLElement>('.codicon-workspace-trust-editor-edit-folder')!.click();
+		const input = row.querySelector<HTMLInputElement>('.input-mode input')!;
+		input.value = folder(newName).fsPath;
+		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
 	}
 
 	async function addFolder(pick: URI[] | undefined): Promise<void> {
@@ -496,6 +506,62 @@ suite('WorkspaceTrustedUrisTable', () => {
 		}, {
 			errors: [trustService.failure],
 			accepted: 0,
+			trustedUris: [folder('c-two').toString()],
+		});
+	});
+
+	test('inline editing shows the saved path until verification and then the canonical path', async () => {
+		createTable(['c-two']);
+		const gate = new DeferredPromise<void>();
+		trustService.verificationGate = gate.p;
+		trustService.canonicalize = uri => uri.path === folder('m-middle').path ? folder('verified-source') : uri;
+
+		acceptInlineEdit('c-two', 'm-middle');
+		const pendingLabel = container.querySelector('.path-label')!.textContent;
+		const pendingUris = trustService.getTrustedUris().map(uri => uri.toString());
+		await gate.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			pendingLabel,
+			pendingUris,
+			label: container.querySelector('.path-label')!.textContent,
+			trustedUris: trustService.getTrustedUris().map(uri => uri.toString()),
+		}, {
+			pendingLabel: folder('c-two').fsPath,
+			pendingUris: [folder('c-two').toString()],
+			label: folder('verified-source').fsPath,
+			trustedUris: [folder('verified-source').toString()],
+		});
+	});
+
+	test('inline editing keeps the saved path visible when verification fails', async () => {
+		createTable(['c-two']);
+		const gate = new DeferredPromise<void>();
+		trustService.verificationGate = gate.p;
+		trustService.failure = new Error('source could not be verified');
+		const errors: unknown[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+		let pendingLabel: string | null;
+		try {
+			acceptInlineEdit('c-two', 'm-middle');
+			pendingLabel = container.querySelector('.path-label')!.textContent;
+			await gate.complete();
+			await timeout(0);
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(previousHandler);
+		}
+
+		assert.deepStrictEqual({
+			pendingLabel,
+			errors,
+			label: container.querySelector('.path-label')!.textContent,
+			trustedUris: trustService.getTrustedUris().map(uri => uri.toString()),
+		}, {
+			pendingLabel: folder('c-two').fsPath,
+			errors: [trustService.failure],
+			label: folder('c-two').fsPath,
 			trustedUris: [folder('c-two').toString()],
 		});
 	});
