@@ -706,6 +706,22 @@ suite('WorkspaceTrustedUrisTable', () => {
 			assert.deepStrictEqual(trustService.getTrustedUris().map(uri => uri.toString()), [legacy.with({ path: '/home/modern' }).toString()]);
 		});
 
+		test('does not act on another folder when the edited folder is merged into an existing one by a rewrite', async () => {
+			const hostAOther = URI.parse('vscode-remote://ssh-remote+hostA/home/other');
+			const legacy = URI.parse('vscode-remote://ssh-remote+hostB/home/legacy');
+			createTableWithUris([hostA, hostAOther, legacy]);
+			trustService.canonicalize = uri => uri.with({ path: uri.path.replace(/^\/home\/a-alias$/, '/home/a').replace(/^\/home\/legacy$/, '/home/modern') });
+			const gate = new DeferredPromise<void>();
+			trustService.completionGate = gate.p;
+
+			table.acceptEdit({ uri: hostAOther, parentOfWorkspaceItem: false }, hostA.with({ path: '/home/a-alias' }));
+			const deletion = table.delete({ uri: hostAOther, parentOfWorkspaceItem: false });
+			gate.complete();
+			await deletion;
+
+			assert.deepStrictEqual(trustService.getTrustedUris().map(uri => uri.toString()), [hostA.toString(), legacy.with({ path: '/home/modern' }).toString()]);
+		});
+
 		test('deletes the saved form of an edited folder that the service rewrites', async () => {
 			createTableWithUris([hostA, hostB]);
 			trustService.canonicalize = uri => uri.with({ path: uri.path.replace(/^\/home\/b2-alias$/, '/home/b2') });

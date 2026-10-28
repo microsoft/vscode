@@ -406,12 +406,14 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 
 			// The service stores a canonical form of every URI and drops duplicates, so find the entry
 			// that this edit saved, letting actions queued for this row act on the entry that is shown:
-			// the edited URI as normalized by the service itself, or else the only entry the save added.
-			// Other folders can be rewritten by the same save, so an addition must not take precedence.
+			// the edited URI as normalized by the service itself, or else the only entry the save added,
+			// but only if no other folder was rewritten by the same save, as that addition may be its.
+			const extUri = this.uriService.extUri;
 			const savedFolders = this.workspaceTrustManagementService.getTrustedUris();
-			const normalized = this.uriService.extUri.removeTrailingPathSeparator(uri);
-			const added = savedFolders.filter(saved => !previousFolders.some(previous => this.uriService.extUri.isEqual(previous, saved)));
-			const saved = savedFolders.find(folder => this.uriService.extUri.isEqual(folder, normalized)) ?? (added.length === 1 ? added[0] : undefined);
+			const normalized = extUri.removeTrailingPathSeparator(uri);
+			const added = savedFolders.filter(saved => !previousFolders.some(previous => extUri.isEqual(previous, saved)));
+			const othersRewritten = previousFolders.some(previous => !extUri.isEqual(previous, item.uri) && !savedFolders.some(saved => extUri.isEqual(previous, saved)));
+			const saved = savedFolders.find(folder => extUri.isEqual(folder, normalized)) ?? (added.length === 1 && !othersRewritten ? added[0] : undefined);
 			if (saved) {
 				this.editedUris.set(item.uri, saved);
 			}
