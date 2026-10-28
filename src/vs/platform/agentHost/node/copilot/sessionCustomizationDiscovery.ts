@@ -547,12 +547,12 @@ export class SessionCustomizationDiscovery extends Disposable {
 				this._updateWatchers(discoveredDirectories, token)
 			]);
 			throwIfCancelled(token);
-			const pluginCustomizations = await this.toPluginCustomizations(pluginFiles, token);
+			const pluginCustomizations = await this.toPluginCustomizations(pluginFiles, agents, token);
 			const isPluginChild = (customization: ChildCustomization) => pluginCustomizations.some(plugin =>
 				extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(customization.uri), URI.parse(plugin.uri))
 			);
 			const result: DirectoryCustomization[] = [];
-			await this.toDirectoryCustomizations(CustomizationType.Agent, agents.filter(agent => !isPluginChild(agent)), discoveredDirectories, result);
+			await this.toDirectoryCustomizations(CustomizationType.Agent, agents.filter(agent => !pluginFiles.has(URI.parse(agent.uri)) && !isPluginChild(agent)), discoveredDirectories, result);
 			await this.toDirectoryCustomizations(CustomizationType.Rule, rules.filter(rule => !isPluginChild(rule)), discoveredDirectories, result);
 			await this.toDirectoryCustomizations(CustomizationType.Skill, skills.filter(skill => !isPluginChild(skill)), discoveredDirectories, result);
 			await this.toDirectoryCustomizations(CustomizationType.Hook, hooks, discoveredDirectories, result);
@@ -589,7 +589,6 @@ export class SessionCustomizationDiscovery extends Disposable {
 				const uri = this._pathToUri(agent.path);
 				if (agent.source === 'plugin') {
 					pluginFiles.add(uri);
-					continue;
 				}
 				if (agent.source === 'builtin') {
 					continue;
@@ -722,7 +721,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 	 * Consequence: a plugin that contributes *only* hooks or MCP servers has
 	 * no SDK-reported file to anchor on and is therefore not projected here.
 	 */
-	private async toPluginCustomizations(pluginFiles: ResourceSet, token: CancellationToken): Promise<PluginCustomization[]> {
+	private async toPluginCustomizations(pluginFiles: ResourceSet, agents: readonly AgentCustomization[], token: CancellationToken): Promise<PluginCustomization[]> {
+		const agentsByUri = new ResourceMap<AgentCustomization>(agents.map(agent => [URI.parse(agent.uri), agent] as const));
 		const pluginRoots = new ResourceSet();
 		for (const file of pluginFiles) {
 			const root = await this.findPluginRoot(file, token);
@@ -748,7 +748,13 @@ export class SessionCustomizationDiscovery extends Disposable {
 					name: typeof manifest?.name === 'string' ? manifest.name : basename(root.path),
 					version: typeof manifest?.version === 'string' ? manifest.version : undefined,
 					load: { kind: CustomizationLoadStatus.Loaded },
-					children: toChildCustomizations([parsed]),
+					children: toChildCustomizations([parsed]).flatMap<ChildCustomization>(child => {
+						if (child.type !== CustomizationType.Agent) {
+							return [child];
+						}
+						const agent = agentsByUri.get(URI.parse(child.uri));
+						return agent ? [{ ...child, ...agent, name: child.name }] : [];
+					}),
 				});
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
