@@ -130,7 +130,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			[IProductService, productService],
 		);
 		services.set(IAgentHostClientConnectionService, infrastructure.add(new AgentHostClientConnectionService()));
-		services.set(IAgentHostSystemWakeService, new AgentHostSystemWakeService());
+		services.set(IAgentHostSystemWakeService, infrastructure.add(new AgentHostSystemWakeService(logService)));
 		services.set(IAgentHostMacAccessibilityTrustService, new AgentHostMacAccessibilityTrustService());
 		const agentServiceOptions: IAgentServiceOptions = {
 			rootConfigResource: joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json'),
