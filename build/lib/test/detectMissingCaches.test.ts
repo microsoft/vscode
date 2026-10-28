@@ -48,7 +48,7 @@ function readRepositoryFile(relativePath: string): Buffer {
  * user profile and is part of the cache version.
  */
 const runners: Record<string, { platform: string; arch: string; os: ICacheWarmingJob['os']; electronCachePath: string }> = {
-	'1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64': { platform: 'linux', arch: 'x64', os: 'Linux', electronCachePath: '/home/cloudtest/.cache/electron' },
+	'vscode-large-runners-ubuntu-8-core': { platform: 'linux', arch: 'x64', os: 'Linux', electronCachePath: '/home/runner/.cache/electron' },
 	'vscode-large-runners-windows-8-core': { platform: 'win32', arch: 'x64', os: 'Windows', electronCachePath: 'C:\\Users\\runneradmin\\AppData\\Local\\electron\\Cache' },
 	'macos-26-xlarge': { platform: 'darwin', arch: 'arm64', os: 'macOS', electronCachePath: '/Users/runner/Library/Caches/electron' },
 };

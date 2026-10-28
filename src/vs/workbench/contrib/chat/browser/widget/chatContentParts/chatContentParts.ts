@@ -73,6 +73,8 @@ export interface IChatContentPartRenderContext {
 	readonly readOnly?: boolean;
 	readonly elementIndex: number;
 	readonly container: HTMLElement;
+	/** Lazily provides an anchor that clips content overlays below floating list UI such as the sticky header. */
+	readonly getOverlayClippingContainer?: () => HTMLElement;
 	readonly content: ReadonlyArray<IChatRendererContent>;
 	readonly contentIndex: number;
 	/** Whether the response-level progress indicator owns progress animation for this render. */

@@ -113,6 +113,18 @@ function mcpServer(id: string, name: string): McpServerCustomization {
 	};
 }
 
+class RecordingLogService extends NullLogService {
+	constructor(private readonly _entries: string[]) {
+		super();
+	}
+	override info(message: string): void {
+		this._entries.push(`info:${message}`);
+	}
+	override warn(message: string): void {
+		this._entries.push(`warn:${message}`);
+	}
+}
+
 class TestAgentHostCustomizationService extends AbstractAgentHostCustomizationService {
 	private readonly _targets = new ResourceMap<FakeTarget>();
 
@@ -182,12 +194,13 @@ suite('AbstractAgentHostCustomizationService', () => {
 		return () => [...host.querySelectorAll('.monaco-status')].map(element => element.textContent).join('');
 	}
 
-	function createSut(authenticationError?: Error, options: { readonly authenticationSessions?: AuthenticationSession[]; readonly authenticationTargets?: Array<{ id: string; name: string }>; readonly notifications?: string[]; readonly configure?: (instantiationService: TestInstantiationService) => void } = {}): TestAgentHostCustomizationService {
+	function createSut(authenticationError?: Error, options: { readonly authenticationSessions?: AuthenticationSession[]; readonly authenticationTargets?: Array<{ id: string; name: string }>; readonly notifications?: string[]; readonly logService?: ILogService; readonly configure?: (instantiationService: TestInstantiationService) => void } = {}): TestAgentHostCustomizationService {
+		const logService = options.logService ?? new NullLogService();
 		const authenticationSessions = options.authenticationSessions ?? [{ id: 'test-session', accessToken: 'token', scopes: [], account: { id: 'test-account', label: 'Test Account' } }];
 		const authenticationTargets = options.authenticationTargets;
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILoggerService, store.add(new NullLoggerService()));
-		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(ILabelService, { getHostLabel: () => 'Test Host' });
 		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 			override readonly currentDefaultAccount = null;
@@ -224,7 +237,7 @@ suite('AbstractAgentHostCustomizationService', () => {
 		}();
 		instantiationService.stub(INotificationService, notificationService);
 		options.configure?.(instantiationService);
-		return store.add(new TestAgentHostCustomizationService(instantiationService, new NullLogService(), notificationService));
+		return store.add(new TestAgentHostCustomizationService(instantiationService, logService, notificationService));
 	}
 
 	test('backgrounds blocking servers through the required target operation', async () => {
@@ -830,11 +843,13 @@ suite('AbstractAgentHostCustomizationService', () => {
 			id: 'connector-session', accessToken: 'connector-token', scopes: ['read:user', 'user:email', 'write:plugin_gateway_connections'], account: { id: 'test-account', label: 'Test Account' },
 		};
 
-		function createConnectorSut(onRefresh: (sut: TestAgentHostCustomizationService) => Promise<void> | void, authorizationError?: Error) {
+		function createConnectorSut(onRefresh: (sut: TestAgentHostCustomizationService) => Promise<void> | void, options: { readonly authorizationError?: Error; readonly authenticationSessions?: AuthenticationSession[] } = {}) {
 			const operations: string[] = [];
 			const notifications: string[] = [];
+			const logs: string[] = [];
 			const sut: TestAgentHostCustomizationService = createSut(undefined, {
-				authenticationSessions: [fullScopeSession],
+				authenticationSessions: options.authenticationSessions ?? [fullScopeSession],
+				logService: new RecordingLogService(logs),
 				configure: instantiationService => {
 					instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 						override notify(notification: INotification): INotificationHandle {
@@ -845,8 +860,8 @@ suite('AbstractAgentHostCustomizationService', () => {
 					instantiationService.stub(ICopilotConnectorsService, new class extends mock<ICopilotConnectorsService>() {
 						override async authorize(): Promise<AuthenticationSession> {
 							operations.push('authorize');
-							if (authorizationError) {
-								throw authorizationError;
+							if (options.authorizationError) {
+								throw options.authorizationError;
 							}
 							return fullScopeSession;
 						}
@@ -857,37 +872,33 @@ suite('AbstractAgentHostCustomizationService', () => {
 					}());
 				},
 			});
-			return { sut, operations, notifications };
+			return { sut, operations, notifications, logs };
 		}
 
-		for (const [identification, meta, refreshed] of [
-			['published Connector name', withMcpServerConnectorNameMeta(undefined, 'workiqmcp'), 'workiqmcp'],
-			['Connector-scope challenge', undefined, undefined],
-		] as const) {
-			test(`signs in through Connector authorization by ${identification} and forwards no MCP token`, async () => {
-				const readStatus = captureStatus();
-				const session = URI.parse('vscode-agent-session:///session-1');
-				const target = new FakeTarget([connectorAuthRequired(meta)]);
-				const { sut, operations, notifications } = createConnectorSut(sut => {
-					sut.updateTarget(target, [{ ...connectorAuthRequired(meta), state: { kind: McpServerStatus.Starting } }]);
-					sut.updateTarget(target, [{ ...connectorAuthRequired(meta), state: { kind: McpServerStatus.Ready } }]);
-				});
-				sut.setTarget(session, target);
-				const silent = sut.getMcpServers(session).map(server => ({ authenticating: server.authenticating, connectorName: server.connectorName }));
-				target.onAuthenticate = request => operations.push(`authenticate:${request.resource}`);
-
-				const result = await sut.authenticateMcpServer(session, 'workiq');
-				assert.deepStrictEqual({ silent, result, status: readStatus(), operations, starts: target.startCalls, tokens: target.authenticateCalls.map(call => [call.resource, call.token]), notifications }, {
-					silent: [{ authenticating: false, connectorName: meta ? 'workiqmcp' : undefined }],
-					result: true,
-					status: 'Authenticated connector-workiq.',
-					operations: ['authorize', 'authenticate:https://api.github.com', `refresh:${refreshed}`],
-					starts: [],
-					tokens: [['https://api.github.com', 'connector-token']],
-					notifications: [],
-				});
+		test('signs in through Connector authorization by published Connector name and forwards no MCP token', async () => {
+			const readStatus = captureStatus();
+			const meta = withMcpServerConnectorNameMeta(undefined, 'workiqmcp');
+			const session = URI.parse('vscode-agent-session:///session-1');
+			const target = new FakeTarget([connectorAuthRequired(meta)]);
+			const { sut, operations, notifications } = createConnectorSut(sut => {
+				sut.updateTarget(target, [{ ...connectorAuthRequired(meta), state: { kind: McpServerStatus.Starting } }]);
+				sut.updateTarget(target, [{ ...connectorAuthRequired(meta), state: { kind: McpServerStatus.Ready } }]);
 			});
-		}
+			sut.setTarget(session, target);
+			const silent = sut.getMcpServers(session).map(server => ({ authenticating: server.authenticating, connectorName: server.connectorName }));
+			target.onAuthenticate = request => operations.push(`authenticate:${request.resource}`);
+
+			const result = await sut.authenticateMcpServer(session, 'workiq');
+			assert.deepStrictEqual({ silent, result, status: readStatus(), operations, starts: target.startCalls, tokens: target.authenticateCalls.map(call => [call.resource, call.token]), notifications }, {
+				silent: [{ authenticating: false, connectorName: 'workiqmcp' }],
+				result: true,
+				status: 'Authenticated connector-workiq.',
+				operations: ['authorize', 'authenticate:https://api.github.com', 'refresh:workiqmcp'],
+				starts: [],
+				tokens: [['https://api.github.com', 'connector-token']],
+				notifications: [],
+			});
+		});
 
 		for (const release of ['timeout', 'disposal'] as const) {
 			test(`releases Sign In on ${release} while the Connector refresh is still pending`, async () => {
@@ -940,8 +951,8 @@ suite('AbstractAgentHostCustomizationService', () => {
 			test(`announces Connector authorization ${cancelled ? 'cancellation' : 'errors through one notification'}`, async () => {
 				const readStatus = captureStatus();
 				const session = URI.parse('vscode-agent-session:///session-1');
-				const target = new FakeTarget([connectorAuthRequired(undefined)]);
-				const { sut, operations, notifications } = createConnectorSut(() => assert.fail('Must not refresh after failed authorization'), cancelled ? new CancellationError() : new Error('Sign-in failed'));
+				const target = new FakeTarget([connectorAuthRequired(withMcpServerConnectorNameMeta(undefined, 'workiqmcp'))]);
+				const { sut, operations, notifications } = createConnectorSut(() => assert.fail('Must not refresh after failed authorization'), { authorizationError: cancelled ? new CancellationError() : new Error('Sign-in failed') });
 				sut.setTarget(session, target);
 
 				assert.deepStrictEqual({ result: await sut.authenticateMcpServer(session, 'workiq'), status: readStatus(), operations, notifications }, {
@@ -952,6 +963,54 @@ suite('AbstractAgentHostCustomizationService', () => {
 				});
 			});
 		}
+
+		test('authenticates a built-in GitHub MCP server whose step-up challenge echoes the Connector scope with an MCP token', async () => {
+			const requiredScopes = ['read:user', 'user:email', 'write:plugin_gateway_connections', 'repo'];
+			const stepUpSession: AuthenticationSession = { id: 'step-up', accessToken: 'step-up-token', scopes: requiredScopes, account: { id: 'test-account', label: 'Test Account' } };
+			const gitHubMcp: McpServerCustomization = {
+				...mcpServer('github', 'github-mcp-server'),
+				_meta: withMcpServerSourceMeta(undefined, 'builtin'),
+				state: {
+					kind: McpServerStatus.AuthRequired,
+					reason: McpAuthRequiredReason.InsufficientScope,
+					resource: { resource: 'https://api.githubcopilot.com/mcp/', resource_name: 'GitHub MCP Server', authorization_servers: ['https://github.com/login/oauth'] },
+					requiredScopes,
+				},
+			};
+			const session = URI.parse('vscode-agent-session:///session-1');
+			const target = new FakeTarget([gitHubMcp]);
+			const { sut, operations, notifications } = createConnectorSut(() => { }, { authenticationSessions: [stepUpSession] });
+			target.onAuthenticate = () => queueMicrotask(() => sut.updateTarget(target, [{ ...gitHubMcp, state: { kind: McpServerStatus.Ready } }]));
+			sut.setTarget(session, target);
+
+			const result = await sut.authenticateMcpServer(session, 'github');
+			const [server] = sut.getMcpServers(session);
+			assert.deepStrictEqual({ connectorName: server.connectorName, result, operations, starts: target.startCalls, tokens: target.authenticateCalls.map(call => [call.resource, call.scopes, call.token]), notifications }, {
+				connectorName: undefined,
+				result: true,
+				operations: [],
+				starts: ['github'],
+				tokens: [['https://api.githubcopilot.com/mcp/', requiredScopes, 'step-up-token']],
+				notifications: [],
+			});
+		});
+
+		test('logs a cancelled Connector authorization without notifying', async () => {
+			const meta = withMcpServerConnectorNameMeta(withMcpServerDisplayNameMeta(undefined, 'Work IQ'), 'workiqmcp');
+			const session = URI.parse('vscode-agent-session:///session-1');
+			const target = new FakeTarget([connectorAuthRequired(meta)]);
+			const { sut, operations, notifications, logs } = createConnectorSut(() => { }, { authorizationError: new CancellationError() });
+			sut.setTarget(session, target);
+
+			const result = await sut.authenticateMcpServer(session, 'workiq');
+			assert.deepStrictEqual({ result, operations, tokens: target.authenticateCalls, notifications, logs }, {
+				result: false,
+				operations: ['authorize'],
+				tokens: [],
+				notifications: [],
+				logs: ['info:[AgentHost] Copilot Connector authorization for Work IQ (Connector) was cancelled'],
+			});
+		});
 	});
 
 	for (const stage of ['start', 'resource discovery', 'authorization metadata', 'provider creation', 'session lookup', 'session creation', 'token forwarding']) {

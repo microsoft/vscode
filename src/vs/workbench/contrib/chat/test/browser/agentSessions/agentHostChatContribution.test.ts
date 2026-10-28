@@ -39,6 +39,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../../pl
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { SAVE_SANDBOX_PATH } from '../../../../../../platform/agentHost/common/sandboxPathGrant.js';
 import { readAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
+import { withMcpServerConnectorNameMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { ChatHookFilesLocationsSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
@@ -68,7 +69,7 @@ import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHo
 import { toRemoteSessionMessageMetadata } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError, type DispatchActionParams, type IStateSnapshot, type JsonRpcRequest, type ProtocolMessage } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionOriginKind, type AgentCustomization, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type Message, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -95,7 +96,7 @@ import { IChatEditingService, IChatEditingSession, IChatEditingSessionProvider }
 import { ITextFileEditorModelManager, ITextFileService } from '../../../../../services/textfile/common/textfiles.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { ChatSessionForkError, IChatSessionsService, type IChatSession, type IChatSessionForkOptions, type IChatSessionHistoryItem, type IChatSessionContentProvider, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
+import { ChatSessionForkError, ChatSessionStatus, IChatSessionsService, type IChatSession, type IChatSessionForkOptions, type IChatSessionHistoryItem, type IChatSessionContentProvider, type IChatSessionItem, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
 import { IChatSideChatOrigin } from '../../../common/chatSideChatService.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
@@ -159,6 +160,7 @@ import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
 import { type ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostProtectedResourcesService } from '../../../browser/agentSessions/agentHost/agentHostProtectedResourcesService.js';
+import { IAgentHostMcpAppToolsService } from '../../../browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { ILanguageModelToolsService, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -1298,6 +1300,14 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		acquireSessionTools: () => ({ object: constObservable([]), dispose() { } }),
 	};
 	instantiationService.stub(IAgentHostActiveClientService, activeClientService);
+	instantiationService.stub(IAgentHostMcpAppToolsService, {
+		_serviceBrand: undefined,
+		acquire: () => { throw new Error('Unexpected app acquisition'); },
+		registerApp: () => Disposable.None,
+		getToolDefinitions: () => constObservable([]),
+		getTool: () => undefined,
+		getToolSessionResource: resource => resource,
+	} satisfies IAgentHostMcpAppToolsService);
 	instantiationService.stub(IAgentHostProtectedResourcesService, { onDidChange: Event.None, getProtectedResources: () => undefined });
 	instantiationService.stub(IOpenerService, openerService as IOpenerService);
 	instantiationService.stub(IEditorService, new class extends mock<IEditorService>() { });
@@ -4628,6 +4638,57 @@ suite('AgentHostChatContribution', () => {
 
 	suite('session list', () => {
 
+		test('projects durable automation origin into editor session metadata', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const ordinary = AgentSession.uri('copilot', 'ordinary');
+			const automation = AgentSession.uri('copilot', 'automation');
+			const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/definition', run: 'ahp-automation-run:/run' } as const;
+			agentHostService.addSession({
+				session: ordinary,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Ordinary',
+			});
+			agentHostService.addSession({
+				session: automation,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Automation',
+				origin,
+			});
+			const controller = createSessionListController(disposables, instantiationService, agentHostService);
+			await controller.refresh(CancellationToken.None);
+
+			agentHostService.fireNotification({
+				type: 'root/sessionSummaryChanged',
+				channel: ROOT_STATE_URI,
+				session: automation.toString(),
+				changes: { title: 'Updated Automation' },
+			});
+			agentHostService.fireNotification({
+				type: 'root/sessionAdded',
+				channel: ROOT_STATE_URI,
+				summary: {
+					resource: AgentSession.uri('copilot', 'live-automation').toString(),
+					provider: 'copilot',
+					title: 'Live Automation',
+					status: SessionStatus.Idle,
+					createdAt: new Date(3000).toISOString(),
+					modifiedAt: new Date(4000).toISOString(),
+					origin,
+				},
+			});
+
+			assert.deepStrictEqual(
+				controller.items.map(item => ({ label: item.label, isAutomation: item.metadata?.isAutomation })),
+				[
+					{ label: 'Ordinary', isAutomation: undefined },
+					{ label: 'Updated Automation', isAutomation: true },
+					{ label: 'Live Automation', isAutomation: true },
+				],
+			);
+		});
+
 		for (const variant of ['authority', 'query', 'selector-shaped query'] as const) {
 			test(`keeps pending creation and read state separate for same-path ${variant} resources`, async () => {
 				const { instantiationService, agentHostService, chatService } = createTestServices(disposables);
@@ -5177,6 +5238,107 @@ suite('AgentHostChatContribution', () => {
 			listController.setChatSessionItemArchived(URI.from({ scheme: 'agent-host-other', path: '/session' }), true);
 
 			assert.deepStrictEqual(agentHostService.dispatchedActions, []);
+		});
+
+		test('side chat completion targets the exact advertised chat and reconciles independently', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+			const session = URI.parse('host-session:/opaque-archive');
+			const main = 'host-chat:/conversation/main';
+			const side = 'host-chat:/conversation/side-question';
+			const sibling = 'host-chat:/conversation/sibling';
+			const chats: NonNullable<SessionSummary['chats']> = [
+				{ resource: main, title: 'Main', status: SessionStatus.InProgress },
+				{ resource: side, title: 'Side', status: SessionStatus.Idle, origin: { kind: ChatOriginKind.SideChat, chat: main, turnId: 'turn' } },
+				{ resource: sibling, title: 'Sibling', status: SessionStatus.InProgress },
+			];
+			agentHostService.addSession({
+				session, provider: 'copilot', startTime: 1000, modifiedTime: 2000, status: SessionStatus.InProgress,
+				chats: chats.map((chat, index) => ({ ...chat, chat: URI.parse(chat.resource), summary: chat.title, kind: index === 0 ? 'default' : 'peer' })),
+			});
+			await listController.refresh(CancellationToken.None);
+			agentHostService.dispatchedActions.length = 0;
+			const sideResource = listController.items[0].children![0].resource;
+			const before = listController.items[0];
+			listController.setChatSessionItemRead(sideResource, true);
+			listController.setChatSessionItemArchived(sideResource, true);
+			const update = (archived: boolean) => agentHostService.fireNotification({
+				type: NotificationType.SessionSummaryChanged, channel: ROOT_STATE_URI, session: session.toString(),
+				changes: { chats: chats.map(chat => chat.resource === side ? { ...chat, status: SessionStatus.Idle | SessionStatus.IsRead | (archived ? SessionStatus.IsArchived : 0) } : chat) },
+			});
+			update(true);
+			const completed = listController.items[0];
+			listController.setChatSessionItemArchived(sideResource, false);
+			update(false);
+			const flags = (item: IChatSessionItem) => ({
+				parent: { archived: item.archived, status: item.status, read: item.isRead },
+				children: item.children?.map(child => ({ id: child.resource.fragment, archived: child.archived, canArchive: child.canArchive, status: child.status, read: child.isRead })),
+			});
+			assert.deepStrictEqual({
+				actions: agentHostService.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+				before: flags(before),
+				completed: flags(completed),
+				restored: flags(listController.items[0]),
+			}, {
+				actions: [
+					{ channel: side, action: { type: ActionType.ChatIsReadChanged, isRead: true } },
+					{ channel: side, action: { type: ActionType.ChatIsArchivedChanged, isArchived: true } },
+					{ channel: side, action: { type: ActionType.ChatIsArchivedChanged, isArchived: false } },
+				],
+				before: {
+					parent: { archived: false, status: ChatSessionStatus.InProgress, read: false },
+					children: [
+						{ id: side, archived: false, canArchive: true, status: ChatSessionStatus.Completed, read: false },
+						{ id: sibling, archived: false, canArchive: true, status: ChatSessionStatus.InProgress, read: false },
+					],
+				},
+				completed: {
+					parent: { archived: false, status: ChatSessionStatus.InProgress, read: false },
+					children: [
+						{ id: side, archived: true, canArchive: true, status: ChatSessionStatus.Completed, read: true },
+						{ id: sibling, archived: false, canArchive: true, status: ChatSessionStatus.InProgress, read: false },
+					],
+				},
+				restored: {
+					parent: { archived: false, status: ChatSessionStatus.InProgress, read: false },
+					children: [
+						{ id: side, archived: false, canArchive: true, status: ChatSessionStatus.Completed, read: true },
+						{ id: sibling, archived: false, canArchive: true, status: ChatSessionStatus.InProgress, read: false },
+					],
+				},
+			});
+		});
+
+		test('side chat archive support follows the negotiated protocol and rejects unknown chat targets', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+			const session = AgentSession.uri('copilot', 'archive-version');
+			const main = buildDefaultChatUri(session.toString());
+			const side = 'host-chat:/side-question';
+			agentHostService.addSession({
+				session, startTime: 1000, modifiedTime: 2000,
+				chats: [
+					{ chat: URI.parse(main), kind: 'default' },
+					{ chat: URI.parse(side), kind: 'peer', origin: { kind: ChatOriginKind.SideChat, chat: main, turnId: 'turn' } },
+				],
+			});
+			agentHostService.setHostProtocolVersion('0.8.0');
+			await listController.refresh(CancellationToken.None);
+			const unsupported = listController.items[0].children![0];
+			assert.throws(() => listController.setChatSessionItemArchived(unsupported.resource, true), /does not support independent chat/);
+			const dispatchedBeforeUpgrade = agentHostService.dispatchedActions.length;
+			agentHostService.setHostProtocolVersion('0.9.0');
+			await listController.refresh(CancellationToken.None);
+			const supported = listController.items[0].children![0];
+			assert.throws(() => listController.setChatSessionItemArchived(supported.resource.with({ fragment: 'unknown' }), true), /Cannot resolve chat/);
+			listController.setChatSessionItemArchived(supported.resource, true);
+			assert.deepStrictEqual({
+				unsupported: unsupported.canArchive,
+				supported: supported.canArchive,
+				dispatchedBeforeUpgrade,
+				actions: agentHostService.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+			}, {
+				unsupported: false, supported: true, dispatchedBeforeUpgrade: 0,
+				actions: [{ channel: side, action: { type: ActionType.ChatIsArchivedChanged, isArchived: true } }],
+			});
 		});
 
 		test('read mutations dispatch through AHP and reconcile server summaries', async () => {
@@ -23223,7 +23385,7 @@ suite('AgentHostChatContribution', () => {
 			chatAgentService: MockChatAgentService,
 			resource: URI,
 			seq: { v: number },
-			opts?: { customizations?: unknown[]; routingServers?: unknown; routingChanges?: readonly (readonly string[])[] },
+			opts?: { customizations?: unknown[]; customizationChanges?: readonly unknown[][]; routingServers?: unknown; routingChanges?: readonly (readonly string[])[] },
 		): Promise<IChatMcpAuthenticationRequired[]> {
 			const chatSession = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
@@ -23266,6 +23428,15 @@ suite('AgentHostChatContribution', () => {
 			}
 			// Let the async auto-grant filter resolve.
 			await timeout(50);
+			for (const customizations of opts?.customizationChanges ?? []) {
+				agentHostService.fireAction({
+					channel: mintedTestChatOwner(dispatch.channel.toString())!,
+					action: { type: ActionType.SessionCustomizationsChanged, customizations } as unknown as SessionAction,
+					serverSeq: seq.v++,
+					origin: undefined,
+				});
+				await timeout(50);
+			}
 			for (const routingServers of opts?.routingChanges ?? []) {
 				agentHostService.fireAction({
 					channel: mintedTestChatOwner(dispatch.channel.toString())!,
@@ -23573,6 +23744,62 @@ suite('AgentHostChatContribution', () => {
 			const prompts = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq, { customizations: [authRequiredCustomization()] });
 			assert.deepStrictEqual(prompts.map(prompt => prompt.servers.read(undefined).map(server => server.id)), [['/mcp-1']]);
 		}));
+
+		for (const routingEnabled of [false, true]) {
+			for (const screenReader of [false, true]) {
+				test(`Connector proactive authentication respects routing=${routingEnabled}, screenReader=${screenReader}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+					const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables, {
+						configOverrides: { [AgentHostMcpToolRoutingEnabledSettingId]: routingEnabled },
+					});
+					sinon.stub(instantiationService.get(IAccessibilityService), 'isScreenReaderOptimized').returns(screenReader);
+					const notification = new NoOpNotification();
+					const prompt = sinon.stub(instantiationService.get(INotificationService), 'prompt').returns(notification);
+					const resource = URI.from({ scheme: 'agent-host-copilot', path: '/mcp-auth-connector' });
+					const prompts = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, { v: 1 }, {
+						customizations: [{
+							...authRequiredCustomization(),
+							_meta: withMcpServerConnectorNameMeta(undefined, 'workiq'),
+						}],
+					});
+					assert.deepStrictEqual({
+						servers: prompts.map(part => part.servers.read(undefined).map(server => server.id)),
+						notifications: prompt.callCount,
+					}, {
+						servers: !routingEnabled && !screenReader ? [['/mcp-1']] : [],
+						notifications: !routingEnabled && screenReader ? 1 : 0,
+					});
+				}));
+			}
+		}
+
+		for (const screenReader of [false, true]) {
+			test(`withdraws proactive authentication when Connector ownership arrives with screenReader=${screenReader}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables, {
+					configOverrides: { [AgentHostMcpToolRoutingEnabledSettingId]: true },
+				});
+				sinon.stub(instantiationService.get(IAccessibilityService), 'isScreenReaderOptimized').returns(screenReader);
+				const notification = new NoOpNotification();
+				const close = sinon.spy(notification, 'close');
+				const prompt = sinon.stub(instantiationService.get(INotificationService), 'prompt').returns(notification);
+				const prompts = await runTurn(sessionHandler, agentHostService, chatAgentService,
+					URI.from({ scheme: 'agent-host-copilot', path: '/mcp-auth-connector-discovered' }), { v: 1 }, {
+					customizations: [authRequiredCustomization()],
+					customizationChanges: [[{
+						...authRequiredCustomization(),
+						_meta: withMcpServerConnectorNameMeta(undefined, 'workiq'),
+					}]],
+				});
+				assert.deepStrictEqual({
+					parts: prompts.map(part => ({ isUsed: part.isUsed, servers: part.servers.read(undefined) })),
+					notifications: prompt.callCount,
+					closed: close.callCount,
+				}, {
+					parts: screenReader ? [] : [{ isUsed: true, servers: [] }],
+					notifications: screenReader ? 1 : 0,
+					closed: screenReader ? 1 : 0,
+				});
+			}));
+		}
 
 		for (const routingServers of [['GitHub MCP'], ['other-server'], [], 'GitHub MCP', ['GitHub MCP', 1]]) {
 			test(`uses actual routing registration for sign-in hints: ${JSON.stringify(routingServers)}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {

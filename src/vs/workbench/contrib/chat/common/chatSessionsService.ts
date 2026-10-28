@@ -279,6 +279,8 @@ export interface IChatSessionItem {
 		readonly deletions: number;
 	} | readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[];
 	readonly archived?: boolean;
+	/** Whether a child chat supports archiving independently of its parent. */
+	readonly canArchive?: boolean;
 	/**
 	 * Authoritative read state, set by controllers that own it (see
 	 * {@link IChatSessionItemController.setChatSessionItemRead}). Otherwise

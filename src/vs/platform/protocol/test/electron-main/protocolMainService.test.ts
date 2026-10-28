@@ -117,9 +117,9 @@ suite('ProtocolMainService', () => {
 			{ path: join(roots.appRoot, 'extensions/example/sessions.html'), expected: false },
 		];
 		const results = await Promise.all(cases.map(async testCase => {
-			const response: { status: number; headers: Record<string, string>; errors: string[] } = await ipcRenderer.invoke(
-				'vscode:test-file-resource', FileAccess.uriToBrowserUri(URI.file(testCase.path)).toString(true), roots, true);
-			return { status: response.status, policy: response.headers['document-policy'], errors: response.errors };
+			const response: { status: number; headers?: Record<string, string>; errors: string[] } = await ipcRenderer.invoke(
+				'vscode:test-file-resource', FileAccess.uriToBrowserUri(URI.file(testCase.path)).toString(true), roots);
+			return { status: response.status, policy: response.headers?.['Document-Policy'], errors: response.errors };
 		}));
 		assert.deepStrictEqual(results, cases.map(testCase => ({
 			status: 200, policy: testCase.expected ? 'include-js-call-stacks-in-crash-reports' : undefined, errors: [],
@@ -135,7 +135,7 @@ suite('ProtocolMainService', () => {
 			workspaceStorageHome: URI.file('/stack-sampling-test/workspaces').fsPath,
 		};
 		const resource = URI.file(join(roots.appRoot, 'out/vs/sessions/electron-browser/sessions-dev.html'));
-		const response: { stack: string } = await ipcRenderer.invoke('vscode:test-file-resource', FileAccess.uriToBrowserUri(resource).toString(true), roots, true, true);
+		const response: { stack: string } = await ipcRenderer.invoke('vscode:test-file-resource', FileAccess.uriToBrowserUri(resource).toString(true), roots, { sampleStack: true });
 		assert.ok(response.stack.includes('stackSamplingProbe'), `Expected the sampled JavaScript frame, got ${response.stack}`);
 	});
 });

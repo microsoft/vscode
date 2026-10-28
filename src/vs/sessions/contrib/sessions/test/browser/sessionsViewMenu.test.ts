@@ -83,6 +83,7 @@ suite('Sessions - View Menu', () => {
 		let workspaceGroupCapped = true;
 		const sessionsControl = upcastPartial<SessionsList>({
 			filters,
+			isSessionListed: (session, reader) => !session.isAutomation?.read(reader),
 			isExcludeArchived: () => excludeArchived,
 			setExcludeArchived: excluded => { excludeArchived = excluded; },
 			isWorkspaceGroupCapped: () => workspaceGroupCapped,

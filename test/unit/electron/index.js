@@ -423,31 +423,43 @@ app.on('ready', async () => {
 		}
 	});
 
-	ipcMain.handle('vscode:test-file-resource', async (_event, requestUrl, roots, includeHeaders = false, sampleStack = false) => {
+	ipcMain.handle('vscode:test-file-resource', async (_event, requestUrl, roots, options) => {
 		const [{ ProtocolMainService }, { URI }] = await Promise.all([
 			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/platform/protocol/electron-main/protocolMainService.js`)).href),
 			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/base/common/uri.js`)).href),
 		]);
-		// Preserve the production root registration and guard; replace only protocol registration and file transport.
+		// Preserve the production root registration and guard; replace only protocol registration.
 		class TestProtocolMainService extends ProtocolMainService {
 			handleProtocols() { }
-			async createFileResponse(_request, filePath, headers) {
-				return new Response(filePath, { headers });
-			}
 		}
 		/** @type {string[]} */
 		const errors = [];
 		const service = new TestProtocolMainService(
-			{ ...roots, workspaceStorageHome: URI.file(roots.workspaceStorageHome), isBuilt: true },
+			{ ...roots, ...options, workspaceStorageHome: URI.file(roots.workspaceStorageHome), isBuilt: options?.isBuilt ?? true },
 			{ defaultProfile: { globalStorageHome: URI.file(roots.globalStorageHome) } },
 			{ error: message => errors.push(message) },
 		);
 		try {
-			const response = await service.handleResourceRequest(new Request(requestUrl));
+			const response = await new Promise(resolve => {
+				service.handleResourceRequest({ url: requestUrl, method: 'GET', headers: {}, referrer: '' }, response => {
+					const allowed = 'path' in response;
+					resolve({
+						status: allowed ? 200 : 0,
+						path: allowed ? response.path : undefined,
+						headers: allowed ? response.headers : undefined,
+						error: allowed ? undefined : response.error,
+						errors,
+					});
+				});
+			});
 			let stack;
-			if (sampleStack) {
+			if (options?.sampleStack) {
 				const stackSession = session.fromPartition(`stack-sampling-test-${Date.now()}`);
-				stackSession.protocol.handle('vscode-file', request => service.handleResourceRequest(request));
+				stackSession.protocol.registerStringProtocol('vscode-file', (request, callback) => {
+					service.handleResourceRequest(request, response => {
+						callback('path' in response ? { data: '<!doctype html>', mimeType: 'text/html', headers: response.headers } : response);
+					});
+				});
 				const stackWindow = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true, contextIsolation: false, session: stackSession } });
 				const readyChannel = `vscode:test-stack-ready-${stackWindow.id}`;
 				let signalReady;
@@ -477,10 +489,10 @@ app.on('ready', async () => {
 					clearTimeout(readyTimeout);
 					ipcMain.removeListener(readyChannel, onReady);
 					stackWindow.destroy();
-					stackSession.protocol.unhandle('vscode-file');
+					stackSession.protocol.unregisterProtocol('vscode-file');
 				}
 			}
-			return { status: response.status, path: response.ok ? await response.text() : undefined, errors, ...(includeHeaders ? { headers: Object.fromEntries(response.headers) } : {}), ...(sampleStack ? { stack } : {}) };
+			return { ...response, ...(options?.sampleStack ? { stack } : {}) };
 		} finally {
 			service.dispose();
 		}

@@ -766,6 +766,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		append(this.rootElement, this.bodyScrollBar.getDomNode());
 
+		// Keep the scrollbar and header shadow in sync when the browser scrolls the body natively,
+		// e.g. to reveal a control focused with Tab (#131746).
+		this._register(addDisposableListener(scrollableContent, EventType.SCROLL, () => this.bodyScrollBar.scanDomNode()));
+
 		this.createAffectedFeaturesElement(scrollableContent);
 		this.createConfigurationElement(scrollableContent);
 

@@ -13,7 +13,7 @@ This specification defines stable placement and state-ownership rules. Row styli
 | Concern | Owner |
 |---------|-------|
 | Session catalog and lifecycle | `ISessionsManagementService` |
-| Pin and per-sort ordering state | `ISessionsListModelService` |
+| Pin, per-sort ordering, and automation-session listing state | `ISessionsListModelService` |
 | Order of a session's nested chats | The session's provider |
 | Custom groups, group and grouping-section appearance, nesting, automatic-section parents, mixed child order, and session membership | `ISessionGroupsService` |
 | Top-level custom group and grouping-section order | `ISessionSectionOrderService` |
@@ -27,7 +27,7 @@ Grouping-section appearance is persisted by the section's stable identity, indep
 
 The list consumes sessions from `ISessionsManagementService`. Providers decide whether a model represents a workspace session, quick chat, automation, or archived session through provider-neutral fields.
 
-Automation runs are excluded from the primary Sessions list. Surfaces that need session-row presentation without sectioning use `SessionsFlatList`.
+Automation runs are excluded from the primary Sessions list unless they are shown there: explicitly from the run's context menu, or automatically according to a setting (always, once the user sends a message in the run's session, or never). An explicit hide from the run's context menu overrides the setting. This listing, including an explicit hide, is client-side list state keyed by session, so it works for the automation runs of every provider. A shown session stays in Automations and otherwise follows the placement precedence below. Surfaces that need session-row presentation without sectioning use `SessionsFlatList`.
 
 ## Placement precedence
 
@@ -101,7 +101,7 @@ Archiving removes custom-group membership. Restoring a session does not restore 
 
 ## Durable user intent
 
-Pin, group, and ordering state survives temporary provider-catalog removal. Providers may transiently publish incomplete catalogs while reconnecting or hydrating, so `onDidChangeSessions.removed` is not proof of deletion.
+Pin, group, ordering, and automation listing state survives temporary provider-catalog removal. Providers may transiently publish incomplete catalogs while reconnecting or hydrating, so `onDidChangeSessions.removed` is not proof of deletion.
 
 List-owned state is removed only when:
 
@@ -151,7 +151,7 @@ A collapsed session row uses the provider's aggregate status without inspecting 
 
 ## Persistence
 
-List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace, repository, or environment section, the Chats section, and custom group, pins, custom groups with their nesting, automatic-section parents and mixed child order, manual sort keys, and top-level section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
+List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace, repository, or environment section, the Chats section, and custom group, pins, automation sessions shown in the list, custom groups with their nesting, automatic-section parents and mixed child order, manual sort keys, and top-level section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
 
 ## Change policy
 

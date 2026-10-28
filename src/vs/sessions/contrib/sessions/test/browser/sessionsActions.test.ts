@@ -357,6 +357,50 @@ suite('Sessions - Actions', () => {
 		]);
 	});
 
+	test('marking a side chat as done archives and closes only that chat', async () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const { session } = createTestSession('side-chat-done');
+		const main = session.mainChat.get();
+		const side: IChat = {
+			...main,
+			resource: session.resource.with({ fragment: 'side' }),
+			origin: { kind: ChatOriginKind.SideChat, parentChat: main.resource, turnId: 'turn-1' },
+			isArchived: constObservable(false),
+			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
+		};
+		const peer: IChat = { ...side, resource: session.resource.with({ fragment: 'peer' }), origin: { kind: ChatOriginKind.User } };
+		const activeSession = upcastPartial<IActiveSession>({
+			...session,
+			chats: constObservable([main, peer, side]),
+			openChats: constObservable([main, peer, side]),
+			activeChat: constObservable(side),
+		});
+		const operations: string[] = [];
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override async archiveChat(target: ISession, chat: IChat): Promise<void> {
+				assert.strictEqual(target, activeSession);
+				operations.push(`archive:${chat.resource.toString()}`);
+			}
+		});
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(activeSession);
+			override async closeChat(target: ISession, chat: IChat): Promise<void> {
+				assert.strictEqual(target, activeSession);
+				operations.push(`close:${chat.resource.toString()}`);
+			}
+		});
+
+		await instantiationService.invokeFunction(accessor => new ArchiveChatAction().run(accessor, { session: activeSession, chat: side }));
+
+		assert.deepStrictEqual({
+			operations,
+			sessionArchived: session.isArchived.get(),
+		}, {
+			operations: [`archive:${side.resource.toString()}`, `close:${side.resource.toString()}`],
+			sessionArchived: false,
+		});
+	});
+
 	test('session row read actions target each selected main chat', async () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const sessions = [createTestSession('First').session, createTestSession('Second').session];

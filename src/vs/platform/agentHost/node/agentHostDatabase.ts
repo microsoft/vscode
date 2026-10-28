@@ -19,7 +19,7 @@ import { IAgentHostChatV2MetadataData, decodeChatV2Metadata, encodeChatV2Metadat
 import type { ChatStorageRole } from './sessionStorageIdentity.js';
 import { AgentHostSessionStateTables, deleteSessionStateRows, IAgentHostSessionStateDatabase, ISessionStateSqlConnection, ISessionStateSqlHost, SESSION_STATE_MIGRATION_VERSION, SESSION_STATE_SCHEMA_SQL, checkSessionChatStateTransfer, IAgentHostSessionChatStateTransfer, transferSessionChatStateRows, checkSessionChatStatePromotion, IAgentHostSessionChatStatePromotion, promoteSessionChatStateRows } from './agentHostSessionStateDatabase.js';
 import { AgentHostScratchFolderTables, IAgentHostScratchFolderDatabase, markScratchFoldersRemoving, markUnusedScratchFoldersRemoving, SCRATCH_FOLDER_MIGRATION_VERSION, SCRATCH_FOLDER_SCHEMA_SQL } from './agentHostScratchFolderDatabase.js';
-import { AgentHostWorktreeRemovalTables, IAgentHostWorktreeRemovalDatabase, insertPendingWorktreeRemovals, insertWorktreeCoOwners, IWorktreeCoOwnedFolder, IWorktreeRemovalRequest, rekeyWorktreeCoOwners, WORKTREE_CO_OWNER_MIGRATION_SQL, WORKTREE_CO_OWNER_MIGRATION_VERSION, WORKTREE_CO_OWNER_SCHEMA_SQL, WORKTREE_REMOVAL_MIGRATION_VERSION, WORKTREE_REMOVAL_SCHEMA_SQL } from './agentHostWorktreeRemovalDatabase.js';
+import { AgentHostWorktreeRemovalTables, IAgentHostWorktreeRemovalDatabase, insertPendingWorktreeRemovals, insertWorktreeCoOwners, IWorktreeCoOwnedFolder, IWorktreeRemovalRequest, rekeyWorktreeCoOwners, WORKTREE_CO_OWNER_MIGRATION_SQL, WORKTREE_CO_OWNER_MIGRATION_VERSION, WORKTREE_CO_OWNER_SCHEMA_SQL, WORKTREE_REMOVAL_MIGRATION_VERSION, WORKTREE_REMOVAL_SCHEMA_SQL, WORKTREE_REMOVAL_STATUS_MIGRATION_VERSION } from './agentHostWorktreeRemovalDatabase.js';
 
 /**
  * Durable origin used to resolve competing registrations for the same session.
@@ -48,10 +48,11 @@ export interface IAgentHostDatabaseSessionOptions {
 }
 
 export interface IAgentHostDatabaseRegisterOptions {
+	/** Rejects deleted or hidden identities; false explicitly clears both markers. */
 	readonly checkTombstone: boolean;
 	/**
 	 * Exact provider backing URI for a discovery admission. When present,
-	 * backing tombstones and cross-provider identity exclusions are checked in
+	 * backing suppression and cross-provider identity exclusions are checked in
 	 * the same transaction that claims `session`.
 	 */
 	readonly discoveryBackingSession?: string;
@@ -425,7 +426,7 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 
 	/**
 	 * Records an identity in the legacy session registry for compatibility.
-	 * When requested, the tombstone check and registration are atomic.
+	 * When requested, the suppression check and registration are atomic.
 	 */
 	registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean>;
 	unregisterSession(session: string): Promise<void>;
@@ -434,6 +435,12 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	 * re-register it, recording the removal of its worktrees in the same transaction.
 	 */
 	tombstoneAndUnregisterSession(session: string, worktreeRemovals?: readonly IWorktreeRemovalRequest[]): Promise<void>;
+	/** Unregisters `session` and marks it hidden with its `provider`, clearing any deletion tombstone; its central state is kept and stays writable. */
+	hideSession(session: string, provider: string): Promise<void>;
+	/** Whether `session` carries a hidden marker. */
+	isSessionHidden(session: string): Promise<boolean>;
+	/** Every hidden session with its provider. */
+	listHiddenSessions(): Promise<readonly { readonly session: string; readonly provider: string }[]>;
 	updateSessionExternal(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void>;
 	/** Advances the durable last-observed modification time. */
 	updateSessionModifiedTime(session: string, modifiedTime: number): Promise<boolean>;
@@ -484,9 +491,11 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	clearSessionsV2Exclusion(provider: AgentProvider, session: string): Promise<void>;
 	/** Whether `session` was explicitly deleted and must not be resurrected by backfill. */
 	isSessionTombstoned(session: string): Promise<boolean>;
+	/** Whether `session` is deleted or hidden, so it must not be discovered, restored, surfaced or reused. */
+	isSessionSuppressed(session: string): Promise<boolean>;
 	/** Durably records that `session` was explicitly deleted. */
 	markSessionTombstoned(session: string): Promise<void>;
-	/** Clears a session's deletion tombstone (used on explicit create/restore). */
+	/** Clears a session's tombstone and hidden marker (used after teardown or on explicit creation). */
 	clearSessionTombstone(session: string): Promise<void>;
 	/**
 	 * Records a normal current-runtime identity in v2 and atomically mirrors its
@@ -772,6 +781,17 @@ async function migrateChatV2Schema(database: Database): Promise<void> {
 		CREATE INDEX IF NOT EXISTS chats_v2_parent ON chats_v2(parent_chat) WHERE tombstoned = 0`);
 }
 
+async function migrateWorktreeRemovalStatusSchema(database: Database): Promise<void> {
+	await exec(database, WORKTREE_REMOVAL_SCHEMA_SQL);
+	const columns = await all(database, 'PRAGMA table_info(pending_worktree_removals)', []);
+	if (!columns.some(column => column.name === 'last_attempt_state')) {
+		await exec(database, `ALTER TABLE pending_worktree_removals ADD COLUMN last_attempt_state TEXT CHECK (last_attempt_state IN ('failed', 'skipped'))`);
+	}
+	if (!columns.some(column => column.name === 'last_attempt_message')) {
+		await exec(database, 'ALTER TABLE pending_worktree_removals ADD COLUMN last_attempt_message TEXT');
+	}
+}
+
 const migrations = [
 	{
 		version: 1,
@@ -851,6 +871,10 @@ const migrations = [
 	{
 		version: SCRATCH_FOLDER_MIGRATION_VERSION,
 		sql: SCRATCH_FOLDER_SCHEMA_SQL,
+	},
+	{
+		version: WORKTREE_REMOVAL_STATUS_MIGRATION_VERSION,
+		sql: '',
 	},
 ] as const;
 
@@ -1131,6 +1155,7 @@ function agentMergeEnabledKey(session: string): string {
 }
 
 const provisionalSessionKeyPrefix = 'sessionProvisional:';
+const hiddenSessionKeyPrefix = 'sessionHidden:';
 /** Set once a chat first moved out of the session it was created in (Block 4); never cleared. */
 const CHATS_MOVED_METADATA_KEY = 'chatsV2Moved';
 /** Prefixes a moved chat's attachment copy record (Block 4b), `chatAttachmentCopy:<chat>`. */
@@ -1157,6 +1182,11 @@ const sessionStorageCatalogHashKeyPrefix = 'sessionStorageCatalogHash:';
 /** Metadata key marking a session registered but not yet materialized. */
 function provisionalSessionKey(session: string): string {
 	return `${provisionalSessionKeyPrefix}${session}`;
+}
+
+/** Metadata key recording the provider of a hidden session. */
+function hiddenSessionKey(session: string): string {
+	return `${hiddenSessionKeyPrefix}${session}`;
 }
 
 /** Metadata key prefixes of the records that map runtime identities to their storage spelling. */
@@ -1291,7 +1321,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					database,
 					`INSERT INTO sessions (session_uri, provider, start_time, modified_time, external, registration_source)
 						SELECT ?, ?, ?, ?, CASE WHEN ? = 'discovery' THEN 1 ELSE 0 END, ?
-						WHERE ? = 0 OR NOT EXISTS (SELECT 1 FROM metadata WHERE key = ? AND value = 'true')
+						WHERE ? = 0 OR NOT EXISTS (SELECT 1 FROM metadata WHERE (key = ? AND value = 'true') OR key = ?)
 						ON CONFLICT(session_uri) DO UPDATE SET
 							provider = CASE WHEN excluded.registration_source = 'explicit' THEN excluded.provider ELSE sessions.provider END,
 							modified_time = MAX(sessions.modified_time, excluded.modified_time),
@@ -1306,10 +1336,10 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 								WHEN sessions.registration_source = 'explicit' THEN 'explicit'
 								ELSE excluded.registration_source
 							END`,
-					[session, provider, startTime, modifiedTime, source, source, registerOptions.checkTombstone ? 1 : 0, tombstoneKey(session)],
+					[session, provider, startTime, modifiedTime, source, source, registerOptions.checkTombstone ? 1 : 0, tombstoneKey(session), hiddenSessionKey(session)],
 				);
 				if (!registerOptions.checkTombstone) {
-					await run(database, 'DELETE FROM metadata WHERE key = ?', [tombstoneKey(session)]);
+					await run(database, 'DELETE FROM metadata WHERE key IN (?, ?)', [tombstoneKey(session), hiddenSessionKey(session)]);
 				}
 				await exec(database, 'COMMIT');
 				return changes > 0;
@@ -1347,10 +1377,45 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
+	async hideSession(session: string, provider: string): Promise<void> {
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				await this._removeSessionRows(database, session);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [tombstoneKey(session)]);
+				await run(database, `INSERT INTO metadata (key, value) VALUES (?, ?)
+					ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [hiddenSessionKey(session), provider]);
+				await exec(database, 'COMMIT');
+			} catch (error) {
+				await this._rollback(database, error, `Failed to hide session ${session}`);
+			}
+		});
+	}
+
+	async isSessionHidden(session: string): Promise<boolean> {
+		return !!await get(await this._ensureDatabase(), 'SELECT 1 AS present FROM metadata WHERE key = ?', [hiddenSessionKey(session)]);
+	}
+
+	async listHiddenSessions(): Promise<readonly { readonly session: string; readonly provider: string }[]> {
+		const rows = await all(
+			await this._ensureDatabase(),
+			`SELECT key, value FROM metadata WHERE key LIKE ? || '%'`,
+			[hiddenSessionKeyPrefix],
+		);
+		return rows.map(row => ({ session: (row.key as string).slice(hiddenSessionKeyPrefix.length), provider: row.value as string }));
+	}
+
 	/** Tombstones a session and unregisters it, with its catalog, the chats it still owns and its central state; inside the caller's transaction. */
 	private async _tombstoneSessionRows(database: Database, session: string): Promise<void> {
 		await run(database, `INSERT INTO metadata (key, value) VALUES (?, 'true')
 			ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [tombstoneKey(session)]);
+		await this._removeSessionRows(database, session);
+		await deleteSessionStateRows(this._sessionStateConnection(database), session);
+	}
+
+	/** Removes a session's registration, catalog and owned chats inside the caller's transaction; its central state is kept. */
+	private async _removeSessionRows(database: Database, session: string): Promise<void> {
 		await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
 		await run(database, 'DELETE FROM metadata WHERE key = ?', [provisionalSessionKey(session)]);
 		await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
@@ -1361,7 +1426,6 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		await this._tombstoneOwnedChats(database, session);
 		await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [session]);
 		await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
-		await deleteSessionStateRows(this._sessionStateConnection(database), session);
 		await run(database, 'DELETE FROM worktree_co_owners WHERE session_uri = ?', [session]);
 	}
 
@@ -1643,6 +1707,10 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		return row?.value === 'true';
 	}
 
+	async isSessionSuppressed(session: string): Promise<boolean> {
+		return !!await get(await this._ensureDatabase(), `SELECT 1 AS present FROM metadata WHERE (key = ? AND value = 'true') OR key = ?`, [tombstoneKey(session), hiddenSessionKey(session)]);
+	}
+
 	markSessionTombstoned(session: string): Promise<void> {
 		return this._run(
 			`INSERT INTO metadata (key, value) VALUES (?, 'true')
@@ -1652,7 +1720,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	}
 
 	clearSessionTombstone(session: string): Promise<void> {
-		return this._run('DELETE FROM metadata WHERE key = ?', [tombstoneKey(session)]);
+		return this._run('DELETE FROM metadata WHERE key IN (?, ?)', [tombstoneKey(session), hiddenSessionKey(session)]);
 	}
 
 	async registerRuntimeSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
@@ -1662,7 +1730,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			await exec(database, 'BEGIN IMMEDIATE');
 			try {
 				if (registerOptions.discoveryBackingSession !== undefined) {
-					const backingTombstone = await get(database, 'SELECT 1 AS present FROM metadata WHERE key = ? AND value = ?', [tombstoneKey(registerOptions.discoveryBackingSession), 'true']);
+					const backingSuppressed = await get(database, `SELECT 1 AS present FROM metadata WHERE (key = ? AND value = 'true') OR key = ?`, [tombstoneKey(registerOptions.discoveryBackingSession), hiddenSessionKey(registerOptions.discoveryBackingSession)]);
 					const claimedIdentities = await all(database, `SELECT session_uri, provider FROM sessions_v2 WHERE session_uri IN (?, ?)
 						UNION ALL
 						SELECT session_uri, provider FROM sessions WHERE session_uri IN (?, ?)`, [
@@ -1681,7 +1749,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					const backingExcluded = registerOptions.discoveryBackingSession !== session
 						&& identityExclusions.some(exclusion => exclusion.session === registerOptions.discoveryBackingSession);
 					const excludedByAnotherProvider = identityExclusions.some(exclusion => exclusion.provider !== provider);
-					if (backingTombstone || backingClaimed || claimedByAnotherProvider || backingExcluded || excludedByAnotherProvider) {
+					if (backingSuppressed || backingClaimed || claimedByAnotherProvider || backingExcluded || excludedByAnotherProvider) {
 						await exec(database, 'COMMIT');
 						return false;
 					}
@@ -1693,11 +1761,12 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					SELECT session_uri, provider, start_time, modified_time, external, registration_source
 					FROM sessions
 					WHERE session_uri = ?
-						AND (? = 0 OR NOT EXISTS (SELECT 1 FROM metadata WHERE key = ? AND value = 'true'))
+						AND (? = 0 OR NOT EXISTS (SELECT 1 FROM metadata WHERE (key = ? AND value = 'true') OR key = ?))
 						AND NOT EXISTS (SELECT 1 FROM sessions_v2 WHERE session_uri = ?)`, [
 					session,
 					registerOptions.checkTombstone ? 1 : 0,
 					tombstoneKey(session),
+					hiddenSessionKey(session),
 					session,
 				]);
 				const changes = await this._registerSessionV2(database, session, provider, startTime, modifiedTime, source, registerOptions);
@@ -1728,7 +1797,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					}
 				}
 				if (!registerOptions.checkTombstone) {
-					await run(database, 'DELETE FROM metadata WHERE key = ?', [tombstoneKey(session)]);
+					await run(database, 'DELETE FROM metadata WHERE key IN (?, ?)', [tombstoneKey(session), hiddenSessionKey(session)]);
 				}
 				if (registerOptions.provisional) {
 					await run(database, `INSERT INTO metadata (key, value) VALUES (?, 'true')
@@ -1870,7 +1939,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			try {
 				const changes = await this._registerSessionV2(database, session, provider, startTime, modifiedTime, source, registerOptions);
 				if (!registerOptions.checkTombstone) {
-					await run(database, 'DELETE FROM metadata WHERE key = ?', [tombstoneKey(session)]);
+					await run(database, 'DELETE FROM metadata WHERE key IN (?, ?)', [tombstoneKey(session), hiddenSessionKey(session)]);
 				}
 				if (changes > 0) {
 					await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2ExcludedKey(provider, session)]);
@@ -3199,7 +3268,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				const targetExists = await get(database, `SELECT 1 AS present FROM sessions_v2 WHERE session_uri = ?
 					UNION ALL SELECT 1 FROM sessions WHERE session_uri = ?
 					UNION ALL SELECT 1 FROM session_chat_catalogs WHERE session_uri = ?
-					UNION ALL SELECT 1 FROM metadata WHERE key = ?`, [promotion.target, promotion.target, promotion.target, tombstoneKey(promotion.target)]);
+					UNION ALL SELECT 1 FROM metadata WHERE key IN (?, ?)`, [promotion.target, promotion.target, promotion.target, tombstoneKey(promotion.target), hiddenSessionKey(promotion.target)]);
 				const sourceHeader = await get(database, 'SELECT * FROM session_chat_catalogs WHERE session_uri = ?', [promotion.source]);
 				if (sourceHeader?.authority_version !== 2) {
 					await exec(database, 'COMMIT');
@@ -4128,7 +4197,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			database,
 			`INSERT INTO sessions_v2 (session_uri, provider, start_time, modified_time, external, registration_source)
 				SELECT ?, ?, ?, ?, CASE WHEN ? = 'discovery' THEN 1 ELSE 0 END, ?
-				WHERE ? = 0 OR NOT EXISTS (SELECT 1 FROM metadata WHERE key = ? AND value = 'true')
+				WHERE ? = 0 OR NOT EXISTS (SELECT 1 FROM metadata WHERE (key = ? AND value = 'true') OR key = ?)
 				ON CONFLICT(session_uri) DO UPDATE SET
 					provider = CASE WHEN excluded.registration_source = 'explicit' THEN excluded.provider ELSE sessions_v2.provider END,
 					modified_time = MAX(sessions_v2.modified_time, excluded.modified_time),
@@ -4145,7 +4214,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				WHERE ? = 0 OR sessions_v2.provider = excluded.provider`,
 			[
 				session, provider, startTime, modifiedTime, source, source,
-				registerOptions.checkTombstone ? 1 : 0, tombstoneKey(session),
+				registerOptions.checkTombstone ? 1 : 0, tombstoneKey(session), hiddenSessionKey(session),
 				registerOptions.discoveryBackingSession === undefined ? 0 : 1,
 			],
 		);
@@ -4328,6 +4397,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			get: (sql, parameters) => get(database, sql, parameters),
 			all: (sql, parameters) => all(database, sql, parameters),
 			isTombstoned: async session => !!await get(database, `SELECT 1 AS present FROM metadata WHERE key = ? AND value = 'true'`, [tombstoneKey(session)]),
+			isHidden: async session => !!await get(database, 'SELECT 1 AS present FROM metadata WHERE key = ?', [hiddenSessionKey(session)]),
 			isRegistered: async session => !!await get(database, `SELECT 1 AS present FROM sessions WHERE session_uri = ?
 				UNION SELECT 1 AS present FROM sessions_v2 WHERE session_uri = ? LIMIT 1`, [session, session]),
 			markPayloadDirty: async session => {
@@ -4422,6 +4492,8 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 									await migrateChatV2Schema(database);
 								} else if (migration.version === CHAT_ORIGIN_MIGRATION_VERSION) {
 									await migrateChatOriginSchema(database);
+								} else if (migration.version === WORKTREE_REMOVAL_STATUS_MIGRATION_VERSION) {
+									await migrateWorktreeRemovalStatusSchema(database);
 								} else {
 									await exec(database, migration.sql);
 								}
@@ -4458,6 +4530,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 							if (currentVersion >= SCRATCH_FOLDER_MIGRATION_VERSION) {
 								await exec(database, SCRATCH_FOLDER_SCHEMA_SQL);
 							}
+							await migrateWorktreeRemovalStatusSchema(database);
 							await exec(database, 'COMMIT');
 						} catch (error) {
 							return this._rollback(database, error, 'Failed to complete normalized catalog schema');

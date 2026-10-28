@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificatesProvider } from '../../common/clientCertificatesProtocol.js';
 import sinon from 'sinon';
 import { CancelablePromise, DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -532,6 +533,126 @@ suite('AgentHostProtocolClient', () => {
 			withdrawn: { method: RegisterClientArtifactIntegrationsExtensionMethod, params: { integrations: [] } },
 			disposed: 1,
 			rejected: { id: 62, result: undefined, error: 'This client is not serving artifact integrations' },
+		});
+	});
+
+	suite('client certificates', () => {
+		function createCertificateClient(provider?: IAgentHostClientCertificatesProvider) {
+			const transports: TestProtocolTransport[] = [];
+			const transportFactory = () => {
+				const transport = disposables.add(new class extends TestProtocolTransport implements IClientTransport {
+					readonly responses = new Map<number, DeferredPromise<ProtocolTransportMessage>>();
+					async connect(): Promise<void> { }
+					override send(message: ProtocolTransportMessage): void {
+						super.send(message);
+						if (hasKey(message, { id: true }) && typeof message.id === 'number') {
+							this.responses.get(message.id)?.complete(message);
+						}
+						if (hasKey(message, { id: true, method: true }) && typeof message.id === 'number') {
+							const result = message.method === 'initialize'
+								? { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] }
+								: message.method === 'reconnect'
+									? { type: ReconnectResultType.Replay, actions: [], missing: [] }
+									: message.method === 'authenticate' ? { authenticated: true } : {};
+							queueMicrotask(() => this.fireMessage({ jsonrpc: '2.0', id: message.id, result }));
+						}
+					}
+					requestCertificates(id: number): Promise<ProtocolTransportMessage> {
+						const response = new DeferredPromise<ProtocolTransportMessage>();
+						this.responses.set(id, response);
+						this.fireExtensionRequest(id, LoadClientCertificatesExtensionMethod, {});
+						return response.p;
+					}
+				}());
+				transports.push(transport);
+				return transport;
+			};
+			const connections: ReturnType<typeof transportFactory>[] = [];
+			const trust = createWorkspaceTrustServices();
+			const client = disposables.add(new AgentHostProtocolClient(
+				'test.example:1234', () => {
+					const transport = transportFactory();
+					connections.push(transport);
+					return transport;
+				},
+				{
+					clientCertificates: provider,
+					resolveInitialAuthentication: async () => ({ resource: 'https://api.github.com', token: 'test-token' }),
+					reconnectPolicy: { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 1 },
+				},
+				new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService,
+				workspaceTrustEnablementService, trust.management, trust.request,
+			));
+			return { client, connections };
+		}
+
+		for (const enabled of [false, true]) {
+			test(`advertises eligible certificate serving without loading on connect or reconnect (enabled=${enabled})`, async () => {
+				let loads = 0;
+				const { client, connections } = createCertificateClient({
+					isEnabled: () => enabled,
+					loadCertificates: async () => { loads++; return ['CLIENT CA']; },
+				});
+				await client.connect();
+				const reconnected = Event.toPromise(client.onDidReconnect);
+				connections[0].fireClose();
+				await reconnected;
+				assert.strictEqual(loads, 0);
+				const handshakes = connections.map(connection => connection.sentMessages[0]);
+				const response = await connections[1].requestCertificates(1000);
+				assert.deepStrictEqual({
+					loads,
+					capabilities: handshakes.map(message => hasKey(message, { params: true }) ? (message.params as { _meta: Record<string, unknown> })._meta['vscode.clientCertificates'] : undefined),
+					result: hasKey(response, { result: true }) ? response.result : undefined,
+				}, {
+					loads: enabled ? 1 : 0,
+					capabilities: [enabled ? true : undefined, enabled ? true : undefined],
+					result: { certificates: enabled ? ['CLIENT CA'] : [] },
+				});
+			});
+		}
+
+		test('does not serve certificates after forwarding is disabled', async () => {
+			let enabled = true;
+			const { client, connections } = createCertificateClient({
+				isEnabled: () => enabled,
+				loadCertificates: async () => { assert.fail('Disabled provider must not run'); },
+			});
+			await client.connect();
+			enabled = false;
+			const response = await connections[0].requestCertificates(1000);
+			assert.deepStrictEqual(hasKey(response, { result: true }) ? response.result : undefined, { certificates: [] });
+		});
+
+		test('a failed certificate request does not close the connection', async () => {
+			const { client, connections } = createCertificateClient({
+				isEnabled: () => true,
+				loadCertificates: async () => { throw new Error('Certificate loading failed'); },
+			});
+			await client.connect();
+			const response = await connections[0].requestCertificates(1000);
+			assert.deepStrictEqual({
+				state: client.connectionState,
+				message: hasKey(response, { error: true }) ? response.error.message : undefined,
+			}, { state: AgentHostClientState.Connected, message: 'Certificate loading failed' });
+		});
+
+		test('a delayed certificate response is not sent on a replacement transport', async () => {
+			const result = new DeferredPromise<readonly string[]>();
+			const started = new DeferredPromise<void>();
+			const { client, connections } = createCertificateClient({
+				isEnabled: () => true,
+				loadCertificates: async () => { started.complete(); return result.p; },
+			});
+			await client.connect();
+			connections[0].fireExtensionRequest(1000, LoadClientCertificatesExtensionMethod, {});
+			await started.p;
+			const reconnected = Event.toPromise(client.onDidReconnect);
+			connections[0].fireClose();
+			await reconnected;
+			result.complete(['STALE CA']);
+			await timeout(0);
+			assert.deepStrictEqual(connections.map(connection => connection.sentMessages.some(message => hasKey(message, { id: true }) && message.id === 1000)), [true, false]);
 		});
 	});
 
@@ -3651,6 +3772,37 @@ suite('AgentHostProtocolClient', () => {
 		const error = { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found' };
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, error });
 		await assertRemoteProtocolError(result, error);
+	});
+
+	test('deleteAutomation sends exact session identities through the supported extension', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, false, true));
+		const before = transport.sentMessages.length;
+		const result = client.deleteAutomation('ahp-automation:/a', true, [URI.parse('ahp-session://tenant/opaque')], 'delete-request');
+		const sent = transport.sentMessages.at(-1) as JsonRpcRequest;
+		transport.fireMessage({ jsonrpc: '2.0', id: sent.id, result: ['ahp-session://tenant/opaque'] });
+		assert.deepStrictEqual(await result, ['ahp-session://tenant/opaque']);
+		assert.deepStrictEqual({ count: transport.sentMessages.length - before, method: sent.method, params: sent.params }, {
+			count: 1, method: 'vscode/deleteAutomation',
+			params: { automation: 'ahp-automation:/a', deleteHistory: true, legacySessions: ['ahp-session://tenant/opaque'], requestId: 'delete-request' },
+		});
+
+		const acknowledgement = client.acknowledgeAutomationDeletion('delete-request');
+		const acknowledgementSent = transport.sentMessages.at(-1) as JsonRpcRequest;
+		transport.fireMessage({ jsonrpc: '2.0', id: acknowledgementSent.id, result: null });
+		await acknowledgement;
+		assert.deepStrictEqual({ method: acknowledgementSent.method, params: acknowledgementSent.params }, {
+			method: 'vscode/acknowledgeAutomationDeletion',
+			params: { requestId: 'delete-request' },
+		});
+	});
+
+	test('deleteAutomation sends nothing without the history capability', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport);
+		const before = transport.sentMessages.length;
+		await assert.rejects(() => client.deleteAutomation('ahp-automation:/a', true));
+		assert.strictEqual(transport.sentMessages.length, before);
 	});
 
 	test('manages Copilot extensions through advertised extension methods', async () => {

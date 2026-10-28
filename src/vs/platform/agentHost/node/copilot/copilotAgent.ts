@@ -70,6 +70,7 @@ import { ICopilotHomeService } from '../../../environment/common/copilotHome.js'
 import { CopilotCustomizationInstallations } from './customizations/copilotCustomizationInstallations.js';
 import { ISessionDataService, SESSION_DB_FILENAME, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
+import { writeUserDataCertificatesFile } from '../../../request/node/certificates.js';
 import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
@@ -470,6 +471,7 @@ interface ICopilotClientProxyState {
 	readonly proxy: string | undefined;
 	readonly noProxy: string | undefined;
 	readonly kerberosSpn: string | undefined;
+	readonly certificates: readonly string[];
 }
 
 /** What a configuration check runs for, and how it may wait. */
@@ -1122,9 +1124,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _resolvedProxy: string | undefined;
 	private _proxyRefresh: Promise<void> | undefined;
 	private _proxyResolutionGeneration = 0;
-	private _appliedProxy: string | undefined;
-	private _appliedNoProxy: string | undefined;
-	private _appliedProxyKerberosSpn: string | undefined;
+	private _appliedProxyState: ICopilotClientProxyState = { proxy: undefined, noProxy: undefined, kerberosSpn: undefined, certificates: [] };
 	/**
 	 * Reasons for a client restart that is parked until every chat is idle. See
 	 * {@link _requestClientRestart}; drained by {@link _applyPendingClientRestart}.
@@ -4139,11 +4139,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const startupStopWatch = StopWatch.create();
 		const startClient = async (computerUseRestarted = false): Promise<CopilotClient> => {
 			this._logService.info('[Copilot] Starting CopilotClient...');
+			await this._proxyResolver.loadClientCertificates();
 
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
 			const appliedProxy = this._readCopilotProxyState();
 			const env = this._createCopilotCliEnvironment(startupConfig.skillCharBudget, scoped !== undefined, appliedProxy, startupConfig.executionSubagent, startupConfig.executionSubagentModel);
+			if (appliedProxy.certificates.length) {
+				try {
+					const path = await writeUserDataCertificatesFile(await this._proxyResolver.loadCertificates(), this._environmentService.userDataPath, this._logService);
+					if (path) {
+						env['NODE_EXTRA_CA_CERTS'] = path;
+					}
+				} catch {
+					this._logService.warn('[Copilot] Failed to configure client CA certificates; starting without them.');
+				}
+			}
 			env['COPILOT_HOME'] = this._copilotHomeService.home.fsPath;
 			// Family aliases are host-side (prompt and tool-profile routing) and
 			// deliberately never reach the runtime; an ambient value here would
@@ -4315,9 +4326,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._scopedClientStartup.set(client, { config: startupConfig, proxy: appliedProxy });
 				return client;
 			}
-			this._appliedProxy = appliedProxy.proxy;
-			this._appliedNoProxy = appliedProxy.noProxy;
-			this._appliedProxyKerberosSpn = appliedProxy.kerberosSpn;
+			this._appliedProxyState = appliedProxy;
 			this._client = client;
 			this._clientGeneration++;
 			this._managedSettingsResolver.invalidate();
@@ -8791,6 +8800,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			proxy,
 			noProxy: getCopilotNoProxy(proxy, this._readNoProxy(process.env)),
 			kerberosSpn: this._readKerberosSpn(process.env),
+			certificates: this._proxyResolver.clientCertificates,
 		};
 	}
 
@@ -8860,14 +8870,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _refreshProxy(): void {
 		const generation = ++this._proxyResolutionGeneration;
 		const refresh = this._resolveProxyForSdk().then(async proxy => {
+			if (this._client || this._clientStarting || this._scopedClients.size > 0) {
+				await this._proxyResolver.loadClientCertificates();
+			}
 			if (generation !== this._proxyResolutionGeneration) {
 				return;
 			}
 			this._resolvedProxy = proxy;
-			const effectiveProxy = this._readConfiguredProxy() ?? (this._isSystemProxyEnabled() ? proxy : undefined);
-			const effectiveNoProxy = getCopilotNoProxy(effectiveProxy, this._readNoProxy(process.env));
-			const effectiveKerberosSpn = this._readKerberosSpn(process.env);
-			if (effectiveProxy === this._appliedProxy && effectiveNoProxy === this._appliedNoProxy && effectiveKerberosSpn === this._appliedProxyKerberosSpn) {
+			const effectiveProxy = this._readCopilotProxyState();
+			if (equals(effectiveProxy, this._appliedProxyState)) {
 				return;
 			}
 			if (this._clientStarting) {
@@ -8879,19 +8890,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// A newer proxy resolution (or the client start we just awaited)
 				// may have already superseded this one; re-check both so we don't
 				// restart based on a stale comparison.
-				if (generation !== this._proxyResolutionGeneration || (effectiveProxy === this._appliedProxy && effectiveNoProxy === this._appliedNoProxy && effectiveKerberosSpn === this._appliedProxyKerberosSpn)) {
+				if (generation !== this._proxyResolutionGeneration || equals(effectiveProxy, this._appliedProxyState)) {
 					return;
 				}
 			}
 			const changes: string[] = [];
-			if (effectiveProxy !== this._appliedProxy) {
-				changes.push(`proxy ${this._appliedProxy ?? '(none)'} -> ${effectiveProxy ?? '(none)'}`);
+			if (effectiveProxy.proxy !== this._appliedProxyState.proxy) {
+				changes.push(`proxy ${this._appliedProxyState.proxy ?? '(none)'} -> ${effectiveProxy.proxy ?? '(none)'}`);
 			}
-			if (effectiveNoProxy !== this._appliedNoProxy) {
+			if (effectiveProxy.noProxy !== this._appliedProxyState.noProxy) {
 				changes.push('NO_PROXY changed');
 			}
-			if (effectiveKerberosSpn !== this._appliedProxyKerberosSpn) {
+			if (effectiveProxy.kerberosSpn !== this._appliedProxyState.kerberosSpn) {
 				changes.push('Kerberos SPN changed');
+			}
+			if (!equals(effectiveProxy.certificates, this._appliedProxyState.certificates)) {
+				changes.push('client certificates changed');
 			}
 			await this._requestClientRestart(`CAPI proxy configuration changed (${changes.join(', ')})`);
 		}).catch(error => this._logService.error('[Copilot] Failed to refresh CAPI proxy', error));
@@ -9812,14 +9826,19 @@ class SessionDiscoveredEntry extends Disposable {
 		super.dispose();
 	}
 
-	whenSettled(): Promise<void> {
-		return this._settled;
+	/** Waits for discovery to finish, including scans that supersede the current one. */
+	async whenSettled(): Promise<void> {
+		let settled: Promise<void>;
+		do {
+			settled = this._settled;
+			await settled;
+		} while (settled !== this._settled);
 	}
 
 	/** Re-runs discovery for changes no watched file reports, such as plugins the runtime installed. */
 	refresh(): Promise<void> {
 		this._settled = this._queueRefresh(true, 0);
-		return this._settled;
+		return this.whenSettled();
 	}
 
 	/** Whether no discovery refresh is queued or running. */

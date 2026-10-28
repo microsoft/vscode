@@ -22,6 +22,7 @@ import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../co
 import { createAgentModelSourceMeta, readAgentModelSourceId } from '../../common/agentModelSource.js';
 import { URI } from '../../../../base/common/uri.js';
 import { hasClientPluginMcpDefaultCwd, hasClientPluginMcpDefaultCwds, readClientPluginMcpDefaultCwd, toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
+import { readAgentToolOrigin, withAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
 
 /** Wraps a `_meta` bag in a minimal {@link ToolCallState} so the reader sees the right source type. */
 function toolCall(meta: Record<string, unknown> | undefined): ToolCallState {
@@ -41,6 +42,22 @@ function attachment(meta: Record<string, unknown> | undefined): SimpleMessageAtt
 suite('Agent host _meta readers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('round trips optional app tool origin and rejects malformed metadata', () => {
+		const tool = withAgentToolOrigin({ name: 'semantic_search', _meta: { unrelated: true } }, 'mcpApp');
+		assert.deepStrictEqual({
+			tool,
+			origins: [
+				readAgentToolOrigin(tool),
+				readAgentToolOrigin(undefined),
+				readAgentToolOrigin({ name: 'semantic_search' }),
+				...[undefined, null, {}, true, 'internal', 'future'].map(value => readAgentToolOrigin({ name: 'semantic_search', _meta: { 'vscode.chat.toolOrigin': value } })),
+			],
+		}, {
+			tool: { name: 'semantic_search', _meta: { unrelated: true, 'vscode.chat.toolOrigin': 'mcpApp' } },
+			origins: ['mcpApp', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined],
+		});
+	});
 
 	test('validates the explicit native tool input contract', () => {
 		const key = 'vscode.toolInputContract';
