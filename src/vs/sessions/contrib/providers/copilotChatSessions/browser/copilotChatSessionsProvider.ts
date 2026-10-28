@@ -35,7 +35,6 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, IPreparedNewSession, ISessionChatMoveDestination, SessionMoveRefusedError, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions, INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError, ICreateNewChatOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
-import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../../../base/common/cancellation.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { COPILOT_VENDOR_ID, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -1186,10 +1185,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			}));
 		}
 
-		this._register(Event.filter(
-			this.configurationService.onDidChangeConfiguration,
-			event => event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING),
-		)(() => this._onDidChangeSessionTypes.fire()));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			const sandboxChanged = event.affectsConfiguration(CloudSandboxEnabledSettingId) || event.affectsConfiguration(RemoteAgentHostsEnabledSettingId);
 			if (sandboxChanged || event.affectsConfiguration(ChatAIDisabledSettingId)) {
@@ -1273,14 +1268,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	get browseActions(): readonly ISessionWorkspaceBrowseAction[] {
-		const useConsolidatedRemoteWorkspaces = this.configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING);
 		const isSandbox = this.providerMode === 'sandbox';
 		const repositoryAction: ISessionWorkspaceBrowseAction = {
 			label: isSandbox
 				? localize('sandbox.chooseRepository', "Choose Repository...")
-				: useConsolidatedRemoteWorkspaces ? localize('workInRepository', "Work in Repository...") : localize('repository', "Repository..."),
+				: localize('workInRepository', "Work in Repository..."),
 			group: SESSION_WORKSPACE_GROUP_GITHUB,
-			icon: isSandbox || useConsolidatedRemoteWorkspaces ? Codicon.github : Codicon.library,
+			icon: Codicon.github,
 			providerId: this.id,
 			attachesContext: false,
 			supportsContextAttachment: !isSandbox,
@@ -1304,10 +1298,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			{
 				label: localize('pullRequest', "Pull Request..."),
 				group: SESSION_WORKSPACE_GROUP_GITHUB,
-				icon: useConsolidatedRemoteWorkspaces ? Codicon.github : Codicon.gitPullRequest,
+				icon: Codicon.github,
 				providerId: this.id,
 				attachesContext: true,
-				run: workspace => this._browseForGitHubContext(OPEN_PULL_REQUEST_COMMAND, useConsolidatedRemoteWorkspaces ? Codicon.github : Codicon.gitPullRequest, workspace),
+				run: workspace => this._browseForGitHubContext(OPEN_PULL_REQUEST_COMMAND, Codicon.github, workspace),
 			},
 		];
 	}
@@ -1322,7 +1316,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return [CopilotCloudSessionType];
 		}
 		// Local folders can only host a Cloud session for the GitHub repository they track.
-		if (this.configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING) && workspaceUri.scheme === Schemas.file) {
+		if (workspaceUri.scheme === Schemas.file) {
 			const gitRepository = this._getLocalGitRepository(workspaceUri);
 			gitRepository.resolveGitHubInfo?.();
 			if (gitRepository.gitHubInfo.get()) {

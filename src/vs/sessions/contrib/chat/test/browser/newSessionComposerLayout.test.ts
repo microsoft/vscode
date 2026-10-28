@@ -23,12 +23,16 @@ import { NullPolicyService } from '../../../../../platform/policy/common/policy.
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import '../../../../../workbench/contrib/chat/browser/agentSessionsConfiguration.js';
 import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
-import { areNewSessionWelcomePhrasesEnabled, isExperimentalSessionComposerLayoutEnabled, isSessionEnvironmentPickerEnabled, isSessionWorkspaceOptOutEnabled } from '../../browser/newChatWidget.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
+import { areNewSessionWelcomePhrasesEnabled, isSessionEnvironmentPickerEnabled, isSessionWorkspaceOptOutEnabled } from '../../browser/newChatWidget.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
 import '../../browser/chat.contribution.js';
 
 // Capture the registered schema before configuration tests reset the shared registry.
-const experimentalNewSessionComposerLayoutProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING];
+const retiredComposerSettings = [
+	'sessions.chat.experimental.newSessionComposerLayout',
+	'sessions.chat.unifiedWorkspacePicker.enabled',
+	'chat.agentSessions.consolidatedRemoteWorkspaces',
+].map(key => Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[key]);
 const environmentPickerProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[ENVIRONMENT_PICKER_SETTING];
 const environmentPickerManageRemotesProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING];
 const workspaceOptOutProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[WORKSPACE_OPT_OUT_SETTING];
@@ -69,60 +73,36 @@ suite('New session composer layout', () => {
 		}, { type: 'boolean', default: true, scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'auto' } });
 	});
 
-	test('workspace opt-out requires its own setting and both layout settings', () => {
+	test('workspace opt-out requires its own setting', () => {
 		const results: boolean[] = [];
-		for (const unifiedPicker of [false, true]) {
-			for (const experimentalLayout of [false, true]) {
-				for (const enabled of [undefined, false, true]) {
-					const configuration = new TestConfigurationService({
-						[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedPicker,
-						[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalLayout,
-						[WORKSPACE_OPT_OUT_SETTING]: enabled,
-					});
-					store.add(configuration.onDidChangeConfigurationEmitter);
-					results.push(isSessionWorkspaceOptOutEnabled(configuration));
-				}
-			}
+		for (const enabled of [undefined, false, true]) {
+			const configuration = new TestConfigurationService({ [WORKSPACE_OPT_OUT_SETTING]: enabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			results.push(isSessionWorkspaceOptOutEnabled(configuration));
 		}
-		assert.deepStrictEqual(results, [false, false, false, false, false, false, false, false, false, false, false, true]);
+		assert.deepStrictEqual(results, [false, false, true]);
 	});
 
-	for (const unifiedPicker of [false, true]) {
-		for (const experimentalLayout of [false, true]) {
-			for (const environmentPicker of [undefined, false, true]) {
-				test(`Environment picker ${environmentPicker}, unified picker ${unifiedPicker}, layout ${experimentalLayout}`, () => {
-					const configurationService = new TestConfigurationService({
-						[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedPicker,
-						[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalLayout,
-						[ENVIRONMENT_PICKER_SETTING]: environmentPicker,
-					});
-					store.add(configurationService.onDidChangeConfigurationEmitter);
-					assert.deepStrictEqual({
-						environment: isSessionEnvironmentPickerEnabled(configurationService),
-						layout: isExperimentalSessionComposerLayoutEnabled(configurationService),
-					}, {
-						environment: !isWeb && unifiedPicker && experimentalLayout && environmentPicker === true,
-						layout: unifiedPicker && experimentalLayout,
-					});
-				});
-			}
-		}
+	for (const environmentPicker of [undefined, false, true]) {
+		test(`Environment picker ${environmentPicker}`, () => {
+			const configurationService = new TestConfigurationService({ [ENVIRONMENT_PICKER_SETTING]: environmentPicker });
+			store.add(configurationService.onDidChangeConfigurationEmitter);
+			assert.strictEqual(isSessionEnvironmentPickerEnabled(configurationService), !isWeb && environmentPicker === true);
+		});
 	}
+
+	test('retired composer settings are no longer registered', () => {
+		assert.deepStrictEqual(retiredComposerSettings, [undefined, undefined, undefined]);
+	});
 
 	test('can be configured in Agents settings', () => {
 		assert.deepStrictEqual({
-			layoutDefault: experimentalNewSessionComposerLayoutProperty.default,
-			layoutScope: experimentalNewSessionComposerLayoutProperty.scope,
-			layoutExperiment: experimentalNewSessionComposerLayoutProperty.experiment,
 			optionsDefault: newSessionComposerOptionsExpandedProperty.default,
 			optionsScope: newSessionComposerOptionsExpandedProperty.scope,
 			optionsExperimentMode: newSessionComposerOptionsExpandedProperty.experiment?.mode,
 			agentsPickerScope: agentsPickerInAttachContextMenuProperty.scope,
 			agentsPickerExperiment: agentsPickerInAttachContextMenuProperty.experiment,
 		}, {
-			layoutDefault: true,
-			layoutScope: ConfigurationScope.WINDOW,
-			layoutExperiment: undefined,
 			optionsDefault: true,
 			optionsScope: ConfigurationScope.APPLICATION,
 			optionsExperimentMode: 'auto',
@@ -131,33 +111,12 @@ suite('New session composer layout', () => {
 		});
 	});
 
-	for (const testCase of [
-		{ unifiedPicker: false, experimentalLayout: false, expected: false },
-		{ unifiedPicker: false, experimentalLayout: true, expected: false },
-		{ unifiedPicker: true, experimentalLayout: false, expected: false },
-		{ unifiedPicker: true, experimentalLayout: true, expected: true },
-	]) {
-		test(`unified picker ${testCase.unifiedPicker}, experimental layout ${testCase.experimentalLayout}`, () => {
-			const configurationService = new TestConfigurationService({
-				[UNIFIED_WORKSPACE_PICKER_SETTING]: testCase.unifiedPicker,
-				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: testCase.experimentalLayout,
-			});
-			store.add(configurationService.onDidChangeConfigurationEmitter);
-
-			assert.strictEqual(isExperimentalSessionComposerLayoutEnabled(configurationService), testCase.expected);
-		});
-	}
-
-	test('welcome phrases are independent from the experimental composer layout', () => {
+	test('welcome phrases respect their own setting', () => {
 		const configurations = [
 			new TestConfigurationService({
-				[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
-				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
 				[NEW_SESSION_WELCOME_PHRASES_SETTING]: false,
 			}),
 			new TestConfigurationService({
-				[UNIFIED_WORKSPACE_PICKER_SETTING]: false,
-				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: false,
 				[NEW_SESSION_WELCOME_PHRASES_SETTING]: true,
 			}),
 		];
@@ -166,11 +125,10 @@ suite('New session composer layout', () => {
 		}
 
 		assert.deepStrictEqual(configurations.map(configurationService => ({
-			experimentalLayout: isExperimentalSessionComposerLayoutEnabled(configurationService),
 			welcomePhrases: areNewSessionWelcomePhrasesEnabled(configurationService),
 		})), [
-			{ experimentalLayout: true, welcomePhrases: false },
-			{ experimentalLayout: false, welcomePhrases: true },
+			{ welcomePhrases: false },
+			{ welcomePhrases: true },
 		]);
 	});
 

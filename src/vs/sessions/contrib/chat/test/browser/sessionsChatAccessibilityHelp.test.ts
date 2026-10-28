@@ -29,7 +29,7 @@ import { ISessionsPartService } from '../../../../services/sessions/browser/sess
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
@@ -73,8 +73,6 @@ suite('SessionsChatAccessibilityHelp', () => {
 			test(`documents Manage only when available (remotes: ${remotesEnabled}, manage: ${manageEnabled})`, () => {
 				const instantiation = store.add(new TestInstantiationService());
 				const configuration = new TestConfigurationService({
-					[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
-					[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
 					[ENVIRONMENT_PICKER_SETTING]: true,
 					[RemoteAgentHostsEnabledSettingId]: remotesEnabled,
 					...(manageEnabled === undefined ? {} : { [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: manageEnabled }),
@@ -304,6 +302,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 	}
 
 	function stubContextKeyService(instantiationService: TestInstantiationService, configuration: TestConfigurationService, promoteNewChatAction = SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT): void {
+		instantiationService.stub(ITelemetryService, new TestExperimentTriggerTelemetryService());
+		instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
 		instantiationService.stub(IEnvironmentService, { isBuilt: false });
 		instantiationService.stub(IChatEntitlementService, { sentiment: { hidden: configuration.getValue('chat.disableAIFeatures') === true } });
 		const contextKeyService = store.add(new ContextKeyService(configuration));
@@ -535,10 +535,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 	});
 
-	test('describes picker shortcuts only when the unified workspace picker is enabled', () => {
-		const getPickerHelp = (enabled: boolean) => {
+	test('describes picker shortcuts', () => {
+		const getPickerHelp = () => {
 			const instantiationService = store.add(new TestInstantiationService());
-			const configuration = new TestConfigurationService({ [UNIFIED_WORKSPACE_PICKER_SETTING]: enabled });
+			const configuration = new TestConfigurationService({});
 			store.add(configuration.onDidChangeConfigurationEmitter);
 			instantiationService.stub(IConfigurationService, configuration);
 			stubContextKeyService(instantiationService, configuration);
@@ -550,15 +550,13 @@ suite('SessionsChatAccessibilityHelp', () => {
 				.split('\n')
 				.find(line => line.includes('open and focus the workspace picker'));
 		};
-		const enabledHelp = getPickerHelp(true);
+		const enabledHelp = getPickerHelp();
 
 		assert.deepStrictEqual({
-			disabled: getPickerHelp(false) !== undefined,
 			enabled: enabledHelp !== undefined,
 			contextMenuKeybinding: enabledHelp?.includes('<keybinding:editor.action.showContextMenu>'),
 			mouseOnly: enabledHelp?.includes('Right-click'),
 		}, {
-			disabled: false,
 			enabled: true,
 			contextMenuKeybinding: true,
 			mouseOnly: false,
@@ -570,15 +568,13 @@ suite('SessionsChatAccessibilityHelp', () => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const telemetryService = new TestExperimentTriggerTelemetryService();
 			const configuration = new TestConfigurationService({
-				[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
-				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
 				[WORKSPACE_OPT_OUT_SETTING]: enabled,
 			});
 			store.add(configuration.onDidChangeConfigurationEmitter);
 			instantiationService.stub(IConfigurationService, configuration);
-			instantiationService.stub(ITelemetryService, telemetryService);
 			instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false, onDidChangeScreenReaderOptimized: Event.None });
 			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ITelemetryService, telemetryService);
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
@@ -596,12 +592,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 	});
 
 	test('describes controls according to the effective new-session layout', () => {
-		const getLayoutHelp = (unifiedPicker: boolean, experimentalLayout: boolean, agentPickerInAttachContext = false, screenReader = false) => {
+		const getLayoutHelp = (agentPickerInAttachContext = false, screenReader = false) => {
 			const instantiationService = store.add(new TestInstantiationService());
 			instantiationService.stub(ITelemetryService, new TestExperimentTriggerTelemetryService());
 			const configuration = new TestConfigurationService({
-				[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedPicker,
-				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalLayout,
 				[AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING]: agentPickerInAttachContext,
 				[WORKSPACE_OPT_OUT_SETTING]: true,
 			});
@@ -624,43 +618,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 		};
 
 		assert.deepStrictEqual([
-			getLayoutHelp(false, false),
-			getLayoutHelp(false, false, true),
-			getLayoutHelp(true, false),
+			getLayoutHelp(),
 			getLayoutHelp(false, true),
-			getLayoutHelp(true, true),
-			getLayoutHelp(true, true, false, true),
-			getLayoutHelp(true, true, true),
+			getLayoutHelp(true)
 		], [
 			{
-				controls: 'Inside the new-session prompt, Add Context and Model appear in the input toolbar. Agent, Mode, and Permissions appear below the input when available for the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
-				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls below the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
-				hasSessionOptions: false,
-				sessionOptionsMentionsToggle: false,
-				hasClearWorkspace: false,
-			},
-			{
-				controls: 'When an Agent picker is available in a new or running session, it appears in Add Context when the default agent is selected. Open Add Context and choose Agent to select an agent. While a custom agent is selected, the Agent picker appears in its usual position. Selecting the default agent moves it back into Add Context. Other new-session controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
-				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls below the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
-				hasSessionOptions: false,
-				sessionOptionsMentionsToggle: false,
-				hasClearWorkspace: false,
-			},
-			{
-				controls: 'Inside the new-session prompt, Add Context and Model appear in the input toolbar. Agent, Mode, and Permissions appear below the input when available for the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
-				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls below the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
-				hasSessionOptions: false,
-				sessionOptionsMentionsToggle: false,
-				hasClearWorkspace: false,
-			},
-			{
-				controls: 'Inside the new-session prompt, Add Context and Model appear in the input toolbar. Agent, Mode, and Permissions appear below the input when available for the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
-				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls below the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
-				hasSessionOptions: false,
-				sessionOptionsMentionsToggle: false,
-				hasClearWorkspace: false,
-			},
-			{
 				controls: 'Inside the new-session prompt, the controls appear in this order: Add Context, Agent, Mode and Permissions, and Model. Which controls are available depends on the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
 				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls above the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
 				hasSessionOptions: true,
@@ -680,7 +642,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				hasSessionOptions: true,
 				sessionOptionsMentionsToggle: true,
 				hasClearWorkspace: true,
-			},
+			}
 		]);
 	});
 

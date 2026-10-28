@@ -20,11 +20,9 @@ import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplac
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 const registeredAgentSessionsSettings = [
-	ChatConfiguration.UnifiedWorkspacePicker,
 	ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays,
 	ChatConfiguration.AutoDeleteMarkedAsDoneMergedSessionsAfterDays,
 ].map(key => configurationProperties[key] !== undefined);
-const unifiedWorkspacePickerSetting = configurationProperties[ChatConfiguration.UnifiedWorkspacePicker];
 const agentsPickerSetting = configurationProperties[ChatConfiguration.AgentsPickerInAttachContextMenu];
 const migrations = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations;
 const legacyAutoArchiveMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoArchiveMergedSessionsAfterDays');
@@ -39,7 +37,7 @@ suite('Chat configuration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('registers Agents Window settings in the shared workbench contribution', () => {
-		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);
+		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true]);
 	});
 
 	test('registers the existing Agent picker setting for both editor and Agents windows', () => {
@@ -90,20 +88,6 @@ suite('Chat configuration', () => {
 			});
 		});
 	}
-
-	test('enables the unified workspace picker by default while allowing experiment overrides', () => {
-		assert.deepStrictEqual({
-			type: unifiedWorkspacePickerSetting.type,
-			default: unifiedWorkspacePickerSetting.default,
-			scope: unifiedWorkspacePickerSetting.scope,
-			experiment: unifiedWorkspacePickerSetting.experiment,
-		}, {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.APPLICATION,
-			experiment: { mode: 'auto' },
-		});
-	});
 
 	test('Marketplace and Copilot connectors are default-on previews while preserving experiment controls', () => {
 		assert.deepStrictEqual({
