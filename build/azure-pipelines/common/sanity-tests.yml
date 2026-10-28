@@ -59,6 +59,8 @@ jobs:
           continueOnError: true
           sbomEnabled: false
     variables:
+      - name: SANITY_NODE_VERSION
+        value: 22.22.0
       - name: TEST_DIR
         value: $(Build.SourcesDirectory)/test/sanity
       - name: LOG_FILE
@@ -161,18 +163,18 @@ jobs:
       # agent pools at times, so the bounded download below is only the fallback.
       - task: Cache@2
         inputs:
-          key: '"sanity-node" | "22.22.0" | "$(Agent.OS)" | "$(Agent.OSArchitecture)"'
+          key: '"sanity-node" | "$(SANITY_NODE_VERSION)" | "$(Agent.OS)" | "$(Agent.OSArchitecture)"'
           path: $(Agent.ToolsDirectory)/sanity-node
         displayName: Restore Node.js cache
         retryCountOnTaskFailure: 2
         continueOnError: true
 
       - ${{ if eq(parameters.os, 'windows') }}:
-        - powershell: build/azure-pipelines/common/install-node.ps1 -Version 22.22.0 -InstallDir "$(Agent.ToolsDirectory)/sanity-node"
+        - powershell: build/azure-pipelines/common/install-node.ps1 -Version $(SANITY_NODE_VERSION) -InstallDir "$(Agent.ToolsDirectory)/sanity-node"
           displayName: Install Node.js
 
       - ${{ else }}:
-        - bash: bash build/azure-pipelines/common/install-node.sh 22.22.0 "$(Agent.ToolsDirectory)/sanity-node"
+        - bash: bash build/azure-pipelines/common/install-node.sh $(SANITY_NODE_VERSION) "$(Agent.ToolsDirectory)/sanity-node"
           displayName: Install Node.js
 
       - ${{ if eq(parameters.os, 'macOS') }}:
