@@ -945,6 +945,11 @@ export interface IAgentHostManagementService {
 	 */
 	setSystemFullyAwake(fullyAwake: boolean): Promise<void>;
 	/**
+	 * Local-only bridge for the owning client process to report whether the network is online after a full wake, so
+	 * scheduled work waits for it.
+	 */
+	setSystemNetworkOnline(online: boolean): Promise<void>;
+	/**
 	 * Local-only bridge for the owning client process to report that macOS changed which apps it trusts to control the
 	 * computer through Accessibility.
 	 */

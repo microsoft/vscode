@@ -123,7 +123,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 			titles: [...section.querySelectorAll('.session-worktree-cleanup-session-link')].map(element => element.textContent),
 			reason: section.querySelector('.session-worktree-cleanup-reason')?.textContent,
 			selectable: section.querySelectorAll('[role="checkbox"]').length,
-			sessionlessReason: [...container.querySelectorAll('.session-worktree-cleanup-reason')].some(element => element.textContent === 'Cleanup failed: git add exited with code 128'),
+			sessionlessReason: [...container.querySelectorAll('.session-worktree-cleanup-reason')].some(element => element.textContent === 'Cleanup failed; retry scheduled: git add exited with code 128'),
 		}, {
 			unavailable: 'Unavailable for cleanup (1)',
 			titles: ['blocked'],
@@ -794,9 +794,9 @@ suite('SessionWorktreeCleanupEditor', () => {
 			requests: [['first']],
 			checked: [['first']],
 			completed: { workspace: URI.file('/repos/app').toString(), rows: ['first'], reason: 'Worktree removed' },
-			failure: 'Cleanup failed: git timed out',
+			failure: 'Cleanup failed; retry scheduled: git timed out',
 			restoredFilter: 'Worktree removed',
-			reopened: [{ title: 'old-timeout', reason: 'Cleanup failed: git timed out', disabled: null, checked: 'true' }],
+			reopened: [{ title: 'old-timeout', reason: 'Cleanup failed; retry scheduled: git timed out', disabled: null, checked: 'true' }],
 		});
 	}));
 
@@ -1396,7 +1396,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		await timeout(0);
 		const labels = [
 			'Worktree still exists. Select to retry cleanup.',
-			'Cleanup failed: permission denied',
+			'Cleanup failed; retry scheduled: permission denied',
 			'Cleanup blocked: another session or chat uses this worktree.',
 			'Cleanup deferred: the worktree could not be safely removed.',
 			'Cleanup scheduled…',
@@ -1538,7 +1538,8 @@ suite('SessionWorktreeCleanupEditor', () => {
 			failed: container.querySelector('.session-worktree-cleanup-reason')?.textContent,
 			disabled: container.querySelector('.session-worktree-cleanup-row:not(.header) [role="checkbox"]')?.getAttribute('aria-disabled'),
 			checked: container.querySelector('.session-worktree-cleanup-row:not(.header) [role="checkbox"]')?.getAttribute('aria-checked'),
-		}, { pending: 'Cleanup scheduled…', failed: 'Cleanup failed: worktree is locked', disabled: null, checked: 'true' });
+			spinning: !!container.querySelector('.codicon-modifier-spin'),
+		}, { pending: 'Cleanup scheduled…', failed: 'Cleanup failed; retry scheduled: worktree is locked', disabled: null, checked: 'true', spinning: false });
 	}));
 
 	test('explains status request errors without claiming removal failed or retry is unsupported', async () => {

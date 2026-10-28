@@ -1039,8 +1039,8 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			case 'failed': return this.requiresSessionRearchive(worktree)
 				? localize('sessionWorktreeCleanup.rearchiveRequired', "Unarchive and archive the session to remove this worktree.")
 				: worktree.cleanupStatus.message
-				? localize('sessionWorktreeCleanup.failedReason', "Cleanup failed: {0}", worktree.cleanupStatus.message)
-				: localize('sessionWorktreeCleanup.doneFailed', "Cleanup failed.");
+				? localize('sessionWorktreeCleanup.failedRetryReason', "Cleanup failed; retry scheduled: {0}", worktree.cleanupStatus.message)
+				: localize('sessionWorktreeCleanup.failedRetry', "Cleanup failed; retry scheduled.");
 			default: return worktree.worktreeExists === true
 				? localize('sessionWorktreeCleanup.existsRetry', "Worktree still exists. Select to retry cleanup.")
 				: localize('sessionWorktreeCleanup.unverifiedRetry', "Worktree removal has not been confirmed. Select to retry cleanup.");
