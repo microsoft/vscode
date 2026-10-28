@@ -655,8 +655,8 @@ suite('Session state compatibility fixtures', () => {
 		await editChatListAsOldBuild(sessionData.createService(), today.raw, fixture, 'centralCatalog', chats => chats.slice(1));
 		const after = await header();
 		assert.deepStrictEqual({ before, after }, {
-			before: { revision: before.revision, projected_revision: before.revision, version: 21 },
-			after: { revision: (before.revision as number) + 1, projected_revision: before.revision, version: 21 },
+			before: { revision: before.revision, projected_revision: before.revision, version: 22 },
+			after: { revision: (before.revision as number) + 1, projected_revision: before.revision, version: 22 },
 		});
 	});
 

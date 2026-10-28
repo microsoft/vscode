@@ -205,6 +205,61 @@ suite('AgentHostWorktreeCleanupService', () => {
 		}
 	});
 
+	for (const state of ['failed', 'skipped'] as const) {
+		test(`preserves ${state} cleanup across a host restart until the automatic or manual retry`, async () => {
+			const path = join(tmpdir(), `agent-host-cleanup-status-${generateUuid()}.db`);
+			let database = disposables.add(new AgentHostDatabase(path));
+			try {
+				const worktree = new RecordingWorktreeIsolation();
+				const cleanup = disposables.add(new AgentHostWorktreeCleanupService({ now: () => 100 }, database, worktree, new NullLogService()));
+				await useWorktree(database, SESSION, recorded('archived'), true);
+				await cleanup.sessionWorktreeCleanup(SESSION, true);
+				if (state === 'failed') {
+					worktree.failures = 1;
+				} else {
+					worktree.outcome = 'skipped';
+				}
+				await cleanup.runPass();
+				const beforeRestart = await cleanup.sessionWorktreeCleanup(SESSION, false);
+				cleanup.dispose();
+				await database.close();
+				database = disposables.add(new AgentHostDatabase(path));
+				const restartedWorktree = new RecordingWorktreeIsolation();
+				const restarted = disposables.add(new AgentHostWorktreeCleanupService({ now: () => 100 }, database, restartedWorktree, new NullLogService()));
+				await restarted.runPass();
+				const afterRestart = await restarted.sessionWorktreeCleanup(SESSION, false);
+				const callsDuringBackoff = [...restartedWorktree.calls];
+				const retried = await restarted.sessionWorktreeCleanup(SESSION, true);
+				await restarted.runPass();
+				assert.deepStrictEqual({
+					beforeRestart, afterRestart, callsDuringBackoff, retried,
+					remaining: await pending(database),
+					final: await restarted.sessionWorktreeCleanup(SESSION, false),
+					calls: restartedWorktree.calls,
+				}, {
+					beforeRestart: state === 'failed' ? { state, message: 'git failed' } : { state },
+					afterRestart: beforeRestart,
+					callsDuringBackoff: [],
+					retried: { state: 'pending' },
+					remaining: [],
+					final: { state: 'unknown' },
+					calls: [`remove:${sessionId}:commit:agents/archived`],
+				});
+			} finally {
+				await database.close();
+				await fs.rm(path, { force: true });
+			}
+		});
+	}
+
+	test('does not report legacy retries without a saved outcome as newly scheduled cleanup', async () => {
+		const { database, cleanup } = create({ now: () => 100 });
+		await useWorktree(database, SESSION, recorded('archived'), true);
+		await cleanup.sessionWorktreeCleanup(SESSION, true);
+		await sql(database, 'UPDATE pending_worktree_removals SET attempts = 1, next_attempt_at = 1000');
+		assert.deepStrictEqual(await cleanup.sessionWorktreeCleanup(SESSION, false), { state: 'unknown' });
+	});
+
 	test('refuses retrying cleanup for a live or unknown session', async () => {
 		const { database, worktree, cleanup } = create();
 		await useWorktree(database, SESSION, recorded('archived'));
