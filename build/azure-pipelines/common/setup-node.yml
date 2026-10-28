@@ -1,0 +1,29 @@
+# Installs the Node.js version in .nvmrc with NodeTool@0, restoring its tool cache entry
+# from the pipeline cache first. Without the restore, NodeTool@0 downloads Node.js from
+# nodejs.org on almost every agent, with retries but no per-download deadline, so a
+# nodejs.org stall can hold up any job. With the entry restored (including the
+# `<arch>.complete` marker), NodeTool@0 finds the tool in the cache and skips the download.
+steps:
+  - bash: |
+      set -e
+      echo "##vso[task.setvariable variable=NODE_TOOLCACHE_VERSION]$(tr -d '[:space:]v' < .nvmrc)"
+    displayName: Resolve Node.js version
+    condition: and(succeeded(), ne(variables['Agent.OS'], 'Windows_NT'))
+
+  - powershell: |
+      $version = (Get-Content .nvmrc -Raw).Trim().TrimStart('v')
+      Write-Host "##vso[task.setvariable variable=NODE_TOOLCACHE_VERSION]$version"
+    displayName: Resolve Node.js version
+    condition: and(succeeded(), eq(variables['Agent.OS'], 'Windows_NT'))
+
+  - task: Cache@2
+    inputs:
+      key: '"node-toolcache" | "$(Agent.OS)" | "$(Agent.OSArchitecture)" | .nvmrc'
+      path: $(Agent.ToolsDirectory)/node/$(NODE_TOOLCACHE_VERSION)
+    displayName: Restore Node.js tool cache
+    retryCountOnTaskFailure: 2
+
+  - task: NodeTool@0
+    inputs:
+      versionSource: fromFile
+      versionFilePath: .nvmrc
