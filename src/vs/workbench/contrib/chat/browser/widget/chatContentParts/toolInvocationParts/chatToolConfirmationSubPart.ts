@@ -162,7 +162,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 			? toolInvocation.toolSpecificData : undefined;
 
 		if (typeof message === 'string' && !disclaimer && !inputData) {
-			return message;
+			return dom.$('.message-wrapper', undefined, message);
 		} else {
 			const codeBlockRenderOptions: ICodeBlockRenderOptions = {
 				hideToolbar: true,

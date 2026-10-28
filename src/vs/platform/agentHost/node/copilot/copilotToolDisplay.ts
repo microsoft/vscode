@@ -1256,11 +1256,11 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 				stripRedundantCdPrefix(shellToolName, args, workingDirectory);
 			}
 			return {
-				confirmationTitle: shellToolName ? shellConfirmationTitle : localize('copilot.permission.default.title', "Allow tool call?"),
+				confirmationTitle: shellToolName ? shellConfirmationTitle : localize('copilot.permission.hook.title', "Allow tool call: {0}?", toolName ?? request.kind),
 				invocationMessage: str(request.hookMessage)?.trim() || (shellToolName
 					? getInvocationMessage(shellToolName, getToolDisplayName(shellToolName), typeof args?.command === 'string' ? args : undefined)
 					: md(localize('copilot.permission.default.message', "Allow the model to call {0}?", appendEscapedMarkdownInlineCode(toolName ?? request.kind)))),
-				toolInput: getToolInputString(toolName ?? request.kind, args, tryStringify(request.toolArgs, 2)),
+				toolInput: tryStringify(args ?? request.toolArgs, 2),
 				permissionKind: 'hook',
 				shellCommand: shellToolName ? str(args?.command) : undefined,
 			};

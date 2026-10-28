@@ -21,22 +21,28 @@ import { IChatContentPartRenderContext } from '../../../../browser/widget/chatCo
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { CodeBlockPart, ICodeBlockData } from '../../../../browser/widget/chatContentParts/codeBlockPart.js';
 import { ToolConfirmationSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationSubPart.js';
+import { ChatTerminalToolConfirmationSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
+import { IChatTerminalToolInvocationData } from '../../../../common/chatService/chatService.js';
 import { ChatToolInvocation } from '../../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../../../common/tools/languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService, ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
+import { ITerminalChatService } from '../../../../../terminal/browser/terminal.js';
+import { IChatWidgetService } from '../../../../browser/chat.js';
 
 suite('ToolConfirmationSubPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function renderConfirmation(message: string | MarkdownString, rawInput?: object, disclaimer?: MarkdownString) {
+	function renderConfirmation(message: string | MarkdownString, rawInput?: object, disclaimer?: MarkdownString, terminalData?: IChatTerminalToolInvocationData) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(ILanguageModelToolsService, { getTool: () => undefined });
 		instantiationService.stub(ILanguageModelToolsConfirmationService, { getPreConfirmActions: () => [] });
 		instantiationService.stub(IChatToolRiskAssessmentService, { isEnabled: () => false });
 		instantiationService.stub(IChatPetService, { unlockAchievement: () => false });
+		instantiationService.stub(IChatWidgetService, {});
+		instantiationService.stub(ITerminalChatService, {});
 		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
 		instantiationService.stub(IChatMarkdownAnchorService, store.add(new ChatMarkdownAnchorService()));
 		instantiationService.stub(ILinkPresentationService, {
@@ -79,8 +85,8 @@ suite('ToolConfirmationSubPart', () => {
 			contentIndex: 0,
 		});
 		const invocation = new ChatToolInvocation({
-			confirmationMessages: { title: 'Allow tool call?', message, disclaimer },
-			toolSpecificData: rawInput ? { kind: 'input', rawInput, editable: false } : undefined,
+			confirmationMessages: { title: terminalData ? 'Run in terminal?' : 'Allow tool call?', message, disclaimer },
+			toolSpecificData: terminalData ?? (rawInput ? { kind: 'input', rawInput, editable: false } : undefined),
 		}, {
 			id: 'rename_chat',
 			displayName: 'Rename Chat',
@@ -88,11 +94,13 @@ suite('ToolConfirmationSubPart', () => {
 			source: ToolDataSource.Internal,
 		}, 'hook-tool-call', undefined, {});
 		const renderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
-		const part = store.add(instantiationService.createInstance(ToolConfirmationSubPart, invocation, context, renderer, editorPool, () => 500, 0));
+		const part = store.add(terminalData
+			? instantiationService.createInstance(ChatTerminalToolConfirmationSubPart, invocation, terminalData, context, renderer, editorPool, () => 500, 0)
+			: instantiationService.createInstance(ToolConfirmationSubPart, invocation, context, renderer, editorPool, () => 500, 0));
 		return { part, renderedInputs };
 	}
 
-	function messageText(part: ToolConfirmationSubPart): string | undefined {
+	function messageText(part: { readonly domNode: HTMLElement }): string | undefined {
 		return part.domNode.querySelector('.message-wrapper')?.textContent?.replace(/\u00a0/g, ' ').trim();
 	}
 
@@ -134,6 +142,63 @@ suite('ToolConfirmationSubPart', () => {
 				messageVisible: part.domNode.textContent?.includes('Review this tool call.'),
 				inputs: renderedInputs.length,
 			}, { messageVisible: true, inputs: 0 });
+		});
+
+		test(`keeps Markdown-looking reasons literal with ${JSON.stringify(input)} input`, () => {
+			const reason = '**Review** [this](https://example.com) <script>alert(1)</script>';
+			const { part } = renderConfirmation(reason, input);
+			const message = part.domNode.querySelector('.chat-confirmation-widget-message');
+			assert.deepStrictEqual({
+				text: message?.textContent?.trim(),
+				links: message?.querySelectorAll('a').length,
+				emphasis: message?.querySelectorAll('strong').length,
+				scripts: message?.querySelectorAll('script').length,
+			}, { text: reason, links: 0, emphasis: 0, scripts: 0 });
+		});
+	}
+
+	for (const markdown of [false, true]) {
+		test(`shows a ${markdown ? 'Markdown' : 'plain-text'} terminal explanation alongside the command`, () => {
+			const reason = markdown ? new MarkdownString('Review **before** running.') : 'Review **before** running.';
+			const { part, renderedInputs } = renderConfirmation(reason, undefined, undefined, {
+				kind: 'terminal',
+				commandLine: { original: 'echo review-me' },
+				language: 'bash',
+				editable: false,
+			});
+			const message = part.domNode.querySelector('.chat-confirmation-message-terminal-reason');
+			assert.deepStrictEqual({
+				message: message?.textContent?.replace(/\u00a0/g, ' ').trim(),
+				emphasis: message?.querySelectorAll('strong').length,
+				inputs: renderedInputs.map(data => ({
+					text: data.text,
+					readOnly: data.renderOptions?.editorOptions?.readOnly,
+					ariaLabel: data.renderOptions?.editorOptions?.ariaLabel,
+				})),
+			}, {
+				message: markdown ? 'Review before running.' : reason,
+				emphasis: markdown ? 1 : 0,
+				inputs: [{
+					text: 'echo review-me',
+					readOnly: true,
+					ariaLabel: `Run in terminal?\n${markdown ? 'Review before running.' : reason}`,
+				}],
+			});
+		});
+	}
+
+	for (const message of ['', new MarkdownString('`echo review-me`')]) {
+		test(`does not add an empty or duplicate terminal explanation for ${JSON.stringify(message)}`, () => {
+			const { part, renderedInputs } = renderConfirmation(message, undefined, undefined, {
+				kind: 'terminal',
+				commandLine: { original: 'echo review-me' },
+				language: 'bash',
+				editable: false,
+			});
+			assert.deepStrictEqual({
+				messagePresent: !!part.domNode.querySelector('.chat-confirmation-message-terminal-reason'),
+				ariaLabel: renderedInputs[0].renderOptions?.editorOptions?.ariaLabel,
+			}, { messagePresent: false, ariaLabel: 'Run in terminal?' });
 		});
 	}
 

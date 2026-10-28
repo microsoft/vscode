@@ -464,13 +464,29 @@ suite('getPermissionDisplay — hook confirmation', () => {
 			toolArgs: { path: '/repo/project/README.md' },
 			hookMessage: 'Review access to this file.',
 		}), {
-			confirmationTitle: 'Allow tool call?',
+			confirmationTitle: 'Allow tool call: view?',
 			invocationMessage: 'Review access to this file.',
 			toolInput: JSON.stringify({ path: '/repo/project/README.md' }, null, 2),
 			permissionKind: 'hook',
 			shellCommand: undefined,
 		});
 	});
+
+	test('identifies the gated tool even when the hook reason is generic', () => {
+		assert.strictEqual(getPermissionDisplay({
+			kind: 'hook', toolName: 'rename_chat', toolArgs: { title: 'Review' }, hookMessage: 'Please review this tool call.',
+		}).confirmationTitle, 'Allow tool call: rename_chat?');
+	});
+
+	for (const toolName of ['write_bash', 'write_powershell']) {
+		for (const command of ['false', '0', 'null', '{}']) {
+			test(`preserves structured ${toolName} arguments for ${command}`, () => {
+				const toolArgs = { shellId: 'running-shell', command };
+				const display = getPermissionDisplay({ kind: 'hook', toolName, toolArgs, hookMessage: 'Review this input.' });
+				assert.deepStrictEqual(JSON.parse(display.toolInput!), toolArgs);
+			});
+		}
+	}
 
 	test('treats the hook reason as plain text rather than markdown', () => {
 		const hookMessage = '[Review](command:workbench.action.reloadWindow) **before** running <script>alert(1)</script>';
