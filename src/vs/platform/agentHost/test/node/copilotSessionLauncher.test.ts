@@ -1543,6 +1543,46 @@ suite('CopilotSessionLauncher shared session config', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const kind of ['create', 'resume'] as const) {
+		test(`${kind} selects native plugin agents without registering their definitions`, async () => {
+			let captured: ResumeSessionConfig | undefined;
+			const session = {
+				sessionId: 'native-agent', on: () => () => { }, disconnect: async () => { },
+				rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
+			} as unknown as CopilotSession;
+			const initialize = (config: ResumeSessionConfig | undefined) => {
+				captured = config;
+				reportManagedSettings(config);
+				return session;
+			};
+			const client = {
+				createSession: async (config: SessionConfig) => initialize(config),
+				resumeSession: async (_id: string, config: ResumeSessionConfig | undefined) => initialize(config),
+				rpc: { managedSettings: createUnmanagedCopilotSettings() },
+			} as unknown as CopilotClient;
+			const nativeAgent = { type: CustomizationType.Agent, id: 'reviewer@shop:review', uri: URI.file('/plugins/reviewer/agents/review.agent.md').toString(), name: 'Review' } as const;
+			const shared = {
+				client, sessionId: 'native-agent', workingDirectory: testWorkingDirectory,
+				resolvedAgentName: nativeAgent.id,
+				snapshot: { discoveredAgents: [], nativeAgents: [nativeAgent], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+			};
+			const plan: CopilotSessionLaunchPlan = kind === 'create'
+				? { ...shared, kind, model: undefined }
+				: { ...shared, kind, fallback: { model: undefined } };
+			const wrapper = await createTestLauncher().launch(plan, testRuntime);
+			try {
+				assert.deepStrictEqual({
+					agent: captured?.agent,
+					nativeDefinitions: captured?.customAgents?.filter(agent => agent.name === nativeAgent.name || agent.name === nativeAgent.id),
+				}, { agent: nativeAgent.id, nativeDefinitions: [] });
+			} finally {
+				wrapper.dispose();
+			}
+		});
+	}
+
 	for (const scoped of [false, true]) {
 		test(`keeps configured tools and defaults with ${scoped ? 'client-owned' : 'legacy'} credentials`, async () => {
 			const configs: SessionConfig[] = [];

@@ -20652,7 +20652,7 @@ suite('CopilotAgent', () => {
 							name: 'Azure exp',
 							load: CustomizationLoadStatus.Loaded,
 							enabled: true,
-							children: [{ id: customizationId(sameNamedAgent.toString()), type: CustomizationType.Agent, uri: sameNamedAgent.toString(), name: 'discovered-agent' }],
+							children: [{ id: 'other-agent', type: CustomizationType.Agent, uri: sameNamedAgent.toString(), name: 'discovered-agent' }],
 						},
 					].sort((a, b) => a.uri.localeCompare(b.uri)));
 				}
@@ -20688,7 +20688,7 @@ suite('CopilotAgent', () => {
 						load: CustomizationLoadStatus.Loaded,
 						enabled: true,
 						children: [
-							{ id: customizationId(sourceAgent.toString()), type: CustomizationType.Agent, uri: sourceAgent.toString(), name: 'discovered-agent' },
+							{ id: 'source-agent', type: CustomizationType.Agent, uri: sourceAgent.toString(), name: 'discovered-agent' },
 							{ id: `${URI.joinPath(sourcePlugin, '.mcp.json')}#mcp=cached-server`, type: CustomizationType.McpServer, uri: URI.joinPath(sourcePlugin, '.mcp.json').toString(), name: 'cached-server' },
 						],
 					},
@@ -20697,7 +20697,7 @@ suite('CopilotAgent', () => {
 						name: 'Azure exp',
 						load: CustomizationLoadStatus.Loaded,
 						enabled: true,
-						children: [{ id: customizationId(sameNamedAgent.toString()), type: CustomizationType.Agent, uri: sameNamedAgent.toString(), name: 'discovered-agent' }],
+						children: [{ id: 'other-agent', type: CustomizationType.Agent, uri: sameNamedAgent.toString(), name: 'discovered-agent' }],
 					},
 				].sort((a, b) => a.uri.localeCompare(b.uri)));
 			} finally {
@@ -29681,6 +29681,30 @@ suite('CopilotAgent', () => {
 			const sessionUri = AgentSession.uri('copilotcli', 'prov-agent');
 			return { sessionId: AgentSession.id(sessionUri), sessionUri, workingDirectory, model: undefined, agent, project: undefined };
 		}
+
+		test('resolves native plugin agents by SDK identity without registering their definitions', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			try {
+				const uri = URI.file('/sdk/plugins/reviewer/agents/review.agent.md').toString();
+				const snapshot: IActiveClientSnapshot = {
+					...emptySnapshot,
+					nativeAgents: [{ type: CustomizationType.Agent, uri, id: 'reviewer@shop:review', name: 'Review' }],
+				};
+				const internals = agent as unknown as AgentInternals;
+				const selection = { uri };
+				assert.deepStrictEqual({
+					selected: internals._resolveAgentName(snapshot, selection),
+					materialized: await internals._resolveAgentWhenMaterializing(provisional(repo, selection), snapshot, worktree),
+					registered: getCopilotCustomAgents(snapshot),
+				}, {
+					selected: 'reviewer@shop:review',
+					materialized: { agent: selection, name: 'reviewer@shop:review' },
+					registered: [],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 
 		test('_resolveAgentName resolves all built-ins without a plugin or worktree translation', async () => {
 			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
