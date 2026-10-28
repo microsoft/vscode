@@ -71,6 +71,7 @@ steps:
       exec { npx zx build/azure-pipelines/win32/codesign.ts }
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      VSCODE_ESRP_STALL_TIMEOUT_MINUTES: "0.5"
       BUILT_CLIENT: "true"
       BUILT_SERVER: "true"
       BUILT_WEB: "true"
