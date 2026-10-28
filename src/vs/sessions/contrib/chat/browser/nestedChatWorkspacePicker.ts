@@ -8,6 +8,7 @@ import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { raceCancellation } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -183,6 +184,8 @@ export class NestedChatWorkspaceControls extends Disposable {
 	private readonly _sessionFolderMissing = observableValue<boolean>(this, false);
 	/** Checks whether the preselected session folder still exists; settles once it is known or can't be told. */
 	private _folderCheck: Promise<void> | undefined;
+	/** Settles once a {@link refresh} has re-read its folder (or was superseded), which restores the kept worktree choice. */
+	private _refreshResolution: Promise<void> | undefined;
 	private readonly _branches = observableValue<readonly string[] | 'loading' | 'error'>(this, []);
 	private readonly _resolve = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _folderRenderStore = this._register(new DisposableStore());
@@ -225,7 +228,8 @@ export class NestedChatWorkspaceControls extends Disposable {
 
 	/** {@link getWorkspace} once a pending check of the session folder is done, so a chat never starts in a missing folder. */
 	async resolveWorkspace(): Promise<INestedChatWorkspace | undefined> {
-		await this._folderCheck;
+		// Until a refresh re-reads its folder, the kept worktree choice reads as "no worktree".
+		await Promise.all([this._folderCheck, this._refreshResolution]);
 		return this.getWorkspace();
 	}
 
@@ -284,7 +288,7 @@ export class NestedChatWorkspaceControls extends Disposable {
 				}
 			}));
 		}
-		this._host.resolveFolder(choice.folder, cts.token).then(info => {
+		const resolution = this._host.resolveFolder(choice.folder, cts.token).then(info => {
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
@@ -298,6 +302,16 @@ export class NestedChatWorkspaceControls extends Disposable {
 				onUnexpectedError(error);
 			}
 		});
+		if (keep) {
+			// Settle when superseded too, as a cancelled resolution may never answer.
+			const refreshResolution = raceCancellation(resolution, cts.token).then(() => undefined);
+			this._refreshResolution = refreshResolution;
+			store.add(toDisposable(() => {
+				if (this._refreshResolution === refreshResolution) {
+					this._refreshResolution = undefined;
+				}
+			}));
+		}
 	}
 
 	private _loadBranches(): void {

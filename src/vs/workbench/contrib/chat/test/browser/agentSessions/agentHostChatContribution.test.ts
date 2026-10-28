@@ -2678,15 +2678,22 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.chatStates.set(ownAgentChat, withTurn(ownAgent, 'claude-haiku'));
 			agentHostService.chatStates.set(sameAgentChat, withTurn(sameAgent, 'gpt'));
 			const resource = URI.from({ scheme: 'agent-host-copilot', path: backend.path });
-			const historyModels = async (chat: string) => {
-				const session = disposables.add(await sessionHandler.provideChatSessionContent(resource.with({ fragment: getAgentHostChatId(chat) }), CancellationToken.None));
+			const historyModels = async (chatResource: URI) => {
+				const session = disposables.add(await sessionHandler.provideChatSessionContent(chatResource, CancellationToken.None));
 				return session.history.flatMap(item => item.type === 'request' ? [item.modelId] : []);
 			};
+			const byFragment = (chat: string) => resource.with({ fragment: getAgentHostChatId(chat) });
 
-			assert.deepStrictEqual({ ownAgent: await historyModels(ownAgentChat), sameAgent: await historyModels(sameAgentChat) }, {
+			assert.deepStrictEqual({
+				ownAgent: await historyModels(byFragment(ownAgentChat)),
+				sameAgent: await historyModels(byFragment(sameAgentChat)),
+				// A chat can also be addressed only by its backend chat, without a fragment.
+				ownAgentByQuery: await historyModels(resource.with({ query: new URLSearchParams({ [CHAT_SUBAGENT_RESOURCE_QUERY_PARAM]: ownAgentChat }).toString() })),
+			}, {
 				// The chat's model selection stays its own agent's: it is sent as is, not dropped as another session type's.
 				ownAgent: ['agent-host-claude:claude-haiku'],
 				sameAgent: ['agent-host-copilot:gpt'],
+				ownAgentByQuery: ['agent-host-claude:claude-haiku'],
 			});
 		});
 

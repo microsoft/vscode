@@ -408,6 +408,40 @@ suite('Sessions - New Nested Session composer', () => {
 		});
 	});
 
+	test('a chat sent right after a refresh waits for the folder to be re-read, so its kept worktree choice is requested', async () => {
+		const answers: (() => void)[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { } } as Partial<IActionWidgetService>);
+		instantiationService.stub(ILabelService, { getUriBasenameLabel: (uri: URI) => uri.path.split('/').pop() ?? '' } as Partial<ILabelService>);
+		const controls = store.add(instantiationService.createInstance(NestedChatWorkspaceControls, {
+			support: constObservable(support(repo)),
+			resolveFolder: () => new Promise<INestedChatFolderInfo>(resolve => answers.push(() => resolve(git))),
+			getBranches: async () => [],
+			getFolderSources: () => ({ recentFolders: [], canOpenLocalFolder: false }),
+			describeNoWorkspace: () => getNoWorkspaceChoicePresentation(false, undefined),
+			describeFolder: () => undefined,
+			folderExists: async () => true,
+			openLocalFolder: async () => undefined,
+		}));
+		const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+		const answerAll = () => answers.splice(0).forEach(answer => answer());
+		Reflect.get(controls, '_select').call(controls, { kind: 'folder', folder: other });
+		answerAll();
+		await settle();
+		Reflect.get(controls, '_setWorktree').call(controls, true);
+
+		// The new chat's agent changed: the folder is re-read, and the chat is sent before that finishes.
+		controls.refresh();
+		const sent = controls.resolveWorkspace();
+		const whileReading = controls.getWorkspace();
+		answerAll();
+
+		assert.deepStrictEqual({ whileReading, sent: await sent }, {
+			whileReading: { kind: 'folder', folder: other, isolation: 'folder' },
+			sent: { kind: 'folder', folder: other, isolation: 'worktree', baseBranch: 'main' },
+		});
+	});
+
 	/** The input's shared harness picker, rendering its slot like the real one. */
 	function fakeHarnessPicker(isVisible: IObservable<boolean>) {
 		return {

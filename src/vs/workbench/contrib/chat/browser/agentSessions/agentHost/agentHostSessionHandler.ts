@@ -7416,12 +7416,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private _getChatModelVendor(sessionResource: URI): string {
 		const sessionType = getChatSessionType(sessionResource);
-		if (!sessionResource.fragment || !sessionType.endsWith(this._config.provider)) {
+		if (!sessionType.endsWith(this._config.provider)) {
 			return sessionType;
 		}
-		const state = this._getRawSessionState(this._resolveSessionUri(sessionResource).toString());
-		const chatProvider = state?.chats.find(summary => getAgentHostChatId(summary.resource) === sessionResource.fragment)?.provider;
-		return chatProvider && chatProvider !== state.provider
+		// A chat is addressed by its fragment or, for a subagent chat, its query parameter: match the backend chat it
+		// resolves to against the session's catalog.
+		const backendSession = this._resolveSessionUri(sessionResource);
+		const state = this._getRawSessionState(backendSession.toString());
+		const chat = state && this._getChatURIOrDefault(sessionResource, backendSession, state);
+		const chatProvider = chat !== undefined ? state?.chats.find(summary => summary.resource === chat)?.provider : undefined;
+		return state && chatProvider && chatProvider !== state.provider
 			? `${sessionType.slice(0, sessionType.length - this._config.provider.length)}${chatProvider}`
 			: sessionType;
 	}

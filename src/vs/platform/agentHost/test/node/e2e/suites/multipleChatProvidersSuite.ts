@@ -171,7 +171,7 @@ export function defineMultipleChatProvidersTests(context: IAgentHostE2ETestConte
 		const sessionUri = await createSession('providers-unknown');
 		await withGate(async () => {
 			const result = await rejection(() => createChat(sessionUri, { provider: 'no-such-agent' }));
-			assert.deepStrictEqual({ code: result.code, message: result.message }, { code: JsonRpcErrorCodes.InvalidParams, message: 'Unknown agent: no-such-agent' });
+			assert.deepStrictEqual({ code: result.code, message: result.message }, { code: JsonRpcErrorCodes.InvalidParams, message: 'Agent no-such-agent is unknown or disabled.' });
 		});
 	});
 
@@ -180,7 +180,7 @@ export function defineMultipleChatProvidersTests(context: IAgentHostE2ETestConte
 		await withGate(async () => {
 			const chat = await createChat(sessionUri, { provider: config.provider });
 			const state = await chatState(chat);
-			// Chats carry only values; a chat on another agent gets that agent's schema from `resolveSessionConfig`.
+			// Only a chat on another agent than its session's carries a schema of its own.
 			assert.strictEqual(Object.hasOwn(state.config ?? {}, 'schema'), false);
 		});
 	});
@@ -204,7 +204,7 @@ export function defineMultipleChatProvidersTests(context: IAgentHostE2ETestConte
 			}, {
 				summaryProvider: SECOND_AGENT,
 				peerProvider: SECOND_AGENT,
-				peerHasSchema: false,
+				peerHasSchema: true,
 				defaultProvider: config.provider,
 				defaultHasSchema: false,
 			});
