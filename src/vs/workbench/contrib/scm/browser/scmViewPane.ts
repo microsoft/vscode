@@ -81,6 +81,10 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup> | SCMStructuralDiffElement;
 
+export function isSCMTreeElementCollapsedByDefault(element: unknown): boolean {
+	return !(isSCMRepository(element) || isSCMResourceGroup(element) || isSCMResourceNode(element) || isSCMStructuralDiffElement(element));
+}
+
 function processResourceFilterData(uri: URI, filterData: FuzzyScore | LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
 	if (!filterData) {
 		return [undefined, undefined];
@@ -950,6 +954,7 @@ const Menus = {
 export const ContextKeys = {
 	SCMViewMode: new RawContextKey<ViewMode>('scmViewMode', ViewMode.List),
 	SCMViewSortKey: new RawContextKey<ViewSortKey>('scmViewSortKey', ViewSortKey.Path),
+	SCMViewShowStructuralDiff: new RawContextKey<boolean>('scmViewShowStructuralDiff', false),
 	SCMViewAreAllRepositoriesCollapsed: new RawContextKey<boolean>('scmViewAreAllRepositoriesCollapsed', false),
 	SCMViewIsAnyRepositoryCollapsible: new RawContextKey<boolean>('scmViewIsAnyRepositoryCollapsible', false),
 	SCMProvider: new RawContextKey<string | undefined>('scmProvider', undefined),
@@ -1302,6 +1307,25 @@ registerAction2(SetSortByNameAction);
 registerAction2(SetSortByPathAction);
 registerAction2(SetSortByStatusAction);
 
+class ToggleShowStructuralDiffAction extends ViewAction<SCMViewPane> {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.toggleShowStructuralDiff',
+			title: localize('showStructuralDiff', "Show Structural Diff"),
+			viewId: VIEW_PANE_ID,
+			f1: false,
+			toggled: ContextKeys.SCMViewShowStructuralDiff,
+			menu: { id: Menus.ViewSort, group: '3_structuralDiff', order: 1 },
+		});
+	}
+
+	runInView(_: ServicesAccessor, view: SCMViewPane): void {
+		view.showStructuralDiff = !view.showStructuralDiff;
+	}
+}
+
+registerAction2(ToggleShowStructuralDiffAction);
+
 class CollapseAllRepositoriesAction extends ViewAction<SCMViewPane> {
 
 	constructor() {
@@ -1432,6 +1456,21 @@ export class SCMViewPane extends ViewPane {
 	private readonly _onDidChangeViewSortKey = this._register(new Emitter<ViewSortKey>());
 	readonly onDidChangeViewSortKey = this._onDidChangeViewSortKey.event;
 
+	get showStructuralDiff(): boolean { return this.structuralDiff.enabled; }
+	set showStructuralDiff(show: boolean) {
+		if (this.showStructuralDiff === show) {
+			return;
+		}
+		if (!show && this.tree) {
+			const toResource = (element: TreeElement) => isSCMStructuralDiffElement(element) ? element.resource : element;
+			this.tree.setFocus([...new Set(this.tree.getFocus().map(toResource))]);
+			this.tree.setSelection([...new Set(this.tree.getSelection().map(toResource))]);
+		}
+		this.showStructuralDiffContextKey.set(show);
+		this.structuralDiff.setEnabled(show);
+		this.storageService.store('scm.showStructuralDiff', show, StorageScope.WORKSPACE, StorageTarget.USER);
+	}
+
 	private readonly items = new DisposableMap<ISCMRepository, IDisposable>();
 	private readonly visibilityDisposables = new DisposableStore();
 
@@ -1441,6 +1480,7 @@ export class SCMViewPane extends ViewPane {
 
 	private viewModeContextKey: IContextKey<ViewMode>;
 	private viewSortKeyContextKey: IContextKey<ViewSortKey>;
+	private showStructuralDiffContextKey: IContextKey<boolean>;
 	private areAllRepositoriesCollapsedContextKey: IContextKey<boolean>;
 	private isAnyRepositoryCollapsibleContextKey: IContextKey<boolean>;
 
@@ -1473,6 +1513,7 @@ export class SCMViewPane extends ViewPane {
 		super({ ...options, titleMenuId: MenuId.SCMTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.structuralDiff = this.disposables.add(instantiationService.createInstance(SCMStructuralDiffModel));
+		this.structuralDiff.setEnabled(this.storageService.getBoolean('scm.showStructuralDiff', StorageScope.WORKSPACE, false));
 
 		// View mode and sort key
 		this._viewMode = this.getViewMode();
@@ -1483,6 +1524,8 @@ export class SCMViewPane extends ViewPane {
 		this.viewModeContextKey.set(this._viewMode);
 		this.viewSortKeyContextKey = ContextKeys.SCMViewSortKey.bindTo(contextKeyService);
 		this.viewSortKeyContextKey.set(this.viewSortKey);
+		this.showStructuralDiffContextKey = ContextKeys.SCMViewShowStructuralDiff.bindTo(contextKeyService);
+		this.showStructuralDiffContextKey.set(this.showStructuralDiff);
 		this.areAllRepositoriesCollapsedContextKey = ContextKeys.SCMViewAreAllRepositoriesCollapsed.bindTo(contextKeyService);
 		this.isAnyRepositoryCollapsibleContextKey = ContextKeys.SCMViewIsAnyRepositoryCollapsible.bindTo(contextKeyService);
 		this.scmProviderContextKey = ContextKeys.SCMProvider.bindTo(contextKeyService);
@@ -1499,6 +1542,9 @@ export class SCMViewPane extends ViewPane {
 					break;
 				case 'scm.viewSortKey':
 					this.viewSortKey = this.getViewSortKey();
+					break;
+				case 'scm.showStructuralDiff':
+					this.showStructuralDiff = this.storageService.getBoolean('scm.showStructuralDiff', StorageScope.WORKSPACE, false);
 					break;
 			}
 		}, this, this.disposables);
@@ -1645,7 +1691,7 @@ export class SCMViewPane extends ViewPane {
 				this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMTitle, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService), resourceActionRunner),
 				this.disposables.add(this.instantiationService.createInstance(ResourceRenderer, () => this.viewMode, this.listLabels, getActionViewItemProvider(this.instantiationService), resourceActionRunner)),
-				new SCMStructuralDiffRenderer(),
+				this.instantiationService.createInstance(SCMStructuralDiffRenderer),
 			],
 			treeDataSource,
 			{
@@ -1659,10 +1705,7 @@ export class SCMViewPane extends ViewPane {
 				keyboardNavigationLabelProvider: this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider, () => this.viewMode),
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				compressionEnabled: compressionEnabled.get(),
-				collapseByDefault: (e: unknown) => {
-					// Repository, Resource Group, Resource Folder (Tree) are not collapsed by default
-					return !(isSCMRepository(e) || isSCMResourceGroup(e) || isSCMResourceNode(e));
-				},
+				collapseByDefault: isSCMTreeElementCollapsedByDefault,
 				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider),
 				expandOnlyOnTwistieClick: element => isSCMResource(element) || isSCMStructuralDiffElement(element)
 					|| this.configurationService.getValue<string>('workbench.tree.expandMode') === 'doubleClick',
@@ -2332,7 +2375,7 @@ export class SCMTreeDataSource extends Disposable implements IAsyncDataSource<IS
 		} else if (isSCMResource(inputOrElement)) {
 			return this.structuralDiff.getChildren(inputOrElement);
 		} else if (isSCMStructuralDiffElement(inputOrElement)) {
-			return inputOrElement.type === 'structuralDiff' ? inputOrElement.children : [];
+			return this.structuralDiff.enabled && inputOrElement.type === 'structuralDiff' ? inputOrElement.children : [];
 		}
 
 		return [];
@@ -2398,7 +2441,7 @@ export class SCMTreeDataSource extends Disposable implements IAsyncDataSource<IS
 		} else if (isSCMResource(inputOrElement)) {
 			return this.structuralDiff.hasChildren(inputOrElement);
 		} else if (isSCMStructuralDiffElement(inputOrElement)) {
-			return inputOrElement.type === 'structuralDiff' && inputOrElement.children.length > 0;
+			return this.structuralDiff.enabled && inputOrElement.type === 'structuralDiff' && inputOrElement.children.length > 0;
 		} else if (ResourceTree.isResourceNode(inputOrElement)) {
 			return inputOrElement.childrenCount > 0;
 		} else {

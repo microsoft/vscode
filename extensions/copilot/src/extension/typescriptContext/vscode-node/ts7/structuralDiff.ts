@@ -27,6 +27,7 @@ interface Entity {
 	readonly value: vscode.StructuralDiffEntity;
 	readonly node: ts.Node;
 	readonly span: Span;
+	readonly groupedSpans?: readonly Span[];
 	readonly headerEnd: number;
 	readonly implementation: readonly Span[];
 	readonly isTest: boolean;
@@ -56,7 +57,7 @@ interface DiffTree {
 type Side = 'original' | 'modified';
 
 /**
- * Matches uniquely named siblings and classifies supplied changes into a sparse lexical tree.
+ * Matches uniquely named siblings and groups import/export statements in a sparse structural tree.
  */
 export function computeStructuralDiff(originalFile: ts.SourceFile, modifiedFile: ts.SourceFile, context: vscode.StructuralDiffContext, token: vscode.CancellationToken): vscode.StructuralDiff {
 	const checkCancellation = () => {
@@ -128,10 +129,27 @@ function collectSource(file: ts.SourceFile, checkCancellation: () => void): Sour
 		children: [],
 	};
 	const source: Source = { file, root, dependencies: [], tests: [] };
+	const statementGroups = new Map<Entity, Map<'imports' | 'exports', Span[]>>();
 	const visit = (node: ts.Node, parent: Entity): void => {
 		checkCancellation();
 		if (ts.isImportDeclaration(node) || ts.isImportEqualsDeclaration(node) || (ts.isExportDeclaration(node) && node.moduleSpecifier !== undefined)) {
 			source.dependencies.push(nodeSpan(node, file));
+		}
+		const groupKind = ts.isImportDeclaration(node) || ts.isImportEqualsDeclaration(node) ? 'imports'
+			: ts.isExportDeclaration(node) || ts.isExportAssignment(node) || ts.isNamespaceExportDeclaration(node) ? 'exports' : undefined;
+		if (groupKind !== undefined) {
+			let groups = statementGroups.get(parent);
+			if (groups === undefined) {
+				groups = new Map();
+				statementGroups.set(parent, groups);
+			}
+			const span = nodeSpan(node, file);
+			const spans = groups.get(groupKind);
+			if (spans === undefined) {
+				groups.set(groupKind, [span]);
+			} else {
+				spans.push(span);
+			}
 		}
 		if (ts.isCallExpression(node) && isTestCallee(node.expression)) {
 			for (const argument of node.arguments) {
@@ -168,6 +186,32 @@ function collectSource(file: ts.SourceFile, checkCancellation: () => void): Sour
 		node.forEachChild(child => visit(child, container));
 	};
 	file.forEachChild(child => visit(child, root));
+	for (const [parent, groups] of statementGroups) {
+		for (const [kind, spans] of groups) {
+			checkCancellation();
+			const span = { start: spans[0].start, end: spans[spans.length - 1].end };
+			const children = parent.children.filter(child => spans.some(statement => contains(statement, child.span)));
+			const childSet = new Set(children);
+			parent.children.splice(0, parent.children.length, ...parent.children.filter(child => !childSet.has(child)));
+			parent.children.push({
+				value: {
+					name: kind === 'imports' ? vscode.l10n.t('Imports') : vscode.l10n.t('Exports'),
+					kind: vscode.SymbolKind.Module,
+					languageKind: kind,
+					range: toRange(file, span),
+					selectionRange: toRange(file, spans[0]),
+				},
+				node: parent.node,
+				span,
+				groupedSpans: spans,
+				headerEnd: span.start,
+				implementation: spans,
+				isTest: parent.isTest,
+				children,
+			});
+		}
+		parent.children.sort((left, right) => left.span.start - right.span.start);
+	}
 	return source;
 }
 
@@ -273,15 +317,16 @@ function classify(tree: DiffTree, side: Side, source: Source, textChangeIndex: n
 		return;
 	}
 	const counterpart = side === 'original' ? tree.modified : tree.original;
-	if (entity !== source.root && counterpart === undefined && contains(span, entity.span)) {
+	if (entity !== source.root && entity.groupedSpans === undefined && counterpart === undefined && contains(span, entity.span)) {
 		addCoverage(tree, side, source, textChangeIndex, span, vscode.StructuralDiffClassification.Declaration);
 		return;
 	}
 	let cursor = span.start;
-	const children = tree.children.filter(child => child[side] !== undefined)
-		.sort((left, right) => left[side]!.span.start - right[side]!.span.start);
-	for (const child of children) {
-		const childSpan = child[side]!.span;
+	const children = tree.children.flatMap(child => {
+		const entity = child[side];
+		return entity === undefined ? [] : (entity.groupedSpans ?? [entity.span]).map(span => ({ child, span }));
+	}).sort((left, right) => left.span.start - right.span.start);
+	for (const { child, span: childSpan } of children) {
 		const start = Math.max(cursor, childSpan.start);
 		const end = Math.min(span.end, childSpan.end);
 		if (start >= end) {

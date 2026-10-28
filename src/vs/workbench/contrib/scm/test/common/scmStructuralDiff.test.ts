@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { linesDiffComputers } from '../../../../../editor/common/diff/linesDiffComputers.js';
-import { StructuralDiff, StructuralDiffContext, StructuralDiffProvider, SymbolKind } from '../../../../../editor/common/languages.js';
+import { StructuralDiff, StructuralDiffClassification, StructuralDiffContext, StructuralDiffProvider, SymbolKind } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
@@ -28,7 +28,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ISCMProvider, ISCMResource, ISCMResourceGroup } from '../../common/scm.js';
-import { SCMStructuralDiffModel, getSCMStructuralDiffAriaLabel, getSCMStructuralDiffDescription, getSCMStructuralDiffLabel } from '../../common/scmStructuralDiff.js';
+import { SCMStructuralDiffModel, getSCMStructuralDiffAriaLabel, getSCMStructuralDiffChange, getSCMStructuralDiffChangeAnnotation, getSCMStructuralDiffDescription, getSCMStructuralDiffLabel } from '../../common/scmStructuralDiff.js';
 
 class TestResource extends mock<ISCMResource>() {
 	constructor(
@@ -95,6 +95,7 @@ suite('SCM structural diff model', () => {
 	let provider: TestProvider;
 	let features: LanguageFeaturesService;
 	let model: SCMStructuralDiffModel;
+	let instantiationService: TestInstantiationService;
 	let registration: { dispose(): void };
 	let errors: number;
 	let languageChanges: Emitter<{ model: ITextModel; oldLanguageId: string }>;
@@ -117,7 +118,7 @@ suite('SCM structural diff model', () => {
 		registration = store.add(features.structuralDiffProvider.register({ scheme: 'file', language: 'plaintext', pattern: '**/*.ts' }, provider));
 		languageChanges = store.add(new Emitter<{ model: ITextModel; oldLanguageId: string }>());
 		errors = 0;
-		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService = store.add(new TestInstantiationService());
 		instantiationService.set(ITextModelService, resolver);
 		instantiationService.set(ILanguageFeaturesService, features);
 		instantiationService.set(IModelService, new class extends mock<IModelService>() {
@@ -141,6 +142,7 @@ suite('SCM structural diff model', () => {
 			}
 		});
 		model = store.add(instantiationService.createInstance(SCMStructuralDiffModel));
+		model.setEnabled(true);
 	});
 
 	function createResult(): StructuralDiff {
@@ -199,6 +201,71 @@ suite('SCM structural diff model', () => {
 	test('does not resolve unsupported resources', async () => {
 		registration.dispose();
 		assert.deepStrictEqual({ children: await model.getChildren(resource), requests: resolver.requested }, { children: [], requests: [] });
+	});
+
+	test('starts disabled without resolving models or calling providers', async () => {
+		const disabledModel = store.add(instantiationService.createInstance(SCMStructuralDiffModel));
+		assert.deepStrictEqual({
+			enabled: disabledModel.enabled,
+			expandable: disabledModel.hasChildren(resource),
+			children: await disabledModel.getChildren(resource),
+			requests: resolver.requested,
+			calls: provider.calls,
+		}, { enabled: false, expandable: false, children: [], requests: [], calls: 0 });
+	});
+
+	test('disabling clears cached children and re-enabling loads a fresh result', async () => {
+		const previous = await model.getChildren(resource);
+		const changes: (ISCMResource | undefined)[] = [];
+		store.add(model.onDidChange(resource => changes.push(resource)));
+		model.setEnabled(false);
+		const disabled = {
+			expandable: model.hasChildren(resource),
+			children: await model.getChildren(resource),
+			current: model.isCurrent(previous[0]),
+			released: resolver.released.slice(),
+			calls: provider.calls,
+		};
+		model.setEnabled(true);
+		const next = await model.getChildren(resource);
+		assert.deepStrictEqual({
+			disabled,
+			enabled: model.enabled,
+			newIdentity: next[0].id !== previous[0].id,
+			current: model.isCurrent(next[0]),
+			calls: provider.calls,
+			changes,
+		}, {
+			disabled: { expandable: false, children: [], current: false, released: [original.uri, modified.uri], calls: 1 },
+			enabled: true, newIdentity: true, current: true, calls: 2, changes: [undefined, undefined],
+		});
+	});
+
+	test('disabling cancels an in-flight provider and discards its late result', async () => {
+		provider.pending = new DeferredPromise<StructuralDiff | undefined>();
+		provider.started = new DeferredPromise<CancellationToken>();
+		const pending = model.getChildren(resource);
+		const token = await provider.started.p;
+		model.setEnabled(false);
+		const children = await pending;
+		await provider.pending.complete(provider.result);
+		assert.deepStrictEqual({
+			cancelled: token.isCancellationRequested,
+			children,
+			expandable: model.hasChildren(resource),
+			released: resolver.released,
+			calls: provider.calls,
+		}, { cancelled: true, children: [], expandable: false, released: [original.uri, modified.uri], calls: 1 });
+	});
+
+	test('setting the current enabled state does not clear results or refresh the tree', async () => {
+		const children = await model.getChildren(resource);
+		const changes: (ISCMResource | undefined)[] = [];
+		store.add(model.onDidChange(resource => changes.push(resource)));
+		model.setEnabled(true);
+		assert.deepStrictEqual({
+			current: model.isCurrent(children[0]), released: resolver.released, changes,
+		}, { current: true, released: [], changes: [] });
 	});
 
 	for (const invalidate of ['release', 'group', 'provider', 'clear'] as const) {
@@ -296,6 +363,64 @@ suite('SCM structural diff model', () => {
 		assert.deepStrictEqual({
 			label: getSCMStructuralDiffLabel(child), description: getSCMStructuralDiffDescription(child), aria: getSCMStructuralDiffAriaLabel(child),
 		}, { label: 'Calculator', description: 'Deleted', aria: 'Calculator, class, Deleted' });
+	});
+
+	test('distinguishes direct changes from unchanged ancestor containers', async () => {
+		const element = (await model.getChildren(resource))[0];
+		assert.ok(element.type === 'structuralDiff');
+		const change = { textChangeIndex: 0, range: new Range(2, 2, 2, 5), classification: StructuralDiffClassification.Implementation };
+		const candidates = [
+			element,
+			{ ...element, node: { ...element.node, original: undefined } },
+			{ ...element, node: { ...element.node, modified: undefined } },
+			{ ...element, node: { ...element.node, originalChanges: [change] } },
+			{ ...element, node: { ...element.node, modifiedChanges: [change] } },
+		];
+		assert.deepStrictEqual(candidates.map(candidate => ({
+			change: getSCMStructuralDiffChange(candidate),
+			description: getSCMStructuralDiffDescription(candidate),
+			aria: getSCMStructuralDiffAriaLabel(candidate),
+		})), [
+			{ change: undefined, description: undefined, aria: 'Calculator, class' },
+			{ change: { type: 'added', label: 'Added' }, description: 'Added', aria: 'Calculator, class, Added' },
+			{ change: { type: 'deleted', label: 'Deleted' }, description: 'Deleted', aria: 'Calculator, class, Deleted' },
+			{ change: { type: 'modified', label: 'Changed' }, description: 'Implementation changed', aria: 'Calculator, class, Implementation changed' },
+			{ change: { type: 'modified', label: 'Changed' }, description: 'Implementation changed', aria: 'Calculator, class, Implementation changed' },
+		]);
+	});
+
+	test('summarizes declaration and implementation changes from both snapshots', async () => {
+		const element = (await model.getChildren(resource))[0];
+		assert.ok(element.type === 'structuralDiff');
+		const withChanges = (original: StructuralDiffClassification[], modified: StructuralDiffClassification[]) => ({
+			...element,
+			node: {
+				...element.node,
+				originalChanges: original.map(classification => ({ textChangeIndex: 0, range: new Range(2, 2, 2, 5), classification })),
+				modifiedChanges: modified.map(classification => ({ textChangeIndex: 0, range: new Range(2, 2, 2, 5), classification })),
+			},
+		});
+		const candidates = [
+			withChanges([StructuralDiffClassification.Header], []),
+			withChanges([], [StructuralDiffClassification.Header]),
+			withChanges([StructuralDiffClassification.Implementation], []),
+			withChanges([], [StructuralDiffClassification.Implementation]),
+			withChanges([StructuralDiffClassification.Header], [StructuralDiffClassification.Implementation]),
+			withChanges([StructuralDiffClassification.Implementation], [StructuralDiffClassification.Header]),
+			withChanges([StructuralDiffClassification.Dependency], [StructuralDiffClassification.Other]),
+			element,
+			{ ...element, node: { ...withChanges([], [StructuralDiffClassification.Header]).node, original: undefined } },
+			{ ...element, node: { ...withChanges([StructuralDiffClassification.Implementation], []).node, modified: undefined } },
+		];
+		assert.deepStrictEqual(candidates.map(getSCMStructuralDiffChangeAnnotation), [
+			{ label: 'decl', description: 'Declaration changed' },
+			{ label: 'decl', description: 'Declaration changed' },
+			{ label: 'impl', description: 'Implementation changed' },
+			{ label: 'impl', description: 'Implementation changed' },
+			{ label: 'decl+impl', description: 'Declaration and implementation changed' },
+			{ label: 'decl+impl', description: 'Declaration and implementation changed' },
+			undefined, undefined, undefined, undefined,
+		]);
 	});
 
 	test('invalidates results when the model language changes', async () => {

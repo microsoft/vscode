@@ -123,8 +123,11 @@ class SCMAccessibilityHelpContentProvider extends Disposable implements IAccessi
 		content.push(localize('scm-msg3', "Once the Source Control view is opened you can:"));
 		content.push(localize('scm-msg4', " - Use the up/down arrow keys to navigate the list of repositories, resource groups and resources."));
 		content.push(localize('scm-msg5', " - Use the Space key to expand or collapse a resource group."));
-		content.push(localize('scm-structural-msg1', " - Files with a structural diff provider can be expanded with the right arrow key to show changed symbols. Use the left arrow key to collapse them."));
+		content.push(localize('scm-structural-toggle', " - Toggle \"Show Structural Diff\" in the \"View & Sort\" menu to show or hide changed symbols below files."));
+		content.push(localize('scm-structural-msg1', " - When \"Show Structural Diff\" is enabled, files with a structural diff provider can be expanded with the right arrow key to show changed symbols. Structural descendants expand automatically to reveal changed leaves. Use the left arrow key to collapse them."));
 		content.push(localize('scm-structural-msg2', " - Press Enter on a changed symbol to open its file diff at that symbol. Deleted symbols open on the original side. File-level actions continue to apply to file rows."));
+		content.push(localize('scm-structural-status', " - Changed symbols have added, deleted, or modified icons. Their status is included in the accessible label. Unchanged containers have no status icon."));
+		content.push(localize('scm-structural-annotations', " - Modified symbols indicate whether their declaration, implementation, or both changed. These details are included in accessible labels."));
 
 		// Source Control Graph
 		content.push(localize('scm-graph-msg1', "Use the \"Source Control: Focus on Source Control Graph View\" command to open the Source Control Graph view."));

@@ -290,6 +290,34 @@
 	overflow: hidden;
 }
 
+.scm-view .scm-structural-change > .scm-structural-change-icon,
+.scm-view .scm-structural-change > .scm-structural-change-status {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	width: var(--vscode-spacing-size160);
+}
+
+.scm-view .scm-structural-change > .scm-structural-change-icon {
+	margin-right: var(--vscode-spacing-size60);
+}
+
+.scm-view .scm-structural-change > .scm-structural-change-status {
+	margin-left: var(--vscode-spacing-size60);
+}
+
+.scm-view .scm-structural-change-status.added {
+	color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.scm-view .scm-structural-change-status.deleted {
+	color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+.scm-view .scm-structural-change-status.modified {
+	color: var(--vscode-gitDecoration-modifiedResourceForeground);
+}
+
 .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after,
 .scm-view .monaco-list-row .history-item-change > .label-container > .monaco-icon-label::after {
 	margin-right: 3px;

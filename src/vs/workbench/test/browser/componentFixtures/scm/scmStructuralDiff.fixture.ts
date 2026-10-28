@@ -9,7 +9,7 @@ import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { StructuralDiffNode, SymbolKind } from '../../../../../editor/common/languages.js';
+import { StructuralDiffClassification, StructuralDiffNode, SymbolKind } from '../../../../../editor/common/languages.js';
 import { SCMStructuralDiffRenderer } from '../../../../contrib/scm/browser/scmStructuralDiffRenderer.js';
 import { ISCMResource } from '../../../../contrib/scm/common/scm.js';
 import { SCMStructuralDiffElement, SCMStructuralDiffNode, getSCMStructuralDiffAriaLabel, getSCMStructuralDiffLabel } from '../../../../contrib/scm/common/scmStructuralDiff.js';
@@ -21,21 +21,35 @@ export default defineThemedFixtureGroup({ path: 'scm/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: [
-			'A class named Calculator contains a changed calculate method, an added newMethod, and a deleted oldMethod. The rows use native symbol icons and normal Source Control row spacing. Added and Deleted are readable text descriptions rather than color-only signals. A warning row below the class says Partial structural changes.',
+			'A class named Calculator contains a changed calculate method, an added newMethod, and a deleted oldMethod. The changed method has a muted impl annotation before its signature. The class and method icons use their respective Outline symbol theme colors, with normal Source Control row spacing. Modified, added, and removed diff icons align on the right, using the corresponding Git decoration theme colors. Added/deleted methods and the unchanged Calculator container have no change-part annotation. A warning row below the class says Partial structural changes.',
 		],
 		render: context => renderStructuralChanges(context, 360),
 	}),
 	StructuralChangesNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: [
-			'A narrow Source Control symbol tree keeps its icons and indentation aligned. The long calculate method name and signature truncate with an ellipsis instead of overflowing. Added and deleted methods retain their text status, and a partial-results warning appears below the class.',
+			'A narrow Source Control symbol tree keeps its icons and indentation aligned. The long calculate method name and signature truncate with an ellipsis instead of overflowing. Right-aligned diff icons remain visible for modified, added, and deleted methods, and a partial-results warning appears below the class.',
 		],
 		render: context => renderStructuralChanges(context, 220),
 	}),
+	StructuralDeclarationChanges: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: [
+			'The changed calculate method has a muted decl annotation before its signature and a modified diff icon on the right. Added/deleted methods and the unchanged Calculator container have no change-part annotation.',
+		],
+		render: context => renderStructuralChanges(context, 360, [StructuralDiffClassification.Header]),
+	}),
+	StructuralDeclarationAndImplementationChanges: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: [
+			'The changed calculate method has a muted decl+impl annotation before its signature and a modified diff icon on the right. Added/deleted methods and the unchanged Calculator container have no change-part annotation.',
+		],
+		render: context => renderStructuralChanges(context, 360, [StructuralDiffClassification.Header, StructuralDiffClassification.Implementation]),
+	}),
 });
 
-function renderStructuralChanges({ container, disposableStore, theme }: ComponentFixtureContext, width: number): void {
-	createEditorServices(disposableStore, { colorTheme: theme });
+function renderStructuralChanges({ container, disposableStore, theme }: ComponentFixtureContext, width: number, classifications: readonly StructuralDiffClassification[] = [StructuralDiffClassification.Implementation]): void {
+	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
 	container.classList.add('scm-view');
 	container.style.width = `${width}px`;
 	container.style.height = '132px';
@@ -61,7 +75,11 @@ function renderStructuralChanges({ container, disposableStore, theme }: Componen
 		const entity = { name, kind: SymbolKind.Method, range, detail: status === 'changed' ? '(value: number): number' : undefined };
 		const node: StructuralDiffNode = {
 			id: status, original: status === 'added' ? undefined : entity, modified: status === 'deleted' ? undefined : entity,
-			originalChanges: [], modifiedChanges: [], children: [],
+			originalChanges: [],
+			modifiedChanges: status === 'changed' ? classifications.map((classification, index) => ({
+				textChangeIndex: 0, range: new Range(index + 3, 1, index + 3, 12), classification,
+			})) : [],
+			children: [],
 		};
 		nodes.push(node);
 		members.push({ type: 'structuralDiff', id: status, generation: 1, order, resource, parent, node, children: [] });
@@ -70,7 +88,7 @@ function renderStructuralChanges({ container, disposableStore, theme }: Componen
 		parent,
 		{ type: 'structuralDiffStatus', id: 'partial', status: 'incomplete', generation: 1, order: 1, resource, parent: resource },
 	];
-	const renderer = new SCMStructuralDiffRenderer();
+	const renderer = instantiationService.createInstance(SCMStructuralDiffRenderer);
 	const tree = disposableStore.add(new ObjectTree<SCMStructuralDiffElement, FuzzyScore>('SCM structural diff fixture', container, {
 		getHeight: () => 22,
 		getTemplateId: () => SCMStructuralDiffRenderer.TEMPLATE_ID,

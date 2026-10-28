@@ -9,7 +9,7 @@ import { CancellationError, isCancellationError } from '../../../../base/common/
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { StructuralDiffNode, symbolKindNames } from '../../../../editor/common/languages.js';
+import { StructuralDiffClassification, StructuralDiffNode, symbolKindNames } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
@@ -60,13 +60,56 @@ export function getSCMStructuralDiffLabel(element: SCMStructuralDiffElement): st
 	return (element.node.modified ?? element.node.original)!.name;
 }
 
+export function getSCMStructuralDiffChange(element: SCMStructuralDiffElement): { readonly type: 'added' | 'deleted' | 'modified'; readonly label: string } | undefined {
+	if (element.type === 'structuralDiffStatus') {
+		return undefined;
+	}
+	if (!element.node.original) {
+		return { type: 'added', label: localize('structuralDiff.added', "Added") };
+	}
+	if (!element.node.modified) {
+		return { type: 'deleted', label: localize('structuralDiff.deleted', "Deleted") };
+	}
+	if (element.node.originalChanges.length > 0 || element.node.modifiedChanges.length > 0) {
+		return { type: 'modified', label: localize('structuralDiff.changed', "Changed") };
+	}
+	return undefined;
+}
+
+export function getSCMStructuralDiffChangeAnnotation(element: SCMStructuralDiffElement): { readonly label: string; readonly description: string } | undefined {
+	if (element.type === 'structuralDiffStatus' || !element.node.original || !element.node.modified) {
+		return undefined;
+	}
+	const changes = [...element.node.originalChanges, ...element.node.modifiedChanges];
+	const declarationChanged = changes.some(change => change.classification === StructuralDiffClassification.Header);
+	const implementationChanged = changes.some(change => change.classification === StructuralDiffClassification.Implementation);
+	if (declarationChanged && implementationChanged) {
+		return {
+			label: localize({ key: 'structuralDiff.declImplAnnotation', comment: ['Short annotation: declaration and implementation both changed.'] }, "decl+impl"),
+			description: localize('structuralDiff.declImplChanged', "Declaration and implementation changed"),
+		};
+	}
+	if (declarationChanged) {
+		return {
+			label: localize({ key: 'structuralDiff.declAnnotation', comment: ['Short annotation: decl abbreviates declaration.'] }, "decl"),
+			description: localize('structuralDiff.declChanged', "Declaration changed"),
+		};
+	}
+	if (implementationChanged) {
+		return {
+			label: localize({ key: 'structuralDiff.implAnnotation', comment: ['Short annotation: impl abbreviates implementation.'] }, "impl"),
+			description: localize('structuralDiff.implChanged', "Implementation changed"),
+		};
+	}
+	return undefined;
+}
+
 export function getSCMStructuralDiffDescription(element: SCMStructuralDiffElement): string | undefined {
 	if (element.type === 'structuralDiffStatus') {
 		return undefined;
 	}
 	const details = (element.node.modified ?? element.node.original)!.detail;
-	const status = !element.node.original ? localize('structuralDiff.added', "Added")
-		: !element.node.modified ? localize('structuralDiff.deleted', "Deleted") : undefined;
+	const status = getSCMStructuralDiffChangeAnnotation(element)?.description ?? getSCMStructuralDiffChange(element)?.label;
 	return [status, details].filter(value => !!value).join(', ') || undefined;
 }
 
@@ -108,6 +151,9 @@ class StructuralDiffEntry extends Disposable {
 }
 
 export class SCMStructuralDiffModel extends Disposable {
+	private _enabled = false;
+	get enabled(): boolean { return this._enabled; }
+
 	private readonly entries = this._register(new DisposableMap<ISCMResource, StructuralDiffEntry>());
 	private readonly _onDidChange = this._register(new Emitter<ISCMResource | undefined>());
 	readonly onDidChange = this._onDidChange.event;
@@ -147,7 +193,21 @@ export class SCMStructuralDiffModel extends Disposable {
 		this._register(this.languageService.onDidChange(() => this._onDidChange.fire(undefined)));
 	}
 
+	setEnabled(enabled: boolean): void {
+		if (this._enabled === enabled) {
+			return;
+		}
+		this._enabled = enabled;
+		if (!enabled) {
+			this.clear();
+		}
+		this._onDidChange.fire(undefined);
+	}
+
 	hasChildren(resource: ISCMResource): boolean {
+		if (!this.enabled) {
+			return false;
+		}
 		const entry = this.entries.get(resource);
 		if (entry?.children !== undefined) {
 			return entry.children.length > 0;
@@ -204,6 +264,9 @@ export class SCMStructuralDiffModel extends Disposable {
 	}
 
 	private canProvide(resource: ISCMResource): boolean {
+		if (!this.enabled) {
+			return false;
+		}
 		const modified = resource.multiDiffEditorModifiedUri;
 		if (!resource.multiDiffEditorOriginalUri || !modified
 			|| !this.uriIdentityService.extUri.isEqual(modified, resource.sourceUri)) {

@@ -4,10 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, getWindow } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
+import { AsyncDataTree } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
+import { IDelayedHoverAtMouseOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceTree } from '../../../../../base/common/resourceTree.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -16,15 +20,22 @@ import { ICodeEditor, IDiffEditor } from '../../../../../editor/browser/editorBr
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { ISelection, Selection } from '../../../../../editor/common/core/selection.js';
 import { EditorType, ScrollType } from '../../../../../editor/common/editorCommon.js';
-import { SymbolKind } from '../../../../../editor/common/languages.js';
+import { StructuralDiffClassification, SymbolKind } from '../../../../../editor/common/languages.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
+import { MenuId, MenuRegistry, isIMenuItem } from '../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { DEFAULT_EDITOR_ASSOCIATION, ITextDiffEditorPane, IUntypedEditorInput } from '../../../../common/editor.js';
 import { IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
-import { SCMAccessibilityProvider, SCMTreeDataSource, SCMTreeKeyboardNavigationLabelProvider, SCMTreeSorter } from '../../browser/scmViewPane.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ContextKeys, SCMAccessibilityProvider, SCMTreeDataSource, SCMTreeKeyboardNavigationLabelProvider, SCMTreeSorter, SCMViewPane, isSCMTreeElementCollapsedByDefault } from '../../browser/scmViewPane.js';
 import { SCMStructuralDiffRenderer, openSCMStructuralDiff } from '../../browser/scmStructuralDiffRenderer.js';
 import { ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMViewService, ViewMode } from '../../common/scm.js';
 import { SCMStructuralDiffElement, SCMStructuralDiffModel, SCMStructuralDiffNode } from '../../common/scmStructuralDiff.js';
@@ -36,6 +47,19 @@ class TestCodeEditor extends mock<ICodeEditor>() {
 	override setSelection(selection: IRange | ISelection): void { this.selections.push(Range.isIRange(selection) ? selection : Selection.liftSelection(selection)); }
 	override revealRangeInCenterIfOutsideViewport(range: IRange, _scrollType?: ScrollType): void { this.reveals.push(range); }
 	override focus(): void { this.focused = true; }
+}
+
+class TestStatusHoverService extends mock<IHoverService>() {
+	readonly labels: string[] = [];
+	active = 0;
+
+	override setupDelayedHoverAtMouse(_target: HTMLElement, options: IDelayedHoverAtMouseOptions | (() => IDelayedHoverAtMouseOptions)) {
+		const content = (typeof options === 'function' ? options() : options).content;
+		assert.ok(typeof content === 'string');
+		this.labels.push(content);
+		this.active++;
+		return toDisposable(() => this.active--);
+	}
 }
 
 suite('SCM structural diff tree', () => {
@@ -88,6 +112,7 @@ suite('SCM structural diff tree', () => {
 	for (const mode of [ViewMode.List, ViewMode.Tree]) {
 		test(`exposes structural children and correct parents in ${mode} mode`, async () => {
 			const structuralDiff = new class extends mock<SCMStructuralDiffModel>() {
+				override get enabled(): boolean { return true; }
 				override hasChildren(candidate: ISCMResource): boolean { return candidate === resource; }
 				override async getChildren(): Promise<readonly SCMStructuralDiffElement[]> { return [parent]; }
 			};
@@ -106,6 +131,75 @@ suite('SCM structural diff tree', () => {
 			}, { files: [resource], expandable: [true, true, false], children: [parent], nested: [child], parents: [resource, parent] });
 		});
 
+		test(`hides structural children in ${mode} mode while disabled`, async () => {
+			let enabled = true;
+			const structuralDiff = new class extends mock<SCMStructuralDiffModel>() {
+				override get enabled(): boolean { return enabled; }
+				override hasChildren(): boolean { return enabled; }
+				override async getChildren(): Promise<readonly SCMStructuralDiffElement[]> { return enabled ? [parent] : []; }
+			};
+			const viewService = new class extends mock<ISCMViewService>() {
+				override readonly visibleRepositories = [];
+			};
+			const dataSource = store.add(new SCMTreeDataSource(() => mode, structuralDiff, new TestConfigurationService(), viewService));
+			await dataSource.getChildren(resource);
+			enabled = false;
+			assert.deepStrictEqual({
+				fileChildren: [...await dataSource.getChildren(resource)],
+				nestedChildren: [...await dataSource.getChildren(parent)],
+				expandable: [dataSource.hasChildren(resource), dataSource.hasChildren(parent)],
+				filesRemain: [...await dataSource.getChildren(group)].length,
+			}, { fileChildren: [], nestedChildren: [], expandable: [false, false], filesRemain: 1 });
+		});
+
+		test(`expands all structural descendants when a file is expanded in ${mode} mode`, async () => {
+			const classChildren: SCMStructuralDiffNode[] = [];
+			const classNode = { ...parent, children: classChildren };
+			const methodChildren: SCMStructuralDiffNode[] = [];
+			const methodNode = { ...child, parent: classNode, children: methodChildren };
+			const leaf = { ...child, id: 'nested-function', parent: methodNode, children: [] };
+			classChildren.push(methodNode);
+			methodChildren.push(leaf);
+			let requests = 0;
+			const structuralDiff = new class extends mock<SCMStructuralDiffModel>() {
+				override get enabled(): boolean { return true; }
+				override hasChildren(candidate: ISCMResource): boolean { return candidate === resource; }
+				override async getChildren(): Promise<readonly SCMStructuralDiffElement[]> {
+					requests++;
+					return [classNode];
+				}
+			};
+			const viewService = new class extends mock<ISCMViewService>() {
+				override readonly visibleRepositories = [];
+			};
+			const dataSource = store.add(new SCMTreeDataSource(() => mode, structuralDiff, new TestConfigurationService(), viewService));
+			type Element = Parameters<SCMTreeDataSource['getParent']>[0];
+			const tree = store.add(new AsyncDataTree<ISCMResourceGroup, Element>('SCM structural expansion', $('.scm-view'), {
+				getHeight: () => 22,
+				getTemplateId: () => 'element',
+			}, [{
+				templateId: 'element',
+				renderTemplate: container => container,
+				renderElement: () => { },
+				disposeTemplate: () => { },
+			}], {
+				hasChildren: element => dataSource.hasChildren(element),
+				getChildren: element => dataSource.getChildren(element),
+			}, { collapseByDefault: isSCMTreeElementCollapsedByDefault }));
+			await tree.setInput(group);
+			const before = { collapsed: tree.isCollapsed(resource), requests };
+			await tree.expand(resource);
+			const expanded = [resource, classNode, methodNode].map(element => tree.isCollapsed(element));
+			const leafLoaded = tree.hasNode(leaf);
+			tree.collapse(classNode);
+			assert.deepStrictEqual({
+				before, expanded, leafLoaded, requests, canCollapseManually: tree.isCollapsed(classNode),
+			}, {
+				before: { collapsed: true, requests: 0 }, expanded: [false, false, false],
+				leafLoaded: true, requests: 1, canCollapseManually: true,
+			});
+		});
+
 		test(`preserves provider order instead of applying file sorting in ${mode} mode`, () => {
 			const sorter = new SCMTreeSorter(() => mode, () => { throw new Error('Must not sort structural children as files'); });
 			const first = { ...child, order: 0, node: { ...child.node, modified: { ...child.node.modified!, name: 'zeta' } } };
@@ -113,6 +207,35 @@ suite('SCM structural diff tree', () => {
 			assert.strictEqual(sorter.compare(first, second), -1);
 		});
 	}
+
+	test('adds Show Structural Diff as a checkable action in a separate View & Sort group', () => {
+		const item = MenuRegistry.getMenuItems(MenuId.for('SCMViewSort'))
+			.find(item => isIMenuItem(item) && item.command.id === 'workbench.scm.action.toggleShowStructuralDiff');
+		assert.ok(item && isIMenuItem(item));
+		const toggled = isICommandActionToggleInfo(item.command.toggled) ? item.command.toggled.condition : item.command.toggled;
+		assert.deepStrictEqual({
+			title: item.command.title, group: item.group, order: item.order, toggled: toggled?.serialize(),
+		}, {
+			title: 'Show Structural Diff', group: '3_structuralDiff', order: 1,
+			toggled: ContextKeys.SCMViewShowStructuralDiff.serialize(),
+		});
+	});
+
+	test('the menu command toggles the active Source Control view', async () => {
+		const view = new class extends mock<SCMViewPane>() {
+			private show = true;
+			override get showStructuralDiff(): boolean { return this.show; }
+			override set showStructuralDiff(value: boolean) { this.show = value; }
+		};
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IViewsService, 'getActiveViewWithId', () => view);
+		const command = CommandsRegistry.getCommand('workbench.scm.action.toggleShowStructuralDiff');
+		assert.ok(command);
+		await instantiationService.invokeFunction(command.handler);
+		const unchecked = view.showStructuralDiff;
+		await instantiationService.invokeFunction(command.handler);
+		assert.deepStrictEqual([unchecked, view.showStructuralDiff], [false, true]);
+	});
 
 	test('supports symbol-name keyboard navigation and meaningful screen-reader labels', () => {
 		const labelService = new class extends mock<ILabelService>() { };
@@ -129,23 +252,150 @@ suite('SCM structural diff tree', () => {
 		}, { keyboard: 'run', aria: 'run, method' });
 	});
 
-	test('renders native symbol icons, deleted labels and partial-result status without file actions', () => {
-		const renderer = new SCMStructuralDiffRenderer();
+	test('renders symbol and deletion icons without status text or file actions', () => {
+		const renderer = new SCMStructuralDiffRenderer(NullHoverService);
 		const container = $('.scm-view');
-		const label = store.add(renderer.renderTemplate(container));
+		const template = store.add(renderer.renderTemplate(container));
 		const render = (element: SCMStructuralDiffElement) => renderer.renderElement(new class extends mock<ITreeNode<SCMStructuralDiffElement, FuzzyScore>>() {
 			override readonly element = element;
 			override readonly filterData = FuzzyScore.Default;
-		}, 0, label);
+		}, 0, template);
 		render(parent);
-		const classIcon = !!container.querySelector('.codicon-symbol-class');
+		const classIcon = !!container.querySelector('.codicon-colored.codicon-symbol-class');
 		render({ ...child, node: { ...child.node, modified: undefined } });
-		const deletedText = label.element.textContent;
+		const methodIcon = !!container.querySelector('.codicon-colored.codicon-symbol-method');
+		const deletedText = template.label.element.textContent;
+		const deletedIcon = !!container.querySelector('.codicon-diff-removed');
 		render({ type: 'structuralDiffStatus', id: 'partial', status: 'incomplete', parent: resource, resource, generation: 1, order: 1 });
 		assert.deepStrictEqual({
-			classIcon, deletedText, status: label.element.textContent,
-			warning: !!container.querySelector('.codicon-warning'), actions: container.querySelectorAll('.actions').length,
-		}, { classIcon: true, deletedText: 'runDeleted', status: 'Partial structural changes', warning: true, actions: 0 });
+			classIcon, methodIcon, deletedText, deletedIcon, status: template.label.element.textContent,
+			warning: !!container.querySelector('.codicon-warning'),
+			warningColored: template.icon.classList.contains('codicon-colored'),
+			actions: container.querySelectorAll('.actions').length,
+		}, { classIcon: true, methodIcon: true, deletedText: 'run', deletedIcon: true, status: 'Partial structural changes', warning: true, warningColored: false, actions: 0 });
+	});
+
+	test('applies the same symbol theme colors as Outline when reusing a row', () => {
+		const container = $('.monaco-workbench.scm-view');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		container.style.setProperty('--vscode-symbolIcon-classForeground', 'rgb(200, 120, 10)');
+		container.style.setProperty('--vscode-symbolIcon-methodForeground', 'rgb(150, 100, 200)');
+		const renderer = new SCMStructuralDiffRenderer(NullHoverService);
+		const template = store.add(renderer.renderTemplate(container));
+		const render = (element: SCMStructuralDiffElement) => renderer.renderElement(new class extends mock<ITreeNode<SCMStructuralDiffElement, FuzzyScore>>() {
+			override readonly element = element;
+			override readonly filterData = FuzzyScore.Default;
+		}, 0, template);
+		render(parent);
+		const classColor = getWindow(container).getComputedStyle(template.icon).color;
+		render(child);
+		const methodColor = getWindow(container).getComputedStyle(template.icon).color;
+		container.style.setProperty('--vscode-symbolIcon-methodForeground', 'rgb(100, 50, 180)');
+		assert.deepStrictEqual({
+			classColor, methodColor,
+			updatedMethodColor: getWindow(container).getComputedStyle(template.icon).color,
+			oldClassIcon: template.icon.classList.contains('codicon-symbol-class'),
+			iconHiddenFromScreenReaders: template.icon.getAttribute('aria-hidden'),
+		}, {
+			classColor: 'rgb(200, 120, 10)', methodColor: 'rgb(150, 100, 200)',
+			updatedMethodColor: 'rgb(100, 50, 180)', oldClassIcon: false, iconHiddenFromScreenReaders: 'true',
+		});
+	});
+
+	test('renders themed diff status icons with accessible text and disposes hovers on row reuse', () => {
+		const container = $('.monaco-workbench.scm-view');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		container.style.setProperty('--vscode-gitDecoration-addedResourceForeground', 'rgb(10, 110, 30)');
+		container.style.setProperty('--vscode-gitDecoration-deletedResourceForeground', 'rgb(160, 20, 40)');
+		container.style.setProperty('--vscode-gitDecoration-modifiedResourceForeground', 'rgb(30, 80, 170)');
+		const hoverService = new TestStatusHoverService();
+		const renderer = new SCMStructuralDiffRenderer(hoverService);
+		const template = store.add(renderer.renderTemplate(container));
+		const makeNode = (element: SCMStructuralDiffElement) => new class extends mock<ITreeNode<SCMStructuralDiffElement, FuzzyScore>>() {
+			override readonly element = element;
+			override readonly filterData = FuzzyScore.Default;
+		};
+		const added = { ...child, node: { ...child.node, original: undefined, modified: { ...child.node.modified!, detail: '(value: number)' } } };
+		const deleted = { ...child, node: { ...child.node, modified: undefined } };
+		const modified = {
+			...child,
+			node: {
+				...child.node,
+				modifiedChanges: [{ textChangeIndex: 0, range: new Range(3, 2, 3, 5), classification: StructuralDiffClassification.Implementation }],
+			},
+		};
+		const rows = [added, deleted, modified].map(element => {
+			renderer.renderElement(makeNode(element), 0, template);
+			const color = getWindow(container).getComputedStyle(template.status).color;
+			return {
+				glyph: [...template.status.classList].filter(value => value.startsWith('codicon-')),
+				color,
+				text: template.label.element.textContent,
+				activeHovers: hoverService.active,
+				aria: template.label.element.getAttribute('aria-label'),
+			};
+		});
+		renderer.renderElement(makeNode(parent), 0, template);
+		const containerState = { hidden: template.status.style.display === 'none', activeHovers: hoverService.active };
+		renderer.renderElement(makeNode(modified), 0, template);
+		renderer.disposeElement(makeNode(modified), 0, template);
+		assert.deepStrictEqual({
+			rows, containerState, hovers: hoverService.labels, activeAfterUnrender: hoverService.active,
+			decorative: template.status.getAttribute('aria-hidden'),
+		}, {
+			rows: [
+				{ glyph: ['codicon-diff-added'], color: 'rgb(10, 110, 30)', text: 'run(value: number)', activeHovers: 1, aria: 'run, method, Added, (value: number)' },
+				{ glyph: ['codicon-diff-removed'], color: 'rgb(160, 20, 40)', text: 'run', activeHovers: 1, aria: 'run, method, Deleted' },
+				{ glyph: ['codicon-diff-modified'], color: 'rgb(30, 80, 170)', text: 'runimpl', activeHovers: 1, aria: 'run, method, Implementation changed' },
+			],
+			containerState: { hidden: true, activeHovers: 0 }, hovers: ['Added', 'Deleted', 'Implementation changed', 'Implementation changed'],
+			activeAfterUnrender: 0, decorative: 'true',
+		});
+	});
+
+	test('renders change-part annotations without losing signatures or retaining stale row descriptions', () => {
+		const hoverService = new TestStatusHoverService();
+		const renderer = new SCMStructuralDiffRenderer(hoverService);
+		const template = store.add(renderer.renderTemplate($('.scm-view')));
+		const withChanges = (original: StructuralDiffClassification[], modified: StructuralDiffClassification[]) => ({
+			...child,
+			node: {
+				...child.node,
+				modified: { ...child.node.modified!, detail: '(value: number)' },
+				originalChanges: original.map(classification => ({ textChangeIndex: 0, range: new Range(2, 2, 2, 5), classification })),
+				modifiedChanges: modified.map(classification => ({ textChangeIndex: 0, range: new Range(3, 2, 3, 5), classification })),
+			},
+		});
+		const render = (element: SCMStructuralDiffElement) => {
+			renderer.renderElement(new class extends mock<ITreeNode<SCMStructuralDiffElement, FuzzyScore>>() {
+				override readonly element = element;
+				override readonly filterData = FuzzyScore.Default;
+			}, 0, template);
+			return {
+				text: template.label.element.textContent,
+				aria: template.label.element.getAttribute('aria-label'),
+				modifiedIcon: template.status.classList.contains('codicon-diff-modified'),
+			};
+		};
+		const rows = [
+			withChanges([StructuralDiffClassification.Header], []),
+			withChanges([], [StructuralDiffClassification.Implementation]),
+			withChanges([StructuralDiffClassification.Header], [StructuralDiffClassification.Implementation]),
+		].map(render);
+		const ancestor = render(parent);
+		const added = render({ ...child, node: { ...withChanges([], [StructuralDiffClassification.Header]).node, original: undefined } });
+		assert.deepStrictEqual({ rows, ancestor, added, hovers: hoverService.labels }, {
+			rows: [
+				{ text: 'rundecl, (value: number)', aria: 'run, method, Declaration changed, (value: number)', modifiedIcon: true },
+				{ text: 'runimpl, (value: number)', aria: 'run, method, Implementation changed, (value: number)', modifiedIcon: true },
+				{ text: 'rundecl+impl, (value: number)', aria: 'run, method, Declaration and implementation changed, (value: number)', modifiedIcon: true },
+			],
+			ancestor: { text: 'Calculator', aria: 'Calculator, class', modifiedIcon: false },
+			added: { text: 'run(value: number)', aria: 'run, method, Added, (value: number)', modifiedIcon: false },
+			hovers: ['Declaration changed', 'Implementation changed', 'Declaration and implementation changed', 'Added'],
+		});
 	});
 
 	for (const side of ['original', 'modified'] as const) {

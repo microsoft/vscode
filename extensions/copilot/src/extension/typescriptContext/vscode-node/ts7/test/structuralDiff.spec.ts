@@ -149,7 +149,7 @@ suite('TypeScript 7 structural diff', () => {
 		]);
 	});
 
-	test('classifies imports and re-exports as dependencies', async () => {
+	test('groups imports and re-exports separately without duplicating root coverage', async () => {
 		const original = 'import { oldName } from "dependency";\nexport { oldName } from "dependency";';
 		const modified = original.replaceAll('oldName', 'newName');
 		const result = await compute(original, modified, [
@@ -157,10 +157,188 @@ suite('TypeScript 7 structural diff', () => {
 			{ originalRange: rangeOf(original, 'oldName', original.indexOf('export')), modifiedRange: rangeOf(modified, 'newName', modified.indexOf('export')) },
 		]);
 		assert.deepStrictEqual({
-			children: result.root.children,
-			original: result.root.originalChanges.map(change => change.classification),
-			modified: result.root.modifiedChanges.map(change => change.classification),
-		}, { children: [], original: [vscode.StructuralDiffClassification.Dependency, vscode.StructuralDiffClassification.Dependency], modified: [vscode.StructuralDiffClassification.Dependency, vscode.StructuralDiffClassification.Dependency] });
+			nodes: summarize(result, original, modified),
+			original: result.root.originalChanges,
+			modified: result.root.modifiedChanges,
+		}, {
+			nodes: [{
+				path: ['Imports'], original: 'Imports', modified: 'Imports', kind: 'imports',
+				originalChanges: [[0, vscode.StructuralDiffClassification.Dependency, 'oldName', []]],
+				modifiedChanges: [[0, vscode.StructuralDiffClassification.Dependency, 'newName', []]],
+			}, {
+				path: ['Exports'], original: 'Exports', modified: 'Exports', kind: 'exports',
+				originalChanges: [[1, vscode.StructuralDiffClassification.Dependency, 'oldName', []]],
+				modifiedChanges: [[1, vscode.StructuralDiffClassification.Dependency, 'newName', []]],
+			}],
+			original: [], modified: [],
+		});
+	});
+
+	test('keeps added imports and deleted re-exports classified as dependencies', async () => {
+		const imports = 'import type { Value } from "dependency";';
+		const exports = 'export { Value } from "dependency";';
+		const added = await compute('', imports);
+		const deleted = await compute(exports, '');
+		assert.deepStrictEqual({
+			added: summarize(added, '', imports),
+			deleted: summarize(deleted, exports, ''),
+		}, {
+			added: [{
+				path: ['Imports'], original: undefined, modified: 'Imports', kind: 'imports', originalChanges: [],
+				modifiedChanges: [[0, vscode.StructuralDiffClassification.Dependency, imports, []]],
+			}],
+			deleted: [{
+				path: ['Exports'], original: 'Exports', modified: undefined, kind: 'exports', modifiedChanges: [],
+				originalChanges: [[0, vscode.StructuralDiffClassification.Dependency, exports, []]],
+			}],
+		});
+	});
+
+	test('groups side-effect and import-equals statements with ordinary imports', async () => {
+		const original = [
+			'import "old-side-effect";',
+			'import Alias = require("old-module");',
+			'import type { Value } from "old-types";',
+		].join('\n');
+		const modified = original.replaceAll('old-', 'new-');
+		const changes = ['old-side-effect', 'old-module', 'old-types'].map(value => ({
+			originalRange: rangeOf(original, value), modifiedRange: rangeOf(modified, value.replace('old-', 'new-')),
+		}));
+		const result = await compute(original, modified, changes);
+		const group = result.root.children[0];
+		assert.deepStrictEqual({
+			groups: result.root.children.map(node => node.modified?.name),
+			original: group.originalChanges.map(change => [change.textChangeIndex, change.classification, modifiedText(change.range, original)]),
+			modified: group.modifiedChanges.map(change => [change.textChangeIndex, change.classification, modifiedText(change.range, modified)]),
+			root: [result.root.originalChanges, result.root.modifiedChanges],
+			selection: group.modified?.selectionRange,
+		}, {
+			groups: ['Imports'],
+			original: [
+				[0, vscode.StructuralDiffClassification.Dependency, 'old-side-effect'],
+				[1, vscode.StructuralDiffClassification.Dependency, 'old-module'],
+				[2, vscode.StructuralDiffClassification.Dependency, 'old-types'],
+			],
+			modified: [
+				[0, vscode.StructuralDiffClassification.Dependency, 'new-side-effect'],
+				[1, vscode.StructuralDiffClassification.Dependency, 'new-module'],
+				[2, vscode.StructuralDiffClassification.Dependency, 'new-types'],
+			],
+			root: [[], []],
+			selection: rangeOf(modified, 'import "new-side-effect";'),
+		});
+	});
+
+	for (const [original, modified, classification] of [
+		['export { oldName };', 'export { newName };', vscode.StructuralDiffClassification.Implementation],
+		['export default oldName;', 'export default newName;', vscode.StructuralDiffClassification.Implementation],
+		['export = oldName;', 'export = newName;', vscode.StructuralDiffClassification.Implementation],
+		['export as namespace OldName;', 'export as namespace NewName;', vscode.StructuralDiffClassification.Implementation],
+		['export type { Value } from "old-module";', 'export type { Value } from "new-module";', vscode.StructuralDiffClassification.Dependency],
+		['export * from "old-module";', 'export * from "new-module";', vscode.StructuralDiffClassification.Dependency],
+	] as const) {
+		test(`groups standalone export syntax: ${original}`, async () => {
+			const result = await compute(original, modified);
+			assert.deepStrictEqual({
+				groups: result.root.children.map(node => node.modified?.name),
+				classifications: result.root.children[0].modifiedChanges.map(change => change.classification),
+				root: [result.root.originalChanges, result.root.modifiedChanges],
+			}, { groups: ['Exports'], classifications: [classification], root: [[], []] });
+		});
+	}
+
+	test('does not put exported declarations or their export modifier changes in Exports', async () => {
+		const original = 'class Calculator {}\nfunction calculate() { return 1; }\nconst value = 1;';
+		const modified = original.split('\n').map(line => `export ${line}`).join('\n');
+		const changes = original.split('\n').map((_, line) => ({
+			originalRange: new vscode.Range(line, 0, line, 0),
+			modifiedRange: new vscode.Range(line, 0, line, 'export '.length),
+		}));
+		const result = await compute(original, modified, changes);
+		assert.deepStrictEqual(result.root.children.map(node => ({
+			name: node.modified?.name,
+			kind: node.modified?.languageKind,
+			classifications: node.modifiedChanges.map(change => [change.classification, modifiedText(change.range, modified)]),
+		})), [
+			{ name: 'Calculator', kind: 'class', classifications: [[vscode.StructuralDiffClassification.Header, 'export ']] },
+			{ name: 'calculate', kind: 'function', classifications: [[vscode.StructuralDiffClassification.Header, 'export ']] },
+			{ name: 'value', kind: 'variable', classifications: [[vscode.StructuralDiffClassification.Header, 'export ']] },
+		]);
+	});
+
+	for (const original of [
+		'export default class Calculator { value = 1; }',
+		'export default function calculate() { return 1; }',
+	]) {
+		test(`keeps default exported declarations in their normal structural location: ${original}`, async () => {
+			const modified = original.replace('1', '2');
+			const result = await compute(original, modified, [{
+				originalRange: rangeOf(original, '1'), modifiedRange: rangeOf(modified, '2'),
+			}]);
+			const name = original.includes('class') ? 'Calculator' : 'calculate';
+			assert.deepStrictEqual(result.root.children.map(node => [node.original?.name, node.modified?.name]), [[name, name]]);
+		});
+	}
+
+	test('does not let discontiguous import/export groups swallow intervening declarations', async () => {
+		const original = [
+			'import { first } from "one";',
+			'export function between() { return 1; }',
+			'import { second } from "two";',
+			'export { first };',
+			'export class Between { value = 1; }',
+			'export { second } from "two";',
+		].join('\n');
+		const modified = original.replaceAll('first', 'firstChanged').replaceAll('second', 'secondChanged').replaceAll('1', '2');
+		const result = await compute(original, modified);
+		assert.deepStrictEqual({
+			names: result.root.children.map(node => node.modified?.name),
+			imports: result.root.children[0].modifiedChanges.map(change => modifiedText(change.range, modified)),
+			exports: result.root.children[2].modifiedChanges.map(change => modifiedText(change.range, modified)),
+			functionCoverage: result.root.children[1].modifiedChanges.map(change => modifiedText(change.range, modified)).join(''),
+			rootCoverage: result.root.modifiedChanges.map(change => modifiedText(change.range, modified)).join(''),
+		}, {
+			names: ['Imports', 'between', 'Exports', 'Between'],
+			imports: ['import { firstChanged } from "one";', 'import { secondChanged } from "two";'],
+			exports: ['export { firstChanged };', 'export { secondChanged } from "two";'],
+			functionCoverage: 'export function between() { return 2; }',
+			rootCoverage: '\n\n\n\n\n',
+		});
+	});
+
+	test('omits unchanged import/export groups when only a declaration body changes', async () => {
+		const original = 'import { Value } from "dependency";\nexport function calculate() { return 1; }\nexport { Value };';
+		const modified = original.replace('return 1', 'return 2');
+		const result = await compute(original, modified, [{
+			originalRange: rangeOf(original, 'return 1'), modifiedRange: rangeOf(modified, 'return 2'),
+		}]);
+		assert.deepStrictEqual(result.root.children.map(node => [node.original?.name, node.modified?.name]), [['calculate', 'calculate']]);
+	});
+
+	test('keeps import/export groups within their enclosing namespace', async () => {
+		const original = 'namespace Container {\n\timport Alias = Library.Old;\n\texport { Alias };\n}';
+		const modified = original.replace('Library.Old', 'Library.New').replace('export { Alias }', 'export { Alias as Public }');
+		const result = await compute(original, modified, [
+			{ originalRange: rangeOf(original, 'Library.Old'), modifiedRange: rangeOf(modified, 'Library.New') },
+			{ originalRange: rangeOf(original, 'export { Alias }'), modifiedRange: rangeOf(modified, 'export { Alias as Public }') },
+		]);
+		assert.deepStrictEqual(summarize(result, original, modified).map(node => [node.path, node.kind]), [
+			[['Container'], 'module'],
+			[['Container', 'Imports'], 'imports'],
+			[['Container', 'Exports'], 'exports'],
+		]);
+	});
+
+	test('does not match import/export groups with declarations having the same display names', async () => {
+		const original = 'namespace Imports { export const value = 1; }\nimport { oldName } from "dependency";\nnamespace Exports { export const value = 1; }\nexport { oldName };';
+		const modified = original.replaceAll('1', '2').replaceAll('oldName', 'newName');
+		const result = await compute(original, modified);
+		assert.deepStrictEqual(result.root.children.map(node => [node.original?.name, node.modified?.name, node.modified?.languageKind]), [
+			['Imports', 'Imports', 'module'],
+			['Imports', 'Imports', 'imports'],
+			['Exports', 'Exports', 'module'],
+			['Exports', 'Exports', 'exports'],
+		]);
 	});
 
 	test('tags test callbacks without tagging unrelated code in the same change', async () => {
