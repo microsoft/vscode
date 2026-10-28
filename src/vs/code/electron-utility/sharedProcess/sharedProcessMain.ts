@@ -101,7 +101,7 @@ import { WSLRemoteAgentHostMainService } from '../../../platform/agentHost/node/
 import { ITunnelAgentHostMainService, TUNNEL_AGENT_HOST_CHANNEL } from '../../../platform/agentHost/common/tunnelAgentHost.js';
 import { TunnelAgentHostMainService } from '../../../platform/agentHost/node/tunnelAgentHostService.js';
 import { IUserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
-import { IExtensionsProfileScannerService } from '../../../platform/extensionManagement/common/extensionsProfileScannerService.js';
+import { ExtensionsProfileScanningError, IExtensionsProfileScannerService } from '../../../platform/extensionManagement/common/extensionsProfileScannerService.js';
 import { PolicyChannelClient } from '../../../platform/policy/common/policyIpc.js';
 import { IPolicyService, NullPolicyService } from '../../../platform/policy/common/policy.js';
 import { UserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfileIpc.js';
@@ -453,6 +453,31 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Extensions Management
 		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);
 		this.server.registerChannel('extensions', channel);
+		const profiles = accessor.get(IExtensionsProfileScannerService);
+		this.server.registerChannel('extensionsProfileScanner', ProxyChannel.fromService({
+			onAddExtensions: profiles.onAddExtensions,
+			onDidAddExtensions: profiles.onDidAddExtensions,
+			onRemoveExtensions: profiles.onRemoveExtensions,
+			onDidRemoveExtensions: profiles.onDidRemoveExtensions,
+			scanProfileExtensions: async (...args: Parameters<IExtensionsProfileScannerService['scanProfileExtensions']>) => {
+				try {
+					return await profiles.scanProfileExtensions(...args);
+				} catch (error) {
+					if (error instanceof ExtensionsProfileScanningError) {
+						return { error: { message: error.message, code: error.code } };
+					}
+					throw error;
+				}
+			},
+			addExtensionsToProfile: profiles.addExtensionsToProfile.bind(profiles),
+			updateMetadata: profiles.updateMetadata.bind(profiles),
+			removeExtensionsFromProfile: profiles.removeExtensionsFromProfile.bind(profiles),
+		}, this._store));
+		const scanner = accessor.get(IExtensionsScannerService);
+		this.server.registerChannel('extensionsScannerMutations', ProxyChannel.fromService({
+			initializeDefaultProfileExtensions: () => scanner.initializeDefaultProfileExtensions(),
+			updateManifestMetadata: scanner.updateManifestMetadata.bind(scanner),
+		}, this._store));
 
 		// Mcp Management
 		const mcpManagementChannel = new McpManagementChannel(accessor.get(IMcpManagementService), () => null);
