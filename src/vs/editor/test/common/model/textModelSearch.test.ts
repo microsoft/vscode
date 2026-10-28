@@ -11,7 +11,8 @@ import { getMapForWordSeparators } from '../../../common/core/wordCharacterClass
 import { USUAL_WORD_SEPARATORS } from '../../../common/core/wordHelper.js';
 import { EndOfLineSequence, FindMatch, SearchData } from '../../../common/model.js';
 import { TextModel } from '../../../common/model/textModel.js';
-import { SearchParams, TextModelSearch, isMultilineRegexSource } from '../../../common/model/textModelSearch.js';
+import { SearchParams, Searcher, TextModelSearch, isMultilineRegexSource } from '../../../common/model/textModelSearch.js';
+import { PieceTreeTextBufferBuilder } from '../../../common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
 import { createTextModel } from '../testTextModel.js';
 
 // --------- Find
@@ -110,6 +111,58 @@ suite('TextModelSearch', () => {
 				[2, 48, 2, 51]
 			]
 		);
+	});
+
+	for (const isRegex of [false, true]) {
+		for (const matchCase of [false, true]) {
+			test(`issue #291591: whole-word matches overlapping rejected candidates (regex: ${isRegex}, matchCase: ${matchCase})`, () => {
+				const text = '[1] aa-aa\n[2] xaa-aa-aa\n[3] aax-aa-aa\n[4] aa-aa-aa';
+				const ranges: [number, number, number, number][] = [
+					[1, 5, 1, 10],
+					[2, 9, 2, 14],
+					[3, 9, 3, 14],
+					[4, 5, 4, 10]
+				];
+				assertFindMatches(text, 'aa-aa', isRegex, matchCase, USUAL_WORD_SEPARATORS, ranges);
+
+				// The model's public search API also uses the piece tree's literal-search fast path.
+				const builder = new PieceTreeTextBufferBuilder();
+				for (const line of text.split('\n')) {
+					builder.acceptChunk(line + '\n');
+				}
+				const model = createTextModel(builder.finish(true));
+				try {
+					for (const captureMatches of [false, true]) {
+						const expected = ranges.map(range => new FindMatch(new Range(...range), captureMatches ? ['aa-aa'] : null));
+						assert.deepStrictEqual(model.findMatches('aa-aa', false, isRegex, matchCase, USUAL_WORD_SEPARATORS, captureMatches), expected);
+					}
+				} finally {
+					model.dispose();
+				}
+			});
+		}
+	}
+
+	test('Whole-word search retries rejected candidates ending at the end of the text', () => {
+		assertFindMatches('xaa-aa-aa', 'a.*', true, false, USUAL_WORD_SEPARATORS, [[1, 5, 1, 10]]);
+	});
+
+	test('Whole-word search advances over surrogate pairs after rejected candidates', () => {
+		assertFindMatches('x\uD83D\uDCBB-\uD83D\uDCBB-\uD83D\uDCBB', '\uD83D\uDCBB-\uD83D\uDCBB', true, false, USUAL_WORD_SEPARATORS, [[1, 5, 1, 10]]);
+	});
+
+	test('Whole-word search advances past rejected empty matches', () => {
+		assertFindMatches('ab  cd', '(?:)', true, false, USUAL_WORD_SEPARATORS, [[1, 4, 1, 4]]);
+	});
+
+	test('Whole-word search skips long runs without word boundaries', () => {
+		const text = 'x' + 'a'.repeat(100000);
+		const searcher = new Searcher(usualWordSeparators, /a+/gu);
+		assert.strictEqual(searcher.next(text), null);
+	});
+
+	test('Whole-word search terminates when a regex ignores lastIndex', () => {
+		assert.strictEqual(new Searcher(usualWordSeparators, /abc/).next('xabc'), null);
 	});
 
 	test('/^/ find', () => {
