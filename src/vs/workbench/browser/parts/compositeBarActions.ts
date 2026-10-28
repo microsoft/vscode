@@ -280,6 +280,9 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		// pane composite bar active border + background
 		append(container, $('.active-item-indicator'));
 
+		// outline
+		append(container, $('.action-label-outline'));
+
 		hide(this.badge);
 
 		this.update();
