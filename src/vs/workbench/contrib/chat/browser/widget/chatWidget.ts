@@ -339,6 +339,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private readonly _onDidSubmitAgent = this._register(new Emitter<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>());
 	readonly onDidSubmitAgent = this._onDidSubmitAgent.event;
+	private readonly _onDidAcceptRequest = this._register(new Emitter<URI>());
+	/** User input accepted by this widget for sending or queuing, excluding preserved-input background requests. */
+	readonly onDidAcceptRequest = this._onDidAcceptRequest.event;
 	private _submitHandlerInFlight = false;
 	private _participantRedirectInFlight = false;
 
@@ -1199,7 +1202,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
 		}
 
-		if (this.location === ChatAgentLocation.Chat && !isInlineChat(this)) {
+		if (this.viewOptions.renderChatPet !== false && this.location === ChatAgentLocation.Chat && !isInlineChat(this)) {
 			const inputContainer = this.inputPart.inputContainerElement;
 			const petHost = this.inputPart.element;
 			const inputHasContent = observableFromEvent(this, this.inputEditor.onDidChangeModelContent, () => this.inputEditor.getValue().length > 0);
@@ -2748,6 +2751,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private createInput(container: HTMLElement, options?: { renderFollowups: boolean; renderStyle?: 'compact' | 'minimal'; renderInputToolbarBelowInput?: boolean }, store: DisposableStore = this._store): void {
 		const commonConfig: IChatInputPartOptions = {
 			renderFollowups: options?.renderFollowups ?? true,
+			renderInputRequests: this.viewOptions.rendererOptions?.renderInputRequests,
 			renderStyle: options?.renderStyle === 'minimal' ? 'compact' : options?.renderStyle,
 			renderInputToolbarBelowInput: options?.renderInputToolbarBelowInput ?? false,
 			renderSecondaryToolbar: this.viewOptions.renderSecondaryToolbar ?? true,
@@ -4035,6 +4039,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const shouldUnlockQueueOrSteeringMessage = shouldUnlockChatPetQueueOrSteeringMessage(isUserQuery, options.queue);
 		const sent = await acceptAndAwaitSentRequest(result, () => {
+			if (!options.preserveInput) {
+				this._onDidAcceptRequest.fire(submittedSessionResource);
+			}
 			if (shouldUnlockQueueOrSteeringMessage) {
 				this.chatPetService.unlockAchievement(ChatPetAchievementIds.QueueOrSteeringMessage);
 			}

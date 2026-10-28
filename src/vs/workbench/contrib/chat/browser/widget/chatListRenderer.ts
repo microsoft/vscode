@@ -150,6 +150,7 @@ const DEFAULT_CHAT_ITEM_HORIZONTAL_PADDING = 40;
 export interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;
 	renderedReadOnly?: boolean;
+	renderedInputRequests?: boolean;
 	renderedPersistentProgress?: boolean;
 	/** The persistent progress verbosity the template was rendered with, if persistent progress was on. */
 	renderedProgressVerbosity?: ChatProgressVerbosity;
@@ -1017,8 +1018,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	public updateOptions(options: IChatListItemRendererOptions): void {
 		const wasReadOnly = this.rendererOptions.readOnly;
+		const renderedInputRequests = this.rendererOptions.renderInputRequests;
 		this.rendererOptions = { ...this.rendererOptions, ...options };
-		if (wasReadOnly !== this.rendererOptions.readOnly) {
+		if (wasReadOnly !== this.rendererOptions.readOnly || renderedInputRequests !== this.rendererOptions.renderInputRequests) {
 			this.observeToolConfirmations();
 		}
 	}
@@ -1227,7 +1229,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private observeToolConfirmations(): void {
 		this.toolConfirmationObservation.clear();
 		const viewModel = this.viewModel;
-		if (!viewModel || this.rendererOptions.readOnly) {
+		if (!viewModel || this.rendererOptions.readOnly || this.rendererOptions.renderInputRequests === false) {
 			return;
 		}
 
@@ -1665,6 +1667,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.checkpointRestoreToolbar.context = undefined;
 		templateData.currentElement = undefined;
 		templateData.renderedReadOnly = undefined;
+		templateData.renderedInputRequests = undefined;
 		templateData.renderedPersistentProgress = undefined;
 		templateData.renderedProgressVerbosity = undefined;
 		templateData.completedResponseDisclosureOpen = undefined;
@@ -1674,9 +1677,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderChatTreeItem(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {
 		const readOnly = !!this.rendererOptions.readOnly;
+		const renderInputRequests = this.rendererOptions.renderInputRequests !== false;
 		const persistentProgress = this.rendererOptions.renderStyle !== 'minimal' && this.isPersistentProgressEnabled();
 		const progressVerbosity = persistentProgress ? this.getPersistentProgressVerbosity() : undefined;
-		if (templateData.currentElement && (templateData.currentElement.id !== element.id || templateData.renderedReadOnly !== readOnly || templateData.renderedPersistentProgress !== persistentProgress || templateData.renderedProgressVerbosity !== progressVerbosity)) {
+		if (templateData.currentElement && (templateData.currentElement.id !== element.id || templateData.renderedReadOnly !== readOnly || templateData.renderedInputRequests !== renderInputRequests || templateData.renderedPersistentProgress !== persistentProgress || templateData.renderedProgressVerbosity !== progressVerbosity)) {
 			this.traceLayout('renderChatTreeItem', `Rendering a different element or presentation state into the template, index=${index}`);
 			const mappedTemplateData = this.templateDataByRequestId.get(templateData.currentElement.id);
 			if (mappedTemplateData && (mappedTemplateData.currentElement?.id !== templateData.currentElement.id)) {
@@ -1688,6 +1692,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		templateData.currentElement = element;
 		templateData.renderedReadOnly = readOnly;
+		templateData.renderedInputRequests = renderInputRequests;
 		templateData.renderedPersistentProgress = persistentProgress;
 		templateData.renderedProgressVerbosity = progressVerbosity;
 		// Don't update the template map for sticky scroll renders - their templates
@@ -2812,6 +2817,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const context: IChatContentPartRenderContext = {
 				element,
 				readOnly: this.rendererOptions.readOnly,
+				renderInputRequests: this.rendererOptions.renderInputRequests,
 				elementIndex: index,
 				contentIndex: contentIndex,
 				content: content,
@@ -3566,6 +3572,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const context: IChatContentPartRenderContext = {
 				element,
 				readOnly: this.rendererOptions.readOnly,
+				renderInputRequests: this.rendererOptions.renderInputRequests,
 				elementIndex: elementIndex,
 				content: contentForThisTurn,
 				contentIndex: contentIndex,
@@ -4590,6 +4597,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderChatContentPart(content: IChatRendererContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext, batchedSubagentParts?: Set<ChatSubagentContentPart>, retainedToolParts?: DisposableMap<string, IDisposable>): IChatContentPart | undefined {
 		try {
+			if (context.renderInputRequests === false && (
+				content.kind === 'confirmation' || content.kind === 'questionCarousel' || content.kind === 'planReview'
+				|| content.kind === 'elicitation2' || content.kind === 'elicitationSerialized'
+				|| content.kind === 'mcpServersStarting' || content.kind === 'mcpAuthenticationRequired'
+			)) {
+				return this.renderNoContent(other => other.kind === content.kind);
+			}
 			if (isEmptyThinkingPart(content)) {
 				for (const part of templateData.renderedParts?.slice(0, context.contentIndex) ?? []) {
 					if (part instanceof ChatThinkingContentPart && part.getIsActive()) {
@@ -5029,7 +5043,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		retainedToolParts?.deleteAndLeak(toolInvocation.toolCallId);
 		// Watch for future confirmation transitions and route to carousel. The part itself keeps its
 		// transcript copy hidden while the carousel hosts the confirmation.
-		if (this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel) &&
+		if (context.renderInputRequests !== false && this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel) &&
 			toolInvocation.kind === 'toolInvocation' && isResponseVM(context.element) &&
 			!isMcpToolInvocation(toolInvocation)) {
 			const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource);
@@ -5058,7 +5072,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		context: IChatContentPartRenderContext,
 		templateData: IChatListItemTemplate
 	): void {
-		if (toolInvocation.kind !== 'toolInvocation') {
+		if (context.renderInputRequests === false || toolInvocation.kind !== 'toolInvocation') {
 			return;
 		}
 
@@ -5275,6 +5289,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderQuestionCarousel(context: IChatContentPartRenderContext, carousel: IChatQuestionCarousel, templateData: IChatListItemTemplate): IChatContentPart {
 		this.finalizeCurrentThinkingPart(context, templateData);
+		if (context.readOnly && !carousel.isUsed) {
+			const content = new MarkdownString().appendText(carousel.questions.map(question => question.message ? `${question.title}\n${question.message}` : question.title).join('\n\n'));
+			return this.renderMarkdown({ kind: 'markdownContent', content }, templateData, context);
+		}
 		this._notifyOnQuestionCarousel(context, carousel);
 
 		// Backfill terminal correlation on the carousel from the originating request.
@@ -5292,7 +5310,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		const widget = isResponseVM(context.element) ? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource) : undefined;
+		const widget = !context.readOnly && isResponseVM(context.element) ? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource) : undefined;
 		// Only auto-focus if the chat input is empty AND focus is already within the chat widget
 		// This prevents stealing focus from other VS Code UI (editor, terminal, etc.)
 		const shouldAutoFocus = !!widget && dom.isAncestorOfActiveElement(widget.domNode) && widget.getInput() === '';

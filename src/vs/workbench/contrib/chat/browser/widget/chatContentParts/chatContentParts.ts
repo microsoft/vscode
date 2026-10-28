@@ -70,6 +70,7 @@ export interface IChatContentPartDiffSource {
 export interface IChatContentPartRenderContext {
 	readonly element: IChatRequestViewModel | IChatResponseViewModel;
 	readonly readOnly?: boolean;
+	readonly renderInputRequests?: boolean;
 	readonly elementIndex: number;
 	readonly container: HTMLElement;
 	readonly content: ReadonlyArray<IChatRendererContent>;

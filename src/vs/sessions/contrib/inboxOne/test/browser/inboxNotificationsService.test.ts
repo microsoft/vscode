@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { type IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -13,6 +14,7 @@ import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/com
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
@@ -143,6 +145,7 @@ suite('InboxNotificationsService', () => {
 		inboxEnabled = true,
 		options: {
 			readonly utilityRequest?: (request: IChatUtilityModelRequest) => Promise<string | undefined>;
+			readonly selectModels?: () => Promise<string[]>;
 			readonly telemetryLevel?: TelemetryLevel;
 		} = {},
 	): {
@@ -201,7 +204,7 @@ suite('InboxNotificationsService', () => {
 			upcastPartial<IGitHubService>(effectiveGitHubService),
 			effectiveStorageService,
 			upcastPartial<ILanguageModelsService>({
-				selectLanguageModels: async () => options.utilityRequest ? ['utility-model'] : [],
+				selectLanguageModels: options.selectModels ?? (async () => options.utilityRequest ? ['utility-model'] : []),
 				onDidChangeLanguageModels: Event.None,
 			}),
 			upcastPartial<IChatUtilityModelService>({ sendRequest: async request => options.utilityRequest?.(request) }),
@@ -631,6 +634,106 @@ suite('InboxNotificationsService', () => {
 		assert.strictEqual(event!.data.outputLength, 0);
 		assert.ok(typeof event!.data.agentSessionId === 'string' && event!.data.agentSessionId !== 'none');
 		assert.ok(!JSON.stringify(event!.data).includes('waiting for user answer'));
+	});
+
+	for (const stalledStage of ['discovery', 'request'] as const) {
+		test(`settles previews after 10 seconds of stalled ${stalledStage} and ignores late results`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const discovery = new DeferredPromise<string[]>();
+			const response = new DeferredPromise<string | undefined>();
+			const previousHandler = errorHandler.getUnexpectedErrorHandler();
+			const errors: Error[] = [];
+			setUnexpectedErrorHandler(error => errors.push(error));
+			try {
+				let requests = 0;
+				const fixture = createFixture([createSession({ id: 'timeout', status: SessionStatus.Completed, updatedAt: 200, description: 'Existing task context' })],
+					undefined, undefined, undefined, undefined, true, [], true, {
+						selectModels: () => stalledStage === 'discovery' ? discovery.p : Promise.resolve(['utility']),
+						utilityRequest: () => { requests++; return response.p; },
+					});
+				const item = fixture.service.notifications.get()[0];
+				const started = Date.now();
+				fixture.service.requestPreview(item);
+				await waitForState(fixture.service.isLoading, loading => !loading);
+				await discovery.complete(['utility']);
+				await response.complete('Late generated preview');
+				fixture.service.requestPreview(item);
+				assert.deepStrictEqual({
+					elapsed: Date.now() - started,
+					preview: fixture.service.previews.get().get(item.previewSignature!),
+					requests,
+					errors: errors.map(error => error.message),
+				}, {
+					elapsed: 10_000,
+					preview: item.description,
+					requests: stalledStage === 'discovery' ? 0 : 1,
+					errors: ['Inbox utility request timed out: inboxPreview'],
+				});
+			} finally {
+				setUnexpectedErrorHandler(previousHandler);
+			}
+		}));
+	}
+
+	test('disposal settles loading during model discovery without starting a utility request', async () => {
+		const discovery = new DeferredPromise<string[]>();
+		let requests = 0;
+		const fixture = createFixture([createSession({ id: 'dispose-preview', status: SessionStatus.Completed, updatedAt: 200 })],
+			undefined, undefined, undefined, undefined, true, [], true, {
+				selectModels: () => discovery.p,
+				utilityRequest: async () => { requests++; return 'Must not run'; },
+			});
+		fixture.service.requestPreview(fixture.service.notifications.get()[0]);
+		fixture.service.dispose();
+		await waitForState(fixture.service.isLoading, loading => !loading);
+		await discovery.complete(['utility']);
+		assert.deepStrictEqual({ requests, previews: fixture.service.previews.get().size }, { requests: 0, previews: 0 });
+	});
+
+	test('grounds interpretation in bounded recorded commands even without assistant prose and accepts only supplied sources', async () => {
+		const requests: IChatUtilityModelRequest[] = [];
+		const session = createSession({ id: 'commands', title: 'Fix keyboard navigation', status: SessionStatus.Completed, updatedAt: 200 });
+		const chatService = new TestChatService();
+		const output = `Focus restoration failed. ${'stack trace '.repeat(200)}`;
+		const uri = URI.parse('test:///terminal-output');
+		chatService.setCompletedResponse(session.mainChat.get().resource, { requestId: 'command-only', markdown: '', parts: [{
+			kind: 'toolInvocationSerialized', toolCallId: 'test', toolId: 'terminal', invocationMessage: 'Run tests',
+			originMessage: undefined, pastTenseMessage: undefined, presentation: undefined, source: undefined,
+			isConfirmed: true, isComplete: true,
+			toolSpecificData: {
+				kind: 'terminal', language: 'shell', commandLine: { original: 'npm test' },
+				terminalCommandState: { exitCode: 1 }, terminalCommandOutput: { text: output }, terminalCommandUri: uri,
+			},
+		}] });
+		const fixture = createFixture([session], undefined, undefined, chatService, undefined, true, [], true, {
+			telemetryLevel: TelemetryLevel.NONE,
+			utilityRequest: async request => {
+				requests.push(request);
+				return '{"status":"One test failed.","decisions":[],"evidence":[{"text":"Focus restoration failed.","artifact":"A1"},{"text":"Invented","artifact":"A99"}]}';
+			},
+		});
+		const item = fixture.service.notifications.get()[0];
+		fixture.service.requestDetailSummary(item);
+		await waitForState(fixture.service.isLoading, loading => !loading);
+		const input = requests[0].messages[1].content.filter(part => part.type === 'text').map(part => part.value).join('\n');
+		assert.deepStrictEqual({
+			purposes: requests.map(request => request.purpose),
+			recorded: input.includes(JSON.stringify([{ artifact: 'A1', command: 'npm test', state: 'exited', exitCode: 1, output: output.slice(0, 1000), truncated: true }])),
+			notification: input.includes(`Notification already shown: ${item.description}`),
+			summary: fixture.service.detailSummaries.get().get(item.id),
+		}, {
+			purposes: ['inboxDetailSummary'], recorded: true, notification: true,
+			summary: { status: 'One test failed.', decisions: [], evidence: [{ text: 'Focus restoration failed.', artifact: { kind: 'command', label: 'Terminal output: npm test', uri } }] },
+		});
+	});
+
+	test('does not request interpretation while Inbox is disabled', async () => {
+		let requests = 0;
+		const fixture = createFixture([], undefined, undefined, undefined, undefined, true, [], false, {
+			utilityRequest: async () => { requests++; return '{"status":"Unexpected","decisions":[],"evidence":[]}'; },
+		});
+		fixture.service.requestDetailSummary(upcastPartial<IInboxNotificationItem>({ id: 'disabled', kind: InboxNotificationKind.Completed, sessionResource: URI.parse('test:///disabled') }));
+		await Promise.resolve();
+		assert.deepStrictEqual({ requests, summaries: fixture.service.detailSummaries.get().size }, { requests: 0, summaries: 0 });
 	});
 
 	test('publishes the description fallback after a failed shared utility request and does not retry each render', async () => {
@@ -1667,6 +1770,11 @@ suite('InboxNotificationsService', () => {
 			assert.strictEqual(parseDetailSummary('not json at all', artifacts), undefined);
 			assert.strictEqual(parseDetailSummary(JSON.stringify({ status: '', decisions: [], evidence: [] }), artifacts), undefined);
 		});
+
+		test('keeps additional trade-offs without requiring a repeated status', () => {
+			const summary = { status: '', decisions: ['The smaller images avoid horizontal scrolling.'], evidence: [] };
+			assert.deepStrictEqual(parseDetailSummary(JSON.stringify(summary), artifacts), summary);
+		});
 	});
 
 	suite('parseContentClassification', () => {
@@ -1864,13 +1972,14 @@ class TestChatService {
 	setCompletedResponse(chatResource: URI, options: {
 		readonly requestId: string;
 		readonly markdown: string;
+		readonly parts?: IChatResponseModel['response']['value'];
 	}): void {
 		this._chatModels.set(chatResource.toString(), this._createChatModel({
 			requestId: options.requestId,
 			parts: [{
 				kind: 'markdownContent',
 				content: { value: options.markdown },
-			}],
+			}, ...options.parts ?? []],
 			isComplete: true,
 		}));
 		this._chatModelsObservable.set([...this._chatModels.values()], undefined);

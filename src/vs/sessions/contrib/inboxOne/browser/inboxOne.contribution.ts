@@ -23,10 +23,12 @@ import { SessionsCategories } from '../../../common/categories.js';
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
 import { InboxNotificationsView } from './inboxNotificationsView.js';
 import { InboxNotificationsService } from './inboxNotificationsService.js';
+import { IInboxCanvasHostService, UnsupportedInboxCanvasHostService } from './inboxCanvasHost.js';
 import { IInboxNotificationsService } from '../common/inboxNotificationsService.js';
 import { CHAT_INBOX_ENABLED_SETTING, ChatInboxEnabledContext, INBOX_NOTIFICATIONS_VIEW_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from './inboxNotificationsConstants.js';
 
 registerSingleton(IInboxNotificationsService, InboxNotificationsService, InstantiationType.Delayed);
+registerSingleton(IInboxCanvasHostService, UnsupportedInboxCanvasHostService, InstantiationType.Delayed);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'chat',
@@ -86,6 +88,7 @@ export class InboxNotificationsCustomViewContribution extends Disposable impleme
 				viewRegistration.value = customViewService.registerCustomView({
 					id: INBOX_NOTIFICATIONS_VIEW_ID,
 					ctor: new SyncDescriptor(InboxNotificationsView, [undefined, undefined]),
+					openNewSession: () => InboxNotificationsView.getActiveInstance()?.openNewSession(),
 				}, { restore });
 				restore = false;
 			} else {

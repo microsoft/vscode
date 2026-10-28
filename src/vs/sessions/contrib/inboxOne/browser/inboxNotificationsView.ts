@@ -14,10 +14,11 @@ import { Orientation, Sash, SashState, ISashEvent } from '../../../../base/brows
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { toAction } from '../../../../base/common/actions.js';
-import { disposableTimeout } from '../../../../base/common/async.js';
+import { disposableTimeout, RunOnceScheduler } from '../../../../base/common/async.js';
 import { clamp } from '../../../../base/common/numbers.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -31,6 +32,8 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -45,17 +48,23 @@ import { IChatContentPartRenderContext } from '../../../../workbench/contrib/cha
 import { ChatCustomConfirmationWidget, SimpleChatConfirmationWidget } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatConfirmationWidget.js';
 import { getChatMarkdownRenderOptions } from '../../../../workbench/contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
 import { ChatQuestionCarouselPart } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
-import { IChatRequestModel, IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatViewModel } from '../../../../workbench/contrib/chat/common/model/chatViewModel.js';
+import { ChatListWidget } from '../../../../workbench/contrib/chat/browser/widget/chatListWidget.js';
 import { ChatQuestionCarouselData } from '../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { AbstractCustomView } from '../../../services/customView/browser/customView.js';
+import { AbstractChatView } from '../../../browser/parts/chatView.js';
+import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { createSessionSummaryHover, getSessionSummaryHoverData } from '../../sessions/browser/sessionHoverContent.js';
+import { getChatSessionArtifacts, IChat, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { InboxCustomViewFocusContext } from '../../../common/contextkeys.js';
 import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../../github/common/sessionLifecycleSettings.js';
 import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
@@ -78,6 +87,8 @@ import {
 	getInboxPullRequestMergeOperation,
 } from '../common/inboxNotificationsService.js';
 import { getInboxNotificationKindLabel, getInboxNotificationPriorityLabel } from './inboxNotificationsLabels.js';
+import { InboxEvidenceWidget } from './inboxEvidenceWidget.js';
+import { InboxCanvases } from './inboxCanvases.js';
 
 function isDismissibleQuestionCarousel(carousel: IChatQuestionCarousel): carousel is IChatQuestionCarousel & { dismiss(answers: Record<string, IChatQuestionAnswerValue> | undefined): void } {
 	return typeof (carousel as { dismiss?: unknown }).dismiss === 'function';
@@ -192,7 +203,7 @@ type InboxInteractionTelemetryClassification = {
 	priorityTier: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded priority tier of the card the interaction came from: now, next, later, or none.' };
 	answerKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded shape of a submitted needs-input answer: option, freeText, skip, approve, deny, or none.' };
 	answerCharCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Character count of a submitted free-text answer (never the text itself); 0 otherwise.' };
-	evidenceArtifactKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded kind of an opened evidence artifact: file, session, or none.' };
+	evidenceArtifactKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded kind of an opened evidence artifact: file, session, command, or none.' };
 	listIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Zero-based position of the acted card among the visible cards at interaction time, or -1 when not applicable. Enables position/rank analysis of where attention was spent.' };
 	visibleItemCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of notification cards visible in the list at interaction time; the denominator for rank/attention-budget analysis.' };
 	sortMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded active sort mode when the interaction occurred: priority, recent, or none.' };
@@ -230,7 +241,7 @@ interface IInboxInteractionTelemetryOptions {
 	readonly hasSession?: string;
 	readonly answerKind?: InboxAnswerKind;
 	readonly answerCharCount?: number;
-	readonly evidenceArtifactKind?: 'file' | 'session' | 'none';
+	readonly evidenceArtifactKind?: 'file' | 'session' | 'command' | 'none';
 }
 
 type InboxImpressionTelemetryEvent = {
@@ -331,6 +342,14 @@ type InboxClickTelemetryClassification = {
 	sequence: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Monotonic sequence number shared with the other inbox events, for ordering the trajectory.' };
 };
 
+const inboxButtonStyles = {
+	...defaultButtonStyles,
+	buttonSecondaryBackground: undefined,
+	buttonSecondaryHoverBackground: undefined,
+	buttonSecondaryForeground: undefined,
+	buttonSecondaryBorder: undefined,
+};
+
 export class InboxNotificationsView extends AbstractCustomView {
 
 	private static activeInstance: InboxNotificationsView | undefined;
@@ -368,9 +387,20 @@ export class InboxNotificationsView extends AbstractCustomView {
 	private readonly deferredUpdatesBannerLabel = $('span.inbox-notifications-deferred-updates-label');
 
 	private readonly contentElement = $('div.inbox-notifications-content.no-detail');
+	private readonly newSessionElement = $('div.inbox-notifications-new-session');
+	private readonly newSessionDisposables = this._register(new DisposableStore());
+	private newSessionView: AbstractChatView | undefined;
 	private readonly listPaneElement = $('div.inbox-notifications-list-pane');
 	private readonly detailPaneElement = $('div.inbox-notifications-detail-pane');
+	private readonly detailChatElement = $('div.inbox-notifications-detail-chat');
+	private readonly detailChat = this._register(new MutableDisposable<AbstractChatView>());
+	private readonly detailChatSubmissionListener = this._register(new MutableDisposable());
+	private readonly detailChatNotifications = new Map<string, IInboxNotificationItem>();
+	private detailChatBinding: { chat: IChat; session: ISession } | undefined;
+	private selectedItemSnapshot: IInboxNotificationItem | undefined;
+	private detailExchangeExpanded = false;
 	private readonly detailContentElement = $('div.inbox-notifications-detail-content');
+	private readonly detailInfoElement = $('div.inbox-notifications-detail-info');
 	private readonly detailScrollableElement = this._register(new DomScrollableElement(this.detailContentElement, {
 		horizontal: ScrollbarVisibility.Hidden,
 		vertical: ScrollbarVisibility.Auto,
@@ -378,6 +408,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 		className: 'inbox-notifications-detail-scrollable',
 	}));
 	private readonly detailDisposables = this._register(new DisposableStore());
+	private evidenceWidget: InboxEvidenceWidget | undefined;
+	private evidenceCanvases: InboxCanvases | undefined;
 	private readonly selectedItemId = observableValue<string | undefined>('inboxNotificationsSelected', undefined);
 	private readonly inboxViewInstanceId = generateUuid();
 	/** Wall-clock time this view instance was created, for relative event timestamps. */
@@ -428,6 +460,10 @@ export class InboxNotificationsView extends AbstractCustomView {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IChatViewFactory private readonly chatViewFactory: IChatViewFactory,
+		@IHoverService private readonly hoverService: IHoverService,
+		@ILabelService private readonly labelService: ILabelService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -440,10 +476,14 @@ export class InboxNotificationsView extends AbstractCustomView {
 		const resizeObserver = this._register(new DisposableResizeObserver('InboxNotificationsView.scroll', () => {
 			this.scrollableElement.scanDomNode();
 			this.detailScrollableElement.scanDomNode();
+			this.layoutDetailChat();
 		}, getWindow(this.listElement), { resizeObserverCtor }));
 		this._register(resizeObserver.observe(this.listElement));
 		this._register(resizeObserver.observe(this.scrollableContentElement));
 		this._register(resizeObserver.observe(this.detailContentElement));
+		this._register(resizeObserver.observe(this.detailInfoElement));
+		this._register(resizeObserver.observe(this.detailChatElement));
+		this._register(resizeObserver.observe(this.newSessionElement));
 		this.cardVisibilityObserver = new intersectionObserver(entries => {
 			for (const entry of entries) {
 				if (!isHTMLElement(entry.target) || this._store.isDisposed) {
@@ -466,7 +506,6 @@ export class InboxNotificationsView extends AbstractCustomView {
 				if (!this.itemFirstSeenMs.has(id)) {
 					this.itemFirstSeenMs.set(id, Date.now());
 				}
-				this.inboxNotificationsService.requestPreview(item);
 				this.reportImpression(item, index);
 			}
 		}, { root: this.scrollableElement.getDomNode() });
@@ -477,8 +516,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 				return localize('inboxNotifications.description.empty', "No active notifications.");
 			}
 			return items.length === 1
-				? localize('inboxNotifications.description.single', "1 notification prioritized for action")
-				: localize('inboxNotifications.description.plural', "{0} notifications prioritized for action", items.length);
+				? localize('inboxNotifications.description.single', "1 notification")
+				: localize('inboxNotifications.description.plural', "{0} notifications", items.length);
 		});
 	}
 
@@ -588,10 +627,17 @@ export class InboxNotificationsView extends AbstractCustomView {
 		this.contentElement.appendChild(this.listPaneElement);
 		this.contentElement.appendChild(this.detailPaneElement);
 		this.detailPaneElement.appendChild(this.detailScrollableElement.getDomNode());
+		this.detailContentElement.appendChild(this.detailInfoElement);
+		this.detailContentElement.appendChild(this.detailChatElement);
+		this.detailChatElement.setAttribute('role', 'region');
+		this.detailChatElement.setAttribute('aria-label', localize('inboxNotifications.detail.chat', "Reply to the selected session"));
 		this.detailContentElement.tabIndex = -1;
 		this.detailContentElement.setAttribute('role', 'region');
 		this.detailContentElement.setAttribute('aria-label',
 			localize('inboxNotifications.detail.ariaLabel.empty', "Notification details. Select a notification to see its details."));
+		this.newSessionElement.setAttribute('role', 'region');
+		this.newSessionElement.setAttribute('aria-label', localize('inboxNotifications.newSession', "New session"));
+		container.appendChild(this.newSessionElement);
 		container.appendChild(this.contentElement);
 		this.loadListPaneWidth();
 		this.createDetailSash();
@@ -599,7 +645,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		const toolbar = this.listPaneElement.appendChild($('.inbox-notifications-toolbar'));
 		const sortButtons = toolbar.appendChild($('.inbox-notifications-sort-buttons'));
 		const sortByPriorityButton = this._register(new Button(sortButtons, {
-			...defaultButtonStyles,
+			...inboxButtonStyles,
 			secondary: true,
 			small: true,
 			ariaLabel: localize('inboxNotifications.sort.priorityAria', "Sort notifications by priority"),
@@ -611,7 +657,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}));
 
 		const sortByRecencyButton = this._register(new Button(sortButtons, {
-			...defaultButtonStyles,
+			...inboxButtonStyles,
 			secondary: true,
 			small: true,
 			ariaLabel: localize('inboxNotifications.sort.recencyAria', "Sort notifications by recency"),
@@ -623,7 +669,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}));
 
 		const filterButton = this._register(new Button(sortButtons, {
-			...defaultButtonStyles,
+			...inboxButtonStyles,
 			secondary: true,
 			small: true,
 			supportIcons: true,
@@ -671,7 +717,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}));
 
 		const usefulFeedbackButton = this._register(new Button(toolbarActions, {
-			...defaultButtonStyles,
+			...inboxButtonStyles,
 			secondary: true,
 			small: true,
 			ariaLabel: localize('inboxNotifications.feedback.usefulAria', "Give Positive Inbox Feedback"),
@@ -731,7 +777,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			this.selectedItemId.read(reader);
 			this.inboxNotificationsService.notifications.read(reader);
 			this.inboxNotificationsService.dismissedNotifications.read(reader);
-			this.renderDetailIfChanged();
+			this.renderDetailIfChanged(reader);
 		}));
 	}
 
@@ -897,7 +943,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 
 		const selectedId = this.selectedItemId.get();
-		if (selectedId && !this.renderedCards.some(card => card.dataset.notificationId === selectedId)) {
+		if (selectedId && !this.detailChat.value && !this.renderedCards.some(card => card.dataset.notificationId === selectedId)) {
 			this.clearSelectedItem('itemRemoved');
 		}
 
@@ -1111,16 +1157,18 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}));
 
 		const heading = card.appendChild($('.inbox-notifications-item-header'));
-		heading.appendChild($('.inbox-notifications-item-title', undefined, item.title));
+		const titleGroup = heading.appendChild($('.inbox-notifications-item-title-group'));
+		titleGroup.appendChild($('.inbox-notifications-item-title', undefined, item.title));
+		titleGroup.appendChild($('.inbox-notifications-item-time', undefined, fromNowByDay(item.timestamp, true, true)));
 		const primaryActions = item.actions.filter(action =>
 			action.kind !== InboxNotificationActionKind.OpenSession
 			&& action.kind !== InboxNotificationActionKind.MarkDone);
-		const bottomActions = item.actions.filter(action =>
+		const headerActions = item.actions.filter(action =>
 			action.kind === InboxNotificationActionKind.OpenSession
 			|| action.kind === InboxNotificationActionKind.MarkDone);
-		if (primaryActions.length) {
+		if (primaryActions.length || headerActions.length) {
 			const headingActions = heading.appendChild($('.inbox-notifications-item-header-actions'));
-			for (const action of primaryActions) {
+			for (const action of [...primaryActions, ...headerActions]) {
 				const button = this.renderActionButton(headingActions, item, action, store);
 				if (action.kind === InboxNotificationActionKind.MarkDone) {
 					button.element.classList.add('inbox-notifications-item-action-done');
@@ -1162,39 +1210,40 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 
 		const descriptionEl = card.appendChild($('.inbox-notifications-item-description'));
-		if (item.previewSignature) {
-			const signature = item.previewSignature;
-			// Needs-input cards never show the generic "Answer the pending questions below." text:
-			// while the model-written summary is still generating, show a playful working message so
-			// the card only ever surfaces the summary (or that it is on its way). If generation
-			// cannot produce one, the service publishes the description as a fallback, which resolves
-			// this pending state. Other card kinds keep their concrete description while pending.
-			const pendingText = item.needsInputPart ? localize('inboxNotifications.preview.loading', "Generating preview…") : item.description;
-			store.add(autorun(reader => {
-				const preview = this.inboxNotificationsService.previews.read(reader).get(signature);
-				if (!preview && this.visibleCardIds.has(item.id)) {
-					this.inboxNotificationsService.requestPreview(item);
-				}
-				descriptionEl.textContent = preview ?? pendingText;
-				card.setAttribute('aria-label', this.getCardAriaLabel(item, descriptionEl.textContent));
-				descriptionEl.classList.toggle('inbox-notifications-item-description-pending', !preview);
-			}));
-		} else {
-			descriptionEl.textContent = item.description;
-		}
+		descriptionEl.textContent = item.needsInputPart ? '' : this.distinctCardDescription(item, item.description);
+		descriptionEl.hidden = !descriptionEl.textContent;
+		card.setAttribute('aria-label', this.getCardAriaLabel(item, descriptionEl.textContent));
 		this.renderNeedsInputPart(card, item, store);
-		card.appendChild($('.inbox-notifications-item-time', undefined, fromNowByDay(item.timestamp, true, true)));
-		if (bottomActions.length) {
-			const footerActions = card.appendChild($('.inbox-notifications-item-footer-actions'));
-			for (const action of bottomActions) {
-				const button = this.renderActionButton(footerActions, item, action, store);
-				if (action.kind === InboxNotificationActionKind.MarkDone) {
-					button.element.classList.add('inbox-notifications-item-action-done');
-				}
-			}
+		const session = item.sessionResource ? this.sessionsManagementService.getSession(item.sessionResource) : undefined;
+		if (session?.artifacts) {
+			const teaser = card.appendChild($('.inbox-evidence-note.inbox-evidence-teaser'));
+			store.add(autorun(reader => {
+				const chat = item.needsInputPart
+					? session.chats.read(reader).find(chat => isEqual(chat.resource, item.needsInputPart?.chatResource))
+					: session.mainChat.read(reader);
+				const artifacts = chat ? getChatSessionArtifacts(session, chat, reader).filter(artifact => artifact.isArtifact) : [];
+				teaser.hidden = artifacts.length === 0;
+				teaser.textContent = artifacts.length ? localize('inbox.evidence.teaser', "{0} recorded artifacts · Select to inspect", artifacts.length) : '';
+			}));
 		}
 
 		return card;
+	}
+
+	private distinctCardDescription(item: IInboxNotificationItem, description: string): string {
+		const normalize = (text: string) => text.trim().replace(/\s+/g, ' ');
+		const visibleText = [item.title];
+		if (item.needsInputPart?.kind === 'questionCarousel') {
+			for (const question of item.needsInputPart.questions) {
+				visibleText.push(question.title);
+				for (const message of [question.message, question.detailedMessage]) {
+					if (message) {
+						visibleText.push(typeof message === 'string' ? message : renderAsPlaintext(message));
+					}
+				}
+			}
+		}
+		return visibleText.some(text => normalize(text) === normalize(description)) ? '' : description;
 	}
 
 	private renderNeedsInputPart(container: HTMLElement, item: IInboxNotificationItem, store: DisposableStore): void {
@@ -1553,6 +1602,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	private shouldHandleDetailPaneEscape(target: HTMLElement): boolean {
+		if (this.detailChatElement.contains(target)) {
+			return false;
+		}
 		if (target.isContentEditable) {
 			return false;
 		}
@@ -1702,13 +1754,13 @@ export class InboxNotificationsView extends AbstractCustomView {
 		const openSessionIsSecondary = action.kind === InboxNotificationActionKind.OpenSession;
 		const showsSpinnerWhileRunning = isInboxPullRequestActionKind(action.kind);
 		const baseOptions = {
-			...defaultButtonStyles,
+			...inboxButtonStyles,
 			secondary: openSessionIsSecondary || !action.primary,
 			small: true,
 			supportIcons: action.kind === InboxNotificationActionKind.MarkDone || showsSpinnerWhileRunning,
 			title: action.kind === InboxNotificationActionKind.MarkDone
 				? localize('inboxNotifications.action.markDoneTooltip', "Mark notification as done without archiving the session")
-				: action.ariaLabel ?? action.label,
+				: openSessionIsSecondary && item.sessionResource ? false : action.ariaLabel ?? action.label,
 			ariaLabel: localize('inboxNotifications.actionAriaLabel', "{0} for {1}", action.ariaLabel ?? action.label, item.title),
 		};
 		const canShowAlwaysDropdown = this.canShowAlwaysDropdown(item, action.kind);
@@ -1728,6 +1780,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 			}))
 			: store.add(new Button(container, baseOptions));
 		button.label = action.label;
+		if (openSessionIsSecondary) {
+			this.setupSessionPreviewHover(button.element, item, store);
+		}
 		if (button instanceof ButtonWithDropdown) {
 			button.dropdownButton.setAriaLabel(localize('inboxNotifications.action.moreActions', "More Actions for {0}", action.label));
 		}
@@ -2173,9 +2228,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	private updateSplit(hasItems: boolean): void {
-		this.hasSplit = hasItems;
-		this.contentElement.classList.toggle('no-detail', !hasItems);
-		if (!hasItems && this.selectedItemId.get() !== undefined) {
+		this.hasSplit = hasItems || !!this.detailChat.value;
+		this.contentElement.classList.toggle('no-detail', !this.hasSplit);
+		if (!this.hasSplit && this.selectedItemId.get() !== undefined) {
 			this.clearSelectedItem('listEmpty');
 		}
 		this.layoutPanes();
@@ -2194,6 +2249,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		this.detailSash?.layout();
 		this.scrollableElement.scanDomNode();
 		this.detailScrollableElement.scanDomNode();
+		this.layoutDetailChat();
 	}
 
 	private loadListPaneWidth(): void {
@@ -2228,6 +2284,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 
 		this.endSelectionTelemetry('selectionChanged');
+		this.detailExchangeExpanded = false;
+		this.selectedItemSnapshot = this.getItemById(id);
 		this.selectedItemId.set(id, undefined);
 		for (const card of this.renderedCards) {
 			card.classList.toggle('selected', card.dataset.notificationId === id);
@@ -2278,6 +2336,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 	private clearSelectedItem(trigger: string): void {
 		this.endSelectionTelemetry(trigger);
+		this.selectedItemSnapshot = undefined;
 		this.selectedItemId.set(undefined, undefined);
 	}
 
@@ -2306,17 +2365,80 @@ export class InboxNotificationsView extends AbstractCustomView {
 		if (!id) {
 			return undefined;
 		}
-		return this.getItemById(id);
+		const item = this.getItemById(id);
+		if (item) {
+			this.selectedItemSnapshot = item;
+			return item;
+		}
+		// Sending a follow-up can remove the notification without closing its conversation.
+		return this.detailChat.value && this.selectedItemSnapshot?.id === id
+			&& this.selectedItemSnapshot.sessionResource
+			&& this.sessionsManagementService.getSession(this.selectedItemSnapshot.sessionResource)
+			? this.selectedItemSnapshot : undefined;
 	}
 
-	private renderDetailIfChanged(): void {
+	private renderDetailIfChanged(reader?: IReader): void {
 		const item = this.selectedItem();
-		const signature = item ? this.detailSignature(item) : 'none';
-		if (signature === this.lastDetailSignature) {
+		const previousBinding = this.detailChatBinding;
+		this.updateDetailChat(item, reader);
+		const signature = item ? `${this.detailSignature(item)}:${this.detailChatBinding?.chat.resource.toString() ?? 'noChat'}` : 'none';
+		if (signature === this.lastDetailSignature && previousBinding === this.detailChatBinding) {
 			return;
 		}
 		this.lastDetailSignature = signature;
 		this.renderDetail(item);
+	}
+
+	private updateDetailChat(item: IInboxNotificationItem | undefined, reader?: IReader): void {
+		const session = item?.sessionResource ? this.sessionsManagementService.getSession(item.sessionResource) : undefined;
+		const chat = item?.needsInputPart
+			? session?.chats.read(reader).find(candidate => isEqual(candidate.resource, item.needsInputPart?.chatResource))
+			: session?.mainChat.read(reader);
+		if (!session || !chat) {
+			this.detailChatSubmissionListener.clear();
+			this.detailChatNotifications.clear();
+			this.detailChat.clear();
+			this.detailChatBinding = undefined;
+			clearNode(this.detailChatElement);
+			this.detailPaneElement.classList.remove('has-chat');
+			return;
+		}
+
+		if (!this.detailChat.value) {
+			const view = this.detailChat.value = this.chatViewFactory.createChatView(undefined, { inputOnly: true, renderChatPet: false });
+			this.detailChatElement.appendChild(view.element);
+			view.setPrimary(false, true);
+			view.setActive(true);
+			view.setVisible(true);
+			this.detailChatSubmissionListener.value = view.onDidSubmitRequest(resource => {
+				const notification = this.detailChatNotifications.get(resource.toString());
+				if (!notification) {
+					return;
+				}
+				this.detailChatNotifications.delete(resource.toString());
+				void this.markDone(notification, undefined).catch(error => {
+					onUnexpectedError(error);
+					this.notificationService.error(localize('inboxNotifications.detail.markDoneFailed', "Your request was sent, but the notification could not be marked as done."));
+				});
+			});
+		}
+		if (item) {
+			this.detailChatNotifications.set(chat.resource.toString(), item);
+		}
+		if (this.detailChatBinding?.chat !== chat || this.detailChatBinding.session !== session) {
+			this.detailChatBinding = { chat, session };
+			this.detailChat.value.setChat(chat, session.sessionId, session);
+		}
+		this.detailPaneElement.classList.add('has-chat');
+		this.layoutDetailChat();
+	}
+
+	private layoutDetailChat(): void {
+		const width = this.detailChatElement.clientWidth;
+		const height = this.detailChatElement.clientHeight;
+		if (width > 0 && height > 0) {
+			this.detailChat.value?.layout(width, height, 0, 0);
+		}
 	}
 
 	/**
@@ -2334,12 +2456,14 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 	private renderDetail(item: IInboxNotificationItem | undefined): void {
 		this.detailDisposables.clear();
-		clearNode(this.detailContentElement);
+		this.evidenceWidget = undefined;
+		this.evidenceCanvases = undefined;
+		clearNode(this.detailInfoElement);
 
 		if (!item) {
 			this.detailContentElement.setAttribute('aria-label',
 				localize('inboxNotifications.detail.ariaLabel.empty', "Notification details. Select a notification to see its details."));
-			this.detailContentElement.appendChild($('.inbox-notifications-detail-placeholder', undefined,
+			this.detailInfoElement.appendChild($('.inbox-notifications-detail-placeholder', undefined,
 				localize('inboxNotifications.detail.placeholder', "Select a notification to see its details.")));
 			this.detailScrollableElement.scanDomNode();
 			return;
@@ -2347,58 +2471,30 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 		this.detailContentElement.setAttribute('aria-label', localize(
 			'inboxNotifications.detail.ariaLabel.item',
-			"Notification details for {0}. Press Escape to return to the selected notification.",
+			"Notification details for {0}.",
 			item.title,
 		));
 
-		const header = this.detailContentElement.appendChild($('.inbox-notifications-detail-header'));
-		const kindLabel = header.appendChild($('.inbox-notifications-detail-kind', undefined, this.kindLabel(item.kind)));
-		kindLabel.classList.add(`priority-${item.priority}`);
-		header.appendChild($('h2.inbox-notifications-detail-title', undefined, item.title));
-		header.appendChild($('.inbox-notifications-detail-keyboard-hint', undefined,
-			localize('inboxNotifications.detail.keyboardHint', "Press Escape to return to the selected notification.")));
-
-		const meta = header.appendChild($('.inbox-notifications-detail-meta'));
-		if (item.repositoryLabel) {
-			meta.appendChild($('span.inbox-notifications-detail-repo', undefined, item.repositoryLabel));
-		}
-		meta.appendChild($('span.inbox-notifications-detail-time', undefined,
-			localize('inboxNotifications.detail.updated', "Updated {0}", fromNowByDay(item.timestamp, true, true))));
-		if (item.sessionResource) {
-			const sessionResource = item.sessionResource;
-			const openButton = this.detailDisposables.add(new Button(meta, { ...defaultButtonStyles, secondary: true, small: true }));
-			openButton.label = localize('inboxNotifications.detail.openSession', "Open full session");
-			this.detailDisposables.add(openButton.onDidClick(() => {
-				const startTime = Date.now();
-				this.logInboxInteraction('detail.openSession', 'detailMeta', item);
-				void this.sessionsService.openSession(sessionResource, { source: 'notification' }).then(() => {
-					this.logInboxInteraction('detail.openSession.result', 'detailMeta', item, 'none', { result: 'success', durationMs: Date.now() - startTime });
-				}, error => {
-					this.logInboxInteraction('detail.openSession.result', 'detailMeta', item, 'none', { result: 'failure', durationMs: Date.now() - startTime });
-					onUnexpectedError(error);
-				});
-			}));
-		}
-
-		const body = this.detailContentElement.appendChild($('.inbox-notifications-detail-body'));
-		if (item.needsInputPart || item.kind === InboxNotificationKind.Completed) {
+		const body = this.detailInfoElement.appendChild($('.inbox-notifications-detail-body'));
+		if (item.needsInputPart || item.kind === InboxNotificationKind.Completed || item.previewSignature) {
 			this.renderDetailSummary(body, item);
-		} else {
-			const summaryEl = body.appendChild($('.inbox-notifications-detail-summary', undefined, item.description));
-			if (item.previewSignature) {
-				const signature = item.previewSignature;
-				this.detailDisposables.add(autorun(reader => {
-					const preview = this.inboxNotificationsService.previews.read(reader).get(signature);
-					summaryEl.textContent = preview ?? item.description;
-				}));
-			}
-			const transcript = this.getLatestResponseText(item);
-			if (transcript) {
-				body.appendChild($('.inbox-notifications-detail-section-label', undefined, localize('inboxNotifications.detail.latestResponse', "Latest response")));
-				body.appendChild($('.inbox-notifications-detail-transcript', undefined, transcript));
-			}
 		}
-
+		if (this.detailChatBinding) {
+			const { session, chat } = this.detailChatBinding;
+			const canvases = this.evidenceCanvases = this.detailDisposables.add(this.instantiationService.createInstance(
+				InboxCanvases, session, chat, this.detailContentElement, () => this.detailScrollableElement.scanDomNode()));
+			body.appendChild(canvases.element);
+			const evidence = this.evidenceWidget = this.detailDisposables.add(this.instantiationService.createInstance(
+				InboxEvidenceWidget, session, chat, item, () => {
+					this.detailScrollableElement.scanDomNode();
+					this.evidenceCanvases?.layout();
+				}));
+			body.appendChild(evidence.element);
+		}
+		if (item.sessionResource && !this.detailChat.value) {
+			body.appendChild($('.inbox-notifications-detail-chat-unavailable', undefined,
+				localize('inboxNotifications.detail.chatUnavailable', "The conversation is unavailable. Open the full session to reconnect or try again.")));
+		}
 		if (item.pullRequestStates?.length) {
 			const prSection = body.appendChild($('.inbox-notifications-detail-pr'));
 			for (const state of item.pullRequestStates) {
@@ -2420,47 +2516,156 @@ export class InboxNotificationsView extends AbstractCustomView {
 			}
 		}
 
+		if (item.sessionResource) {
+			this.renderLatestExchange(body, item);
+		}
 		this.detailScrollableElement.scanDomNode();
 	}
 
+	private renderLatestExchange(body: HTMLElement, item: IInboxNotificationItem): void {
+		const details = body.appendChild($<HTMLDetailsElement>('details.inbox-notifications-latest-exchange'));
+		details.appendChild($('summary', undefined, localize('inboxNotifications.detail.showChatResponse', "Show chat response")));
+		const content = details.appendChild($('.inbox-notifications-latest-exchange-content.interactive-session'));
+		const expandedStore = this.detailDisposables.add(new DisposableStore());
+		details.open = this.detailExchangeExpanded;
+		let renderedOpen = false;
+		const render = () => {
+			if (renderedOpen === details.open) {
+				return;
+			}
+			renderedOpen = details.open;
+			this.detailExchangeExpanded = details.open;
+			expandedStore.clear();
+			clearNode(content);
+			if (details.open) {
+				let model: IChatModel | undefined;
+				const modelStore = expandedStore.add(new DisposableStore());
+				const connectModel = () => {
+					const nextModel = this.getSessionChatModel(item);
+					if (nextModel === model) {
+						return;
+					}
+					model = nextModel;
+					modelStore.clear();
+					clearNode(content);
+					if (!model) {
+						content.textContent = localize('inboxNotifications.detail.exchangeUnavailable', "The chat response is not available yet.");
+						return;
+					}
+					const scopedContext = modelStore.add(this.contextKeyService.createScoped(content));
+					const instantiationService = modelStore.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContext])));
+					const viewModel = modelStore.add(instantiationService.createInstance(ChatViewModel, model, { latestRequestOnly: true }));
+					const empty = content.appendChild($('p', undefined, localize('inboxNotifications.detail.exchangeEmpty', "No messages yet.")));
+					const listElement = content.appendChild($('.interactive-list'));
+					const list = modelStore.add(instantiationService.createInstance(ChatListWidget, listElement, {
+						rendererOptions: { renderStyle: 'compact', noHeader: true, editable: false, readOnly: true, renderInputRequests: false },
+						currentChatMode: () => ChatModeKind.Ask,
+					}));
+					list.setViewModel(viewModel);
+					list.setScrollLock(true);
+					let initialScrollPending = true;
+					const layout = () => {
+						if (content.clientWidth > 0 && content.clientHeight > 0) {
+							list.layout(content.clientHeight, content.clientWidth);
+							if (initialScrollPending) {
+								initialScrollPending = false;
+								list.scrollToEnd();
+							}
+						}
+						this.detailScrollableElement.scanDomNode();
+					};
+					const refresh = () => {
+						empty.hidden = viewModel.getItems().length > 0;
+						list.refresh();
+						layout();
+					};
+					const scheduler = modelStore.add(new RunOnceScheduler(refresh, 500));
+					modelStore.add(viewModel.onDidChange(() => {
+						if (!scheduler.isScheduled()) {
+							scheduler.schedule();
+						}
+					}));
+					const resizeObserver = modelStore.add(new DisposableResizeObserver('InboxNotificationsView.latestExchange', layout));
+					modelStore.add(resizeObserver.observe(content));
+					refresh();
+				};
+				content.textContent = localize('inboxNotifications.detail.exchangeUnavailable', "The chat response is not available yet.");
+				expandedStore.add(this.chatService.onDidCreateModel(connectModel));
+				connectModel();
+			}
+			this.detailScrollableElement.scanDomNode();
+		};
+		this.detailDisposables.add(addDisposableListener(details, 'toggle', render));
+		if (details.open) {
+			render();
+		}
+	}
+
+	private setupSessionPreviewHover(target: HTMLElement, item: IInboxNotificationItem, store: DisposableStore): void {
+		if (!item.sessionResource) {
+			return;
+		}
+		const sessionResource = item.sessionResource;
+		store.add(this.hoverService.setupDelayedHover(target, () => {
+			const session = this.sessionsManagementService.getSession(sessionResource);
+			if (!session) {
+				return { content: localize('inboxNotifications.detail.openSession', "Open full session"), appearance: { showPointer: true } };
+			}
+			const hover = createSessionSummaryHover(session,
+				getSessionSummaryHoverData(session, this.sessionsProvidersService, this.openerService, this.labelService),
+				this.openerService);
+			const content = $('.inbox-notifications-session-preview');
+			if (isHTMLElement(hover.content)) {
+				content.appendChild(hover.content);
+			}
+			const response = this.getLatestResponseText(item);
+			if (response) {
+				content.appendChild($('.inbox-notifications-detail-section-label', undefined, localize('inboxNotifications.detail.latestResponse', "Latest response")));
+				content.appendChild($('.inbox-notifications-session-preview-response', undefined,
+					response.length > 600 ? `${response.slice(0, 600).trimEnd()}…` : response));
+			}
+			return { ...hover, content, appearance: { showPointer: true } };
+		}, { groupId: 'inbox-session-preview' }));
+	}
+
 	private renderDetailSummary(body: HTMLElement, item: IInboxNotificationItem): void {
-		this.inboxNotificationsService.requestDetailSummary(item);
-		const container = body.appendChild($('.inbox-notifications-detail-evidence'));
+		const section = body.appendChild($('section.inbox-notifications-detail-evidence.inbox-evidence-section'));
+		section.appendChild($('h3', undefined, localize('inboxNotifications.detail.interpretation', "Agent interpretation")));
+		const container = section.appendChild($('.inbox-notifications-interpretation-content'));
+		const content = container.appendChild($('div'));
 		const runStore = this.detailDisposables.add(new DisposableStore());
+		let initialRender = true;
 		this.detailDisposables.add(autorun(reader => {
 			const summary = this.inboxNotificationsService.detailSummaries.read(reader).get(item.id);
+			const interpretation = this.getDetailInterpretation(item, reader);
+			const requestSummary = !initialRender && !summary;
+			initialRender = false;
 			runStore.clear();
-			clearNode(container);
-			if (!summary) {
-				this.renderEvidenceLoading(container);
-			} else if (!summary.status && summary.decisions.length === 0 && summary.evidence.length === 0) {
-				this.renderEvidenceFallback(container, item);
-			} else {
-				this.renderEvidencePack(container, summary, item, runStore);
+			clearNode(content);
+			section.hidden = !interpretation;
+			if (interpretation) {
+				this.renderEvidencePack(content, interpretation, item, runStore);
+			}
+			if (item.sessionResource && requestSummary) {
+				this.inboxNotificationsService.requestDetailSummary(item);
 			}
 			this.detailScrollableElement.scanDomNode();
 		}));
+		if (item.sessionResource) {
+			this.inboxNotificationsService.requestDetailSummary(item);
+		}
+		if (item.previewSignature) {
+			this.inboxNotificationsService.requestPreview(item);
+		}
 	}
 
-	private renderEvidenceLoading(container: HTMLElement): void {
-		const loading = container.appendChild($('.inbox-notifications-detail-loading'));
-		const spinner = loading.appendChild($('span.codicon.codicon-loading.codicon-modifier-spin'));
-		spinner.setAttribute('aria-hidden', 'true');
-		loading.appendChild($('span.inbox-notifications-detail-loading-label', undefined, localize('inboxNotifications.detail.loading', "Generating summary…")));
-	}
-
-	private renderEvidenceFallback(container: HTMLElement, item: IInboxNotificationItem): void {
-		if (item.needsInputPart) {
-			this.renderConversationThread(container, item);
-			return;
+	private getDetailInterpretation(item: IInboxNotificationItem, reader?: IReader): IInboxDetailSummary | undefined {
+		const summary = this.inboxNotificationsService.detailSummaries.read(reader).get(item.id);
+		if (summary && (summary.status || summary.decisions.length || summary.evidence.length)) {
+			return summary;
 		}
-		const preview = (item.previewSignature ? this.inboxNotificationsService.previews.get().get(item.previewSignature) : undefined) ?? item.description;
-		container.appendChild($('.inbox-notifications-detail-summary', undefined, preview));
-		const transcript = this.getLatestResponseText(item);
-		if (transcript) {
-			container.appendChild($('.inbox-notifications-detail-section-label', undefined, localize('inboxNotifications.detail.latestResponse', "Latest response")));
-			container.appendChild($('.inbox-notifications-detail-transcript', undefined, transcript));
-		}
+		const preview = item.previewSignature ? this.inboxNotificationsService.previews.read(reader).get(item.previewSignature) : undefined;
+		return preview && preview !== item.description ? { status: preview, decisions: [], evidence: [] } : undefined;
 	}
 
 	private renderEvidencePack(container: HTMLElement, summary: IInboxDetailSummary, item: IInboxNotificationItem, store: DisposableStore): void {
@@ -2475,13 +2680,13 @@ export class InboxNotificationsView extends AbstractCustomView {
 			}
 		}
 		if (summary.evidence.length) {
-			container.appendChild($('.inbox-notifications-detail-section-label', undefined, localize('inboxNotifications.detail.evidence', "Evidence")));
+			container.appendChild($('.inbox-notifications-detail-section-label', undefined, localize('inboxNotifications.detail.claims', "Claims and cited sources")));
 			const list = container.appendChild($('ul.inbox-notifications-detail-list'));
 			for (const evidence of summary.evidence) {
 				const row = list.appendChild($('li', undefined, evidence.text));
 				const uri = evidence.artifact.uri;
 				if (uri) {
-					const link = store.add(new Button(row, { ...defaultButtonStyles, secondary: true, small: true }));
+					const link = store.add(new Button(row, { ...inboxButtonStyles, secondary: true, small: true }));
 					link.element.classList.add('inbox-notifications-evidence-link');
 					link.label = evidence.artifact.label;
 					store.add(link.onDidClick(() => {
@@ -2489,35 +2694,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 						void this.openerService.open(uri).catch(onUnexpectedError);
 					}));
 				} else {
-					row.appendChild($('span', undefined, evidence.artifact.label));
+					row.appendChild($('span.inbox-notifications-evidence-label', undefined, evidence.artifact.label));
 				}
 			}
-		}
-	}
-
-	private renderConversationThread(body: HTMLElement, item: IInboxNotificationItem): void {
-		const chatModel = this.getSessionChatModel(item);
-		const thread = body.appendChild($('.inbox-notifications-detail-thread'));
-		let rendered = 0;
-		for (const request of chatModel?.getRequests() ?? []) {
-			const userText = request.message.text.trim();
-			if (userText) {
-				const turn = thread.appendChild($('.inbox-notifications-detail-turn.user'));
-				turn.appendChild($('.inbox-notifications-detail-turn-role', undefined, localize('inboxNotifications.detail.thread.you', "You")));
-				turn.appendChild($('.inbox-notifications-detail-turn-text', undefined, userText));
-				rendered++;
-			}
-			const response = request.response;
-			const agentText = response && !response.isCanceled ? this.getResponseText(response) : undefined;
-			if (agentText) {
-				const turn = thread.appendChild($('.inbox-notifications-detail-turn.agent'));
-				turn.appendChild($('.inbox-notifications-detail-turn-role', undefined, localize('inboxNotifications.detail.thread.agent', "Agent")));
-				turn.appendChild($('.inbox-notifications-detail-turn-text', undefined, agentText));
-				rendered++;
-			}
-		}
-		if (rendered === 0) {
-			thread.appendChild($('.inbox-notifications-detail-placeholder', undefined, localize('inboxNotifications.detail.thread.empty', "No conversation yet.")));
 		}
 	}
 
@@ -2560,10 +2739,68 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	layout(width: number, _height: number): void {
+		if (this.newSessionView && this.newSessionElement.classList.contains('visible')) {
+			this.newSessionView.layout(this.newSessionElement.clientWidth, this.newSessionElement.clientHeight, 0, 0);
+		}
 		this.layoutWidth = width;
 		if (!this.hasCustomListPaneWidth) {
 			this.listPaneWidth = this.getDefaultListPaneWidth();
 		}
 		this.layoutPanes();
+		this.evidenceCanvases?.layout();
+	}
+
+	getDetailAccessibleContent(): string | undefined {
+		const item = this.selectedItem();
+		const interpretation = item && this.getDetailInterpretation(item);
+		const content = [
+			...(interpretation ? [
+				localize('inboxNotifications.detail.interpretation', "Agent interpretation"),
+				interpretation.status,
+				...interpretation.decisions,
+				...interpretation.evidence.map(evidence => `${evidence.text}\n${evidence.artifact.label}${evidence.artifact.uri ? `: ${evidence.artifact.uri.toString(true)}` : ''}`),
+			] : []),
+			this.evidenceWidget?.getAccessibleContent(),
+		].filter(Boolean).join('\n\n');
+		return content ? localize('inbox.evidence.accessible', "Evidence for {0}\n\n{1}", this.selectedItem()?.title ?? '', content) : undefined;
+	}
+
+	getCanvasAccessibleProvider() {
+		return this.evidenceCanvases?.createAccessibleProvider();
+	}
+
+	async openNewSession(): Promise<void> {
+		if (!this.newSessionElement.isConnected) {
+			return;
+		}
+		if (this.newSessionElement.classList.contains('visible')) {
+			this.newSessionElement.classList.remove('visible');
+			this.newSessionView?.setVisible(false);
+			this.newSessionView?.setActive(false);
+			if (!this.focusSelectedCard()) {
+				this.newSessionElement.parentElement?.focus();
+			}
+			return;
+		}
+		if (!this.newSessionView) {
+			await this.sessionsService.openNewSession({ preserveCustomView: true, cancelRestore: true });
+			if (this._store.isDisposed) {
+				return;
+			}
+			if (!this.newSessionView) {
+				const scopedContext = this.newSessionDisposables.add(this.contextKeyService.createScoped(this.newSessionElement));
+				const instantiationService = this.newSessionDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContext])));
+				this.newSessionView = this.newSessionDisposables.add(this.chatViewFactory.createNewChatView(false, { preserveCustomView: true, renderChatPet: false }, instantiationService));
+				this.newSessionElement.appendChild(this.newSessionView.element);
+				this.newSessionView.setPrimary(false, true);
+				this.newSessionView.setActive(true);
+				this.newSessionView.setVisible(true);
+			}
+		}
+		this.newSessionElement.classList.add('visible');
+		this.newSessionView.setActive(true);
+		this.newSessionView.setVisible(true);
+		this.newSessionView.layout(this.newSessionElement.clientWidth, this.newSessionElement.clientHeight, 0, 0);
+		this.newSessionView.focus();
 	}
 }

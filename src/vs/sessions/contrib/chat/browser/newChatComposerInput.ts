@@ -142,6 +142,7 @@ export interface INewChatComposerInputOptions {
 	readonly modelPickerComparison?: IModelPickerComparison;
 	readonly deferredNotificationsEnabled?: IObservable<boolean>;
 	readonly petHostPreferred?: IObservable<boolean>;
+	readonly renderChatPet?: boolean;
 	readonly getChatPetPlatformElements?: () => readonly HTMLElement[];
 	readonly getChatPetBasePlatformElement?: () => HTMLElement | undefined;
 	readonly onDidChangeChatPetPlatform?: Event<void>;

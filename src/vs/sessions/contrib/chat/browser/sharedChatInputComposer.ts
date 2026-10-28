@@ -269,6 +269,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			undefined,
 			{
 				renderFollowups: false,
+				renderChatPet: this.options.renderChatPet,
 				renderInputOnTop: true,
 				renderSecondaryToolbar: false,
 				// Status indicators share the composer's controls row instead.

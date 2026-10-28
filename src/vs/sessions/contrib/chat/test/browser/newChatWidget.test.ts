@@ -81,6 +81,7 @@ interface IRecreateHarness {
 
 /** The collaborators `_createSessionNow` reads while assembling the `openNewSession` options. */
 interface ICreateSessionNowHarness {
+	readonly _preserveCustomView?: boolean;
 	readonly _environment: IObservable<ISessionCreationEnvironment | undefined>;
 	readonly _newChatInput: {
 		readonly sessionTypePicker: {
@@ -354,6 +355,7 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 }
 
 interface ISelectNoWorkspaceHarness {
+	readonly _preserveCustomView?: boolean;
 	readonly _environment: IObservable<ISessionCreationEnvironment | undefined>;
 	readonly _workspaceOptOutTarget: IObservable<ICreateNewSessionOptions | undefined>;
 	readonly _pendingPreferredUpgrade: MutableDisposable<IDisposable>;
@@ -2763,6 +2765,41 @@ suite('NewChatWidget', () => {
 		};
 		await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
 		assert.deepStrictEqual(calls, []);
+	});
+
+	test('a custom-view composer preserves its host when preparing workspace and quick-chat drafts', async () => {
+		const folder = URI.file('/project');
+		const requests: IOpenNewSessionOptions[] = [];
+		const quickChatNavigation: (boolean | undefined)[] = [];
+		const harness: ICreateSessionNowHarness = {
+			_preserveCustomView: true,
+			_environment: constObservable(undefined),
+			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined } },
+			_workspacePicker: { selectedResolved: { providerId: 'local' } },
+			sessionsService: {
+				openNewSession: async options => {
+					requests.push(options);
+					return { session: undefined, trustDeclined: false };
+				},
+			},
+			_isPreferredServable: () => true,
+			logService: { error: () => assert.fail('unexpected creation error') },
+		};
+		await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
+		openQuickChat.call(upcastPartial<ISelectNoWorkspaceHarness>({
+			_preserveCustomView: true,
+			_environment: constObservable(undefined),
+			sessionsService: {
+				openQuickChat: (_options, preserveNavigation) => {
+					quickChatNavigation.push(preserveNavigation);
+					return { sessionId: 'quick' };
+				},
+			},
+		}));
+		assert.deepStrictEqual({ requests, quickChatNavigation }, {
+			requests: [{ folderUri: folder, preserveNavigation: true, preserveCustomView: true, providerId: 'local' }],
+			quickChatNavigation: [true],
+		});
 	});
 
 	test('requires container execution for every draft after harness changes and provider discovery', async () => {

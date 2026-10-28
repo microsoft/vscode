@@ -82,7 +82,7 @@ import { IChatOutputPartStateCache, IOutputPartState } from '../../../browser/wi
 import { ChatSystemNotificationContentPart } from '../../../browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
 import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { IChatMarkdownAnchorService } from '../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
-import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatTask, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatConfirmation, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatTask, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
@@ -5972,6 +5972,115 @@ suite('ChatListRenderer', () => {
 			});
 		}
 	}
+
+	test('previews can omit input requests without resolving them or docking them in another widget', async () => {
+		const { model, request, renderer, template, node, container } = createPersistentProgressRenderer({
+			rendererOptions: { readOnly: true, renderInputRequests: false }, dockPlanReview: true,
+		});
+		const confirmation: IChatConfirmation = { kind: 'confirmation', title: 'Confirm deployment', message: 'Apply the changes?', data: {} };
+		const question = new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true);
+		const review = new ChatPlanReviewData('Review plan', 'Approve this plan.', [{ label: 'Implement' }], false);
+		const elicitation = new ChatElicitationRequestPart('Confirm changes', 'Apply the changes?', '', 'Continue', 'Cancel', async () => ElicitationState.Accepted, async () => ElicitationState.Rejected);
+		for (const part of [confirmation, question, review, elicitation]) {
+			model.acceptResponseProgress(request, part);
+		}
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The response remains visible.') });
+		renderer.renderElement(node, 0, template);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		await timeout(0);
+		assert.deepStrictEqual({
+			controls: container.querySelectorAll('.chat-question-carousel-container, .chat-confirmation-widget-container, .chat-plan-review').length,
+			question: !!question.isUsed,
+			confirmation: !!confirmation.isUsed,
+			review: !!review.isUsed,
+			elicitation: elicitation.state.get(),
+			markdown: template.value.textContent?.includes('The response remains visible.'),
+		}, { controls: 0, question: false, confirmation: false, review: false, elicitation: ElicitationState.Pending, markdown: true });
+	});
+
+	for (const collapsedTools of [CollapsedToolsDisplayMode.Off, CollapsedToolsDisplayMode.WithThinking]) {
+		test(`previews omit tool approvals, including later state transitions, without routing to the input (${collapsedTools})`, async () => {
+			const addToCarousel = sinon.spy();
+			const input = new class extends mock<ChatInputPart>() {
+				override get hasActiveToolConfirmationCarousel() { return false; }
+				override addToolToConfirmationCarousel = addToCarousel;
+			}();
+			const widget = new class extends mock<IChatWidget>() {
+				override readonly inputPart = input;
+				override readonly location = ChatAgentLocation.Chat;
+			}();
+			const { model, request, renderer, template, node, configurationService } = createPersistentProgressRenderer({
+				rendererOptions: { readOnly: true, renderInputRequests: false }, collapsedTools,
+				chatWidgetService: new class extends mock<IChatWidgetService>() {
+					override getWidgetBySessionResource() { return widget; }
+				}(),
+			});
+			configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+			const tool = new ChatToolInvocation(
+				{ invocationMessage: 'Inspecting workspace', confirmationMessages: { title: 'Inspect workspace?', message: 'Allow the inspection.', confirmResults: true } },
+				{ id: 'inspect', displayName: 'Inspect', modelDescription: 'Inspect', source: ToolDataSource.Internal },
+				'preview-inspection', undefined, {},
+			);
+			model.acceptResponseProgress(request, tool);
+			const snapshot = (refresh = true) => {
+				if (refresh) {
+					renderer.renderElement(node, 0, template);
+				}
+				return {
+					state: tool.state.get().type,
+					controls: template.value.querySelectorAll('.chat-confirmation-widget, .has-confirmation').length,
+					carouselCalls: addToCarousel.callCount,
+				};
+			};
+			const initial = snapshot();
+			IChatToolInvocation.confirmWith(tool, { type: ToolConfirmKind.UserAction });
+			snapshot();
+			tool.requestConfirmation({ confirmationMessages: { title: 'Inspect again?', message: 'Allow another inspection.', confirmResults: true } });
+			const renewed = snapshot(false);
+			IChatToolInvocation.confirmWith(tool, { type: ToolConfirmKind.UserAction });
+			await tool.didExecuteTool(undefined);
+			const postApproval = snapshot(false);
+			assert.deepStrictEqual({ initial, renewed, postApproval }, {
+				initial: { state: IChatToolInvocation.StateKind.WaitingForConfirmation, controls: 0, carouselCalls: 0 },
+				renewed: { state: IChatToolInvocation.StateKind.WaitingForConfirmation, controls: 0, carouselCalls: 0 },
+				postApproval: { state: IChatToolInvocation.StateKind.WaitingForPostApproval, controls: 0, carouselCalls: 0 },
+			});
+		});
+	}
+
+	for (const renderInputRequests of [undefined, true]) {
+		test(`ordinary chat retains confirmation controls (renderInputRequests=${renderInputRequests})`, () => {
+			const { model, request, renderer, template, node } = createPersistentProgressRenderer({ rendererOptions: { renderInputRequests } });
+			const confirmation: IChatConfirmation = { kind: 'confirmation', title: 'Confirm deployment', message: 'Apply the changes?', data: {} };
+			model.acceptResponseProgress(request, confirmation);
+			const counts = [];
+			for (const enabled of [renderInputRequests, false, renderInputRequests]) {
+				renderer.updateOptions({ renderInputRequests: enabled });
+				renderer.renderElement(node, 0, template);
+				counts.push(template.value.querySelectorAll('.chat-confirmation-widget .monaco-button').length);
+			}
+			assert.deepStrictEqual({
+				buttons: counts,
+				resolved: !!confirmation.isUsed,
+			}, { buttons: [2, 0, 2], resolved: false });
+		});
+	}
+
+	test('read-only question previews render text without creating controls or answering the question', async () => {
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ rendererOptions: { readOnly: true } });
+		const question = new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction', message: 'Keep this question in the preview.' }], true);
+		model.acceptResponseProgress(request, question);
+		renderer.renderElement(node, 0, template);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		await timeout(0);
+		const text = template.value.textContent?.replace(/\u00a0/g, ' ');
+		assert.deepStrictEqual({
+			hasTitle: text?.includes('Choose a direction'),
+			hasMessage: text?.includes('Keep this question in the preview.'),
+			controls: template.value.querySelectorAll('.chat-question-carousel-container').length,
+			answered: !!question.isUsed,
+		}, { hasTitle: true, hasMessage: true, controls: 0, answered: false });
+	});
 
 	test('persistent progress keeps question controls and the answered summary without a tool row', async () => {
 		const { model, request, renderer, template, node } = createPersistentProgressRenderer();
@@ -13808,6 +13917,27 @@ suite('ChatListRenderer', () => {
 				toolCallId, parentToolCallId, {},
 			);
 		}
+
+		test('input-only renderers suppress model-driven approvals without resolving them', () => {
+			const context = createConfirmationRenderer();
+			context.renderer.updateOptions({ renderInputRequests: false });
+			const tool = createPendingTool('pending-input-only');
+			context.model.acceptResponseProgress(context.request, tool);
+			const suppressed = context.carousel?.pendingCount ?? 0;
+			context.renderer.updateOptions({ renderInputRequests: true });
+			const restored = context.carousel?.pendingCount ?? 0;
+			context.renderer.updateOptions({ renderInputRequests: false });
+			assert.deepStrictEqual({
+				suppressed,
+				restored,
+				suppressedAgain: context.carousel?.pendingCount ?? 0,
+				transcriptRendered: context.template.currentElement !== undefined,
+				toolState: tool.state.get().type,
+			}, {
+				suppressed: 0, restored: 1, suppressedAgain: 0, transcriptRendered: false,
+				toolState: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			});
+		});
 
 		/** Counts the transcript tool parts that are actually visible, and how many of them render a confirmation. */
 		function countVisibleToolParts(template: IChatListItemTemplate): { toolParts: number; confirmations: number } {

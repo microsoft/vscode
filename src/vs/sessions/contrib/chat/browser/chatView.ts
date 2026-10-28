@@ -293,6 +293,7 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private readonly _widget: ChatWidget;
+	override readonly onDidSubmitRequest: Event<URI>;
 	private readonly _widgetContainer: HTMLElement;
 	private readonly _externalSessionBanner: ExternalSessionBanner;
 
@@ -365,6 +366,7 @@ export class ChatView extends AbstractChatView {
 	private readonly _voiceInitiatedHereKey: IContextKey<boolean>;
 
 	constructor(
+		options: IChatViewOptions = {},
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
@@ -415,6 +417,8 @@ export class ChatView extends AbstractChatView {
 			ChatAgentLocation.Chat,
 			undefined,
 			{
+				renderChatPet: options.renderChatPet,
+				filter: options.inputOnly ? () => false : undefined,
 				autoScroll: mode => mode !== ChatModeKind.Ask,
 				renderFollowups: true,
 				firstRequestSummary: derived(this, reader => {
@@ -428,6 +432,7 @@ export class ChatView extends AbstractChatView {
 				}),
 				supportsFileReferences: true,
 				rendererOptions: {
+					renderInputRequests: options.inputOnly ? false : undefined,
 					referencesExpandedWhenEmptyResponse: false,
 					progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 					contentHorizontalPadding: this._chatItemHorizontalPadding,
@@ -450,6 +455,7 @@ export class ChatView extends AbstractChatView {
 			},
 			this._buildStyles(this._isActive)
 		));
+		this.onDidSubmitRequest = this._widget.onDidAcceptRequest;
 		this._widget.setMaximumWidth(AGENTS_CENTERED_CONTENT_MAX_WIDTH);
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
 		const updateExperimentalComposerLayout = () => {
@@ -1308,7 +1314,7 @@ export class ChatViewFactory implements IChatViewFactory {
 		return instantiationService.createInstance(NewChatView, isNewChatInSession, options);
 	}
 
-	createChatView(instantiationService = this.instantiationService): AbstractChatView {
-		return instantiationService.createInstance(ChatView);
+	createChatView(instantiationService = this.instantiationService, options: IChatViewOptions = {}): AbstractChatView {
+		return instantiationService.createInstance(ChatView, options);
 	}
 }

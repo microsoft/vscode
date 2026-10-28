@@ -198,7 +198,7 @@ export interface IInboxInteractionTelemetryContext {
 
 /** A concrete, session-produced artifact an evidence claim is grounded in and links to. */
 export interface IInboxEvidenceArtifact {
-	readonly kind: 'file' | 'session';
+	readonly kind: 'file' | 'session' | 'command';
 	readonly label: string;
 	readonly uri?: URI;
 }

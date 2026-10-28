@@ -132,7 +132,11 @@ Session providers register internal per-session directories as resource label ho
 
 A custom view is mutually exclusive with the Sessions Part, grid Editor, Auxiliary Bar, and Panel. The title bar and Sidebar remain available. Covered parts retain desired visibility separately from effective grid visibility so their state can be restored when the custom view closes.
 
+Inbox evidence is scoped to the selected notification's conversation, independently of the active Sessions grid. Its recorded artifacts retain conversation provenance; command and image-tool results belong to the notification's pending request, or the latest request for other notifications. AI-written previews live in a non-collapsible Agent interpretation section at the top of the detail pane, not on notification cards, and are requested on selection rather than card exposure. A richer interpretation replaces the preview when available; empty sections and fallback placeholders stay hidden. Interpretation may summarize relevant recorded command results and cite their output sources, but raw terminal output remains in the terminal or chat response. Changed files remain in the Changes view rather than the evidence pane. Model interpretation is separate from recorded evidence and is not independent verification. An explicitly selected extension canvas uses the existing canvas definitions and provider operations, but owns a disposable desktop-native presentation rather than borrowing an editor's model or changing the active session. Hiding or disposing that presentation does not close the provider's canvas. Canvas editors do not auto-reveal while Inbox covers the Sessions grid.
+
 Explicit session and chat open actions dismiss the active custom view. Reactive fallback opens driven by session or chat lifecycle changes preserve the custom view while reconciling the hidden Sessions grid. On phone layouts, custom views participate in mobile navigation so platform back navigation dismisses them.
+
+Custom views may handle an unparameterized New Session action through their descriptor and host the shared new-session composer. Such composers prepare drafts with `preserveCustomView`; workspace and agent selection must not dismiss their host. Parameterized New Session actions, including opening to the side or supplying a prompt, retain normal session navigation.
 
 ## Part lifecycle
 

@@ -3164,6 +3164,23 @@ suite('SessionsManagementService', () => {
 		});
 	}
 
+	for (const preserveCustomView of [false, true]) {
+		test(`new-session draft preparation preserves the custom view only when requested (${preserveCustomView})`, async () => {
+			const session = stubSession({ sessionId: 'active', providerId: 'test' });
+			const { view, customViewService } = createSessionsManagementService(session, disposables);
+			await view.openSession(session.resource);
+			showTestCustomView(customViewService, disposables);
+			await view.openNewSession({ preserveCustomView });
+			const first = customViewService.activeCustomView.get()?.id;
+			await view.openNewSession({ preserveCustomView });
+			assert.deepStrictEqual({ first, repeated: customViewService.activeCustomView.get()?.id, active: view.activeSession.get() }, {
+				first: preserveCustomView ? 'test.customView' : undefined,
+				repeated: preserveCustomView ? 'test.customView' : undefined,
+				active: undefined,
+			});
+		});
+	}
+
 	test('openNewSession without toSide still replaces the active session', async () => {
 		const session = stubSession({ sessionId: 'active', providerId: 'test' });
 		const { view } = createSessionsManagementService(session, disposables);
