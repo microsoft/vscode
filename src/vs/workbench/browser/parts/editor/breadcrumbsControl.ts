@@ -267,6 +267,7 @@ export class BreadcrumbsControl {
 	private readonly _cfUseQuickPick: BreadcrumbsConfig<boolean>;
 	private readonly _cfShowIcons: BreadcrumbsConfig<boolean>;
 	private readonly _cfShowEditorType: BreadcrumbsConfig<boolean>;
+	private readonly _cfShowInUntitledFiles: BreadcrumbsConfig<boolean>;
 	private readonly _cfTitleScrollbarSizing: BreadcrumbsConfig<IEditorPartOptions['titleScrollbarSizing']>;
 	private readonly _cfTitleScrollbarVisibility: BreadcrumbsConfig<IEditorPartOptions['titleScrollbarVisibility']>;
 
@@ -317,7 +318,8 @@ export class BreadcrumbsControl {
 		this._cfUseQuickPick = BreadcrumbsConfig.UseQuickPick.bindTo(_configurationService);
 		this._cfShowIcons = BreadcrumbsConfig.Icons.bindTo(_configurationService);
 		this._cfShowEditorType = BreadcrumbsConfig.ShowEditorType.bindTo(_configurationService);
-		this._cfTitleScrollbarSizing = BreadcrumbsConfig.TitleScrollbarSizing.bindTo(_configurationService);
+		this._cfShowInUntitledFiles = BreadcrumbsConfig.ShowInUntitledFiles.bindTo(_configurationService);
+		this._cfTitleScrollbarSizing =  BreadcrumbsConfig.TitleScrollbarSizing.bindTo(_configurationService);
 		this._cfTitleScrollbarVisibility = BreadcrumbsConfig.TitleScrollbarVisibility.bindTo(_configurationService);
 
 		this._labels = this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER);
@@ -336,6 +338,7 @@ export class BreadcrumbsControl {
 		this._widget.onDidSelectItem(this._onSelectEvent, this, this._disposables);
 		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
 		this._widget.onDidChangeFocus(this._updateCkBreadcrumbsActive, this, this._disposables);
+		this._disposables.add(this._cfShowInUntitledFiles.onDidChange(() => this.update()));
 
 		if (this._options.showEditorTypePicker) {
 			this._disposables.add(this._cfShowEditorType.onDidChange(() => this._updateEditorTypeControl()));
@@ -368,6 +371,7 @@ export class BreadcrumbsControl {
 		this._cfUseQuickPick.dispose();
 		this._cfShowIcons.dispose();
 		this._cfShowEditorType.dispose();
+		this._cfShowInUntitledFiles.dispose();
 		this._cfTitleScrollbarSizing.dispose();
 		this._cfTitleScrollbarVisibility.dispose();
 		this._widget.dispose();
@@ -425,6 +429,13 @@ export class BreadcrumbsControl {
 		this._widget.revealLast();
 	}
 
+	private _canShowBreadcrumbsFor(uri: URI): boolean {
+		if (uri.scheme === Schemas.untitled) {
+			return this._cfShowInUntitledFiles.getValue();
+		}
+		return this._fileService.hasProvider(uri);
+	}
+
 	update(): boolean {
 		this._breadcrumbsDisposables.clear();
 
@@ -434,7 +445,7 @@ export class BreadcrumbsControl {
 		const uri = originalUri ?? canonicalUri;
 		const wasHidden = this.isHidden();
 
-		if (!uri || (uri.scheme !== Schemas.untitled && !this._fileService.hasProvider(uri))) {
+		if (!uri || !this._canShowBreadcrumbsFor(uri)) {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			this._ckBreadcrumbsPossible.set(false);

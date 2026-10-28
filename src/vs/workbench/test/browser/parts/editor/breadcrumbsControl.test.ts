@@ -13,10 +13,11 @@ import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
@@ -181,7 +182,9 @@ suite('BreadcrumbsControl', () => {
 		control.update();
 		control.layout(new Dimension(600, BreadcrumbsControl.HEIGHT));
 		widget = instantiationService.get(IBreadcrumbsService).getWidget(group.id)!;
-		await Event.toPromise(control.model!.onDidUpdate);
+		if (control.model) {
+			await Event.toPromise(control.model.onDidUpdate);
+		}
 		focusEditor();
 	}
 
@@ -240,7 +243,19 @@ suite('BreadcrumbsControl', () => {
 		}
 	}
 
+	test('untitled files are hidden unless breadcrumbs.showInUntitledFiles is enabled', async () => {
+		await createControl(true, false, URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' }));
+		const hiddenByDefault = control.isHidden();
+
+		await configurationService.setUserConfiguration('breadcrumbs.showInUntitledFiles', true);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: section => section === 'breadcrumbs.showInUntitledFiles' }));
+		const hiddenWhenEnabled = control.isHidden();
+
+		assert.deepStrictEqual({ hiddenByDefault, hiddenWhenEnabled }, { hiddenByDefault: true, hiddenWhenEnabled: false });
+	});
+
 	test('untitled files show their symbol path without file path elements', async () => {
+		await configurationService.setUserConfiguration('breadcrumbs.showInUntitledFiles', true);
 		await createControl(true, false, URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' }));
 
 		assert.deepStrictEqual({
@@ -250,6 +265,7 @@ suite('BreadcrumbsControl', () => {
 	});
 
 	test('does not show a placeholder when there are no elements and showPlaceholder is false', async () => {
+		await configurationService.setUserConfiguration('breadcrumbs.showInUntitledFiles', true);
 		await createControl(false, false, URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' }));
 
 		assert.deepStrictEqual(Array.from(control.domNode.querySelectorAll('.monaco-breadcrumb-item'), item => item.textContent), []);
