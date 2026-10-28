@@ -1387,7 +1387,8 @@ export class QuickInputList extends Disposable {
 					break;
 				}
 				const next = what === QuickPickFocus.NextSeparator;
-				const delta = next ? 1 : focused instanceof QuickPickSeparatorElement || focused === sections[currentSection]?.item ? -1 : 0;
+				const atSectionStart = focused !== undefined && (focused instanceof QuickPickSeparatorElement || focused === sections[currentSection]?.item);
+				const delta = next ? 1 : atSectionStart ? -1 : 0;
 				const section = sections[(currentSection + delta + sections.length) % sections.length];
 				if (next && section.item === focused) {
 					this._tree.scrollTop = this._tree.scrollHeight;
@@ -1484,8 +1485,8 @@ export class QuickInputList extends Disposable {
 				// we can show the separator unless the list gets sorted by match
 				if (!this.sortByLabel) {
 					const previous = element.index && this._inputElements[element.index - 1] || undefined;
-					if (previous?.type === 'separator' && !previous.buttons && previous.label) {
-						currentSeparator = previous;
+					if (previous?.type === 'separator' && !previous.buttons) {
+						currentSeparator = previous.label ? previous : undefined;
 					}
 					if (currentSeparator && !element.hidden) {
 						element.separator = currentSeparator;

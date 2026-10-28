@@ -584,6 +584,56 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		assert.deepStrictEqual(active, [['C1'], ['A1'], ['C1'], ['A1']]);
 	});
 
+	test('section navigation starts at the correct boundary with no active item', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const states: { kind: string; initial: string[]; backward: string[]; forward: string[] }[] = [];
+		for (const kind of ['labelled', 'action', 'unlabelled']) {
+			const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+			picker.itemActivation = ItemActivation.NONE;
+			picker.items = ['A', 'B', 'C'].flatMap(label => [
+				{ type: 'separator' as const, label: kind === 'unlabelled' ? undefined : label, buttons: kind === 'action' ? [{ iconClass: 'codicon-add', tooltip: 'Add' }] : undefined },
+				{ label: `${label}1` },
+			]);
+			picker.show();
+			const initial = picker.activeItems.map(item => item.label);
+			picker.focus(QuickPickFocus.PreviousSeparator);
+			const backward = picker.activeItems.map(item => item.label);
+			picker.activeItems = [];
+			picker.focus(QuickPickFocus.NextSeparator);
+			states.push({ kind, initial, backward, forward: picker.activeItems.map(item => item.label) });
+			picker.hide();
+		}
+		assert.deepStrictEqual(states, [
+			{ kind: 'labelled', initial: [], backward: ['C1'], forward: ['A1'] },
+			{ kind: 'action', initial: [], backward: ['C1'], forward: ['A1'] },
+			{ kind: 'unlabelled', initial: [], backward: ['C1'], forward: ['A1'] },
+		]);
+	});
+
+	test('filtering does not carry a section label across an unlabelled boundary', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+		picker.items = [{ type: 'separator', label: 'A' }, { label: 'apple' }, { type: 'separator' }, { label: 'berry' }];
+		picker.sortByLabel = false;
+		picker.show();
+		const states: { query: string; active: string[]; sections: (string | null)[] }[] = [];
+		for (const query of ['berry', 'apple', '']) {
+			picker.value = query;
+			states.push({
+				query,
+				active: picker.activeItems.map(item => item.label),
+				sections: Array.from(fixture.querySelectorAll<HTMLElement>('.quick-input-list-separator'))
+					.filter(element => element.style.display !== 'none')
+					.map(element => element.textContent),
+			});
+		}
+		assert.deepStrictEqual(states, [
+			{ query: 'berry', active: ['berry'], sections: [] },
+			{ query: 'apple', active: ['apple'], sections: ['A'] },
+			{ query: '', active: ['apple'], sections: ['A'] },
+		]);
+	});
+
 	test('close motion requires modern UI with motion enabled', () => {
 		const clock = sinon.useFakeTimers();
 		const quickpick = store.add(controller.createQuickPick());
