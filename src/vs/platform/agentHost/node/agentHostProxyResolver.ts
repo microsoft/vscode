@@ -176,8 +176,7 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 						}
 					} catch {
 						if (this._certificateProviders.get(clientId) === provider) {
-							provider.promise = undefined;
-							this._logService.warn('[AgentHost] Failed to load client CA certificates; retaining previously loaded trust.');
+							this._logService.warn('[AgentHost] Failed to load client CA certificates; retaining previously loaded trust until the client reconnects.');
 						}
 					}
 				});

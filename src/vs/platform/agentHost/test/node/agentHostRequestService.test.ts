@@ -177,27 +177,30 @@ suite('AgentHostProxyResolver', () => {
 		});
 	}
 
-	test('failed certificate loads are logged, retain previous trust, and retry on demand', async () => {
+	test('a failed certificate load keeps earlier trust without retrying until the client reconnects', async () => {
 		const warnings: string[] = [];
 		const log = new class extends NullLogService {
 			override warn(message: string): void { warnings.push(message); }
 		}();
 		const resolver = disposables.add(new AgentHostProxyResolver(createAgentConfigurationService(disposables), log));
 		resolver.setClientCertificates('client', [rootCertificates[0]]);
-		const previous = resolver.clientCertificates;
 		let calls = 0;
-		disposables.add(resolver.registerCertificateProvider('client', async () => {
+		const load = async () => {
 			if (++calls === 1) {
 				throw new Error('Must not log certificate contents');
 			}
 			return [rootCertificates[1]];
-		}));
-		assert.strictEqual(await resolver.loadClientCertificates(), previous);
+		};
+		disposables.add(resolver.registerCertificateProvider('client', load));
+		const failed = await resolver.loadClientCertificates();
 		await resolver.loadClientCertificates();
-		assert.deepStrictEqual({ calls, warnings, certificates: resolver.clientCertificates }, {
-			calls: 2,
-			warnings: ['[AgentHost] Failed to load client CA certificates; retaining previously loaded trust.'],
-			certificates: [new X509Certificate(rootCertificates[1]).toString()],
+		const callsBeforeReconnect = calls;
+		disposables.add(resolver.registerCertificateProvider('client', load));
+		assert.deepStrictEqual({ failed, callsBeforeReconnect, reconnected: await resolver.loadClientCertificates(), warnings }, {
+			failed: [new X509Certificate(rootCertificates[0]).toString()],
+			callsBeforeReconnect: 1,
+			reconnected: [new X509Certificate(rootCertificates[1]).toString()],
+			warnings: ['[AgentHost] Failed to load client CA certificates; retaining previously loaded trust until the client reconnects.'],
 		});
 	});
 

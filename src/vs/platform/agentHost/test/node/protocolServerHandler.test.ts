@@ -685,11 +685,13 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(proxyResolver.clientCertificates, []);
 	});
 
-	test('invalid client certificate responses warn and remain retryable without failing the connection', async () => {
+	test('invalid client certificate responses warn, are not retried, and do not fail the connection', async () => {
 		const warnings = sinon.spy(logService, 'warn');
 		disposables.add(toDisposable(() => warnings.restore()));
-		const transport = connectClient('certificates', undefined, undefined, { 'vscode.clientCertificates': true });
-		for (const value of [null, 'not-an-array', [12], [rootCertificates[0], 'invalid-secret-PEM']]) {
+		const transports: MockProtocolTransport[] = [];
+		for (const [index, value] of [null, 'not-an-array', [12], [rootCertificates[0], 'invalid-secret-PEM']].entries()) {
+			const transport = connectClient(`certificates-${index}`, undefined, undefined, { 'vscode.clientCertificates': true });
+			transports.push(transport);
 			const requested = Event.toPromise(Event.filter(transport.onDidSend, message => !!findRequest([message], LoadClientCertificatesExtensionMethod)));
 			const loaded = proxyResolver.loadClientCertificates();
 			const requestMessage = await requested;
@@ -697,17 +699,20 @@ suite('ProtocolServerHandler', () => {
 			transport.simulateMessage({ jsonrpc: '2.0', id: requestMessage.id, result: { certificates: value } });
 			await loaded;
 		}
-		const response = waitForResponse(transport, 30);
-		transport.simulateMessage(request(30, 'ping', { channel: ROOT_STATE_URI }));
+		await proxyResolver.loadClientCertificates();
+		const response = waitForResponse(transports[0], 30);
+		transports[0].simulateMessage(request(30, 'ping', { channel: ROOT_STATE_URI }));
 		assert.deepStrictEqual({
 			certificateCount: proxyResolver.clientCertificates.length,
+			requests: transports.map(transport => transport.sent.filter(message => !!findRequest([message], LoadClientCertificatesExtensionMethod)).length),
 			pingSucceeded: hasKey(await response, { result: true }),
 			warnings: warnings.getCalls().map(call => call.args),
 		}, {
 			certificateCount: 1,
+			requests: [1, 1, 1, 1],
 			pingSucceeded: true,
 			warnings: [
-				...Array.from({ length: 3 }, () => ['[AgentHost] Failed to load client CA certificates; retaining previously loaded trust.']),
+				...Array.from({ length: 3 }, () => ['[AgentHost] Failed to load client CA certificates; retaining previously loaded trust until the client reconnects.']),
 				['[Certificates] Ignored 1 invalid CA certificate(s).'],
 			],
 		});
