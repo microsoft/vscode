@@ -863,7 +863,10 @@ The change uses the current tool-approval policy. When approval is required, the
 			throw new AutomationToolInputError('Edit event triggers in the automation dialog or on GitHub. Omit schedule when editing other fields.');
 		}
 		const currentTarget = this.getCurrentSessionTarget(sessionResource);
-		const target = parseTarget(input, existing, currentTarget);
+		let target = parseTarget(input, existing, currentTarget);
+		if (schedule?.interval === 'cron' && target?.kind === 'workspace' && target.providerId === undefined) {
+			target = this.resolveAvailableTarget(target, existing);
+		}
 		if (schedule?.interval === 'cron' && this.automationService.getProviderConfiguration?.(target?.providerId ?? existing?.target.providerId)?.timeZone === 'UTC') {
 			throw new AutomationToolInputError('Cron schedules are not supported by Cloud automations.');
 		}

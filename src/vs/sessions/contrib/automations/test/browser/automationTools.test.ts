@@ -1162,12 +1162,15 @@ suite('AutomationTools', () => {
 		const existing = createAutomation({
 			target: { kind: 'workspace', folderUri: FOLDER, providerId: 'cloud', sessionTypeId: 'cloud', isolation: { kind: 'default' } },
 		});
-		const service = new FakeAutomationService([existing]);
+		const service = new class extends FakeAutomationService {
+			override getProviderConfiguration(providerId?: string) { return providerId === 'cloud' ? this.configuration : undefined; }
+		}([existing]);
 		service.configuration = upcastPartial<IAutomationProviderConfiguration>({ sessionTypes: ['cloud'], timeZone: 'UTC' });
-		const tool = createConfigureAutomationTool(service, new FakeSessionsManagementService(undefined, false, [providerSessionType('cloud', 'cloud')]), createConfigurationService());
+		const tool = createConfigureAutomationTool(service, new FakeSessionsManagementService(createSession({ quickChat: true }), false, [providerSessionType('cloud', 'cloud')]), createConfigurationService());
 		const schedule = { interval: 'cron', cronExpression: '*/2 * * * *', cronTimeZone: 'UTC' };
 		const inputs = [
 			{ name: 'Cloud cron', prompt: 'Review changes', schedule, target: { kind: 'workspace', folderUri: FOLDER.toString(), providerId: 'cloud', sessionTypeId: 'cloud' } },
+			{ name: 'Inferred Cloud cron', prompt: 'Review changes', schedule, target: { kind: 'workspace', folderUri: FOLDER.toString(), sessionTypeId: 'cloud' } },
 			{ automationId: existing.id, schedule },
 		];
 		const results = [];
@@ -1177,7 +1180,7 @@ suite('AutomationTools', () => {
 			await assert.rejects(tool.prepareToolInvocation({ toolCallId: 'cron-cloud', parameters, chatSessionResource: SESSION_RESOURCE }, CancellationToken.None), /Cron schedules are not supported by Cloud automations\./);
 		}
 		assert.deepStrictEqual({ results, creates: service.created, updates: service.updated }, {
-			results: [{ error: true, message: true }, { error: true, message: true }], creates: [], updates: [],
+			results: [{ error: true, message: true }, { error: true, message: true }, { error: true, message: true }], creates: [], updates: [],
 		});
 	});
 
