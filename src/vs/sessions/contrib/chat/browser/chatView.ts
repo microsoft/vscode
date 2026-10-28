@@ -59,6 +59,7 @@ import { ChatInteractivity, getSessionStatusMessage, IChat, isActiveSessionStatu
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { isExperimentalSessionComposerLayoutEnabled, NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
+import { SESSIONS_CHAT_INPUT_PLACEHOLDER } from './newChatComposerInput.js';
 import { SessionInputBanners } from '../../sessionInputBanners/browser/sessionInputBanners.js';
 import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from './sessionChatInputToolbar.js';
 import { ResponseSelectionSideChatController } from '../../../../workbench/contrib/chat/browser/responseSelectionSideChatController.js';
@@ -442,6 +443,9 @@ export class ChatView extends AbstractChatView {
 				}),
 				renderSecondaryToolbar: shouldRenderRunningSessionSecondaryToolbar(initiallyUsesExperimentalComposerLayout),
 				inputEditorMinLines: 2,
+				// Keeps the composer's copy from changing after the first request,
+				// instead of the locked agent's "Chat with {0}" fallback.
+				inputPlaceholder: SESSIONS_CHAT_INPUT_PLACEHOLDER,
 				isSessionsWindow: true,
 				transcriptTabIndex: -1,
 				enableFind: true,

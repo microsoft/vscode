@@ -8,11 +8,11 @@ import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import * as dom from '../../../../base/browser/dom.js';
-import { localize } from '../../../../nls.js';
 import { IChatInputPickerResponsiveLayoutItem } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { IModelPickerComparison } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { getGitHubIssueOrPullRequestAttachments } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatPasteProviders.js';
 import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
 import { isInputGitHubContext, toInputGitHubContextMetadata } from '../common/newChatContextIds.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
@@ -47,8 +47,12 @@ export function hasSendableNewChatContent(query: string, attachments: readonly I
 	return !!query.trim() || attachments.some(isExplicitFileOrImageVariableEntry) || hasAdditionalSendContent;
 }
 
-/** The new-session composer's prompt placeholder. */
-export const NEW_SESSION_PROMPT_PLACEHOLDER = localize('sessionsChatInput.placeholder.pitchYourIdea', "Pitch your idea");
+/**
+ * The prompt placeholder of every Agents window composer, before and after the
+ * first request. Reuses the editor Chat view's Agent mode placeholder so the
+ * same input reads the same everywhere.
+ */
+export const SESSIONS_CHAT_INPUT_PLACEHOLDER = ChatMode.Agent.description.get();
 
 /**
  * The labeled pickers in `container`, for responsive layouts that compact them

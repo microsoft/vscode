@@ -47,7 +47,7 @@ import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { getStoredSessionOptionsExpanded, SessionOptionsRow, storeSessionOptionsExpanded } from './sessionOptionsRow.js';
 import { IconOnlySessionPickers } from './iconOnlySessionPickers.js';
 import { IPickedSessionType, IPreferredSessionType } from './sessionTypePicker.js';
-import { NEW_SESSION_PROMPT_PLACEHOLDER } from './newChatComposerInput.js';
+import { SESSIONS_CHAT_INPUT_PLACEHOLDER } from './newChatComposerInput.js';
 import { SharedChatInputComposer } from './sharedChatInputComposer.js';
 import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getRemoteSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from './sessionEnvironmentPicker.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
@@ -523,7 +523,7 @@ export class NewChatWidget extends Disposable {
 			hasAdditionalSendContent: hasFeedback,
 			loading,
 			useExperimentalLayout: this._useExperimentalComposerLayout,
-			placeholder: NEW_SESSION_PROMPT_PLACEHOLDER,
+			placeholder: SESSIONS_CHAT_INPUT_PLACEHOLDER,
 			onboardingTargetId: 'sessions.newSession.input',
 			supportsBackground: true,
 			deferredNotificationsEnabled,
