@@ -81,6 +81,7 @@ suite('AgentHostCustomizationService', () => {
 			override readonly resource = sessionResource;
 			override readonly providerId = provider.id;
 			override readonly sessionId = `${provider.id}:session-1`;
+			override readonly mode = constObservable(undefined);
 		};
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 			override readonly onDidChangeSessions = Event.None;
