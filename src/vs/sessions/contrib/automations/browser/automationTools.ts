@@ -490,7 +490,7 @@ Omit "automationId" to create an automation; "name", "prompt", and "schedule.int
 
 Use "sessionTemplate" for provider-owned Model, Agent, Mode, Approvals, and other configuration returned by listAutomations. Omit it on unrelated partial updates, or set it to null to reset provider configuration. Do not combine it with the legacy "modelId", "mode", or "permissionLevel" aliases.
 
-Cloud automations are user-owned and require a private or internal GitHub.com repository with default isolation. Daily/weekly cloud schedules require "timeZone": "UTC" and minutes 0, 15, 30, or 45. "manual" removes the schedule. Creation defaults to enabled: scheduled work runs without VS Code and may consume credits. Set "enabled": false to save without scheduling.
+Cloud automations are user-owned and require a private or internal GitHub.com repository with default isolation. Daily/weekly cloud schedules require "timeZone": "UTC" and minutes 0, 15, 30, or 45. Cron schedules are Agent Host only. "manual" removes the schedule. Creation defaults to enabled: scheduled work runs without VS Code and may consume credits. Set "enabled": false to save without scheduling.
 
 For cloud, use "sessionTemplate.modelId" and "sessionTemplate.config" with "tools" IDs from the ready provider catalog and optional "reasoningEffort". Preserve saved tool IDs outside that catalog on unrelated updates. Cloud template reset (null), custom agents, modelConfiguration, local mode/approval settings, and MCP management are not supported.
 
@@ -864,6 +864,9 @@ The change uses the current tool-approval policy. When approval is required, the
 		}
 		const currentTarget = this.getCurrentSessionTarget(sessionResource);
 		const target = parseTarget(input, existing, currentTarget);
+		if (schedule?.interval === 'cron' && this.automationService.getProviderConfiguration?.(target?.providerId ?? existing?.target.providerId)?.timeZone === 'UTC') {
+			throw new AutomationToolInputError('Cron schedules are not supported by Cloud automations.');
+		}
 		const modelId = readOptionalNullableNonEmptyString(input, 'modelId');
 		const mode = readOptionalNullableNonEmptyString(input, 'mode');
 		const permissionLevel = readOptionalNullableEnum(input, 'permissionLevel', chatPermissionLevels);

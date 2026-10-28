@@ -1201,6 +1201,18 @@ suite('AgentHostAutomationStore', () => {
 		}
 	});
 
+	test('rejects a missing cron expression before dispatching a definition', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		await assert.rejects(store.createAutomation({
+			name: 'Cron', prompt: 'Review',
+			schedule: { interval: 'cron', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		}), /A cron expression is required\./);
+		assert.deepStrictEqual(connection.dispatched, []);
+	});
+
 	test('projects numeric and named weekdays as weekly presets', () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());

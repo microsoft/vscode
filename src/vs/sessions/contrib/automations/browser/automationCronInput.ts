@@ -14,10 +14,10 @@ import { getAutomationCronValidationError } from '../../../../workbench/contrib/
 
 const fields = [
 	{ label: localize('cron.minute', "Minute"), caption: localize('cron.min', "min"), minimum: 0, maximum: 59, hint: localize('cron.minuteHint', "Every minute (*), 0-59, or */2 for every two minutes.") },
-	{ label: localize('cron.hour', "Hour"), caption: localize('cron.hourCaption', "hour"), minimum: 0, maximum: 23, hint: localize('cron.hourHint', "Every hour (*) or 0-23.") },
+	{ label: localize('cron.hour', "Hour"), caption: localize('cron.hourCaption', "hr"), minimum: 0, maximum: 23, hint: localize('cron.hourHint', "Every hour (*) or 0-23.") },
 	{ label: localize('cron.day', "Day of month"), caption: localize('cron.dayCaption', "day"), minimum: 1, maximum: 31, hint: localize('cron.dayHint', "Every day (*) or 1-31.") },
-	{ label: localize('cron.month', "Month"), caption: localize('cron.monthCaption', "month"), minimum: 1, maximum: 12, hint: localize('cron.monthHint', "Every month (*), 1-12, or JAN-DEC.") },
-	{ label: localize('cron.weekday', "Day of week"), caption: localize('cron.weekdayCaption', "weekday"), minimum: 0, maximum: 7, hint: localize('cron.weekdayHint', "Every weekday (*), SUN-SAT, or 0-7. Sunday is 0 or 7.") },
+	{ label: localize('cron.month', "Month"), caption: localize('cron.monthCaption', "mo"), minimum: 1, maximum: 12, hint: localize('cron.monthHint', "Every month (*), 1-12, or JAN-DEC.") },
+	{ label: localize('cron.weekday', "Day of week"), caption: localize('cron.weekdayCaption', "wk"), minimum: 0, maximum: 7, hint: localize('cron.weekdayHint', "Every weekday (*), SUN-SAT, or 0-7. Sunday is 0 or 7.") },
 ];
 
 /** A five-part editor for the host's cron expression, with one shared validation border. */

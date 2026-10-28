@@ -1223,10 +1223,10 @@ export function renderForm(
 		formContent, customizations?.service, customizations?.hoverService, logService, customizations?.existingId, triggerFields,
 	));
 
-	const cronRow = DOM.append(formContent, $('.automation-form-row.automation-form-cron-row'));
-	DOM.append(cronRow, $('span.automation-form-label', undefined, localize('automation.form.cron', "Cron expression")));
+	const cronGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group.automation-form-cron-group'));
+	DOM.append(cronGroup, $('span.automation-form-label', undefined, localize('automation.form.cron', "Cron expression")));
 	const cronTimeZone = state.cronTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
-	const cronInput = disposables.add(new AutomationCronInput(cronRow, state.cronExpression ?? '', cronTimeZone, contextViewService));
+	const cronInput = disposables.add(new AutomationCronInput(cronGroup, state.cronExpression ?? '', cronTimeZone, contextViewService));
 	disposables.add(cronInput.onDidChange(value => {
 		state.cronExpression = value;
 		revalidate();
@@ -1236,7 +1236,8 @@ export function renderForm(
 		const showDay = state.interval === 'weekly';
 		timeGroup.style.display = showTime ? '' : 'none';
 		dayGroup.style.display = showDay ? '' : 'none';
-		cronRow.style.display = state.interval === 'cron' ? '' : 'none';
+		cronGroup.style.display = state.interval === 'cron' ? '' : 'none';
+		scheduleRow.classList.toggle('has-cron', state.interval === 'cron');
 	};
 	const updateIntervalOptions = (cloud: boolean) => {
 		intervals = INTERVALS.filter(item => !cloud || (item.value !== 'weekdays' && item.value !== 'cron'));

@@ -233,7 +233,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				scheduleHour: state.hour,
 				scheduleMinute: state.minute,
 				scheduleDay: state.day,
-				...(state.interval === 'cron' ? { cronExpression: state.cronExpression?.trim(), cronTimeZone: state.cronTimeZone } : {}),
+				...(state.interval === 'cron' ? { cronExpression: state.cronExpression, cronTimeZone: state.cronTimeZone } : {}),
 			};
 			const schedule = state.timeZone === 'UTC' ? automationScheduleToUTC(localSchedule, timezoneOffset) : localSchedule;
 			const prompt = getPrompt();

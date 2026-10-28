@@ -920,6 +920,10 @@
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
 }
 
+.automation-form-schedule-row.has-cron {
+	align-items: flex-start;
+}
+
 .automation-form-schedule-group {
 	display: flex;
 	flex-direction: column;

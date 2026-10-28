@@ -907,6 +907,7 @@ suite('Automation dialog creation', () => {
 				equalColumns: !!cronBounds && Math.abs(triggerBounds.width - cronBounds.width) < 1,
 				aligned: !!cronBounds && Math.abs(triggerBounds.top - cronBounds.top) < 1,
 				beside: !!cronBounds && cronBounds.left > triggerBounds.right,
+				captionsFit: !!cron && Array.from(cron.querySelectorAll<HTMLElement>('.automation-cron-caption')).every(caption => caption.getBoundingClientRect().width <= caption.parentElement!.getBoundingClientRect().width),
 				controls: Array.from(row.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select'))
 					.filter(element => element.getBoundingClientRect().width > 0)
 					.map(element => element.getAttribute('aria-label')),
@@ -915,7 +916,7 @@ suite('Automation dialog creation', () => {
 			await dialog.result;
 		}
 		assert.deepStrictEqual(results, [640, 360].map(width => ({
-			width, visibleGroups: 2, equalColumns: true, aligned: true, beside: true,
+			width, visibleGroups: 2, equalColumns: true, aligned: true, beside: true, captionsFit: true,
 			controls: ['Trigger', 'Minute', 'Hour', 'Day of month', 'Month', 'Day of week'],
 		})));
 	});
@@ -1477,6 +1478,42 @@ suite('Automation dialog creation', () => {
 			assert.deepStrictEqual((await dialog.result)?.value.schedule, automation.schedule);
 		});
 	}
+
+	for (const edit of [false, true]) {
+		test(`${edit ? 'edit' : 'create'} Cron preserves its expression and foreign time zone in the dialog result`, async () => {
+			const automation: IAutomationDescriptor = {
+				id: 'cron', name: 'Cron review', prompt: 'Review changes', enabled: false, createdAt: '', updatedAt: '',
+				target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' },
+				schedule: {
+					interval: 'cron', cronExpression: edit ? '  */2  * * * MON-FRI  ' : '*/2 * * * MON-FRI',
+					cronTimeZone: 'Europe/Berlin', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0,
+				},
+			};
+			const dialog = openDialog(edit ? { existing: automation } : { initialValues: automation });
+			dialog.saveButton.click();
+			assert.deepStrictEqual((await dialog.result)?.value.schedule, automation.schedule);
+		});
+	}
+
+	test('switching Cron to Cloud blocks save until a supported trigger is chosen', async () => {
+		const dialog = openDialog({
+			initialValues: {
+				name: 'Cron review', prompt: 'Review changes',
+				target: { kind: 'workspace', folderUri: FOLDER, providerId: 'host', sessionTypeId: 'copilotcli', isolation: { kind: 'folder' } },
+				schedule: { interval: 'cron', cronExpression: '*/2 * * * *', cronTimeZone: 'UTC', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			},
+		}, cloudConfiguration());
+		await dialog.setCloud(true);
+		const interval = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
+		const blocked = { cronAvailable: Array.from(interval.options).some(option => option.textContent === 'Cron'), disabled: dialog.saveButton.getAttribute('aria-disabled') };
+		interval.selectedIndex = Array.from(interval.options).findIndex(option => option.textContent === 'Daily');
+		interval.dispatchEvent(new (DOM.getWindow(interval).Event)('change', { bubbles: true }));
+		assert.deepStrictEqual({ blocked, recovered: dialog.saveButton.getAttribute('aria-disabled') }, {
+			blocked: { cronAvailable: false, disabled: 'true' }, recovered: 'false',
+		});
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
 
 	test('duplicating foreign-time-zone Weekdays requires choosing a supported schedule', async () => {
 		const automation: IAutomationDescriptor = {
@@ -3030,7 +3067,6 @@ suite('Automation dialog layout', () => {
 				'automation-trigger-required-fields',
 				'automation-target-error automation-visually-hidden',
 				'automation-advanced',
-				'automation-form-row automation-form-cron-row',
 			],
 			enabledCheckbox: null,
 			targetLabel: 'Target',
@@ -3121,7 +3157,7 @@ suite('Automation dialog layout', () => {
 		assert.ok(validationCalls > previousValidationCalls, 'session capabilities must revalidate even when the selected host is unchanged');
 
 		const scheduleSelect = form.querySelector<HTMLSelectElement>('.automation-form-schedule-select-container select')!;
-		const cronRow = form.querySelector<HTMLElement>('.automation-form-cron-row')!;
+		const cronRow = form.querySelector<HTMLElement>('.automation-form-cron-group')!;
 		const cronInput = cronRow.querySelector('input')!;
 		const cronInputs = Array.from(cronRow.querySelectorAll('input'));
 		const cronError = cronRow.querySelector('.automation-form-cron-error')!;

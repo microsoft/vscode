@@ -979,7 +979,7 @@ suite('AutomationTools', () => {
 		});
 	});
 
-	test('configureAutomation schema offers local weekdays schedules', () => {
+	test('configureAutomation schema offers local weekdays and cron schedules', () => {
 		const tool = createConfigureAutomationTool(new FakeAutomationService(), new FakeSessionsManagementService(undefined), createConfigurationService());
 		const schedule = tool.getToolData().inputSchema?.properties?.schedule;
 		assert.deepStrictEqual({
@@ -988,12 +988,16 @@ suite('AutomationTools', () => {
 			excludesCloud: schedule?.properties?.interval.description?.includes('not supported by Cloud'),
 			hour: schedule?.properties?.scheduleHour.description?.includes('weekdays'),
 			minute: schedule?.properties?.scheduleMinute.description?.includes('weekdays'),
+			cronExpression: schedule?.properties?.cronExpression.type,
+			cronTimeZone: schedule?.properties?.cronTimeZone.type,
 		}, {
 			intervals: ['manual', 'hourly', 'daily', 'weekdays', 'weekly', 'cron'],
 			localWeekdays: true,
 			excludesCloud: true,
 			hour: true,
 			minute: true,
+			cronExpression: 'string',
+			cronTimeZone: 'string',
 		});
 	});
 
@@ -1119,6 +1123,41 @@ suite('AutomationTools', () => {
 		});
 	});
 
+	test('configureAutomation preserves cron fields on partial updates and removes them for presets', async () => {
+		const schedule: IAutomationSchedule = { interval: 'cron', cronExpression: '*/2 * * * MON-FRI', cronTimeZone: 'Europe/Berlin', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+		const changes = [
+			{ name: 'Renamed' },
+			{ schedule: { cronExpression: '*/3 * * * MON-FRI' } },
+			{ schedule: { cronTimeZone: 'UTC' } },
+			{ schedule: { interval: 'daily', scheduleHour: 8 } },
+		];
+		const results = [];
+		for (const change of changes) {
+			const existing = createAutomation({ schedule });
+			const service = new FakeAutomationService([existing]);
+			const tool = createConfigureAutomationTool(service, new FakeSessionsManagementService(undefined), createConfigurationService());
+			const result = await invoke(tool, { automationId: existing.id, ...change });
+			results.push({ status: JSON.parse(getText(result)).status, patch: service.updated[0]?.patch });
+		}
+		assert.deepStrictEqual(results, [
+			{ status: 'updated', patch: { name: 'Renamed' } },
+			{ status: 'updated', patch: { schedule: { ...schedule, cronExpression: '*/3 * * * MON-FRI' } } },
+			{ status: 'updated', patch: { schedule: { ...schedule, cronTimeZone: 'UTC' } } },
+			{ status: 'updated', patch: { schedule: { interval: 'daily', scheduleHour: 8, scheduleMinute: 0, scheduleDay: 0 } } },
+		]);
+	});
+
+	test('configureAutomation rejects missing cron expressions and invalid time zones without mutation', async () => {
+		const service = new FakeAutomationService();
+		const tool = createConfigureAutomationTool(service, new FakeSessionsManagementService(createSession({ quickChat: true })), createConfigurationService());
+		const rejected = [];
+		for (const fields of [{}, { cronExpression: ' ' }, { cronExpression: '*/2 * * * *', cronTimeZone: 'Invalid/Zone' }]) {
+			const result = await invoke(tool, { name: 'Cron', prompt: 'Review', schedule: { interval: 'cron', ...fields } });
+			rejected.push(!!result.toolResultError);
+		}
+		assert.deepStrictEqual({ rejected, creates: service.created }, { rejected: [true, true, true], creates: [] });
+	});
+
 	test('configureAutomation rejects Cloud cron creation and updates before approval or mutation', async () => {
 		const existing = createAutomation({
 			target: { kind: 'workspace', folderUri: FOLDER, providerId: 'cloud', sessionTypeId: 'cloud', isolation: { kind: 'default' } },
@@ -1135,7 +1174,7 @@ suite('AutomationTools', () => {
 		for (const parameters of inputs) {
 			const result = await invoke(tool, parameters);
 			results.push({ error: !!result.toolResultError, message: getText(result).includes('Cron schedules are not supported by Cloud automations.') });
-			await assert.rejects(tool.prepareToolInvocation({ parameters, chatSessionResource: SESSION_RESOURCE }, CancellationToken.None), /Cron schedules are not supported by Cloud automations\./);
+			await assert.rejects(tool.prepareToolInvocation({ toolCallId: 'cron-cloud', parameters, chatSessionResource: SESSION_RESOURCE }, CancellationToken.None), /Cron schedules are not supported by Cloud automations\./);
 		}
 		assert.deepStrictEqual({ results, creates: service.created, updates: service.updated }, {
 			results: [{ error: true, message: true }, { error: true, message: true }], creates: [], updates: [],
