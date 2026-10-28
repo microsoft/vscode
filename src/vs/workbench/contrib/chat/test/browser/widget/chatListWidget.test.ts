@@ -42,6 +42,7 @@ import { IChatResponseFileChangesService } from '../../../browser/chatResponseFi
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget, shouldShowChatLinkOpenWith } from '../../../browser/widget/chatListWidget.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
+import { ChatListItemRenderer } from '../../../browser/widget/chatListRenderer.js';
 import { ChatRequestQueueKind, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
@@ -339,6 +340,41 @@ suite('ChatListWidget', () => {
 		widget.setViewModel(viewModel);
 		widget.setVisible(true);
 		return { disposables, instantiationService, model, viewModel, container, widget, contextKeyService: instantiationService.get(IContextKeyService) };
+	}
+
+	for (const complete of [false, true]) {
+		test(`renders a newly opened large response once when measured preceding rows push it out of the initial viewport (complete=${complete})`, async () => {
+			const { instantiationService, model, viewModel, widget, container } = createWidget({ defaultElementHeight: 40 }, configuration => {
+				configuration.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
+			}, true, undefined, undefined, URI.from({ scheme: SessionType.AgentHostCopilot, path: '/large-response' }));
+			instantiationService.stub(IChatResponseFileChangesService, {
+				getChangesForRequest: () => constObservable([]),
+				getFileEditsForRequest: () => constObservable([]),
+			});
+			const addRequest = (text: string) => model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			}, { variables: [] }, 0);
+			const earlier = addRequest('Earlier request');
+			model.acceptResponseProgress(earlier, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 60 }, (_, index) => `- Earlier result ${index}`).join('\n')) });
+			earlier.response!.complete();
+			const latest = addRequest('Latest request');
+			model.acceptResponseProgress(latest, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 100 }, (_, index) => `- Latest result ${index}`).join('\n')) });
+			if (complete) {
+				latest.response!.complete();
+			}
+			const response = viewModel.getItems().find(item => isResponseVM(item) && item.requestId === latest.id);
+			assert.ok(response);
+			const rendered = sinon.spy(ChatListItemRenderer.prototype, 'renderElement');
+			widget.layout(300, 500);
+			widget.refresh();
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				renders: rendered.getCalls().filter(call => call.args[0].element === response).length,
+				finalVisible: container.textContent?.includes('Latest result 99'),
+				atBottom: widget.isScrolledToBottom,
+			}, { renders: 1, finalVisible: true, atBottom: true });
+		});
 	}
 
 	test('consumed steering messages have no empty response or checkpoint spacer between them', async () => {
@@ -1621,6 +1657,8 @@ suite('ChatListWidget', () => {
 			}, true);
 			const { model, container, widget, viewModel } = context;
 			container.classList.add('interactive-list');
+			// Pin the workbench font size so prompt wrapping doesn't depend on the body font, which the full suite changes to 11px.
+			container.style.fontSize = '13px';
 			container.style.setProperty('--vscode-spacing-size80', '8px');
 			const request = model.addRequest({
 				text,
@@ -1716,7 +1754,7 @@ suite('ChatListWidget', () => {
 		});
 
 		test('clips MCP app overlays below appearing, resized and hidden sticky prompts', async () => {
-			const { container, widget } = await createTranscript('Keep the MCP app visible.');
+			const { container, widget } = await createTranscript('Keep the MCP app visible while scrolling the transcript.');
 			widget.getOverlayClippingContainer();
 			const stickyNode = widget.stickyScrollDomNode;
 			assert.ok(stickyNode);

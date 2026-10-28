@@ -821,6 +821,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		hasGitRoot: () => constObservable(undefined),
 		getRepositoryRoot: async () => undefined,
 		getWorktreeRoots: async () => [],
+		getWorktrees: async () => [],
 		addWorktree: async () => { },
 		copyWorktreeIncludeFiles: async () => { },
 		symlinkWorktreeFolders: async () => [],

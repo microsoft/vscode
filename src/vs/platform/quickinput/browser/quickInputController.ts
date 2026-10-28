@@ -604,6 +604,7 @@ export class QuickInputController extends Disposable {
 			input.matchOnLabel = (options.matchOnLabel === undefined) || options.matchOnLabel; // default to true
 			input.quickNavigate = options.quickNavigate;
 			input.hideInput = !!options.hideInput;
+			input.useNeutralSelection = !!options.useNeutralSelection;
 			input.contextKey = options.contextKey;
 			input.anchor = options.anchor;
 			input.anchorPosition = options.anchorPosition;

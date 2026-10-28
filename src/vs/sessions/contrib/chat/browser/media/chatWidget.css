@@ -177,10 +177,6 @@
 	transition: width 180ms ease-out, margin-left 180ms ease-out, opacity 180ms ease-out, display 180ms allow-discrete;
 }
 
-.new-chat-session-options-details.legacy-session-options-details {
-	display: contents;
-}
-
 .new-chat-session-options .new-chat-session-options-details[hidden] {
 	display: none;
 	width: 0;
@@ -410,13 +406,6 @@
 }
 
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container {
-	overflow: hidden;
-}
-
-.new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container {
-	display: flex;
-	gap: var(--vscode-spacing-size20);
-	min-width: 0;
 	overflow: hidden;
 }
 
@@ -1035,12 +1024,7 @@
 	color: var(--vscode-problemsInfoIcon-foreground) !important;
 }
 
-/* Tab bar styles live with the platform widget
- * (`platform/actionWidget/browser/tabbedActionListWidget.css`). The
- * `sessions-workspace-picker-tabbar` class is applied alongside the
- * generic class so picker-specific overrides can be added here if needed. */
-
-/* Inline browse actions (e.g. "Select Folders…" entries in the Remote tab):
+/* Inline browse actions (e.g. "Select Folders…" entries in the Remote group):
  * show the host name as the primary label and only reveal the secondary
  * "Select Folders…" description on hover/focus to reduce repetition. */
 .action-widget .monaco-list-row.action.sessions-browse-inline-item .description {

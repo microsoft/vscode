@@ -17,7 +17,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { firstParallel, Limiter, SequencerByKey, timeout } from '../../../base/common/async.js';
 import { derived, observableValueOpts, type IObservable } from '../../../base/common/observable.js';
@@ -270,16 +270,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getWorktreeRoots(workingDirectory: URI): Promise<URI[]> {
-		return this._parseWorktreeRoots(await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain']));
+		return parseGitWorktrees(await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain', '-z']) ?? '').map(worktree => worktree.path);
 	}
 
-	private _parseWorktreeRoots(porcelainOutput: string | undefined): URI[] {
-		if (!porcelainOutput) {
-			return [];
-		}
-		return porcelainOutput.split(/\r?\n/g)
-			.filter(line => line.startsWith('worktree '))
-			.map(line => URI.file(line.substring('worktree '.length)));
+	async getWorktrees(workingDirectory: URI): Promise<IAgentHostGitWorktree[]> {
+		return parseGitWorktrees(await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain', '-z'], { throwOnError: true }) ?? '');
 	}
 
 	async addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void> {
@@ -547,7 +542,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	async isWorktreeRegistered(repositoryRoot: URI, worktree: URI): Promise<boolean> {
 		let registered: URI[];
 		try {
-			registered = this._parseWorktreeRoots(await this._runGit(repositoryRoot, ['worktree', 'list', '--porcelain'], { throwOnError: true }));
+			registered = (await this.getWorktrees(repositoryRoot)).map(worktree => worktree.path);
 		} catch {
 			return true;
 		}
@@ -1852,6 +1847,15 @@ export function summarizeStderrForError(stderr: string): string {
 	);
 	const summary = gitLfsMissing ?? lines.find(line => /^fatal:/i.test(line)) ?? lines[lines.length - 1];
 	return summary.length > MAX ? `${summary.slice(0, MAX - 1)}…` : summary;
+}
+
+export function parseGitWorktrees(output: string): IAgentHostGitWorktree[] {
+	const branchPrefix = 'branch refs/heads/';
+	return output.split('\0\0').filter(record => record.startsWith('worktree ')).map(record => {
+		const fields = record.split('\0');
+		const branch = fields.find(field => field.startsWith(branchPrefix));
+		return { path: URI.file(fields[0].slice('worktree '.length)), branchName: branch?.slice(branchPrefix.length) };
+	});
 }
 
 /**

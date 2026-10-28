@@ -21,10 +21,7 @@ steps:
   - ${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}:
     - template: ../../common/ensure-test-artifact-directories.yml@self
 
-  - task: NodeTool@0
-    inputs:
-      versionSource: fromFile
-      versionFilePath: .nvmrc
+  - template: ../../common/setup-node.yml@self
 
   - task: UsePythonVersion@0
     inputs:
