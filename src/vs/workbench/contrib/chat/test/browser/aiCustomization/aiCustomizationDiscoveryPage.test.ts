@@ -186,6 +186,8 @@ suite('AICustomizationDiscoveryPage', () => {
 		const installChanges = store.add(new Emitter<void>());
 		const installStates = new Map<string, CustomizationMarketplaceInstallState>();
 		const recordedResources = new Map<string, ICustomizationMarketplaceResource>();
+		const installationAliases = new Map<string, string>();
+		const installationIds = new Map<string, string>();
 		const repairs: string[] = [];
 		const cancellations: string[] = [];
 		const uninstalls: string[] = [];
@@ -193,12 +195,17 @@ suite('AICustomizationDiscoveryPage', () => {
 		const getInstallations = () => createCustomizationMarketplaceInstallationSnapshot([...recordedResources.values()].flatMap(resource => {
 			const state = installStates.get(getCustomizationMarketplaceResourceKey(resource));
 			return state?.kind === 'checking' || state?.kind === 'installed' || state?.kind === 'missing' || state?.kind === 'repairing' || state?.kind === 'uninstalling' || state?.kind === 'error'
-				? [{ resource, state }]
+				? [{ resource, state, installationId: installationIds.get(getCustomizationMarketplaceResourceKey(resource)) }]
 				: [];
 		}));
 		instantiationService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 			override readonly onDidChange = installChanges.event;
 			override readonly installations = observableFromEvent(installChanges.event, getInstallations);
+			override findInstallation(resource: ICustomizationMarketplaceResource) {
+				const installationKey = installationAliases.get(getCustomizationMarketplaceResourceKey(resource));
+				const installationResource = installationKey ? recordedResources.get(installationKey) : resource;
+				return installationResource ? this.installations.get().findByResource(installationResource) : undefined;
+			}
 			override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
 				if (installedIdentifiers.includes(resource.identifier)) {
 					return { kind: 'installed', target: { kind: 'skill', uri: URI.file(`/installed/${resource.identifier}`) } };
@@ -291,14 +298,19 @@ suite('AICustomizationDiscoveryPage', () => {
 				return typeof options === 'function' ? options().content : options?.content;
 			},
 			reportBrowseSectionsProgress: (progress: Parameters<NonNullable<typeof browseSectionsProgress>>[0]) => browseSectionsProgress?.(progress),
-			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState) => {
+			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState, record = true) => {
 				const key = getCustomizationMarketplaceResourceKey(resource);
 				installStates.set(key, state);
-				if (state.kind === 'checking' || state.kind === 'installed' || state.kind === 'missing' || state.kind === 'repairing' || state.kind === 'uninstalling' || state.kind === 'error') {
+				if (record && (state.kind === 'checking' || state.kind === 'installed' || state.kind === 'missing' || state.kind === 'repairing' || state.kind === 'uninstalling' || state.kind === 'error')) {
 					recordedResources.set(key, resource);
 				} else {
 					recordedResources.delete(key);
 				}
+			},
+			setInstallationAlias: (resource: ICustomizationMarketplaceResource, installation: ICustomizationMarketplaceResource) => {
+				const installationKey = getCustomizationMarketplaceResourceKey(installation);
+				installationAliases.set(getCustomizationMarketplaceResourceKey(resource), installationKey);
+				installationIds.set(installationKey, `test:${installationKey}`);
 			},
 			notifyInstallChange: () => installChanges.fire(),
 			notifyMcpChange: () => mcpChanges.fire(undefined),
@@ -1371,7 +1383,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
-	test('installed plugin and Canvas filters overlap without duplicate rows', async () => {
+	test('installed plugin and Canvas filters retain distinct name-only provider rows', async () => {
 		const plugin = resource('canvas-only-plugin', {
 			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
 			compatibilityTags: ['canvas', 'canvas-only'],
@@ -1429,14 +1441,14 @@ suite('AICustomizationDiscoveryPage', () => {
 			canvasResults,
 			combinedResults,
 		}, {
-			allResults: ['canvas-only-plugin', 'ordinary-plugin'],
-			pluginResults: ['canvas-only-plugin', 'ordinary-plugin'],
+			allResults: ['canvas-only-plugin', 'canvas-only-plugin', 'ordinary-plugin'],
+			pluginResults: ['canvas-only-plugin', 'canvas-only-plugin', 'ordinary-plugin'],
 			canvasResults: ['canvas-only-plugin'],
-			combinedResults: ['canvas-only-plugin', 'ordinary-plugin'],
+			combinedResults: ['canvas-only-plugin', 'canvas-only-plugin', 'ordinary-plugin'],
 		});
 	});
 
-	test('does not associate a URI-backed local plugin with a name-only provider installation', async () => {
+	test('retains a provider plugin with the same name as a catalog-backed local plugin', async () => {
 		const plugin = resource('shared-name', {
 			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
 			compatibilityTags: ['canvas', 'canvas-only'],
@@ -1445,14 +1457,27 @@ suite('AICustomizationDiscoveryPage', () => {
 			override readonly uri = URI.file('/local/shared-name');
 			override readonly label = 'shared-name';
 		}();
-		const fixture = createPage(undefined, [AICustomizationManagementSection.Plugins], [localPlugin]);
-		fixture.setInstallState(plugin, { kind: 'installed', target: { kind: 'plugin', name: 'shared-name' } });
+		const fixture = createPage(undefined, [AICustomizationManagementSection.Plugins], [localPlugin], undefined, [], undefined, {}, [{
+			uri: URI.file('/provider/shared-name'),
+			type: 'plugin',
+			name: 'shared-name',
+			source: 'plugin',
+			extensionId: undefined,
+			pluginUri: undefined,
+		}]);
+		fixture.setInstallState(plugin, { kind: 'installed', target: { kind: 'plugin', uri: localPlugin.uri, name: 'shared-name' } });
 		fixture.notifyInstallChange();
 		fixture.page.setSearchQuery('@installed @type:plugin');
 		fixture.page.setVisible(true);
 		await timeout(0);
 
-		assert.strictEqual(fixture.page.getAccessibilityContent().includes('shared-name'), true);
+		assert.deepStrictEqual({
+			rows: [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent),
+			accessibleNames: fixture.page.getAccessibilityContent().split('\n').filter(line => line === 'shared-name'),
+		}, {
+			rows: ['shared-name', 'shared-name'],
+			accessibleNames: ['shared-name', 'shared-name'],
+		});
 	});
 
 	test('merges local and provider plugin entries into the installed marketplace row', async () => {
@@ -1512,6 +1537,32 @@ suite('AICustomizationDiscoveryPage', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ rows, accessibleNames, label, uninstalls: fixture.uninstalls }, {
 			rows: ['Slack', 'slack'], accessibleNames: ['Slack', 'Slack MCP'], label: 'Uninstall', uninstalls: ['slack-gallery'],
+		});
+	});
+
+	test('merges MCP catalog aliases through a name-only provider installation', async () => {
+		const installation = resource('installed-slack', { displayName: 'Slack' });
+		const first = resource('slack-gallery', { displayName: 'Slack MCP' });
+		const second = resource('slack-registry', { displayName: 'Slack server' });
+		const fixture = createPage(['agentFinder']);
+		const state = { kind: 'installed' as const, target: { kind: 'mcp' as const, name: 'slack' } };
+		fixture.setInstallState(installation, state);
+		for (const candidate of [first, second]) {
+			fixture.setInstallState(candidate, state, false);
+			fixture.setInstallationAlias(candidate, installation);
+		}
+		fixture.notifyInstallChange();
+		fixture.page.setSearchQuery('slack');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [first, second] });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			rows: [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent),
+			accessibleNames: fixture.page.getAccessibilityContent().split('\n').filter(line => /^Slack/.test(line)),
+		}, {
+			rows: ['Slack MCP'],
+			accessibleNames: ['Slack MCP'],
 		});
 	});
 
@@ -3831,6 +3882,38 @@ suite('AICustomizationDiscoveryPage', () => {
 			headings: ['Expand your agent\'s horizons'],
 			warning: true,
 			item: 'catalog-skill',
+		});
+	});
+
+	test('deduplicates installed catalog aliases in fallback Browse cards', async () => {
+		const first = resource('handy-gallery', { displayName: 'Handy' });
+		const second = resource('handy-registry', { displayName: 'Handy alias' });
+		const fixture = createPage(
+			['agentFinder'],
+			[AICustomizationManagementSection.McpServers],
+			[],
+			undefined,
+			[],
+			{
+				sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+				sections: [],
+				error: 'Curated feeds unavailable',
+			},
+		);
+		for (const candidate of [first, second]) {
+			fixture.setInstallState(candidate, { kind: 'installed', target: { kind: 'mcp', id: 'handy-server' } });
+		}
+		fixture.notifyInstallChange();
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [first, second] });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			cards: [...fixture.container.querySelectorAll('.customization-discovery-card-name')].map(element => element.textContent),
+			accessibleNames: fixture.page.getAccessibilityContent().split('\n').filter(line => line.startsWith('Handy')),
+		}, {
+			cards: ['Handy'],
+			accessibleNames: ['Handy'],
 		});
 	});
 

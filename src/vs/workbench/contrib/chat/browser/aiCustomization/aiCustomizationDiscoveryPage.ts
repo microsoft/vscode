@@ -174,7 +174,6 @@ interface IInstalledDiscoveryItem {
 	readonly promptDetail?: IAICustomizationListItem;
 	readonly pluginDetail?: IAgentPluginItem;
 	readonly mcpDetail?: IMcpServerDetailInput;
-	readonly matchMarketplaceByName?: boolean;
 	readonly linkedConnectionRole?: LinkedConnectionRole;
 	readonly alternativeExpanded?: boolean;
 }
@@ -346,7 +345,7 @@ function getInstalledItemMarketplaceRecord(
 		case 'skill':
 			return item.uri ? installations.findByTarget({ kind: item.type, uri: item.uri }) : undefined;
 		case 'plugin':
-			return installations.findByTarget({ kind: 'plugin', uri: item.uri, name: item.matchMarketplaceByName ? item.name : undefined });
+			return item.uri ? installations.findByTarget({ kind: 'plugin', uri: item.uri }) : undefined;
 		case 'mcp':
 			return item.mcpServerId ? installations.findByTarget({ kind: 'mcp', id: item.mcpServerId }) : undefined;
 		default:
@@ -1609,7 +1608,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				section: AICustomizationManagementSection.Plugins,
 				uri: item.uri,
 				disabled: item.enabled === false,
-				matchMarketplaceByName: true,
 			}));
 			this.renderInstalledItemsChange();
 		} catch (error) {
@@ -2217,14 +2215,14 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			}
 		}
 		const query = normalizedName(this.query.text);
-		const matching = [...resources.values()].filter(resource => {
+		const matching = this.deduplicateMarketplaceResources([...resources.values()].filter(resource => {
 			const type = getCatalogType(resource);
 			return !!type
 				&& this.matchesMarketplaceResource(resource)
 				&& (!this.selectedSourceId || resource.sourceId === this.selectedSourceId)
 				&& (!query || [resource.displayName, resource.description, getTypeLabel(type), this.getMarketplaceSourceLabel(resource.sourceId)].some(value => normalizedName(value).includes(query)));
-		});
-		const prioritized = this.isBlankCanvasBrowse()
+		}));
+		return this.isBlankCanvasBrowse()
 			? matching
 				.map((resource, originalIndex) => ({ resource, originalIndex }))
 				.sort((first, second) => (second.resource.installCount ?? 0) - (first.resource.installCount ?? 0) || first.originalIndex - second.originalIndex)
@@ -2232,14 +2230,17 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			: this.selectedSourceId
 				? matching.map(resource => ({ resource }))
 				: prioritizeLinkedCopilotConnectors(matching);
-		const states = prioritized.map(entry => ({ entry, state: this.getInstallState(entry.resource) }));
+	}
+
+	private deduplicateMarketplaceResources(resources: readonly ICustomizationMarketplaceResource[]): readonly ICustomizationMarketplaceResource[] {
 		const installations = this.installService.installations.get();
 		const seen = new Set<string | IRecordedCustomizationMarketplaceResource>();
-		return states.filter(({ entry, state }) => {
+		return resources.filter(resource => {
+			const state = this.getInstallState(resource);
 			if (!hasInstallationTarget(state)) {
 				return true;
 			}
-			const record = installations.findByResource(entry.resource) ?? installations.findByTarget(state.target);
+			const record = this.installService.findInstallation(resource) ?? installations.findByTarget(state.target);
 			if (!record) {
 				return true;
 			}
@@ -2249,7 +2250,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			}
 			seen.add(identity);
 			return true;
-		}).map(({ entry }) => entry);
+		});
 	}
 
 	private renderSearchResults(preserveResults: boolean): void {
@@ -2275,7 +2276,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		for (const { resource, linkedConnectionRole, state } of resources) {
 			const type = getCatalogType(resource)!;
 			if (hasInstallationTarget(state)) {
-				const marketplace = marketplaceInstallations.findByResource(resource) ?? marketplaceInstallations.findByTarget(state.target);
+				const marketplace = this.installService.findInstallation(resource) ?? marketplaceInstallations.findByTarget(state.target);
 				const identity = marketplace ? getMarketplaceInstallationIdentity(marketplace, marketplaceInstallations) : undefined;
 				const matchingInstalledIndices = (identity !== undefined ? installedByMarketplaceRecord.get(identity) : undefined) ?? [];
 				const matchingInstalledIndex = matchingInstalledIndices[0];
@@ -2446,7 +2447,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			}
 		}
 		if (browsePresentation === 'fallback') {
-			const prioritizedResources = prioritizeLinkedCopilotConnectors(this.catalogItems);
+			const prioritizedResources = prioritizeLinkedCopilotConnectors(this.deduplicateMarketplaceResources(this.catalogItems));
 			const leading = this.selectedSourceId ? [] : getLeadingBrowseItems(prioritizedResources);
 			const leadingIds = new Set(leading.map(({ resource }) => getCustomizationMarketplaceResourceKey(resource)));
 			if (leading.length) {
@@ -3116,7 +3117,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			if (!hasInstallationTarget(state)) {
 				return [];
 			}
-			const installation = marketplaceInstallations.findByResource(resource) ?? marketplaceInstallations.findByTarget(state.target);
+			const installation = this.installService.findInstallation(resource) ?? marketplaceInstallations.findByTarget(state.target);
 			return installation ? [getMarketplaceInstallationIdentity(installation, marketplaceInstallations)] : [];
 		}));
 		const installed = this.getFilteredInstalledItems().filter(item => {
