@@ -144,6 +144,16 @@ interface IResolvedHomeFormatter {
 	readonly authorityLength: number;
 }
 
+function isValidCachedFormatter(candidate: unknown): candidate is ResourceLabelFormatter {
+	if (!candidate || typeof candidate !== 'object') {
+		return false;
+	}
+	const formatter = candidate as Partial<ResourceLabelFormatter>;
+	return typeof formatter.scheme === 'string' &&
+		(formatter.authority === undefined || typeof formatter.authority === 'string') &&
+		!!formatter.formatting && typeof formatter.formatting === 'object';
+}
+
 function isTemplateFormatter(formatter: ResourceLabelFormatter | ResourceLabelTemplateFormatter): formatter is ResourceLabelTemplateFormatter {
 	return URI.isUri(formatter.home);
 }
@@ -153,6 +163,8 @@ export class LabelService extends Disposable implements ILabelService {
 	declare readonly _serviceBrand: undefined;
 
 	private formatters: ResourceLabelFormatter[];
+	/** Formatters loaded from the profile cache, as opposed to live registrations. */
+	private cachedFormatters: ResourceLabelFormatter[];
 	private homeFormatters: IHomeFormatterRegistration[] = [];
 
 	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>({ leakWarningThreshold: 400, leakWarningName: 'LabelService._onDidChangeFormatters' }));
@@ -183,10 +195,51 @@ export class LabelService extends Disposable implements ILabelService {
 
 		const memento = this.storedFormattersMemento = new Memento('cachedResourceLabelFormatters2', storageService);
 		this.storedFormatters = memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
-		this.formatters = this.storedFormatters?.formatters?.slice() || [];
+		this.cachedFormatters = this.sanitizeStoredFormatters();
+		this.formatters = this.cachedFormatters.slice();
+
+		// Other windows (or a profile switch) may update the cached
+		// formatters while this window is open: pick them up so labels
+		// stay current and later saves don't write back a stale snapshot.
+		this._register(memento.onDidChangeValue(StorageScope.PROFILE, this._store)(e => {
+			if (e.external) {
+				this.reloadCachedFormatters();
+			}
+		}));
 
 		// Remote environment is potentially long running
 		this.resolveRemoteEnvironment();
+	}
+
+	private sanitizeStoredFormatters(): ResourceLabelFormatter[] {
+		const stored = this.storedFormatters.formatters;
+		if (stored === undefined) {
+			return [];
+		}
+
+		const valid = Array.isArray(stored) ? stored.filter(isValidCachedFormatter) : [];
+		if (!Array.isArray(stored) || valid.length !== stored.length) {
+			this.storedFormatters.formatters = valid;
+		}
+
+		return valid.slice();
+	}
+
+	private reloadCachedFormatters(): void {
+		const previous = this.cachedFormatters;
+		this.storedFormattersMemento.reloadMemento(StorageScope.PROFILE);
+		this.cachedFormatters = this.sanitizeStoredFormatters();
+
+		const previousSet = new Set<ResourceLabelFormatter>(previous);
+		this.formatters = [...this.cachedFormatters, ...this.formatters.filter(f => !previousSet.has(f))];
+
+		const schemes = new Set<string>();
+		for (const formatter of [...previous, ...this.cachedFormatters]) {
+			schemes.add(formatter.scheme);
+		}
+		for (const scheme of schemes) {
+			this._onDidChangeFormatters.fire({ scheme });
+		}
 	}
 
 	private async resolveRemoteEnvironment(): Promise<void> {

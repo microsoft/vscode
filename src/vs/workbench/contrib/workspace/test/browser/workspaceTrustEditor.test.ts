@@ -13,6 +13,7 @@ import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileDialogService, IOpenDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustUriInfo } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { TestEditorGroupView, TestFileDialogService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestWorkspaceTrustManagementService } from '../../../../test/common/workbenchTestServices.js';
@@ -132,13 +133,18 @@ suite('WorkspaceTrustedUrisTable', () => {
 	});
 
 	function createTable(names: string[], scrollableElement?: DomScrollableElement): void {
+		createTableWithUris(names.map(folder), scrollableElement);
+	}
+
+	function createTableWithUris(uris: URI[], scrollableElement?: DomScrollableElement): ILabelService {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		dialogService = instantiationService.createInstance(PickerFileDialogService);
-		trustService = store.add(new FakeWorkspaceTrustManagementService(names.map(folder)));
+		trustService = store.add(new FakeWorkspaceTrustManagementService(uris));
 		instantiationService.stub(IFileDialogService, dialogService);
 		instantiationService.stub(IWorkspaceTrustManagementService, trustService);
 		table = store.add(instantiationService.createInstance(WorkspaceTrustedUrisTable, container, scrollableElement));
 		table.updateTable();
+		return instantiationService.get(ILabelService);
 	}
 
 	function getState(): ITableState {
@@ -379,6 +385,62 @@ suite('WorkspaceTrustedUrisTable', () => {
 			[['c-two'], ['c-two']],
 			[[], []],
 		]);
+	});
+
+	suite('remote host labels (#122609)', () => {
+		const hostA = URI.parse('vscode-remote://ssh-remote+hostA/home/a');
+		const hostB = URI.parse('vscode-remote://ssh-remote+hostB/home/b');
+		const formatter = (authority: string, workspaceSuffix: string) => ({ scheme: 'vscode-remote', authority, formatting: { label: '${path}', separator: '/' as const, workspaceSuffix } });
+
+		function getHostState() {
+			return Array.from(container.querySelectorAll('.monaco-list-row'))
+				.sort((a, b) => Number(a.getAttribute('data-index')) - Number(b.getAttribute('data-index')))
+				.map(row => ({ host: row.querySelector('.host-label')?.textContent, ariaLabel: row.getAttribute('aria-label') }));
+		}
+
+		function getRow(uri: URI): HTMLElement {
+			return Array.from(container.querySelectorAll<HTMLElement>('.monaco-list-row')).find(row => row.getAttribute('aria-label')?.startsWith(uri.path))!;
+		}
+
+		test('refreshes host labels when formatters change', () => {
+			const labelService = createTableWithUris([hostA, hostB]);
+			store.add(labelService.registerFormatter(formatter('ssh-remote+*', 'SSH')));
+			const before = getHostState();
+
+			store.add(labelService.registerFormatter(formatter('ssh-remote+hostB', 'SSH: hostB')));
+
+			assert.deepStrictEqual({ before, after: getHostState(), trusted: trustService.getTrustedUris().map(uri => uri.toString()) }, {
+				before: [
+					{ host: 'SSH', ariaLabel: '/home/a on SSH, trusted' },
+					{ host: 'SSH', ariaLabel: '/home/b on SSH, trusted' },
+				],
+				after: [
+					{ host: 'SSH', ariaLabel: '/home/a on SSH, trusted' },
+					{ host: 'SSH: hostB', ariaLabel: '/home/b on SSH: hostB, trusted' },
+				],
+				trusted: [hostA.toString(), hostB.toString()],
+			});
+		});
+
+		test('defers the refresh while a path is being edited', async () => {
+			const labelService = createTableWithUris([hostA, hostB]);
+			store.add(labelService.registerFormatter(formatter('ssh-remote+*', 'SSH')));
+			getRow(hostB).querySelector<HTMLElement>('.codicon-workspace-trust-editor-edit-folder')!.click();
+			await timeout(0);
+			const input = getRow(hostB).querySelector<HTMLInputElement>('.path input')!;
+			input.value = '/home/typed';
+
+			store.add(labelService.registerFormatter(formatter('ssh-remote+hostB', 'SSH: hostB')));
+			const whileEditing = { value: input.value, inputMode: !!input.closest('.path.input-mode'), hosts: getHostState().map(row => row.host) };
+
+			input.dispatchEvent(new FocusEvent('blur'));
+
+			assert.deepStrictEqual({ whileEditing, afterEdit: getHostState().map(row => row.host), trusted: trustService.getTrustedUris().map(uri => uri.toString()) }, {
+				whileEditing: { value: '/home/typed', inputMode: true, hosts: ['SSH', 'SSH'] },
+				afterEdit: ['SSH', 'SSH: hostB'],
+				trusted: [hostA.toString(), hostB.toString()],
+			});
+		});
 	});
 });
 

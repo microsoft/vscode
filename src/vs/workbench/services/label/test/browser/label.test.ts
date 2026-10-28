@@ -671,6 +671,144 @@ suite('URI Label', () => {
 	});
 });
 
+suite('cached label formatters', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const CACHE_KEY = 'memento/cachedResourceLabelFormatters2';
+	const SCHEME = 'vscode-remote';
+
+	let storageService: TestStorageService;
+
+	const host = (name: string) => `ssh-remote+${name}`;
+	const exact = (name: string, suffix: string): ResourceLabelFormatter => ({ scheme: SCHEME, authority: host(name), priority: true, formatting: { label: '${path}', separator: '/', workspaceSuffix: suffix } });
+	const wildcard: ResourceLabelFormatter = { scheme: SCHEME, authority: 'ssh-remote+*', formatting: { label: '${path}', separator: '/', workspaceSuffix: 'SSH' } };
+
+	setup(() => {
+		Memento.clear(StorageScope.PROFILE);
+		storageService = store.add(new TestStorageService());
+	});
+
+	teardown(() => {
+		Memento.clear(StorageScope.PROFILE);
+	});
+
+	function createLabelService(): LabelService {
+		const labelService = store.add(new LabelService(TestEnvironmentService, new TestContextService(), new TestPathService(URI.file('/foobar')), new TestRemoteAgentService(), storageService, store.add(new TestLifecycleService()), uriIdentityService));
+		store.add(labelService.registerFormatter(wildcard));
+		return labelService;
+	}
+
+	/** Simulates another window (or a profile switch) changing the shared cache. */
+	function writeExternally(value: object): void {
+		storageService.store(CACHE_KEY, value, StorageScope.PROFILE, StorageTarget.MACHINE, true);
+	}
+
+	function hostLabels(labelService: LabelService, ...names: string[]): Record<string, string> {
+		return Object.fromEntries(names.map(name => [name, labelService.getHostLabel(SCHEME, host(name))]));
+	}
+
+	function stored(): ResourceLabelFormatter[] | undefined {
+		return (storageService.getObject(CACHE_KEY, StorageScope.PROFILE) as { formatters?: ResourceLabelFormatter[] } | undefined)?.formatters;
+	}
+
+	test('picks up hosts cached by another window without reload', () => {
+		const labelService = createLabelService();
+		const events: string[] = [];
+		store.add(labelService.onDidChangeFormatters(e => events.push(e.scheme)));
+		const before = hostLabels(labelService, 'hostA', 'hostB');
+
+		writeExternally({ formatters: [exact('hostB', 'SSH: hostB')] });
+
+		assert.deepStrictEqual({ before, after: hostLabels(labelService, 'hostA', 'hostB'), events }, {
+			before: { hostA: 'SSH', hostB: 'SSH' },
+			after: { hostA: 'SSH', hostB: 'SSH: hostB' },
+			events: [SCHEME],
+		});
+	});
+
+	test('replaces the cached label of an existing host', () => {
+		writeExternally({ formatters: [exact('hostB', 'SSH: old')] });
+		const labelService = createLabelService();
+		const before = hostLabels(labelService, 'hostB');
+
+		writeExternally({ formatters: [exact('hostB', 'SSH: new')] });
+
+		assert.deepStrictEqual({ before, after: hostLabels(labelService, 'hostB') }, {
+			before: { hostB: 'SSH: old' },
+			after: { hostB: 'SSH: new' },
+		});
+	});
+
+	test('does not drop hosts cached by another window when caching its own', () => {
+		const labelService = createLabelService();
+		writeExternally({ formatters: [exact('hostB', 'SSH: hostB')] });
+		store.add(labelService.registerCachedFormatter(exact('hostA', 'SSH: hostA')));
+		const persisted = stored()?.map(f => f.authority);
+
+		labelService.dispose();
+		Memento.clear(StorageScope.PROFILE);
+		const reopened = createLabelService();
+
+		assert.deepStrictEqual({ persisted, reopened: hostLabels(reopened, 'hostA', 'hostB') }, {
+			persisted: [host('hostA'), host('hostB')],
+			reopened: { hostA: 'SSH: hostA', hostB: 'SSH: hostB' },
+		});
+	});
+
+	test('live registrations win over cached entries for the same host', () => {
+		writeExternally({ formatters: [exact('hostA', 'SSH: stale')] });
+		const labelService = createLabelService();
+		const live = labelService.registerCachedFormatter(exact('hostA', 'SSH: live'));
+		const states: Record<string, string>[] = [hostLabels(labelService, 'hostA')];
+
+		writeExternally({ formatters: [exact('hostA', 'SSH: other')] });
+		states.push(hostLabels(labelService, 'hostA'));
+
+		live.dispose();
+		states.push(hostLabels(labelService, 'hostA'));
+
+		writeExternally({});
+		states.push(hostLabels(labelService, 'hostA'));
+
+		assert.deepStrictEqual(states, [
+			{ hostA: 'SSH: live' },
+			{ hostA: 'SSH: live' },
+			{ hostA: 'SSH: other' },
+			{ hostA: 'SSH' },
+		]);
+	});
+
+	test('external cache replacement (as on a profile switch) drops stale entries', () => {
+		writeExternally({ formatters: [exact('hostB', 'SSH: hostB')] });
+		const labelService = createLabelService();
+		const before = hostLabels(labelService, 'hostB');
+
+		writeExternally({});
+		const after = hostLabels(labelService, 'hostB');
+		store.add(labelService.registerCachedFormatter(exact('hostA', 'SSH: hostA')));
+
+		assert.deepStrictEqual({ before, after, persisted: stored()?.map(f => f.authority) }, {
+			before: { hostB: 'SSH: hostB' },
+			after: { hostB: 'SSH' },
+			persisted: [host('hostA')],
+		});
+	});
+
+	test('ignores malformed cache entries', () => {
+		const labelService = createLabelService();
+
+		writeExternally({ formatters: [null, 5, { scheme: 1 }, { scheme: SCHEME, authority: host('hostC') }, exact('hostB', 'SSH: hostB')] });
+		const withInvalidEntries = hostLabels(labelService, 'hostB', 'hostC');
+
+		writeExternally({ formatters: 'not an array' });
+		const withInvalidList = hostLabels(labelService, 'hostB');
+
+		assert.deepStrictEqual({ withInvalidEntries, withInvalidList }, {
+			withInvalidEntries: { hostB: 'SSH: hostB', hostC: 'SSH' },
+			withInvalidList: { hostB: 'SSH' },
+		});
+	});
+});
+
 
 suite('multi-root workspace', () => {
 	let labelService: LabelService;

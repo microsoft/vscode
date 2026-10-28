@@ -91,6 +91,9 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 
 	private readonly descriptionElement: HTMLElement;
 
+	private inlineEditItem: ITrustedUriItem | undefined;
+	private pendingLabelRefresh = false;
+
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly scrollableElement: DomScrollableElement | undefined,
@@ -198,6 +201,17 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 
 		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => {
 			this.updateTable();
+		}));
+
+		// Host labels can change after the table was rendered, e.g. when a remote
+		// extension registers its label formatter. Re-rendering would discard an
+		// in-progress path edit, so defer the refresh until the edit ends.
+		this._register(this.labelService.onDidChangeFormatters(() => {
+			if (this.inlineEditItem) {
+				this.pendingLabelRefresh = true;
+			} else {
+				this.updateTable();
+			}
 		}));
 	}
 
@@ -380,10 +394,20 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 
 		this.workspaceTrustManagementService.setTrustedUris(trustedFolders);
 		this._onDidAcceptEdit.fire(item);
+		this.endInlineEdit();
 	}
 
 	rejectEdit(item: ITrustedUriItem) {
 		this._onDidRejectEdit.fire(item);
+		this.endInlineEdit();
+	}
+
+	private endInlineEdit(): void {
+		this.inlineEditItem = undefined;
+		if (this.pendingLabelRefresh) {
+			this.pendingLabelRefresh = false;
+			this.updateTable();
+		}
 	}
 
 	async delete(item: ITrustedUriItem) {
@@ -425,6 +449,7 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 			}
 		} else {
 			this.selectTrustedUriEntry(item);
+			this.inlineEditItem = item;
 			this._onEdit.fire(item);
 		}
 	}
