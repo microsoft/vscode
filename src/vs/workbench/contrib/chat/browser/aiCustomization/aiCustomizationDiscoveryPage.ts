@@ -354,6 +354,11 @@ function getInstalledItemMarketplaceRecord(
 	}
 }
 
+function getMarketplaceInstallationIdentity(record: IRecordedCustomizationMarketplaceResource, installations: ICustomizationMarketplaceInstallationSnapshot): string | IRecordedCustomizationMarketplaceResource {
+	const canonical = record.installationId ? record : installations.findByTarget(record.state.target) ?? record;
+	return canonical.installationId ?? canonical;
+}
+
 function isCopilotConnectorResource(resource: ICustomizationMarketplaceResource | undefined): boolean {
 	return resource?.installation?.kind === 'copilotConnector';
 }
@@ -2219,15 +2224,32 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				&& (!this.selectedSourceId || resource.sourceId === this.selectedSourceId)
 				&& (!query || [resource.displayName, resource.description, getTypeLabel(type), this.getMarketplaceSourceLabel(resource.sourceId)].some(value => normalizedName(value).includes(query)));
 		});
-		if (this.isBlankCanvasBrowse()) {
-			return matching
+		const prioritized = this.isBlankCanvasBrowse()
+			? matching
 				.map((resource, originalIndex) => ({ resource, originalIndex }))
 				.sort((first, second) => (second.resource.installCount ?? 0) - (first.resource.installCount ?? 0) || first.originalIndex - second.originalIndex)
-				.map(({ resource }) => ({ resource }));
-		}
-		return this.selectedSourceId
-			? matching.map(resource => ({ resource }))
-			: prioritizeLinkedCopilotConnectors(matching);
+				.map(({ resource }) => ({ resource }))
+			: this.selectedSourceId
+				? matching.map(resource => ({ resource }))
+				: prioritizeLinkedCopilotConnectors(matching);
+		const states = prioritized.map(entry => ({ entry, state: this.getInstallState(entry.resource) }));
+		const installations = this.installService.installations.get();
+		const seen = new Set<string | IRecordedCustomizationMarketplaceResource>();
+		return states.filter(({ entry, state }) => {
+			if (!hasInstallationTarget(state)) {
+				return true;
+			}
+			const record = installations.findByResource(entry.resource) ?? installations.findByTarget(state.target);
+			if (!record) {
+				return true;
+			}
+			const identity = getMarketplaceInstallationIdentity(record, installations);
+			if (seen.has(identity)) {
+				return false;
+			}
+			seen.add(identity);
+			return true;
+		}).map(({ entry }) => entry);
 	}
 
 	private renderSearchResults(preserveResults: boolean): void {
@@ -2235,25 +2257,32 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.resultList.ariaLabel = this.isCanvasOnlyQuery()
 			? localize('customizationDiscovery.canvasResultsLabel', "Canvas extension search results")
 			: localize('customizationDiscovery.resultsLabel', "Customization search results");
+		const resources = this.getSearchMarketplaceResources().map(entry => ({ ...entry, state: this.getInstallState(entry.resource) }));
 		const installed = [...this.getFilteredInstalledItems()];
 		const marketplaceInstallations = this.installService.installations.get();
-		const installedByMarketplaceRecord = new Map<IRecordedCustomizationMarketplaceResource, number>();
+		const installedByMarketplaceRecord = new Map<string | IRecordedCustomizationMarketplaceResource, number[]>();
 		for (let index = 0; index < installed.length; index++) {
 			const marketplace = getInstalledItemMarketplaceRecord(installed[index], marketplaceInstallations);
-			if (marketplace && !installedByMarketplaceRecord.has(marketplace)) {
-				installedByMarketplaceRecord.set(marketplace, index);
+			if (marketplace) {
+				const identity = getMarketplaceInstallationIdentity(marketplace, marketplaceInstallations);
+				const indices = installedByMarketplaceRecord.get(identity) ?? [];
+				indices.push(index);
+				installedByMarketplaceRecord.set(identity, indices);
 			}
 		}
 		const consumedInstalledIndices = new Set<number>();
 		const marketplaceEntries: (IInstalledDiscoveryItem | ICatalogDiscoveryItem)[] = [];
-		for (const { resource, linkedConnectionRole } of this.getSearchMarketplaceResources()) {
+		for (const { resource, linkedConnectionRole, state } of resources) {
 			const type = getCatalogType(resource)!;
-			const state = this.getInstallState(resource);
 			if (hasInstallationTarget(state)) {
-				const marketplace = marketplaceInstallations.findByResource(resource);
-				const matchingInstalledIndex = marketplace ? installedByMarketplaceRecord.get(marketplace) : undefined;
+				const marketplace = marketplaceInstallations.findByResource(resource) ?? marketplaceInstallations.findByTarget(state.target);
+				const identity = marketplace ? getMarketplaceInstallationIdentity(marketplace, marketplaceInstallations) : undefined;
+				const matchingInstalledIndices = (identity !== undefined ? installedByMarketplaceRecord.get(identity) : undefined) ?? [];
+				const matchingInstalledIndex = matchingInstalledIndices[0];
 				if (matchingInstalledIndex !== undefined) {
-					consumedInstalledIndices.add(matchingInstalledIndex);
+					for (const index of matchingInstalledIndices) {
+						consumedInstalledIndices.add(index);
+					}
 					marketplaceEntries.push({
 						...installed[matchingInstalledIndex],
 						sourceLabel: this.getMarketplaceResourceLabel(resource),
@@ -3087,12 +3116,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			if (!hasInstallationTarget(state)) {
 				return [];
 			}
-			const installation = marketplaceInstallations.findByResource(resource);
-			return installation ? [installation] : [];
+			const installation = marketplaceInstallations.findByResource(resource) ?? marketplaceInstallations.findByTarget(state.target);
+			return installation ? [getMarketplaceInstallationIdentity(installation, marketplaceInstallations)] : [];
 		}));
 		const installed = this.getFilteredInstalledItems().filter(item => {
 			const marketplace = getInstalledItemMarketplaceRecord(item, marketplaceInstallations);
-			return !marketplace || !recordedInstallations.has(marketplace);
+			return !marketplace || !recordedInstallations.has(getMarketplaceInstallationIdentity(marketplace, marketplaceInstallations));
 		});
 		const available = visibleSearchResources.filter(({ resource }) => {
 			return this.matchesMarketplaceResource(resource) && !hasInstallationTarget(this.getInstallState(resource));
