@@ -46,7 +46,7 @@ import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyServi
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
-import { toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories } from './copilotPluginConverters.js';
+import { mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from './copilotSessionWrapper.js';
 import type { ILocalModelProvider, ILocalModelSessionConfigContribution } from './localModelBridge/localModelProvider.js';
@@ -56,7 +56,7 @@ import { CopilotToolName, EPHEMERAL_DISABLED_COPILOT_TOOLS } from './copilotTool
 import { COPILOT_DEFAULT_AVAILABLE_TOOLS } from './copilotBuiltinToolAllowlist.js';
 import './prompts/allPrompts.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
-import { applyConfiguredPromptOverrides } from './prompts/promptOverride.js';
+import { applyPromptOverridesFromString, resolveConfiguredPromptOverride } from './prompts/promptOverride.js';
 import { describeSystemMessageConfig, fullSystemPrompt } from './prompts/systemMessage.js';
 import type { SandboxConfig } from './sandboxConfigForSdk.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
@@ -180,7 +180,7 @@ export interface ICopilotAppliedCustomizations {
 }
 
 /**
- * Structural contributions applied at session creation, used to detect when a restart is needed.
+ * Contributions applied to the SDK session, used to reconcile tool updates and launch-only configuration.
  * Client identity is tracked live via {@link ActiveClientToolSet}, not compared here.
  */
 export interface IActiveClientSnapshot {
@@ -190,6 +190,30 @@ export interface IActiveClientSnapshot {
 	/** Primary/home instructions load automatically; only secondary roots need forwarding (https://github.com/github/copilot-agent-runtime/issues/28228). */
 	readonly additionalRootInstructions: readonly IParsedRule[];
 	readonly mcpServers: AgentHostMcpServers;
+}
+
+/** The data-only, tool-dependent initialization payload passed unchanged to the SDK. */
+type CopilotClientToolSessionConfig = Readonly<Required<Pick<SessionConfig, 'toolSearch' | 'excludedTools' | 'systemMessage' | 'customAgents'>>>;
+
+interface ICopilotResolvedClientToolConfiguration {
+	readonly tools: Tool[];
+	readonly sessionConfig: CopilotClientToolSessionConfig;
+}
+
+/** Launch-owned configuration retained when replacing only the client's SDK tools. */
+export interface ICopilotClientToolConfiguration {
+	readonly toolSearchActive: boolean;
+	readonly hostToolNames: ReadonlySet<string>;
+	readonly sessionConfig: CopilotClientToolSessionConfig;
+	resolve(definitions: readonly ToolDefinition[], clientTools?: readonly Tool[]): ICopilotResolvedClientToolConfiguration;
+	replaceTools(session: CopilotSession, tools: Tool[]): Promise<void>;
+}
+
+function clientToolRegistrationNames(tools: readonly ToolDefinition[]): ReadonlyMap<string, string> {
+	return new Map([...tools].sort((a, b) => a.name.localeCompare(b.name)).flatMap(tool => {
+		const referenceName = readAgentToolFullReferenceName(tool);
+		return referenceName ? [[referenceName, tool.name] as const] : [];
+	}));
 }
 
 export function getCopilotCustomAgents(customizations: ICopilotAppliedCustomizations): readonly IParsedAgent[] {
@@ -287,6 +311,7 @@ export interface ICopilotSessionRuntime {
 	readonly reportManagedSettingsActivity?: CopilotManagedSettingsActivityReporter;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createClientSdkTools(toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>): Tool<any>[];
+	configureClientTools?(configuration: ICopilotClientToolConfiguration): void;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createServerSdkTools(toolSearchActive?: boolean): Tool<any>[];
 	/** Tools that let the agent ask the user to turn on Computer Use; empty unless the runtime has it and it is off. */
@@ -327,6 +352,8 @@ interface ICopilotSessionLaunchBase {
 	 * {@link IAgentCreateChatOptions.hasScopedEditSurface}.
 	 */
 	readonly hasScopedEditSurface?: boolean;
+	/** Whether the owning chat surface is an inline chat. See {@link IAgentCreateChatOptions.isInlineChatSurface}. */
+	readonly isInlineChatSurface?: boolean;
 	readonly workingDirectory: URI | undefined;
 	/**
 	 * The additional working directories beyond the primary process root
@@ -395,6 +422,9 @@ export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBa
 }
 
 export type CopilotSessionLaunchPlan = ICopilotCreateSessionLaunchPlan | ICopilotResumeSessionLaunchPlan;
+
+/** How the chat surface that created a chat's owning session scopes its runtime. */
+export type CopilotChatSurface = Pick<ICopilotSessionLaunchBase, 'hasScopedEditSurface' | 'isInlineChatSurface'>;
 
 /**
  * The trust a created SDK session grants its working directory, forwarding
@@ -644,11 +674,55 @@ function toFusionTier(tier: string, logService: ILogService, sessionId: string):
 	return defaultAutoModeTier;
 }
 
-/** Resolves the shared override first, then the picker preference. */
-export function resolveCopilotAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): string | undefined {
+/**
+ * The tier inline chat, editor or terminal, runs Copilot Fusion at, whatever effort level the picker
+ * holds, as latency matters more than routing depth there. Matches the Copilot extension's inline chat tier.
+ */
+const InlineChatFusionAutoTier = 'fast';
+
+/**
+ * The tier inline chat runs Copilot Fusion at, or `undefined` when Auto is not presented as Fusion or the
+ * provider does not accept the tier. Advertised on Fusion's model, so clients hide its effort level in
+ * inline chat only while the host pins it.
+ */
+export function getInlineChatFusionAutoTier(): string | undefined {
+	return isAutoAdvertisedAsFusion() && isSupportedAutoModeTier(InlineChatFusionAutoTier) ? InlineChatFusionAutoTier : undefined;
+}
+
+/** Fusion's tier for inline chat, or `undefined` when the model is not Fusion or the provider does not accept the tier. */
+function resolveInlineChatFusionAutoTier(model: ModelSelection | undefined, logService: ILogService, sessionId: string): string | undefined {
+	if (!isAutoModel(model?.id) || !isAutoAdvertisedAsFusion()) {
+		return undefined;
+	}
+	const tier = getInlineChatFusionAutoTier();
+	if (tier === undefined) {
+		logService.warn(`[Copilot:${sessionId}] Not pinning inline chat to Fusion's '${InlineChatFusionAutoTier}' tier, which the provider does not accept; expected one of [${getSupportedAutoModeTiers().join(', ')}]`);
+		return undefined;
+	}
+	logService.info(`[Copilot:${sessionId}] Using Fusion's '${tier}' tier for inline chat`);
+	return tier;
+}
+
+/**
+ * Resolves the tiers that take precedence over the picker: the shared override, then inline chat's
+ * Fusion tier. `null` applies the override by leaving the tier to the runtime.
+ */
+function resolveForcedAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string, isInlineChat: boolean): string | null | undefined {
 	const override = resolveConfiguredAutoTierOverride(model, configurationService, logService, sessionId);
 	if (override !== undefined) {
-		return override ?? undefined;
+		return override;
+	}
+	return isInlineChat ? resolveInlineChatFusionAutoTier(model, logService, sessionId) : undefined;
+}
+
+/**
+ * Resolves the shared override first, then inline chat's Fusion tier, then the picker preference.
+ * `isInlineChat` is the launch's {@link ICopilotSessionLaunchBase.isInlineChatSurface}, set for editor and terminal inline chat.
+ */
+export function resolveCopilotAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string, isInlineChat = false): string | undefined {
+	const forced = resolveForcedAutoTier(model, configurationService, logService, sessionId, isInlineChat);
+	if (forced !== undefined) {
+		return forced ?? undefined;
 	}
 	const tier = getCopilotAutoTier(model);
 	if (tier === undefined) {
@@ -921,6 +995,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 * stopped, so the next start mints a fresh nonce.
 	 */
 	private _byokProxyHandle: Promise<IByokLmProxyHandle> | undefined;
+	private readonly _runtimeExecutionSubagentSessions = new WeakSet<CopilotSession>();
 
 	constructor(
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
@@ -1123,7 +1198,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			model: plan.model?.id,
 			reasoningEffort: resolveCopilotReasoningEffort(model, this._configurationService, this._logService, plan.sessionId),
 			contextTier: omittedContextDefault ? undefined : getCopilotContextTier(model, plan.longContextWindow, plan.freeLongContext),
-			...toSdkCapiSessionOptions(resolveCopilotAutoTier(model, this._configurationService, this._logService, plan.sessionId)),
+			...toSdkCapiSessionOptions(resolveCopilotAutoTier(model, this._configurationService, this._logService, plan.sessionId, plan.isInlineChatSurface === true)),
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			...(trustWorkingDirectory ? { trustWorkingDirectory } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
@@ -1160,23 +1235,29 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, config.imageGeneration.enabled, config.imageGeneration.watermark, trustWorkingDirectory, this._logService);
 	}
 
-	private async _configureExecutionSubagentTool(session: CopilotSessionWrapper['session'], config: ResumeSessionConfig): Promise<void> {
+	private async _configureExecutionSubagentTool(session: CopilotSessionWrapper['session'], config: ResumeSessionConfig): Promise<boolean> {
 		if (!config.tools?.some(tool => tool.name === 'executionSubagent')) {
-			return;
+			return false;
 		}
 		// Resolve before handing the session to its first turn: runtime assignments
 		// and model availability, not the VS Code default, decide which tool wins.
-		let hasRuntimeExecutionSubagent: boolean;
+		let hasRuntimeExecutionSubagent = this._runtimeExecutionSubagentSessions.has(session);
 		try {
-			const { tools } = await session.rpc.tools.getBuiltinDescriptors({});
-			hasRuntimeExecutionSubagent = tools.some(tool => tool.name === 'execution_subagent');
+			if (!hasRuntimeExecutionSubagent) {
+				const { tools } = await session.rpc.tools.getBuiltinDescriptors({});
+				hasRuntimeExecutionSubagent = tools.some(tool => tool.name === 'execution_subagent');
+			}
 		} catch (err) {
 			this._logService.warn(`[Copilot:${session.sessionId}] Could not resolve runtime tool catalog; keeping extension execution tool`, err);
-			return;
+			return false;
 		}
 		if (hasRuntimeExecutionSubagent) {
-			await session.setTools(config.tools.filter(tool => tool.name !== 'executionSubagent'));
+			this._runtimeExecutionSubagentSessions.add(session);
+			config.tools = config.tools.filter(tool => tool.name !== 'executionSubagent');
+			await session.setTools(config.tools);
+			return true;
 		}
+		return false;
 	}
 
 	/**
@@ -1287,7 +1368,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// Throwaway chat surfaces skip memory, like the other heavyweight features they omit.
 		const memoryEnabled = !plan.isEphemeral && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Memory) === true;
 		const localMemoryEnabled = memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
-		const tgrepEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Tgrep) === true;
 		const searchSubagentEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagent) === true;
 		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
 		const stabilityOrderedPromptEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.StabilityOrderedPrompt) === true;
@@ -1296,7 +1376,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			AUTO_APPROVAL: true,
 			...catalogInstallationFeatureFlags,
 			CONNECTORS: copilotConnectorsEnabled,
-			TGREP: tgrepEnabled,
+			TGREP: true,
 			CONTENT_EXCLUSION: true,
 			// Attached long-lived services prevent the runtime from reaching session idle.
 			DETACH_LONG_LIVED_SERVICES: true,
@@ -1304,7 +1384,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// Always explicit so only the VS Code opt-in can switch the store.
 			[COPILOT_LOCAL_MEMORY_FEATURE_FLAG]: localMemoryEnabled,
 			...(copilotConnectorsEnabled ? { MANAGED_MCP_SERVERS: true } : {}),
-			...(hydraFusionEnabled ? { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true } : {}),
+			...(hydraFusionEnabled ? { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true, HYDRAFUSION_INTERRUPTED_COMMIT: true } : {}),
 			// The runtime regroups the system prompt into global, repository and
 			// per-session cache blocks so a new session reuses the stable prefix.
 			...(stabilityOrderedPromptEnabled ? { STABILITY_ORDERED_SYSTEM_PROMPT_V2: true } : {}),
@@ -1331,19 +1411,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
 		// skills and instructions, so it is left alone.
 		const availableModelIds = new Set(plan.availableModels?.().map(model => model.id));
-		const clientToolRegistrationNames = new Map(plan.snapshot.tools.flatMap(tool => {
-			const referenceName = readAgentToolFullReferenceName(tool);
-			return referenceName ? [[referenceName, tool.name] as const] : [];
-		}));
-		const customAgentsPromise = plan.isEphemeral ? Promise.resolve([]) : toSdkCustomAgents(getCopilotCustomAgents(plan.snapshot), this._fileService, availableModelIds, clientToolRegistrationNames);
+		const customAgentsPromise = plan.isEphemeral ? Promise.resolve([]) : toSdkCustomAgents(getCopilotCustomAgents(plan.snapshot), this._fileService, availableModelIds);
 		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
 		const computerUseToolsPromise = plan.isEphemeral ? Promise.resolve([]) : runtime.createComputerUseActivationTools?.() ?? Promise.resolve([]);
 		// These are independent, so resolve them concurrently rather than paying each in turn.
 		const [externalByok, shellTools, pluginCustomAgents, computerUseTools] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise, computerUseToolsPromise]);
-		const customAgents = plan.isEphemeral ? [] : [
-			...pluginCustomAgents.filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.name)),
-			...buildCopilotBuiltinAgents(plan.snapshot.tools),
-		];
 		if (externalByok.models?.length) {
 			// The provider base URL carries the proxy's host:port, which correlates a
 			// session with its `ByokLmProxyService` bind when reading logs.
@@ -1396,10 +1468,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(searchSubagentEnabled ? [] : [`builtin:${CopilotToolName.SearchCodeSubagent}`]),
 			...(plan.isEphemeral ? EPHEMERAL_DISABLED_COPILOT_TOOLS : []),
 		];
-		const clientToolNames = filterClientToolNames(clientToolNamesFromSnapshot(plan.snapshot), availableTools, excludedTools);
-		const sdkExcludedTools = clientToolNames.has(SEMANTIC_SEARCH_TOOL_NAME)
-			? configuredSdkExcludedTools
-			: [...new Set([...configuredSdkExcludedTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`])];
 		const modelCapabilitiesOverride = resolveModelCapabilityOverrideField(capabilityOverrides, model?.id, 'modelCapabilities', (value): value is Record<string, unknown> => isObject(value), () => {
 			this._logService.warn(`[Copilot:${plan.sessionId}] Ignoring invalid 'modelCapabilities' capability override for '${modelId}'; expected an object`);
 		});
@@ -1417,40 +1485,68 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (modelFamily) {
 			this._logService.info(`[Copilot:${plan.sessionId}] Model capability override: routing prompt for '${describeModelId(model)}' as family '${modelFamily}'`);
 		}
-		const toolSearchActive = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchEnabled) === true
-			&& agentHostModelSupportsToolSearch(effectiveModel?.id)
-			&& clientToolNames.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME);
+		const toolSearchEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchEnabled) === true
+			&& agentHostModelSupportsToolSearch(effectiveModel?.id);
 		const toolSearchDeferThreshold = normalizeToolSearchDeferThreshold(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchDeferThreshold));
+		const resolveToolSearch = (names: ReadonlySet<string>): NonNullable<SessionConfig['toolSearch']> =>
+			toolSearchEnabled && names.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME) ? { enabled: true, deferThreshold: toolSearchDeferThreshold } : { enabled: false };
+		const toolSearchActive = resolveToolSearch(filterClientToolNames(clientToolNamesFromSnapshot(plan.snapshot), availableTools, excludedTools)).enabled === true;
 		const serverTools = runtime.createServerSdkTools(toolSearchActive);
 		const extensionTools = createCopilotExtensionTools(canvasRuntimeEnabled, () => runtime.reloadExtensions(), this._logService);
 		const hostToolNames = new Set([...shellTools, ...serverTools, ...extensionTools, ...computerUseTools].map(tool => tool.name));
-		const tools = [
-			...shellTools,
-			...runtime.createClientSdkTools(toolSearchActive, hostToolNames),
-			...serverTools,
-			...extensionTools,
-			...computerUseTools,
-		];
-		const promptOverrides = await applyConfiguredPromptOverrides(promptOverrideString, promptOverrideFile, tools, this._fileService, this._logService);
+		const promptOverride = await resolveConfiguredPromptOverride(promptOverrideString, promptOverrideFile, this._fileService, this._logService);
+		const applyToolOverrides = (tools: readonly Tool[]) => promptOverride
+			? applyPromptOverridesFromString(promptOverride.content, tools, this._logService, promptOverride.source)
+			: { tools: [...tools], systemPrompt: undefined };
 		const bridgedPermissions = this._managedSettingsService.permissions;
 		const resolved = await resolveCopilotSessionManagedSettings(plan, runtime.cancellationToken, runtime.reportManagedSettingsActivity);
 		runtime.setApprovalPolicy?.(resolved.resolved, bridgedPermissions);
 		const managedSettingsPermissions = getCopilotApprovalPolicy(resolved.resolved,
 			this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true,
 			bridgedPermissions).permissions;
-		const promptContext: IAgentHostPromptContext = {
-			getSetting: key => this._configurationService.getRootValue(copilotCliConfigSchema, key),
-			hasClientTool: name => clientToolNames.has(name) && !hostToolNames.has(name),
-			workspaceless: plan.workspaceless === true,
-			toolSearchActive,
-		};
 		const additionalDirectories = plan.additionalDirectories?.map(d => d.fsPath);
-		// Resolved once per (re)launch — the SDK has no mid-session system-message
-		// update, so this reflects the model/tools/settings at launch time. Log a
-		// summary at info for prompt observability; the full config at trace.
-		const systemMessage = promptOverrides.systemPrompt !== undefined
-			? fullSystemPrompt(promptOverrides.systemPrompt)
-			: agentHostPromptRegistry.resolveSystemMessageConfig(effectiveModel, promptContext);
+		const authoredCustomAgents = pluginCustomAgents.filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.name));
+		const resolveToolConfiguration = (definitions: readonly ToolDefinition[], clientTools: readonly Tool[] = []): ICopilotResolvedClientToolConfiguration => {
+			const names = filterClientToolNames(new Set(definitions.map(tool => tool.name)), availableTools, excludedTools);
+			const toolSearch = resolveToolSearch(names);
+			const promptOverrides = applyToolOverrides([...shellTools, ...clientTools, ...serverTools, ...extensionTools, ...computerUseTools]);
+			const promptContext: IAgentHostPromptContext = {
+				getSetting: key => this._configurationService.getRootValue(copilotCliConfigSchema, key),
+				hasClientTool: name => names.has(name) && !hostToolNames.has(name),
+				workspaceless: plan.workspaceless === true,
+				toolSearchActive: toolSearch.enabled === true,
+			};
+			return {
+				tools: promptOverrides.tools,
+				sessionConfig: {
+					toolSearch,
+					excludedTools: names.has(SEMANTIC_SEARCH_TOOL_NAME)
+						? configuredSdkExcludedTools
+						: [...new Set([...configuredSdkExcludedTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`])],
+					systemMessage: promptOverrides.systemPrompt !== undefined
+						? fullSystemPrompt(promptOverrides.systemPrompt)
+						: agentHostPromptRegistry.resolveSystemMessageConfig(effectiveModel, promptContext),
+					customAgents: plan.isEphemeral ? [] : [
+						...mapCopilotCustomAgentTools(authoredCustomAgents, clientToolRegistrationNames(definitions)),
+						...buildCopilotBuiltinAgents(definitions),
+					],
+				},
+			};
+		};
+		const toolConfiguration = resolveToolConfiguration(plan.snapshot.tools, runtime.createClientSdkTools(toolSearchActive, hostToolNames));
+		runtime.configureClientTools?.({
+			toolSearchActive: toolConfiguration.sessionConfig.toolSearch.enabled === true,
+			hostToolNames,
+			sessionConfig: toolConfiguration.sessionConfig,
+			resolve: resolveToolConfiguration,
+			replaceTools: async (session, tools) => {
+				const config = { tools };
+				if (!await this._configureExecutionSubagentTool(session, config)) {
+					await session.setTools(config.tools);
+				}
+			},
+		});
+		const systemMessage = toolConfiguration.sessionConfig.systemMessage;
 		this._logService.info(`[Copilot:${plan.sessionId}] Resolved system message: ${describeSystemMessageConfig(systemMessage)}`);
 		const additionalDisabledMcpServers = plan.isEphemeral ? [
 			...plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
@@ -1505,7 +1601,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// while a resumed session keeps the effort the runtime journaled unless
 			// an override is configured (encoded like every other path).
 			...(plan.kind === 'resume' ? { reasoningEffort: toRuntimeReasoningEffort(model, resolveConfiguredReasoningEffortOverride(model, this._configurationService, this._logService, plan.sessionId)) } : {}),
-			...(plan.kind === 'resume' ? toSdkCapiSessionOptions(resolveConfiguredAutoTierOverride(model, this._configurationService, this._logService, plan.sessionId) ?? undefined) : {}),
+			...(plan.kind === 'resume' ? toSdkCapiSessionOptions(resolveForcedAutoTier(model, this._configurationService, this._logService, plan.sessionId, plan.isInlineChatSurface === true) ?? undefined) : {}),
 			modelCapabilities,
 			enableMcpApps: true,
 			githubMcpToolConfig: { disableFormDeferral: true },
@@ -1532,13 +1628,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			mcpServers,
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
 			workingDirectory: plan.workingDirectory?.fsPath,
-			customAgents,
+			...toolConfiguration.sessionConfig,
 			agent: plan.resolvedAgentName,
 			skillDirectories,
 			instructionDirectories,
 			additionalDirectories,
-			systemMessage,
-			toolSearch: toolSearchActive ? { enabled: true, deferThreshold: toolSearchDeferThreshold } : { enabled: false },
 			largeOutput: {
 				maxSizeBytes: 8 * 1024,
 			},
@@ -1546,11 +1640,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				permissions: managedSettingsPermissions,
 			},
 			availableTools: sdkAvailableTools,
-			excludedTools: sdkExcludedTools,
 			excludedBuiltinAgents: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ExploreAgent) === false ? ['explore'] : [],
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
-			tools: promptOverrides.tools,
+			tools: toolConfiguration.tools,
 			...plan.githubCredentials.sdkSessionOptions,
 			// Enable infinite sessions so the SDK provisions a workspace
 			// directory (containing `plan.md`, `checkpoints/`, `files/`).

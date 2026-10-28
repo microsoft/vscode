@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageSystemInitiatedLabel, withMessageHiddenFromTranscript, readAgentMessageRoundTripMetadata } from '../../../../../../platform/agentHost/common/meta/agentMessageMeta.js';
+import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageReplacedTurn, readMessageSystemInitiatedLabel, withMessageHiddenFromTranscript, readAgentMessageRoundTripMetadata } from '../../../../../../platform/agentHost/common/meta/agentMessageMeta.js';
 import { withoutAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { readUsageInfoMeta, readAgentContextUsage, readChatUsage } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
@@ -29,6 +29,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { getOlderHostSubagentChatUri } from '../../../../../../platform/agentHost/browser/agentHostOlderHostCompatibility.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { newAgentHostChatUri, newAgentHostSessionUri } from '../../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { IChatSideChatOrigin, IChatSideChatSelection } from '../../../common/chatSideChatService.js';
@@ -40,7 +41,7 @@ import { isLocation, type Location } from '../../../../../../editor/common/langu
 import type { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAllowSignedOutWhenUsableSettingId, AgentHostMcpToolRoutingEnabledSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCanvasCollection, getAgentHostCanvasDefinitionsChangedEvent } from '../../../../canvases/common/agentHostCanvas.js';
 import { ICanvasContext, ICanvasOwner, isCanvasOwner } from '../../../../canvases/common/canvas.js';
 import { CanvasReference } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
@@ -53,7 +54,7 @@ import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationI
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readToolCallMeta, readAgentToolOutputDelta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
-import { readMcpRoutingServers } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import { readMcpRoutingServers, readMcpServerConnectorName } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { filterSessionConfigValues } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { readAttachmentDetail, withAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
 import { AgentPermissionDecisionSource, readAgentPermissionResponseMeta, toAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
@@ -77,13 +78,13 @@ import { BackgroundWorkKind, ConfirmationOptionKind, CustomizationType, JsonPrim
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AuthenticateTargetKind, AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { ChangesetStatus, ChatOriginKind, getSessionChatResource, getErrorResponsePart, getInlineToolInput, getTurnError, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, mergeSessionWithDefaultChat, readSessionWorkspaceless, type ChatState, type ISessionFileDiff, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChangesetStatus, ChatOriginKind, getSessionChatResource, getErrorResponsePart, getInlineToolInput, getTurnError, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, mergeSessionWithDefaultChat, readSessionScratchFolders, readSessionWorkspaceless, type ChatState, type ISessionFileDiff, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { SAVE_SANDBOX_PATH } from '../../../../../../platform/agentHost/common/sandboxPathGrant.js';
 import { saveSandboxPathGrant } from './agentHostSandboxPathGrant.js';
-import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { packErrorForTelemetry } from '../../../../../../platform/telemetry/common/errorTelemetry.js';
@@ -353,7 +354,11 @@ interface IOutputTerminalAttachment {
 	readonly disposable: MutableDisposable<IDisposable>;
 }
 
-function getMcpAuthenticationRequiredServers(sessionResource: URI, backendSession: URI, state: ISessionWithDefaultChat | undefined): IChatMcpAuthenticationRequiredServer[] {
+interface IAgentHostMcpAuthenticationRequiredServer extends IChatMcpAuthenticationRequiredServer {
+	readonly connectorName?: string;
+}
+
+function getMcpAuthenticationRequiredServers(sessionResource: URI, backendSession: URI, state: ISessionWithDefaultChat | undefined): IAgentHostMcpAuthenticationRequiredServer[] {
 	const servers = state?.customizations?.flatMap(c => c.type === CustomizationType.McpServer
 		? [c]
 		: c.children?.filter(c => c.type === CustomizationType.McpServer) ?? []) ?? [];
@@ -365,12 +370,13 @@ function getMcpAuthenticationRequiredServers(sessionResource: URI, backendSessio
 		.filter(id => id !== undefined));
 	return servers
 		.filter(server => isCustomizationEnabled(server) && server.state.kind === McpServerStatus.AuthRequired && !toolAuthServerIds.has(server.id))
-		.map((server): IChatMcpAuthenticationRequiredServer => {
+		.map((server): IAgentHostMcpAuthenticationRequiredServer => {
 			const state = server.state as McpServerAuthRequiredState;
 			return {
 				id: sessionResource.authority + '/' + server.id,
 				target: { kind: AuthenticateTargetKind.McpServer, session: backendSession.toString(), customizationId: server.id },
 				name: server.name,
+				connectorName: readMcpServerConnectorName(server),
 				resource: state.resource.resource,
 				oauthClient: state.oauthClient,
 				authorizationServers: state.resource.authorization_servers,
@@ -394,6 +400,7 @@ interface IStartServerRequestOptions {
 	readonly timestamp?: number;
 	readonly isTerminalRequest?: boolean;
 	readonly resume?: boolean;
+	readonly replacesRequestId?: string;
 	readonly origin?: IChatSessionServerRequest['origin'];
 }
 
@@ -987,6 +994,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			timestamp: options?.timestamp,
 			isTerminalRequest: options?.isTerminalRequest,
 			resume: options?.resume,
+			...(options?.replacesRequestId ? { replacesRequestId: options.replacesRequestId } : {}),
 			origin: options?.origin,
 		});
 	}
@@ -1346,6 +1354,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private readonly _clientToolRetainCounts = new Map<string, number>();
 	private readonly _surfacedMcpAuthServers = new ResourceMap<Set<string>>();
+	private readonly _mcpAuthNotifications = this._register(new DisposableResourceMap<DisposableMap<string, IDisposable>>());
 	private readonly _pendingMcpAutoAuthentication = new Map<string, Promise<boolean>>();
 	/** Turn IDs dispatched by this client, used to distinguish server-originated turns. */
 	private readonly _clientDispatchedTurnIds = new Set<string>();
@@ -1453,6 +1462,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ITextFileService textFileService: ITextFileService,
 		@IComputerUseSetupService private readonly _computerUseSetupService: IComputerUseSetupService,
 		@IChatSessionReviewPreferencesService reviewPreferences: IChatSessionReviewPreferencesService,
@@ -1981,6 +1991,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._draftSyncSubscriptions.deleteAndDispose(sessionResource);
 					this._serverTurnWatchers.deleteAndDispose(sessionResource);
 					this._mcpAuthWatchers.deleteAndDispose(sessionResource);
+					this._mcpAuthNotifications.deleteAndDispose(sessionResource);
 					this._retainedOutputTerminals.deleteAndDispose(sessionResource);
 					this._releaseSessionInputNeeded(sessionResource);
 					this._pendingHistoryTurns.delete(sessionResource);
@@ -2963,6 +2974,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			previousQueuedIds = currentQueuedIds;
 			previousTurnIds = currentTurnIds;
 
+			// The host updates a notice by removing its turn and starting a replacement.
+			const replacedTurnId = readMessageReplacedTurn(activeTurn.message);
+
 			// Signal the session to create a new request+response pair
 			chatSession.startServerRequest(
 				activeTurn.id,
@@ -2981,6 +2995,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					timestamp: parseTimestamp(activeTurn.startedAt),
 					isTerminalRequest: isTerminalCommandPrompt(activeTurn.message.text, this._config.connection.initializeResult.get()?.terminalCommandPrefix),
 					resume: resumedTurn,
+					replacesRequestId: replacedTurnId !== undefined && !currentTurnIds.has(replacedTurnId) ? replacedTurnId : undefined,
 					origin: messageToRequestOrigin(backendSession, activeTurn.message, this._config.agentId, this._config.connectionAuthority),
 				},
 			);
@@ -3480,15 +3495,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			cancellationToken: cts.token,
 			suppressErrorMarkdown: true,
 			onTurnEnded: lastTurn => {
+				const details = lastTurn
+					? turnToResponseDetails(lastTurn, this._createTurnModelLookup(chatSession.sessionResource, lastTurn.message.model?.id))
+					: undefined;
 				const errorDetails = this._getTurnErrorDetails(lastTurn, !this._isChatReadOnly(backendSession.toString(), chatURI));
 				const metadata = turnToResultMetadata(lastTurn);
-				if (errorDetails || metadata) {
+				if (details || errorDetails || metadata) {
 					const response = this._chatService.getSession(chatSession.sessionResource)
 						?.getRequests()
 						.find(request => request.id === turnId)
 						?.response;
 					response?.setResult({
 						...response.result,
+						...(details ? { details } : {}),
 						...(errorDetails ? { errorDetails } : {}),
 						...(metadata ? { metadata: { ...response.result?.metadata, ...metadata } } : {}),
 					});
@@ -4406,7 +4425,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _setupMcpAuthPrompt(
-		mcpAuthRequired$: IObservable<readonly IChatMcpAuthenticationRequiredServer[]>,
+		mcpAuthRequired$: IObservable<readonly IAgentHostMcpAuthenticationRequiredServer[]>,
 		mcpRoutingServers$: IObservable<readonly string[]>,
 		store: DisposableStore,
 		opts: IObserveTurnOptions,
@@ -4418,20 +4437,32 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store.add(autorun(reader => {
 			const pendingAuth = mcpAuthRequired$.read(reader);
 			const routingServers = mcpRoutingServers$.read(reader);
+			const routingEnabled = this._configurationService.getValue<boolean>(AgentHostMcpToolRoutingEnabledSettingId) === true;
+			const deferredServers = new Set(pendingAuth
+				.filter(server => routingServers.includes(server.name) || (routingEnabled && server.connectorName !== undefined))
+				.map(server => server.id));
 			const surfaced = this._getSurfacedMcpAuthServers(opts.sessionResource);
 			for (const server of pendingAuth) {
-				if (routingServers.includes(server.name)) {
+				if (deferredServers.has(server.id)) {
 					surfaced.delete(server.id);
 					ownedIds.delete(server.id);
+					this._mcpAuthNotifications.get(opts.sessionResource)?.deleteAndDispose(server.id);
 				}
 			}
 			const currentRunId = ++runId;
-			this._filterAutoGrantedMcpAuthentication(opts.sessionResource, pendingAuth.filter(server => !routingServers.includes(server.name))).then(servers => {
-				if (currentRunId !== runId) {
+			this._filterAutoGrantedMcpAuthentication(opts.sessionResource, pendingAuth.filter(server => !deferredServers.has(server.id))).then(servers => {
+				if (currentRunId !== runId || store.isDisposed) {
 					return;
 				}
 				const surfaced = this._getSurfacedMcpAuthServers(opts.sessionResource);
 				const newServers = servers.filter(server => !surfaced.has(server.id));
+				if (this._accessibilityService.isScreenReaderOptimized()) {
+					for (const server of newServers) {
+						surfaced.add(server.id);
+						this._showMcpAuthNotification(opts.sessionResource, server);
+					}
+					return;
+				}
 				if (!newServers.length && (!part || part.isUsed)) {
 					return;
 				}
@@ -4458,6 +4489,40 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 	}
 
+	private _showMcpAuthNotification(sessionResource: URI, server: IChatMcpAuthenticationRequiredServer): void {
+		let notifications = this._mcpAuthNotifications.get(sessionResource);
+		if (!notifications) {
+			notifications = new DisposableMap<string, IDisposable>();
+			this._mcpAuthNotifications.set(sessionResource, notifications);
+		}
+		const liveServer = this._customizationService.getMcpServers(sessionResource).find(candidate => candidate.id === server.id);
+		const label = liveServer ? getMcpServerDisplayLabel(liveServer) : server.name;
+		let authenticating = false;
+		const notification = this._notificationService.prompt(
+			Severity.Info,
+			localize('agentHost.mcpAuthenticationRequired', "The MCP server {0} requires authentication.", label),
+			[{
+				label: localize('agentHost.mcpAuthenticate', "Authenticate"),
+				keepOpen: true,
+				run: async () => {
+					if (authenticating) {
+						return;
+					}
+					authenticating = true;
+					try {
+						if (await this._customizationService.authenticateMcpServer(sessionResource, server.id)) {
+							notification.close();
+						}
+					} finally {
+						authenticating = false;
+					}
+				},
+			}],
+			{ sticky: true },
+		);
+		notifications.set(server.id, toDisposable(() => notification.close()));
+	}
+
 	private _getSurfacedMcpAuthServers(sessionResource: URI): Set<string> {
 		let surfaced = this._surfacedMcpAuthServers.get(sessionResource);
 		if (!surfaced) {
@@ -4468,6 +4533,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _reconcileSurfacedMcpAuthServers(): void {
+		for (const [sessionResource, notifications] of this._mcpAuthNotifications) {
+			const pending = new Set(this._customizationService.getMcpServers(sessionResource)
+				.filter(server => server.enabled && (server.status === McpServerStatus.AuthRequired || server.status === McpServerStatus.Starting))
+				.map(server => server.id));
+			for (const id of notifications.keys()) {
+				if (!pending.has(id)) {
+					notifications.deleteAndDispose(id);
+				}
+			}
+		}
 		for (const [sessionResource, surfaced] of this._surfacedMcpAuthServers) {
 			if (surfaced.size === 0) {
 				continue;
@@ -6460,7 +6535,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Start the editing session if not already started — this will use
 		// our registered provider to create an AgentHostSnapshotController.
 		if (!chatModel.editingSession) {
-			chatModel.startEditingSession();
+			chatModel.startEditingSession(chatModel.initialLocation === ChatAgentLocation.Chat);
 		}
 
 		const editingSession = chatModel.editingSession;
@@ -7438,7 +7513,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _getSensitiveEditLocationsConfig(sessionResource: URI, existingState: SessionState | undefined): Record<string, readonly IChatSensitiveEditLocation[]> {
-		const desired = mergeChatSensitiveEditLocations(...this._resolveCustomizationScopeRoots(sessionResource).map(resource => {
+		const desired = mergeChatSensitiveEditLocations(...this._resolveSessionWorkingDirectoryRoots(sessionResource).map(resource => {
 			const overrides = { resource };
 			return getChatSensitiveEditLocations(
 				this._configurationService.getValue<unknown>(ChatHookFilesLocationsSettingId, overrides),
@@ -7457,6 +7532,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return this._hostAddressableWorkingDirectories(
 			computeWorkingDirectories(primary, this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri), this._getRootState(), this._config.provider)
 		);
+	}
+
+	/** Matches the sessions provider's quick-chat and user-folder customization scopes. */
+	private _resolveCustomizationScopeRoots(sessionResource: URI): readonly URI[] {
+		const backendSession = this._resolveSessionUri(sessionResource);
+		const state = this._getRawSessionState(backendSession.toString());
+		if (readSessionWorkspaceless(state?._meta)) {
+			return [];
+		}
+		const scratchFolders = readSessionScratchFolders(state?._meta).map(folder => this._config.connection.resourceUris.fromAgentHost(URI.parse(folder)));
+		return this._resolveSessionWorkingDirectoryRoots(sessionResource)
+			.filter(folder => !scratchFolders.some(scratch => isEqual(folder, scratch)));
 	}
 
 	/**
@@ -7489,7 +7576,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * state yet, so they fall back to the workspace-derived set they will be
 	 * created with.
 	 */
-	private _resolveCustomizationScopeRoots(sessionResource: URI): readonly URI[] {
+	private _resolveSessionWorkingDirectoryRoots(sessionResource: URI): readonly URI[] {
 		if (!this._isNewSessionResource(sessionResource)) {
 			const own = this._existingSessionWorkingDirectories(sessionResource);
 			// An empty set is meaningful (a workspace-less session), so only a
@@ -8454,7 +8541,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	resolveChatResponseUri(sessionResource: URI, href: string, kind: 'link' | 'image'): string {
 		const session = this._resolveSessionUri(sessionResource);
 		const chatUri = this._getChatURIOrDefault(sessionResource, session);
-		const directory = kind === 'image'
+		const directory = kind === 'image' || kind === 'link'
 			? this._getSessionState(session.toString(), chatUri)?.workingDirectories?.[0]
 			: undefined;
 		const resolve = (target: string) => rewriteAgentHostLinkTarget(target, this._config.connectionAuthority, this._config.connection.resourceUris, directory ? URI.parse(directory) : undefined);

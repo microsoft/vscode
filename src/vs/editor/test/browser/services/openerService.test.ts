@@ -217,9 +217,41 @@ suite('OpenerService', function () {
 		}
 
 		assert.deepStrictEqual(contexts, [
-			{ sourceUri, preferredOpenerId: undefined, viewColumn: ViewColumn.Beside },
-			{ sourceUri, preferredOpenerId: undefined, viewColumn: undefined },
-			{ sourceUri, preferredOpenerId: undefined, viewColumn: undefined }
+			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: ViewColumn.Beside },
+			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: undefined },
+			{ sourceUri, sourceHref: sourceUri.toString(), preferredOpenerId: undefined, viewColumn: undefined }
+		]);
+	});
+
+	test('external URI openers receive the original URL before port forwarding', async () => {
+		const openerService = new OpenerService(editorService, commandService);
+		const sourceHref = 'http://localhost:3000/a%2Fb?q=hi&value=a%26b%3Dc&space=a%20b#part%23one';
+		const forwardedUri = URI.parse('http://127.0.0.1:4000/forwarded');
+		const opened: { href: string; sourceHref: string }[] = [];
+		store.add(openerService.registerExternalUriResolver({
+			async resolveExternalUri() {
+				return { resolved: forwardedUri, dispose() { } };
+			}
+		}));
+		const opener: IExternalOpener = {
+			async openExternal(href, context) {
+				opened.push({ href, sourceHref: context.sourceHref });
+				return true;
+			}
+		};
+		store.add(openerService.registerExternalOpener(opener));
+		openerService.setDefaultExternalOpener(opener);
+
+		await openerService.open(sourceHref, { allowContributedOpeners: true });
+		await openerService.open(sourceHref);
+		await openerService.open(URI.parse('http://localhost:3000/?q=hi'), { allowContributedOpeners: true });
+		await openerService.open(URI.parse('http://localhost:3000/a%23b%3Fc?q=hi'), { allowContributedOpeners: true });
+
+		assert.deepStrictEqual(opened, [
+			{ href: forwardedUri.toString(), sourceHref },
+			{ href: forwardedUri.toString(), sourceHref },
+			{ href: forwardedUri.toString(), sourceHref: 'http://localhost:3000/?q=hi' },
+			{ href: forwardedUri.toString(), sourceHref: 'http://localhost:3000/a%23b%3Fc?q=hi' },
 		]);
 	});
 

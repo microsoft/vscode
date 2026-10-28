@@ -78,4 +78,13 @@ await Promise.all([
 			...mermaidMarkdownBuildOptions,
 		},
 	}, process.argv),
+	// Markdown editor code blocks
+	run({
+		entryPoints: {
+			'index': path.join(previewSrcDir, 'markdownEditor', 'index.ts'),
+		},
+		srcDir: previewSrcDir,
+		outdir: path.join(rootDir, 'markdown-editor-out'),
+		additionalOptions: mermaidMarkdownBuildOptions,
+	}, process.argv),
 ]);

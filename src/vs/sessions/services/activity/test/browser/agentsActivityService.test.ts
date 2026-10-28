@@ -8,6 +8,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { AgentsActivityService } from '../../browser/agentsActivityService.js';
 
 suite('AgentsActivityService', () => {
@@ -15,12 +16,12 @@ suite('AgentsActivityService', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(enabled = true): { service: AgentsActivityService; events: { readonly eventName: string; readonly data: Record<string, unknown> }[] } {
+	function createService(enabled = true, hasFocus = false): { service: AgentsActivityService; events: { readonly eventName: string; readonly data: Record<string, unknown> }[] } {
 		const events: { readonly eventName: string; readonly data: Record<string, unknown> }[] = [];
 		const telemetryService = upcastPartial<ITelemetryService>({
 			publicLog2: ((eventName: string, data?: Record<string, unknown>) => { events.push({ eventName, data: data ?? {} }); }) as ITelemetryService['publicLog2'],
 		});
-		const service = disposables.add(new AgentsActivityService(telemetryService));
+		const service = disposables.add(new AgentsActivityService(telemetryService, upcastPartial<IHostService>({ hasFocus })));
 		service.setEnabled(enabled);
 		return { service, events };
 	}
@@ -72,17 +73,17 @@ suite('AgentsActivityService', () => {
 	test('emits focus then switch transitions with previous-surface dwell', () => {
 		const { service, events } = createService();
 		service.reportActiveSurface('inbox', { agentSessionId: 'hash-a', providerId: 'local-agent-host', surfaceInstanceId: 'inbox-1' });
-		service.reportActiveSurface('sessionChat', { agentSessionId: 'hash-b', providerId: 'local-agent-host', surfaceInstanceId: 'chat-1' });
+		service.reportActiveSurface('customization', { agentSessionId: 'hash-b', providerId: 'local-agent-host', surfaceInstanceId: 'customization-1' });
 
 		const transitions = events.filter(event => event.eventName === 'agents/activeContextChanged');
-		// [0] start checkpoint, [1] none->inbox (focus), [2] inbox->sessionChat (switch)
+		// [0] start checkpoint, [1] none->inbox (focus), [2] inbox->customization (switch)
 		assert.strictEqual(transitions[1].data.fromSurface, 'none');
 		assert.strictEqual(transitions[1].data.toSurface, 'inbox');
 		assert.strictEqual(transitions[1].data.transitionCause, 'focus');
 		assert.strictEqual(transitions[1].data.contextAgentSessionId, 'hash-a');
 
 		assert.strictEqual(transitions[2].data.fromSurface, 'inbox');
-		assert.strictEqual(transitions[2].data.toSurface, 'sessionChat');
+		assert.strictEqual(transitions[2].data.toSurface, 'customization');
 		assert.strictEqual(transitions[2].data.transitionCause, 'switch');
 		assert.strictEqual(transitions[2].data.contextAgentSessionId, 'hash-b');
 		assert.ok(typeof transitions[2].data.previousFocusedDwellMs === 'number' && (transitions[2].data.previousFocusedDwellMs as number) >= 0);
@@ -114,9 +115,23 @@ suite('AgentsActivityService', () => {
 		const { service, events } = createService();
 		service.reportActiveSurface('inbox', { surfaceInstanceId: 'inbox-1' });
 		service.reportSurfaceBlurred('inbox');
-		service.reportActiveSurface('sessionChat', { surfaceInstanceId: 'chat-1' });
+		service.reportActiveSurface('customization', { surfaceInstanceId: 'customization-1' });
 		await new Promise(resolve => setTimeout(resolve, 5));
 		const noneTransitions = events.filter(event => event.data.toSurface === 'none' && event.data.transitionCause === 'blur');
 		assert.strictEqual(noneTransitions.length, 0, 'the pending blur should have been cancelled by the subsequent focus');
+	});
+
+	test('blur to an untracked foreground surface emits other without retaining session context', async () => {
+		const { service, events } = createService(true, true);
+		service.reportActiveSurface('inbox', { agentSessionId: 'hash-a', surfaceInstanceId: 'inbox-1' });
+		service.reportSurfaceBlurred('inbox');
+		await new Promise(resolve => setTimeout(resolve, 5));
+		const last = events[events.length - 1].data;
+		assert.deepStrictEqual({
+			from: last.fromSurface,
+			to: last.toSurface,
+			session: last.contextAgentSessionId,
+			instance: last.surfaceInstanceId,
+		}, { from: 'inbox', to: 'other', session: 'none', instance: 'none' });
 	});
 });

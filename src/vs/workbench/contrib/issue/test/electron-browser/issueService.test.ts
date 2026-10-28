@@ -22,7 +22,7 @@ import { TestExperimentTriggerTelemetryService } from '../../../../../platform/t
 import { IColorTheme, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
-import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IWorkbenchExtensionEnablementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { IIntegrityService } from '../../../../services/integrity/common/integrity.js';
@@ -39,6 +39,7 @@ suite('NativeIssueService additional repositories', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const opened: IssueReporterData[] = [];
 		const authenticationProviders: string[] = [];
+		const authenticationSessions: AuthenticationSession[] = [];
 		const telemetry = new TestExperimentTriggerTelemetryService();
 		const warnings: string[] = [];
 		const errors: string[] = [];
@@ -49,7 +50,7 @@ suite('NativeIssueService additional repositories', () => {
 		instantiationService.stub(IWorkbenchExtensionEnablementService, { isEnabled: () => true });
 		instantiationService.stub(IWorkspaceTrustManagementService, { isWorkspaceTrusted: () => true });
 		instantiationService.stub(IWorkbenchAssignmentService, { getCurrentExperiments: async () => [] });
-		instantiationService.stub(IAuthenticationService, { getSessions: async provider => { authenticationProviders.push(provider); return []; } });
+		instantiationService.stub(IAuthenticationService, { getSessions: async provider => { authenticationProviders.push(provider); return authenticationSessions; } });
 		instantiationService.stub(IIntegrityService, { isPure: async () => ({ isPure: true, proof: [] }) });
 		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false });
 		instantiationService.stub(IConfigurationService, new class extends TestConfigurationService {
@@ -67,7 +68,36 @@ suite('NativeIssueService additional repositories', () => {
 		instantiationService.stub(ITelemetryService, telemetry);
 		instantiationService.stub(ILogService, { error: message => errors.push(String(message)) });
 		instantiationService.stub(INotificationService, { warn: message => { warnings.push(String(message)); } });
-		return { service: instantiationService.createInstance(NativeIssueService), opened, authenticationProviders, telemetry, warnings, errors, configurationReads };
+		return { service: instantiationService.createInstance(NativeIssueService), opened, authenticationProviders, authenticationSessions, telemetry, warnings, errors, configurationReads };
+	}
+
+	test('new reporter refreshes existing repo-scoped GitHub sessions without prompting', async () => {
+		const { service, opened, authenticationSessions, authenticationProviders } = createService(true, []);
+		await service.openReporter();
+		await opened[0].whenDataComplete;
+		const initial = opened[0].githubAccessToken;
+		const session = (id: string, scopes: string[]): AuthenticationSession => ({ id, scopes, accessToken: `${id}-token`, account: { id, label: id } });
+		authenticationSessions.push(session('read-user', ['read:user']), session('first-repo', ['repo']), session('second-repo', ['repo']));
+		const signedIn = await opened[0].getGitHubAccessToken?.();
+		authenticationSessions.splice(0, authenticationSessions.length, session('replacement-repo', ['repo']));
+		const changed = await opened[0].getGitHubAccessToken?.();
+		authenticationSessions.length = 0;
+		const signedOut = await opened[0].getGitHubAccessToken?.();
+		assert.deepStrictEqual({ initial, signedIn, changed, signedOut, authenticationProviders }, {
+			initial: '', signedIn: 'first-repo-token', changed: 'replacement-repo-token', signedOut: '',
+			authenticationProviders: ['github', 'github', 'github', 'github'],
+		});
+	});
+
+	for (const githubAccessToken of ['', 'explicit-caller-token']) {
+		test(`new reporter preserves the explicit caller token ${JSON.stringify(githubAccessToken)}`, async () => {
+			const { service, opened, authenticationProviders } = createService(true, []);
+			await service.openReporter({ githubAccessToken });
+			await opened[0].whenDataComplete;
+			assert.deepStrictEqual({
+				token: opened[0].githubAccessToken, resolver: opened[0].getGitHubAccessToken, authenticationProviders,
+			}, { token: githubAccessToken, resolver: undefined, authenticationProviders: [] });
+		});
 	}
 
 	test('repository schema is application-scoped, empty by default and experiment-enabled without an authorization policy', () => {

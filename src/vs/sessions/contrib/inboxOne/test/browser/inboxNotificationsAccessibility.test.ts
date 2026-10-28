@@ -53,4 +53,14 @@ suite('InboxNotificationsAccessibility', () => {
 			].join('\n'),
 		);
 	});
+
+	test('uses generated previews with description fallback', () => {
+		const content = buildInboxNotificationsAccessibleContent([
+			{ kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now, title: 'Question', description: 'Generic', previewSignature: 'question' },
+			{ kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later, title: 'Done', description: 'Fallback', previewSignature: 'missing' },
+		], new Map([['question', 'Choose the deployment target.']]));
+		assert.deepStrictEqual({ preview: content.includes('Choose the deployment target.'), generic: content.includes('Generic'), fallback: content.includes('Fallback') }, {
+			preview: true, generic: false, fallback: true,
+		});
+	});
 });

@@ -42,7 +42,7 @@ import { StateType } from '../../../../../../../../platform/update/common/update
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../../browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
-import type { IModelConfigPropertySchema } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
+import { withoutFusionEffortLevel, type IModelConfigPropertySchema } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ChatConfiguration } from '../../../../../common/constants.js';
 import { IModelPickerComparison, IModelPickerComparisonState, ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../../browser/widget/input/modelPicker/modelPickerComparison.js';
 import { createLocalModelPickerPresentation, IModelPickerLocalModels } from '../../../../../browser/widget/input/modelPicker/modelPickerLocalModelItems.js';
@@ -442,12 +442,13 @@ suite('TabbedModelPicker', () => {
 			finish: () => finished = true,
 		};
 		const promotional = { ...models[0], metadata: { ...models[0].metadata, promo: { id: 'offer', discountPercent: 25, message: 'Temporary offer.' } } };
-		const { popup, picker, selections, values } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), promotional, ...models.slice(1)], comparison });
+		const { popup, picker, selections, values } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), promotional, ...models.slice(1)], comparison, showManageModels: true });
 		const hides: boolean[] = [];
 		disposables.add(picker.onDidHide(event => hides.push(event.finishedComparison)));
 		const searchAction = element(popup, '[data-id="search"]');
 		assert.deepStrictEqual({
 			actions: [...popup.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar > .tabbed-action-list-tabbar-action')].map(action => action.dataset.id),
+			addProvider: !!popup.querySelector('[data-id="addProvider"]'),
 			comparison: popup.querySelector('[data-id="comparison"]')?.getAttribute('aria-pressed'),
 			footer: element(popup, '.tabbed-action-list-footer .monaco-button').getAttribute('aria-label'),
 			search: {
@@ -456,6 +457,7 @@ suite('TabbedModelPicker', () => {
 			},
 		}, {
 			actions: ['comparison', 'search'],
+			addProvider: true,
 			comparison: 'false',
 			footer: 'Send Query to Multiple Models',
 			search: {
@@ -478,6 +480,7 @@ suite('TabbedModelPicker', () => {
 		const firstRow = element(popup, '.chat-model-picker-model');
 		assert.deepStrictEqual({
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
+			addProvider: !!popup.querySelector('[data-id="addProvider"]'),
 			comparisonScope: element(popup, '.action-widget').classList.contains('model-picker-comparison'),
 			routing: listRows(popup).some(label => label === 'Auto' || label === 'HydraFusion'),
 			checks: offered('menuitemcheckbox'),
@@ -490,7 +493,7 @@ suite('TabbedModelPicker', () => {
 			accessible: firstRow.getAttribute('aria-label'),
 			hover: firstRow.getAttribute('title'),
 		}, {
-			heading: 'Select models.', comparisonScope: true, routing: false, checks: 3, checkboxes: 3, buttons: ['Done (disabled)', 'Configure Judge (disabled)'], status: '',
+			heading: 'Select models.', addProvider: false, comparisonScope: true, routing: false, checks: 3, checkboxes: 3, buttons: ['Done (disabled)', 'Configure Judge (disabled)'], status: '',
 			badge: '25% off', configuration: 'Low · 32K', details: 'First Details, Low · 32K',
 			accessible: 'First, 25% off, Effort Level: Low, Context: 32K',
 			hover: 'First · Low · 32K',
@@ -523,23 +526,28 @@ suite('TabbedModelPicker', () => {
 		button('Configure Judge').click();
 		assert.deepStrictEqual({
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
+			addProvider: !!popup.querySelector('[data-id="addProvider"]'),
 			buttons: buttons(),
 			radios: offered('menuitemradio'),
 			checkboxes: popup.querySelectorAll('[role="menuitemcheckbox"], .chat-model-picker-comparison-checkbox').length,
-		}, { heading: 'Optional review.', buttons: ['Configure Attempts', 'Done', 'Configure Synthesis (disabled)'], radios: 3, checkboxes: 0 });
+		}, { heading: 'Optional review.', addProvider: false, buttons: ['Configure Attempts', 'Done', 'Configure Synthesis (disabled)'], radios: 3, checkboxes: 0 });
 		element(popup, '.chat-model-picker-model').click();
 		const judgeWithChoice = buttons();
 		button('Configure Synthesis').click();
 		assert.deepStrictEqual({
 			judgeWithChoice,
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
+			addProvider: !!popup.querySelector('[data-id="addProvider"]'),
 			radios: offered('menuitemradio'),
 			buttons: buttons(),
-		}, { judgeWithChoice: ['Configure Attempts', 'Done', 'Configure Synthesis'], heading: 'Optional review.', radios: 3, buttons: ['Configure Judge', 'Done'] });
+		}, { judgeWithChoice: ['Configure Attempts', 'Done', 'Configure Synthesis'], heading: 'Optional review.', addProvider: false, radios: 3, buttons: ['Configure Judge', 'Done'] });
 		button('Configure Judge').click();
 		assert.strictEqual(popup.querySelector('.action-list-header-text')?.textContent, 'Optional review.');
 		button('Configure Attempts').click();
 		assert.strictEqual(popup.querySelector('.action-list-header-text')?.textContent, 'Select models.');
+		element(popup, '[data-id="comparison"]').click();
+		assert.strictEqual(element(popup, '[data-id="addProvider"]').getAttribute('aria-label'), 'Add Models...');
+		element(popup, '[data-id="comparison"]').click();
 		element(popup, '.chat-model-picker-model').click();
 		button('Configure Judge').click();
 		button('Done').click();
@@ -562,9 +570,9 @@ suite('TabbedModelPicker', () => {
 		action.click();
 		assert.deepStrictEqual({
 			disabled: action.getAttribute('aria-disabled'),
-			title: action.title,
+			description: action.getAttribute('aria-description'),
 			stillOpen: picker.isVisible,
-		}, { disabled: 'true', title: 'Not supported here', stillOpen: true });
+		}, { disabled: 'true', description: 'Not supported here', stillOpen: true });
 	});
 
 	test('comparison footer shows the configured shortcut and the shortcut opens Attempts without selecting a model', () => {
@@ -572,6 +580,7 @@ suite('TabbedModelPicker', () => {
 		const comparison: IModelPickerComparison = {
 			showPickerHint: constObservable(true),
 			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models', startCommandId: 'test.compareModels',
+			description: constObservable('Run one prompt in parallel and compare results.'),
 			start: () => state.set({
 				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
 				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false,
@@ -599,7 +608,7 @@ suite('TabbedModelPicker', () => {
 		}, {
 			label: `Send Query to Multiple Models (${shortcutLabel})`,
 			addIcon: false,
-			toggleLabel: `Compare Models (${shortcutLabel})`,
+			toggleLabel: `Compare Models (${shortcutLabel})\n\nRun one prompt in parallel and compare results.`,
 			step: 'Attempts', selections: [], visible: true, footer: true, toggle: true,
 		});
 	});
@@ -1694,6 +1703,40 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual(autoTiers(result.popup), ['Standard', 'High']);
 	});
 
+	test('in inline chat, Fusion whose host pins its tier there shows no effort level, offers none, and offers no HydraFusion; otherwise it keeps them', () => {
+		const open = (inlineChatTier: string | undefined) => {
+			const base = createFusionModel();
+			const fusion = { ...base, metadata: { ...base.metadata, autoModelFusionInlineChatTier: inlineChatTier } };
+			const available = [...models, fusion, createHydraFusionModel(), createHydraFusionMaxModel()];
+			const values = new Map<string, IStringDictionary<unknown>>([[fusion.identifier, { tier: 'hydrafusion' }]]);
+			const access = withoutFusionEffortLevel({
+				getModelConfiguration: id => values.get(id),
+				getModelConfigurationActions: () => [],
+				setModelConfiguration: async (id, next) => { values.set(id, { ...values.get(id), ...next }); },
+			}, id => available.find(model => model.identifier === id)?.metadata);
+			const result = createPicker({ models: available, access, selectedModelId: models[0].identifier });
+			const fusionRow = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')).find(row => row.querySelector('.title')?.textContent === copilotFusionName)!;
+			const row = { readout: fusionRow.querySelector('.action-label')?.textContent, ariaLabel: fusionRow.getAttribute('aria-label') };
+			const rows = listRows(result.popup);
+			openDetails(result.popup, copilotFusionName);
+			return { rows, row, tiers: autoTiers(result.popup), saved: values.get(fusion.identifier) };
+		};
+		assert.deepStrictEqual({ pinned: open('fast'), notPinned: open(undefined) }, {
+			pinned: {
+				rows: [copilotFusionName, '--', 'First', 'Fixed', 'Second'],
+				row: { readout: 'Details', ariaLabel: 'Copilot Fusion, 10% discount, Picks or combines the best models for your task' },
+				tiers: [],
+				saved: { tier: 'hydrafusion' },
+			},
+			notPinned: {
+				rows: [copilotFusionName, '--', 'First', 'Fixed', 'Second'],
+				row: { readout: 'High', ariaLabel: 'Copilot Fusion, 10% discount, Picks or combines the best models for your task, Effort Level: High' },
+				tiers: ['Standard', 'High', 'Max'],
+				saved: { tier: 'hydrafusion' },
+			},
+		});
+	});
+
 	test('a chat on a HydraFusion model is shown on the provider tier of the same name, which moves it to Fusion', async () => {
 		const fusion = createFusionModel();
 		const providerFusion: ILanguageModelChatMetadataAndIdentifier = {
@@ -2494,7 +2537,7 @@ suite('TabbedModelPicker', () => {
 		}, {
 			rows: [
 				{ name: 'First', summary: 'Low · 32K', details: 'First Details, Low · 32K', infoIcon: false },
-				{ name: 'Fixed', summary: '200K', details: 'Fixed Details, 200K', infoIcon: false },
+				{ name: 'Fixed', summary: 'Max 200K', details: 'Fixed Details, Max 200K', infoIcon: false },
 				{ name: 'Second', summary: 'Low · 32K', details: 'Second Details, Low · 32K', infoIcon: false },
 				{ name: 'Unknown', summary: 'Details', details: 'Unknown Details', infoIcon: false },
 			],

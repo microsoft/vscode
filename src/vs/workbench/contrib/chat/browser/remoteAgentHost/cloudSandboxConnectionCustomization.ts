@@ -20,7 +20,7 @@ import { IAgentHostAuthenticateRequest } from '../agentSessions/agentHost/agentH
 import { IRemoteAgentHostConnectionCustomization } from './remoteAgentHostConnectionCustomization.js';
 import { createCloudSandboxSessionPreparation } from './cloudSandboxLegacySessionPreparation.js';
 
-export const CLOUD_SANDBOX_INPUT_PLACEHOLDER = localize('cloudSandbox.inputPlaceholder', "Chat with Copilot");
+export const CLOUD_SANDBOX_INPUT_PLACEHOLDER = localize('cloudSandbox.inputPlaceholder', "Chat with Copilot Cloud");
 
 /** Hosts whose protected resources may receive the user's GitHub identity token. */
 function isGitHubResource(resource: string): boolean {
@@ -75,6 +75,7 @@ export function createCloudSandboxConnectionCustomization(
 	};
 	return {
 		requiresWorkspaceTrust: false,
+		inputPlaceholder: provider => !userLocal && provider === CLOUD_SANDBOX_AGENT_PROVIDER ? CLOUD_SANDBOX_INPUT_PLACEHOLDER : undefined,
 		authenticate: async (request: IAgentHostAuthenticateRequest, reason?: AuthRequiredReason): Promise<IAgentHostAuthenticateRequest> => {
 			if (reason !== AuthRequiredReason.Expired && isCloudSandboxSealedToken(request.token)) {
 				return request;
@@ -97,8 +98,9 @@ export function createCloudSandboxConnectionCustomization(
 			store.add(Event.once(connection.onDidClose)(() => store.dispose()));
 			return createCloudSandboxSessionPreparation(
 				connection.rootState,
-				(method, params) => connection.sendHostExtensionRequest(method, params),
+				(method, params) => connection.traceRepositoryPreparation('repository.clone', () => connection.sendHostExtensionRequest(method, params)),
 				store,
+				operation => connection.traceRepositoryPreparation('repository.prepare', operation),
 			);
 		},
 	};

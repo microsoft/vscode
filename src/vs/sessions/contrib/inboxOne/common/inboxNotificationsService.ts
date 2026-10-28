@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable } from '../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatQuestion } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { AgentHostPullRequestOperationId } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { getGitHubPullRequestRefs, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../services/sessions/common/session.js';
+import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
 
 export const IInboxNotificationsService = createDecorator<IInboxNotificationsService>('sessionsInboxNotificationsService');
 
@@ -159,17 +162,10 @@ export interface IInboxNotificationsService {
 	 */
 	readonly detailSummaries: IObservable<ReadonlyMap<string, IInboxDetailSummary>>;
 
-	/** A request to reveal and focus a notification card in the view, or `undefined`. */
-	readonly revealRequest: IObservable<IInboxNotificationRevealRequest | undefined>;
-
 	publishExternalNotification(notification: IExternalInboxNotification): void;
 	removeExternalNotification(id: string): void;
 	dismissNotification(id: string): void;
-	clearDismissedNotifications(): void;
 	setSortMode(sortMode: InboxNotificationsSortMode): void;
-
-	/** Ask the inbox view to reveal and focus the notification with the given id. */
-	requestReveal(id: string): void;
 
 	/**
 	 * Trigger (once, then cached) generation of the one-line preview for an item. Called by the
@@ -200,12 +196,6 @@ export interface IInboxInteractionTelemetryContext {
 	readonly providerId: string;
 }
 
-export interface IInboxNotificationRevealRequest {
-	readonly id: string;
-	/** Increments on every request so repeated reveals of the same id retrigger. */
-	readonly token: number;
-}
-
 /** A concrete, session-produced artifact an evidence claim is grounded in and links to. */
 export interface IInboxEvidenceArtifact {
 	readonly kind: 'file' | 'session';
@@ -224,6 +214,38 @@ export interface IInboxDetailSummary {
 	readonly status: string;
 	readonly decisions: readonly string[];
 	readonly evidence: readonly IInboxDetailEvidence[];
+}
+
+/** Returns the unambiguous, provider-advertised PR merge operation; never a local branch merge. */
+export function getInboxPullRequestMergeOperation(session: ISession, reader?: IReader): { readonly changeset: ISessionChangeset; readonly operation: ISessionChangesetOperation } | undefined {
+	const pullRequests = new Set(getSessionGitHubReferences(session, reader).pullRequests.map(ref => ref.uri.toString()));
+	for (const folder of session.workspace.read(reader)?.folders ?? []) {
+		for (const ref of getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader))) {
+			pullRequests.add(ref.uri.toString());
+		}
+	}
+	if (pullRequests.size !== 1) {
+		return undefined;
+	}
+	let candidate: { readonly changeset: ISessionChangeset; readonly operation: ISessionChangesetOperation } | undefined;
+	for (const changeset of session.mainChat.read(reader).changesets.read(reader) ?? []) {
+		if (!changeset.isEnabled.read(reader)) {
+			continue;
+		}
+		for (const operation of changeset.operations.read(reader)) {
+			if (operation.id !== AgentHostPullRequestOperationId.Merge
+				|| !operation.scopes.includes(SessionChangesetOperationScope.Changeset)
+				|| operation.status === SessionChangesetOperationStatus.Disabled
+				|| operation.status === SessionChangesetOperationStatus.Running) {
+				continue;
+			}
+			if (candidate) {
+				return undefined;
+			}
+			candidate = { changeset, operation };
+		}
+	}
+	return candidate;
 }
 
 export function compareInboxNotifications(a: IInboxNotificationItem, b: IInboxNotificationItem): number {

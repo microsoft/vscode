@@ -13,8 +13,7 @@ systems**.
 
 This document is inbox-centric: it explains how inbox events link and sequence within the whole
 Agents window, how to reconstruct a trajectory from either the **local telemetry log** or **Kusto**,
-and documents the bounded ontologies used by the restricted classification, item‑lifecycle, and
-routing‑decision events. Non-inbox `agents/*` events are cataloged only briefly, for linking; see
+and documents the bounded ontologies used by the restricted classification and item-lifecycle events. Non-inbox `agents/*` events are cataloged only briefly, for linking; see
 their own sources for full field lists.
 
 > All events follow the GDPR patterns in [telemetry.instructions.md](./telemetry.instructions.md):
@@ -62,7 +61,7 @@ The Inbox contribution enables `agents/activeContextChanged` only while `chat.ag
 
 | Event | Emitted when | Key fields |
 |---|---|---|
-| `agents/activeContextChanged` | Focus moves between window surfaces | `surface` (inbox/automations/customization/…), `cause`, `previousSurface`, `previousDwellMs` |
+| `agents/activeContextChanged` | Focus moves between reported window surfaces | `fromSurface`, `toSurface` (inbox/automations/customization/other/none), `transitionCause`, `previousFocusedDwellMs`, `contextAgentSessionId` |
 | `agents/windowLayout`, `agents/windowSessionStart`, `agents/firstTimeWindowOpen` | Window lifecycle | layout / session context |
 | `agents/sessionOpen` | A session is opened | `source` (`notification` = from the inbox), `outcome`, durations |
 | `agents/requestSent`, `agents/session*`, `agents/*PullRequest`, `agents/commit*`, `agents/feedback*` | Session / PR / feedback actions | see [sessionsTelemetry.contribution.ts](../../src/vs/sessions/contrib/sessions/browser/sessionsTelemetry.contribution.ts) |
@@ -78,7 +77,6 @@ The Inbox contribution enables `agents/activeContextChanged` only while `chat.ag
 | `agents/inboxPreviewGenerated`, `agents/inboxDetailSummaryGenerated` | Utility‑model preview / evidence pack generated on demand | Bounded outcome only. |
 | `agents/inboxContentClassification` | On‑demand item classification (**restricted**) | Bounded content‑derived labels — see [ontology](#restricted-content-classification-ontology). |
 | `agents/inboxItemLifecycle` | An item enters or leaves the inbox | `outcome` (see [lifecycle](#item-lifecycle-outcomes)), `msInInbox`. |
-| `agents/inboxRoutingDecision` | An item first enters the inbox | The derived [routing plan](#routing-decision-schema). |
 
 Correlate a raw click to its semantic action with the shared `actionId`
 (`agents/inboxClick` ↔ `agents/inboxInteraction`).
@@ -93,9 +91,7 @@ local **Telemetry** output channel — the same local‑logging path used by inl
    then open the **Output → Telemetry** channel.
 2. Each line is `<eventName> <json-payload>`; the payload includes the common properties above.
 3. Filter for `agents/` and order by the embedded `common.sequence` (or `timestamp`).
-4. Because every event carries `common.isAgentsWindow`, `agentSessionId`, and `common.sequence`,
-   the local log alone is enough to rebuild a full in‑session trajectory (focus changes, impressions,
-   clicks, interactions, lifecycle, and routing decisions in order).
+4. Link session-scoped events through `agentSessionId`; active-context events use `contextAgentSessionId` instead. Order by `common.sequence` to reconstruct reported focus changes, impressions, clicks, interactions, and lifecycle. Untracked foreground surfaces are `other`; `none` is the tracker-start checkpoint or loss of window focus.
 
 > **Restricted events are in the local log too.** There is no client‑side split: `_log` in
 > [telemetryService.ts](../../src/vs/platform/telemetry/common/telemetryService.ts) forwards every
@@ -114,15 +110,17 @@ shape (property keys are typically lower‑cased in Kusto and numbers/booleans l
 
 ```kql
 RawEventsVW
-| where EventName startswith "agents/"
-| where tostring(Properties["common.isagentswindow"]) == "true"
+| where EventName startswith "monacoworkbench/agents/"
+| where todouble(Measures["common.isagentswindow"]) == 1
 | extend Seq = toint(Measures["common.sequence"])
-| extend Sid = tostring(Properties["agentsessionid"])
+| extend Sid = coalesce(tostring(Properties["agentsessionid"]), tostring(Properties["contextagentsessionid"]))
 | order by ClientTimestamp asc, Seq asc
 | project ClientTimestamp, Seq, EventName, Sid,
-          Surface = tostring(Properties["surface"]),
+          FromSurface = tostring(Properties["fromsurface"]),
+          ToSurface = tostring(Properties["tosurface"]),
+          TransitionCause = tostring(Properties["transitioncause"]),
+          PreviousFocusedDwellMs = todouble(Measures["previousfocuseddwellms"]),
           Outcome = tostring(Properties["outcome"]),
-          Recipient = tostring(Properties["recipienttype"]),
           Properties, Measures
 ```
 
@@ -157,19 +155,16 @@ trajectory on `agentSessionId`.
 
 ## Restricted content‑classification ontology
 
-`agents/inboxContentClassification` (ontology version **2**) is produced locally by the utility model
-from the item title, transcript, and any pending request. Only the bounded labels below leave the
-client; the raw content never does. Each axis is coerced to `unknown` (or `none`) if the model
+`agents/inboxContentClassification` (ontology version **2**) is produced on demand through the shared utility-model service from the item title, transcript, and any pending request. The configured model may be remote, so generation can send that context to its provider. The telemetry event contains only the bounded labels below, never the raw input or model response. Each axis is coerced to `unknown` (or `none`) if the model
 returns anything out of range. The axes are intentionally **split** (request kind vs. subject; risk
 vs. reversibility vs. environment) so a meta‑router can reason about who should handle an item and
 whether an agent may act autonomously.
 
-> **It is a separate, on‑demand event — not attached to lifecycle/routing events.** Classification
+> **It is a separate, on-demand event, not attached to lifecycle events.** Classification requires Usage-level telemetry and
 > runs at most once per item, only when the user opens the detail pane of a **completed** or
 > **needs‑input** item (it piggybacks on the evidence‑pack generation and is model‑gated), so items
 > the user never opens are never classified and most lifecycle events have no classification.
-> Correlate a classification to that item's `agents/inboxItemLifecycle` / `agents/inboxInteraction` /
-> `agents/inboxRoutingDecision` events by `agentSessionId` + `notificationKind` and `common.sequence`.
+> Correlate a classification to that item's `agents/inboxItemLifecycle` / `agents/inboxInteraction` events by `agentSessionId` + `notificationKind` and `common.sequence`.
 > The labels are deliberately **not** embedded in those events — that would both force a model call
 > for every item (fan‑out) and leak restricted labels into ordinary `SystemMetaData` events.
 
@@ -198,10 +193,12 @@ the label sets change.
 `agents/inboxItemLifecycle` records an item entering or leaving the inbox, so the item lifecycle (and
 the outcomes that feed the meta‑routing feedback loop) sequence alongside the rest of the trajectory.
 
+The first enabled snapshot is seeded silently, even when empty. Disabling Inbox or hiding AI clears tracking silently; reenabling seeds a new snapshot. Pending-input hydration and Completed-to-PR-card refinement transfer observation time without fabricating entry/removal events. Tracking is window-local, not persisted: `msInInbox` measures observation during this enabled window, not item lifetime across reloads. Late provider arrivals after the initial snapshot count as entries.
+
 | `outcome` | Meaning |
 |---|---|
-| `entered` | Item appeared in the inbox for the first time. |
-| `reentered` | Item reappeared after previously leaving (e.g. a new question arrived). |
+| `entered` | A previously unseen item appeared after the initial enabled snapshot. |
+| `reentered` | The same item ID reappeared after leaving during this enabled tracking window. |
 | `dismissed` | The user dismissed the item. |
 | `removed` | The item left for another reason (answered elsewhere, PR closed, source gone). |
 | `unknown` | Reason could not be determined. |
@@ -210,25 +207,3 @@ Also carries `notificationKind`, `priorityTier`, `needsInput`, `msInInbox` (dwel
 on entry), `agentSessionId`, `providerId`. "Agent finished vs. user acted" is reconstructable from the
 sequence: a `runAction`/answer `agents/inboxInteraction` immediately preceding a `removed` outcome is
 a user‑driven resolution.
-
-## Routing‑decision schema
-
-`agents/inboxRoutingDecision` logs the structured routing plan the inbox would produce for an item —
-**who** should handle it, in **what order**, **when**, with **what evidence**, and with how much agent
-**autonomy**. Today the plan is derived programmatically by an explicit rules stub
-(`deriveRoutingPlan`); the schema is logged so a future learned meta‑router can replace the derivation
-without changing the telemetry. Emitted once per entry.
-
-| Field | Values |
-|---|---|
-| `recipientType` | human, agent, both, none |
-| `ordering` | single, sequential, parallel |
-| `timing` | immediate, deferred, scheduled |
-| `priorityTier` | now, next, later, none |
-| `evidenceScope` | none, summary, full |
-| `autonomyLevel` | humanOnly, approvalRequired, autonomous |
-| `decisionRequired` | yes, no |
-| `riskLevel` | low, med, high |
-
-Plus meta: `routingPlanVersion` (bump when the derivation changes), `provenance` (`ruleBasedStub`),
-`notificationKind`, `agentSessionId`, `providerId`.

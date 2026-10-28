@@ -418,6 +418,49 @@ suite('SessionTypePicker', () => {
 		});
 	});
 
+	for (const hostClass of ['new-chat-session-options', 'new-chat-bottom-container', 'new-session-quick-chat-header']) {
+		test(`an environment without harnesses hides the whole picker in ${hostClass} and restores its label when types arrive`, () => {
+			const copilot = sessionType('local', 'copilot-cli', 'Copilot');
+			management.setSessionTypes([copilot]);
+			const allowedProviders = observableValue<readonly string[]>('allowedProviders', ['local']);
+			const picker = createPicker(disposables, session, management, storage, { allowedProviders });
+			picker.setFolderSource(constObservable(folder));
+			const container = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+			disposables.add(toDisposable(() => container.remove()));
+			const widget = dom.append(container, dom.$('.new-chat-widget-container.revealed'));
+			const content = dom.append(widget, dom.$('.experimental-new-session-composer'));
+			const host = dom.append(content, dom.$(`.${hostClass}`));
+			picker.render(host, { className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' });
+			const trigger = host.querySelector<HTMLElement>('.action-label')!;
+			const slot = host.querySelector<HTMLElement>('.sessions-chat-picker-slot')!;
+			const readState = () => ({
+				slotVisible: slot.checkVisibility(),
+				triggerVisible: trigger.checkVisibility(),
+				label: trigger.querySelector('.sessions-chat-dropdown-label')?.textContent ?? null,
+				interactive: picker.isVisible.get(),
+			});
+
+			const states = [readState()];
+			allowedProviders.set(['remote'], undefined);
+			states.push(readState());
+			management.setSessionTypes([
+				copilot,
+				sessionType('remote', 'claude', 'Claude'),
+				sessionType('remote', 'codex', 'Codex'),
+			]);
+			states.push(readState());
+			allowedProviders.set(['local'], undefined);
+			states.push(readState());
+
+			assert.deepStrictEqual(states, [
+				{ slotVisible: true, triggerVisible: true, label: 'Copilot', interactive: false },
+				{ slotVisible: false, triggerVisible: false, label: null, interactive: false },
+				{ slotVisible: true, triggerVisible: true, label: 'Claude', interactive: true },
+				{ slotVisible: true, triggerVisible: true, label: 'Copilot', interactive: false },
+			]);
+		});
+	}
+
 	test('a single harness retains disabled styling through toolbar nesting in every theme', () => {
 		const copilot = sessionType('copilot', 'copilot-cli', 'Copilot');
 		management.setSessionTypes([copilot]);

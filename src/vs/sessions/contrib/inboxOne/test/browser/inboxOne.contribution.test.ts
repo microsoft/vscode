@@ -15,6 +15,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { AgentsActivityService } from '../../../../services/activity/browser/agentsActivityService.js';
 import { CustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { SessionsNavigation } from '../../../../services/sessions/browser/sessionNavigation.js';
@@ -34,7 +35,7 @@ suite('InboxNotificationsCustomViewContribution', () => {
 		const events: string[] = [];
 		const activityService = disposables.add(new AgentsActivityService(upcastPartial<ITelemetryService>({
 			publicLog2: eventName => { events.push(eventName); },
-		})));
+		}), upcastPartial<IHostService>({ hasFocus: true })));
 		const customViewService = disposables.add(new CustomViewService(new NullLogService(), storageService));
 		disposables.add(new InboxNotificationsCustomViewContribution(
 			configurationService,

@@ -41,6 +41,7 @@ export enum NotificationTelemetryId {
 	PluginManagedRetry = 'plugins.managed.retry',
 	PluginManagedRetryComplete = 'plugins.managed.retry.complete',
 	PluginManagedRetryError = 'plugins.managed.retry.error',
+	CustomizationMigration = 'customizations.migration',
 	DictationModelPrepare = 'dictation.model.prepare',
 	DictationModelImport = 'dictation.model.import',
 	FileSaveParticipants = 'files.saveParticipants',
@@ -61,6 +62,62 @@ export enum NotificationActionTelemetryId {
 	Configure = 'configure',
 }
 
+export enum ExtensionNotificationTelemetryId {
+	GitHubSignInBrowser = 'githubAuthentication.signIn.browser',
+	GitHubSignInDeviceCode = 'githubAuthentication.signIn.deviceCode',
+	GitHubSignInRetryAfterCancel = 'githubAuthentication.signIn.retryAfterCancel',
+	GitHubSignInRetryAfterFailure = 'githubAuthentication.signIn.retryAfterFailure',
+	GitHubSignInFailed = 'githubAuthentication.signIn.failed',
+	GitHubSignOutFailed = 'githubAuthentication.signOut.failed',
+	GitHubEnterpriseInvalidUri = 'githubAuthentication.enterprise.invalidUri',
+	GitHubEnterpriseUpdateFailed = 'githubAuthentication.enterprise.updateFailed',
+	GitHubEnterpriseInitializationFailed = 'githubAuthentication.enterprise.initializationFailed',
+	GitMissing = 'git.missing',
+	GitLegacyVersion = 'git.legacyVersion',
+	GitWindowsVersion = 'git.windowsVersion',
+	GitParentRepository = 'git.parentRepository',
+	GitUnsafeRepository = 'git.unsafeRepository',
+	GitSubmoduleLimit = 'git.submoduleLimit',
+	GitWorktreeLimit = 'git.worktreeLimit',
+	GitAutoFetch = 'git.autoFetch',
+	TypeScriptWorkspaceVersion = 'typescript.workspaceVersion',
+	TypeScriptWorkspaceNode = 'typescript.workspaceNode',
+	TypeScriptNativePreview = 'typescript.nativePreview',
+	TypeScriptInvalidServerPath = 'typescript.invalidServerPath',
+}
+
+const extensionNotificationIds = new Map<string, readonly ExtensionNotificationTelemetryId[]>([
+	['vscode.github-authentication/message', [
+		ExtensionNotificationTelemetryId.GitHubSignInRetryAfterCancel,
+		ExtensionNotificationTelemetryId.GitHubSignInRetryAfterFailure,
+		ExtensionNotificationTelemetryId.GitHubSignInFailed,
+		ExtensionNotificationTelemetryId.GitHubSignOutFailed,
+		ExtensionNotificationTelemetryId.GitHubEnterpriseInvalidUri,
+		ExtensionNotificationTelemetryId.GitHubEnterpriseUpdateFailed,
+		ExtensionNotificationTelemetryId.GitHubEnterpriseInitializationFailed,
+	]],
+	['vscode.github-authentication/progress', [
+		ExtensionNotificationTelemetryId.GitHubSignInBrowser,
+		ExtensionNotificationTelemetryId.GitHubSignInDeviceCode,
+	]],
+	['vscode.git/message', [
+		ExtensionNotificationTelemetryId.GitMissing,
+		ExtensionNotificationTelemetryId.GitLegacyVersion,
+		ExtensionNotificationTelemetryId.GitWindowsVersion,
+		ExtensionNotificationTelemetryId.GitParentRepository,
+		ExtensionNotificationTelemetryId.GitUnsafeRepository,
+		ExtensionNotificationTelemetryId.GitSubmoduleLimit,
+		ExtensionNotificationTelemetryId.GitWorktreeLimit,
+		ExtensionNotificationTelemetryId.GitAutoFetch,
+	]],
+	['vscode.typescript-language-features/message', [
+		ExtensionNotificationTelemetryId.TypeScriptWorkspaceVersion,
+		ExtensionNotificationTelemetryId.TypeScriptWorkspaceNode,
+		ExtensionNotificationTelemetryId.TypeScriptNativePreview,
+		ExtensionNotificationTelemetryId.TypeScriptInvalidServerPath,
+	]],
+]);
+
 const extensionTelemetryBrand = Symbol('extensionNotificationTelemetry');
 
 export interface IExtensionNotificationTelemetry {
@@ -71,7 +128,7 @@ export type NotificationTelemetry = NotificationTelemetryId | IExtensionNotifica
 
 export interface INotificationTelemetrySource {
 	readonly origin: 'core' | 'extension' | 'unknown';
-	readonly notificationId: NotificationTelemetryId | 'extension.message' | 'extension.progress' | 'unknown';
+	readonly notificationId: NotificationTelemetryId | ExtensionNotificationTelemetryId | 'extension.message' | 'extension.progress' | 'unknown';
 	readonly extensionId: string;
 }
 
@@ -81,12 +138,13 @@ const extensionSources = new WeakMap<IExtensionNotificationTelemetry, INotificat
 const unknownSource: INotificationTelemetrySource = Object.freeze({ origin: 'unknown', notificationId: 'unknown', extensionId: 'unknown' });
 
 /** Only call from extension bridges with an identifier from the extension description, never a display source. */
-export function extensionNotificationTelemetry(extensionId: string | undefined, kind: 'message' | 'progress'): IExtensionNotificationTelemetry {
+export function extensionNotificationTelemetry(extensionId: string | undefined, kind: 'message' | 'progress', notificationId?: string): IExtensionNotificationTelemetry {
 	const telemetry = Object.freeze({ [extensionTelemetryBrand]: true } as const);
+	const source = typeof extensionId === 'string' && extensionId.length <= 255 && EXTENSION_IDENTIFIER_REGEX.test(extensionId) ? extensionId.toLowerCase() : 'unknown';
 	extensionSources.set(telemetry, Object.freeze({
 		origin: 'extension',
-		notificationId: kind === 'message' ? 'extension.message' : 'extension.progress',
-		extensionId: typeof extensionId === 'string' && extensionId.length <= 255 && EXTENSION_IDENTIFIER_REGEX.test(extensionId) ? extensionId.toLowerCase() : 'unknown'
+		notificationId: extensionNotificationIds.get(`${source}/${kind}`)?.find(id => id === notificationId) ?? (kind === 'message' ? 'extension.message' : 'extension.progress'),
+		extensionId: source
 	}));
 	return telemetry;
 }

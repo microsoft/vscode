@@ -34,6 +34,7 @@ import { IAgentsActivityService } from '../../../services/activity/browser/agent
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { getCustomizationToolSets } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/copilotCliBuiltinToolSet.js';
 
 const $ = DOM.$;
 
@@ -234,7 +235,7 @@ export class AICustomizationOverviewView extends ViewPane {
 		if (toolsSection) {
 			this._register(autorun(reader => {
 				const state = this.toolEnablementService.observe(AGENT_HOST_COPILOT_CLI_SESSION_TYPE).read(reader);
-				const toolSets = this.languageModelToolsService.toolSets.read(reader);
+				const toolSets = getCustomizationToolSets(this.languageModelToolsService.toolSets.read(reader));
 				toolsSection.count = countEnabledCustomizationTools(toolSets, state, reader);
 				this.updateCountElements();
 			}));

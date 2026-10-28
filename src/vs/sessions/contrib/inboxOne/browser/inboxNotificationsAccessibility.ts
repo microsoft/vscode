@@ -27,12 +27,12 @@ class InboxNotificationsAccessibilityHelp implements IAccessibleViewImplementati
 			localize('inboxNotifications.help.overview', "You are in the Inbox view. It lists prioritized notifications that need attention."),
 			localize('inboxNotifications.help.repository', "Cards include repository badges when a notification is associated with a repository."),
 			localize('inboxNotifications.help.pullRequestStates', "Pull request notifications show state chips with pull request icons so you can quickly scan checks, comments, and merge readiness. Activate a pull request chip to open that pull request."),
-			localize('inboxNotifications.help.navigation', "Use Up Arrow and Down Arrow to move focus between notification cards. Press Enter or Space on a card to move focus into its detail pane; details, including a generated summary and the conversation, appear there. Press Escape in the detail pane to return focus to the selected notification card. Tab moves through the actions and inline controls for the focused notification."),
+			localize('inboxNotifications.help.navigation', "Use Up Arrow and Down Arrow to move focus between notification cards. Press Enter or Space on a card to move focus into its detail pane; details, including a generated summary and the conversation, appear there. Press Escape in the detail pane to return focus to the selected notification card. Tab moves through section headers, actions, and inline controls throughout the notification list."),
 			localize('inboxNotifications.help.tiers', "In Priority sort, notifications are grouped into collapsible tiers: Now, Next, and Later. Activate a tier header to collapse or expand that group. Resolved notifications are grouped under Completed."),
 			localize('inboxNotifications.help.sorting', "Use the Priority and Recent toggle buttons to switch sorting order. Priority is the default; the pressed button is the active sort."),
 			localize('inboxNotifications.help.filter', "Use the Filter button to open a checklist of categories — Now, Next, Later, and Completed — and toggle which are shown. Completed is hidden by default. Sorting by Priority or Recent still applies to whichever categories are visible."),
 			localize('inboxNotifications.help.feedback', "Use the Inbox Was Useful button in the toolbar to send quick positive feedback."),
-			localize('inboxNotifications.help.actions', "When input is needed, the card shows an inline question carousel or confirmation controls; answer or confirm directly in the card. Select the card to see a summary of the decision and context in the detail pane, or open the session for full context. CI and review notifications may include actions such as Fix CI Failures, Address Reviews, and Merge Pull Request. Some actions include a More Actions menu where you can set that action to run by default. Use Done to clear a notification."),
+			localize('inboxNotifications.help.actions', "When input is needed, the card shows an inline question carousel or confirmation controls; answer or confirm directly in the card. Select the card to see a summary of the decision and context in the detail pane, or open the session for full context. CI and review notifications may include actions such as Fix CI Failures, Address Reviews, and Merge Pull Request when supported. Eligible session cleanup actions include a More Actions menu for configuring automatic cleanup. Use Done to clear a notification."),
 			localize('inboxNotifications.help.liveUpdates', "New notifications appear automatically. While your focus is inside inline input controls, list updates pause and a banner lets you show new notifications when you are ready."),
 			localize('inboxNotifications.help.loading', "When Inbox data is refreshing, a spinner appears in the Inbox header so you know the list is updating."),
 			localize('inboxNotifications.help.done', "Mark Notification as Done clears only the notification and marks its session as read when available. It does not archive the session. Completed notifications do not offer inline input controls; open the session to respond to a question that is still pending."),
@@ -60,7 +60,7 @@ class InboxNotificationsAccessibleView implements IAccessibleViewImplementation 
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.InboxNotifications,
 			{ type: AccessibleViewType.View },
-			() => buildInboxNotificationsAccessibleContent(notificationsService.notifications.get()),
+			() => buildInboxNotificationsAccessibleContent(notificationsService.notifications.get(), notificationsService.previews.get()),
 			restoreFocus,
 			AccessibilityVerbositySettingId.InboxNotifications,
 		);
@@ -78,7 +78,7 @@ function createFocusRestorer(layoutService: IAgentWorkbenchLayoutService): () =>
 	};
 }
 
-export function buildInboxNotificationsAccessibleContent(items: readonly Pick<IInboxNotificationItem, 'kind' | 'priority' | 'title' | 'description' | 'repositoryLabel' | 'pullRequestStates'>[]): string {
+export function buildInboxNotificationsAccessibleContent(items: readonly Pick<IInboxNotificationItem, 'kind' | 'priority' | 'title' | 'description' | 'repositoryLabel' | 'pullRequestStates' | 'previewSignature'>[], previews: ReadonlyMap<string, string> = new Map()): string {
 	if (items.length === 0) {
 		return localize('inboxNotifications.accessibleView.empty', "No active notifications.");
 	}
@@ -105,7 +105,7 @@ export function buildInboxNotificationsAccessibleContent(items: readonly Pick<II
 				item.pullRequestStates.map(state => `${state.label} (${state.statusLabel})`).join(', '),
 			));
 		}
-		lines.push(localize('inboxNotifications.accessibleView.itemDescription', "   {0}", item.description));
+		lines.push(localize('inboxNotifications.accessibleView.itemDescription', "   {0}", (item.previewSignature ? previews.get(item.previewSignature) : undefined) ?? item.description));
 	}
 	return lines.join('\n');
 }

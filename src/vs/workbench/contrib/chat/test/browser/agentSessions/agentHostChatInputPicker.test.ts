@@ -766,6 +766,18 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		]);
 	});
 
+	test('hides CLI bootstrap controls without hiding other boolean or enum options', () => {
+		const schemas: SessionConfigPropertySchema[] = [
+			{ type: 'boolean', title: 'Toggle', sessionMutable: true },
+			{ type: 'string', title: 'Choice', enum: ['off', 'export', 'on'], sessionMutable: true },
+		];
+		assert.deepStrictEqual(schemas.flatMap(schema => [false, true].map(isStartedSession =>
+			['remoteSession', 'enableManagedSettings', 'enableSessionStore', 'imageGeneration', 'allowTranscriptRecovery', 'customOption'].map(property =>
+				isGenericConfigPickerProperty(property, schema, isStartedSession)
+			)
+		)), Array.from({ length: 4 }, () => [false, false, false, false, false, true]));
+	});
+
 	test('never exposes the pull request URL as a generic config chip', () => {
 		const property = { type: 'string' as const, title: 'Pull Request', readOnly: true, sessionMutable: true };
 		const schemas = [

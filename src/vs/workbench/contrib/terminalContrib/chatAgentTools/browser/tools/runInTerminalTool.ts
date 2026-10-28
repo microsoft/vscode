@@ -2768,7 +2768,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	private _registerInputListener(toolTerminal: IToolTerminal): void {
-		const disposable = toolTerminal.instance.onData(data => {
+		const disposable = toolTerminal.instance.onDidInputData(data => {
 			if (!telemetryIgnoredSequences.includes(data)) {
 				toolTerminal.receivedUserInput = data.length > 0;
 			}

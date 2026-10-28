@@ -8,6 +8,7 @@ import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 
 /** Telemetry schema version for the active-context trajectory events. */
 const AGENTS_ACTIVITY_SCHEMA_VERSION = 1;
@@ -20,15 +21,8 @@ const AGENTS_ACTIVITY_SCHEMA_VERSION = 1;
 export type AgentsSurface =
 	| 'none'
 	| 'inbox'
-	| 'sessionsList'
-	| 'sessionChat'
-	| 'composer'
-	| 'changes'
-	| 'diff'
 	| 'automations'
 	| 'customization'
-	| 'settings'
-	| 'titlebar'
 	| 'other';
 
 /** Bounded cause of an active-context transition. */
@@ -64,8 +58,8 @@ export interface IAgentsActivityService {
 
 	/**
 	 * Report that a surface lost focus. If it was the active surface and nothing else takes focus
-	 * within a short debounce (i.e. focus left all Agents surfaces), a transition to `none` is
-	 * emitted. Debouncing avoids spurious churn while focus moves between surfaces.
+	 * within a short debounce, emits `other` for an untracked foreground surface or `none` if
+	 * the window lost focus. Debouncing avoids spurious churn while focus moves between surfaces.
 	 */
 	reportSurfaceBlurred(surface: AgentsSurface): void;
 }
@@ -87,7 +81,7 @@ type IActiveContextClassification = {
 	owner: 'meganrogge';
 	comment: 'Reconstructs the foreground focus trajectory across the whole Agents window (not just the inbox): which surface holds focus over time and for how long. These are UI focus proxies, not measured human attention. Emitted only on transitions, which are user-paced.';
 	fromSurface: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded surface that lost focus (or none at window/tracker start).' };
-	toSurface: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded surface that gained focus (or none when focus left all Agents surfaces).' };
+	toSurface: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded surface that gained focus, other for an untracked foreground surface, or none when the window lost focus.' };
 	transitionCause: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded cause: open (tracker/window start checkpoint), focus, switch, blur, or programmatic.' };
 	contextAgentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the session in context on the target surface, or none when not session-scoped.' };
 	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded sessions provider category for the session in context, or none.' };
@@ -114,6 +108,7 @@ export class AgentsActivityService extends Disposable implements IAgentsActivity
 
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 	}
@@ -154,8 +149,7 @@ export class AgentsActivityService extends Disposable implements IAgentsActivity
 		if (!this.enabled || surface !== this.activeSurface) {
 			return;
 		}
-		// Debounce: focus commonly moves to another surface within the same tick; only treat this
-		// as leaving all Agents surfaces if nothing else claims focus.
+		// Debounce focus transfers before classifying untracked foreground focus.
 		this.pendingBlur.value = disposableTimeout(() => {
 			if (this.activeSurface !== surface) {
 				return;
@@ -163,11 +157,11 @@ export class AgentsActivityService extends Disposable implements IAgentsActivity
 			const now = Date.now();
 			const dwell = Math.max(0, now - this.activeSince);
 			const from = this.activeSurface;
-			const context = this.activeContext;
-			this.activeSurface = 'none';
+			const target = this.hostService.hasFocus ? 'other' : 'none';
+			this.activeSurface = target;
 			this.activeContext = undefined;
 			this.activeSince = now;
-			this.emit(from, 'none', 'blur', context, dwell);
+			this.emit(from, target, 'blur', undefined, dwell);
 		}, 0);
 	}
 

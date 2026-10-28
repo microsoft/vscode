@@ -46,9 +46,10 @@ import { ChatRequestTextPart } from '../../../../workbench/contrib/chat/common/r
 import { Range } from '../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISendRequestOptions } from '../../../services/sessions/common/sessionsProvider.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
-import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
+import { getChatSessionType, getNewChatSessionResource } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatSessionHistoryStatus } from '../../../../platform/chat/common/chatSessionHistory.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
@@ -179,7 +180,7 @@ export class NewChatView extends AbstractChatView {
 	}
 
 	protected override doLayout(width: number, height: number, _top: number, _left: number): void {
-		this._widget.layout(height, Math.max(0, width - 2 * this.contentInset));
+		this._widget.layout(height, width);
 	}
 
 	override focus(): void {
@@ -291,10 +292,6 @@ export class ChatView extends AbstractChatView {
 		return this._chatPills.activityBarActions;
 	}
 
-	override get scrollDownButtonDomNode(): HTMLElement {
-		return this._widget.scrollDownButtonDomNode;
-	}
-
 	private readonly _widget: ChatWidget;
 	private readonly _widgetContainer: HTMLElement;
 	private readonly _externalSessionBanner: ExternalSessionBanner;
@@ -389,6 +386,7 @@ export class ChatView extends AbstractChatView {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
@@ -548,6 +546,7 @@ export class ChatView extends AbstractChatView {
 
 		// Floating status pills above the input.
 		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false, () => this._widget.focusInput()));
+		this._register(this._widget.registerBackgroundActivityPillSections(this._chatPills.backgroundActivityPillSections));
 		this._register(this._widget.inputEditor.onKeyDown(event => {
 			if (isFocusChatPillsKeyDown(event) && this._chatPills.focusFirst()) {
 				event.preventDefault();
@@ -760,9 +759,9 @@ export class ChatView extends AbstractChatView {
 		this.logService.trace(`[ChatView] setChat start uri=${resource.toString()} session=${session?.resource.toString()}`);
 
 		const preparationInput = session?.preparationProgress?.get() && this.sessionsManagementService.getInFlightNewSessionRequest(session.resource);
-		if (preparationInput) {
+		if (session && preparationInput) {
 			this._loadCts.value?.cancel();
-			this._showPreparationInput(preparationInput);
+			this._showPreparationInput(preparationInput, session);
 			this._setLoading(false);
 			this._layoutChatWidget();
 		} else {
@@ -778,15 +777,20 @@ export class ChatView extends AbstractChatView {
 			: Promise.resolve();
 	}
 
-	private _showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>): void {
-		// This view owns the model; do not register or persist it as a chat session.
+	private _showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>, session: ISession): void {
+		const snapshot = this.sessionsProvidersService.getProvider(session.providerId)?.getModelsSnapshot(session.sessionId, session.modelId.get());
+		// Keep this view-owned model in the draft's pool without registering it or reusing the backend resource.
 		const model = this.instantiationService.createInstance(ChatModel, undefined, {
 			initialLocation: ChatAgentLocation.Chat,
+			resource: snapshot?.modelTarget ? getNewChatSessionResource(snapshot.modelTarget) : undefined,
 			canUseTools: false,
 			disableBackgroundKeepAlive: true,
 			isReadOnly: constObservable(true),
 		});
 		this._preparationModel.value = model;
+		if (snapshot?.desiredModelResolution.kind === 'available') {
+			model.inputModel.setState({ selectedModel: snapshot.desiredModelResolution.model });
+		}
 		const lines = input.query.split('\n');
 		model.addRequest({
 			text: input.query,
@@ -1108,11 +1112,9 @@ export class ChatView extends AbstractChatView {
 		if (isHTMLElement(progressContainer)) {
 			progressContainer.style.top = `${widgetTop}px`;
 		}
-		const contentWidth = Math.max(0, width - 2 * this.contentInset);
-		this._comparisonResult.layout(contentWidth);
+		this._comparisonResult.layout(width);
 		size(this._widgetContainer, width, widgetHeight);
-		// Widget layout sizes embedded editors; its DOM viewport stays full-width for the scrollbar.
-		this._widget.layout(widgetHeight, contentWidth);
+		this._widget.layout(widgetHeight, width);
 		this._layoutStickyScrollBackground();
 	}
 

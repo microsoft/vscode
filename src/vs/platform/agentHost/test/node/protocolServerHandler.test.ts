@@ -13,6 +13,7 @@ import sodium from 'libsodium-wrappers';
 import { lstat, mkdir, mkdtemp, opendir, readFile, readdir, rm, symlink, writeFile } from 'fs/promises';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { AgentHostWorktreeDiskUsageService } from '../../node/worktreeDiskUsage.js';
+import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { dirname, join, parse } from '../../../../base/common/path.js';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
@@ -20,6 +21,7 @@ import { withCreateChatWorkspaceMeta } from '../../common/meta/agentHostCreateCh
 import { AgentHostCreateSessionImportMetaKey, serializeCreateSessionImport, splitCreateSessionImportChunks, StageCreateSessionImportChunkExtensionMethod, supportsAgentHostCreateSessionImport, withCreateSessionImportMeta, withStagedCreateSessionImportMeta } from '../../common/meta/agentHostCreateSessionImportMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
 import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
+import { readAgentHostAuthenticationEncryption } from '../../common/meta/agentHostAuthenticationEncryption.js';
 import { supportsAgentHostSessionMove } from '../../common/meta/agentHostSessionMoveMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
@@ -38,7 +40,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { mock } from '../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { FileType } from '../../../files/common/files.js';
+import { createFileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
@@ -95,6 +97,7 @@ import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaK
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentHostChatOwnershipService, IAgentHostChatOwnershipService, type IChatOwnerResolution } from '../../node/agentHostChatOwnershipService.js';
 import { EmptyOwnershipDatabase, createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { FileSystemResources } from '../../node/resourceProviders/fileSystemResources.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
@@ -232,10 +235,11 @@ class TestHandlerChatOwnership extends AgentHostChatOwnershipService {
 
 class MockAgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
-	private readonly _worktreeDiskUsage = this._register(new AgentHostWorktreeDiskUsageService());
+	sessionWorktreeCleanup?: IAgentService['sessionWorktreeCleanup'];
+	private readonly _worktreeDiskUsage = this._register(new AgentHostWorktreeDiskUsageService(undefined, new class extends mock<IAgentHostDatabase>() { }(), new class extends mock<AgentHostStateManager>() { }()));
 
-	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined> {
-		return this._worktreeDiskUsage.measure(root, token);
+	measureWorktreeDiskUsage(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined> {
+		return this._worktreeDiskUsage.measure(root, token, session);
 	}
 	readonly handledActions: (SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction)[] = [];
 	readonly handledClientTypes: (AgentHostClientType | undefined)[] = [];
@@ -2321,6 +2325,38 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	suite('resource resolution', () => {
+		for (const [fileErrorCode, protocolErrorCode] of [
+			[FileSystemProviderErrorCode.FileNotFound, AhpErrorCodes.NotFound],
+			[FileSystemProviderErrorCode.NoPermissions, AhpErrorCodes.PermissionDenied],
+			[FileSystemProviderErrorCode.Unavailable, JSON_RPC_INTERNAL_ERROR],
+			[FileSystemProviderErrorCode.Unknown, JSON_RPC_INTERNAL_ERROR],
+		] as const) {
+			test(`preserves filesystem error classification across the protocol (${fileErrorCode})`, async () => {
+				const resources = disposables.add(new FileSystemResources(new class extends mock<IFileService>() {
+					override async stat(): Promise<never> {
+						throw createFileSystemProviderError('Stat failed', fileErrorCode);
+					}
+				}));
+				agentService.resourceResolve = params => resources.resolve(params);
+				const transport = disposables.add(connectClient('resource-resolution'));
+				const response = waitForResponse(transport, 20);
+				const uri = 'file:///repo.worktrees/session';
+				transport.simulateMessage(request(20, 'resourceResolve', { channel: 'ahp-root://', uri, followSymlinks: false }));
+				assert.deepStrictEqual(await response, {
+					jsonrpc: '2.0',
+					id: 20,
+					error: {
+						code: protocolErrorCode,
+						message: fileErrorCode === FileSystemProviderErrorCode.FileNotFound ? `Resource not found: ${uri}`
+							: fileErrorCode === FileSystemProviderErrorCode.NoPermissions ? `Permission denied: ${uri}`
+								: `Failed to resolve resource: ${uri}: Stat failed`,
+					},
+				});
+			});
+		}
+	});
+
 	suite('worktree disk usage', () => {
 		let root: string;
 		let allocatedBytes: number;
@@ -2336,6 +2372,30 @@ suite('ProtocolServerHandler', () => {
 			await rm(root, { recursive: true, force: true });
 		});
 
+		test('routes cleanup state and retry requests to the owning host', async () => {
+			const calls: { session: string; retry: boolean }[] = [];
+			agentService.sessionWorktreeCleanup = async (session, retry) => {
+				calls.push({ session: session.toString(), retry });
+				return { state: 'failed', message: 'permission denied' };
+			};
+			const transport = connectClient('worktree-cleanup');
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/sessionWorktreeCleanup', { session: 'opaque-session://host/session', retry: true }));
+			assert.deepStrictEqual({ response: await response, calls }, {
+				response: { jsonrpc: '2.0', id: 20, result: { state: 'failed', message: 'permission denied' } },
+				calls: [{ session: 'opaque-session://host/session', retry: true }],
+			});
+		});
+
+		test('rejects malformed cleanup requests without scheduling removal', async () => {
+			agentService.sessionWorktreeCleanup = async () => { throw new Error('Must not be called'); };
+			const transport = connectClient('worktree-cleanup-invalid');
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/sessionWorktreeCleanup', { session: 'opaque-session://host/session', retry: 'true' }));
+			const result = await response;
+			assert.ok(hasKey(result, { error: true }) && result.error?.code === JsonRpcErrorCodes.InvalidParams);
+		});
+
 		test('returns aggregate bytes without routing per-file resource requests', async () => {
 			const transport = connectClient('worktree-measurement');
 			const response = waitForResponse(transport, 20);
@@ -2343,6 +2403,21 @@ suite('ProtocolServerHandler', () => {
 				uri: URI.file(root).toString(), requestId: 'measurement',
 			}));
 			assert.deepStrictEqual(await response, { jsonrpc: '2.0', id: 20, result: { sizeBytes: allocatedBytes } });
+		});
+
+		test('routes the advertised session identity to the host size cache', async () => {
+			const sessions: (string | undefined)[] = [];
+			agentService.measureWorktreeDiskUsage = async (_root, _token, session) => {
+				sessions.push(session?.toString());
+				return allocatedBytes;
+			};
+			const transport = connectClient('worktree-cache');
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/measureWorktreeDiskUsage', {
+				uri: URI.file(root).toString(), requestId: 'cached', session: 'other-host:/opaque/session',
+			}));
+			await response;
+			assert.deepStrictEqual(sessions, ['other-host:/opaque/session']);
 		});
 
 		test('allows a protocol measurement to finish after thirty seconds', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -2383,7 +2458,7 @@ suite('ProtocolServerHandler', () => {
 						active--;
 					}
 				},
-			}));
+			}, new class extends mock<IAgentHostDatabase>() { }(), stateManager));
 			agentService.measureWorktreeDiskUsage = (uri, token) => sharedMeasurements.measure(uri, token);
 			const secondServer = disposables.add(new MockProtocolServer());
 			disposables.add(new ProtocolServerHandler(
@@ -5340,7 +5415,7 @@ suite('ProtocolServerHandler', () => {
 	});
 
 	suite('listener extensions', () => {
-		function createExtensionHandler(extension: IProtocolServerExtension, config: IProtocolServerConfig = {}) {
+		function createExtensionHandler(extension: IProtocolServerExtension | undefined, config: IProtocolServerConfig = {}) {
 			const relay = disposables.add(new MockProtocolServer());
 			const scopedHandler = disposables.add(new ProtocolServerHandler(
 				agentService, stateManager, relay, { ...config, allowExtensionMethods: false, extension },
@@ -5356,6 +5431,55 @@ suite('ProtocolServerHandler', () => {
 				return transport;
 			};
 			return { relay, scopedHandler, connect };
+		}
+
+		for (const withExtension of [false, true]) {
+			test(`preserves relay encryption keys after authentication ${withExtension ? 'with' : 'without'} listener extensions`, async () => {
+				const purposes = ['auth-token', 'mcp-auth-token'] as const;
+				const keys = purposes.map(use => ({
+					keyId: `${use}-key`, publicKey: `${use}-public-key`, use, algorithm: 'x25519-sealedbox',
+				}));
+				const relayRootMeta = { 'copilot.encryptionKeys': keys };
+				const hostMeta = stateManager.rootState._meta;
+				const extension: IProtocolServerExtension | undefined = withExtension ? {
+					rootMeta: { 'example.catalogue': { available: true } },
+					rootConfig: { schema: { type: 'object', properties: {} }, values: {} },
+					onDidEmitAction: Event.None,
+					initialize: async () => { },
+					requests: new Map(),
+				} : undefined;
+				const { scopedHandler, connect } = createExtensionHandler(extension, { relayRootMeta });
+				const transport = connect('encryption-client', false);
+				const initialized = findResponse(transport.sent, 1);
+				assert.ok(initialized && hasKey(initialized, { result: true }));
+				const initialRoot = (initialized.result as InitializeResult).snapshots?.find(snapshot => snapshot.resource === ROOT_STATE_URI)?.state as RootState;
+
+				transport.simulateMessage(request(2, 'authenticate', { resource: 'https://api.github.com', token: 'test-token' }));
+				await scopedHandler.whenIdle();
+				transport.simulateMessage(request(3, 'subscribe', { channel: ROOT_STATE_URI }));
+				await scopedHandler.whenIdle();
+				const subscribed = findResponse(transport.sent, 3);
+				assert.ok(subscribed && hasKey(subscribed, { result: true }));
+				const refreshedRoot = (subscribed.result as SubscribeResult).snapshot?.state as RootState;
+
+				assert.deepStrictEqual({
+					initialMeta: initialRoot._meta,
+					refreshedMeta: refreshedRoot._meta,
+					recipients: purposes.map(purpose => readAgentHostAuthenticationEncryption(
+						refreshedRoot,
+						{ _meta: { 'copilot.encryptionRequired': ['auth-token', 'mcp-auth-token'] } },
+						purpose,
+					)?.key),
+					hostMeta: stateManager.rootState._meta,
+				}, {
+					initialMeta: { ...relayRootMeta, ...extension?.rootMeta },
+					refreshedMeta: { ...hostMeta, ...relayRootMeta, ...extension?.rootMeta },
+					recipients: keys.map(key => ({
+						key_id: key.keyId, public_key: key.publicKey, use: key.use, algorithm: key.algorithm,
+					})),
+					hostMeta,
+				});
+			});
 		}
 
 		test('uses contribution-defined methods, capabilities and passive permissions', async () => {

@@ -121,11 +121,13 @@ suite('GitHub anonymous IPC clients', () => {
 	test('exposes a directly disposable, reduced facade and executes content, gist, and issue search', async () => {
 		const requests: { url: string; authorization: string | null; credentials: RequestCredentials | undefined; referrerPolicy: ReferrerPolicy | undefined }[] = [];
 		const sha = 'a'.repeat(40);
+		const file = { content: '{}', encoding: 'utf-8', truncated: false };
 		const gist = {
 			id: 'gist-id', node_id: 'G_1', url: 'https://api.github.com/gists/gist-id', html_url: 'https://gist.github.com/gist-id',
 			git_pull_url: 'https://gist.github.com/gist-id.git', git_push_url: 'https://gist.github.com/gist-id.git',
 			forks_url: 'https://api.github.com/gists/gist-id/forks', commits_url: 'https://api.github.com/gists/gist-id/commits',
-			comments_url: 'https://api.github.com/gists/gist-id/comments', public: true, description: null, files: {},
+			comments_url: 'https://api.github.com/gists/gist-id/comments', public: true, description: null,
+			files: { profile: { ...file, filename: 'profile', type: 'application/json', language: 'JSON', size: 2, raw_url: 'https://gist.githubusercontent.com/raw/gist-id/profile' } },
 			truncated: false, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', comments: 0,
 		};
 		const { connect } = setup(async (input, init) => {
@@ -150,7 +152,7 @@ suite('GitHub anonymous IPC clients', () => {
 			content, gist: result, search, requests,
 		}, {
 			wrapped: false, gistMethods: ['get'], searchMethods: ['issues'],
-			content: sha, gist, search: { total_count: 0, incomplete_results: false, items: [] },
+			content: sha, gist: { id: gist.id, html_url: gist.html_url, files: { profile: file } }, search: { total_count: 0, incomplete_results: false, items: [] },
 			requests: [
 				{ url: 'https://api.github.com/repos/o/r/commits/main', authorization: null, credentials: 'omit', referrerPolicy: 'no-referrer' },
 				{ url: 'https://api.github.com/gists/gist-id', authorization: null, credentials: 'omit', referrerPolicy: 'no-referrer' },
