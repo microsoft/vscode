@@ -346,7 +346,7 @@ suite('Detect Changes', () => {
 			gate: { name: jobs['component-fixtures'].name, needs: jobs['component-fixtures'].needs, if: jobs['component-fixtures'].if },
 		}, {
 			detection: {
-				if: "github.event_name == 'pull_request'",
+				if: 'github.event_name == \'pull_request\'',
 				outputs: { 'component-fixtures': '${{ steps.detect.outputs.component-fixtures }}' },
 				action: './.github/actions/detect-changes',
 			},
