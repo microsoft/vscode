@@ -642,6 +642,16 @@ export interface IExtensionManagementService {
 	installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]>;
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
 	uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void>;
+	/** Coordinated native local removal, available only on participating backends. */
+	supportsCoordinatedUninstall?(): Promise<boolean>;
+	reserveLocalUninstall?(id: string, profileLocation: URI | undefined, remoteIdentity: string): Promise<ILocalExtension[]>;
+	releaseLocalUninstall?(id: string, remoteIdentity: string): Promise<void>;
+	prepareLocalUninstall?(id: string, extensions: UninstallExtensionInfo[], recoveryTarget: string): Promise<void>;
+	commitLocalUninstall?(id: string): Promise<void>;
+	abortLocalUninstall?(id: string): Promise<void>;
+	getCoordinatedUninstallIdentity?(): Promise<string>;
+	getPendingLocalUninstalls?(recoveryTarget: string): Promise<string[]>;
+	acknowledgeLocalUninstall?(id: string): Promise<void>;
 	toggleApplicationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension>;
 	getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion, language?: string): Promise<ILocalExtension[]>;
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;

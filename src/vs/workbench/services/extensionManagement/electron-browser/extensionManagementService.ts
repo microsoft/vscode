@@ -27,6 +27,7 @@ import { IExtensionsScannerService } from '../../../../platform/extensionManagem
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 
 export class ExtensionManagementService extends BaseExtensionManagementService {
 
@@ -50,6 +51,7 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super(
 			extensionManagementServerService,
@@ -69,7 +71,8 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 			extensionsScannerService,
 			allowedExtensionsService,
 			storageService,
-			telemetryService
+			telemetryService,
+			workspaceContextService
 		);
 	}
 

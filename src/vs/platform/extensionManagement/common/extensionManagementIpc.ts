@@ -148,6 +148,43 @@ export class ExtensionManagementChannel<TContext = RemoteAgentConnectionContext 
 				const arg: UninstallExtensionInfo[] = args[0];
 				return this.service.uninstallExtensions(arg.map(({ extension, options }) => ({ extension: transformIncomingExtension(extension, uriTransformer), options: transformIncomingOptions(options, uriTransformer) })));
 			}
+			case 'supportsCoordinatedUninstall': {
+				return !!(this.service.reserveLocalUninstall && this.service.releaseLocalUninstall && this.service.prepareLocalUninstall && this.service.commitLocalUninstall && this.service.abortLocalUninstall && this.service.getCoordinatedUninstallIdentity && this.service.getPendingLocalUninstalls && this.service.acknowledgeLocalUninstall);
+			}
+			case 'reserveLocalUninstall': {
+				if (!this.service.reserveLocalUninstall) { throw new Error('Invalid call'); }
+				const extensions = await this.service.reserveLocalUninstall(args[0], transformIncomingURI(args[1], uriTransformer), args[2]);
+				return extensions.map(e => transformOutgoingExtension(e, uriTransformer));
+			}
+			case 'releaseLocalUninstall': {
+				if (!this.service.releaseLocalUninstall) { throw new Error('Invalid call'); }
+				return this.service.releaseLocalUninstall(args[0], args[1]);
+			}
+			case 'prepareLocalUninstall': {
+				if (!this.service.prepareLocalUninstall) { throw new Error('Invalid call'); }
+				const extensions: UninstallExtensionInfo[] = args[1];
+				return this.service.prepareLocalUninstall(args[0], extensions.map(({ extension, options }) => ({ extension: transformIncomingExtension(extension, uriTransformer), options: transformIncomingOptions(options, uriTransformer) })), args[2]);
+			}
+			case 'commitLocalUninstall': {
+				if (!this.service.commitLocalUninstall) { throw new Error('Invalid call'); }
+				return this.service.commitLocalUninstall(args[0]);
+			}
+			case 'getCoordinatedUninstallIdentity': {
+				if (!this.service.getCoordinatedUninstallIdentity) { throw new Error('Invalid call'); }
+				return this.service.getCoordinatedUninstallIdentity();
+			}
+			case 'getPendingLocalUninstalls': {
+				if (!this.service.getPendingLocalUninstalls) { throw new Error('Invalid call'); }
+				return this.service.getPendingLocalUninstalls(args[0]);
+			}
+			case 'acknowledgeLocalUninstall': {
+				if (!this.service.acknowledgeLocalUninstall) { throw new Error('Invalid call'); }
+				return this.service.acknowledgeLocalUninstall(args[0]);
+			}
+			case 'abortLocalUninstall': {
+				if (!this.service.abortLocalUninstall) { throw new Error('Invalid call'); }
+				return this.service.abortLocalUninstall(args[0]);
+			}
 			case 'getInstalled': {
 				const extensions = await this.service.getInstalled(args[0], transformIncomingURI(args[1], uriTransformer), args[2], args[3]);
 				return extensions.map(e => transformOutgoingExtension(e, uriTransformer));
@@ -304,6 +341,53 @@ export class ExtensionManagementChannelClient extends CommontExtensionManagement
 	getInstalled(type: ExtensionType | null = null, extensionsProfileResource?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]> {
 		return Promise.resolve(this.channel.call<ILocalExtension[]>('getInstalled', [type, extensionsProfileResource, productVersion, language]))
 			.then(extensions => extensions.map(extension => transformIncomingExtension(extension, null)));
+	}
+
+	private coordinatedUninstallCapability: Promise<boolean> | undefined;
+	supportsCoordinatedUninstall(): Promise<boolean> {
+		return this.coordinatedUninstallCapability ??= this.channel.call<boolean>('supportsCoordinatedUninstall').catch(error => {
+			if (error instanceof Error && error.message === 'Invalid call') {
+				return false;
+			}
+			this.coordinatedUninstallCapability = undefined;
+			throw error;
+		});
+	}
+
+	reserveLocalUninstall(id: string, profileLocation: URI | undefined, remoteIdentity: string): Promise<ILocalExtension[]> {
+		return this.channel.call<ILocalExtension[]>('reserveLocalUninstall', [id, profileLocation, remoteIdentity])
+			.then(extensions => extensions.map(extension => transformIncomingExtension(extension, null)));
+	}
+
+	releaseLocalUninstall(id: string, remoteIdentity: string): Promise<void> {
+		return this.channel.call<void>('releaseLocalUninstall', [id, remoteIdentity]);
+	}
+
+	prepareLocalUninstall(id: string, extensions: UninstallExtensionInfo[], recoveryTarget: string): Promise<void> {
+		if (extensions.some(e => e.extension.isWorkspaceScoped)) {
+			throw new Error('Cannot uninstall a workspace extension');
+		}
+		return this.channel.call<void>('prepareLocalUninstall', [id, extensions, recoveryTarget]);
+	}
+
+	getCoordinatedUninstallIdentity(): Promise<string> {
+		return this.channel.call<string>('getCoordinatedUninstallIdentity');
+	}
+
+	getPendingLocalUninstalls(recoveryTarget: string): Promise<string[]> {
+		return this.channel.call<string[]>('getPendingLocalUninstalls', [recoveryTarget]);
+	}
+
+	acknowledgeLocalUninstall(id: string): Promise<void> {
+		return this.channel.call<void>('acknowledgeLocalUninstall', [id]);
+	}
+
+	commitLocalUninstall(id: string): Promise<void> {
+		return this.channel.call<void>('commitLocalUninstall', [id]);
+	}
+
+	abortLocalUninstall(id: string): Promise<void> {
+		return this.channel.call<void>('abortLocalUninstall', [id]);
 	}
 
 	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, extensionsProfileResource?: URI): Promise<ILocalExtension> {
