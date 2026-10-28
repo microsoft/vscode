@@ -1833,7 +1833,7 @@ export function formatGitError(args: readonly string[], timeoutMs: number, didTi
  * Squashes multi-line / carriage-return-heavy stderr (e.g. git progress
  * meters that emit `Updating files:   0% (149/14834)\r...` repeatedly)
  * into a single short line suitable for a one-liner error message.
- * Keeps the most recent non-empty line and caps total length.
+ * Prefers actionable diagnostics over trailing advice and caps total length.
  *
  * Exported for tests.
  */
@@ -1850,7 +1850,7 @@ export function summarizeStderrForError(stderr: string): string {
 		/\bgit-lfs\b/i.test(line) &&
 		/(command not found|not recognized|no such file)/i.test(line)
 	);
-	const summary = gitLfsMissing ?? lines[lines.length - 1];
+	const summary = gitLfsMissing ?? lines.find(line => /^fatal:/i.test(line)) ?? lines[lines.length - 1];
 	return summary.length > MAX ? `${summary.slice(0, MAX - 1)}…` : summary;
 }
 
@@ -2161,9 +2161,10 @@ function parseFetchRemotes(remotesOutput: string | undefined): { name: string; u
 	}
 	const candidates: { name: string; url: string }[] = [];
 	for (const rawLine of remotesOutput.split(/\r?\n/)) {
-		const match = /^(\S+)\s+(\S+)\s+\(fetch\)$/.exec(rawLine.trim());
-		if (match) {
-			candidates.push({ name: match[1], url: match[2] });
+		// Partial clones append the object filter, e.g. `origin <url> (fetch) [blob:none]`.
+		const match = /^(?<name>\S+)\s+(?<url>\S+)\s+\(fetch\)(?:\s+\[[^\]]*\])?$/.exec(rawLine.trim());
+		if (match?.groups) {
+			candidates.push({ name: match.groups.name, url: match.groups.url });
 		}
 	}
 	return candidates;

@@ -76,7 +76,7 @@ import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/ag
 import { SessionDatabase, sessionDatabaseMigrations } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, isChatAction, NotificationType, type ChatAction, type ChatConfigChangedAction, type INotification, type SessionAction, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isMessageRequestHiddenFromTranscript, getAgentHostChatId, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionGitHubState, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ChatState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn, readSessionScratchFolders, withSessionScratchFolders } from '../../common/state/sessionState.js';
-import { BackgroundWorkKind, ChatInteractivity, McpServerStatus, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment, TerminalClaimKind, type TerminalClaim, type SystemNotificationResponsePart } from '../../common/state/protocol/state.js';
+import { BackgroundWorkKind, ChatInteractivity, McpServerStatus, PendingMessageKind, SessionOriginKind, type BackgroundWork, type Message, type MessageAttachment, TerminalClaimKind, type TerminalClaim, type SystemNotificationResponsePart } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { readRemoteSessionDepth, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
@@ -101,8 +101,9 @@ import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATI
 import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { AgentHostSystemWakeService } from '../../node/agentHostSystemWakeService.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_ORIGIN_KEY, SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { SCHEDULED_WORK_WAKE_SETTLE_MS } from '../../common/agentHostWakeNetworkMonitor.js';
 import { AgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
-import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { SESSION_CREDENTIAL_PRINCIPAL_KEY } from '../../node/agentHostAuthenticationService.js';
@@ -1653,7 +1654,7 @@ suite('AgentService (node dispatcher)', () => {
 			provider[operation] = async (chat, scopeId) => { calls.push([chat, scopeId]); };
 			await assert.rejects(service[operation]('conversation://missing/chat', 'runtime'), /unavailable/);
 			await assert.rejects(service[operation](URI.parse(chat).toString(), 'runtime'), /unavailable/);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService(), new AgentHostMacAccessibilityTrustService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService());
 			await managementService[operation](chat, 'runtime');
 			assert.deepStrictEqual(calls, [[chat, 'runtime']]);
 		});
@@ -3063,6 +3064,186 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		}
 
+		for (const hasLegacyDatabase of [false, true]) {
+			test(`automation origin survives restart, list and restore (legacy database: ${hasLegacyDatabase})`, async () => {
+				const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/a', run: 'ahp-automation-run:/r' } as const;
+				const database = new TestSessionDatabase();
+				const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+				const sessionDataService = createSessionDataService(database);
+				const createService = () => disposables.add(createTestAgentService(
+					new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+				));
+				const svc = createService();
+				registerTestAgentProvider(svc, copilotAgent);
+				const internal = svc as unknown as { _createSessionWithOrigin: AgentService['_createSessionWithOrigin'] };
+				const session = await internal._createSessionWithOrigin({ legacyChatUris: false, provider: 'copilot' }, origin);
+				await svc.whenCatalogReconciliationIdle();
+				const store = getTestSessionStateStore(svc);
+				await store.whenIdle(undefined);
+				const stored = Object.fromEntries(await store.readWithoutImport(session, [SESSION_ORIGIN_KEY]))[SESSION_ORIGIN_KEY];
+				const central = catalogDataOf(await catalogDatabase.getSessionV2(session.toString()))?.origin;
+				const live = getStateManager(svc).getSessionSummary(session.toString())?.origin;
+				const centralStateBefore = (await catalogDatabase.readSessionState(session.toString()))?.values.find(value => value.key === SESSION_ORIGIN_KEY)?.value;
+				if (!hasLegacyDatabase) {
+					sessionDataService.tryOpenDatabase = async () => undefined;
+				}
+				const restarted = createService();
+				await restarted.whenCatalogReconciliationIdle();
+				const listed = await restarted.listSessions();
+				registerTestAgentProvider(restarted, copilotAgent);
+				await restarted.restoreSession(session);
+				assert.deepStrictEqual({
+					stored: stored && JSON.parse(stored), central, live,
+					centralStateBefore,
+					centralStateAfter: (await catalogDatabase.readSessionState(session.toString()))?.values.find(value => value.key === SESSION_ORIGIN_KEY)?.value,
+					listed: listed.map(item => item.origin),
+					restored: getStateManager(restarted).getSessionState(session.toString())?.origin,
+				}, { stored: origin, central: origin, live: origin, centralStateBefore: JSON.stringify(origin), centralStateAfter: JSON.stringify(origin), listed: [origin], restored: origin });
+			});
+		}
+
+		test('pending V2 older-writer metadata remains recoverable without erasing central Automation origin', async () => {
+			const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/a', run: 'ahp-automation-run:/r' } as const;
+			const database = new TestSessionDatabase();
+			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+			const sessionDataService = createSessionDataService(database);
+			const createService = () => disposables.add(createTestAgentService(
+				new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			const svc = createService();
+			registerTestAgentProvider(svc, copilotAgent);
+			const internal = svc as unknown as { _createSessionWithOrigin: AgentService['_createSessionWithOrigin'] };
+			const session = await internal._createSessionWithOrigin({ legacyChatUris: false, provider: 'copilot' }, origin);
+			await svc.whenCatalogReconciliationIdle();
+			const current = await catalogDatabase.getSessionV2(session.toString());
+			assert.ok(current);
+			const data = catalogDataOf(current);
+			assert.ok(data);
+			(svc as unknown as { _catalogReconciliationService: { dispose(): void } })._catalogReconciliationService.dispose();
+			const pending = catalogEnvelope(session, {
+				...data,
+				summary: 'Pending older-writer title',
+				titleSource: 'user',
+				isRead: false,
+				origin: undefined,
+			}, current.sessionGeneration, current.sourceRevision + 1);
+			await database.setMetadataValuesAndCatalogSyncSnapshot({
+				[SESSION_CUSTOM_TITLE_KEY]: 'Pending older-writer title',
+				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_USER,
+			}, {
+				sessionGeneration: pending.sessionGeneration,
+				sourceRevision: pending.sourceRevision,
+				projectionVersion: pending.payloadVersion,
+				payload: pending.payload,
+				payloadHash: pending.payloadHash,
+				state: 'pending',
+			});
+
+			const restarted = createService();
+			await restarted.whenCatalogReconciliationIdle();
+			const [listed] = await restarted.listSessions();
+			const centralWhileUnavailable = catalogDataOf(await catalogDatabase.getSessionV2(session.toString()));
+			const receiptWhileUnavailable = (await database.getCatalogSyncSnapshot())?.state;
+			registerTestAgentProvider(restarted, copilotAgent);
+			await restarted.restoreSession(session);
+			await restarted.whenCatalogReconciliationIdle();
+			const recovered = getStateManager(restarted).getSessionState(session.toString());
+			const centralAfterRecovery = catalogDataOf(await catalogDatabase.getSessionV2(session.toString()));
+
+			assert.deepStrictEqual({
+				whileUnavailable: {
+					origin: listed.origin,
+					centralOrigin: centralWhileUnavailable?.origin,
+					receipt: receiptWhileUnavailable,
+				},
+				afterRecovery: {
+					origin: recovered?.origin,
+					title: recovered?.title,
+					centralOrigin: centralAfterRecovery?.origin,
+					centralTitle: centralAfterRecovery?.summary,
+					receipt: (await database.getCatalogSyncSnapshot())?.state,
+				},
+			}, {
+				whileUnavailable: { origin, centralOrigin: origin, receipt: 'pending' },
+				afterRecovery: {
+					origin,
+					title: 'Pending older-writer title',
+					centralOrigin: origin,
+					centralTitle: 'Pending older-writer title',
+					receipt: 'acknowledged',
+				},
+			});
+		});
+
+		test('malformed persisted automation origin does not block a known origin', async () => {
+			const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/a', run: 'ahp-automation-run:/r' } as const;
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+			));
+			const session = URI.parse('copilot:/malformed-origin');
+			const store = getTestSessionStateStore(svc);
+			await store.writeMetadata(session, session, { [SESSION_ORIGIN_KEY]: '{' }, SessionStateMirrorFlush.Immediate);
+			const internal = svc as unknown as { _persistAutomationSessionOrigin: AgentService['_persistAutomationSessionOrigin'] };
+
+			const persisted = await internal._persistAutomationSessionOrigin(session, origin);
+			const stored = Object.fromEntries(await store.readWithoutImport(session, [SESSION_ORIGIN_KEY]))[SESSION_ORIGIN_KEY];
+
+			assert.deepStrictEqual({ persisted, stored }, { persisted: origin, stored: '{' });
+		});
+
+		test('surfaced sessions retain automation origin through initial announcements and partial refreshes', async () => {
+			const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/a', run: 'ahp-automation-run:/r' } as const;
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+			));
+			registerTestAgentProvider(svc, copilotAgent);
+			const internal = svc as unknown as { _announceSurfacedSession: AgentService['_announceSurfacedSession'] };
+			const observed = [];
+			for (const initialOrigin of [undefined, origin]) {
+				const metadata: IAgentSessionMetadata = {
+					session: URI.parse(`copilot:/surfaced-${initialOrigin ? 'origin' : 'plain'}`),
+					startTime: Date.now(), modifiedTime: Date.now(), summary: 'Surfaced', origin: initialOrigin,
+				};
+				await internal._announceSurfacedSession(metadata, 'copilot');
+				const initial = getStateManager(svc).getSurfacedSessionSummary(metadata.session.toString())?.origin;
+				await internal._announceSurfacedSession({ ...metadata, origin }, 'copilot');
+				await internal._announceSurfacedSession({ ...metadata, origin: undefined, summary: 'Renamed' }, 'copilot');
+				observed.push({ initial, refreshed: getStateManager(svc).getSurfacedSessionSummary(metadata.session.toString())?.origin });
+			}
+			assert.deepStrictEqual(observed, [{ initial: undefined, refreshed: origin }, { initial: origin, refreshed: origin }]);
+		});
+
+		test('legacy automation provenance lookup failure degrades only that catalog row', async () => {
+			const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/a', run: 'ahp-automation-run:/r' } as const;
+			const backing = createPerSessionDataService();
+			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, backing.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			registerTestAgentProvider(svc, copilotAgent);
+			const retained = await svc.createSession({ legacyChatUris: false, provider: 'copilot', workingDirectories: [URI.file('/retained')] });
+			const failing = await svc.createSession({ legacyChatUris: false, provider: 'copilot', workingDirectories: [URI.file('/failing')] });
+			await svc.whenCatalogReconciliationIdle();
+			await getTestSessionStateStore(svc).whenIdle(undefined);
+			const before = await svc.listSessions();
+			const internal = svc as unknown as {
+				_automationService: AgentService['_automationService'];
+				_persistAutomationSessionOrigin: AgentService['_persistAutomationSessionOrigin'];
+			};
+			internal._automationService.getLegacySessionOrigin = () => origin;
+			internal._persistAutomationSessionOrigin = async session => {
+				if (session.toString() === failing.toString()) {
+					throw new Error('metadata unavailable');
+				}
+				return origin;
+			};
+			const listed = await svc.listSessions();
+			assert.deepStrictEqual(listed, before.map(item => item.session.toString() === retained.toString() ? { ...item, origin } : item));
+		});
+
 		test('session catalog reports listing metrics', async () => {
 			const logs: string[] = [];
 			class RecordingLogService extends NullLogService {
@@ -4003,7 +4184,7 @@ suite('AgentService (node dispatcher)', () => {
 				managedKeys: ['permissions'],
 			});
 			registerTestAgentProvider(service, provider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService(), new AgentHostMacAccessibilityTrustService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService());
 
 			assert.deepStrictEqual(await managementService.getManagedSettingsDiagnostics(), [{
 				provider: 'copilot',
@@ -4031,7 +4212,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(service, provider);
 			registerTestAgentProvider(service, otherProvider);
 			registerTestAgentProvider(service, unsupportedProvider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService(), new AgentHostMacAccessibilityTrustService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService());
 
 			await managementService.refreshCopilotConnectorSessions();
 			await managementService.refreshCopilotConnectorSessions('mail');
@@ -4052,7 +4233,7 @@ suite('AgentService (node dispatcher)', () => {
 				return [{ name: 'spark', marketplace: 'copilot-plugins' }];
 			};
 			registerTestAgentProvider(service, provider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService(), new AgentHostMacAccessibilityTrustService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService());
 
 			await managementService.installPlugin(provider.id, { source: 'spark@copilot-plugins' }, session);
 			await managementService.uninstallPlugin(provider.id, { name: 'spark', marketplace: 'copilot-plugins' }, session);
@@ -4099,7 +4280,7 @@ suite('AgentService (node dispatcher)', () => {
 				return [{ name: name ?? 'marketplace', success: true }];
 			};
 			registerTestAgentProvider(service, provider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService(), new AgentHostMacAccessibilityTrustService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService());
 
 			const listed = await managementService.listPluginMarketplaces(provider.id, session);
 			const added = await managementService.addPluginMarketplace(provider.id, session, 'owner/repository');
@@ -4172,7 +4353,7 @@ suite('AgentService (node dispatcher)', () => {
 					}, [], creationTimeChatStorageResource);
 				}
 			};
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService(), new AgentHostMacAccessibilityTrustService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService());
 			const session = AgentSession.uri('copilot', 'canvas-session');
 			const chat = URI.parse(buildDefaultChatUri(session.toString()));
 
@@ -4242,7 +4423,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 			let restoreCalls = 0;
 			service.restoreSession = async () => { restoreCalls++; };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService(), new AgentHostMacAccessibilityTrustService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService());
 			const coldSession = AgentSession.uri('copilot', 'canvas-cold-session');
 			const resource = URI.parse('ahp-canvas:/preview');
 
@@ -4286,7 +4467,7 @@ suite('AgentService (node dispatcher)', () => {
 				},
 			});
 			service.restoreSession = async () => { };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService(), new AgentHostMacAccessibilityTrustService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService());
 
 			await assert.rejects(
 				managementService.listSessionCanvases(requestedSession, foreignChat),
@@ -4327,7 +4508,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 			let restoreCalls = 0;
 			service.restoreSession = async () => { restoreCalls++; };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService(), new AgentHostMacAccessibilityTrustService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService());
 
 			await assert.rejects(
 				managementService.listSessionCanvases(session, chat),
@@ -8951,7 +9132,7 @@ suite('AgentService (node dispatcher)', () => {
 			const provider: IAgent = copilotAgent;
 			provider.getSessionStateFile = async session => URI.file(`/state/${AgentSession.id(session)}/events.jsonl`);
 			registerTestAgentProvider(service, provider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService(), new AgentHostMacAccessibilityTrustService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService());
 
 			assert.deepStrictEqual({
 				supported: (await managementService.getSessionStateFile(AgentSession.uri('copilot', 'session-1')))?.toString(),
@@ -24382,7 +24563,7 @@ suite('AgentService (node dispatcher)', () => {
 			service.claimDetachedWorktree = async handle => { calls.push(`claim:${handle}`); };
 			service.deleteDetachedWorktree = async handle => { calls.push(`delete:${handle}`); };
 			service.reconcileDetachedWorktrees = async (scope, activeHandles) => { calls.push(`reconcile:${scope}:${activeHandles.join(',')}`); };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService(), new AgentHostMacAccessibilityTrustService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService());
 
 			const created = await managementService.createDetachedWorktree(session, 'prepare');
 			await managementService.setDetachedWorktreeArchived(created.handle, true);
@@ -24404,6 +24585,26 @@ suite('AgentService (node dispatcher)', () => {
 				],
 			});
 		});
+
+		test('forwards system wake and network reports to scheduled work readiness', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const systemWake = disposables.add(new AgentHostSystemWakeService(new NullLogService()));
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), systemWake, new AgentHostMacAccessibilityTrustService());
+			const readiness = () => ({ fullyAwake: systemWake.isFullyAwake.get(), ready: systemWake.isReadyForScheduledWork.get() });
+
+			await managementService.setSystemFullyAwake(false);
+			const asleep = readiness();
+			await managementService.setSystemFullyAwake(true);
+			await managementService.setSystemNetworkOnline(false);
+			await timeout(SCHEDULED_WORK_WAKE_SETTLE_MS);
+			const offline = readiness();
+			await managementService.setSystemNetworkOnline(true);
+
+			assert.deepStrictEqual({ asleep, offline, online: readiness() }, {
+				asleep: { fullyAwake: false, ready: false },
+				offline: { fullyAwake: true, ready: false },
+				online: { fullyAwake: true, ready: true },
+			});
+		}));
 	});
 
 	// ---- shutdown -------------------------------------------------------
@@ -24742,7 +24943,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			nullSessionDataService.whenIdle = async () => { flushCount++; };
 			let ingressShutdownCount = 0;
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { ingressShutdownCount++; }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService(), new AgentHostMacAccessibilityTrustService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { ingressShutdownCount++; }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService());
 
 			const first = managementService.shutdown();
 			const second = managementService.shutdown();
@@ -24771,7 +24972,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			service.shutdown = async () => { providerShutdownCount++; };
 			nullSessionDataService.whenIdle = async () => { flushCount++; };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, () => stalled.p, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService(), new AgentHostMacAccessibilityTrustService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, () => stalled.p, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService());
 
 			void managementService.createSessionWithExtensions({});
 			await managementService.shutdown();
@@ -24793,7 +24994,7 @@ suite('AgentService (node dispatcher)', () => {
 			service.createSession = () => createSession.p;
 			service.shutdown = async () => { providerShutdownCount++; };
 			nullSessionDataService.whenIdle = async () => { flushCount++; };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService(), new AgentHostMacAccessibilityTrustService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService());
 
 			const mutation = managementService.createSessionWithExtensions({});
 			const shutdown = managementService.shutdown();

@@ -61,7 +61,7 @@ import { describeSystemMessageConfig, fullSystemPrompt } from './prompts/systemM
 import type { SandboxConfig } from './sandboxConfigForSdk.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
 import { createCopilotExtensionTools } from './copilotExtensionTools.js';
-import { readAgentToolFullReferenceName } from '../../common/meta/agentToolDefinitionMeta.js';
+import { readAgentToolFullReferenceName, readAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
 export const CopilotReasoningEffortConfigKey = 'reasoningEffort';
@@ -231,6 +231,10 @@ export function getCopilotCustomAgents(customizations: ICopilotAppliedCustomizat
  */
 export function clientToolNamesFromSnapshot(snapshot: IActiveClientSnapshot): ReadonlySet<string> {
 	return new Set(snapshot.tools.map(tool => tool.name));
+}
+
+function trustedClientToolNames(tools: readonly ToolDefinition[]): ReadonlySet<string> {
+	return new Set(tools.filter(tool => readAgentToolOrigin(tool) !== 'mcpApp').map(tool => tool.name));
 }
 
 /**
@@ -1490,7 +1494,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const toolSearchDeferThreshold = normalizeToolSearchDeferThreshold(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchDeferThreshold));
 		const resolveToolSearch = (names: ReadonlySet<string>): NonNullable<SessionConfig['toolSearch']> =>
 			toolSearchEnabled && names.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME) ? { enabled: true, deferThreshold: toolSearchDeferThreshold } : { enabled: false };
-		const toolSearchActive = resolveToolSearch(filterClientToolNames(clientToolNamesFromSnapshot(plan.snapshot), availableTools, excludedTools)).enabled === true;
+		const toolSearchActive = resolveToolSearch(filterClientToolNames(trustedClientToolNames(plan.snapshot.tools), availableTools, excludedTools)).enabled === true;
 		const serverTools = runtime.createServerSdkTools(toolSearchActive);
 		const extensionTools = createCopilotExtensionTools(canvasRuntimeEnabled, () => runtime.reloadExtensions(), this._logService);
 		const hostToolNames = new Set([...shellTools, ...serverTools, ...extensionTools, ...computerUseTools].map(tool => tool.name));
@@ -1508,7 +1512,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const authoredCustomAgents = pluginCustomAgents.filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.name));
 		const resolveToolConfiguration = (definitions: readonly ToolDefinition[], clientTools: readonly Tool[] = []): ICopilotResolvedClientToolConfiguration => {
 			const names = filterClientToolNames(new Set(definitions.map(tool => tool.name)), availableTools, excludedTools);
-			const toolSearch = resolveToolSearch(names);
+			const trustedNames = filterClientToolNames(trustedClientToolNames(definitions), availableTools, excludedTools);
+			const toolSearch = resolveToolSearch(trustedNames);
 			const promptOverrides = applyToolOverrides([...shellTools, ...clientTools, ...serverTools, ...extensionTools, ...computerUseTools]);
 			const promptContext: IAgentHostPromptContext = {
 				getSetting: key => this._configurationService.getRootValue(copilotCliConfigSchema, key),
@@ -1520,7 +1525,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				tools: promptOverrides.tools,
 				sessionConfig: {
 					toolSearch,
-					excludedTools: names.has(SEMANTIC_SEARCH_TOOL_NAME)
+					excludedTools: trustedNames.has(SEMANTIC_SEARCH_TOOL_NAME)
 						? configuredSdkExcludedTools
 						: [...new Set([...configuredSdkExcludedTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`])],
 					systemMessage: promptOverrides.systemPrompt !== undefined

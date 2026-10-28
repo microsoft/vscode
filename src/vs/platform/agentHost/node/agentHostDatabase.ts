@@ -19,7 +19,7 @@ import { IAgentHostChatV2MetadataData, decodeChatV2Metadata, encodeChatV2Metadat
 import type { ChatStorageRole } from './sessionStorageIdentity.js';
 import { AgentHostSessionStateTables, deleteSessionStateRows, IAgentHostSessionStateDatabase, ISessionStateSqlConnection, ISessionStateSqlHost, SESSION_STATE_MIGRATION_VERSION, SESSION_STATE_SCHEMA_SQL, checkSessionChatStateTransfer, IAgentHostSessionChatStateTransfer, transferSessionChatStateRows, checkSessionChatStatePromotion, IAgentHostSessionChatStatePromotion, promoteSessionChatStateRows } from './agentHostSessionStateDatabase.js';
 import { AgentHostScratchFolderTables, IAgentHostScratchFolderDatabase, markScratchFoldersRemoving, markUnusedScratchFoldersRemoving, SCRATCH_FOLDER_MIGRATION_VERSION, SCRATCH_FOLDER_SCHEMA_SQL } from './agentHostScratchFolderDatabase.js';
-import { AgentHostWorktreeRemovalTables, IAgentHostWorktreeRemovalDatabase, insertPendingWorktreeRemovals, insertWorktreeCoOwners, IWorktreeCoOwnedFolder, IWorktreeRemovalRequest, rekeyWorktreeCoOwners, WORKTREE_CO_OWNER_MIGRATION_SQL, WORKTREE_CO_OWNER_MIGRATION_VERSION, WORKTREE_CO_OWNER_SCHEMA_SQL, WORKTREE_REMOVAL_MIGRATION_VERSION, WORKTREE_REMOVAL_SCHEMA_SQL } from './agentHostWorktreeRemovalDatabase.js';
+import { AgentHostWorktreeRemovalTables, IAgentHostWorktreeRemovalDatabase, insertPendingWorktreeRemovals, insertWorktreeCoOwners, IWorktreeCoOwnedFolder, IWorktreeRemovalRequest, rekeyWorktreeCoOwners, WORKTREE_CO_OWNER_MIGRATION_SQL, WORKTREE_CO_OWNER_MIGRATION_VERSION, WORKTREE_CO_OWNER_SCHEMA_SQL, WORKTREE_REMOVAL_MIGRATION_VERSION, WORKTREE_REMOVAL_SCHEMA_SQL, WORKTREE_REMOVAL_STATUS_MIGRATION_VERSION } from './agentHostWorktreeRemovalDatabase.js';
 
 /**
  * Durable origin used to resolve competing registrations for the same session.
@@ -790,6 +790,17 @@ async function migrateChatV2Schema(database: Database): Promise<void> {
 		CREATE INDEX IF NOT EXISTS chats_v2_parent ON chats_v2(parent_chat) WHERE tombstoned = 0`);
 }
 
+async function migrateWorktreeRemovalStatusSchema(database: Database): Promise<void> {
+	await exec(database, WORKTREE_REMOVAL_SCHEMA_SQL);
+	const columns = await all(database, 'PRAGMA table_info(pending_worktree_removals)', []);
+	if (!columns.some(column => column.name === 'last_attempt_state')) {
+		await exec(database, `ALTER TABLE pending_worktree_removals ADD COLUMN last_attempt_state TEXT CHECK (last_attempt_state IN ('failed', 'skipped'))`);
+	}
+	if (!columns.some(column => column.name === 'last_attempt_message')) {
+		await exec(database, 'ALTER TABLE pending_worktree_removals ADD COLUMN last_attempt_message TEXT');
+	}
+}
+
 const migrations = [
 	{
 		version: 1,
@@ -869,6 +880,10 @@ const migrations = [
 	{
 		version: SCRATCH_FOLDER_MIGRATION_VERSION,
 		sql: SCRATCH_FOLDER_SCHEMA_SQL,
+	},
+	{
+		version: WORKTREE_REMOVAL_STATUS_MIGRATION_VERSION,
+		sql: '',
 	},
 ] as const;
 
@@ -4506,6 +4521,8 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 									await migrateChatV2Schema(database);
 								} else if (migration.version === CHAT_ORIGIN_MIGRATION_VERSION) {
 									await migrateChatOriginSchema(database);
+								} else if (migration.version === WORKTREE_REMOVAL_STATUS_MIGRATION_VERSION) {
+									await migrateWorktreeRemovalStatusSchema(database);
 								} else {
 									await exec(database, migration.sql);
 								}
@@ -4542,6 +4559,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 							if (currentVersion >= SCRATCH_FOLDER_MIGRATION_VERSION) {
 								await exec(database, SCRATCH_FOLDER_SCHEMA_SQL);
 							}
+							await migrateWorktreeRemovalStatusSchema(database);
 							await exec(database, 'COMMIT');
 						} catch (error) {
 							return this._rollback(database, error, 'Failed to complete normalized catalog schema');

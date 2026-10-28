@@ -8,7 +8,7 @@ import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../
 import { Emitter } from '../../../base/common/event.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { isMacintosh } from '../../../base/common/platform.js';
-import { app, IpcMainEvent, systemPreferences, WebContents } from 'electron';
+import { app, IpcMainEvent, net, systemPreferences, WebContents } from 'electron';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/electron-main/ipc.mp.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
@@ -32,6 +32,7 @@ import { ChatProvidersSettingId } from '../common/agentHostChatProviders.js';
 import { deepClone } from '../../../base/common/objects.js';
 import '../common/agentHostStarter.config.contribution.js';
 import { AgentHostAhpJsonlLoggingEnvVar } from '../common/ahpJsonlLogger.js';
+import { AgentHostWakeNetworkMonitor } from '../common/agentHostWakeNetworkMonitor.js';
 
 /** The distributed notification macOS posts when it changes which apps it trusts for Accessibility. */
 const MacAccessibilityTrustChangedNotification = 'com.apple.accessibility.api';
@@ -42,6 +43,10 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 	private _exitSettled: Promise<void> | undefined;
 	private _managementService: IAgentHostManagementService | undefined;
 	private _systemFullyAwake = true;
+	private readonly _wakeNetwork = this._register(new AgentHostWakeNetworkMonitor(() => net.isOnline(), online => {
+		this._logService.info(`AgentHostStarter: network is ${online ? 'online' : 'offline'} after wake`);
+		this._reportSystemNetworkOnline();
+	}));
 	private readonly _windowSenders = new Map<number, WebContents>();
 	private readonly _windowSenderCleanup = this._register(new DisposableMap<number>());
 
@@ -240,6 +245,9 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			if (!this._systemFullyAwake) {
 				this._reportSystemFullyAwake();
 			}
+			if (!this._wakeNetwork.isOnline) {
+				this._reportSystemNetworkOnline();
+			}
 			store.add(utilityProcess.onStderr(data => {
 				const loggable = data.split('\n').filter(line => !line.includes(AgentHostExitMarker)).join('\n');
 				if (!loggable.trim() || this._isExpectedStderr(loggable)) {
@@ -302,11 +310,22 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		this._systemFullyAwake = fullyAwake;
 		this._logService.info(`AgentHostStarter: system is ${fullyAwake ? 'fully awake' : 'going to sleep'}`);
 		this._reportSystemFullyAwake();
+		if (fullyAwake) {
+			this._wakeNetwork.handleWake();
+		} else {
+			this._wakeNetwork.handleSleep();
+		}
 	}
 
 	private _reportSystemFullyAwake(): void {
 		void this._managementService?.setSystemFullyAwake(this._systemFullyAwake).catch(error => {
 			this._logService.warn(`AgentHostStarter: failed to report system wake state: ${toErrorMessage(error)}`);
+		});
+	}
+
+	private _reportSystemNetworkOnline(): void {
+		void this._managementService?.setSystemNetworkOnline(this._wakeNetwork.isOnline).catch(error => {
+			this._logService.warn(`AgentHostStarter: failed to report network state: ${toErrorMessage(error)}`);
 		});
 	}
 
