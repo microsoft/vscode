@@ -90,12 +90,16 @@ export class ChatThinkingTitleService extends Disposable implements IChatThinkin
 				background: true,
 				key,
 				isRelevant,
-				messages: [{ role: ChatMessageRole.User, content: [{ type: 'text', value: `Summarize the following reasoning and activity in a single sentence under 10 words.
+				messages: [{
+					role: ChatMessageRole.User, content: [{
+						type: 'text', value: `Summarize the following reasoning and activity in a single sentence under 10 words.
 Start with a past-tense verb, such as "Reviewed", "Planned", "Analyzed", or "Updated".
 Describe what was considered or done, not that thinking occurred. Omit tool names, quotes and trailing punctuation.
 Only mention blocked or failed actions if the content explicitly says so.
 
-Content: ${content}` }] }],
+Content: ${content}`
+					}]
+				}],
 			}, token))?.trim();
 			if (title && !this._store.isDisposed && !title.toLowerCase().includes('can\'t assist with that')) {
 				const cache = this.load();
