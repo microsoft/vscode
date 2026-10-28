@@ -5,14 +5,15 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { IUntypedEditorInput } from '../../../common/editor.js';
+import { isResourceEditorInput, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
-import { IPreferencesService } from './preferences.js';
+import { getDefaultSettingsResource, IPreferencesService, ISettingsEditorOptions } from './preferences.js';
 import { Settings2EditorModel } from './preferencesModels.js';
 
 const SettingsEditorIcon = registerIcon('settings-editor-label-icon', Codicon.settings, nls.localize('settingsEditorLabelIcon', 'Icon of the settings editor label.'));
@@ -109,5 +110,25 @@ export class SplitSettingsEditorInput extends SideBySideEditorInput {
 
 	override get editorId(): string {
 		return SplitSettingsEditorInput.EDITOR_ID;
+	}
+
+	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
+		if (super.matches(otherInput)) {
+			return true;
+		}
+
+		// Editor groups are picked for the untyped request that opens this editor
+		// (see `IPreferencesService`) before this editor is created. Match such a
+		// request when it is for the same settings file and its configuration target
+		// pairs that file with the same default settings.
+		if (!isResourceEditorInput(otherInput)) {
+			return false;
+		}
+
+		const options: ISettingsEditorOptions | undefined = otherInput.options;
+		return options?.override === SplitSettingsEditorInput.EDITOR_ID &&
+			options.target !== undefined &&
+			isEqual(otherInput.resource, this.primary.resource) &&
+			isEqual(getDefaultSettingsResource(options.target), this.secondary.resource);
 	}
 }

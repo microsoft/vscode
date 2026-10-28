@@ -31,7 +31,7 @@ import { IJSONEditingService } from '../../configuration/common/jsonEditing.js';
 import { GroupDirection, IEditorGroupsService } from '../../editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService, MODAL_GROUP, PreferredGroup, SIDE_GROUP } from '../../editor/common/editorService.js';
 import { KeybindingsEditorInput } from './keybindingsEditorInput.js';
-import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IKeybindingsEditorPane, IOpenKeybindingsEditorOptions, IOpenSettingsOptions, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, ISettingsGroup, SETTINGS_AUTHORITY, USE_SPLIT_JSON_SETTING, validateSettingsEditorOptions } from '../common/preferences.js';
+import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, getDefaultSettingsResource, IKeybindingsEditorPane, IOpenKeybindingsEditorOptions, IOpenSettingsOptions, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, ISettingsGroup, SETTINGS_AUTHORITY, USE_SPLIT_JSON_SETTING, validateSettingsEditorOptions } from '../common/preferences.js';
 import { PreferencesEditorInput, SettingsEditor2Input, SplitSettingsEditorInput } from '../common/preferencesEditorInput.js';
 import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultRawSettingsEditorModel, DefaultSettings, DefaultSettingsEditorModel, Settings2EditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from '../common/preferencesModels.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
@@ -440,7 +440,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	public createSplitJsonEditorInput(configurationTarget: ConfigurationTarget, resource: URI): EditorInput {
 		const editableSettingsEditorInput = this.textEditorService.createTextEditor({ resource });
-		const defaultPreferencesEditorInput = this.textEditorService.createTextEditor({ resource: this.getDefaultSettingsResource(configurationTarget) });
+		const defaultPreferencesEditorInput = this.textEditorService.createTextEditor({ resource: getDefaultSettingsResource(configurationTarget) });
 		return this.instantiationService.createInstance(SplitSettingsEditorInput, editableSettingsEditorInput.getName(), undefined, defaultPreferencesEditorInput, editableSettingsEditorInput);
 	}
 
@@ -470,16 +470,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private isDefaultFolderSettingsResource(uri: URI): boolean {
 		return uri.authority === 'defaultsettings' && uri.scheme === network.Schemas.vscode && !!uri.path.match(/\/(\d+\/)?resourceSettings\.json$/);
-	}
-
-	private getDefaultSettingsResource(configurationTarget: ConfigurationTarget): URI {
-		switch (configurationTarget) {
-			case ConfigurationTarget.WORKSPACE:
-				return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/workspaceSettings.json` });
-			case ConfigurationTarget.WORKSPACE_FOLDER:
-				return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/resourceSettings.json` });
-		}
-		return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/settings.json` });
 	}
 
 	private async createEditableSettingsEditorModel(configurationTarget: ConfigurationTarget, settingsUri: URI): Promise<SettingsEditorModel> {
