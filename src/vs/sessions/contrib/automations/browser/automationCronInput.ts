@@ -5,19 +5,22 @@
 
 import * as DOM from '../../../../base/browser/dom.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { getAutomationCronValidationError } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 
 const fields = [
-	{ label: localize('cron.minute', "Minute"), caption: localize('cron.min', "min"), minimum: 0, maximum: 59, hint: localize('cron.minuteHint', "Every minute (*), 0-59, or */2 for every two minutes.") },
-	{ label: localize('cron.hour', "Hour"), caption: localize('cron.hourCaption', "hr"), minimum: 0, maximum: 23, hint: localize('cron.hourHint', "Every hour (*) or 0-23.") },
-	{ label: localize('cron.day', "Day of month"), caption: localize('cron.dayCaption', "day"), minimum: 1, maximum: 31, hint: localize('cron.dayHint', "Every day (*) or 1-31.") },
-	{ label: localize('cron.month', "Month"), caption: localize('cron.monthCaption', "mo"), minimum: 1, maximum: 12, hint: localize('cron.monthHint', "Every month (*), 1-12, or JAN-DEC.") },
-	{ label: localize('cron.weekday', "Day of week"), caption: localize('cron.weekdayCaption', "wk"), minimum: 0, maximum: 7, hint: localize('cron.weekdayHint', "Every weekday (*), SUN-SAT, or 0-7. Sunday is 0 or 7.") },
+	{ label: localize('cron.minute', "Minute"), caption: localize('cron.min', "min"), minimum: 0, maximum: 59, hint: localize('cron.minuteHint', "Every minute * or from 0 to 59") },
+	{ label: localize('cron.hour', "Hour"), caption: localize('cron.hourCaption', "hour"), minimum: 0, maximum: 23, hint: localize('cron.hourHint', "Every hour * or from 0 to 23") },
+	{ label: localize('cron.day', "Day of month"), caption: localize('cron.dayCaption', "day"), minimum: 1, maximum: 31, hint: localize('cron.dayHint', "Every day * or from 1 to 31") },
+	{ label: localize('cron.month', "Month"), caption: localize('cron.monthCaption', "month"), minimum: 1, maximum: 12, hint: localize('cron.monthHint', "Every month * or from January (1) to December (12)") },
+	{ label: localize('cron.weekday', "Day of week"), caption: localize('cron.weekdayCaption', "weekday"), minimum: 0, maximum: 7, hint: localize('cron.weekdayHint', "Every day of week * or from Monday (1) to Sunday (7 and 0)") },
 ];
 
 /** A five-part editor for the host's cron expression, with one shared validation border. */
@@ -29,13 +32,23 @@ export class AutomationCronInput extends Disposable {
 	private allSelected = false;
 	private updating = false;
 	private pastedValue: string | undefined;
+	private readonly hover = this._register(new MutableDisposable<IHoverWidget>());
 	private readonly _onDidChange = this._register(new Emitter<string>());
 	readonly onDidChange = this._onDidChange.event;
 
-	constructor(container: HTMLElement, expression: string, private readonly timeZone: string, contextViewService: IContextViewService) {
+	constructor(
+		container: HTMLElement,
+		expression: string,
+		private readonly timeZone: string,
+		@IContextViewService contextViewService: IContextViewService,
+		@IHoverService hoverService: IHoverService,
+	) {
 		super();
 		this.group = DOM.append(container, DOM.$('.automation-cron-segments', { role: 'group', 'aria-label': localize('cron.expression', "Cron expression") }));
 		this.hint = DOM.append(container, DOM.$('.automation-cron-hint', { id: 'automation-cron-hint' }));
+		this.hint.textContent = timeZone === Intl.DateTimeFormat().resolvedOptions().timeZone
+			? localize('cron.localTime', "Evaluated in local time.")
+			: localize('cron.timeZone', "Evaluated in {0}.", timeZone);
 		this.error = DOM.append(container, DOM.$('.automation-cron-hint.automation-form-cron-error', { id: 'automation-cron-error', 'aria-live': 'polite' }));
 		const parts = expression.trim().split(/\s+/);
 		for (const [index, field] of fields.entries()) {
@@ -47,15 +60,23 @@ export class AutomationCronInput extends Disposable {
 			}));
 			input.value = index === fields.length - 1 ? parts.slice(index).join(' ') : parts[index] ?? '';
 			input.inputElement.spellcheck = false;
-			input.inputElement.setAttribute('aria-describedby', `${this.hint.id} ${this.error.id}`);
+			const fieldHint = DOM.append(segment, DOM.$('span.automation-visually-hidden', { id: `automation-cron-field-${index}-hint` }, field.hint));
+			input.inputElement.setAttribute('aria-describedby', `${fieldHint.id} ${this.hint.id} ${this.error.id}`);
 			this.inputs.push(input);
 			DOM.append(segment, DOM.$('span.automation-cron-caption', { 'aria-hidden': 'true' }, field.caption));
 			this._register(DOM.addDisposableListener(input.inputElement, 'focus', () => {
-				this.hint.textContent = field.hint;
+				this.hover.clear();
+				this.hover.value = hoverService.showInstantHover({
+					content: field.hint,
+					target: input.inputElement,
+					position: { hoverPosition: HoverPosition.ABOVE },
+					appearance: { showPointer: true },
+					persistence: { sticky: true },
+				}, false);
 			}));
 			this._register(DOM.addDisposableListener(input.inputElement, 'blur', () => {
+				this.hover.clear();
 				this.setAllSelected(false);
-				this.showTimeZone();
 			}));
 			this._register(DOM.addDisposableListener(input.inputElement, 'mousedown', () => this.setAllSelected(false)));
 			this._register(DOM.addDisposableListener(input.inputElement, 'beforeinput', (event: InputEvent) => {
@@ -85,7 +106,11 @@ export class AutomationCronInput extends Disposable {
 				this.changed();
 			}));
 			this._register(DOM.addDisposableListener(input.inputElement, 'keydown', event => {
-				if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
+				if (event.key === 'Escape' && this.hover.value?.isDisposed === false) {
+					event.preventDefault();
+					event.stopPropagation();
+					this.hover.clear();
+				} else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
 					event.preventDefault();
 					input.select();
 					this.setAllSelected(true);
@@ -129,7 +154,6 @@ export class AutomationCronInput extends Disposable {
 				}));
 			}
 		}
-		this.showTimeZone();
 		this.validate();
 	}
 
@@ -179,10 +203,6 @@ export class AutomationCronInput extends Disposable {
 	private setAllSelected(selected: boolean): void {
 		this.allSelected = selected;
 		this.group.classList.toggle('all-selected', selected);
-	}
-
-	private showTimeZone(): void {
-		this.hint.textContent = localize('cron.timeZone', "Blank parts mean *. Evaluated in {0}.", this.timeZone);
 	}
 
 	private changed(): void {

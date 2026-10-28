@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { safeIntl } from '../../../../../../base/common/date.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
@@ -18,6 +19,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../../pl
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { nextAutomationCronOccurrence } from '../../../../../../platform/agentHost/common/automationCron.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -1167,6 +1169,30 @@ suite('AgentHostAutomationStore', () => {
 				target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
 				enabled: true,
 			},
+		});
+	});
+
+	test('defaults new cron triggers to the client local time zone rather than UTC', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		await store.createAutomation({
+			name: 'Local morning review', prompt: 'Review changes.',
+			schedule: { interval: 'cron', cronExpression: '0 9 * * MON-FRI', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+		const create = connection.dispatched[0].action;
+		const trigger = create.type === ActionType.AutomationCreateRequested ? create.definition.triggers[0] : undefined;
+		const schedule = trigger?.kind === AutomationTriggerKind.Schedule ? trigger.schedule : undefined;
+		const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+		const formatter = safeIntl.DateTimeFormat('en-US', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).value;
+		assert.deepStrictEqual({
+			schedule,
+			nextLocalTimes: ['2026-01-01T00:00:00Z', '2026-06-01T00:00:00Z'].map(after =>
+				schedule && formatter.format(nextAutomationCronOccurrence(schedule.expression, schedule.timeZone, new Date(after)))),
+		}, {
+			schedule: { expression: '0 9 * * MON-FRI', timeZone },
+			nextLocalTimes: ['09:00', '09:00'],
 		});
 	});
 

@@ -6,9 +6,12 @@
 import assert from 'assert';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IHoverOptions, IHoverWidget } from '../../../../../base/browser/ui/hover/hover.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { createTextInputActions } from '../../../../../workbench/browser/actions/textInputActions.js';
@@ -17,10 +20,10 @@ import { AutomationCronInput } from '../../browser/automationCronInput.js';
 suite('Automation cron segmented input', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function create(expression = '') {
+	function create(expression = '', timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone, hoverService: IHoverService = NullHoverService) {
 		const container = DOM.append(DOM.getActiveDocument().body, DOM.$('div'));
 		store.add(toDisposable(() => container.remove()));
-		const input = store.add(new AutomationCronInput(container, expression, 'UTC', new class extends mock<IContextViewService>() { }));
+		const input = store.add(new AutomationCronInput(container, expression, timeZone, new class extends mock<IContextViewService>() { }, hoverService));
 		const elements = Array.from(container.querySelectorAll('input'));
 		const targetWindow = DOM.getWindow(container);
 		const change = (index: number, value: string) => {
@@ -49,10 +52,12 @@ suite('Automation cron segmented input', () => {
 			initial, value: input.value,
 			labels: elements.map(element => element.getAttribute('aria-label')),
 			placeholders: elements.map(element => element.placeholder),
+			captions: Array.from(container.querySelectorAll('.automation-cron-caption'), caption => caption.textContent),
 		}, {
 			initial: { value: '', error: '' }, value: '*/2 * * * *',
 			labels: ['Minute', 'Hour', 'Day of month', 'Month', 'Day of week'],
 			placeholders: ['*', '*', '*', '*', '*'],
+			captions: ['min', 'hour', 'day', 'month', 'weekday'],
 		});
 	});
 
@@ -69,6 +74,81 @@ suite('Automation cron segmented input', () => {
 		assert.deepStrictEqual({ valid, missing, missingInvalid, surplus, macro: input.value, invalid: container.querySelector('.automation-cron-segments')?.classList.contains('invalid') }, {
 			valid: '*/2 * * * MON-FRI', missing: '0 1 2 3', missingInvalid: true, surplus: '0 1 2 3 4 5', macro: '@daily', invalid: true,
 		});
+	});
+
+	test('shows GitHub field guidance only for the focused segment and disposes it on Escape, blur and teardown', () => {
+		const hovers: IHoverOptions[] = [];
+		let active = 0;
+		const hoverService: IHoverService = {
+			...NullHoverService,
+			showInstantHover: options => {
+				hovers.push(options);
+				active++;
+				let disposed = false;
+				const hover: IHoverWidget = {
+					get isDisposed() { return disposed; },
+					dispose: () => {
+						if (!disposed) {
+							disposed = true;
+							active--;
+						}
+					},
+				};
+				return hover;
+			},
+		};
+		const { container, input, elements, key } = create('15 1 * * MON-FRI', undefined, hoverService);
+		const fields = elements.map(element => {
+			element.focus();
+			const hover = hovers.at(-1);
+			return {
+				content: hover?.content,
+				targetMatches: hover?.target === element,
+				focused: DOM.getActiveDocument().activeElement === element,
+				active,
+			};
+		});
+		const escape = key(4, 'Escape');
+		const dismissed = { active, prevented: escape.defaultPrevented, focused: DOM.getActiveDocument().activeElement === elements[4] };
+		elements[0].focus();
+		elements[0].blur();
+		const afterBlur = active;
+		elements[1].focus();
+		input.dispose();
+		assert.deepStrictEqual({
+			fields, dismissed, afterBlur, afterDispose: active,
+			value: input.value, footer: container.querySelector('#automation-cron-hint')?.textContent,
+		}, {
+			fields: [
+				'Every minute * or from 0 to 59',
+				'Every hour * or from 0 to 23',
+				'Every day * or from 1 to 31',
+				'Every month * or from January (1) to December (12)',
+				'Every day of week * or from Monday (1) to Sunday (7 and 0)',
+			].map(content => ({ content, targetMatches: true, focused: true, active: 1 })),
+			dismissed: { active: 0, prevented: true, focused: true }, afterBlur: 0, afterDispose: 0,
+			value: '15 1 * * MON-FRI', footer: 'Evaluated in local time.',
+		});
+	});
+
+	test('keeps the local-time footer visible during editing without mislabeling a saved foreign zone', () => {
+		const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+		const foreignTimeZone = localTimeZone === 'UTC' ? 'Europe/Berlin' : 'UTC';
+		const results = [localTimeZone, foreignTimeZone].map(timeZone => {
+			const { container, elements } = create('0 9 * * *', timeZone);
+			const footer = () => container.querySelector('#automation-cron-hint')?.textContent;
+			const before = footer();
+			elements[0].focus();
+			const focused = footer();
+			const description = elements[0].getAttribute('aria-describedby')!.split(' ')
+				.map(id => container.querySelector(`#${id}`)?.textContent);
+			elements[0].blur();
+			return { timeZone, before, focused, blurred: footer(), description };
+		});
+		assert.deepStrictEqual(results, [localTimeZone, foreignTimeZone].map(timeZone => {
+			const text = timeZone === localTimeZone ? 'Evaluated in local time.' : `Evaluated in ${timeZone}.`;
+			return { timeZone, before: text, focused: text, blurred: text, description: ['Every minute * or from 0 to 59', text, ''] };
+		}));
 	});
 
 	test('all paste ingress shares parts, value, validation and one notification without losing other fields', async () => {

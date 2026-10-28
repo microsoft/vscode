@@ -13,6 +13,8 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
@@ -40,6 +42,11 @@ function renderAutomationForm({ container, disposableStore, theme }: ComponentFi
 			registerChatFixtureServices(registration);
 			registration.define(IMenuService, MenuService);
 			registration.define(IContextKeyService, ContextKeyService);
+			registration.define(IHoverService, class extends HoverService {
+				override showInstantHover(options: Parameters<IHoverService['showInstantHover']>[0]) {
+					return super.showInstantHover({ ...options, container }, false);
+				}
+			});
 			registration.defineInstance(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
 				override readonly mainContainer = container;
 				override readonly activeContainer = container;
@@ -93,7 +100,6 @@ function renderAutomationForm({ container, disposableStore, theme }: ComponentFi
 		name: 'Morning workspace review',
 		interval,
 		cronExpression: '0 9 * * 1-5',
-		cronTimeZone: 'UTC',
 		timezoneOffset: 0,
 		hour: 9,
 		minute: 0,

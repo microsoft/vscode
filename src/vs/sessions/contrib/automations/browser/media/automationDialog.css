@@ -921,7 +921,13 @@
 }
 
 .automation-form-schedule-row.has-cron {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 	align-items: flex-start;
+}
+
+.automation-form-schedule-row.has-cron > .automation-form-cron-group {
+	grid-column: span 2;
 }
 
 .automation-form-schedule-group {
@@ -1008,6 +1014,10 @@
 	flex: 1;
 	min-width: 0;
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+}
+
+.automation-cron-segment:nth-last-child(-n + 2) {
+	flex-grow: 2;
 }
 
 .automation-cron-segment > .monaco-inputbox {

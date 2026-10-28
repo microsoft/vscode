@@ -1226,7 +1226,7 @@ export function renderForm(
 	const cronGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group.automation-form-cron-group'));
 	DOM.append(cronGroup, $('span.automation-form-label', undefined, localize('automation.form.cron', "Cron expression")));
 	const cronTimeZone = state.cronTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
-	const cronInput = disposables.add(new AutomationCronInput(cronGroup, state.cronExpression ?? '', cronTimeZone, contextViewService));
+	const cronInput = disposables.add(instantiationService.createInstance(AutomationCronInput, cronGroup, state.cronExpression ?? '', cronTimeZone));
 	disposables.add(cronInput.onDidChange(value => {
 		state.cronExpression = value;
 		revalidate();

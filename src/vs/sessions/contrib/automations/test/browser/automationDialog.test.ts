@@ -132,7 +132,11 @@ suite('Automation dialog creation', () => {
 			...NullHoverService,
 			showInstantHover: (options: IHoverOptions) => {
 				hovers.push(typeof options.content === 'string' ? options.content : String(options.content));
-				return undefined;
+				let disposed = false;
+				return {
+					get isDisposed() { return disposed; },
+					dispose: () => { disposed = true; },
+				};
 			},
 			setupDelayedHover,
 			setupDelayedHoverAtMouse: setupDelayedHover,
@@ -197,6 +201,7 @@ suite('Automation dialog creation', () => {
 			setInputToolbarAriaLabel: () => { },
 			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
 				updateOptions: () => { },
+				hasTextFocus: () => document.activeElement === promptInput,
 				onDidChangeModelContent: Event.map(promptChanged.event, () => ({
 					changes: [], eol: '\n', versionId: 1, isUndoing: false, isRedoing: false, isFlush: false, isEolChange: false,
 					detailedReasons: [], detailedReasonsChangeLengths: [],
@@ -885,7 +890,7 @@ suite('Automation dialog creation', () => {
 		await local.result;
 	});
 
-	test('Cron replaces Time in equal-width schedule columns at normal and narrow widths', async () => {
+	test('Cron spans two schedule columns beside a one-column Trigger at normal and narrow widths', async () => {
 		const results = [];
 		for (const width of [640, 360]) {
 			const dialog = openDialog({});
@@ -896,6 +901,9 @@ suite('Automation dialog creation', () => {
 			const row = dialog.container.querySelector<HTMLElement>('.automation-form-schedule-row')!;
 			const trigger = row.querySelector<HTMLElement>('.automation-form-schedule-group')!;
 			const select = trigger.querySelector('select')!;
+			select.selectedIndex = Array.from(select.options).findIndex(option => option.textContent === 'Weekly');
+			select.dispatchEvent(new (DOM.getWindow(select).Event)('change'));
+			const weeklyTriggerWidth = trigger.getBoundingClientRect().width;
 			select.selectedIndex = Array.from(select.options).findIndex(option => option.textContent === 'Cron');
 			select.dispatchEvent(new (DOM.getWindow(select).Event)('change'));
 			const cron = row.querySelector<HTMLElement>('.automation-form-cron-group');
@@ -904,7 +912,8 @@ suite('Automation dialog creation', () => {
 			results.push({
 				width,
 				visibleGroups: Array.from(row.children).filter(element => DOM.getWindow(row).getComputedStyle(element).display !== 'none').length,
-				equalColumns: !!cronBounds && Math.abs(triggerBounds.width - cronBounds.width) < 1,
+				triggerUsesOneColumn: Math.abs(triggerBounds.width - weeklyTriggerWidth) < 1,
+				cronSpansTwoColumns: !!cronBounds && Math.abs(cronBounds.width - (2 * triggerBounds.width + cronBounds.left - triggerBounds.right)) < 1,
 				aligned: !!cronBounds && Math.abs(triggerBounds.top - cronBounds.top) < 1,
 				beside: !!cronBounds && cronBounds.left > triggerBounds.right,
 				captionsFit: !!cron && Array.from(cron.querySelectorAll<HTMLElement>('.automation-cron-caption')).every(caption => caption.getBoundingClientRect().width <= caption.parentElement!.getBoundingClientRect().width),
@@ -912,13 +921,38 @@ suite('Automation dialog creation', () => {
 					.filter(element => element.getBoundingClientRect().width > 0)
 					.map(element => element.getAttribute('aria-label')),
 			});
+			select.selectedIndex = Array.from(select.options).findIndex(option => option.textContent === 'Daily');
+			select.dispatchEvent(new (DOM.getWindow(select).Event)('change'));
+			const time = row.querySelector<HTMLElement>('.automation-form-time-group')!;
+			results.push({ width, presetColumnsEqual: Math.abs(trigger.getBoundingClientRect().width - time.getBoundingClientRect().width) < 1 });
 			dialog.cancelButton.click();
 			await dialog.result;
 		}
-		assert.deepStrictEqual(results, [640, 360].map(width => ({
-			width, visibleGroups: 2, equalColumns: true, aligned: true, beside: true, captionsFit: true,
+		assert.deepStrictEqual(results, [640, 360].flatMap(width => [{
+			width, visibleGroups: 2, triggerUsesOneColumn: true, cronSpansTwoColumns: true, aligned: true, beside: true, captionsFit: true,
 			controls: ['Trigger', 'Minute', 'Hour', 'Day of month', 'Month', 'Day of week'],
-		})));
+		}, { width, presetColumnsEqual: true }]));
+	});
+
+	test('Escape dismisses focused Cron guidance before a separate press cancels the dialog', async () => {
+		const dialog = openDialog();
+		const select = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
+		select.selectedIndex = Array.from(select.options).findIndex(option => option.textContent === 'Cron');
+		select.dispatchEvent(new (DOM.getWindow(select).Event)('change'));
+		const input = dialog.container.querySelector<HTMLInputElement>('.automation-cron-segments input')!;
+		input.focus();
+		const escape = () => {
+			for (const type of ['keydown', 'keyup']) {
+				input.dispatchEvent(new KeyboardEvent(type, { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+			}
+		};
+		escape();
+		const afterHelp = { open: !!dialog.container.querySelector('.automation-dialog'), focused: DOM.getActiveDocument().activeElement === input };
+		escape();
+		await dialog.result;
+		assert.deepStrictEqual({ afterHelp, openAfterSecond: !!dialog.container.querySelector('.automation-dialog') }, {
+			afterHelp: { open: true, focused: true }, openAfterSecond: false,
+		});
 	});
 
 	test('Owner defaults to Only me and Repository selection uses the keyboard', async () => {
@@ -3183,7 +3217,7 @@ suite('Automation dialog layout', () => {
 		const empty = enterCron('');
 		assert.strictEqual(cronInput.placeholder, '*');
 		cronInput.dispatchEvent(new FocusEvent('focus'));
-		assert.strictEqual(cronRow.querySelector('#automation-cron-hint')?.textContent, 'Every minute (*), 0-59, or */2 for every two minutes.');
+		assert.strictEqual(cronRow.querySelector('#automation-cron-hint')?.textContent, 'Evaluated in local time.');
 		assert.notStrictEqual(cronRow.style.display, 'none');
 		const invalid = enterCron('0 24 * * *');
 		const valid = enterCron('*/2 * * * *');
