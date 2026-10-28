@@ -13285,7 +13285,7 @@ suite('CopilotAgentSession', () => {
 							}
 							configuration.setConfigValue(SessionConfigKey.AutoApprove, 'default');
 							configuration.fireSessionConfigChange({ [SessionConfigKey.AutoApprove]: 'default' });
-							await runtime.applyLaunchSandbox(sdkSession as unknown as CopilotSession);
+							await runtime.applyLaunchSandbox(sdkSession as unknown as CopilotSession, false);
 							launchUpdates = [...sdkSession.sandboxConfigUpdates];
 						},
 						configureMockSession: value => { sdkSession = value; },
@@ -13340,7 +13340,7 @@ suite('CopilotAgentSession', () => {
 							};
 						},
 						duringLaunch: async (runtime, configuration) => {
-							const launch = runtime.applyLaunchSandbox(sdkSession as unknown as CopilotSession);
+							const launch = runtime.applyLaunchSandbox(sdkSession as unknown as CopilotSession, false);
 							await applying.p;
 							try {
 								if (source === 'root') {
@@ -14002,7 +14002,7 @@ suite('CopilotAgentSession', () => {
 						},
 						rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
 					});
-					const launchConfig = runtime.getLaunchSandboxConfig();
+					const launchConfig = runtime.getLaunchSandboxConfig(resume);
 					await session.send('hello', undefined, 'turn-1');
 
 					const native = (path: string) => platform === 'win32' ? path.replace(/\//g, '\\') : path;
