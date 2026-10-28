@@ -19,11 +19,6 @@
   "devDependencies": {
     "@types/node": "24.x"
   },
-  "overrides": {
-    "vscode-css-languageservice": {
-      "vscode-languageserver-types": "3.18.3"
-    }
-  },
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-server",
     "watch": "gulp watch-extension:css-language-features-server",

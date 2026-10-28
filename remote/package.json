@@ -1,6 +1,7 @@
 {
   "name": "vscode-reh",
   "version": "0.0.0",
+  "packageManager": "pnpm@12.16.0",
   "private": true,
   "dependencies": {
     "@devcontainers/cli": "0.88.0",
@@ -54,30 +55,6 @@
     "yauzl": "^3.3.1",
     "yazl": "^2.4.3",
     "zod": "^4.4.3"
-  },
-  "overrides": {
-    "node-gyp-build": "4.8.1",
-    "kerberos@2.1.1": {
-      "node-addon-api": "7.1.0"
-    },
-    "koffi": "3.2.1",
-    "yauzl": "^3.3.1"
-  },
-  "allowScripts": {
-    "kerberos@2.1.1": true,
-    "koffi@3.2.1": false,
-    "node-pty@1.2.0-beta.18": true,
-    "@parcel/watcher@2.5.6": true,
-    "@vscode/deviceid@0.1.5": true,
-    "@vscode/fs-copyfile@2.0.0": true,
-    "@vscode/native-watchdog@1.4.6": true,
-    "@vscode/spdlog@0.15.8": true,
-    "@vscode/windows-registry@1.3.0": true,
-    "ssh2": false,
-    "@vscode/sqlite3@5.1.12-vscode": true,
-    "cpu-features": false,
-    "@vscode/windows-ca-certs@0.3.4": true,
-    "@vscode/windows-process-tree@0.8.0": true
   },
   "copilotRuntimeVersion": "1.0.103-unstable.r40031404408.gba6c003"
 }

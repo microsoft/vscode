@@ -1,0 +1,125 @@
+# Generated from the npm configuration by build/npm/pnpm/convert.ts during the npm to pnpm migration.
+# Setting names must be in knownSettingNames in build/npm/pnpm/workspaceConfig.ts.
+packages:
+  - extensions
+  - extensions/configuration-editing
+  - extensions/css-language-features
+  - extensions/css-language-features/server
+  - extensions/debug-auto-launch
+  - extensions/debug-server-ready
+  - extensions/emmet
+  - extensions/extension-editing
+  - extensions/git
+  - extensions/git-base
+  - extensions/github
+  - extensions/github-authentication
+  - extensions/grunt
+  - extensions/gulp
+  - extensions/html-language-features
+  - extensions/html-language-features/server
+  - extensions/ipynb
+  - extensions/jake
+  - extensions/json-language-features
+  - extensions/json-language-features/server
+  - extensions/markdown-language-features
+  - extensions/markdown-math
+  - extensions/merge-conflict
+  - extensions/mermaid-markdown-features
+  - extensions/microsoft-authentication
+  - extensions/notebook-renderers
+  - extensions/npm
+  - extensions/php-language-features
+  - extensions/references-view
+  - extensions/search-result
+  - extensions/simple-browser
+  - extensions/tunnel-forwarding
+  - extensions/terminal-suggest
+  - extensions/typescript-language-features
+  - extensions/vscode-api-tests
+  - extensions/vscode-colorize-tests
+  - extensions/vscode-colorize-perf-tests
+  - extensions/vscode-test-resolver
+  - test/automation
+  - test/integration/browser
+  - test/monaco
+  - test/smoke
+  - test/scenario
+  - .vscode/extensions/vscode-selfhost-import-aid
+  - .vscode/extensions/vscode-selfhost-test-provider
+  - .vscode/extensions/vscode-extras
+  - .vscode/extensions/vscode-pr-pinger
+pnpmfile: .pnpmfile.mjs
+nodeLinker: hoisted
+strictPeerDependencies: false
+autoInstallPeers: false
+dedupePeerDependents: false
+fetchTimeout: 180000
+engineStrict: false
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - '@anthropic-ai/*'
+  - '@github/copilot*'
+  - '@openai/codex*'
+  - '@playwright/*'
+  - '@typescript/*'
+  - '@vscode/*'
+  - '@xterm/*'
+  - node-pty
+  - playwright*
+  - typescript
+  - vscode-*-languageservice
+strictDepBuilds: true
+sideEffectsCache: false
+verifyDepsBeforeRun: false
+pmOnFail: ignore
+skills:
+  dirs: []
+optimisticRepeatInstall: false
+allowBuilds:
+  '@azure/msal-node-extensions@5.3.2': true
+  '@azure/msal-node-runtime@0.20.1': true
+  '@parcel/watcher@2.5.6': true
+  '@playwright/browser-chromium@1.61.1': true
+  '@vscode/deviceid@0.1.5': true
+  '@vscode/fs-copyfile@2.0.0': true
+  '@vscode/native-watchdog@1.4.6': true
+  '@vscode/policy-watcher@1.7.0': true
+  '@vscode/ripgrep@1.17.1': true
+  '@vscode/spdlog@0.15.8': true
+  '@vscode/sqlite3@5.1.12-vscode': true
+  '@vscode/windows-ca-certs@0.3.4': true
+  '@vscode/windows-mutex@0.5.3': true
+  '@vscode/windows-process-tree@0.8.0': true
+  '@vscode/windows-registry@1.3.0': true
+  bufferutil@4.1.0: true
+  cpu-features: false
+  es5-ext: false
+  esbuild@0.28.1: true
+  foundry-local-sdk@2.2.1: true
+  fsevents@1.2.13: true
+  fsevents@2.3.2: true
+  fsevents@2.3.3: true
+  husky: false
+  kerberos@2.1.1: true
+  koffi@3.2.1: false
+  native-is-elevated@0.9.0: true
+  native-keymap@3.3.9: true
+  node-pty@1.2.0-beta.18: true
+  protobufjs@7.6.5: false
+  ssh2: false
+  utf-8-validate@5.0.10: true
+  windows-foreground-love@0.6.1: true
+overrides:
+  '@typescript-eslint/types': 8.66.0
+  node-gyp-build: 4.8.1
+  kerberos@2.1.1>node-addon-api: 7.1.0
+  koffi: 3.2.1
+  serialize-javascript: ^7.0.3
+  yauzl: ^3.3.1
+  vscode-css-languageservice>vscode-languageserver-types: 3.18.3
+  lodash-es: 4.18.1
+  '@vscode/web-editors@0.0.2-76>@vscode/hubrpc': 0.0.2-20
+  '@vscode/web-editors@0.0.2-104>@vscode/hubrpc': 0.0.2-54
+  '@azure/msal-node-extensions@5.3.2>keytar': file:extensions/microsoft-authentication/packageMocks/keytar
+patchedDependencies:
+  foundry-local-sdk: build/npm/patches/foundry-local-sdk.patch

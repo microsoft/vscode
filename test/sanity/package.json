@@ -1,6 +1,7 @@
 {
   "name": "code-oss-dev-sanity-test",
   "version": "0.1.0",
+  "packageManager": "pnpm@12.16.0",
   "license": "MIT",
   "type": "module",
   "main": "./out/index.js",

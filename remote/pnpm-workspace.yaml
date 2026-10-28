@@ -1,0 +1,41 @@
+# Generated from the npm configuration by build/npm/pnpm/convert.ts during the npm to pnpm migration.
+# Setting names must be in knownSettingNames in build/npm/pnpm/workspaceConfig.ts.
+pnpmfile: .pnpmfile.mjs
+nodeLinker: hoisted
+strictPeerDependencies: false
+autoInstallPeers: false
+dedupePeerDependents: false
+fetchTimeout: 180000
+engineStrict: false
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - '@github/copilot*'
+  - '@vscode/*'
+  - '@xterm/*'
+  - node-pty
+strictDepBuilds: true
+sideEffectsCache: false
+verifyDepsBeforeRun: false
+pmOnFail: ignore
+skills:
+  dirs: []
+allowBuilds:
+  '@parcel/watcher@2.5.6': true
+  '@vscode/deviceid@0.1.5': true
+  '@vscode/fs-copyfile@2.0.0': true
+  '@vscode/native-watchdog@1.4.6': true
+  '@vscode/spdlog@0.15.8': true
+  '@vscode/sqlite3@5.1.12-vscode': true
+  '@vscode/windows-ca-certs@0.3.4': true
+  '@vscode/windows-process-tree@0.8.0': true
+  '@vscode/windows-registry@1.3.0': true
+  cpu-features: false
+  kerberos@2.1.1: true
+  koffi@3.2.1: false
+  node-pty@1.2.0-beta.18: true
+  ssh2: false
+overrides:
+  node-gyp-build: 4.8.1
+  kerberos@2.1.1>node-addon-api: 7.1.0
+  koffi: 3.2.1
+  yauzl: ^3.3.1

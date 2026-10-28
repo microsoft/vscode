@@ -3,6 +3,7 @@
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
   "version": "0.73.0",
+  "packageManager": "pnpm@12.16.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -6943,11 +6944,6 @@
     "vscode-tas-client": "^0.3.3",
     "web-tree-sitter": "^0.23.0"
   },
-  "overrides": {
-    "string_decoder": "npm:string_decoder@1.2.0",
-    "yauzl": "^3.3.1",
-    "zod": "3.25.76"
-  },
   "vscodeCommit": "94c8e2adc50e26ef70af85a0de3a9efed757acaa",
   "__metadata": {
     "id": "7ec7d6e6-b89e-4cc5-a59b-d6c4d238246f",
@@ -6958,14 +6954,5 @@
       "flags": "verified"
     },
     "publisherDisplayName": "GitHub"
-  },
-  "allowScripts": {
-    "esbuild@0.28.1": true,
-    "keytar@7.9.0": true,
-    "@playwright/browser-chromium@1.61.1": true,
-    "@vscode/vsce-sign@2.1.0": true,
-    "protobufjs": false,
-    "fsevents@2.3.3": true,
-    "fsevents@2.3.2": true
   }
 }

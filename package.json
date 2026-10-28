@@ -1,6 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.145.0",
+  "packageManager": "pnpm@12.16.0",
   "distro": "165a83e58ea80a0a4a0a4332c175f1399b5be61e",
   "author": {
     "name": "Microsoft Corporation"
@@ -277,16 +278,6 @@
     "xml2js": "^0.5.0",
     "yaserver": "^0.4.0"
   },
-  "overrides": {
-    "@typescript-eslint/types": "8.66.0",
-    "node-gyp-build": "4.8.1",
-    "kerberos@2.1.1": {
-      "node-addon-api": "7.1.0"
-    },
-    "koffi": "3.2.1",
-    "serialize-javascript": "^7.0.3",
-    "yauzl": "^3.3.1"
-  },
   "repository": {
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"
@@ -296,37 +287,6 @@
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.6.1"
-  },
-  "allowScripts": {
-    "bufferutil@4.1.0": true,
-    "cpu-features": false,
-    "foundry-local-sdk@2.2.1": true,
-    "kerberos@2.1.1": true,
-    "koffi@3.2.1": false,
-    "native-keymap@3.3.9": true,
-    "protobufjs@7.6.5": false,
-    "native-is-elevated@0.9.0": true,
-    "node-pty@1.2.0-beta.18": true,
-    "utf-8-validate@5.0.10": true,
-    "windows-foreground-love@0.6.1": true,
-    "@parcel/watcher@2.5.6": true,
-    "@playwright/browser-chromium@1.61.1": true,
-    "@vscode/fs-copyfile@2.0.0": true,
-    "@vscode/native-watchdog@1.4.6": true,
-    "@vscode/ripgrep@1.17.1": true,
-    "@vscode/deviceid@0.1.5": true,
-    "@vscode/spdlog@0.15.8": true,
-    "@vscode/sqlite3@5.1.12-vscode": true,
-    "@vscode/windows-registry@1.3.0": true,
-    "@vscode/windows-mutex@0.5.3": true,
-    "ssh2": false,
-    "fsevents@2.3.2": true,
-    "fsevents@1.2.13": true,
-    "es5-ext": false,
-    "husky": false,
-    "@vscode/windows-ca-certs@0.3.4": true,
-    "@vscode/windows-process-tree@0.8.0": true,
-    "@vscode/policy-watcher@1.7.0": true
   },
   "copilotRuntimeVersion": "1.0.103-unstable.r40031404408.gba6c003"
 }
