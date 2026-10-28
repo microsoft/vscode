@@ -524,6 +524,7 @@ import '../workbench/contrib/chat/browser/onboarding/modelPickerTryout.contribut
 import '../workbench/contrib/codeEditor/browser/diffEditorTryout.contribution.js';
 import './contrib/onboardingTours/browser/onboardingTours.contribution.js';
 import './contrib/getStarted/browser/getStarted.contribution.js';
+import './contrib/worktreeSuggestion/browser/worktreeSuggestion.contribution.js';
 
 import './services/sessions/browser/sessionsManagementService.js';
 //#endregion

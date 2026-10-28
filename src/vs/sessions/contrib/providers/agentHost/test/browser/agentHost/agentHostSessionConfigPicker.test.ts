@@ -9,7 +9,7 @@ import { DeferredPromise, timeout } from '../../../../../../../base/common/async
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
@@ -61,7 +61,12 @@ import { IChat, ISessionChangeset, ISessionChangesetOperationTarget, ISessionWor
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
+import { createStyleSheet } from '../../../../../../../base/browser/domStylesheets.js';
 import { ENVIRONMENT_PICKER_SETTING } from '../../../../../../contrib/chat/common/constants.js';
+import { IWorktreeSuggestionService } from '../../../../../worktreeSuggestion/browser/worktreeSuggestionService.js';
+import { NullWorktreeSuggestionService, TestWorktreeSuggestionService } from '../../../../../worktreeSuggestion/test/browser/worktreeSuggestionTestUtils.js';
+import { WorktreeSuggestionVariant } from '../../../../../worktreeSuggestion/common/worktreeSuggestion.js';
+import { IChatSessionFileChange2 } from '../../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import '../../../../../chat/browser/media/chatWidget.css';
 
 const SESSION_ID = 'local-agent-host:s1';
@@ -311,6 +316,7 @@ function setupServices(
 	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(ISessionInputPickerVisibility, store.add(new SessionInputPickerVisibility()));
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	instantiationService.stub(IWorktreeSuggestionService, new NullWorktreeSuggestionService());
 	const configurationService = new TestConfigurationService({
 		[DevContainerWorktreeEnabledSettingId]: false,
 	});
@@ -405,6 +411,15 @@ function setupServices(
 function renderPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>, services: ReturnType<typeof setupServices>) {
 	const picker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, services.sessionObs, undefined));
 	const container = document.createElement('div');
+	picker.render(container);
+	return { picker, container };
+}
+
+/** Renders a picker attached to the document, so its controls are laid out. */
+function renderAttachedPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>, services: ReturnType<typeof setupServices>) {
+	const picker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, services.sessionObs, undefined));
+	const container = mainWindow.document.body.appendChild(document.createElement('div'));
+	store.add(toDisposable(() => container.remove()));
 	picker.render(container);
 	return { picker, container };
 }
@@ -1121,6 +1136,139 @@ suite('Agent Host Session Config Picker', () => {
 				icon: 'codicon-git-branch',
 				ariaLabel: 'Base Branch: main',
 			},
+		});
+	});
+
+	test('uncommitted files count shows the number after Branch, and its picker lists a few files below the options with a row that counts the rest', async () => {
+		const services = setupServices(store);
+		const changes: IChatSessionFileChange2[] = ['src/app.ts', 'README.md', 'src/todo.ts', 'src/store.ts', 'src/view.ts']
+			.map(path => ({ uri: URI.file(`/repo/${path}`), modifiedUri: URI.file(`/repo/${path}`), insertions: 4, deletions: 1 }));
+		const suggestions = new TestWorktreeSuggestionService(WorktreeSuggestionVariant.UncommittedFilesCount, changes, changes.length);
+		services.instantiationService.stub(IWorktreeSuggestionService, suggestions);
+		services.provider.config = makeRepoConfig('main', 'folder');
+		services.workspaceObs.set(makeWorkspace(changes.length), undefined);
+		const { container } = renderAttachedPicker(store, services);
+		const trigger = isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!;
+		const open = async () => {
+			trigger.click();
+			await timeout(0);
+			return {
+				rows: services.actionWidget.items.map(item => item.kind === ActionListItemKind.Separator
+					? (item.label ? `[${item.label}]` : '|')
+					: [item.label, item.badge, item.detail].filter(Boolean).join(' · ')),
+				header: services.actionWidget.listOptions?.headerText,
+				className: services.actionWidget.listOptions?.className,
+			};
+		};
+
+		const shown = {
+			label: trigger.textContent,
+			count: trigger.querySelector('.sessions-chat-uncommitted-count.visible')?.textContent ?? null,
+			ariaLabel: trigger.getAttribute('aria-label'),
+		};
+		const opened = await open();
+		const ariaLabel = services.actionWidget.accessibilityProvider!.getAriaLabel!(services.actionWidget.items.find(item => item.label === 'app.ts')!);
+		// Closing the explanation keeps the files listed.
+		services.actionWidget.listOptions?.headerDismiss?.();
+		const reopened = await open();
+		for (const label of ['2 more', 'New Worktree']) {
+			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.label === label)!.item!);
+		}
+		await timeout(0);
+
+		const rows = [
+			'Branch · Works alongside your 5 uncommitted files',
+			'New Worktree · Recommended · Creates a separate copy for this session',
+			'[5 Uncommitted Files]',
+			'app.ts',
+			'README.md',
+			'todo.ts',
+			'2 more',
+		];
+		assert.deepStrictEqual({ shown, opened, ariaLabel, reopened, calls: suggestions.calls, selections: services.provider.setSessionConfigValueArguments }, {
+			shown: { label: 'Branch5', count: '5', ariaLabel: 'Isolation: Branch. main has 5 uncommitted files. On Branch, the agent works alongside them.' },
+			opened: {
+				rows,
+				header: 'main has 5 uncommitted files. On Branch, the agent works alongside them, so its changes can mix with yours.',
+				className: 'sessions-chat-isolation-listed-changes',
+			},
+			ariaLabel: 'app.ts, 5 Uncommitted Files',
+			reopened: { rows, header: undefined, className: 'sessions-chat-isolation-listed-changes' },
+			calls: [
+				'shown:uncommittedFilesCount',
+				'opened:uncommittedFilesCount',
+				'explanationClosed',
+				'opened:uncommittedFilesCount',
+				'reviewChanges:uncommittedFilesCount',
+				'accepted:uncommittedFilesCount',
+			],
+			selections: [{ sessionId: SESSION_ID, property: SessionConfigKey.Isolation, value: 'worktree' }],
+		});
+	});
+
+	test('inline hint opens the isolation picker with New Worktree recommended and focused, without a header, until the user keeps Branch or closes the hint', async () => {
+		const services = setupServices(store);
+		const suggestions = new TestWorktreeSuggestionService(WorktreeSuggestionVariant.InlineHint);
+		services.instantiationService.stub(IWorktreeSuggestionService, suggestions);
+		services.provider.config = makeRepoConfig('main', 'folder');
+		services.workspaceObs.set(makeWorkspace(3), undefined);
+		const { container } = renderAttachedPicker(store, services);
+		const trigger = isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!;
+		const chip = { label: trigger.textContent, ariaLabel: trigger.getAttribute('aria-label') };
+
+		services.instantiationService.get(ISessionInputPickerVisibility).focusPicker('worktree', { focusValue: 'worktree' });
+		await timeout(0);
+		const opened = {
+			rows: services.actionWidget.items.map(item => [item.label, item.badge, item.detail].filter(Boolean).join(' · ')),
+			focused: services.actionWidget.focusedItem?.item?.value,
+			header: services.actionWidget.listOptions?.headerText,
+		};
+		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.value === 'folder')!.item!);
+		trigger.click();
+		await timeout(0);
+		const afterKeepingBranch = services.actionWidget.items.map(item => [item.label, item.badge, item.detail].filter(Boolean).join(' · '));
+
+		// A hint closed for good no longer recommends New Worktree either, in any session.
+		const closed = new TestWorktreeSuggestionService(WorktreeSuggestionVariant.InlineHint);
+		closed.closeHint();
+		services.instantiationService.stub(IWorktreeSuggestionService, closed);
+		const { container: closedContainer } = renderAttachedPicker(store, services);
+		isolationSlot(closedContainer)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		const afterClosingHint = services.actionWidget.items.map(item => [item.label, item.badge].filter(Boolean).join(' · '));
+
+		assert.deepStrictEqual({ chip, opened, afterKeepingBranch, afterClosingHint, calls: suggestions.calls }, {
+			chip: { label: 'Branch', ariaLabel: 'Isolation: Branch' },
+			opened: {
+				rows: ['Branch · Works alongside your 3 uncommitted files', 'New Worktree · Recommended · Creates a separate copy for this session'],
+				focused: 'worktree',
+				header: undefined,
+			},
+			afterKeepingBranch: ['Branch · Works in the repository already on this computer', 'New Worktree · Creates a separate copy for this session'],
+			afterClosingHint: ['Branch', 'New Worktree'],
+			calls: ['declined:inlineHint'],
+		});
+	});
+
+	test('uncommitted files count counts as shown only while the count shows, or once its picker lists the files', async () => {
+		const services = setupServices(store);
+		const suggestions = new TestWorktreeSuggestionService(WorktreeSuggestionVariant.Off, []);
+		services.instantiationService.stub(IWorktreeSuggestionService, suggestions);
+		services.provider.config = makeRepoConfig('main', 'folder');
+		services.workspaceObs.set(makeWorkspace(3), undefined);
+		// An icon-only chip leaves the count out.
+		const styles = store.add(new DisposableStore());
+		createStyleSheet(undefined, style => style.textContent = '.sessions-chat-uncommitted-count { display: none !important; }', styles);
+		const { container } = renderAttachedPicker(store, services);
+
+		suggestions.variant.set(WorktreeSuggestionVariant.UncommittedFilesCount, undefined);
+		const whileHidden = [...suggestions.calls];
+		isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileHidden, afterOpening: suggestions.calls }, {
+			whileHidden: [],
+			afterOpening: ['shown:uncommittedFilesCount', 'opened:uncommittedFilesCount'],
 		});
 	});
 

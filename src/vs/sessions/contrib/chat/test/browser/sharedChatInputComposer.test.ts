@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
@@ -290,6 +290,7 @@ suite('SharedChatInputComposer', () => {
 		const composer: { _renderBusyState(key: { set(value: string): void }): void } = Object.assign(Object.create(SharedChatInputComposer.prototype), {
 			_store: busyStore,
 			_sending: sending,
+			_confirmingSend: constObservable(false),
 			options: { loading },
 		});
 		composer._renderBusyState({ set: value => busy.push(value) });
@@ -304,6 +305,32 @@ suite('SharedChatInputComposer', () => {
 		assert.deepStrictEqual(busy.filter(value => value !== ''), ['sending']);
 	}));
 
+	test('shows no progress while the host confirms a send', () => runWithFakedTimers({}, async () => {
+		const busyStore = new DisposableStore();
+		const sending = observableValue('sending', false);
+		const confirmingSend = observableValue('confirmingSend', false);
+		const busy: string[] = [];
+		const composer: { _renderBusyState(key: { set(value: string): void }): void } = Object.assign(Object.create(SharedChatInputComposer.prototype), {
+			_store: busyStore,
+			_sending: sending,
+			_confirmingSend: confirmingSend,
+			options: { loading: constObservable(false) },
+		});
+		composer._renderBusyState({ set: value => busy.push(value) });
+		transaction(tx => {
+			sending.set(true, tx);
+			confirmingSend.set(true, tx);
+		});
+		await timeout(1000);
+		const whileConfirming = busy.filter(value => value !== '');
+		confirmingSend.set(false, undefined);
+		await timeout(1000);
+		sending.set(false, undefined);
+		busyStore.dispose();
+
+		assert.deepStrictEqual({ whileConfirming, busy: busy.filter(value => value !== '') }, { whileConfirming: [], busy: ['sending'] });
+	}));
+
 	test('uses the model picker progress instead of a separate busy action for comparison sends', () => runWithFakedTimers({}, async () => {
 		const busyStore = new DisposableStore();
 		const sending = observableValue('sending', false);
@@ -312,6 +339,7 @@ suite('SharedChatInputComposer', () => {
 		const composer: { _renderBusyState(key: { set(value: string): void }): void } = Object.assign(Object.create(SharedChatInputComposer.prototype), {
 			_store: busyStore,
 			_sending: sending,
+			_confirmingSend: constObservable(false),
 			options: {
 				loading: constObservable(false),
 				modelPickerComparison: upcastPartial<IModelPickerComparison>({ summary }),
