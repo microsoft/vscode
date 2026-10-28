@@ -83,9 +83,9 @@ async function main(args: string[]): Promise<void> {
 	}
 
 	// This loop will run for 60 minutes and waits to the x64 and arm64 artifacts
-	// to be uploaded to the pipeline by the `macOS` and `macOSARM64` jobs. As soon
-	// as these artifacts are found, the loop completes and the `macOSUnivesrsal`
-	// job resumes.
+	// to be uploaded to the pipeline by the `macOS (X64) - Compile` and `macOS (ARM64) - Compile`
+	// jobs. As soon as these artifacts are found, the loop completes and the
+	// `macOSUniversal` job resumes.
 	for (let index = 0; index < 120; index++) {
 		try {
 			console.log(`Waiting for artifacts (${artifacts.join(', ')}) to be uploaded (${index + 1}/120)...`);

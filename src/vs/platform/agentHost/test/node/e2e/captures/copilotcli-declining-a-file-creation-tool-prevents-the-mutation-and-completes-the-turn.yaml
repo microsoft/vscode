@@ -6,14 +6,14 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Create denied.txt containing exactly DENIED_CONTENT using your file creation tool. If permission is denied, reply exactly "denied".
+          content: Create denied.lock containing exactly DENIED_CONTENT using your file creation tool. If permission is denied, reply exactly "denied".
     response:
       content:
         - type: tool_use
           id: toolcall_0
           name: create
           input:
-            path: ${workdir}/denied.txt
+            path: ${workdir}\denied.lock
             file_text: DENIED_CONTENT
       stopReason: tool_use
   - request:
@@ -21,13 +21,13 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Create denied.txt containing exactly DENIED_CONTENT using your file creation tool. If permission is denied, reply exactly "denied".
+          content: Create denied.lock containing exactly DENIED_CONTENT using your file creation tool. If permission is denied, reply exactly "denied".
         - role: assistant
           content:
             - type: tool_use
               name: create
               input:
-                path: ${workdir}/denied.txt
+                path: ${workdir}\denied.lock
                 file_text: DENIED_CONTENT
         - role: user
           content:

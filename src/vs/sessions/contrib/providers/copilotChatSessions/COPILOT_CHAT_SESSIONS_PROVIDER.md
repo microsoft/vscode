@@ -1,175 +1,99 @@
-# CopilotChatSessionsProvider — Default Copilot Provider
+# Copilot Chat sessions provider
 
-**File:** `src/vs/sessions/contrib/providers/copilotChatSessions/browser/copilotChatSessionsProvider.ts`
+> **Specification change gate:** Do not update this document for provider bug fixes, option details, picker behavior, or timing. Update it only when provider ownership, identity, cache semantics, or request lifecycle changes.
 
-The default sessions provider, registered with ID `'default-copilot'`. Wraps the existing agent session infrastructure into the extensible provider model. Supports **Copilot CLI** (local) when Agent Host is unavailable and **Copilot Cloud** (remote).
+## Scope
 
-## Registration
+`CopilotChatSessionsProvider` adapts the existing Copilot agent-session infrastructure into `ISessionsProvider`. It supports Copilot Cloud only. Local Copilot CLI sessions contributed by the Copilot extension are not surfaced in the Agents Window; local Copilot sessions are owned by the Agent Host providers.
 
-Registered via `DefaultSessionsProviderContribution` workbench contribution at `WorkbenchPhase.AfterRestored`:
+## Registration and identity
 
-```
-src/vs/sessions/contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.ts
-```
+`DefaultSessionsProviderContribution` registers the default provider after workbench restoration.
 
-```typescript
-class DefaultSessionsProviderContribution extends Disposable {
-    constructor(instantiationService, sessionsProvidersService) {
-        const provider = instantiationService.createInstance(CopilotChatSessionsProvider);
-        sessionsProvidersService.registerProvider(provider);
-    }
-}
-```
+| Property | Contract |
+|----------|----------|
+| Provider ID | `default-copilot` |
+| Label | Copilot Chat |
+| Cloud session type | The only session type advertised |
 
-## Identity
+The provider may expose local-folder and remote-repository browse actions. Repository selection UI is owned by the shared workbench picker, used by both the extension's repository command and browser session creation; each caller supplies repository data and owns any session-option updates. Workspace resolution is shared by the default and sandbox creation modes.
 
-| Property | Value |
-|----------|-------|
-| `id` | `'default-copilot'` |
-| `label` | `'Copilot Chat'` |
-| `icon` | `Codicon.copilot` |
-| `sessionTypes` | `[CopilotCloudSessionType]`, plus `CopilotCLISessionType` when Agent Host is unavailable |
+On web, the contribution also registers a sandbox-only instance (`cloud-sandbox-creation`) while cloud sandboxes and remote agent hosts are enabled and AI features are visible. This instance owns sandbox drafts, not existing Cloud or CLI history. It advertises the Copilot sandbox creation type.
 
-## Browse Actions
+## Drafts
 
-- **"Folders"** — Opens a folder dialog; creates a workspace with a `file://` URI
-- **"Repositories"** — Executes `github.copilot.chat.cloudSessions.openRepository`; creates a workspace with a `github-remote-file://` URI
+Cloud drafts implement the `ISession` contract and expose provider-declared option groups and remote workspace metadata. A local folder can host a Cloud draft only for the GitHub repository it tracks; the draft targets that remote repository. Shared new-session UI consumes the observable loading, workspace, model, and capability contracts and does not branch on draft classes.
 
-## New Session Classes
+For new interactive Cloud sessions, enabling `chat.agentHost.cloudSandbox.enabled` selects GitHub Cloud when remote agent hosts are also enabled; otherwise the provider uses the legacy Copilot coding agent on GitHub Actions. Interactive draft models, configuration controls, and first-send routing follow this setting rather than a saved per-chat choice. Existing conversations keep their original backend.
 
-When `createNewSession(workspace)` is called, the provider creates one of two concrete `ISession` implementations based on the workspace URI scheme:
+Automation configuration drafts instead retain the scheduled-Cloud model catalogue and configuration contract regardless of this setting; see [Automations](../../../AUTOMATIONS.md#definitions-and-session-configuration).
 
-**`CopilotCLISession`** — For local `file://` workspaces:
-- Implements `ISession` plus provider-specific observable fields (`permissionLevel`, `branchObservable`, `isolationModeObservable`)
-- Performs async git repository resolution during construction (sets `loading` to true until resolved)
-- Exposes `hasGitRepository` as an observable that becomes true only when the repository has a HEAD commit, so scoped session context keys hide worktree/branch controls for non-Git and empty repositories
-- Configuration methods: `setIsolationMode()`, `setBranch()`, `setModelId()`, `setMode()`, `setPermissionLevel()`, `setModeById()`
-- Tracks selected options via `Map<string, IChatSessionProviderOptionItem>` and syncs to `IChatSessionsService`
-- Uses `IGitService` to open the repository and resolve branch information
+While GitHub sandboxes are enabled and AI features are visible, the provider also advertises quick chats. These drafts explicitly have no workspace or repository and always require the sandbox backend; disabling it withdraws that capability and prevents a pending quick chat from falling back to the repository-bound legacy agent.
 
-**`RemoteNewSession`** — For cloud `github-remote-file://` workspaces:
-- Implements `ISession`
-- Manages dynamic option groups from `IChatSessionsService.getOptionGroupsForSessionType()` with `when` clause visibility
-- No-ops for isolation/branch/client mode (cloud-managed)
-- Provides `getModelOptionsSnapshot()`, `getOtherOptionGroups()` for UI to render provider-specific pickers
-- Watches context key changes to dynamically show/hide option groups
+## Existing sessions
 
-## `AgentSessionAdapter` — Wrapping Existing Sessions
+`AgentSessionAdapter` projects an existing Copilot Cloud `IAgentSession` into a stable `ISession` facade. Agent sessions of any other provider type are ignored. It updates observable state in a transaction and preserves resource identity while metadata changes.
 
-Adapts an existing `IAgentSession` from the chat layer into the `ISession` facade:
-- Constructs with initial values from the agent session's metadata and timing
-- `update(session)` performs a batched observable transaction to update all reactive properties
-- Extracts workspace info, changes, description, and GitHub info from session metadata
-- Treats a cloud provider's `pullRequestUrl` as authoritative for owner, repository, and PR number (including URL-only metadata), and falls back to resolving the PR from `owner`/`name`/`branch` when the URL is absent
-- PR-less task cards must carry `diffRefs.headRef` into their session metadata as `branch`; repository-only metadata cannot drive the branch fallback
-- Uses the shared GitHub PR model, background polling contribution, and persistent icon cache for github.com; provider-reported GitHub Enterprise links retain their provider state icon but skip the public `api.github.com` polling path
-- Maps `ChatSessionStatus` → `SessionStatus`
-- Handles both CLI and Cloud session metadata formats for repository resolution
+The provider cache is keyed by resource identity. Refreshing the backing agent session list updates existing adapters and emits added, removed, changed, or replacement catalog notifications as appropriate.
 
-## Session Cache & Change Events
+Provider metadata translation, including repository and pull-request metadata, remains inside the adapter. Shared Sessions code consumes provider-neutral workspace, changes, status, and GitHub information.
 
-The provider maintains a `Map<string, AgentSessionAdapter>` cache keyed by resource URI:
-- `_ensureSessionCache()` performs lazy initialization
-- `_refreshSessionCache()` diffs current `IAgentSession` list against the cache, producing `added`, `removed`, and `changed` arrays
-- Changed adapters are updated in-place via `adapter.update(session)`
-- Change events are forwarded through `onDidChangeSessions`
+The cloud provider reports verified PR-closing issues through `linkedIssues` metadata containing their URLs and titles. The adapter exposes these as session artifacts and, for public GitHub URLs, issue references for the existing issue pill. Enterprise-hosted issues remain openable artifacts without public GitHub polling.
 
-## Send Flow
+The Task API does not report which client started a task, so the Copilot extension records the tasks VS Code creates or sends a message to. Every other task carries `external: true` metadata, which the adapter exposes as `ISession.isExternal`. The extension lists external tasks according to `chat.agentSessions.showExternal`, and a sent message adopts a task by clearing the flag.
 
-The provider exposes two entry points on `ISessionsProvider`:
+## Cloud automation coordination
 
-- **`createNewChat(sessionId, prompt?)`** — Creates the backend chat model and returns the resulting `IChat`. The management service uses the returned `chat.resource` to open the widget *before* sending. For new sessions the provider also swaps the session's `mainChat` observable with the committed chat so the cached `ISession` reflects the real backend resource.
-- **`sendRequest(sessionId, chatResource, options)`** — Sends a request for a chat that was already created via `createNewChat`. Internally it dispatches between:
-  - `_sendFirstChat()` when the session is the current new session — resolves mode/permission/send options, calls `IChatService.sendRequest`, adds the temp session to the cache, fires `onDidChangeSessions`, waits for commit (untitled → real URI), and then fires `onDidReplaceSession` with the committed session. CLI and cloud sessions both commit from an untitled URI to a real resource: CLI to an SDK session id, cloud to a `/task/<id>` resource. Cloud uses *deferred* commit detection — its commit is delayed behind a confirmation round-trip and network delegation, so `_waitForCommittedSession` skips the response-completion race (which fires early at the confirmation turn) and waits on `onDidCommitSession` with a longer timeout.
-  - `_sendExistingChat()` when the session already has committed chats — sends to the existing chat resource.
+`GitHubCloudAutomationStore` owns a provider-local, explicitly refreshed cache of user-owned GitHub cloud automation definitions. It retains the default-account client lease from `IWorkbenchGitHubService` until account/grant invalidation or disposal; the service supplies Mission Control endpoints. The shared `client.query` and `client.automations` domains own repository reads and automation requests/response validation; the store bounds page collection and detail hydration. Discovery is limited to Agents Window recent workspaces and explicitly registered GitHub.com repositories, with private/internal visibility verified before listing. Only account-scoped repository references persist in profile-local machine storage; definitions stay in memory, and account/grant changes or disposal cancel pending reads and clear the cache.
 
-For multi-chat sessions (`capabilities.supportsMultipleChats === true`), `createNewChat()` on an existing session calls `_createNewSubsequentChat()`, which creates a fresh `CopilotCLISession` linked to the parent via the `parentSessionId` option, registers it in `_currentNewSession`, and returns its `IChat`. A subsequent `sendRequest(sessionId, chat.resource, options)` then routes through `_sendFirstChat`.
+Refresh failures, including incomplete paginated results, retain the affected repository's last successful definitions while reporting an error; successful repositories still update. The store serializes definition refreshes and mutations within an account lifetime, rechecks repository eligibility before writes, and discards responses after account/grant changes or disposal. Updates support an authoritative preflight comparison, not server-side compare-and-swap. An uncertain mutation blocks further writes until an explicit successful catalogue refresh.
 
-The provider never opens the chat widget itself; widget opening is owned by the management service.
+History is an explicitly refreshed, bounded server-owned window. Active task details are fetched with bounded concurrency and cancellation. Manual dispatch acknowledges acceptance only; it does not create a local run or correlate an arbitrary history entry with that request. The store does not implement the shared Automation contract or initiate requests on construction, observation, or account changes.
 
-## Delete Flow
+Only the default provider exposes `CloudAutomationStore`, which adapts the GitHub store to the shared Automation contract. The sandbox-only provider is not an Automation authority. The adapter creates a store and refreshes it only while the cloud gate, parent Automations setting, AI visibility, and a GitHub.com account permit access. Each account or gate transition disposes the old store. Definition and history identities include provider, account, repository, and remote definition identity; native Cloud session adoption is a separate concern.
 
-For Copilot CLI sessions, `_deleteAgentSessions()` delegates to the extension-host command `agents.github.copilot.cli.deleteSessions` and passes both the session resource and current session label. The extension may later hit the Git extension's force-delete confirmation when removing a dirty worktree, so the label must be preserved in that command payload to identify which session owns the worktree.
+## Request lifecycle
 
-## New-Session Picker Contribution Model
+The provider separates chat creation from request sending:
 
-**File:** `src/vs/sessions/contrib/copilotChatSessions/browser/copilotChatSessionsActions.ts`
-
-The welcome/new-session view (`NewChatInputWidget`) renders three toolbar menus for configuration pickers. Each picker requires a three-part registration:
-
-1. **Menu action** — `registerAction2()` with a `when` clause gating it to the correct session type
-2. **Action view item** — `actionViewItemService.register()` to provide a custom widget instead of a button
-3. **Picker widget** — A `Disposable` class with a `render(container)` method, wrapped in `PickerActionViewItem`
-
-Model picker widgets that back the new-chat `/models` slash command also inject `INewChatModelPickerService` and register their opener with it. `NewChatInputWidget` scopes that service per input, so action view item factories must instantiate those model picker widgets from the factory's `instantiationService` argument rather than a contribution-level service.
-
-### Toolbar Menus
-
-| Menu | Purpose | Examples |
-|------|---------|----------|
-| `Menus.NewSessionConfig` | Session configuration (mode, model) | `ModePicker`; the model picker is the sessions-core `ModelPicker` (see below) |
-| `Menus.NewSessionControl` | Session controls (permissions) | `PermissionPicker`, `ClaudePermissionModePicker` |
-| `Menus.NewSessionRepositoryConfig` | Repository configuration | `IsolationPicker`, `BranchPicker` |
-
-### Model Picker
-
-The model picker is no longer contributed per provider. Each `NewChatInputWidget` owns a scoped `SessionModelSelectionModel`, while the sessions-core `ModelPicker` (`contrib/chat/browser/modelPicker.ts`) is a presentation and telemetry adapter over that model. The coordinator reads models, the desired identifier's resolution, and the concrete model target from `ISessionsProvider.getModelsSnapshot(sessionId, desiredModelId)`, remembers explicit choices through the shared profile/user chat-model storage, reads presentation from `getModelPickerOptions(sessionId)`, and applies transitions through `ISessionsProvider.setModel(sessionId, modelId)`. Omitted `showAutoModel` defaults to `true`.
-
-This provider returns a model snapshot from `getModelsSnapshot` based on the active session:
-- **CLI / Claude** sessions return registered language models whose `targetChatSessionType` matches the session type.
-- **Cloud** sessions synthesize `ILanguageModelChatMetadataAndIdentifier` entries from the extension-host `models` option group and resolve the snapshot once option groups have loaded, regardless of model-id syntax; `setModel` additionally persists the choice as the option-group value so the extension host honours it.
-
-`getModelPickerOptions` returns grouped models with featured models shown and no "Manage Models" action (that action is offered only by the local provider).
-
-### Context Key Gating
-
-Each picker action uses a `when` clause to show only for the correct session type:
-
-| Expression | Matches |
-|------------|---------|
-| `IsActiveSessionCopilotChatCLI` | Copilot CLI sessions |
-| `IsActiveSessionCopilotChatCloud` | Copilot Cloud sessions |
-| `IsActiveSessionCopilotChatClaudeCode` | Claude sessions |
-
-Repository controls additionally require `SessionHasGitRepositoryContext`. The provider publishes usable Git availability through `ISession.hasGitRepository`, and `setSessionContextKeys` binds that observable into each session view's scoped context-key service. Menu visibility therefore follows the toolbar's own `ISessionContext`, not the window's globally active session.
-
-These are composed from `SessionTypeContext` (the session type ID) and `SessionProviderIdContext` (the provider ID).
-
-### Adding a New Picker
-
-```typescript
-// 1. Register the menu action with a when clause
-registerAction2(class extends Action2 {
-    constructor() {
-        super({
-            id: 'sessions.defaultCopilot.myPicker',
-            title: localize2('myPicker', "My Picker"),
-            f1: false,
-            menu: [{
-                id: Menus.NewSessionControl, // or NewSessionConfig, NewSessionRepositoryConfig
-                group: 'navigation',
-                order: 1,
-                when: IsActiveSessionCopilotChatCLI, // gate to session type
-            }],
-        });
-    }
-    override async run(): Promise<void> { /* handled by action view item */ }
-});
-
-// 2. Register the action view item (in CopilotPickerActionViewItemContribution)
-this._register(actionViewItemService.register(
-    Menus.NewSessionControl, 'sessions.defaultCopilot.myPicker',
-    (_action, _options, scopedInstantiationService) => {
-        const picker = scopedInstantiationService.createInstance(MyPicker);
-        return new PickerActionViewItem(picker);
-    },
-));
+```text
+createNewChat
+    -> return the provider chat resource
+    -> Sessions presents the chat
+sendRequest
+    -> send through the backing chat service
+    -> commit or update the session
+    -> publish replacement when draft identity changes
 ```
 
-### Current Limitations
+The provider never opens chat UI directly. Presentation and focus remain owned by `ISessionsService`.
 
-The picker model is currently **hardcoded per session type**. Each session type that needs pickers must register its own actions and widgets with appropriate `when` clauses. For example, the Copilot CLI permission picker (`PermissionPicker`) and the Claude permission mode picker (`ClaudePermissionModePicker`) are separate, hardcoded widgets even though they serve a similar purpose.
+Each session has a single chat; the provider does not advertise multiple chats, rename, or delete. Follow-up turns go through the committed session's existing chat resource.
 
-Context-menu actions on session list items are similarly hardcoded per session type. The `Delete...` action registered for `SessionItemContextMenuId` gates on both `sessionProviderId == COPILOT_PROVIDER_ID` *and* `sessionType != CLAUDE_CODE_SESSION_TYPE`, because Claude sessions (although exposed through the Copilot provider) don't support the native delete flow. Any new session type that opts into the Copilot provider but not into a shared action needs its own `sessionType` exclusion in the action's `when` clause.
+Sandbox creation reuses the remote draft and optimistic replacement lifecycle. Repository selection creates only a draft. The first send provisions through `CloudSandboxAgentHostContribution`, awaits the connection's advertised repository preparation, sends the prompt once into the provisioned session's existing main chat, and transfers ownership to that environment's provider. Until that handoff, the draft exposes shared `ISession.preparationProgress`; the chat view owns the transient, extension-independent preparation transcript. Sandbox drafts obtain their account-scoped model catalog from Mission Control independently of local runtimes and the Copilot extension. Connected sandbox model providers retain service-discovered models missing from the AHP catalog, including after restoration; explicit host metadata and policy take precedence for models the host does advertise. The creation provider retains session and model configuration, resolves session options with the connected host, and applies the selected options before dispatching the first turn. Explicit sandbox drafts fail when sandbox creation is disabled rather than falling back to the server-run Cloud agent. If the first send fails after provisioning, the environment's session is published so it remains recoverable.
 
-Ideally, pickers would be **generic and contributable** — a session type would declare its option groups (as the Claude extension already does via `IChatSessionsService.setOptionGroupsForSessionType()`), and the welcome view would dynamically render pickers from those groups without needing per-type widget classes. The active-session chat widget (`chatInputPart.ts`) already has this generic infrastructure via `createChatSessionPickerWidgets()`, but the welcome view does not yet use it. Until the welcome view adopts this pattern, new session types must follow the hardcoded approach above.
+Quick chats use the same lifecycle but omit the repository from provisioning and skip repository preparation. The provisional session is tagged as workspace-less, and that metadata is passed through the chat content provider before the first turn so the host can retain the session kind.
+
+## Picker contributions
+
+Provider-specific new-session controls contribute through shared Sessions menus and scoped picker services. A picker contribution consists of:
+
+- a menu action with provider-neutral enablement;
+- an action view item;
+- a scoped widget or controller.
+
+Model selection policy is shared with Workbench chat. This provider supplies model snapshots, presentation options, and writes; it does not implement a second precedence policy.
+
+Context keys derive from the scoped session and provider capabilities. Actions must not read the window-global active session when invoked from another session surface.
+
+## Deletion and archive
+
+Delete, archive, rename, and read-state operations delegate to the backing agent session infrastructure. Provider-specific confirmation metadata is carried in the operation payload; shared services do not reach into extension-host internals.
+
+## Testing
+
+Provider tests own concrete local/cloud option behavior, commit timing, metadata translation, and regressions. Shared provider lifecycle behavior is covered by Sessions management tests.
+
+## Change policy
+
+Update this specification only when ownership, identity, draft classes, cache semantics, or the request lifecycle changes. Keep picker details, option lists, timeouts, and bug narratives in code and focused tests.

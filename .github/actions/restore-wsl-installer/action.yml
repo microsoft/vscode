@@ -1,0 +1,37 @@
+name: Restore WSL installer
+description: Restores the WSL installer pinned in build/checksums/wsl.txt into .build/wsl-installer, or downloads and caches it.
+
+inputs:
+  save-cache:
+    description: When 'true', downloads, verifies and saves the installer on a cache miss, without restoring it on a hit. Use on main, whose caches pull requests can read.
+    default: 'false'
+
+outputs:
+  cache-hit:
+    description: "'true' when an exact cache key match was found."
+    value: ${{ steps.restore.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Restore WSL installer cache
+      id: restore
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: .build/wsl-installer
+        key: "wsl-installer-v1-${{ runner.os }}-${{ hashFiles('build/checksums/wsl.txt') }}"
+        lookup-only: ${{ inputs.save-cache }}
+
+    - name: Download WSL installer
+      if: inputs.save-cache == 'true' && steps.restore.outputs.cache-hit != 'true'
+      shell: pwsh
+      run: |
+        Import-Module ./build/azure-pipelines/common/wsl.psm1
+        Install-Wsl -CacheDirectory .build/wsl-installer -DownloadOnly
+
+    - name: Save WSL installer cache
+      if: inputs.save-cache == 'true' && steps.restore.outputs.cache-hit != 'true'
+      uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      with:
+        path: .build/wsl-installer
+        key: ${{ steps.restore.outputs.cache-primary-key }}

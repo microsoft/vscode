@@ -1,0 +1,150 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ChatPetAccessoryId, ChatPetAchievementId } from '../../../../contrib/chat/browser/chatPetAchievements.js';
+import { ChatPetHorizontalPosition, ChatPetVariant, IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
+import { ChatPetColor } from '../../../../contrib/chat/browser/chatPetColors.js';
+import { waitForFixtureCondition } from '../fixtureUtils.js';
+
+export interface IChatPetFixtureOptions {
+	readonly enabled: boolean;
+	readonly horizontalPosition?: ChatPetHorizontalPosition;
+	readonly unlockedAchievements?: readonly ChatPetAchievementId[];
+	readonly unseenAchievements?: readonly ChatPetAchievementId[];
+	readonly selectedAccessory?: ChatPetAccessoryId;
+	readonly variant?: ChatPetVariant;
+	readonly color?: ChatPetColor;
+}
+
+export class FixtureChatPetService extends Disposable implements IChatPetService {
+
+	declare readonly _serviceBrand: undefined;
+
+	private readonly enabledValue: ISettableObservable<boolean>;
+	readonly enabled: IObservable<boolean>;
+	private readonly colorValue: ISettableObservable<ChatPetColor>;
+	readonly color: IObservable<ChatPetColor>;
+	private readonly onTheRunValue = observableValue(this, false);
+	readonly onTheRun: IObservable<boolean> = this.onTheRunValue;
+	private readonly scaleValue = observableValue(this, 1);
+	readonly scale: IObservable<number> = this.scaleValue;
+	private readonly horizontalPositionValue: ISettableObservable<ChatPetHorizontalPosition | undefined>;
+	readonly horizontalPosition: IObservable<ChatPetHorizontalPosition | undefined>;
+	private readonly unlockedAchievementsValue: ISettableObservable<readonly ChatPetAchievementId[]>;
+	readonly unlockedAchievements: IObservable<readonly ChatPetAchievementId[]>;
+	private readonly unseenAchievementsValue: ISettableObservable<readonly ChatPetAchievementId[]>;
+	readonly unseenAchievements: IObservable<readonly ChatPetAchievementId[]>;
+	private readonly selectedAccessoryValue: ISettableObservable<ChatPetAccessoryId | undefined>;
+	readonly selectedAccessory: IObservable<ChatPetAccessoryId | undefined>;
+	readonly onDidUnlockAchievement = Event.None;
+
+	constructor(options: IChatPetFixtureOptions) {
+		super();
+		this.enabledValue = observableValue(this, options.enabled);
+		this.enabled = this.enabledValue;
+		this.horizontalPositionValue = observableValue<ChatPetHorizontalPosition | undefined>(this, options.horizontalPosition);
+		this.horizontalPosition = this.horizontalPositionValue;
+		this.colorValue = observableValue(this, options.color ?? options.variant ?? 'stable');
+		this.color = this.colorValue;
+		this.unlockedAchievementsValue = observableValue<readonly ChatPetAchievementId[]>(this, options.unlockedAchievements ?? []);
+		this.unlockedAchievements = this.unlockedAchievementsValue;
+		this.unseenAchievementsValue = observableValue<readonly ChatPetAchievementId[]>(this, options.unseenAchievements ?? []);
+		this.unseenAchievements = this.unseenAchievementsValue;
+		this.selectedAccessoryValue = observableValue<ChatPetAccessoryId | undefined>(this, options.selectedAccessory);
+		this.selectedAccessory = this.selectedAccessoryValue;
+	}
+
+	toggle(): boolean {
+		const enabled = !this.enabledValue.get();
+		this.enabledValue.set(enabled, undefined);
+		return enabled;
+	}
+
+	setColor(color: ChatPetColor): void {
+		this.colorValue.set(color, undefined);
+	}
+
+	setOnTheRun(onTheRun: boolean): void {
+		this.onTheRunValue.set(onTheRun, undefined);
+	}
+
+	setScale(scale: number): void {
+		this.scaleValue.set(scale, undefined);
+	}
+
+	resetScale(): void {
+		this.scaleValue.set(1, undefined);
+	}
+
+	setHorizontalPosition(position: ChatPetHorizontalPosition): void {
+		this.horizontalPositionValue.set(position, undefined);
+	}
+
+	unlockAchievement(id: ChatPetAchievementId): boolean {
+		if (!this.enabledValue.get() || this.unlockedAchievementsValue.get().includes(id)) {
+			return false;
+		}
+		this.unlockedAchievementsValue.set([...this.unlockedAchievementsValue.get(), id], undefined);
+		this.unseenAchievementsValue.set([...this.unseenAchievementsValue.get(), id], undefined);
+		return true;
+	}
+
+	markAchievementSeen(id: ChatPetAchievementId): boolean {
+		if (!this.unseenAchievementsValue.get().includes(id)) {
+			return false;
+		}
+		this.unseenAchievementsValue.set(this.unseenAchievementsValue.get().filter(candidate => candidate !== id), undefined);
+		return true;
+	}
+
+	setAccessory(id: ChatPetAccessoryId | undefined): void {
+		this.selectedAccessoryValue.set(id, undefined);
+	}
+
+	resetAchievements(): void {
+		this.unlockedAchievementsValue.set([], undefined);
+		this.unseenAchievementsValue.set([], undefined);
+		this.selectedAccessoryValue.set(undefined, undefined);
+	}
+}
+
+export function configureChatPetFixtureFileRoot(disposableStore: DisposableStore): void {
+	const previousFileRoot = globalThis._VSCODE_FILE_ROOT;
+	globalThis._VSCODE_FILE_ROOT = `${mainWindow.location.origin}/src/`;
+	disposableStore.add(toDisposable(() => globalThis._VSCODE_FILE_ROOT = previousFileRoot));
+}
+
+/**
+ * Waits until the container shows `expectedCount` pet achievement previews and each has drawn its sprites.
+ * The sprites load into detached images, so without this a screenshot races the slowest sprite and captures a blank preview.
+ */
+export function waitForChatPetAchievementPreviews(container: HTMLElement, expectedCount: number): Promise<void> {
+	return waitForFixtureCondition(() => {
+		const previews = [...container.querySelectorAll<HTMLCanvasElement>('canvas[data-rendered]')];
+		return previews.length === expectedCount && previews.every(preview => preview.dataset.rendered === 'true');
+	}, `Chat pet fixture: expected ${expectedCount} pet achievement previews to finish drawing.`);
+}
+
+/** Fails loudly when the pet is missing, unpainted or cropped, which the screenshot alone would bake in as correct. */
+export function assertChatPetInScreenshot(container: HTMLElement): void {
+	const pet = container.querySelector('.chat-pet-button');
+	if (!pet) {
+		throw new Error('Chat pet fixture: the pet did not render.');
+	}
+	// A sprite stays hidden until its image loads and passes dimension validation.
+	const sprite = container.querySelector<HTMLImageElement>('.chat-pet-sprite:not(.hidden) img.chat-pet-spritesheet');
+	if (!sprite?.complete || sprite.naturalWidth === 0) {
+		throw new Error('Chat pet fixture: no pet sprite was painted, so the screenshot would show an empty pet.');
+	}
+	const petBounds = pet.getBoundingClientRect();
+	const bounds = container.getBoundingClientRect();
+	if (petBounds.top < bounds.top || petBounds.bottom > bounds.bottom || petBounds.left < bounds.left || petBounds.right > bounds.right) {
+		throw new Error(`Chat pet fixture: the pet falls outside the screenshot. Pet ${JSON.stringify(petBounds)}, container ${JSON.stringify(bounds)}.`);
+	}
+}

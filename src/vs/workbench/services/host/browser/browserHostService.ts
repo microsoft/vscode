@@ -9,7 +9,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen, IOpenedMainWindow, IOpenedAuxiliaryWindow, IRectangle } from '../../../../platform/window/common/window.js';
+import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen, IOpenedMainWindow, IOpenedAuxiliaryWindow } from '../../../../platform/window/common/window.js';
 import { isResourceEditorInput, pathsToEditors } from '../../../common/editor.js';
 import { whenEditorClosed } from '../../../browser/editor.js';
 import { IWorkspace, IWorkspaceProvider } from '../../../browser/web.api.js';
@@ -403,7 +403,9 @@ export class BrowserHostService extends Disposable implements IHostService {
 						if (options.mergeMode) {
 							filesToWaitFor.push(fileOpenables[3].fileUri /* [3] is the resulting merge file */);
 						} else {
-							filesToWaitFor.push(...fileOpenables.map(fileOpenable => fileOpenable.fileUri));
+							// Support: --goto parameter where line/col got stripped from the opened editors
+							const stripLineAndColumn = options.gotoLineMode && !(options.diffMode && fileOpenables.length === 2);
+							filesToWaitFor.push(...fileOpenables.map(({ fileUri }) => stripLineAndColumn ? fileUri.with({ path: parseLineAndColumnAware(fileUri.path).path }) : fileUri));
 						}
 						await this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, filesToWaitFor));
 
@@ -583,15 +585,6 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	async getCursorScreenPoint(): Promise<undefined> {
 		return undefined;
-	}
-
-	async getWindowPosition(targetWindow: Window): Promise<IRectangle> {
-		return {
-			x: targetWindow.screenX,
-			y: targetWindow.screenY,
-			width: targetWindow.outerWidth,
-			height: targetWindow.outerHeight,
-		};
 	}
 
 	getWindows(options: { includeAuxiliaryWindows: true }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>>;

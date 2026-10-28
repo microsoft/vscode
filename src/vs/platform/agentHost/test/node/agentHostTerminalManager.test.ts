@@ -6,13 +6,14 @@
 import assert from 'assert';
 import type { IPty, IPtyForkOptions, IWindowsPtyForkOptions } from 'node-pty';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ActionType, StateAction } from '../../common/state/protocol/actions.js';
-import { TerminalClaimKind, TerminalContentPart, type TerminalClaim } from '../../common/state/protocol/state.js';
+import { TerminalClaimKind, TerminalContentPart, TerminalLifecycleStatus, type TerminalClaim } from '../../common/state/protocol/state.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostTerminalManager, formatTerminalText, removeTerminalQueriesSuppressedFromClient, type ITerminalQueryFilterState } from '../../node/agentHostTerminalManager.js';
@@ -206,6 +207,9 @@ class TestPty implements IPty {
 	private readonly _onExit = new Emitter<{ exitCode: number; signal?: number }>();
 	readonly onExit: IPty['onExit'] = listener => this._onExit.event(data => listener(data));
 
+	private readonly _onDidWrite = new Emitter<void>();
+	readonly onDidWrite = this._onDidWrite.event;
+
 	fireData(data: string): void {
 		this._onData.fire(data);
 	}
@@ -219,6 +223,7 @@ class TestPty implements IPty {
 
 	write(data: string | Buffer): void {
 		this.writes.push(typeof data === 'string' ? data : data.toString());
+		this._onDidWrite.fire();
 	}
 
 	kill(): void { }
@@ -260,12 +265,10 @@ function createHandler(nonce = 'test-nonce'): TestTerminalDataHandler {
 	});
 }
 
+/** Resolves once the terminal manager has written at least `count` chunks to the PTY. */
 async function waitForWrites(pty: TestPty, count: number): Promise<void> {
-	for (let i = 0; i < 20; i++) {
-		if (pty.writes.length >= count) {
-			return;
-		}
-		await timeout(10);
+	if (pty.writes.length < count) {
+		await Event.toPromise(Event.filter(pty.onDidWrite, () => pty.writes.length >= count));
 	}
 }
 
@@ -283,6 +286,39 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		assert.strictEqual(formatTerminalText('/tmp/foo\npwd', { shouldExecute: true }), '/tmp/foo\rpwd\r');
 		assert.strictEqual(formatTerminalText('echo first\necho second', { shouldExecute: true, forceBracketedPasteMode: true }), '\x1b[200~echo first\recho second\x1b[201~\r');
 		assert.strictEqual(formatTerminalText('answer\n', { shouldExecute: false, forceBracketedPasteMode: true }), '\x1b[200~answer\r\x1b[201~');
+	});
+
+	test('a chat\'s terminals are claimed by its new session when it moves (Block 4)', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+		const source = 'copilot:/move-source';
+		const target = 'copilot:/move-target';
+		for (const session of [source, target]) {
+			stateManager.createSession({ resource: session, defaultChat: buildDefaultChatUri(session), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() });
+		}
+		const moving = buildChatUri(source, 'moving');
+		const staying = buildChatUri(source, 'staying');
+		for (const chat of [moving, staying]) {
+			stateManager.addChat(source, chat, chat);
+		}
+		const claim = (chat: string, toolCallId: string): TerminalClaim => ({ kind: TerminalClaimKind.Session, session: source, chat, turnId: 'turn', toolCallId });
+		const creating = manager.createTerminal({ channel: 'agenthost-terminal://shell/moving-pty', claim: claim(moving, 'pty'), cwd: process.cwd(), cols: 80, rows: 24 }, { shell: '/bin/bash' });
+		await pty.dataListenerRegistered.p;
+		pty.fireData('prompt');
+		await creating;
+		manager.createOutputTerminal('agenthost-terminal://shell/moving-output', { title: 'Output', claim: claim(moving, 'output') });
+		manager.createOutputTerminal('agenthost-terminal://shell/staying-output', { title: 'Output', claim: claim(staying, 'other') });
+
+		stateManager.reassignChatOwner(moving, target);
+
+		assert.deepStrictEqual(['moving-pty', 'moving-output', 'staying-output'].map(id => {
+			const state = manager.getTerminalState(`agenthost-terminal://shell/${id}`)?.claim;
+			return state?.kind === TerminalClaimKind.Session ? state.session : undefined;
+		}), [target, target, source]);
 	});
 
 	test('writes formatted command input to the PTY', async () => {
@@ -360,6 +396,39 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		assert.deepStrictEqual(pty.writes, ['echo first\recho second\r']);
 	});
 
+	test('sets VS Code terminal identity only when requested', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode', version: '1.2.3-test' } as IProductService;
+
+		async function createTestTerminal(id: string, vscodeTerminalIdentity: boolean | undefined) {
+			const pty = new TestPty();
+			const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+			const createTerminal = manager.createTerminal({
+				channel: `agenthost-terminal://test/${id}`,
+				claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+				cwd: process.cwd(),
+			}, { shell: '/test/unsupported-shell', vscodeTerminalIdentity });
+			await pty.dataListenerRegistered.p;
+			pty.fireData('prompt');
+			await createTerminal;
+			const env = manager.spawnOptions?.env;
+			return { name: env?.TERM_PROGRAM, version: env?.TERM_PROGRAM_VERSION };
+		}
+
+		const inherited = { name: process.env['TERM_PROGRAM'], version: process.env['TERM_PROGRAM_VERSION'] };
+		assert.deepStrictEqual({
+			requested: await createTestTerminal('vscode-identity', true),
+			notRequested: await createTestTerminal('inherited-identity', undefined),
+			parent: { name: process.env['TERM_PROGRAM'], version: process.env['TERM_PROGRAM_VERSION'] },
+		}, {
+			requested: { name: 'vscode', version: '1.2.3-test' },
+			notRequested: inherited,
+			parent: inherited,
+		});
+	});
+
 	test('sets zsh agent fixups only for session zsh terminals', async () => {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -390,6 +459,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		const zshSessionManager = await createTestTerminal('zsh-session-fixups', '/bin/zsh', {
 			kind: TerminalClaimKind.Session,
 			session: 'copilot:/session-1',
+			chat: buildDefaultChatUri('copilot:/session-1'),
 			turnId: 'turn-1',
 			toolCallId: 'tool-1',
 		}, { preventShellHistory: true });
@@ -405,6 +475,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		const bashSessionManager = await createTestTerminal('bash-session-history', '/bin/bash', {
 			kind: TerminalClaimKind.Session,
 			session: 'copilot:/session-1',
+			chat: buildDefaultChatUri('copilot:/session-1'),
 			turnId: 'turn-1',
 			toolCallId: 'tool-2',
 		}, { preventShellHistory: true, nonInteractive: true });
@@ -861,7 +932,12 @@ suite('AgentHostTerminalManager – output-only terminals', () => {
 	test('streams appended data, snapshots state with isPty false, and records the exit', () => {
 		const { manager, stateManager } = createManager();
 		const uri = 'agenthost-terminal://shell/copilotNonPtyShells/tc-1';
-		const claim: TerminalClaim = { kind: TerminalClaimKind.Session, session: 'agent-session://copilot/s1', toolCallId: 'tc-1' };
+		const claim: TerminalClaim = {
+			kind: TerminalClaimKind.Session,
+			session: 'agent-session://copilot/s1',
+			chat: buildDefaultChatUri('agent-session://copilot/s1'),
+			toolCallId: 'tc-1',
+		};
 		const dispatched: StateAction[] = [];
 		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
 			if (envelope.channel === uri) {
@@ -878,7 +954,7 @@ suite('AgentHostTerminalManager – output-only terminals', () => {
 		assert.deepStrictEqual(manager.getTerminalState(uri), {
 			title: 'Run Shell Command',
 			content: [{ type: 'unclassified', value: 'tick 1\ntick 2\n' }],
-			exitCode: 0,
+			lifecycle: { status: TerminalLifecycleStatus.Exited, exitCode: 0 },
 			claim,
 			isPty: false,
 		});
@@ -902,7 +978,14 @@ suite('AgentHostTerminalManager – output-only terminals', () => {
 			}
 		}));
 
-		manager.createOutputTerminal(uri, { title: 'Bash', claim: { kind: TerminalClaimKind.Session, session: 'agent-session://copilot/s1' } });
+		manager.createOutputTerminal(uri, {
+			title: 'Bash',
+			claim: {
+				kind: TerminalClaimKind.Session,
+				session: 'agent-session://copilot/s1',
+				chat: buildDefaultChatUri('agent-session://copilot/s1'),
+			},
+		});
 		manager.appendOutputTerminalData(uri, 'old output');
 		manager.resetOutputTerminal(uri);
 		manager.appendOutputTerminalData(uri, 'fresh output');
@@ -914,4 +997,63 @@ suite('AgentHostTerminalManager – output-only terminals', () => {
 		assert.strictEqual(manager.hasTerminal(uri), false);
 		assert.strictEqual(manager.getTerminalState(uri), undefined);
 	});
+
+	test('replaces streamed content with authoritative completed output', () => {
+		const { manager, stateManager } = createManager();
+		const uri = 'agenthost-terminal://shell/copilotNonPtyShells/tc-authoritative';
+		const dispatched: StateAction[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === uri) {
+				dispatched.push(envelope.action);
+			}
+		}));
+		manager.createOutputTerminal(uri, {
+			title: 'Bash',
+			claim: {
+				kind: TerminalClaimKind.Session,
+				session: 'agent-session://copilot/s1',
+				chat: buildDefaultChatUri('agent-session://copilot/s1'),
+			},
+		});
+		manager.appendOutputTerminalData(uri, 'partial output');
+		manager.replaceOutputTerminalData(uri, 'authoritative output');
+
+		assert.deepStrictEqual({
+			content: manager.getTerminalState(uri)?.content,
+			dispatched,
+		}, {
+			content: [{ type: 'unclassified', value: 'authoritative output' }],
+			dispatched: [
+				{ type: ActionType.TerminalData, data: 'partial output' },
+				{ type: ActionType.TerminalCleared },
+				{ type: ActionType.TerminalData, data: 'authoritative output' },
+			],
+		});
+	});
+
+	test('records an output-only terminal exit without an exit code', () => {
+		const { manager, stateManager } = createManager();
+		const uri = 'agenthost-terminal://shell/copilotNonPtyShells/tc-3';
+		const dispatched: StateAction[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === uri) {
+				dispatched.push(envelope.action);
+			}
+		}));
+
+		manager.createOutputTerminal(uri, {
+			title: 'Bash',
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+		});
+		manager.finalizeOutputTerminal(uri, undefined);
+
+		assert.deepStrictEqual({
+			lifecycle: manager.getTerminalState(uri)?.lifecycle,
+			dispatched,
+		}, {
+			lifecycle: { status: TerminalLifecycleStatus.Exited },
+			dispatched: [{ type: ActionType.TerminalExited }],
+		});
+	});
+
 });

@@ -6,6 +6,11 @@
 //! Opt-in idle-timeout lifecycle for a standalone `code agent host`
 //! supervisor (`--idle-timeout <seconds>`).
 //!
+//! Activity is reported for every connected client and, by the
+//! `AgentHostManager`, for as long as the agent host server process runs.
+//! The server only exits on its own once no agent session is running, so
+//! the supervisor never times out from under in-progress work.
+//!
 //! The state machine here (`wait_for_idle_timeout`) is intentionally
 //! decoupled from real elapsed time: it's driven entirely by an
 //! [`ActivityEvent`] stream and an injectable [`IdleSleeper`] seam, so

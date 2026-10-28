@@ -1,0 +1,50 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-image-hover {
+	padding: 0 var(--vscode-spacing-size60);
+}
+
+.chat-image-hover-image-container {
+	display: block;
+	width: 100%;
+	height: auto;
+	padding: var(--vscode-spacing-size60) 0 var(--vscode-spacing-size40);
+	box-sizing: border-box;
+}
+
+.chat-image-hover-image {
+	display: block;
+	width: 100%;
+	height: auto;
+	max-width: 100%;
+	max-height: 350px;
+	object-fit: contain;
+}
+
+.chat-image-hover-image-container.clickable {
+	cursor: pointer;
+}
+
+.chat-image-hover-image-container.clickable:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.chat-image-hover-location {
+	display: block;
+	width: 100%;
+	max-width: 100%;
+	margin-top: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size20) 0;
+}
+
+.chat-image-hover-location-separator {
+	position: absolute;
+	right: 0;
+	left: 0;
+	margin-top: var(--vscode-spacing-size20);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder);
+}

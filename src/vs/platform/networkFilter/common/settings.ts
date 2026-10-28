@@ -8,6 +8,6 @@
  */
 export const enum AgentNetworkDomainSettingId {
 	NetworkFilter = 'chat.agent.networkFilter',
-	AllowedNetworkDomains = 'chat.agent.allowedNetworkDomains',
-	DeniedNetworkDomains = 'chat.agent.deniedNetworkDomains',
+	AllowedNetworkDomains = 'chat.agent.sandbox.network.allowedDomains',
+	DeniedNetworkDomains = 'chat.agent.sandbox.network.deniedDomains',
 }

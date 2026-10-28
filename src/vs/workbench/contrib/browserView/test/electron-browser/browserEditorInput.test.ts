@@ -4,20 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { BrowserViewStorageScope, IBrowserViewEditorOpenOptions, IBrowserViewNavigationEvent, IBrowserViewNetwork } from '../../../../../platform/browserView/common/browserView.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ITunnelProxyInfo } from '../../../../../platform/tunnel/common/tunnelProxy.js';
 import { BrowserEditorInput, BrowserEditorSerializer, IBrowserEditorInputData } from '../../common/browserEditorInput.js';
-import { IBrowserEditorViewState, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchService } from '../../common/browserView.js';
-import { IUntypedEditorInput } from '../../../../common/editor.js';
+import { BrowserViewSharingState, IBrowserViewSessionRequest, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewModel, IBrowserViewNetworkStatus, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { IUntypedEditorInput, Verbosity } from '../../../../common/editor.js';
 import { applyAvailableEditorIds } from '../../../../common/contextkeys.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IEditorService, type PreferredGroup } from '../../../../services/editor/common/editorService.js';
 import { formatBrowserEditorList, getBrowserPageResourceNavigationError } from '../../electron-browser/tools/browserToolHelpers.js';
@@ -30,13 +32,29 @@ class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	readonly isSharingAvailable = false;
 	readonly known = new Map<string, BrowserEditorInput>();
 	input: BrowserEditorInput | undefined;
-	lastCreate: { id: string; url: string | undefined; associatedResource: string | undefined } | undefined;
+	lastCreate: { id: string; url: string | undefined; associatedResource: string | undefined; session: IBrowserViewSessionRequest | undefined } | undefined;
 
-	willUseRemoteProxy(): boolean {
-		return false;
+	resolveNetwork(): undefined {
+		return undefined;
 	}
 
-	setRemoteProxyInfo(_info: ITunnelProxyInfo | undefined): void { }
+	async acquireNetwork(): Promise<IReference<undefined>> {
+		return { object: undefined, dispose: () => { } };
+	}
+
+	getNetworkStatus(network: IBrowserViewNetwork): IBrowserViewNetworkStatus {
+		return { label: network.authority, connected: false, proxySupported: undefined };
+	}
+
+	readonly onDidChangeNetworkStatus = Event.None;
+
+	registerNetworkResolver(): IDisposable {
+		return Disposable.None;
+	}
+
+	registerNetworkProxyProvider(): IDisposable {
+		return Disposable.None;
+	}
 
 	getKnownBrowserViews(): Map<string, BrowserEditorInput> {
 		return this.known;
@@ -58,11 +76,20 @@ class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 		return Disposable.None;
 	}
 
-	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, associatedResource?: URI): BrowserEditorInput {
+	async createBrowserView(_options: IBrowserViewWorkbenchCreateOptions, _editorOpenOptions?: IBrowserViewEditorOpenOptions): Promise<BrowserEditorInput> {
+		throw new Error('Not implemented for this test.');
+	}
+
+	async createExternalBrowserView(_initialUrl: string): Promise<IBrowserViewModel> {
+		throw new Error('Not implemented for this test.');
+	}
+
+	getOrCreateLazy(data: IBrowserEditorInputData): BrowserEditorInput {
 		this.lastCreate = {
-			id,
-			url: initialState?.url,
-			associatedResource: associatedResource?.toString()
+			id: data.id,
+			url: data.url,
+			associatedResource: data.associatedResource?.toString(),
+			session: data.session,
 		};
 		if (!this.input) {
 			throw new Error('No browser editor input configured for test.');
@@ -116,14 +143,49 @@ suite('BrowserEditorInput', () => {
 		});
 	});
 
+	test('reports sharing availability from the model state', () => {
+		const input = createInput({ id: 'sharing-state-browser' });
+		let sharingState = BrowserViewSharingState.BlockedByNetworkPolicy;
+		input.model = new class extends mock<IBrowserViewModel>() {
+			override get sharingState(): BrowserViewSharingState { return sharingState; }
+			override readonly onWillDispose = Event.None;
+			override readonly onDidClose = Event.None;
+			override readonly onDidChangeTitle = Event.None;
+			override readonly onDidChangeFavicon = Event.None;
+			override readonly onDidChangeLoadingState = Event.None;
+			override readonly onDidNavigate = Event.None;
+			override dispose(): void { }
+		}();
+
+		const blocked = input.isSharingAvailable;
+		sharingState = BrowserViewSharingState.Available;
+		const notShared = input.isSharingAvailable;
+		sharingState = BrowserViewSharingState.Shared;
+		const shared = input.isSharingAvailable;
+		sharingState = BrowserViewSharingState.Unavailable;
+		const unavailable = input.isSharingAvailable;
+
+		assert.deepStrictEqual({ blocked, notShared, shared, unavailable }, {
+			blocked: false,
+			notShared: true,
+			shared: true,
+			unavailable: false,
+		});
+	});
+
 	test('preserves a associated file resource through reopen and serialization', () => {
 		const associatedResource = URI.file('/workspace/index.html');
+		const session = { scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'host' } } as const;
 		const input = createInput({
 			id: 'file-browser',
 			url: associatedResource.toString(),
 			associatedResource,
+			session,
+			isDefaultLinkOpen: true,
 		});
 		const untyped = input.toUntyped();
+		input.copy();
+		const copied = browserViewWorkbenchService.lastCreate;
 		const serializer = new BrowserEditorSerializer();
 		const serialized = serializer.serialize(input);
 		assert.ok(serialized);
@@ -133,6 +195,10 @@ suite('BrowserEditorInput', () => {
 			resource: input.resource.toString(),
 			preferredResource: input.preferredResource.toString(),
 			untypedResource: getResource(untyped)?.toString(),
+			serializedResource: input.serialize().associatedResource,
+			viewState: untyped.options?.viewState,
+			copiedSession: copied?.session,
+			copyHasNewId: copied?.id !== input.id,
 			matchesBrowserInput: input.matches(untyped),
 			matchesTextInput: input.matches({ resource: associatedResource }),
 			restored: browserViewWorkbenchService.lastCreate
@@ -140,13 +206,46 @@ suite('BrowserEditorInput', () => {
 			resource: BrowserViewUri.forId('file-browser').toString(),
 			preferredResource: associatedResource.toString(),
 			untypedResource: associatedResource.toString(),
+			serializedResource: associatedResource,
+			viewState: { url: associatedResource.toString(), title: undefined, favicon: undefined, session },
+			copiedSession: session,
+			copyHasNewId: true,
 			matchesBrowserInput: true,
 			matchesTextInput: false,
 			restored: {
 				id: 'file-browser',
 				url: associatedResource.toString(),
-				associatedResource: associatedResource.toString()
+				associatedResource: associatedResource.toString(),
+				session,
 			}
+		});
+	});
+
+	test('restores saved sessions, resolving missing or unreadable ones when the view is created', () => {
+		const serializer = new BrowserEditorSerializer();
+		createInput({ id: 'unused' });
+		const restore = (data: object) => {
+			serializer.deserialize(instantiationService, JSON.stringify({ id: 'saved', ...data }));
+			return browserViewWorkbenchService.lastCreate?.session;
+		};
+		const session = { scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'host' } } as const;
+		const current = createInput({ id: 'current', session });
+
+		assert.deepStrictEqual({
+			missing: restore({ url: 'http://saved/' }),
+			session: restore({ session }),
+			withoutScope: restore({ session: { network: { authority: 'host' } } }),
+			unknownScope: restore({ session: { scope: 'future', affinity: 'repo', network: { authority: 'host' } } }),
+			malformedFields: restore({ session: { scope: BrowserViewStorageScope.Ephemeral, affinity: 1, network: 'host' } }),
+			roundTrip: restore(JSON.parse(serializer.serialize(current)!)),
+		}, {
+			missing: undefined,
+			session,
+			// The configured storage applies.
+			withoutScope: { network: { authority: 'host' } },
+			unknownScope: undefined,
+			malformedFields: { scope: BrowserViewStorageScope.Ephemeral },
+			roundTrip: session,
 		});
 	});
 
@@ -163,6 +262,103 @@ suite('BrowserEditorInput', () => {
 		}, {
 			name: 'index.html',
 			icon: undefined
+		});
+	});
+
+	test('formats browser URL descriptions by verbosity', () => {
+		const httpInput = createInput({
+			id: 'http-browser',
+			url: 'https://example.com/path?query=value#fragment'
+		});
+		const fileInput = createInput({
+			id: 'file-browser',
+			url: 'file:///workspace/path%20name.html?query=value#fragment'
+		});
+
+		assert.deepStrictEqual({
+			http: {
+				short: httpInput.getDescription(Verbosity.SHORT),
+				medium: httpInput.getDescription(Verbosity.MEDIUM),
+				long: httpInput.getDescription(Verbosity.LONG)
+			},
+			file: {
+				short: fileInput.getDescription(Verbosity.SHORT),
+				medium: fileInput.getDescription(Verbosity.MEDIUM),
+				long: fileInput.getDescription(Verbosity.LONG)
+			}
+		}, {
+			http: {
+				short: 'example.com',
+				medium: 'https://example.com/path',
+				long: 'https://example.com/path'
+			},
+			file: {
+				short: '/workspace/path%20name.html',
+				medium: 'file:///workspace/path%20name.html',
+				long: 'file:///workspace/path%20name.html'
+			}
+		});
+	});
+
+	test('uses restored presentation until the browser reports navigation', () => {
+		let url = '';
+		let title = '';
+		const onDidNavigate = disposables.add(new Emitter<IBrowserViewNavigationEvent>());
+		const model = new class extends mock<IBrowserViewModel>() {
+			override readonly owner = { type: 'user' as const };
+			override get url(): string { return url; }
+			override get title(): string { return title; }
+			override get favicon(): string | undefined { return undefined; }
+			override readonly loading = false;
+			override readonly onWillDispose = Event.None;
+			override readonly onDidClose = Event.None;
+			override readonly onDidChangeTitle = Event.None;
+			override readonly onDidChangeFavicon = Event.None;
+			override readonly onDidChangeLoadingState = Event.None;
+			override readonly onDidNavigate = onDidNavigate.event;
+			override dispose(): void { }
+		}();
+		const input = createInput({
+			id: 'restored-browser',
+			url: 'https://restored.example/',
+			title: 'Restored title',
+			favicon: 'data:image/png;base64,restored'
+		});
+		input.model = model;
+
+		const restored = {
+			url: input.url,
+			title: input.title,
+			favicon: input.favicon
+		};
+		url = 'https://loaded.example/';
+		title = '';
+		onDidNavigate.fire({
+			url,
+			title,
+			canGoBack: false,
+			canGoForward: false,
+			certificateError: undefined
+		});
+
+		assert.deepStrictEqual({
+			restored,
+			loaded: {
+				url: input.url,
+				title: input.title,
+				favicon: input.favicon
+			}
+		}, {
+			restored: {
+				url: 'https://restored.example/',
+				title: 'Restored title',
+				favicon: 'data:image/png;base64,restored'
+			},
+			loaded: {
+				url: 'https://loaded.example/',
+				title: undefined,
+				favicon: undefined
+			}
 		});
 	});
 
@@ -191,6 +387,20 @@ suite('BrowserEditorInput', () => {
 		});
 	});
 
+	test('retries a failed model resolution', async () => {
+		const model = new class extends mock<IBrowserViewModel>() { override dispose() { } };
+		let attempts = 0;
+		const input = disposables.add(instantiationService.createInstance(BrowserEditorInput, { id: 'retry' }, async () => {
+			if (++attempts === 1) {
+				throw new Error('The browser network proxy did not start.');
+			}
+			return model;
+		}));
+
+		await assert.rejects(input.resolve());
+		assert.strictEqual(await input.resolve(), model);
+	});
+
 	test('uses the associated file resource to find available editor types', () => {
 		const associatedResource = URI.file('/workspace/index.html');
 		const input = createInput({
@@ -205,7 +415,7 @@ suite('BrowserEditorInput', () => {
 		}, {}, {}));
 		const contextKey = new RawContextKey<string>('browserEditorAvailableEditorIds', '').bindTo(instantiationService.get(IContextKeyService));
 
-		applyAvailableEditorIds(contextKey, input, editorResolverService);
+		applyAvailableEditorIds(contextKey, input, editorResolverService, instantiationService.get(IModelService));
 
 		assert.strictEqual(contextKey.get()?.split(',').includes('test.browserEditor'), true);
 	});
@@ -213,9 +423,11 @@ suite('BrowserEditorInput', () => {
 	test('follows associated file renames', async () => {
 		const associatedResource = URI.file('/workspace/index.html');
 		const target = URI.file('/workspace/renamed.html');
+		const session = { scope: BrowserViewStorageScope.Workspace, affinity: 'repo', network: { authority: 'host' } } as const;
 		const input = createInput({
 			id: 'file-browser',
 			associatedResource,
+			session,
 			url: associatedResource.toString()
 		});
 
@@ -229,7 +441,8 @@ suite('BrowserEditorInput', () => {
 					viewState: {
 						url: target.toString(),
 						title: undefined,
-						favicon: undefined
+						favicon: undefined,
+						session
 					}
 				}
 			}
@@ -256,7 +469,8 @@ suite('BrowserEditorInput', () => {
 					viewState: {
 						url: target.with({ query: currentResource.query, fragment: currentResource.fragment }).toString(),
 						title: undefined,
-						favicon: undefined
+						favicon: undefined,
+						session: undefined
 					}
 				}
 			}

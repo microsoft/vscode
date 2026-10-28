@@ -5,15 +5,19 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
-import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { CheckboxChip } from './checkboxChip.js';
 import './media/branchPicker.css';
+
+export const NEW_WORKTREE_LABEL = localize('branchPicker.newWorktree', "New Worktree");
 
 const FILTER_THRESHOLD = 10;
 let descriptionIdPool = 0;
@@ -57,6 +61,7 @@ export interface IBranchPickerIsolationState {
 
 export interface IBranchPickerOptions {
 	readonly user: string;
+	readonly hoverDelegate?: IHoverDelegate;
 	readonly onSelectBranch: (branch: string) => void;
 	readonly onRetry?: () => void;
 	readonly slotClassName?: string;
@@ -66,6 +71,7 @@ export interface IBranchPickerOptions {
 	readonly keepDisabledFocusable?: boolean;
 	readonly renderDisabledAsStatic?: boolean;
 	readonly ariaLive?: 'off' | 'polite' | 'assertive';
+	readonly contextViewLayer?: number;
 	readonly isolation?: IBranchPickerIsolationOptions;
 }
 
@@ -81,6 +87,7 @@ interface IBranchPickerItem {
  */
 export class BranchPicker extends Disposable {
 	private readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _hoverDelegate: IHoverDelegate;
 	private _state: IBranchPickerState = {
 		label: localize('branchPicker.select', "Branch"),
 		branches: [],
@@ -91,16 +98,16 @@ export class BranchPicker extends Disposable {
 	private _triggerElement: HTMLElement | undefined;
 	private _descriptionElement: HTMLElement | undefined;
 	private _isOpen = false;
-	private _isolationSlot: HTMLElement | undefined;
-	private _isolationRow: HTMLElement | undefined;
-	private _isolationCheckbox: Checkbox | undefined;
+	private _isolationChip: CheckboxChip | undefined;
 	private _isolationState: IBranchPickerIsolationState | undefined;
 
 	constructor(
 		private readonly _options: IBranchPickerOptions,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
+		this._hoverDelegate = _options.hoverDelegate ?? this._register(createInstantHoverDelegate());
 		this._register(toDisposable(() => {
 			if (this._isOpen) {
 				this._actionWidgetService.hide(true);
@@ -114,68 +121,22 @@ export class BranchPicker extends Disposable {
 			return;
 		}
 
-		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-isolation-checkbox'));
-		if (isolation.slotClassName) {
-			slot.classList.add(isolation.slotClassName);
-		}
-		this._isolationSlot = slot;
-		this._renderDisposables.add(toDisposable(() => slot.remove()));
-		if (isolation.markTarget) {
-			this._renderDisposables.add(isolation.markTarget(slot));
-		}
-
-		const row = dom.append(slot, dom.$('.action-label'));
-		row.setAttribute('aria-label', isolation.ariaLabel);
-		this._isolationRow = row;
-
-		const checkbox = this._renderDisposables.add(new Checkbox(isolation.label, this._isolationState?.checked ?? false, { ...defaultCheckboxStyles, size: 14 }));
-		this._isolationCheckbox = checkbox;
-		dom.append(row, checkbox.domNode);
-		const labelSpan = dom.append(row, dom.$('span.sessions-chat-dropdown-label'));
-		labelSpan.textContent = isolation.label;
-
-		this._renderDisposables.add(checkbox.onChange(() => isolation.onToggle(checkbox.checked)));
-		this._renderDisposables.add(Gesture.addTarget(row));
-		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
-			this._renderDisposables.add(dom.addDisposableListener(row, eventType, e => {
-				if (!checkbox.enabled) {
-					return;
-				}
-				dom.EventHelper.stop(e, true);
-				checkbox.checked = !checkbox.checked;
-				isolation.onToggle(checkbox.checked);
-			}));
-		}
-
+		const chip = this._renderDisposables.add(new CheckboxChip({
+			label: isolation.label,
+			ariaLabel: isolation.ariaLabel,
+			onToggle: isolation.onToggle,
+			// Kept alongside the shared chip class so existing styling and selectors still match.
+			slotClassName: 'sessions-chat-isolation-checkbox',
+			markTarget: isolation.markTarget,
+			hoverDelegate: this._hoverDelegate,
+		}, this._hoverService));
+		this._isolationChip = chip;
+		chip.render(container);
 		this._updateIsolation();
 	}
 
 	private _updateIsolation(): void {
-		if (!this._options.isolation || !this._isolationCheckbox || !this._isolationSlot) {
-			return;
-		}
-
-		const state = this._isolationState;
-		const mode = state?.state ?? 'disabled';
-		this._isolationCheckbox.checked = state?.checked ?? false;
-		if (mode === 'enabled') {
-			this._isolationCheckbox.enable();
-		} else {
-			this._isolationCheckbox.disable();
-			// Keep focusable so keyboard users can discover the disabled reason via tooltip
-			this._isolationCheckbox.domNode.tabIndex = 0;
-		}
-		this._isolationSlot.classList.toggle('disabled', mode === 'disabled');
-		this._isolationSlot.classList.toggle('hidden', mode === 'hidden');
-
-		const reason = state?.disabledReason;
-		if (this._isolationRow) {
-			if (mode === 'disabled' && reason) {
-				this._isolationRow.title = reason;
-			} else {
-				this._isolationRow.removeAttribute('title');
-			}
-		}
+		this._isolationChip?.update(this._isolationState ?? { checked: false, state: 'disabled' });
 	}
 
 	render(container: HTMLElement): void {
@@ -211,6 +172,8 @@ export class BranchPicker extends Disposable {
 			trigger.setAttribute('aria-live', this._options.ariaLive);
 		}
 		this._triggerElement = trigger;
+		this._renderDisposables.add(this._hoverService.setupManagedHover(this._hoverDelegate, trigger, () =>
+			!this._state.canOpen && this._state.disabledReason ? this._state.disabledReason : this._state.label));
 
 		const description = dom.append(slot, dom.$('span.branch-picker-description'));
 		if (this._options.descriptionClassName) {
@@ -251,8 +214,8 @@ export class BranchPicker extends Disposable {
 		}
 	}
 
-	showPicker(): void {
-		if (!this._triggerElement || this._actionWidgetService.isVisible || !this._state.canOpen) {
+	showPicker(anchor = this._triggerElement): void {
+		if (!anchor || this._actionWidgetService.isVisible || !this._state.canOpen) {
 			return;
 		}
 
@@ -268,15 +231,15 @@ export class BranchPicker extends Disposable {
 			},
 			onHide: () => {
 				this._isOpen = false;
-				trigger.setAttribute('aria-expanded', 'false');
-				if (trigger.isConnected) {
+				trigger?.setAttribute('aria-expanded', 'false');
+				if (trigger?.isConnected) {
 					trigger.focus();
 				}
 			},
 		};
 
 		this._isOpen = true;
-		trigger.setAttribute('aria-expanded', 'true');
+		trigger?.setAttribute('aria-expanded', 'true');
 		const items = this._getItems();
 		const branchCount = items.filter(item => item.item?.kind === 'branch' && !item.item.unavailable).length;
 		this._actionWidgetService.show(
@@ -284,7 +247,7 @@ export class BranchPicker extends Disposable {
 			false,
 			items,
 			delegate,
-			trigger,
+			anchor,
 			undefined,
 			[],
 			{
@@ -299,6 +262,7 @@ export class BranchPicker extends Disposable {
 			branchCount > FILTER_THRESHOLD
 				? { showFilter: true, filterPlaceholder: localize('branchPicker.filter', "Filter branches…") }
 				: undefined,
+			this._options.contextViewLayer,
 		);
 	}
 
@@ -378,7 +342,6 @@ export class BranchPicker extends Disposable {
 			this._triggerElement.setAttribute('aria-haspopup', 'listbox');
 			this._triggerElement.setAttribute('aria-expanded', String(this._isOpen));
 		}
-		this._triggerElement.title = disabled && reason ? reason : this._state.label;
 		this._descriptionElement.textContent = reason ?? '';
 		this._slotElement.classList.toggle('disabled', disabled);
 		this._triggerElement.classList.toggle('branch-picker-disabled', disabled);

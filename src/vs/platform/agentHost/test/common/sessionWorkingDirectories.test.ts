@@ -14,6 +14,11 @@ suite('Session working directories', () => {
 
 	const primary = 'file:///workspace/primary';
 	const secondary = 'file:///workspace/secondary';
+	const replacement = 'file:///workspace/replacement';
+	const capImmutable = { immutablePrimary: true, primaryReplacement: false };
+	const capReplaceablePrimary = { immutablePrimary: true, primaryReplacement: true };
+	const capReplaceablePrimaryOnly = { immutablePrimary: false, primaryReplacement: true };
+	const capNone = { immutablePrimary: false, primaryReplacement: false };
 
 	test('compares additional working directories as an unordered set', () => {
 		const first = [URI.file('/workspace/a'), URI.file('/workspace/b')];
@@ -51,12 +56,12 @@ suite('Session working directories', () => {
 			resolveSessionWorkingDirectoryAction(
 				{ type: ActionType.SessionWorkingDirectorySet, directory: encodedEquivalent },
 				[primary, secondary],
-				true,
+				capImmutable,
 			),
 			resolveSessionWorkingDirectoryAction(
 				{ type: ActionType.SessionWorkingDirectoryRemoved, directory: encodedEquivalent },
 				[primary, secondary],
-				true,
+				capImmutable,
 			),
 		], [
 			{ type: ActionType.SessionWorkingDirectorySet, directory: secondary },
@@ -69,12 +74,12 @@ suite('Session working directories', () => {
 			resolveSessionWorkingDirectoryAction(
 				{ type: ActionType.SessionWorkingDirectorySet, directory: 'file:///workspace/%61dded' },
 				[primary, secondary],
-				true,
+				capImmutable,
 			),
 			resolveSessionWorkingDirectoryAction(
 				{ type: ActionType.SessionWorkingDirectoryRemoved, directory: 'file:///workspace/%61bsent' },
 				[primary, secondary],
-				true,
+				capImmutable,
 			),
 		], [
 			{ type: ActionType.SessionWorkingDirectorySet, directory: 'file:///workspace/added' },
@@ -87,7 +92,18 @@ suite('Session working directories', () => {
 			() => resolveSessionWorkingDirectoryAction(
 				{ type: ActionType.SessionWorkingDirectoryRemoved, directory: 'file:///workspace/%70rimary' },
 				[primary, secondary],
-				true,
+				capImmutable,
+			),
+			/The primary working directory cannot be removed/,
+		);
+	});
+
+	test('rejects removal of index zero when the provider advertises primaryReplacement without immutablePrimary', () => {
+		assert.throws(
+			() => resolveSessionWorkingDirectoryAction(
+				{ type: ActionType.SessionWorkingDirectoryRemoved, directory: primary },
+				[primary, secondary],
+				capReplaceablePrimaryOnly,
 			),
 			/The primary working directory cannot be removed/,
 		);
@@ -98,7 +114,7 @@ suite('Session working directories', () => {
 			resolveSessionWorkingDirectoryAction(
 				{ type: ActionType.SessionWorkingDirectoryRemoved, directory: primary },
 				[primary, secondary],
-				false,
+				capNone,
 			),
 			{ type: ActionType.SessionWorkingDirectoryRemoved, directory: primary },
 		);
@@ -109,7 +125,7 @@ suite('Session working directories', () => {
 			() => resolveSessionWorkingDirectoryAction(
 				{ type: ActionType.SessionWorkingDirectorySet, directory: 'not a URI' },
 				[primary],
-				true,
+				capImmutable,
 			),
 			/Scheme is missing/,
 		);
@@ -117,9 +133,96 @@ suite('Session working directories', () => {
 			() => resolveSessionWorkingDirectoryAction(
 				{ type: ActionType.SessionWorkingDirectorySet, directory: 'vscode-remote://ssh-remote+host/workspace' },
 				[primary],
-				true,
+				capImmutable,
 			),
 			/Working directory must be a file URI/,
+		);
+	});
+
+	test('canonicalizes both directory and replacement in a replace action', () => {
+		assert.deepStrictEqual(
+			resolveSessionWorkingDirectoryAction(
+				{
+					type: ActionType.SessionWorkingDirectoryReplaced,
+					directory: 'file:///workspace/%73econdary',
+					replacement: 'file:///workspace/%72eplacement',
+				},
+				[primary, secondary, replacement],
+				capImmutable,
+			),
+			{
+				type: ActionType.SessionWorkingDirectoryReplaced,
+				directory: secondary,
+				replacement,
+			},
+		);
+	});
+
+	test('accepts a replace with no matching target as a canonicalized no-op payload', () => {
+		assert.deepStrictEqual(
+			resolveSessionWorkingDirectoryAction(
+				{
+					type: ActionType.SessionWorkingDirectoryReplaced,
+					directory: 'file:///workspace/absent',
+					replacement,
+				},
+				[primary, secondary],
+				capImmutable,
+			),
+			{
+				type: ActionType.SessionWorkingDirectoryReplaced,
+				directory: 'file:///workspace/absent',
+				replacement,
+			},
+		);
+	});
+
+	test('rejects replace when the primary is immutable without primaryReplacement', () => {
+		assert.throws(
+			() => resolveSessionWorkingDirectoryAction(
+				{
+					type: ActionType.SessionWorkingDirectoryReplaced,
+					directory: primary,
+					replacement,
+				},
+				[primary, secondary],
+				capImmutable,
+			),
+			/The primary working directory cannot be replaced/,
+		);
+	});
+
+	test('allows primary replace when the provider advertises primaryReplacement', () => {
+		assert.deepStrictEqual(
+			resolveSessionWorkingDirectoryAction(
+				{
+					type: ActionType.SessionWorkingDirectoryReplaced,
+					directory: primary,
+					replacement,
+				},
+				[primary, secondary],
+				capReplaceablePrimary,
+			),
+			{
+				type: ActionType.SessionWorkingDirectoryReplaced,
+				directory: primary,
+				replacement,
+			},
+		);
+	});
+
+	test('rejects a replace with a non-file replacement URI', () => {
+		assert.throws(
+			() => resolveSessionWorkingDirectoryAction(
+				{
+					type: ActionType.SessionWorkingDirectoryReplaced,
+					directory: secondary,
+					replacement: 'vscode-remote://ssh-remote+host/workspace',
+				},
+				[primary, secondary],
+				capImmutable,
+			),
+			/Working directory replacement must be a file URI/,
 		);
 	});
 });

@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { StringOrMarkdown } from '../../common/state/sessionState.js';
-import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
+import { SessionServerToolName } from '../../common/serverToolNames.js';
+import { buildServerToolGroups, getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
 
 function text(value: StringOrMarkdown | undefined): string | undefined {
 	if (value === undefined) {
@@ -42,26 +43,57 @@ suite('serverToolGroups display', () => {
 	});
 
 	test('session-management tools resolve to dedicated display strings', () => {
-		const display = (toolName: string) => {
-			const d = getServerToolDisplay(toolName, undefined);
-			return { displayName: d?.displayName, invocation: text(d?.invocationMessage) };
+		const display = (toolName: string, args?: unknown, completed = false) => {
+			const d = getServerToolDisplay(toolName, args, completed ? { success: true } : undefined);
+			return { displayName: d?.displayName, invocation: text(d?.invocationMessage), past: text(d?.pastTenseMessage) };
 		};
 		assert.deepStrictEqual({
 			list: display('list_sessions'),
 			current: display('get_current_session'),
-			create: display('create_session'),
+			createCurrent: display('create_session', { relationship: 'currentSession' }, true),
+			createIndependent: display('create_session', { relationship: 'independent' }, true),
+			createFallback: display('create_session'),
 			chat: display('create_chat'),
 			send: display('send_message'),
 			context: display('get_session_context'),
 			del: display('delete_session'),
 		}, {
-			list: { displayName: 'List Sessions', invocation: 'List sessions' },
-			current: { displayName: 'Get Current Session', invocation: 'Get current session' },
-			create: { displayName: 'Create Session', invocation: 'Creating session' },
-			chat: { displayName: 'Create Chat', invocation: 'Create chat' },
-			send: { displayName: 'Send Message', invocation: 'Send message' },
-			context: { displayName: 'Get Session Context', invocation: 'Read session context' },
-			del: { displayName: 'Delete Session', invocation: 'Deleting session' },
+			list: { displayName: 'List Sessions', invocation: 'List sessions', past: undefined },
+			current: { displayName: 'Get Current Session', invocation: 'Get current session', past: undefined },
+			createCurrent: { displayName: 'Create Chat in Current Session', invocation: 'Creating chat in the current session', past: 'Created chat in the current session' },
+			createIndependent: { displayName: 'Create New Session', invocation: 'Creating new session', past: 'Created new session' },
+			createFallback: { displayName: 'Create Session', invocation: 'Creating session', past: 'Created session' },
+			chat: { displayName: 'Create Chat', invocation: 'Create chat', past: undefined },
+			send: { displayName: 'Send Message', invocation: 'Send message', past: undefined },
+			context: { displayName: 'Get Session Context', invocation: 'Read session context', past: undefined },
+			del: { displayName: 'Delete Session', invocation: 'Deleting session', past: 'Deleted session' },
+		});
+	});
+
+	test('set_workspace resolves to outcome-oriented confirmation display', () => {
+		const confirmation = (isolation: boolean) => {
+			const display = getServerToolDisplay('set_workspace', { workspaceFolder: '/workspace/app', isolation });
+			return {
+				title: display?.confirmationTitle,
+				message: text(display?.confirmationMessage),
+				hideInput: display?.hideConfirmationInput,
+			};
+		};
+
+		assert.deepStrictEqual({
+			direct: confirmation(false),
+			isolated: confirmation(true),
+		}, {
+			direct: {
+				title: 'Change Workspace to app?',
+				message: 'Change this chat\'s workspace to /workspace/app and make changes directly in that folder? Other chats keep their workspaces.',
+				hideInput: true,
+			},
+			isolated: {
+				title: 'Change Workspace to app?',
+				message: 'Change this chat\'s workspace to a new worktree of /workspace/app? Other chats keep their workspaces.',
+				hideInput: true,
+			},
 		});
 	});
 
@@ -99,5 +131,31 @@ suite('serverToolGroups display', () => {
 	test('unknown tools return undefined so callers fall back to their generic display', () => {
 		assert.strictEqual(getServerToolDisplay('bash', { command: 'ls' }), undefined);
 		assert.strictEqual(getServerToolDisplay('someClientTool', undefined), undefined);
+	});
+});
+
+suite('serverToolGroups deferral budget', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	// A Copilot session sends every server tool with `deferLoading: false` on every
+	// model request. See AGENTS.md §9 before changing this baseline.
+	const definitions = buildServerToolGroups().flatMap(group => group.definitions);
+
+	test('the eager server tool set is the reviewed baseline', () => {
+		assert.deepStrictEqual(definitions.filter(def => def.deferLoading === false).map(def => def.name), [
+			'add_artifact_or_reference',
+		]);
+	});
+
+	test('move_session is in neither the eager nor the materialized baseline; it is displayed without a host', () => {
+		assert.deepStrictEqual({
+			// Its own group joins only with the host's accessor and limits, and offers it only while moving chats is enabled (see sessionServerTools.test.ts).
+			inBaseline: definitions.some(definition => definition.name === SessionServerToolName.MoveSession),
+			displayName: getServerToolDisplay(SessionServerToolName.MoveSession, undefined)?.displayName,
+		}, {
+			inBaseline: false,
+			displayName: 'Move Session',
+		});
 	});
 });

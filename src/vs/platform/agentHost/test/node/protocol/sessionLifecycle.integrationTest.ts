@@ -12,10 +12,11 @@ import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { SessionAddedParams, SessionRemovedParams } from '../../../common/state/protocol/notifications.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { ListSessionsResult } from '../../../common/state/sessionProtocol.js';
-import { buildDefaultChatUri, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type MarkdownResponsePart, type ISessionWithDefaultChat, type ToolCallResponsePart } from '../../../common/state/sessionState.js';
-import { AgentHostSessionReleaseGraceMsEnvVar } from '../../../common/agentService.js';
+import { ResponsePartKind, ROOT_STATE_URI, SessionStatus, type MarkdownResponsePart, type ISessionWithDefaultChat, type ToolCallResponsePart } from '../../../common/state/sessionState.js';
+import { AgentHostSessionResidencyLimitEnvVar } from '../../../common/agentService.js';
 import { AgentHostExternalSessionsMode, AgentHostShowExternalSessionsConfigKey } from '../../../common/agentHostSchema.js';
 import { PRE_EXISTING_SESSION_URI } from '../mockAgent.js';
+import { defaultChatChannel } from '../hostDefaultChats.js';
 import {
 	createAndSubscribeSession,
 	fetchSessionWithChat,
@@ -41,10 +42,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		return secondaryClient;
 	}
 
-	// Short idle-release grace so the release/restore test exercises a real
-	// release promptly. Safe on the shared server because the mock agent's
-	// releaseSession is cheap (no real SDK disconnect).
-	const RELEASE_GRACE_MS = 200;
+	const RESIDENCY_SETTLE_MS = 500;
 
 	suiteSetup(async function () {
 		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
@@ -54,7 +52,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 			env: {
 				HOME: userDataDir,
 				USERPROFILE: userDataDir,
-				[AgentHostSessionReleaseGraceMsEnvVar]: String(RELEASE_GRACE_MS),
+				[AgentHostSessionResidencyLimitEnvVar]: '0',
 			},
 		});
 	});
@@ -135,7 +133,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 			clientSeq: 1,
 			action: {
 				type: 'root/configChanged',
-				config: { [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.All },
+				config: { [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days },
 			},
 		});
 		await client.call('ping');
@@ -186,18 +184,16 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-release' });
 
 		const preExistingUri = PRE_EXISTING_SESSION_URI.toString();
-		const chatUri = buildDefaultChatUri(preExistingUri);
-
 		// First subscribe restores turns from agent history.
 		const before = await fetchSessionWithChat(client, preExistingUri);
+		const chatUri = defaultChatChannel(preExistingUri);
 		assert.ok(before.turns.length >= 1, 'session should restore turns on first subscribe');
 
-		// Drop every subscriber; after the release grace elapses the server
-		// evicts the idle session (dropping cached state and releasing the
-		// provider's SDK resources).
+		// Drop every subscriber; the zero-capacity test server evicts the idle
+		// session and releases the provider's SDK resources.
 		client.notify('unsubscribe', { channel: chatUri });
 		client.notify('unsubscribe', { channel: preExistingUri });
-		await timeout(RELEASE_GRACE_MS + 500);
+		await timeout(RESIDENCY_SETTLE_MS);
 
 		// Re-subscribing rehydrates the session from the preserved durable data
 		// — the turns must match the pre-eviction view.

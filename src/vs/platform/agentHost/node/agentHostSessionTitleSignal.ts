@@ -13,7 +13,7 @@ import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateM
 export const IAgentHostSessionTitleSignal = createDecorator<IAgentHostSessionTitleSignal>('agentHostSessionTitleSignal');
 
 export interface IAgentHostSessionTitleChangeEvent {
-	/** Provider owning `session`, derived from the session URI scheme. */
+	/** Registered provider owning `session`. */
 	readonly provider: AgentProvider;
 	readonly session: URI;
 	/** Provider-facing conversation id ({@link AgentSession.id}), precomputed so consumers don't re-derive it. */
@@ -45,7 +45,7 @@ export class AgentHostSessionTitleSignal extends Disposable implements IAgentHos
 	) {
 		super();
 		this._register(stateManager.onDidChangeSessionTitle(({ session, title }) => {
-			const provider = AgentSession.provider(session);
+			const provider = stateManager.getSessionSummary(session)?.provider ?? AgentSession.provider(session);
 			if (!provider) {
 				return;
 			}

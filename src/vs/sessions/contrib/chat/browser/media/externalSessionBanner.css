@@ -7,7 +7,7 @@
 	position: relative;
 	flex: 0 0 auto;
 	box-sizing: border-box;
-	width: calc(100% - var(--vscode-spacing-size320) - var(--vscode-spacing-size320));
+	width: calc(100% - var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)) - var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)));
 	max-width: var(--session-view-centered-content-max-width, 950px);
 	margin: var(--vscode-spacing-size120) auto 0;
 	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size400) var(--vscode-spacing-size120) var(--vscode-spacing-size120);
@@ -16,7 +16,7 @@
 	background-color: var(--vscode-editorWidget-background);
 	color: var(--vscode-foreground);
 	font-family: var(--vscode-chat-font-family, inherit);
-	font-size: var(--vscode-agents-fontSize-body1);
+	font-size: var(--vscode-fontSize-body1);
 }
 
 .external-session-banner.hidden {
@@ -31,7 +31,7 @@
 }
 
 .external-session-banner-message {
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .external-session-banner-description {

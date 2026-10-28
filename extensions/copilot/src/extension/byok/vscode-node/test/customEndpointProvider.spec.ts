@@ -10,8 +10,11 @@ import { BlockedExtensionService, IBlockedExtensionService } from '../../../../p
 import { IChatMLFetcher, type IFetchMLOptions } from '../../../../platform/chat/common/chatMLFetcher';
 import { ChatLocation, type ChatResponse, type ChatResponses } from '../../../../platform/chat/common/commonTypes';
 import { MockChatMLFetcher } from '../../../../platform/chat/test/common/mockChatMLFetcher';
+import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
-import type { IChatEndpoint } from '../../../../platform/networking/common/networking';
+import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
+import { ExtensionContributedChatEndpoint } from '../../../../platform/endpoint/vscode-node/extChatEndpoint';
+import type { IChatEndpoint, IEndpointBody } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TokenizerType } from '../../../../util/common/tokenizer';
 import { Event } from '../../../../util/vs/base/common/event';
@@ -21,7 +24,10 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import type { OpenAICompatibleLanguageModelChatInformation } from '../abstractLanguageModelChatProvider';
 import type { IBYOKStorageService } from '../byokStorageService';
-import { CustomEndpointBYOKModelProvider, type CustomEndpointModelProviderConfig, CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl } from '../customEndpointProvider';
+import { CustomEndpointBYOKModelProvider, type CustomEndpointModelConfig, type CustomEndpointModelProviderConfig, CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl } from '../customEndpointProvider';
+
+const customResponsesModelId = 'custom-responses-model';
+const customResponsesMarker = 'resp_custom_previous';
 
 class TestCustomEndpointBYOKModelProvider extends CustomEndpointBYOKModelProvider {
 	public createEndpoint(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>): Promise<IChatEndpoint> {
@@ -55,6 +61,40 @@ function createStorageService(): IBYOKStorageService {
 		saveModelConfig: async () => undefined,
 		removeModelConfig: async () => undefined,
 	};
+}
+
+function createResponsesBody(endpoint: IChatEndpoint): IEndpointBody {
+	return endpoint.createRequestBody({
+		debugName: 'test',
+		messages: [
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'before marker' }]
+			},
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [{
+					type: Raw.ChatCompletionContentPartKind.Opaque,
+					value: {
+						type: CustomDataPartMimeTypes.StatefulMarker,
+						value: {
+							modelId: customResponsesModelId,
+							marker: customResponsesMarker,
+						}
+					}
+				}]
+			},
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }]
+			}
+		],
+		requestId: 'test-custom-responses-store',
+		postOptions: {},
+		ignoreStatefulMarker: false,
+		finishedCb: undefined,
+		location: ChatLocation.Other,
+	});
 }
 
 describe('CustomEndpointBYOKModelProvider', () => {
@@ -136,6 +176,35 @@ describe('CustomEndpointBYOKModelProvider', () => {
 	});
 
 	describe('CustomEndpointOAIEndpoint', () => {
+		async function createConfiguredResponsesEndpoint(zeroDataRetentionEnabled?: boolean, statefulResponses?: boolean): Promise<IChatEndpoint> {
+			const provider = instaService.createInstance(TestCustomEndpointBYOKModelProvider, createStorageService());
+			const tokenSource = disposables.add(new vscode.CancellationTokenSource());
+			const modelConfiguration: CustomEndpointModelConfig = {
+				id: customResponsesModelId,
+				name: 'Custom Responses Model',
+				url: 'https://api.example.com',
+				apiType: 'responses',
+				maxInputTokens: 128000,
+				maxOutputTokens: 16000,
+				toolCalling: true,
+				vision: false,
+			};
+			if (zeroDataRetentionEnabled !== undefined) {
+				modelConfiguration.zeroDataRetentionEnabled = zeroDataRetentionEnabled;
+			}
+			if (statefulResponses !== undefined) {
+				modelConfiguration.statefulResponses = statefulResponses;
+			}
+			const [model] = await provider.provideLanguageModelChatInformation({
+				silent: true,
+				configuration: {
+					apiKey: 'test-api-key',
+					models: [modelConfiguration],
+				}
+			}, tokenSource.token);
+			return provider.createEndpoint(model);
+		}
+
 		function makeMetadata(supportedEndpoints: ModelSupportedEndpoint[] | undefined): IChatModelInformation {
 			return {
 				id: 'custom-model',
@@ -166,6 +235,95 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				}
 			};
 		}
+
+		it('omits store but keeps previous_response_id after cloning a Custom Endpoint Responses endpoint when both flags are omitted', async () => {
+			const endpoint = (await createConfiguredResponsesEndpoint()).cloneWithTokenOverride(64000);
+			const body = createResponsesBody(endpoint);
+
+			expect({
+				storePresent: 'store' in body,
+				store: body.store,
+				previousResponseId: body.previous_response_id,
+			}).toEqual({
+				storePresent: false,
+				store: undefined,
+				previousResponseId: customResponsesMarker,
+			});
+		});
+
+		it('issue #331636: sends the full tool-call history when statefulResponses is false', async () => {
+			const endpoint = await createConfiguredResponsesEndpoint(undefined, false);
+			const body = endpoint.createRequestBody({
+				debugName: 'test',
+				messages: [
+					{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'list the workspace' }] },
+					{
+						role: Raw.ChatRole.Assistant,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Opaque, value: { type: CustomDataPartMimeTypes.StatefulMarker, value: { modelId: customResponsesModelId, marker: customResponsesMarker } } }],
+						toolCalls: [{ id: 'call_1', type: 'function', function: { name: 'list_dir', arguments: '{}' } }],
+					},
+					{ role: Raw.ChatRole.Tool, toolCallId: 'call_1', content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'a.txt' }] },
+				],
+				requestId: 'test-custom-responses-tool-follow-up',
+				postOptions: {},
+				ignoreStatefulMarker: false,
+				finishedCb: undefined,
+				location: ChatLocation.Other,
+			});
+
+			expect({
+				previousResponseId: body.previous_response_id,
+				input: body.input?.map(item => ('type' in item ? item.type : undefined)),
+			}).toEqual({
+				previousResponseId: undefined,
+				input: ['message', 'function_call', 'function_call_output'],
+			});
+		});
+
+		it('enables store but not previous_response_id when zeroDataRetentionEnabled and statefulResponses are false', async () => {
+			const endpoint = await createConfiguredResponsesEndpoint(false, false);
+			const body = createResponsesBody(endpoint);
+
+			expect({
+				storePresent: 'store' in body,
+				store: body.store,
+				previousResponseId: body.previous_response_id,
+			}).toEqual({
+				storePresent: true,
+				store: true,
+				previousResponseId: undefined,
+			});
+		});
+
+		it('enables store and previous_response_id when zeroDataRetentionEnabled is false and statefulResponses is omitted', async () => {
+			const endpoint = await createConfiguredResponsesEndpoint(false);
+			const body = createResponsesBody(endpoint);
+
+			expect({
+				storePresent: 'store' in body,
+				store: body.store,
+				previousResponseId: body.previous_response_id,
+			}).toEqual({
+				storePresent: true,
+				store: true,
+				previousResponseId: customResponsesMarker,
+			});
+		});
+
+		it('disables store and previous_response_id for Custom Endpoint ZDR Responses requests', async () => {
+			const endpoint = await createConfiguredResponsesEndpoint(true, true);
+			const body = createResponsesBody(endpoint);
+
+			expect({
+				storePresent: 'store' in body,
+				store: body.store,
+				previousResponseId: body.previous_response_id,
+			}).toEqual({
+				storePresent: true,
+				store: false,
+				previousResponseId: undefined,
+			});
+		});
 
 		it('uses Messages API and sends x-api-key + anthropic-version when supported_endpoints includes Messages', () => {
 			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
@@ -362,6 +520,101 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			}
 
 			expect(chatMLFetcher.requests.map(request => request.modelCapabilities?.enableThinking)).toEqual([true, false]);
+		});
+
+		it('issue #332031: preserves the conversation ID through a BYOK Responses request', async () => {
+			const provider = instaService.createInstance(TestCustomEndpointBYOKModelProvider, createStorageService());
+			const tokenSource = disposables.add(new vscode.CancellationTokenSource());
+			const [model] = await provider.provideLanguageModelChatInformation({
+				silent: true,
+				configuration: {
+					apiKey: 'test-api-key',
+					models: [{
+						id: customResponsesModelId,
+						name: 'Custom Responses Model',
+						url: 'https://api.example.com',
+						apiType: 'responses',
+						maxInputTokens: 128000,
+						maxOutputTokens: 16000,
+						toolCalling: true,
+						vision: false,
+					}],
+				}
+			}, tokenSource.token);
+			const languageModel = {
+				...model,
+				sendRequest: async (
+					messages: readonly (vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2)[],
+					options: vscode.LanguageModelChatRequestOptions,
+					token: vscode.CancellationToken,
+				) => {
+					const responseParts: vscode.LanguageModelResponsePart2[] = [];
+					await provider.provideLanguageModelChatResponse(model, [...messages], {
+						requestInitiator: 'core',
+						tools: options.tools ?? [],
+						toolMode: options.toolMode ?? vscode.LanguageModelChatToolMode.Auto,
+						modelOptions: options.modelOptions,
+					}, { report: part => responseParts.push(part) }, token);
+					return {
+						stream: (async function* () {
+							yield* responseParts;
+						})()
+					};
+				}
+			} as unknown as vscode.LanguageModelChat;
+			const extensionEndpoint = instaService.createInstance(ExtensionContributedChatEndpoint, languageModel);
+			const configurationService = accessor.get(IConfigurationService);
+			const conversationId = 'conversation-332031';
+			const messages: Raw.ChatMessage[] = [{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }]
+			}];
+
+			await configurationService.setConfig(ConfigKey.ResponsesApiPromptCacheKeyEnabled, true);
+			const directEndpoint = await provider.createEndpoint(model);
+			const directPromptCacheKey = directEndpoint.createRequestBody({
+				debugName: 'test-direct',
+				messages,
+				conversationId,
+				requestId: 'test-request-direct',
+				postOptions: {},
+				finishedCb: undefined,
+				location: ChatLocation.Agent,
+			}).prompt_cache_key;
+
+			const capturePromptCacheKey = async (enabled: boolean, requestConversationId: string | undefined) => {
+				await configurationService.setConfig(ConfigKey.ResponsesApiPromptCacheKeyEnabled, enabled);
+				const requestIndex = chatMLFetcher.requests.length;
+				await extensionEndpoint.makeChatRequest2({
+					debugName: 'test',
+					messages,
+					conversationId: requestConversationId,
+					finishedCb: undefined,
+					location: ChatLocation.Agent,
+					requestOptions: {},
+				}, tokenSource.token);
+				const request = chatMLFetcher.requests[requestIndex];
+				if (!request) {
+					throw new Error('Expected the BYOK endpoint to receive a request');
+				}
+				return request.endpoint.createRequestBody({
+					...request,
+					requestId: `test-request-${requestIndex}`,
+					postOptions: request.requestOptions,
+				}).prompt_cache_key;
+			};
+
+			expect({
+				direct: directPromptCacheKey,
+				bridgedEnabled: await capturePromptCacheKey(true, conversationId),
+				disabled: await capturePromptCacheKey(false, conversationId),
+				missingConversationId: await capturePromptCacheKey(true, undefined),
+			}).toEqual({
+				direct: `${conversationId}:${model.family}`,
+				bridgedEnabled: `${conversationId}:${model.family}`,
+				disabled: undefined,
+				missingConversationId: undefined,
+			});
 		});
 
 		it('sends Authorization: Bearer for Chat Completions endpoints', () => {

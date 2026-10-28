@@ -7,7 +7,6 @@
 	flex: 9999 1 auto;
 	min-width: 0;
 	overflow: hidden;
-	padding-left: var(--vscode-spacing-size40, 4px);
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header > .breadcrumbs-below-tabs.hidden {

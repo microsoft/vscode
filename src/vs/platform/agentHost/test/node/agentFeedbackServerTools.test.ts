@@ -9,9 +9,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { feedbackAnnotationEntryMeta, FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationEntryAuthor, type IFeedbackAnnotationMeta } from '../../common/meta/agentFeedbackAnnotations.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { Annotation, AnnotationsState, SessionStatus, SessionSummary, buildChatUri } from '../../common/state/sessionState.js';
+import { Annotation, AnnotationsState, SessionStatus, SessionSummary, buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import {
 	addCommentToolName,
@@ -34,7 +34,7 @@ suite('AgentFeedbackServerTools', () => {
 	function annotation(id: string, state: string, resolved = false, text = 'comment', kind = 'codeReview', pendingAgentReveal = false): Annotation {
 		return {
 			id,
-			turnId: '',
+			origin: { session: sessionResource },
 			resource: fileUri,
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
 			resolved,
@@ -72,7 +72,7 @@ suite('AgentFeedbackServerTools', () => {
 	test('listComments reports unknown provenance rather than assuming the user', () => {
 		const orphan: Annotation = {
 			id: 'a',
-			turnId: '',
+			origin: { session: sessionResource },
 			resource: fileUri,
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
 			resolved: false,
@@ -329,7 +329,7 @@ suite('AgentFeedbackServerTools', () => {
 		// than mutating it.
 		const foreign: Annotation = {
 			id: 'foreign',
-			turnId: '',
+			origin: { session: sessionResource },
 			resource: fileUri,
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
 			resolved: false,
@@ -360,13 +360,20 @@ suite('AgentFeedbackServerTools', () => {
 		});
 	});
 
+	test('defers every feedback tool behind tool search', () => {
+		assert.deepStrictEqual(
+			feedbackServerToolDefinitions.map(({ name, deferLoading }) => ({ name, deferLoading })),
+			feedbackServerToolDefinitions.map(({ name }) => ({ name, deferLoading: true })),
+		);
+	});
+
 	suite('AgentServerToolHost', () => {
 
 		let disposables: DisposableStore;
 		let manager: AgentHostStateManager;
 		let host: AgentServerToolHost;
 
-		function makeSummary(): SessionSummary {
+		function makeSummary(): SessionSummary & { readonly defaultChat: string } {
 			return {
 				resource: sessionResource,
 				provider: 'copilot',
@@ -374,6 +381,7 @@ suite('AgentFeedbackServerTools', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(sessionResource),
 			};
 		}
 
@@ -381,12 +389,15 @@ suite('AgentFeedbackServerTools', () => {
 			disposables = new DisposableStore();
 			manager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			host = new AgentServerToolHost(manager, [feedbackServerToolGroup]);
+			// Tools run inside registered chats.
+			manager.createSession(makeSummary());
+			manager.addChat(sessionResource, buildChatUri(sessionResource, 'peer-chat-1'), creationTimeChatStorageResource(sessionResource, buildChatUri(sessionResource, 'peer-chat-1'), buildDefaultChatUri(sessionResource)));
 		});
 
 		teardown(() => disposables.dispose());
 
 		test('executeTool round-trips a comment into the annotation state', () => {
-			host.executeTool(sessionResource, addCommentToolName, {
+			host.executeTool(buildDefaultChatUri(sessionResource), addCommentToolName, {
 				resourceUri: fileUri,
 				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 },
 				text: 'hello',
@@ -404,7 +415,7 @@ suite('AgentFeedbackServerTools', () => {
 				annotation: annotation('reply-target', 'accepted', false, 'original'),
 			});
 
-			await host.executeTool(sessionResource, replyToCommentToolName, {
+			await host.executeTool(buildDefaultChatUri(sessionResource), replyToCommentToolName, {
 				commentId: 'reply-target',
 				text: 'agent reply',
 			});
@@ -442,7 +453,7 @@ suite('AgentFeedbackServerTools', () => {
 				annotation: annotation('auto-submit', 'created', false, 'submit me', 'prReview'),
 			});
 
-			const result = await host.executeTool(sessionResource, viewUnreviewedCommentsToolName, {});
+			const result = await host.executeTool(buildDefaultChatUri(sessionResource), viewUnreviewedCommentsToolName, {});
 			const state = manager.getSnapshot(annotationsUri)!.state as AnnotationsState;
 			const meta = state.annotations[0]._meta?.[FEEDBACK_ANNOTATION_META_KEY] as IFeedbackAnnotationMeta;
 
@@ -455,18 +466,32 @@ suite('AgentFeedbackServerTools', () => {
 			});
 		});
 
+		test('executeTool attributes a chat to its recorded owner, not the session its URI encodes', () => {
+			const encoded = 'copilot:/encoded-session';
+			const chatUri = buildChatUri(encoded, 'moved');
+			manager.addChat(sessionResource, chatUri, creationTimeChatStorageResource(sessionResource, chatUri, buildDefaultChatUri(sessionResource)));
+			host.executeTool(chatUri, addCommentToolName, {
+				resourceUri: fileUri,
+				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 },
+				text: 'from a moved chat',
+			});
+			const texts = (session: string) => ((manager.getSnapshot(buildAnnotationsUri(session))?.state as AnnotationsState | undefined)?.annotations ?? []).map(annotation => annotation.entries[0].text);
+			assert.deepStrictEqual({ owner: texts(sessionResource), encoded: texts(encoded) }, { owner: ['from a moved chat'], encoded: [] });
+		});
+
 		test('advertise publishes the server tools as server tools', () => {
-			manager.createSession(makeSummary());
 			host.advertise(sessionResource);
 			const state = manager.getSessionState(sessionResource);
-			assert.deepStrictEqual(state?.serverTools, feedbackServerToolDefinitions);
+			assert.deepStrictEqual(state?.serverTools, feedbackServerToolDefinitions.map(({ deferLoading: _deferLoading, ...definition }) => definition));
 		});
 
 		test('advertise does not dispatch before the session is registered', () => {
 			const actionTypes: string[] = [];
 			disposables.add(manager.onDidEmitEnvelope(envelope => actionTypes.push(envelope.action.type)));
 
-			host.advertise(sessionResource);
+			const unregistered = 'copilot:/unregistered-session';
+			host.advertise(unregistered);
+			host.advertise(buildChatUri(unregistered, 'peer'));
 
 			assert.deepStrictEqual(actionTypes, []);
 		});
@@ -486,29 +511,30 @@ suite('AgentFeedbackServerTools', () => {
 		test('requiresConfirmation only prompts when comments can be revealed', async () => {
 			const annotationsUri = buildAnnotationsUri(sessionResource);
 			const chatUri = buildChatUri(sessionResource, 'peer-chat-1');
-			const empty = host.requiresConfirmation(sessionResource, viewUnreviewedCommentsToolName);
+			const defaultChatUri = buildDefaultChatUri(sessionResource);
+			const empty = host.requiresConfirmation(defaultChatUri, viewUnreviewedCommentsToolName);
 
 			manager.dispatchServerAction(annotationsUri, {
 				type: ActionType.AnnotationsSet,
 				annotation: annotation('accepted', 'accepted', false, 'already accepted', 'prReview'),
 			});
-			const acceptedOnly = host.requiresConfirmation(sessionResource, viewUnreviewedCommentsToolName);
+			const acceptedOnly = host.requiresConfirmation(defaultChatUri, viewUnreviewedCommentsToolName);
 
 			manager.dispatchServerAction(annotationsUri, {
 				type: ActionType.AnnotationsSet,
 				annotation: annotation('created', 'created', false, 'new comment', 'codeReview'),
 			});
-			const created = host.requiresConfirmation(sessionResource, viewUnreviewedCommentsToolName);
+			const created = host.requiresConfirmation(defaultChatUri, viewUnreviewedCommentsToolName);
 			const peerChat = host.requiresConfirmation(chatUri, viewUnreviewedCommentsToolName);
 
-			await host.executeTool(sessionResource, viewUnreviewedCommentsToolName, {});
-			const delivered = host.requiresConfirmation(sessionResource, viewUnreviewedCommentsToolName);
+			await host.executeTool(defaultChatUri, viewUnreviewedCommentsToolName, {});
+			const delivered = host.requiresConfirmation(defaultChatUri, viewUnreviewedCommentsToolName);
 
 			manager.dispatchServerAction(annotationsUri, {
 				type: ActionType.AnnotationsSet,
 				annotation: annotation('pending', 'accepted', false, 'selected comment', 'prReview', true),
 			});
-			const pendingSelection = host.requiresConfirmation(sessionResource, viewUnreviewedCommentsToolName);
+			const pendingSelection = host.requiresConfirmation(defaultChatUri, viewUnreviewedCommentsToolName);
 
 			assert.deepStrictEqual({
 				empty,

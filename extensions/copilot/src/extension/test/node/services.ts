@@ -188,11 +188,7 @@ class NullAutomodeService implements IAutomodeService {
 		return { discountRange: { low: 0, high: 0 } };
 	}
 
-	areAutoModeTiersSupported(): boolean {
-		return false;
-	}
-
-	readonly onDidChangeAutoModeTierSupport = Event.None;
+	readonly onDidRoute = Event.None;
 
 	invalidateRouterCache(): void { }
 }

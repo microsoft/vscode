@@ -7,7 +7,7 @@ import { assert, describe, expect, it, suite, test } from 'vitest';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { AggressivenessLevel, CurrentFileOptions, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, PromptingStrategy, PromptOptions, RejectedEditsMemoryMode } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, CurrentFileOptions, DEFAULT_OPTIONS, EagernessPrompt, GlobalBudgetOptions, IncludeLineNumbersOption, PromptingStrategy, PromptOptions, RejectedEditsMemoryMode } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { LanguageContextResponse } from '../../../../platform/inlineEdits/common/dataTypes/languageContext';
 import { PromptSectionTokenCounts } from '../../../../platform/inlineEdits/common/dataTypes/promptSectionTokens';
 import { ContextKind } from '../../../../platform/languageServer/common/languageContextService';
@@ -614,8 +614,10 @@ describe('getUserPrompt', () => {
 		strategy: PromptingStrategy | undefined;
 		includeLineNumbers?: IncludeLineNumbersOption;
 		includePostScript?: boolean;
+		eagernessPrompt?: EagernessPrompt;
 		aggressivenessLevel?: AggressivenessLevel;
 		rejectedEditsMemory?: RejectedEditsMemoryMode;
+		noRejections?: boolean;
 	}): PromptPieces {
 		const currentDocLines = ['function foo() {', '  const x = 1;', '  return x;', '}', ''];
 		const docText = new StringText(currentDocLines.join('\n'));
@@ -635,6 +637,7 @@ describe('getUserPrompt', () => {
 		const promptOptions: PromptOptions = {
 			...DEFAULT_OPTIONS,
 			promptingStrategy: opts.strategy,
+			eagernessPrompt: opts.eagernessPrompt,
 			...(opts.includePostScript !== undefined ? { includePostScript: opts.includePostScript } : {}),
 			...(opts.rejectedEditsMemory !== undefined ? { memory: { rejectedEdits: opts.rejectedEditsMemory } } : {}),
 			currentFile: {
@@ -643,7 +646,7 @@ describe('getUserPrompt', () => {
 				...(opts.includeLineNumbers !== undefined ? { includeLineNumbers: opts.includeLineNumbers } : {}),
 			},
 		};
-		const rejectedEditHistory: IXtabHistoryRejectedEditEntry[] = [{
+		const rejectedEditHistory: IXtabHistoryRejectedEditEntry[] = opts.noRejections ? [] : [{
 			kind: 'rejectedEdit',
 			docId: documentId,
 			hunks: [{ startLineNumber: 1, oldLines: ['  const x = 1;'], newLines: ['  const x = 2;'] }],
@@ -734,6 +737,42 @@ describe('getUserPrompt', () => {
 		expect(prompt).not.toContain('Output a modified diff format');
 	});
 
+	test('applied-then-undone memory writes the rejection as plain history, without tag or instruction', () => {
+		const pieces = createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02,
+			rejectedEditsMemory: RejectedEditsMemoryMode.AppliedThenUndone,
+		});
+		const { prompt } = getUserPrompt(pieces);
+
+		const applied = '@@ -1,1 +1,1 @@\n-  const x = 1;\n+  const x = 2;';
+		const undone = '@@ -1,1 +1,1 @@\n-  const x = 2;\n+  const x = 1;';
+		expect(prompt.split(applied).length - 1).toBe(1);
+		expect(prompt.split(undone).length - 1).toBe(1);
+		expect(prompt).not.toContain('<|rejected/|>');
+		expect(prompt).not.toContain('previous suggestions the developer rejected');
+		expect(prompt).toContain('developer was working on a section of code');
+	});
+
+	test('applied-then-undone memory leaves the prompt unchanged when nothing was rejected', () => {
+		const withMemory = getUserPrompt(createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02,
+			rejectedEditsMemory: RejectedEditsMemoryMode.AppliedThenUndone,
+			noRejections: true,
+		})).prompt;
+		const withoutMemory = getUserPrompt(createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02,
+			noRejections: true,
+		})).prompt;
+
+		expect(withMemory).toBe(withoutMemory);
+	});
+
 	test('PatchBased02 with includePostScript=false omits postscript', () => {
 		const pieces = createTestPromptPieces({ cursorLine: 2, cursorColumn: 9, strategy: PromptingStrategy.PatchBased02, includePostScript: false });
 		const { prompt } = getUserPrompt(pieces);
@@ -814,6 +853,79 @@ describe('getUserPrompt', () => {
 
 		// No line number prefix — cursor line starts directly with content
 		expect(prompt).toContain(PromptTags.CURSOR_LOCATION.start + '\n' + '  const ' + PromptTags.CURSOR + 'x = 1;' + '\n' + PromptTags.CURSOR_LOCATION.end);
+	});
+
+	test.each([
+		[AggressivenessLevel.Medium, ''],
+		[AggressivenessLevel.High, '<|aggression|>high<|/aggression|>'],
+		[AggressivenessLevel.Low, '<|aggression|>low<|/aggression|>'],
+	])('PatchBased02 aggression prompt places the %s tag before the postscript', (aggressivenessLevel, aggressionTag) => {
+		const pieces = createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02,
+			eagernessPrompt: 'aggressionHighLow',
+			aggressivenessLevel,
+		});
+		const { prompt } = getUserPrompt(pieces);
+
+		const cursorLocation = `${PromptTags.CURSOR_LOCATION.start}\n  const ${PromptTags.CURSOR}x = 1;\n${PromptTags.CURSOR_LOCATION.end}`;
+		const postScript = 'The developer was working on a section of code within the `current_file_content`';
+		expect(prompt).toContain(cursorLocation);
+		expect(prompt.indexOf(cursorLocation)).toBeLessThan(prompt.indexOf(postScript));
+		if (aggressivenessLevel === AggressivenessLevel.Medium) {
+			expect(prompt).not.toContain('<|aggression|>');
+			expect(prompt).toContain(`${PromptTags.CURSOR_LOCATION.end}\n\n${postScript}`);
+		} else {
+			expect(prompt).toContain(`${PromptTags.CURSOR_LOCATION.end}\n\n${aggressionTag}\n\n${postScript}`);
+		}
+	});
+
+	test.each([
+		[AggressivenessLevel.Medium, ''],
+		[AggressivenessLevel.High, '<|aggression|>high<|/aggression|>'],
+		[AggressivenessLevel.Low, '<|aggression|>low<|/aggression|>'],
+	])('PatchBased02UnifiedEagerness places the %s eagerness tag before the postscript', (aggressivenessLevel, eagernessTag) => {
+		const pieces = createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02UnifiedEagerness,
+			eagernessPrompt: 'aggressionHighLow',
+			aggressivenessLevel,
+		});
+		const { prompt } = getUserPrompt(pieces);
+
+		const cursorLocation = `${PromptTags.CURSOR_LOCATION.start}\n  const ${PromptTags.CURSOR}x = 1;\n${PromptTags.CURSOR_LOCATION.end}`;
+		const postScript = 'The developer was working on a section of code within the `current_file_content`';
+		expect(prompt).toContain(cursorLocation);
+		expect(prompt.indexOf(cursorLocation)).toBeLessThan(prompt.indexOf(postScript));
+		if (aggressivenessLevel === AggressivenessLevel.Medium) {
+			expect(prompt).not.toContain('<|aggression|>');
+			expect(prompt).toContain(`${PromptTags.CURSOR_LOCATION.end}\n\n${postScript}`);
+		} else {
+			expect(prompt).toContain(`${PromptTags.CURSOR_LOCATION.end}\n\n${eagernessTag}\n\n${postScript}`);
+		}
+	});
+
+	test.each([PromptingStrategy.PatchBased02, PromptingStrategy.PatchBased02UnifiedEagernessLowMedium])('%s low/medium prompting omits the high tag and preserves the medium prompt', strategy => {
+		const prompts = Object.values(AggressivenessLevel).map(aggressivenessLevel => getUserPrompt(createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy,
+			eagernessPrompt: 'aggressionLowMedium',
+			aggressivenessLevel,
+		})).prompt);
+		const baseline = getUserPrompt(createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02,
+		})).prompt;
+		const postScript = 'The developer was working on a section of code within the `current_file_content`';
+		expect(prompts).toEqual([
+			baseline.replace(postScript, `<|aggression|>low<|/aggression|>\n\n${postScript}`),
+			baseline,
+			baseline,
+		]);
 	});
 
 	describe('Xtab275AggressivenessHighLow', () => {

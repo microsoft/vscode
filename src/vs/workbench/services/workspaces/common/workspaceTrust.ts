@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../../base/common/linkedList.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -111,6 +112,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private _isTrusted: boolean;
 	private _trustStateInfo: IWorkspaceTrustInfo;
 	private _remoteAuthority: ResolverResult | undefined;
+	private readonly _trustedAuthorities = new Set<{ readonly scheme: string; readonly authority: string }>();
 
 	private readonly _storedTrustState: WorkspaceTrustMemento;
 	private readonly _trustTransitionManager: WorkspaceTrustTransitionManager;
@@ -135,6 +137,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		this._storedTrustState = new WorkspaceTrustMemento(isWeb && this.isEmptyWorkspace() ? undefined : this.storageService);
 		this._trustTransitionManager = this._register(new WorkspaceTrustTransitionManager());
+		this._register(toDisposable(() => this._trustedAuthorities.clear()));
 
 		this._trustStateInfo = this.loadTrustInfo();
 		this._isTrusted = this.calculateWorkspaceTrust();
@@ -200,6 +203,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}));
 	}
 
+	private normalizeTrustUri(uri: URI): URI {
+		// Match the drive-letter casing used by serialized remote resource URIs.
+		return uri.scheme === AGENT_HOST_SCHEME || uri.scheme === Schemas.vscodeRemote ? URI.parse(uri.toString()) : uri;
+	}
+
 	private async getCanonicalUri(uri: URI): Promise<URI> {
 		let canonicalUri = uri;
 		if (this.environmentService.remoteAuthority && uri.scheme === Schemas.vscodeRemote) {
@@ -211,8 +219,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			}
 		}
 
-		// ignore query and fragent section of uris always
-		return canonicalUri.with({ query: null, fragment: null });
+		// Ignore query and fragment sections of URIs.
+		return this.normalizeTrustUri(canonicalUri).with({ query: null, fragment: null });
 	}
 
 	private async resolveCanonicalUris(): Promise<void> {
@@ -269,7 +277,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			result.uriTrustInfo = [];
 		}
 
-		result.uriTrustInfo = result.uriTrustInfo.map(info => { return { uri: URI.revive(info.uri), trusted: info.trusted }; });
+		result.uriTrustInfo = result.uriTrustInfo.map(info => ({ uri: this.normalizeTrustUri(URI.revive(info.uri)), trusted: info.trusted }));
 		result.uriTrustInfo = result.uriTrustInfo.filter(info => info.trusted);
 
 		return result;
@@ -455,6 +463,12 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private isTrustedByRemote(uri: URI): boolean {
+		for (const trustedAuthority of this._trustedAuthorities) {
+			if (uri.scheme === trustedAuthority.scheme && isEqualAuthority(uri.authority, trustedAuthority.authority)) {
+				return true;
+			}
+		}
+
 		if (!this.environmentService.remoteAuthority) {
 			return false;
 		}
@@ -511,7 +525,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 
 		// All workspace uris are trusted automatically
-		const workspaceUris = this.getWorkspaceUris().filter(uri => !this.isTrustedVirtualResource(uri));
+		const workspaceUris = this.getWorkspaceUris().filter(uri => !this.isTrustedVirtualResource(uri) && !this.isTrustedByRemote(uri));
 		if (workspaceUris.length === 0) {
 			return true;
 		}
@@ -559,7 +573,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 
 		// All workspace uris are trusted automatically
-		const workspaceUris = this.getWorkspaceUris().filter(uri => !this.isTrustedVirtualResource(uri));
+		const workspaceUris = this.getWorkspaceUris().filter(uri => !this.isTrustedVirtualResource(uri) && !this.isTrustedByRemote(uri));
 		if (workspaceUris.length === 0) {
 			return false;
 		}
@@ -625,7 +639,22 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
-		this.doSetUrisTrust(await Promise.all(uris.map(uri => this.getCanonicalUri(uri))), trusted);
+		await this.doSetUrisTrust(await Promise.all(uris.map(uri => this.getCanonicalUri(uri))), trusted);
+	}
+
+	registerTrustedAuthority(scheme: string, authority: string): IDisposable {
+		const entry = { scheme, authority };
+		this._trustedAuthorities.add(entry);
+		const updateTrust = () => {
+			this._onDidChangeTrustedFolders.fire();
+			this.updateWorkspaceTrust().catch(onUnexpectedError);
+		};
+		updateTrust();
+		return toDisposable(() => {
+			if (this._trustedAuthorities.delete(entry)) {
+				updateTrust();
+			}
+		});
 	}
 
 	getTrustedUris(): URI[] {

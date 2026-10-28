@@ -43,7 +43,7 @@ export interface IVoiceInputDecorationsOptions {
 	readonly isActive: IObservable<boolean>;
 	/** Current text in the input. Voice placeholders are hidden while it is non-empty. */
 	readonly inputValue?: IObservable<string>;
-	/** Explicit ownership for surfaces such as omni that do not yet have a resource. */
+	/** Explicit ownership for surfaces that do not yet have a resource. */
 	readonly isOwner?: IObservable<boolean>;
 	/** Surface resource, compared with the voice target to avoid misrouting. */
 	readonly getCurrentResource?: () => URI | undefined;
@@ -76,10 +76,6 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 	};
 
 	const store = new DisposableStore();
-	const getPushToTalkKeybindingLabel = () => (
-		keybindingService.lookupKeybinding('workbench.action.chat.voiceInputMode.holdToTalk')
-		?? keybindingService.lookupKeybinding('agentsVoice.pushToTalk')
-	)?.getLabel();
 
 	inputContainerEl.style.position = 'relative';
 
@@ -118,11 +114,11 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 			const voiceState = voiceSessionController.voiceState.get();
 
 			const analyser = ttsPlaybackService.analyserNode
-				?? (voiceState === 'listening' ? micCaptureService.analyserNode : null)
+				?? (voiceState === 'listening' && !voiceSessionController.isMuted.get() ? micCaptureService.analyserNode : null)
 				?? null;
 			const intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
 
-			glowController.render(voiceState, intensity, accessibilityService.isMotionReduced());
+			glowController.render(intensity, accessibilityService.isMotionReduced());
 		};
 		animFrameId = win.requestAnimationFrame(animate);
 	};
@@ -136,10 +132,9 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 
 	store.add(autorun(reader => {
 		const connected = voiceSessionController.isConnected.read(reader);
-		const voiceState = voiceSessionController.voiceState.read(reader);
 		const active = isActive.read(reader);
 		const ownsVoice = isSurfaceOwner(reader);
-		if (shouldRenderVoiceInputGlow(connected, active, ownsVoice, voiceState)) {
+		if (shouldRenderVoiceInputGlow(connected, active, ownsVoice)) {
 			startGlowAnimation();
 		} else {
 			stopGlowAnimation();
@@ -170,37 +165,24 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 				return;
 			}
 			const handsFree = configurationService.getValue<boolean>('agents.voice.handsFree') === true;
-			if (!showTranscript && voiceState === 'listening') {
-				// Transcript is disabled: surface a minimal "Listening..." overlay
-				// while listening so the user has feedback. Cleared in any other state.
+			if (!showTranscript && voiceState === 'listening' && voiceSessionController.isMuted.read(reader)) {
 				transcriptOverlayNode.style.display = '';
 				transcriptOverlayNode.classList.remove('has-transcript');
 				transcriptOverlay.replaceChildren();
 				const listening = dom.$('span.listening');
-				listening.textContent = localize('voiceMode.listening', "Listening...");
+				listening.textContent = localize('voiceMode.mutedUnmuteToSpeak', "Unmute to speak...");
 				transcriptOverlay.append(listening);
-				transcriptScrollable.scanDomNode();
-			} else if (!showTranscript && voiceState === 'speaking') {
-				// Transcript is disabled: hint that the user can interrupt playback.
-				transcriptOverlayNode.style.display = '';
-				transcriptOverlayNode.classList.remove('has-transcript');
-				transcriptOverlay.replaceChildren();
-				const hint = dom.$('span.partial');
-				const kbLabel = getPushToTalkKeybindingLabel();
-				hint.textContent = kbLabel
-					? localize('voiceMode.bargeInHint', "Speak or use {0}", kbLabel)
-					: localize('voiceMode.bargeInHintNoKb', "Speak to barge in");
-				transcriptOverlay.append(hint);
 				transcriptScrollable.scanDomNode();
 			} else if (voiceState === 'idle' && visible.length === 0 && showTranscript && !handsFree) {
 				transcriptOverlayNode.style.display = '';
 				transcriptOverlayNode.classList.remove('has-transcript');
 				transcriptOverlay.replaceChildren();
 				const hint = dom.$('span.partial');
-				const kbLabel = getPushToTalkKeybindingLabel();
+				const kb = keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
+				const kbLabel = kb?.getLabel();
 				hint.textContent = kbLabel
-					? localize('voiceMode.pttOrBargeInHint', "Press {0} to talk or barge in", kbLabel)
-					: localize('voiceMode.clickMicOrBargeInHint', "Click voice mode to talk or barge in");
+					? localize('voiceMode.pttHint', "Hold {0} to talk", kbLabel)
+					: localize('voiceMode.clickMicHint', "Click voice mode to talk");
 				transcriptOverlay.append(hint);
 				transcriptScrollable.scanDomNode();
 			} else {

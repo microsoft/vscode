@@ -229,6 +229,7 @@ suite('claudeSubagentSignals — Phase 12 emission', () => {
 
 		const kinds = fromAssistant.map(s => s.kind);
 		const allParentIds = [...fromAssistant, ...fromToolResult].filter(s => s.kind === 'action').map(s => s.kind === 'action' ? s.parentToolCallId : null);
+		const modelCallParentId = fromAssistant.find(s => s.kind === 'model_call_completed')?.parentToolCallId;
 		const completeAction = fromToolResult.find(s => s.kind === 'action' && s.action.type === ActionType.ChatToolCallComplete);
 		const completePastTense = completeAction?.kind === 'action' && completeAction.action.type === ActionType.ChatToolCallComplete
 			? completeAction.action.result.pastTenseMessage
@@ -239,16 +240,18 @@ suite('claudeSubagentSignals — Phase 12 emission', () => {
 			toolUseEdge: registry.getParentSpawn('toolu_inner_glob')?.toolUseId,
 			fromToolResultHasComplete: completeAction !== undefined,
 			everyActionTaggedWithParent: allParentIds.every(p => p === PARENT),
+			modelCallParentId,
 			// D6 parity: inner-tool past-tense must use the rich helper
 			// (seeded by `seedParsedInput` at start time), not fall back to
 			// the generic "{displayName} finished" — replay always renders
 			// rich text, so a generic live message would silently diverge.
 			completePastTense,
 		}, {
-			fromAssistantKinds: ['subagent_started', 'action', 'action', 'action'],
+			fromAssistantKinds: ['subagent_started', 'model_call_completed', 'action', 'action', 'action'],
 			toolUseEdge: PARENT,
 			fromToolResultHasComplete: true,
 			everyActionTaggedWithParent: true,
+			modelCallParentId: PARENT,
 			completePastTense: { markdown: 'Find files matching `**/*.ts`' },
 		});
 	});

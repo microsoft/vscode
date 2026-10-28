@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as l10n from '@vscode/l10n';
-import { CancellationToken, Command, EndOfLine, InlineCompletionContext, InlineCompletionDisplayLocation, InlineCompletionDisplayLocationKind, InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletionItem, InlineCompletionItemProvider, InlineCompletionList, InlineCompletionModelInfo, InlineCompletionProviderOption, InlineCompletionsDisposeReason, InlineCompletionsDisposeReasonKind, NotebookCell, NotebookCellKind, Position, Range, TextDocument, TextDocumentShowOptions, Uri, window, workspace } from 'vscode';
+import { CancellationToken, Command, EndOfLine, env, InlineCompletionContext, InlineCompletionDisplayLocation, InlineCompletionDisplayLocationKind, InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletionItem, InlineCompletionItemProvider, InlineCompletionList, InlineCompletionModelInfo, InlineCompletionProviderOption, InlineCompletionsDisposeReason, InlineCompletionsDisposeReasonKind, InlineCompletionTriggerKind, NotebookCell, NotebookCellKind, Position, Range, TextDocument, TextDocumentShowOptions, TextEditor, Uri, window, workspace } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDiffService } from '../../../platform/diff/common/diffService';
+import { getEditedLineSpan, isSpanFullyVisibleInDocument } from '../common/visibleLines';
 import { stringEditFromDiff } from '../../../platform/editing/common/edit';
 import { DocumentEditRecorder } from '../../../platform/editSurvivalTracking/common/editComputer';
 import { EditSurvivalReporter } from '../../../platform/editSurvivalTracking/common/editSurvivalReporter';
@@ -14,8 +15,11 @@ import { IGitExtensionService } from '../../../platform/git/common/gitExtensionS
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
+import { resolveModelConfigValue } from '../../../platform/inlineEdits/common/modelConfigurationResolution';
+import { observeUnifiedCompletions } from './unifiedCompletions';
 import { shortenOpportunityId } from '../../../platform/inlineEdits/common/utils/utils';
 import { ILogger, ILogService } from '../../../platform/log/common/logService';
+import { gitHubCopilotRequestTeProperty } from '../../../platform/networking/common/fetch';
 import { getNotebookId } from '../../../platform/notebook/common/helpers';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
@@ -36,6 +40,7 @@ import { basename } from '../../../util/vs/base/common/path';
 import { StringEdit } from '../../../util/vs/editor/common/core/edits/stringEdit';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { createCorrelationId } from '../common/correlationId';
+import { learnMoreCommandId, learnMoreLink } from '../common/inlineEditCommands';
 import { NesChangeHint } from '../common/nesTriggerHint';
 import { NESInlineCompletionContext } from '../node/nextEditProvider';
 import { NextEditProviderTelemetryBuilder, TelemetrySender } from '../node/nextEditProviderTelemetry';
@@ -45,7 +50,6 @@ import { InlineCompletionCommand, InlineEditDebugComponent } from './components/
 import { LogContextRecorder } from './components/logContextRecorder';
 import { DiagnosticsNextEditResult } from './features/diagnosticsInlineEditProvider';
 import { InlineEditModel } from './inlineEditModel';
-import { learnMoreCommandId, learnMoreLink } from './inlineEditProviderFeature';
 import { toInlineSuggestion } from './isInlineSuggestion';
 import { LineCheck } from './naturalLanguageHint';
 import { InlineEditLogger } from './parts/inlineEditLogger';
@@ -59,7 +63,7 @@ const learnMoreAction: Command = {
 	tooltip: learnMoreLink
 };
 
-export interface NesCompletionItem extends InlineCompletionItem {
+interface NesCompletionItem extends InlineCompletionItem {
 	readonly telemetryBuilder: NextEditProviderTelemetryBuilder;
 	readonly info: NesCompletionInfo;
 	wasShown: boolean;
@@ -70,9 +74,14 @@ export interface NesCompletionItem extends InlineCompletionItem {
 	 * side hint). Used by the "mimic ghost text behavior" gating.
 	 */
 	isInlineCompletion?: boolean;
+	/**
+	 * The suggested edit in the document it applies to. For notebooks, `document` is the cell and `range` is
+	 * relative to that cell. Unlike `range`/`insertText`, this is not adjusted for ghost text or jump labels.
+	 */
+	readonly targetEdit?: { readonly document: TextDocument; readonly range: Range; readonly newText: string };
 }
 
-export class NesCompletionList extends InlineCompletionList {
+class NesCompletionList extends InlineCompletionList {
 
 	public override enableForwardStability = true;
 
@@ -121,8 +130,6 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 	private readonly _logger: ILogger;
 
 	public readonly onDidChange = this.model.onChange;
-	public readonly handleDidPartiallyAcceptCompletionItem = undefined;
-	public readonly handleDidRejectCompletionItem = undefined;
 
 	//#region Model picker
 	private _isModelPickerEnabled: IObservable<boolean> = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsModelPickerEnabled, this._expService);
@@ -153,7 +160,11 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 	private readonly _displayNextEditorNES: boolean;
 	private readonly _renameSymbolSuggestions: IObservable<boolean>;
 	private readonly _inlineCompletionsAdvanced: IObservable<boolean>;
-	private readonly _nesMimicGhostTextBehavior: IObservable<boolean>;
+	/**
+	 * Read here as well as at provider registration: the two must agree, or NES could be registered as
+	 * the unified provider while declining every request.
+	 */
+	private readonly _unifiedCompletions: IObservable<boolean>;
 
 	constructor(
 		private readonly model: InlineEditModel,
@@ -179,7 +190,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 		this._displayNextEditorNES = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.UseAlternativeNESNotebookFormat, this._expService);
 		this._renameSymbolSuggestions = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.Advanced.InlineEditsRenameSymbolSuggestions, this._expService);
 		this._inlineCompletionsAdvanced = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsInlineCompletionsAdvanced, this._expService);
-		this._nesMimicGhostTextBehavior = this._configurationService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.InlineEditsNesMimicGhostTextBehavior, this._expService);
+		this._unifiedCompletions = observeUnifiedCompletions(this, this._configurationService, this._expService, this._modelService);
 
 		this.setCurrentModelId = (modelId: string) => this._modelService.setCurrentModelId(modelId);
 
@@ -224,16 +235,20 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 	public async provideInlineCompletionItems(
 		document: TextDocument,
 		position: Position,
-		context: InlineCompletionContext | NESInlineCompletionContext,
+		context: InlineCompletionContext,
 		token: CancellationToken
 	): Promise<NesCompletionList | undefined> {
+		if (context.triggerKind === InlineCompletionTriggerKind.Automatic && env.isMeteredConnection) {
+			return undefined;
+		}
+
 		const label = `NES | ${basename(document.uri.fsPath)} (v${document.version})`;
 
 		const capturingToken = new CapturingToken(label, undefined);
 
 		assert(context.changeHint === undefined || NesChangeHint.is(context.changeHint), 'Expected changeHint to be of type TriggerNes or undefined');
 		const changeHint = context.changeHint as NesChangeHint | undefined;
-		const nesContext: NESInlineCompletionContext = { enforceCacheDelay: true, ...context, changeHint };
+		const nesContext: NESInlineCompletionContext = { ...context, changeHint };
 
 		return this._requestLogger.captureInvocation(capturingToken, () => this._provideInlineCompletionItems(document, position, nesContext, token));
 	}
@@ -254,7 +269,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 
 		const isCompletionsEnabled = this._isCompletionsEnabled(document);
 
-		const unification = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsUnification, this._expService);
+		const unification = this._unifiedCompletions.get();
 
 		const isInlineEditsEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.InlineEditsEnabled, this._expService, { languageId: document.languageId });
 
@@ -467,7 +482,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 			// re-surface in any other form. Suppress here without evicting the cache entry —
 			// when the cursor returns to an inline-renderable position, we'll serve it again.
 			if (
-				this._nesMimicGhostTextBehavior.get()
+				resolveModelConfigValue(this._configurationService, this._expService, ConfigKey.TeamInternal.InlineEditsNesMimicGhostTextBehavior, this._modelService.selectedModelConfiguration().nesMimicGhostTextBehavior)
 				&& !isInlineCompletion
 				&& isLlmCompletionInfo(suggestionInfo)
 				&& suggestionInfo.suggestion.result?.cacheEntry?.wasRenderedAsInlineSuggestion
@@ -515,6 +530,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 				wasShown: false,
 				supportsRename,
 				correlationId,
+				targetEdit: targetDocument && range ? { document: targetDocument, range, newText: result.edit.newText } : undefined,
 			};
 
 			return new NesCompletionList(context.requestUuid, nesCompletionItem, menuCommands, telemetryBuilder);
@@ -695,7 +711,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 		if (isLlmCompletionInfo(info)) {
 			this.model.nextEditProvider.handleAcceptance(info.documentId, info.suggestion);
 			if (!item.isEditInAnotherDocument) {
-				this._trackSurvivalRate(info);
+				this._trackSurvivalRate(info, item.telemetryBuilder);
 			}
 		} else {
 			this.model.diagnosticsBasedProvider?.handleAcceptance(info.documentId, info.suggestion);
@@ -703,11 +719,12 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 	}
 
 	// TODO: Support tracking Diagnostics NES
-	private async _trackSurvivalRate(item: LlmCompletionInfo) {
+	private async _trackSurvivalRate(item: LlmCompletionInfo, telemetryBuilder: NextEditProviderTelemetryBuilder) {
 		const result = item.suggestion.result;
 		if (!result || !result.edit) {
 			return;
 		}
+		const gitHubCopilotRequestTe = telemetryBuilder.nesBuilder.getGitHubCopilotRequestTe();
 
 		const docBeforeEdits = result.documentBeforeEdits.value;
 		const docAfterEdits = result.edit.toEdit().apply(docBeforeEdits);
@@ -730,12 +747,13 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 			diffedNextEdit,
 			userEdits,
 			{ includeArc: true },
-			res => {
+			res => void gitHubCopilotRequestTe.then(requestTe => {
 				/* __GDPR__
 					"reportInlineEditSurvivalRate" : {
 						"owner": "hediet",
 						"comment": "Reports the survival rate for an inline edit.",
 						"opportunityId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Unique identifier for an opportunity to show an NES." },
+						"gitHubCopilotRequestTe": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Raw value of the CAPI X-GitHub-Copilot-Request-Te response header for the model call that produced the accepted edit, logged unmodified. Non-user-identifying service metadata; omitted when absent." },
 
 						"survivalRateFourGram": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The rate between 0 and 1 of how much of the AI edit is still present in the document." },
 						"survivalRateNoRevert": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The rate between 0 and 1 of how much of the ranges the AI touched ended up being reverted." },
@@ -747,6 +765,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 				this._telemetryService.sendTelemetryEvent('reportInlineEditSurvivalRate', { microsoft: true, github: { eventNamePrefix: 'copilot-nes/' } },
 					{
 						opportunityId: item.requestUuid,
+						...gitHubCopilotRequestTeProperty(requestTe),
 					},
 					{
 						survivalRateFourGram: res.fourGram,
@@ -756,9 +775,22 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 						arc: res.arc!,
 					}
 				);
-
-			}
+			})
 		);
+	}
+
+	private _wasFullyVisible(item: NesCompletionItem): boolean | undefined {
+		const target = item.targetEdit;
+		if (!target) {
+			return undefined;
+		}
+		const span = getEditedLineSpan(target.range.start.line, target.range.end.line, target.newText);
+		const toVisibleLines = (editor: TextEditor) => ({
+			document: editor.document,
+			visibleRanges: editor.visibleRanges.map(r => ({ startLine: r.start.line, endLine: r.end.line })),
+		});
+		const activeEditor = window.activeTextEditor;
+		return isSpanFullyVisibleInDocument(target.document, span, activeEditor && toVisibleLines(activeEditor), window.visibleTextEditors.map(toVisibleLines));
 	}
 
 	private _handleDidRejectCompletionItem(completionItem: NesCompletionItem): void {
@@ -769,7 +801,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 
 		const info = completionItem.info;
 		if (isLlmCompletionInfo(info)) {
-			this.model.nextEditProvider.handleRejection(info.documentId, info.suggestion);
+			this.model.nextEditProvider.handleRejection(info.documentId, info.suggestion, { wasFullyVisible: this._wasFullyVisible(completionItem) });
 		} else {
 			this.model.diagnosticsBasedProvider?.handleRejection(info.documentId, info.suggestion);
 		}

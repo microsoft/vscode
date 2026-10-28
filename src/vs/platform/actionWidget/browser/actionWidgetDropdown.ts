@@ -16,9 +16,9 @@ import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ActionListItemKind, IActionListCloseAnimation, IActionListDelegate, IActionListItem, IActionListItemHover, IActionListItemInlineToggle, IActionListOptions } from './actionList.js';
 import { IActionWidgetService } from './actionWidget.js';
+import { ACTION_WIDGET_DROPDOWN_MOTION_CLASS, ACTION_WIDGET_DROPDOWN_MOTION_CLOSING_CLASS } from './actionWidgetMotion.js';
 
-export const ACTION_WIDGET_DROPDOWN_MOTION_CLASS = 'action-widget-dropdown';
-export const ACTION_WIDGET_DROPDOWN_MOTION_CLOSING_CLASS = 'action-widget-dropdown-closing';
+export { ACTION_WIDGET_DROPDOWN_MOTION_CLASS, ACTION_WIDGET_DROPDOWN_MOTION_CLOSING_CLASS } from './actionWidgetMotion.js';
 
 export const actionWidgetDropdownCloseAnimation: IActionListCloseAnimation = {
 	className: ACTION_WIDGET_DROPDOWN_MOTION_CLOSING_CLASS,
@@ -47,11 +47,17 @@ export function withActionWidgetDropdownMotion(listOptions: IActionListOptions |
 export interface IActionWidgetDropdownAction extends IAction {
 	category?: { label: string; order: number; showHeader?: boolean };
 	icon?: ThemeIcon;
+	/** Icon beside the label, separate from the selection indicator. */
+	labelIcon?: ThemeIcon;
 	description?: string | IMarkdownString;
 	/**
 	 * Optional detail text displayed as a second line below the label.
 	 */
 	detail?: string;
+	/** Optional badge displayed after the label. */
+	badge?: string;
+	/** Optional badges displayed alongside {@link badge}. */
+	additionalBadges?: IActionListItem<unknown>['additionalBadges'];
 	/**
 	 * Optional description used in the accessible label instead of the visual description.
 	 */
@@ -72,6 +78,10 @@ export interface IActionWidgetDropdownAction extends IAction {
 	 * Optional inline toggle switch rendered on its own row inside the item.
 	 */
 	inlineToggle?: IActionListItemInlineToggle;
+	/**
+	 * Optional toggle switch rendered on the same row as the label.
+	 */
+	standaloneToggle?: IActionListItemInlineToggle;
 	/**
 	 * Optional keybinding to display next to the action. When provided, this overrides the
 	 * keybinding that would otherwise be looked up via {@link IKeybindingService.lookupKeybinding}.
@@ -197,16 +207,20 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					description: action.description,
 					ariaDescription: action.ariaDescription,
 					detail: action.detail,
+					badge: action.badge,
+					additionalBadges: action.additionalBadges,
 					hover: action.hover,
 					toolbarActions: action.toolbarActions,
 					className: action.className,
 					inlineToggle: action.inlineToggle,
+					standaloneToggle: action.standaloneToggle,
 					kind: ActionListItemKind.Action,
 					canPreview: false,
 					group: { title: '', icon: action.icon ?? ThemeIcon.fromId(isCheckable && action.checked ? Codicon.check.id : Codicon.blank.id) },
 					disabled: !action.enabled,
 					hideIcon: !isCheckable && !action.icon,
 					label: action.label,
+					labelIcon: action.labelIcon,
 					keybinding: this._options.showItemKeybindings ?
 						(action.keybinding ?? this.keybindingService.lookupKeybinding(action.id)) :
 						undefined,

@@ -49,22 +49,23 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-/* Links anywhere in a notice. Anchors are not covered by the workbench focus
-	rule, so they need their own `:focus-visible` outline. */
-.chat-input-notice a,
-.chat-input-notice a:visited {
+/* Links anywhere in a notice, excluding the anchor-based controls. Anchors are
+	not covered by the workbench focus rule, so they need their own
+	`:focus-visible` outline. */
+.chat-input-notice a:not(.action-label, .monaco-button),
+.chat-input-notice a:visited:not(.action-label, .monaco-button) {
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
 	border-radius: var(--vscode-cornerRadius-xSmall);
 }
 
-.chat-input-notice a:hover,
-.chat-input-notice a:active {
+.chat-input-notice a:hover:not(.action-label, .monaco-button),
+.chat-input-notice a:active:not(.action-label, .monaco-button) {
 	color: var(--vscode-textLink-activeForeground);
 	text-decoration: underline;
 }
 
-.chat-input-notice a:focus-visible {
+.chat-input-notice a:focus-visible:not(.action-label, .monaco-button) {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: 2px;
 }

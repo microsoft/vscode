@@ -84,6 +84,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 		const options: IDropdownMenuOptions = {
 			contextMenuProvider: this.contextMenuProvider,
 			labelRenderer: labelRenderer,
+			isEnabled: () => this.action.enabled,
 			menuAsChild: this.options.menuAsChild,
 			actions: isActionsArray ? this.menuActionsOrProvider as IAction[] : undefined,
 			actionProvider: isActionsArray ? undefined : this.menuActionsOrProvider as IActionProvider,
@@ -183,6 +184,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 		const disabled = !this.action.enabled;
 		this.actionItem?.classList.toggle('disabled', disabled);
 		this.element?.classList.toggle('disabled', disabled);
+		this.element?.setAttribute('aria-disabled', String(disabled));
 	}
 }
 
@@ -221,7 +223,7 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 			separator.classList.toggle('prominent', menuActionClassNames.includes('prominent'));
 			append(this.element, separator);
 
-			this.dropdownMenuActionViewItem = this._register(new DropdownMenuActionViewItem(this._register(new Action('dropdownAction', nls.localize('moreActions', "More Actions..."))), menuActionsProvider, this.contextMenuProvider, {
+			this.dropdownMenuActionViewItem = this._register(new DropdownMenuActionViewItem(this._register(new Action('dropdownAction', nls.localize('moreActions', "More Actions..."), undefined, this.action.enabled)), menuActionsProvider, this.contextMenuProvider, {
 				classNames: ['dropdown', ...ThemeIcon.asClassNameArray(Codicon.dropDownButton), ...menuActionClassNames],
 				hoverDelegate: this.options.hoverDelegate,
 				keybindingProvider: (<IActionWithDropdownActionViewItemOptions>this.options).keybindingProvider,
@@ -260,5 +262,12 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 	override setFocusable(focusable: boolean): void {
 		super.setFocusable(focusable);
 		this.dropdownMenuActionViewItem?.setFocusable(focusable);
+	}
+
+	protected override updateEnabled(): void {
+		super.updateEnabled();
+		if (this.dropdownMenuActionViewItem) {
+			this.dropdownMenuActionViewItem.action.enabled = this.action.enabled;
+		}
 	}
 }

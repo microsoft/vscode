@@ -1,0 +1,150 @@
+{
+  "$comment": "Conformance vectors for the verbatim SDK SessionContextChangedData snapshot carried by `copilot.context` on SessionState._meta.",
+  "key": "copilot.context",
+  "carrier": "SessionState._meta",
+  "tests": [
+    {
+      "name": "projectFromSdk: serializes every SDK field in camelCase",
+      "op": "projectFromSdk",
+      "input": {
+        "sdk": {
+          "baseCommit": "1111111",
+          "branch": "main",
+          "cwd": "/work/repo",
+          "gitRoot": "/work/repo",
+          "headCommit": "2222222",
+          "hostType": "github",
+          "repository": "github/copilot-host",
+          "repositoryHost": "github.com"
+        }
+      },
+      "expected": {
+        "meta": {
+          "baseCommit": "1111111",
+          "branch": "main",
+          "cwd": "/work/repo",
+          "gitRoot": "/work/repo",
+          "headCommit": "2222222",
+          "hostType": "github",
+          "repository": "github/copilot-host",
+          "repositoryHost": "github.com"
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: omits absent git context outside a repository",
+      "op": "projectFromSdk",
+      "input": { "sdk": { "cwd": "/tmp" } },
+      "expected": { "meta": { "cwd": "/tmp" } }
+    },
+    {
+      "name": "set: stamps the snapshot onto empty _meta",
+      "op": "set",
+      "input": {
+        "meta": {},
+        "value": { "cwd": "/work/repo", "branch": "main", "repository": "github/copilot-host" }
+      },
+      "expected": {
+        "meta": {
+          "copilot.context": {
+            "cwd": "/work/repo",
+            "branch": "main",
+            "repository": "github/copilot-host"
+          }
+        }
+      }
+    },
+    {
+      "name": "set: preserves sibling metadata",
+      "op": "set",
+      "input": {
+        "meta": { "copilot.usageInfo": { "tokenLimit": 200000 } },
+        "value": { "cwd": "/work/repo", "branch": "main", "repository": "github/copilot-host" }
+      },
+      "expected": {
+        "meta": {
+          "copilot.usageInfo": { "tokenLimit": 200000 },
+          "copilot.context": {
+            "cwd": "/work/repo",
+            "branch": "main",
+            "repository": "github/copilot-host"
+          }
+        }
+      }
+    },
+    {
+      "name": "extract: returns a non-empty snapshot",
+      "op": "extract",
+      "input": {
+        "meta": {
+          "copilot.context": {
+            "cwd": "/work/repo",
+            "branch": "main",
+            "repository": "github/copilot-host"
+          }
+        }
+      },
+      "expected": {
+        "context": {
+          "cwd": "/work/repo",
+          "branch": "main",
+          "repository": "github/copilot-host"
+        }
+      }
+    },
+    {
+      "name": "extract: absent key returns null",
+      "op": "extract",
+      "input": { "meta": { "copilot.usageInfo": { "tokenLimit": 200000 } } },
+      "expected": { "context": null }
+    },
+    {
+      "name": "extract: empty _meta returns null",
+      "op": "extract",
+      "input": { "meta": {} },
+      "expected": { "context": null }
+    },
+    {
+      "name": "extract: empty object returns null",
+      "op": "extract",
+      "input": { "meta": { "copilot.context": {} } },
+      "expected": { "context": null }
+    },
+    {
+      "name": "extract: wrong type returns null",
+      "op": "extract",
+      "input": { "meta": { "copilot.context": "/work/repo" } },
+      "expected": { "context": null }
+    },
+    {
+      "name": "wireShape: pins the complete flat dotted snapshot",
+      "op": "wireShape",
+      "input": {
+        "sdk": {
+          "baseCommit": "1111111",
+          "branch": "main",
+          "cwd": "/work/repo",
+          "gitRoot": "/work/repo",
+          "headCommit": "2222222",
+          "hostType": "github",
+          "repository": "github/copilot-host",
+          "repositoryHost": "github.com"
+        }
+      },
+      "expected": {
+        "json": {
+          "copilot.context": {
+            "baseCommit": "1111111",
+            "branch": "main",
+            "cwd": "/work/repo",
+            "gitRoot": "/work/repo",
+            "headCommit": "2222222",
+            "hostType": "github",
+            "repository": "github/copilot-host",
+            "repositoryHost": "github.com"
+          }
+        }
+      }
+    }
+  ]
+}

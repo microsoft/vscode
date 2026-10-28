@@ -4,7 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../nls.js';
-import { readSessionGitState, readSessionWorkspaceless, SessionLifecycle, type Changeset, type ISessionGitState, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { URI as ResourceURI } from '../../../base/common/uri.js';
+import { readAgentMergeFolderState } from './agentMerge.js';
+import { getWorkingDirectoryKey } from './agentHostWorkingDirectories.js';
+import { isAgentMergeMessage } from './meta/agentMergeMessageMeta.js';
+import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from './meta/agentSystemNotificationMeta.js';
+import { isAhpChatChannel, MessageKind, readSessionGitState, ResponsePartKind, SessionLifecycle, type Changeset, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
 
 /**
  * Helpers for building / parsing the URI clients subscribe to in order to
@@ -12,18 +18,19 @@ import { readSessionGitState, readSessionWorkspaceless, SessionLifecycle, type C
  *
  * Shapes recognised by this module:
  *
- *     <sessionUri>/changeset/uncommitted
- *     <sessionUri>/changeset/session
- *     <sessionUri>/changeset/turn/<turnId>
- *     <sessionUri>/changeset/compare/<originalTurnId>/<modifiedTurnId>
+ *     <ownerUri>/changeset/uncommitted
+ *     <ownerUri>/changeset/session
+ *     <ownerUri>/changeset/working-set
+ *     <ownerUri>/changeset/turn/<turnId>
+ *     <ownerUri>/changeset/compare/<originalTurnId>/<modifiedTurnId>
  *
- * Catalogue entries on `summary.changesets` may also advertise the
- * URI-template forms `<sessionUri>/changeset/turn/{turnId}` and
- * `<sessionUri>/changeset/compare/{originalTurnId}/{modifiedTurnId}`;
+ * Catalogue entries may also advertise the
+ * URI-template forms `<ownerUri>/changeset/turn/{turnId}` and
+ * `<ownerUri>/changeset/compare/{originalTurnId}/{modifiedTurnId}`;
  * clients expand the template before subscribing.
  *
- * Keeping changeset URIs nested under the session URI namespace lets the
- * server cleanly tear down every changeset for a session when that session
+ * Keeping changeset URIs nested under the owner URI namespace lets the server
+ * cleanly tear down every changeset for a session or chat when that owner
  * is disposed (the reverse-lookup is just a string-prefix scan).
  */
 
@@ -35,6 +42,12 @@ const UNCOMMITTED_CHANGESET_ID = 'uncommitted';
 
 /** Stable id of the catalogue entry for the session-wide changeset. */
 const SESSION_CHANGESET_ID = 'session';
+
+/** Stable id of the catalogue entry for the working-set changeset. */
+const WORKING_SET_CHANGESET_ID = 'working-set';
+
+/** Stable id and change kind of the Agent Merge changeset. */
+export const AGENT_MERGE_CHANGESET_ID = 'agent-merge';
 
 /** Path prefix used by per-turn changeset URIs (`turn/<turnId>`). */
 const TURN_CHANGESET_PREFIX = 'turn/';
@@ -52,16 +65,22 @@ const COMPARE_ORIGINAL_TEMPLATE_VARIABLE = '{originalTurnId}';
 const COMPARE_MODIFIED_TEMPLATE_VARIABLE = '{modifiedTurnId}';
 
 /** Localized human-readable label for the branch changeset entry. */
-export const branchChangesetLabel = (): string => localize('branchChangeset.label', "Branch Changes");
+export const branchChangesetLabel = (): string => localize('branchChangeset.label', "Branch");
 
 /** Localized human-readable label for the session-wide changeset entry. */
-export const sessionChangesetLabel = (): string => localize('sessionChangeset.label', "All Changes");
+export const sessionChangesetLabel = (): string => localize('sessionChangeset.label', "Session");
 
 /** Localized human-readable description for the session-wide changeset entry. */
 export const sessionChangesetDescription = (): string => localize('sessionChangeset.description', "Show all changes made in this session");
 
+/** Localized human-readable label for the working-set changeset entry. */
+const workingSetChangesetLabel = (): string => localize('workingSetChangeset.label', "Working Set");
+
+/** Localized human-readable description for the working-set changeset entry. */
+const workingSetChangesetDescription = (): string => localize('workingSetChangeset.description', "Show changes made in this session that have not been accepted");
+
 /** Localized human-readable label for the uncommitted-changes changeset entry. */
-export const uncommittedChangesetLabel = (): string => localize('uncommittedChangeset.label', "Uncommitted Changes");
+export const uncommittedChangesetLabel = (): string => localize('uncommittedChangeset.label', "Uncommitted");
 
 /** Localized human-readable description for the uncommitted-changes changeset entry. */
 export const uncommittedChangesetDescription = (): string => localize('uncommittedChangeset.description', "Show uncommitted changes in this session");
@@ -78,29 +97,17 @@ export const compareTurnsChangesetLabel = (): string => localize('compareTurnsCh
 /** Localized human-readable description for the compare-turns changeset template entry. */
 export const compareTurnsChangesetDescription = (): string => localize('compareTurnsChangeset.description', "Show changes made between different turns");
 
+/** Localized human-readable label for the Agent Merge changeset entry. */
+const agentMergeChangesetLabel = (): string => localize('agentMergeChangeset.label', "Agent Merge");
+
+/** Localized human-readable description for the Agent Merge changeset entry. */
+const agentMergeChangesetDescription = (): string => localize('agentMergeChangeset.description', "Show changes made by Agent Merge since the last user message");
+
 /**
- * Returns the description shown next to the `Branch Changes` catalogue
- * entry. Prefers `${branchName} → ${baseBranchName}` when both values
- * are known (typical worktree-isolation case). If `baseBranchName` is
- * unknown, falls back to `${branchName} → ${upstreamBranchName}` when an
- * upstream is available. Finally falls back to `branchName` alone.
- * Returns `undefined` only when no branch name is known at all, so
- * callers can omit the description entirely.
+ * Describes Branch Changes using the explicitly resolved base rather than inferring it from Git state.
  */
-export function formatBranchChangesetDescription(gitState: ISessionGitState): string | undefined {
-	const { baseBranchName, branchName, upstreamBranchName } = gitState;
-
-	// Use branch name
-	if (baseBranchName && branchName) {
-		return `${branchName} → ${baseBranchName}`;
-	}
-
-	// Use upstream branch name
-	if (upstreamBranchName && branchName) {
-		return `${branchName} → ${upstreamBranchName}`;
-	}
-
-	return branchName;
+export function formatBranchChangesetDescription(branchName: string | undefined, baseBranchName: string | undefined): string | undefined {
+	return branchName && baseBranchName ? `${branchName} → ${baseBranchName}` : branchName;
 }
 
 /** Marker injected into a changeset URI's path. */
@@ -113,17 +120,127 @@ export const enum ChangesetKind {
 	Session = 'session',
 	Turn = 'turn',
 	Compare = 'compare-turns',
+	WorkingSet = 'working-set',
 	/** Producer-defined id we don't recognise (single-segment only). */
 	Unknown = 'unknown',
+}
+
+/**
+ * Resolves the selectable catalogue for a chat and the owner of each entry.
+ *
+ * A chat that advertises its own Session Changes entry keeps it, scoping
+ * Session Changes to that chat. Otherwise the session's cumulative Session
+ * Changes entry is projected into the chat catalogue. The session's Working Set
+ * entry is not projected. `defaultChatUri` is the session's advertised default
+ * chat (`SessionState.defaultChat`).
+ */
+export function resolveChatChangesetCatalogue(chatUri: URI, chatChangesets: readonly Changeset[] | undefined, allSessionChangesets: readonly Changeset[] | undefined, defaultChatUri: URI | undefined): readonly { readonly changeset: Changeset; readonly owner: 'chat' | 'session' }[] | undefined {
+	if (allSessionChangesets === undefined) {
+		return chatChangesets?.map(changeset => ({ changeset, owner: 'chat' as const }));
+	}
+
+	// Older hosts don't advertise the Working Set, so it doesn't tell their catalogues apart either.
+	const sessionChangesets = allSessionChangesets.filter(changeset => changeset.changeKind !== ChangesetKind.WorkingSet);
+	const sessionChangeset = sessionChangesets.find(changeset => changeset.changeKind === ChangesetKind.Session);
+	if (chatChangesets === undefined) {
+		const legacyChangesets = sessionChangesets.filter(changeset => changeset.changeKind !== ChangesetKind.Session);
+		if (legacyChangesets.length === 0) {
+			return undefined;
+		}
+		// Older hosts compute per-turn changes from session-keyed checkpoints, so
+		// peer chats share the session's Turn and Compare entries; its Branch and
+		// Uncommitted entries describe the session folder only.
+		const isDefaultChat = chatUri === defaultChatUri;
+		const changesets = isDefaultChat
+			? sessionChangesets
+			: sessionChangesets.filter(changeset => changeset.changeKind === ChangesetKind.Session || changeset.changeKind === ChangesetKind.Turn || changeset.changeKind === ChangesetKind.Compare);
+		return changesets.map(changeset => ({ changeset, owner: 'session' as const }));
+	}
+
+	const resolved: { changeset: Changeset; owner: 'chat' | 'session' }[] = chatChangesets
+		.map(changeset => ({ changeset, owner: 'chat' as const }));
+	if (sessionChangeset && !chatChangesets.some(changeset => changeset.changeKind === ChangesetKind.Session)) {
+		const turnIndex = resolved.findIndex(({ changeset }) => changeset.changeKind === ChangesetKind.Turn);
+		resolved.splice(turnIndex < 0 ? resolved.length : turnIndex, 0, { changeset: sessionChangeset, owner: 'session' });
+	}
+	return resolved;
+}
+
+/** Changeset kinds that can represent a session's default changes view. */
+export type DefaultChangesetKind = ChangesetKind.Branch | ChangesetKind.Uncommitted | ChangesetKind.Session;
+
+/** Selects the configured default changeset, falling back to the first catalogue entry. */
+export function selectDefaultChangeset<T extends Pick<Changeset, 'changeKind'>>(
+	changesets: readonly T[] | undefined,
+	defaultKind: DefaultChangesetKind = ChangesetKind.Branch,
+): T | undefined {
+	return changesets?.find(changeset => changeset.changeKind === defaultKind) ?? changesets?.[0];
+}
+
+/** RFC 3986 scheme prefix, e.g. the `ahp-session:` in `ahp-session:/abc`. */
+const URI_SCHEME_PREFIX = /^[a-zA-Z][a-zA-Z0-9+.\-]*:/;
+
+const AHP_FOLDER_CHANGESET_SCHEME = 'ahp-folder-changeset';
+const AHP_FOLDER_CHANGESET_AUTHORITY = 'scope';
+
+/**
+ * Resolve a {@link Changeset.uriTemplate} from a session's catalogue into a
+ * subscribable URI template.
+ *
+ * A host may publish the template relative to the session channel
+ * (`changeset/branch`); used verbatim that addresses the client's own
+ * filesystem. Templates that already carry a scheme are returned unchanged.
+ */
+export function resolveChangesetUriTemplate(sessionUri: URI, uriTemplate: string): string {
+	if (URI_SCHEME_PREFIX.test(uriTemplate)) {
+		return uriTemplate;
+	}
+	return `${sessionUri.replace(/\/+$/, '')}/${uriTemplate.replace(/^\/+/, '')}`;
 }
 
 export function buildBranchChangesetUri(sessionUri: URI): URI {
 	return `${sessionUri}${CHANGESET_PATH_SEGMENT}${BRANCH_CHANGESET_ID}`;
 }
 
+/** Builds the session-scoped owner URI for one effective folder/worktree scope. */
+export function buildFolderChangesetOwnerUri(sessionUri: URI, scopeId: string): URI {
+	if (!scopeId || scopeId.includes('/')) {
+		throw new Error(`buildFolderChangesetOwnerUri: scopeId must be non-empty and not contain '/' (got ${JSON.stringify(scopeId)})`);
+	}
+	const encodedSession = encodeBase64(VSBuffer.fromString(sessionUri), false, true);
+	return `${AHP_FOLDER_CHANGESET_SCHEME}://${AHP_FOLDER_CHANGESET_AUTHORITY}/${encodedSession}/${scopeId}`;
+}
+
+/** Parses a folder changeset owner URI into its containing session and opaque scope id. */
+export function parseFolderChangesetOwnerUri(ownerUri: URI): { sessionUri: URI; scopeId: string } | undefined {
+	let parsed: ResourceURI;
+	try {
+		parsed = ResourceURI.parse(ownerUri);
+	} catch {
+		return undefined;
+	}
+	if (parsed.scheme !== AHP_FOLDER_CHANGESET_SCHEME || parsed.authority !== AHP_FOLDER_CHANGESET_AUTHORITY) {
+		return undefined;
+	}
+	const [encodedSession, scopeId, ...extra] = parsed.path.replace(/^\//, '').split('/');
+	if (!encodedSession || !scopeId || extra.length > 0) {
+		return undefined;
+	}
+	try {
+		return { sessionUri: decodeBase64(encodedSession).toString(), scopeId };
+	} catch {
+		return undefined;
+	}
+}
+
 /** Returns the subscribable URI for the session-wide changeset. */
 export function buildSessionChangesetUri(sessionUri: URI): URI {
 	return `${sessionUri}${CHANGESET_PATH_SEGMENT}${SESSION_CHANGESET_ID}`;
+}
+
+/** Returns the subscribable URI for the working-set changeset of a session or chat. */
+export function buildWorkingSetChangesetUri(ownerUri: URI): URI {
+	return `${ownerUri}${CHANGESET_PATH_SEGMENT}${WORKING_SET_CHANGESET_ID}`;
 }
 
 /** Returns the subscribable URI for the uncommitted-changes changeset. */
@@ -189,10 +306,12 @@ export function buildChangesetUri(sessionUri: URI, changesetId: string): URI {
 }
 
 /**
- * Parses a changeset URI back into `(sessionUri, changesetId, kind)`,
- * or returns `undefined` if `uri` is not a changeset URI we recognise.
+ * Parses a changeset URI back into its owner, id, and kind, or returns
+ * `undefined` if `uri` is not a changeset URI we recognise. `sessionUri` is
+ * set for session- and folder-owned changesets; the session of a chat-owned
+ * changeset is that chat's recorded owner (see {@link changesetSession}).
  */
-export function parseChangesetUri(uri: URI): { sessionUri: URI; changesetId: string; kind: ChangesetKind; turnId?: string; originalTurnId?: string; modifiedTurnId?: string } | undefined {
+export function parseChangesetUri(uri: URI): { ownerUri: URI; sessionUri: URI | undefined; changesetId: string; kind: ChangesetKind; turnId?: string; originalTurnId?: string; modifiedTurnId?: string } | undefined {
 	const idx = uri.lastIndexOf(CHANGESET_PATH_SEGMENT);
 	if (idx < 0) {
 		return undefined;
@@ -201,15 +320,19 @@ export function parseChangesetUri(uri: URI): { sessionUri: URI; changesetId: str
 	if (!changesetId) {
 		return undefined;
 	}
-	const sessionUri = uri.slice(0, idx);
+	const ownerUri = uri.slice(0, idx);
+	const sessionUri = parseFolderChangesetOwnerUri(ownerUri)?.sessionUri ?? (isAhpChatChannel(ownerUri) ? undefined : ownerUri);
 	if (changesetId === BRANCH_CHANGESET_ID) {
-		return { sessionUri, changesetId, kind: ChangesetKind.Branch };
+		return { ownerUri, sessionUri, changesetId, kind: ChangesetKind.Branch };
 	}
 	if (changesetId === UNCOMMITTED_CHANGESET_ID) {
-		return { sessionUri, changesetId, kind: ChangesetKind.Uncommitted };
+		return { ownerUri, sessionUri, changesetId, kind: ChangesetKind.Uncommitted };
 	}
 	if (changesetId === SESSION_CHANGESET_ID) {
-		return { sessionUri, changesetId, kind: ChangesetKind.Session };
+		return { ownerUri, sessionUri, changesetId, kind: ChangesetKind.Session };
+	}
+	if (changesetId === WORKING_SET_CHANGESET_ID) {
+		return { ownerUri, sessionUri, changesetId, kind: ChangesetKind.WorkingSet };
 	}
 	if (changesetId.startsWith(TURN_CHANGESET_PREFIX)) {
 		const turnId = changesetId.slice(TURN_CHANGESET_PREFIX.length);
@@ -217,7 +340,7 @@ export function parseChangesetUri(uri: URI): { sessionUri: URI; changesetId: str
 		if (!turnId || turnId.includes('/') || turnId === TURN_TEMPLATE_VARIABLE) {
 			return undefined;
 		}
-		return { sessionUri, changesetId, kind: ChangesetKind.Turn, turnId };
+		return { ownerUri, sessionUri, changesetId, kind: ChangesetKind.Turn, turnId };
 	}
 	if (changesetId.startsWith(COMPARE_CHANGESET_PREFIX)) {
 		const tail = changesetId.slice(COMPARE_CHANGESET_PREFIX.length);
@@ -233,12 +356,17 @@ export function parseChangesetUri(uri: URI): { sessionUri: URI; changesetId: str
 			|| modifiedTurnId === COMPARE_MODIFIED_TEMPLATE_VARIABLE) {
 			return undefined;
 		}
-		return { sessionUri, changesetId, kind: ChangesetKind.Compare, originalTurnId, modifiedTurnId };
+		return { ownerUri, sessionUri, changesetId, kind: ChangesetKind.Compare, originalTurnId, modifiedTurnId };
 	}
 	if (changesetId.includes('/')) {
 		return undefined;
 	}
-	return { sessionUri, changesetId, kind: ChangesetKind.Unknown };
+	return { ownerUri, sessionUri, changesetId, kind: ChangesetKind.Unknown };
+}
+
+/** The session containing a parsed changeset's owner, resolving a chat owner through its recorded owner. */
+export function changesetSession(parsed: { readonly ownerUri: URI; readonly sessionUri: URI | undefined }, getChatOwner: (chat: URI) => URI | undefined): URI | undefined {
+	return parsed.sessionUri ?? getChatOwner(parsed.ownerUri);
 }
 
 /** Returns `true` iff `uri` looks like a changeset URI we recognise. */
@@ -257,50 +385,77 @@ export function isUncommittedChangesetUri(uri: URI): boolean {
 }
 
 /** Returns the parsed turn id when `uri` is a per-turn changeset URI. */
-export function parseTurnChangesetUri(uri: URI): { sessionUri: URI; turnId: string } | undefined {
+export function parseTurnChangesetUri(uri: URI): { ownerUri: URI; turnId: string } | undefined {
 	const parsed = parseChangesetUri(uri);
 	if (parsed?.kind !== ChangesetKind.Turn || parsed.turnId === undefined) {
 		return undefined;
 	}
-	return { sessionUri: parsed.sessionUri, turnId: parsed.turnId };
+	return { ownerUri: parsed.ownerUri, turnId: parsed.turnId };
 }
 
 /** Returns the parsed turn ids when `uri` is a compare-turns changeset URI. */
-export function parseCompareTurnsChangesetUri(uri: URI): { sessionUri: URI; originalTurnId: string; modifiedTurnId: string } | undefined {
+export function parseCompareTurnsChangesetUri(uri: URI): { ownerUri: URI; originalTurnId: string; modifiedTurnId: string } | undefined {
 	const parsed = parseChangesetUri(uri);
 	if (parsed?.kind !== ChangesetKind.Compare || parsed.originalTurnId === undefined || parsed.modifiedTurnId === undefined) {
 		return undefined;
 	}
-	return { sessionUri: parsed.sessionUri, originalTurnId: parsed.originalTurnId, modifiedTurnId: parsed.modifiedTurnId };
+	return { ownerUri: parsed.ownerUri, originalTurnId: parsed.originalTurnId, modifiedTurnId: parsed.modifiedTurnId };
 }
 
 /**
- * Builds the default ordered `summary.changesets` catalogue for a
- * session (`Branch Changes`, `Uncommitted Changes`, `This Turn`) with
- * label + uriTemplate only. Aggregate counts are filled in later by the
- * diff producer as compute passes complete.
+ * Builds the ordered changeset catalogue for a session or chat channel.
+ * Aggregate counts are filled in later by the diff producer as compute passes
+ * complete.
  *
- * The first two entries (`Branch Changes`, `Uncommitted Changes`) are
- * git-only; `AgentService._attachGitState` strips them asynchronously
- * for sessions whose working directory is not a git repo. The backing
- * per-changeset states are still registered for every session — only
- * the catalogue advertisements are stripped.
+ * Ready session channels advertise the cumulative Session Changes entry, and
+ * the Working Set entry with the session's changes that the user hasn't
+ * accepted. The default chat is created together with the session and owns the temporary
+ * uncommitted entry while the session is being created, as well as its
+ * repository and turn catalogue after materialization. Peer chats additionally
+ * advertise their own Session Changes entry, scoped to the edits made in that
+ * chat, in place of the session's cumulative entry.
  *
- * The compare-turns changeset (built by
- * {@link buildCompareTurnsChangesetUri}) is intentionally NOT included
- * in the default catalogue: it is subscribe-only. Clients that want
- * compare-turns diffs construct the URI themselves from two known
- * turn ids and subscribe directly.
+ * The first two chat entries (`Branch`, `Uncommitted`) are
+ * included only when Git state is available. The backing per-changeset states
+ * are still registered for every owner; only the catalogue advertisement is
+ * conditional.
+ *
+ * The Agent Merge entry is advertised by the chat that owns the enabled folder.
+ * It uses the chat-owned compare-turns URI template because the repair range
+ * belongs to that chat, and remains available after Agent Merge is disabled.
+ * When chats share the folder, `resolveAgentMergeOwner` picks the one chat
+ * whose transcript the repairs run in.
+ * `branchChangesetOwnerUri` lets matching chat catalogues share one repository-level Branch Changes resource.
+ * `isDefaultChat` is whether `ownerUri` is its session's recorded default chat.
+ * `workspaceless` is the owner's own decision: the per-chat decision for a chat channel, the session marker for the session channel.
+ * `branchChangesetBaseBranch` is resolved by the host using the same precedence as the branch diff.
  */
-export function buildDefaultChangesetCatalog(sessionUri: URI, state?: ISessionWithDefaultChat): Changeset[] {
+export function buildDefaultChangesetCatalog(ownerUri: URI, isDefaultChat: boolean, workspaceless: boolean, state?: ISessionWithDefaultChat, branchChangesetOwnerUri: URI = ownerUri, resolveAgentMergeOwner?: (folderKey: string, recordedChat: URI | undefined) => URI | undefined, branchChangesetBaseBranch?: string): Changeset[] {
 	// Session that failed to create
-	if (!state || state.lifecycle === SessionLifecycle.CreationFailed) {
+	if (!state || state.lifecycle === SessionLifecycle.Failed) {
 		return [];
+	}
+
+	if (!isAhpChatChannel(ownerUri.toString())) {
+		if (state.lifecycle === SessionLifecycle.Creating || workspaceless) {
+			return [];
+		}
+		return [{
+			label: sessionChangesetLabel(),
+			description: sessionChangesetDescription(),
+			uriTemplate: buildSessionChangesetUri(ownerUri),
+			changeKind: ChangesetKind.Session,
+		}, {
+			label: workingSetChangesetLabel(),
+			description: workingSetChangesetDescription(),
+			uriTemplate: buildWorkingSetChangesetUri(ownerUri),
+			changeKind: ChangesetKind.WorkingSet,
+		}];
 	}
 
 	// New Session
 	if (state.lifecycle === SessionLifecycle.Creating) {
-		if (readSessionWorkspaceless(state._meta)) {
+		if (workspaceless) {
 			// Quick chat
 			return [];
 		}
@@ -309,62 +464,87 @@ export function buildDefaultChangesetCatalog(sessionUri: URI, state?: ISessionWi
 		return [{
 			label: uncommittedChangesetLabel(),
 			description: uncommittedChangesetDescription(),
-			uriTemplate: buildUncommittedChangesetUri(sessionUri),
+			uriTemplate: buildUncommittedChangesetUri(ownerUri),
 			changeKind: ChangesetKind.Uncommitted
 		}];
 	}
 
 	const gitState = readSessionGitState(state._meta);
+	const agentMergeChangeset = shouldAdvertiseAgentMergeChangeset(ownerUri, state, isDefaultChat, resolveAgentMergeOwner)
+		? [{
+			label: agentMergeChangesetLabel(),
+			description: agentMergeChangesetDescription(),
+			uriTemplate: buildCompareTurnsChangesetUriTemplate(ownerUri),
+			changeKind: AGENT_MERGE_CHANGESET_ID,
+		}] satisfies Changeset[]
+		: [];
+	const chatSessionChangeset = !isDefaultChat && !workspaceless
+		? [{
+			label: sessionChangesetLabel(),
+			description: sessionChangesetDescription(),
+			uriTemplate: buildSessionChangesetUri(ownerUri),
+			changeKind: ChangesetKind.Session,
+		}] satisfies Changeset[]
+		: [];
 
 	if (!gitState) {
 		// No git repository
-		return [{
-			label: sessionChangesetLabel(),
-			description: sessionChangesetDescription(),
-			uriTemplate: buildSessionChangesetUri(sessionUri),
-			changeKind: ChangesetKind.Session
-		},
-		{
+		return [...chatSessionChangeset, {
 			label: thisTurnChangesetLabel(),
 			description: thisTurnChangesetDescription(),
-			uriTemplate: buildTurnChangesetUriTemplate(sessionUri),
+			uriTemplate: buildTurnChangesetUriTemplate(ownerUri),
 			changeKind: ChangesetKind.Turn
-		}] satisfies Changeset[];
+		},
+		...agentMergeChangeset] satisfies Changeset[];
 	}
 
 	return [
 		{
 			label: branchChangesetLabel(),
-			description: gitState
-				? formatBranchChangesetDescription(gitState)
-				: undefined,
-			uriTemplate: buildBranchChangesetUri(sessionUri),
+			description: formatBranchChangesetDescription(gitState.branchName, branchChangesetBaseBranch),
+			uriTemplate: buildBranchChangesetUri(branchChangesetOwnerUri),
 			changeKind: ChangesetKind.Branch,
 			capabilities: { review: {} }
 		},
 		{
 			label: uncommittedChangesetLabel(),
 			description: uncommittedChangesetDescription(),
-			uriTemplate: buildUncommittedChangesetUri(sessionUri),
+			uriTemplate: buildUncommittedChangesetUri(ownerUri),
 			changeKind: ChangesetKind.Uncommitted
 		},
-		{
-			label: sessionChangesetLabel(),
-			description: sessionChangesetDescription(),
-			uriTemplate: buildSessionChangesetUri(sessionUri),
-			changeKind: ChangesetKind.Session
-		},
+		...chatSessionChangeset,
 		{
 			label: thisTurnChangesetLabel(),
 			description: thisTurnChangesetDescription(),
-			uriTemplate: buildTurnChangesetUriTemplate(sessionUri),
+			uriTemplate: buildTurnChangesetUriTemplate(ownerUri),
 			changeKind: ChangesetKind.Turn
 		},
 		{
 			label: compareTurnsChangesetLabel(),
 			description: compareTurnsChangesetDescription(),
-			uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri),
+			uriTemplate: buildCompareTurnsChangesetUriTemplate(ownerUri),
 			changeKind: ChangesetKind.Compare
-		}
+		},
+		...agentMergeChangeset
 	] satisfies Changeset[];
+}
+
+function shouldAdvertiseAgentMergeChangeset(ownerUri: URI, state: ISessionWithDefaultChat, isDefaultChat: boolean, resolveAgentMergeOwner: ((folderKey: string, recordedChat: URI | undefined) => URI | undefined) | undefined): boolean {
+	const folderKey = state.workingDirectories?.[0] ? getWorkingDirectoryKey(state.workingDirectories[0]) : undefined;
+	if (!isDefaultChat && folderKey === undefined) {
+		return false;
+	}
+	const sessionFolderKey = isDefaultChat ? folderKey : undefined;
+	const folderState = readAgentMergeFolderState(state.config?.values, folderKey, sessionFolderKey);
+	const ownsEnabledFolder = folderState?.enabled === true
+		&& (folderKey === undefined || !resolveAgentMergeOwner || resolveAgentMergeOwner(folderKey, folderState.chat) === ownerUri);
+	if (ownsEnabledFolder || state.changesets?.some(changeset => changeset.changeKind === AGENT_MERGE_CHANGESET_ID)) {
+		return true;
+	}
+
+	return state.turns.some(turn =>
+		(turn.message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(turn.message))
+		|| turn.responseParts.some(part =>
+			part.kind === ResponsePartKind.SystemNotification
+			&& readAgentSystemNotificationMeta(part).kind === AgentSystemNotificationKind.AgentMergeEnabled));
 }

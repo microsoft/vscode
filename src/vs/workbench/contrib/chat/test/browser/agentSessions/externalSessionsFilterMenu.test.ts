@@ -12,6 +12,8 @@ import { ChatExternalSessionsMode } from '../../../../../../platform/chat/common
 import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOverrides } from '../../../../../../platform/configuration/common/configuration.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpression, ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { registerExternalSessionsFilterMenu } from '../../../browser/agentSessions/externalSessionsFilterMenu.js';
 import { ChatConfiguration } from '../../../common/constants.js';
@@ -59,7 +61,7 @@ suite('External Sessions Filter Menu', () => {
 				{ title: 'Recent', checkedForRecent: true },
 				{ title: 'Last 24 Hours', checkedForRecent: false },
 				{ title: 'Last 7 Days', checkedForRecent: false },
-				{ title: 'All', checkedForRecent: false },
+				{ title: 'Last 30 Days', checkedForRecent: false },
 			],
 		});
 	});
@@ -88,6 +90,29 @@ suite('External Sessions Filter Menu', () => {
 			value: ChatExternalSessionsMode.None,
 			target: ConfigurationTarget.USER,
 		}]);
+	});
+
+	test('shows the selected mode with a custom submenu title', () => {
+		const parent = new MenuId('TestExternalSessionsSelectedParent');
+		const submenu = new MenuId('TestExternalSessionsSelectedSubmenu');
+		disposables.add(registerExternalSessionsFilterMenu(parent, submenu, '3_visibility', true, { value: 'Created Externally', original: 'Created Externally' }));
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const titles = [ChatExternalSessionsMode.None, ChatExternalSessionsMode.Recent, ChatExternalSessionsMode.Last24Hours, ChatExternalSessionsMode.Last7Days, ChatExternalSessionsMode.Last30Days, 'unrecognized'].map(mode => {
+			const context = contextKeyService.createOverlay([[`config.${ChatConfiguration.ShowExternalAgentSessions}`, mode]]);
+			return MenuRegistry.getMenuItems(parent)
+				.filter(item => context.contextMatchesRules(item.when))
+				.filter(isISubmenuItem)
+				.map(item => typeof item.title === 'string' ? item.title : item.title.value);
+		});
+
+		assert.deepStrictEqual(titles, [
+			['Created Externally (None)'],
+			['Created Externally (Recent)'],
+			['Created Externally (Last 24 Hours)'],
+			['Created Externally (Last 7 Days)'],
+			['Created Externally (Last 30 Days)'],
+			['Created Externally'],
+		]);
 	});
 });
 

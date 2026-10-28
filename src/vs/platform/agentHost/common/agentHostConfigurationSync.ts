@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from '../../../base/common/network.js';
+import { ArtifactIntegrationsSettingId } from '../../artifactIntegrations/common/artifactIntegration.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { Extensions as ConfigurationExtensions, IAgentHostConfigurationSync, IConfigurationPropertySchema, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IAgentHostConfigurationSync, IConfigurationPropertySchema, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../registry/common/platform.js';
+import { AgentHostResourceIdentity, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from './agentHostResourceService.js';
+import { AgentMergeSettingId } from './agentMerge.js';
 
 function getRegistry(): IConfigurationRegistry {
 	return Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -64,10 +68,9 @@ export function getGlobalConfigurationValue<T>(configurationService: IConfigurat
 			return value;
 		}
 	}
-	// `inspect` reports the default from the default-configuration model, which is
-	// built only from *visible* properties — a setting hidden with `included: false`
-	// has no entry there. Fall back to the declared default so hidden and visible
-	// settings mirror identically.
+	// Hidden experimental settings participate in the default-configuration model.
+	// Other settings hidden with `included: false` have no entry there, so fall
+	// back to their declared default.
 	return inspected.defaultValue ?? property?.default as T | undefined;
 }
 
@@ -100,17 +103,40 @@ export interface IAgentHostConfigurationSyncEntry {
 	readonly sync: IAgentHostConfigurationSync;
 }
 
+export const enum AgentHostConfigurationSyncTarget {
+	Local,
+	RemoteExtensionHost,
+	Remote,
+}
+
+export function getAgentHostConfigurationSyncTarget(identity: AgentHostResourceIdentity): AgentHostConfigurationSyncTarget {
+	if (identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY) {
+		return AgentHostConfigurationSyncTarget.Local;
+	}
+	return identity.startsWith(`${Schemas.vscodeRemote}://`)
+		? AgentHostConfigurationSyncTarget.RemoteExtensionHost
+		: AgentHostConfigurationSyncTarget.Remote;
+}
+
+function includesTarget(scope: AgentHostConfigurationSyncScope | undefined, target: AgentHostConfigurationSyncTarget): boolean {
+	switch (scope ?? AgentHostConfigurationSyncScope.All) {
+		case AgentHostConfigurationSyncScope.All:
+			return true;
+		case AgentHostConfigurationSyncScope.Local:
+			return target === AgentHostConfigurationSyncTarget.Local;
+		case AgentHostConfigurationSyncScope.Ambient:
+			return target === AgentHostConfigurationSyncTarget.Local || target === AgentHostConfigurationSyncTarget.RemoteExtensionHost;
+	}
+}
+
 /**
  * Returns every setting that declares agent-host mirroring and applies to a host
- * of this locality.
- *
- * @param isLocalAgentHost Whether the target host runs on the user's own
- * machine. Entries marked `localOnly` are omitted for remote hosts.
+ * of this target kind.
  */
-export function getAgentHostConfigurationSyncEntries(isLocalAgentHost: boolean): IAgentHostConfigurationSyncEntry[] {
+export function getAgentHostConfigurationSyncEntries(target: AgentHostConfigurationSyncTarget): IAgentHostConfigurationSyncEntry[] {
 	const entries: IAgentHostConfigurationSyncEntry[] = [];
 	for (const [settingId, sync] of getRegistry().getAgentHostSyncConfigurations()) {
-		if (sync.localOnly && !isLocalAgentHost) {
+		if (!includesTarget(sync.scope, target)) {
 			continue;
 		}
 		entries.push({ settingId, sync });
@@ -124,8 +150,28 @@ export function getAgentHostConfigurationSyncEntries(isLocalAgentHost: boolean):
  * host's root config.
  */
 export function resolveAgentHostConfigurationSyncValue(configurationService: IConfigurationService, entry: IAgentHostConfigurationSyncEntry): unknown {
+	if (entry.settingId === AgentMergeSettingId.Enabled && getGlobalConfigurationValue(configurationService, ArtifactIntegrationsSettingId) === true) {
+		return false;
+	}
 	const value = getGlobalConfigurationValue(configurationService, entry.settingId);
 	return entry.sync.transform ? entry.sync.transform(value) : value;
+}
+
+/**
+ * Renders a mirrored value for logging, redacting anything that could carry
+ * user content. Mirrored settings are registry-driven and may hold paths or
+ * arbitrary strings, so only closed-set values (booleans, numbers, and declared
+ * enum members) are printed verbatim.
+ */
+export function formatAgentHostConfigurationSyncValueForLog(settingId: string, value: unknown): string {
+	if (typeof value === 'boolean' || typeof value === 'number') {
+		return String(value);
+	}
+	const property = getPropertySchema(settingId);
+	if (typeof value === 'string' && property?.enum?.includes(value)) {
+		return value;
+	}
+	return `<${Array.isArray(value) ? 'array' : typeof value}>`;
 }
 
 /**
@@ -133,16 +179,33 @@ export function resolveAgentHostConfigurationSyncValue(configurationService: ICo
  * connect and reconnect, where the host may be a freshly restarted process that
  * has none of these values.
  */
-export function resolveAgentHostConfigurationSyncPatch(configurationService: IConfigurationService, isLocalAgentHost: boolean): Record<string, unknown> {
+export function resolveAgentHostConfigurationSyncPatch(configurationService: IConfigurationService, target: AgentHostConfigurationSyncTarget): Record<string, unknown> {
 	const patch: Record<string, unknown> = {};
-	for (const entry of getAgentHostConfigurationSyncEntries(isLocalAgentHost)) {
+	for (const entry of getAgentHostConfigurationSyncEntries(target)) {
 		const value = resolveAgentHostConfigurationSyncValue(configurationService, entry);
 		// A setting with no value in any global layer and no registered default has
 		// nothing to mirror; leave the key absent so a previously stored host value
 		// is preserved rather than clobbered with `undefined`.
 		if (value !== undefined) {
-			patch[entry.sync.key] = value;
+			addAgentHostConfigurationSyncValue(patch, entry, value);
 		}
 	}
 	return patch;
+}
+
+/**
+ * Writes a mirrored `value` for `entry` into `patch`, including any
+ * {@link IAgentHostConfigurationSync.derivedKeys}. Returns the keys written.
+ */
+export function addAgentHostConfigurationSyncValue(patch: Record<string, unknown>, entry: IAgentHostConfigurationSyncEntry, value: unknown): string[] {
+	patch[entry.sync.key] = value;
+	const keys = [entry.sync.key];
+	for (const [key, derive] of Object.entries(entry.sync.derivedKeys ?? {})) {
+		const derived = derive(value);
+		if (derived !== undefined) {
+			patch[key] = derived;
+			keys.push(key);
+		}
+	}
+	return keys;
 }

@@ -9,6 +9,8 @@ import fs from 'fs';
 import https from 'https';
 import path from 'path';
 import { createHash } from 'crypto';
+import { download } from '../../lib/download.ts';
+import { getElectronVersion } from '../../lib/electronVersion.ts';
 import type { DebianArchString } from './types.ts';
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
@@ -34,13 +36,6 @@ interface IFetchOptions {
 	assetName: string;
 	checksumSha256?: string;
 	dest: string;
-}
-
-function getElectronVersion(): Record<string, string> {
-	const npmrc = fs.readFileSync(path.join(REPO_ROOT, '.npmrc'), 'utf8');
-	const electronVersion = /^target="(.*)"$/m.exec(npmrc)![1];
-	const msBuildId = /^ms_build_id="(.*)"$/m.exec(npmrc)![1];
-	return { electronVersion, msBuildId };
 }
 
 function getSha(filename: fs.PathLike): string {
@@ -74,56 +69,29 @@ function getVSCodeSysrootChecksum(expectedName: string) {
  * and vinyl-fs breaks the symlinks in the compiler toolchain sysroot. We use the native
  * tar implementation for that reason.
  */
-async function fetchUrl(options: IFetchOptions, retries = 10, retryDelay = 1000): Promise<undefined> {
-	try {
-		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), 30 * 1000);
-		const version = '20260212-405735';
-		try {
-			const response = await fetch(`https://api.github.com/repos/Microsoft/vscode-linux-build-agent/releases/tags/v${version}`, {
-				headers: ghApiHeaders,
-				signal: controller.signal
-			});
-			if (response.ok && (response.status >= 200 && response.status < 300)) {
-				console.log(`Fetch completed: Status ${response.status}.`);
-				const contents = Buffer.from(await response.arrayBuffer());
-				const asset = JSON.parse(contents.toString()).assets.find((a: { name: string }) => a.name === options.assetName);
-				if (!asset) {
-					throw new Error(`Could not find asset in release of Microsoft/vscode-linux-build-agent @ ${version}`);
-				}
-				console.log(`Found asset ${options.assetName} @ ${asset.url}.`);
-				const assetResponse = await fetch(asset.url, {
-					headers: ghDownloadHeaders
-				});
-				if (assetResponse.ok && (assetResponse.status >= 200 && assetResponse.status < 300)) {
-					const assetContents = Buffer.from(await assetResponse.arrayBuffer());
-					console.log(`Fetched response body buffer: ${(assetContents as Buffer).byteLength} bytes`);
-					if (options.checksumSha256) {
-						const actualSHA256Checksum = createHash('sha256').update(assetContents).digest('hex');
-						if (actualSHA256Checksum !== options.checksumSha256) {
-							throw new Error(`Checksum mismatch for ${asset.url} (expected ${options.checksumSha256}, actual ${actualSHA256Checksum}))`);
-						}
-					}
-					console.log(`Verified SHA256 checksums match for ${asset.url}`);
-					const tarCommand = `tar -xz -C ${options.dest}`;
-					execSync(tarCommand, { input: assetContents });
-					console.log(`Fetch complete!`);
-					return;
-				}
-				throw new Error(`Request ${asset.url} failed with status code: ${assetResponse.status}`);
-			}
-			throw new Error(`Request https://api.github.com failed with status code: ${response.status}`);
-		} finally {
-			clearTimeout(timeout);
-		}
-	} catch (e) {
-		if (retries > 0) {
-			console.log(`Fetching failed: ${e}`);
-			await new Promise(resolve => setTimeout(resolve, retryDelay));
-			return fetchUrl(options, retries - 1, retryDelay);
-		}
-		throw e;
+async function fetchUrl(options: IFetchOptions): Promise<void> {
+	const version = '20260212-405735';
+	const releaseUrl = `https://api.github.com/repos/Microsoft/vscode-linux-build-agent/releases/tags/v${version}`;
+	const downloadOptions = {
+		attempts: 11,
+		onRetry: (error: Error) => console.log(`Fetching failed: ${error}`)
+	};
+	const releaseContents = await download(releaseUrl, { ...downloadOptions, headers: ghApiHeaders });
+	const asset = JSON.parse(Buffer.from(releaseContents).toString()).assets.find((a: { name: string }) => a.name === options.assetName);
+	if (!asset) {
+		throw new Error(`Could not find asset in release of Microsoft/vscode-linux-build-agent @ ${version}`);
 	}
+
+	console.log(`Found asset ${options.assetName} @ ${asset.url}.`);
+	const assetContents = Buffer.from(await download(asset.url, {
+		...downloadOptions,
+		headers: ghDownloadHeaders,
+		checksumSha256: options.checksumSha256
+	}));
+	console.log(`Fetched response body buffer: ${assetContents.byteLength} bytes`);
+	console.log(`Verified SHA256 checksums match for ${asset.url}`);
+	execSync(`tar -xz -C ${options.dest}`, { input: assetContents });
+	console.log('Fetch complete!');
 }
 
 type SysrootDictEntry = {

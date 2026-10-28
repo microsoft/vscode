@@ -27,6 +27,7 @@ import { PromptCodeActionProvider } from '../../../../common/promptSyntax/langua
 import { PromptValidatorMarkerCode } from '../../../../common/promptSyntax/languageProviders/promptValidator.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { CodeActionKind } from '../../../../../../../editor/contrib/codeAction/common/types.js';
+import { createVSCodeHarnessDescriptor, ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
 
 suite('PromptCodeActionProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -85,6 +86,9 @@ suite('PromptCodeActionProvider', () => {
 				}
 				return undefined;
 			}
+		});
+		instaService.stub(ICustomizationHarnessService, {
+			getActiveDescriptor: () => createVSCodeHarnessDescriptor(),
 		});
 
 		codeActionProvider = instaService.createInstance(PromptCodeActionProvider);

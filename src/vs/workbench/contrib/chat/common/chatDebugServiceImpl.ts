@@ -11,10 +11,11 @@ import { Disposable, IDisposable, toDisposable } from '../../../../base/common/l
 import { ResourceMap } from '../../../../base/common/map.js';
 import { extUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugLogProvider, IChatDebugResolvedEventContent, IChatDebugService } from './chatDebugService.js';
+import { CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST, CHAT_DEBUG_HAS_ACTIVE_SESSION, ChatDebugLogLevel, IChatDebugEvent, IChatDebugLogProvider, IChatDebugResolvedEventContent, IChatDebugService } from './chatDebugService.js';
 import { isAgentHostTarget, localChatSessionType } from './chatSessionsService.js';
 import { getChatSessionType } from './model/chatUri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { AgentHostAgentDebugLogMaxEventsSettingId } from './promptSyntax/promptTypes.js';
 
 /**
@@ -140,12 +141,31 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	/** Human-readable titles for imported sessions. */
 	private readonly _importedSessionTitles = new ResourceMap<string>();
 
-	activeSessionResource: URI | undefined;
+	private readonly _hasActiveSessionContextKey: IContextKey<boolean>;
+	private readonly _activeSessionIsAgentHostContextKey: IContextKey<boolean>;
+	private _activeSessionResource: URI | undefined;
+
+	get activeSessionResource(): URI | undefined {
+		return this._activeSessionResource;
+	}
+
+	set activeSessionResource(value: URI | undefined) {
+		this._activeSessionResource = value;
+		this._hasActiveSessionContextKey.set(value !== undefined);
+		this._activeSessionIsAgentHostContextKey.set(value ? isAgentHostTarget(getChatSessionType(value)) : false);
+	}
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+		this._hasActiveSessionContextKey = CHAT_DEBUG_HAS_ACTIVE_SESSION.bindTo(contextKeyService);
+		this._activeSessionIsAgentHostContextKey = CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST.bindTo(contextKeyService);
+		this._register(toDisposable(() => {
+			this._hasActiveSessionContextKey.reset();
+			this._activeSessionIsAgentHostContextKey.reset();
+		}));
 	}
 
 	/** Priority for deduplicating events with the same ID: lower = richer. */

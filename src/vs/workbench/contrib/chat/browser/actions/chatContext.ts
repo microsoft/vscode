@@ -4,34 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
 import { isElectron } from '../../../../../base/common/platform.js';
-import { extUriBiasedIgnorePathCase, IExtUri } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
-import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { IPathService } from '../../../../services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../../services/environment/common/copilotHomeService.js';
 import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
 import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.js';
 import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
 import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../attachments/chatContextPickService.js';
+import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
+import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES } from '../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../widget/input/editor/chatPasteProviders.js';
@@ -40,9 +40,28 @@ import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAc
 import { IChatSessionsService, isAgentHostTarget } from '../../common/chatSessionsService.js';
 import { getAgentSessionProviderIcon, AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { buildHostLocalEventsPath } from '../copilotCliEventsUri.js';
-import { IChatSessionRoutingProviderService, IRoutableSession } from '../../common/sessionRouter.js';
+import { IGitService } from '../../../git/common/gitService.js';
+import { getGitHubRemoteInfo } from '../../../git/common/utils.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
+
+const OPEN_GITHUB_ISSUE_COMMAND = 'github.copilot.chat.cloudSessions.openIssue';
+const OPEN_GITHUB_PULL_REQUEST_COMMAND = 'github.copilot.chat.cloudSessions.openPullRequest';
+
+interface IGitHubContextSelection {
+	readonly repoId: string;
+	readonly url: string;
+	readonly label: string;
+}
+
+interface IGitHubRepositoryPick extends IQuickPickItem {
+	readonly repoId?: string;
+	readonly folderUri?: URI;
+}
 
 /**
  * Command ID that extensions can call to enable debug tools for the current
@@ -68,25 +87,6 @@ export function shouldShowOpenEditorsContext(widget: Pick<IChatWidget, 'viewMode
 	return true;
 }
 
-type SessionWorkspaceIdentity = Pick<IRoutableSession, 'cwd' | 'repo'>;
-
-export function isSameSessionWorkspace(current: SessionWorkspaceIdentity, candidate: SessionWorkspaceIdentity, extUri: IExtUri = extUriBiasedIgnorePathCase): boolean {
-	const normalizeRepository = (value: string | undefined) => value?.replace(/[\\/]+$/, '').toLowerCase();
-	const currentRepo = normalizeRepository(current.repo);
-	const candidateRepo = normalizeRepository(candidate.repo);
-	if (currentRepo && candidateRepo) {
-		return currentRepo === candidateRepo;
-	}
-
-	return !!current.cwd && !!candidate.cwd && extUri.isEqual(URI.file(current.cwd), URI.file(candidate.cwd));
-}
-
-export function getSessionWorkspaceName(workspace: SessionWorkspaceIdentity): string {
-	const repoName = workspace.repo?.replace(/[\\/]+$/, '').split(/[\\/]/).at(-1);
-	const folderName = workspace.cwd?.replace(/[\\/]+$/, '').split(/[\\/]/).at(-1);
-	return repoName || folderName || localize('chatContext.sessions.thisWorkspace', "This Workspace");
-}
-
 export class ChatContextContributions extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'chat.contextContributions';
@@ -106,11 +106,219 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 		// ###############################################################################################
 
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ToolsContextPickerPick)));
+		this._store.add(contextPickService.registerChatContextItem(new AgentContextValuePick()));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(FileContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ChatInstructionsPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(OpenEditorContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ClipboardImageContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ScreenshotContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(SessionReferenceContextPickerPick)));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'issue')));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'pullRequest')));
+	}
+}
+
+export class AgentContextValuePick implements IChatContextValueItem {
+	readonly type = 'valuePick';
+	readonly label = localize('chatContext.agent', "Agent...");
+	readonly icon = Codicon.agent;
+	readonly ordinal = 1000;
+
+	isEnabled(widget: IChatWidget): boolean {
+		return widget.inputPart.isAgentPickerInAttachContextMenu;
+	}
+
+	async asAttachment(widget: IChatWidget): Promise<undefined> {
+		widget.inputPart.openModePicker(widget.inputPart.attachContextButtonElement ?? widget.inputPart.inputToolbarElement);
+		return undefined;
+	}
+}
+
+export class FileContextValuePick implements IChatContextValueItem {
+	readonly type = 'valuePick';
+	readonly label = localize('chatContext.files', "Files...");
+	readonly icon = Codicon.file;
+	readonly ordinal = 900;
+
+	constructor(
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IChatAttachmentResolveService private readonly attachmentResolveService: IChatAttachmentResolveService,
+		@INotificationService private readonly notificationService: INotificationService,
+	) { }
+
+	isEnabled(widget: IChatWidget): boolean {
+		return !!(widget.attachmentCapabilities.supportsFileAttachments || widget.attachmentCapabilities.supportsImageAttachments);
+	}
+
+	async asAttachment(widget: IChatWidget): Promise<IChatRequestVariableEntry[] | undefined> {
+		try {
+			const resources = await this.fileDialogService.showOpenDialog({
+				title: localize('chatContext.attachFiles.title', "Attach Files"),
+				openLabel: localize('chatContext.attachFiles.openLabel', "Attach"),
+				canSelectFiles: true,
+				canSelectFolders: false,
+				canSelectMany: true,
+				...(!widget.attachmentCapabilities.supportsFileAttachments ? {
+					filters: [{ name: localize('chatContext.attachFiles.images', "Images"), extensions: Object.keys(CHAT_ATTACHABLE_IMAGE_MIME_TYPES) }],
+				} : {}),
+			});
+			if (!resources?.length) {
+				return undefined;
+			}
+			if (!this.isEnabled(widget)) {
+				this.notificationService.warn(localize('chatContext.attachFiles.unsupported', "File and image attachments are not supported in this chat."));
+				return undefined;
+			}
+
+			const attachments: IChatRequestVariableEntry[] = [];
+			for (const resource of resources) {
+				try {
+					const attachment = await this.attachmentResolveService.resolveEditorAttachContext({ resource });
+					if (!attachment) {
+						this.notificationService.warn(localize('chatContext.attachFiles.unresolved', "Could not attach {0}.", basename(resource)));
+						continue;
+					}
+					if (attachment.kind === 'image' && !widget.attachmentCapabilities.supportsImageAttachments) {
+						this.notificationService.warn(localize('chatContext.attachFiles.imageUnsupported', "Could not attach {0}. Image attachments are not supported in this chat.", basename(resource)));
+						continue;
+					}
+					if (attachment.kind !== 'image' && !widget.attachmentCapabilities.supportsFileAttachments) {
+						this.notificationService.warn(localize('chatContext.attachFiles.fileUnsupported', "Could not attach {0}. File attachments are not supported in this chat.", basename(resource)));
+						continue;
+					}
+					attachments.push(attachment);
+				} catch (error) {
+					this.notificationService.error(localize('chatContext.attachFiles.failed', "Could not attach {0}: {1}", basename(resource), toErrorMessage(error)));
+				}
+			}
+			return attachments;
+		} catch (error) {
+			this.notificationService.error(localize('chatContext.attachFiles.dialogFailed', "Could not open the file dialog: {0}", toErrorMessage(error)));
+			return undefined;
+		} finally {
+			widget.focusInput();
+		}
+	}
+}
+
+export class GitHubContextValuePick implements IChatContextValueItem {
+
+	readonly type = 'valuePick';
+	readonly label: string;
+	readonly icon: ThemeIcon;
+	readonly ordinal = -450;
+
+	private readonly _commandId: string;
+
+	constructor(
+		kind: 'issue' | 'pullRequest',
+		@IGitService private readonly gitService: IGitService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+	) {
+		if (kind === 'issue') {
+			this.label = localize('chatContext.githubIssue', "Issue...");
+			this.icon = Codicon.issues;
+			this._commandId = OPEN_GITHUB_ISSUE_COMMAND;
+		} else {
+			this.label = localize('chatContext.githubPullRequest', "Pull Request...");
+			this.icon = Codicon.gitPullRequest;
+			this._commandId = OPEN_GITHUB_PULL_REQUEST_COMMAND;
+		}
+	}
+
+	isEnabled(): boolean {
+		return true;
+	}
+
+	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {
+		const repositories = await this.getRepositoryPicks();
+		let repository: IGitHubRepositoryPick | undefined;
+
+		if (repositories.length === 1) {
+			repository = repositories[0];
+		} else if (repositories.length > 1) {
+			repository = await this.pickRepository(repositories);
+		}
+
+		if (repositories.length > 1 && !repository) {
+			return undefined;
+		}
+
+		const repositoryArgument = repository?.repoId ?? this.getRepositoryId(repository?.folderUri) ?? repository?.folderUri;
+		const selection = await this.commandService.executeCommand<IGitHubContextSelection | undefined>(this._commandId, repositoryArgument);
+		if (!selection) {
+			return undefined;
+		}
+
+		const resource = URI.parse(selection.url);
+		return {
+			kind: 'generic',
+			id: selection.url,
+			fullName: selection.label,
+			name: selection.label,
+			value: resource,
+			icon: this.icon,
+			references: [{ reference: resource, kind: 'reference' }],
+		};
+	}
+
+	protected async pickRepository(repositories: readonly IGitHubRepositoryPick[]): Promise<IGitHubRepositoryPick | undefined> {
+		return this.quickInputService.pick<IGitHubRepositoryPick>(
+			[...repositories],
+			{
+				canPickMany: false,
+				placeHolder: localize('chatContext.githubRepository.placeholder', "Select a repository"),
+			}
+		);
+	}
+
+	private async getRepositoryPicks(): Promise<readonly IGitHubRepositoryPick[]> {
+		const knownRepositories = Array.from(this.gitService.repositories);
+		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
+		if (workspaceFolders.length > 1) {
+			return workspaceFolders.map((folder): IGitHubRepositoryPick => {
+				const repository = knownRepositories.find(repository =>
+					isEqual(this.workspaceContextService.getWorkspaceFolder(repository.rootUri)?.uri, folder.uri)
+				);
+				const info = repository && getGitHubRemoteInfo(repository.state.get());
+				return info ? {
+					label: folder.name,
+					description: `${info.owner}/${info.repo}`,
+					repoId: `${info.owner}/${info.repo}`,
+					folderUri: folder.uri,
+				} : {
+					label: folder.name,
+					folderUri: folder.uri,
+				};
+			});
+		}
+
+		const repositoryIds = new Set<string>();
+		for (const repository of knownRepositories) {
+			if (!repository) {
+				continue;
+			}
+			const info = getGitHubRemoteInfo(repository.state.get());
+			if (info) {
+				repositoryIds.add(`${info.owner}/${info.repo}`);
+			}
+		}
+		return Array.from(repositoryIds)
+			.sort()
+			.map(repoId => ({ label: repoId, repoId }));
+	}
+
+	private getRepositoryId(folderUri: URI | undefined): string | undefined {
+		if (!folderUri) {
+			return undefined;
+		}
+		const repository = Array.from(this.gitService.repositories).find(repository =>
+			isEqual(this.workspaceContextService.getWorkspaceFolder(repository.rootUri)?.uri, folderUri)
+		);
+		const info = repository && getGitHubRemoteInfo(repository.state.get());
+		return info ? `${info.owner}/${info.repo}` : undefined;
 	}
 }
 
@@ -353,11 +561,8 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 
 	constructor(
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
-		@IPathService private readonly _pathService: IPathService,
+		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
-		@IChatSessionRoutingProviderService private readonly _routingProviderService: IChatSessionRoutingProviderService,
-		@ILogService private readonly _logService: ILogService,
-		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) { }
 
 	isEnabled(widget: IChatWidget): boolean {
@@ -370,71 +575,12 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 		return {
 			placeholder: localize('chatContext.sessions.placeholder', 'Select a session'),
 			picks: (async () => {
-				const entries: { pick: IChatContextPickerPickItem; lastActivity: number; workspace: SessionWorkspaceIdentity }[] = [];
-				const includedResources = new ResourceSet(resource => this._uriIdentityService.extUri.getComparisonKey(resource));
-				let currentWorkspace: SessionWorkspaceIdentity | undefined;
-				const routingProvider = this._routingProviderService.getProvider();
-				if (routingProvider) {
-					let currentSession: IRoutableSession | undefined;
-					try {
-						currentSession = currentSessionResource
-							? await routingProvider.getSessionSnapshot?.(currentSessionResource, CancellationToken.None)
-							: undefined;
-					} catch (error) {
-						this._logService.warn('[chatContext] Failed to resolve the current routed session:', error);
-					}
-					if (currentSession) {
-						currentWorkspace = { cwd: currentSession.cwd, repo: currentSession.repo };
-					}
-					let candidates: readonly IRoutableSession[] = [];
-					try {
-						candidates = await routingProvider.getCandidateSessions(CancellationToken.None);
-					} catch (error) {
-						this._logService.warn('[chatContext] Failed to resolve routed session attachments:', error);
-					}
-					for (const candidate of candidates) {
-						const sessionResource = candidate.resource ?? routingProvider.resolveSessionResource(candidate.sessionId);
-						if (!sessionResource) {
-							continue;
-						}
-						if (candidate.sessionId === currentSession?.sessionId || (currentSessionResource && this._uriIdentityService.extUri.isEqual(sessionResource, currentSessionResource))) {
-							currentWorkspace = { cwd: candidate.cwd, repo: candidate.repo };
-							continue;
-						}
-						if (onlyShowAttachableCopilotCliSessions && !this._canAttachCopilotCliSession(sessionResource)) {
-							continue;
-						}
-						includedResources.add(sessionResource);
-						const pick: IChatContextPickerPickItem = {
-							label: candidate.label,
-							description: candidate.lastActivity ? new Date(candidate.lastActivity).toLocaleString() : undefined,
-							asAttachment: (): IChatRequestVariableEntry => ({
-								kind: 'generic',
-								id: `session:${candidate.sessionId}`,
-								name: candidate.label,
-								value: { sessionReference: true, sessionResource: sessionResource.toString() },
-							}),
-						};
-						entries.push({
-							pick,
-							lastActivity: candidate.lastActivity ?? 0,
-							workspace: { cwd: candidate.cwd, repo: candidate.repo },
-						});
-					}
-				}
+				const picks: { pick: IChatContextPickerPickItem; lastActivity: number }[] = [];
 				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.AgentHostCopilot];
 				for await (const group of this._chatSessionsService.getChatSessionItems(sessionProviderFilter, CancellationToken.None)) {
 					const providerIcon = getAgentSessionProviderIcon(group.chatSessionType);
 					for (const item of group.items) {
-						const workspace = {
-							cwd: item.metadata?.workingDirectoryPath ?? item.metadata?.worktreePath,
-							repo: item.metadata?.repositoryPath,
-						};
-						if (currentSessionResource && this._uriIdentityService.extUri.isEqual(item.resource, currentSessionResource)) {
-							currentWorkspace ??= workspace;
-							continue;
-						}
-						if (includedResources.has(item.resource)) {
+						if (currentSessionResource && item.resource.toString() === currentSessionResource.toString()) {
 							continue;
 						}
 						const sessionResource = item.resource;
@@ -443,40 +589,24 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 						}
 						const icon = item.iconPath ?? providerIcon;
 						const lastActivity = item.timing.lastRequestEnded ?? item.timing.created;
-						const pick: IChatContextPickerPickItem = {
-							label: item.label,
-							description: new Date(lastActivity).toLocaleString(),
-							asAttachment: (): IChatRequestVariableEntry => ({
-								kind: 'sessionReference',
-								id: sessionResource.toString(),
-								name: item.label,
-								value: sessionResource,
-								icon,
-							})
-						};
-						entries.push({ pick, lastActivity, workspace });
+						picks.push({
+							lastActivity,
+							pick: {
+								label: item.label,
+								description: new Date(lastActivity).toLocaleString(),
+								asAttachment: (): IChatRequestVariableEntry => ({
+									kind: 'sessionReference',
+									id: sessionResource.toString(),
+									name: item.label,
+									value: sessionResource,
+									icon,
+								})
+							}
+						});
 					}
 				}
-				entries.sort((a, b) => b.lastActivity - a.lastActivity);
-				if (!currentSessionResource || (!currentWorkspace?.cwd && !currentWorkspace?.repo)) {
-					return entries.map(entry => entry.pick);
-				}
-
-				const sameWorkspace = entries.filter(entry => isSameSessionWorkspace(currentWorkspace, entry.workspace, this._uriIdentityService.extUri));
-				const otherWorkspaces = entries.filter(entry => !isSameSessionWorkspace(currentWorkspace, entry.workspace, this._uriIdentityService.extUri));
-				if (otherWorkspaces.length === 0) {
-					return sameWorkspace.map(entry => entry.pick);
-				}
-				const groupedPicks: (IChatContextPickerPickItem | IQuickPickSeparator)[] = [];
-				if (sameWorkspace.length > 0) {
-					groupedPicks.push({ type: 'separator', label: getSessionWorkspaceName(currentWorkspace) });
-					groupedPicks.push(...sameWorkspace.map(entry => entry.pick));
-				}
-				if (otherWorkspaces.length > 0) {
-					groupedPicks.push({ type: 'separator', label: localize('chatContext.sessions.otherWorkspaces', "Other Workspaces") });
-					groupedPicks.push(...otherWorkspaces.map(entry => entry.pick));
-				}
-				return groupedPicks;
+				picks.sort((a, b) => b.lastActivity - a.lastActivity);
+				return picks.map(({ pick }) => pick);
 			})()
 		};
 	}
@@ -485,7 +615,7 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 		// For now, attachments while in an Agent Host Copilot harness are attachable when backed by Copilot CLI events.jsonl.
 		return !!buildHostLocalEventsPath(
 			sessionResource,
-			this._pathService.userHome({ preferLocal: true }),
+			this._copilotHomeService.home,
 			authority => this._remoteAgentHostService.connections.find(connection => agentHostAuthority(connection.address) === authority),
 		);
 	}

@@ -13,7 +13,7 @@
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	margin-bottom: 12px;
+	margin-bottom: var(--vscode-spacing-size160);
 }
 
 .models-widget .models-search-container {
@@ -174,7 +174,7 @@
 }
 
 .models-widget .models-table-container .monaco-table-td .model-name-container .model-deprecation-link .monaco-link .model-deprecation-link-label .codicon {
-	font-size: var(--vscode-codiconFontSize-compact, 12px);
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .models-widget .models-table-container .monaco-list-row:not(.selected) .monaco-table-tr.models-status-row .monaco-table-td .model-name-container .model-name .monaco-highlighted-label.error-status {
@@ -236,7 +236,7 @@
 }
 
 .models-widget .models-table-container .monaco-table-td .model-token-limits .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 /** Capabilities column styling **/

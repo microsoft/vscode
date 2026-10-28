@@ -1,0 +1,59 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call add_artifact_or_reference exactly once with an items array containing two entries: type "website", label "Agent Host guide", isArtifact false, and link "https://example.com/agent-host"; then type "file", label "Agent Host report", isArtifact true, and uri "file:///agent-host-report.md". Then reply with exactly "recorded".'
+    response:
+      content:
+        - type: text
+          text: Got it — I’ll record both entries now.
+        - type: tool_use
+          id: toolcall_0
+          name: add_artifact_or_reference
+          input:
+            items:
+              - type: website
+                label: Agent Host guide
+                isArtifact: false
+                link: https://example.com/agent-host
+              - type: file
+                label: Agent Host report
+                isArtifact: true
+                uri: file:///agent-host-report.md
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call add_artifact_or_reference exactly once with an items array containing two entries: type "website", label "Agent Host guide", isArtifact false, and link "https://example.com/agent-host"; then type "file", label "Agent Host report", isArtifact true, and uri "file:///agent-host-report.md". Then reply with exactly "recorded".'
+        - role: assistant
+          content: Got it — I’ll record both entries now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: add_artifact_or_reference
+              input:
+                items:
+                  - type: website
+                    label: Agent Host guide
+                    isArtifact: false
+                    link: https://example.com/agent-host
+                  - type: file
+                    label: Agent Host report
+                    isArtifact: true
+                    uri: file:///agent-host-report.md
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Added reference: ${uuid_0} (website, reference) Agent Host guide — https://example.com/agent-host
+                Added artifact: ${uuid_1} (file, artifact) Agent Host report — file:///agent-host-report.md
+    response:
+      content: recorded
+      stopReason: end_turn

@@ -9,6 +9,8 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../services/c
 import { IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 
+const copilotHarnessPolicyUrl = 'https://aka.ms/vscode-copilot-harness-policy';
+
 /**
  * Why a session type cannot currently be selected, or
  * {@link SessionTypeAvailability.Available} when it can.
@@ -22,12 +24,40 @@ export enum SessionTypeAvailability {
 	UpgradeRequired,
 	/** Unusable with no upgrade path — no models target it and the user is already on a paid plan. */
 	NoModels,
+	/** Unusable because enterprise policy prohibits the harness. */
+	DisabledByPolicy,
 }
 
-export function getSessionTypePickerAvailability(type: string, availability: SessionTypeAvailability, allowSignedOutWhenUsable: boolean): SessionTypeAvailability {
-	return allowSignedOutWhenUsable && type === SessionType.AgentHostCopilot && availability === SessionTypeAvailability.SignInRequired
-		? SessionTypeAvailability.Available
-		: availability;
+/**
+ * The picker's view of {@link getSessionTypeAvailability}, which keeps a harness
+ * selectable when the user can make it usable by selecting it. Agent SDK model
+ * discovery is intentionally demand-driven, so an advertised setup path must be
+ * allowed to cross that activation boundary before it has published any models.
+ */
+export function getSessionTypePickerAvailability(type: string, availability: SessionTypeAvailability, allowSignedOutWhenUsable: boolean, canInitializeOnSelection: boolean): SessionTypeAvailability {
+	if (availability === SessionTypeAvailability.DisabledByPolicy) {
+		return availability;
+	}
+	if (canInitializeOnSelection) {
+		return SessionTypeAvailability.Available;
+	}
+	if (!allowSignedOutWhenUsable) {
+		return availability;
+	}
+	if (type === SessionType.AgentHostCopilot && availability === SessionTypeAvailability.SignInRequired) {
+		return SessionTypeAvailability.Available;
+	}
+	return availability;
+}
+
+/**
+ * Whether selecting an Agent SDK harness may initialize its models. A resolved
+ * GitHub account or a provider-owned authentication/discovery path can enter an
+ * advertised setup flow; otherwise the signed-out experiment must permit it.
+ */
+export function canInitializeSessionTypeOnSelection(entitlement: ChatEntitlement, allowSignedOutWhenUsable: boolean, hasAgentSdkSetup: boolean, canInitializeWithoutGitHub = false): boolean {
+	const hasResolvedGitHubAccount = entitlement !== ChatEntitlement.Unknown && entitlement !== ChatEntitlement.Unresolved;
+	return hasAgentSdkSetup && (canInitializeWithoutGitHub || allowSignedOutWhenUsable || hasResolvedGitHubAccount);
 }
 
 /**
@@ -71,7 +101,7 @@ export function getSessionTypeAvailability(
 		return SessionTypeAvailability.Available;
 	}
 	const entitlement = chatEntitlementService.entitlement;
-	const hasTargetedModels = hasModelsTargetingSessionType(languageModelsService, type);
+	const hasTargetedModels = hasAnyModelTargetingSessionType(languageModelsService, type);
 	const hasVisibleByokModels = allowSignedOutWhenUsable && chatEntitlementService.clientByokEnabled && hasVisibleByokModelsTargetingSessionType(languageModelsService, type);
 	// A visible Agent Host BYOK model can run without a Copilot account.
 	if (entitlement === ChatEntitlement.Unknown && !chatEntitlementService.anonymous && chatSessionsService.requiresCopilotSignInForSessionType(type) && !hasVisibleByokModels) {
@@ -100,7 +130,7 @@ export function getSessionTypeAvailability(
  * type (e.g. a user-configured BYOK model). General-pool models are ignored
  * since a session type that requires its own models cannot use them.
  */
-function hasModelsTargetingSessionType(languageModelsService: ILanguageModelsService, type: string): boolean {
+export function hasAnyModelTargetingSessionType(languageModelsService: ILanguageModelsService, type: string): boolean {
 	return languageModelsService.getLanguageModelIds().some(id => {
 		const metadata = languageModelsService.lookupLanguageModel(id);
 		return metadata?.targetChatSessionType === type;
@@ -139,6 +169,8 @@ export function getSessionTypeUnavailableDescription(availability: SessionTypeAv
 			);
 		case SessionTypeAvailability.NoModels:
 			return new MarkdownString(localize('chat.sessionType.noModels', "No models available"));
+		case SessionTypeAvailability.DisabledByPolicy:
+			return new MarkdownString('$(briefcase) ', { supportThemeIcons: true }).appendMarkdown(localize('chat.sessionType.disabledByPolicyLink', "Disabled by your organization · [Learn why]({0})", copilotHarnessPolicyUrl));
 		default:
 			return undefined;
 	}
@@ -163,6 +195,8 @@ export function getSessionTypeUnavailableHover(availability: SessionTypeAvailabi
 		}
 		case SessionTypeAvailability.NoModels:
 			return new MarkdownString(localize('chat.sessionType.noModelsHover', "No models are available for this agent."));
+		case SessionTypeAvailability.DisabledByPolicy:
+			return new MarkdownString(localize('chat.sessionType.disabledByPolicyHover', "Your organization requires the Copilot harness. [Learn why Local is disabled]({0}).", copilotHarnessPolicyUrl));
 		default:
 			return undefined;
 	}
@@ -180,6 +214,8 @@ export function getSessionTypeUnavailableLabel(availability: SessionTypeAvailabi
 			return localize('chat.sessionType.upgradeMobile', "Requires GitHub Copilot Pro");
 		case SessionTypeAvailability.NoModels:
 			return localize('chat.sessionType.noModels', "No models available");
+		case SessionTypeAvailability.DisabledByPolicy:
+			return localize('chat.sessionType.disabledByPolicy', "Disabled by your organization");
 		default:
 			return undefined;
 	}

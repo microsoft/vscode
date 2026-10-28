@@ -60,9 +60,9 @@ const STUB_MODELS: readonly IStubModel[] = [
 	{ id: 'claude-sonnet-4.6', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
 	{ id: 'claude-opus-4.6', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
 	{ id: 'claude-opus-4.7', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
-	{ id: 'claude-opus-4.8', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
 	{ id: 'claude-sonnet-5', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
 	{ id: 'claude-opus-5', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
+	{ id: 'claude-opus-5.5', vendor: 'Anthropic', supportedEndpoints: ['/v1/messages', '/chat/completions'], maxContextWindowTokens: 1000000, maxOutputTokens: 64000, maxPromptTokens: 936000, vision: true },
 	{ id: 'gemini-2.0-flash', vendor: 'Google', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 1000000, maxOutputTokens: 8192, maxPromptTokens: 128000, vision: true },
 	{ id: 'gpt-5.3-codex', vendor: 'OpenAI', supportedEndpoints: ['/responses', 'ws:/responses'], maxContextWindowTokens: 400000, maxOutputTokens: 128000, maxPromptTokens: 272000, vision: true, isChatDefault: true, isChatFallback: true },
 	{ id: 'gpt-4o', vendor: 'Azure OpenAI', supportedEndpoints: ['/chat/completions'], maxContextWindowTokens: 128000, maxOutputTokens: 4096, maxPromptTokens: 64000, vision: true },
@@ -176,6 +176,19 @@ export function getAncillaryStub(method: string, path: string, body?: string): I
 	// no enterprise restrictions, exactly as when none is configured.
 	if (path === '/copilot/mcp_registry' && method === 'GET') {
 		return { status: 200, headers: JSON_HEADERS, body: JSON.stringify({ mcp_registries: [] }) };
+	}
+	// The built-in GitHub MCP server shares the CAPI origin and starts alongside
+	// each provider. These E2E scenarios do not exercise its tools, so keep it
+	// unavailable in replay instead of recording unrelated MCP bootstrap traffic
+	// or changing the model-visible tool inventory.
+	if ((path === '/mcp' || path === '/mcp/readonly') && method === 'POST') {
+		return { status: 404, headers: { 'content-type': 'text/plain', 'x-should-retry': 'false' }, body: 'GitHub MCP is not available in replay' };
+	}
+	// Codex follows an unavailable MCP response with standard OAuth protected
+	// resource and authorization-server discovery. Keep those probes ancillary
+	// and unavailable as well; they do not participate in model replay.
+	if (method === 'GET' && (path === '/mcp' || path.startsWith('/.well-known/') || path.includes('/.well-known/'))) {
+		return { status: 404, headers: { 'content-type': 'text/plain' }, body: 'OAuth metadata is not available in replay' };
 	}
 	if (path.startsWith('/copilot_internal/')) {
 		if (path.includes('/token') || path.includes('/nltoken')) {

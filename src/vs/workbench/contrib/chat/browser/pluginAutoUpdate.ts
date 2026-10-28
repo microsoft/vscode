@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
@@ -36,6 +37,7 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 		@IPluginMarketplaceService private readonly _pluginMarketplaceService: IPluginMarketplaceService,
 		@IPluginInstallService private readonly _pluginInstallService: IPluginInstallService,
 		@ILogService private readonly _logService: ILogService,
+		@IMeteredConnectionService private readonly _meteredConnectionService: IMeteredConnectionService,
 	) {
 		super();
 
@@ -46,10 +48,23 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 			}
 			void this._triggerAutoUpdate(marketplaceIds);
 		}));
+
+		this._register(this._meteredConnectionService.onDidChangeIsConnectionMetered(isMetered => {
+			if (!isMetered) {
+				this._triggerQueuedAutoUpdate();
+			}
+		}));
+	}
+
+	private _triggerQueuedAutoUpdate(): void {
+		const marketplaceIds = this._pluginMarketplaceService.marketplacesWithUpdates.get();
+		if (marketplaceIds.size > 0) {
+			void this._triggerAutoUpdate(marketplaceIds);
+		}
 	}
 
 	private async _triggerAutoUpdate(marketplaceIds: ReadonlySet<string>): Promise<void> {
-		if (this._updateInFlight) {
+		if (this._store.isDisposed || this._updateInFlight || this._meteredConnectionService.isConnectionMetered) {
 			return;
 		}
 
@@ -59,8 +74,12 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 		} catch (err) {
 			this._logService.error('[PluginAutoUpdate] Failed to auto-update plugins:', err);
 		} finally {
-			this._updateInFlight = false;
 			this._pluginMarketplaceService.clearUpdatesAvailable(marketplaceIds);
+			this._updateInFlight = false;
+
+			if (!this._store.isDisposed && !this._meteredConnectionService.isConnectionMetered) {
+				this._triggerQueuedAutoUpdate();
+			}
 		}
 	}
 }

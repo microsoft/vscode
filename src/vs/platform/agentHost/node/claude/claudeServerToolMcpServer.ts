@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk';
-import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import type { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { jsonSchemaToZodRawShape } from './clientTools/claudeJsonSchemaToZod.js';
 
@@ -56,22 +56,24 @@ export function extractServerToolName(toolName: string): string | undefined {
  */
 export async function buildServerToolMcpServer(
 	host: IAgentServerToolHost,
-	sessionUri: string,
+	chatUri: string,
 	sdk: IClaudeAgentSdkService,
+	definitions: readonly IAgentServerToolDefinition[] = host.definitions,
 ): Promise<McpSdkServerConfigWithInstance> {
-	const tools = await Promise.all(host.definitions.map(def => sdk.tool(
+	const tools = await Promise.all(definitions.map(def => sdk.tool(
 		def.name,
 		def.description ?? '',
 		jsonSchemaToZodRawShape(def.inputSchema),
 		async args => {
 			try {
-				const text = await host.executeTool(sessionUri, def.name, args);
+				const text = await host.executeTool(chatUri, def.name, args);
 				return { content: [{ type: 'text' as const, text }] };
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				return { content: [{ type: 'text' as const, text: message }], isError: true };
 			}
-		}
+		},
+		def.deferLoading === undefined ? undefined : { alwaysLoad: !def.deferLoading },
 	)));
 	return sdk.createSdkMcpServer({ name: CLAUDE_SERVER_TOOL_MCP_SERVER_NAME, tools });
 }

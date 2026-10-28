@@ -179,6 +179,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 				this.voiceSessionController.pttDown();
 			},
 			pttUp: () => this.voiceSessionController.pttUp(),
+			toggleMute: () => this.voiceSessionController.setMuted(!this.voiceSessionController.isMuted.get()),
 			closeWindow: () => this.closeWindow(),
 			stopPlayback: () => this.ttsPlaybackService.stopPlayback(),
 			openSession: (resource) => {
@@ -212,7 +213,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			getAnalyserNode: () => {
 				const state = this.voiceSessionController.voiceState.get();
 				return this.ttsPlaybackService.analyserNode
-					?? (state === 'listening' ? this.micCaptureService.analyserNode : null)
+					?? (state === 'listening' && !this.voiceSessionController.isMuted.get() ? this.micCaptureService.analyserNode : null)
 					?? null;
 			},
 			onResize: () => this._resizeWindow(auxiliaryWindow),

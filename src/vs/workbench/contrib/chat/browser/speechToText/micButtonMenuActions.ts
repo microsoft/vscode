@@ -36,6 +36,8 @@ export const SHOW_VOICE_MODE_ONBOARDING_COMMAND = 'agentsVoice.showOnboarding';
 const DICTATION_ENABLED_SETTING = 'dictation.enabled';
 /** Setting that enables Voice Mode; toggled off by "Disable". */
 const VOICE_ENABLED_SETTING = 'agents.voice.enabled';
+/** Setting that shows the live voice transcript overlay; toggled from the menu. */
+const VOICE_SHOW_TRANSCRIPT_SETTING = 'agents.voice.showTranscript';
 
 /**
  * "Select Microphone" entry shared by every dictation / Voice Mode mic button
@@ -162,6 +164,21 @@ function createConfigureInstructionsAction(commandService: ICommandService, comm
 }
 
 /**
+ * Checkable "Show Transcript" entry: a quick per-session toggle for the live
+ * voice transcript overlay. Reflects and flips `agents.voice.showTranscript`,
+ * which also serves as the user's default preference.
+ */
+function createToggleTranscriptAction(configurationService: IConfigurationService): IAction {
+	const shown = configurationService.getValue<boolean>(VOICE_SHOW_TRANSCRIPT_SETTING) === true;
+	return toAction({
+		id: 'chat.voiceMode.toggleTranscript',
+		label: localize('voiceMode.showTranscript', "Show Transcript"),
+		checked: shown,
+		run: () => configurationService.updateValue(VOICE_SHOW_TRANSCRIPT_SETTING, !shown),
+	});
+}
+
+/**
  * Actions for the Voice Mode mic button context menu. Keybinding and feature
  * disabling are grouped separately from configuration and onboarding.
  */
@@ -170,6 +187,7 @@ export function getVoiceModeContextMenuActions(commandService: ICommandService, 
 		[
 			createConfigureKeybindingAction(commandService, keybindingService, keybindingCommandId),
 			createToggleButtonAction(configurationService, AgentsVoiceSettingId.ShowButton, 'chat.voiceMode.toggleButton', localize('voiceMode.button', "Voice Mode Button")),
+			createToggleTranscriptAction(configurationService),
 			createDisableVoiceModeAction(commandService, configurationService),
 		],
 		[

@@ -235,6 +235,61 @@ suite('ProgrammableGitHubServer', () => {
 		});
 	});
 
+	test('rejects only the selected mutation when it selects a Query-root-only field', async () => {
+		const documents: Record<string, { readonly query: string; readonly operationName?: string }> = {
+			'valid mutation': {
+				query: 'mutation M($id: ID!) { resolveReviewThread(input: { threadId: $id }) { thread { id } } }',
+			},
+			'mutation selecting rateLimit': {
+				query: 'mutation M($id: ID!) { resolveReviewThread(input: { threadId: $id }) { thread { id } } rateLimit { limit } }',
+			},
+			'mutation preceded by a fragment definition': {
+				query: 'fragment F on PullRequestReviewThread { id }\nmutation M($id: ID!) { resolveReviewThread(input: { threadId: $id }) { thread { ...F } } rateLimit { limit } }',
+			},
+			'selected mutation of a multi-operation document': {
+				query: 'query Q { repository(owner: "o", name: "r") { id } }\nmutation M { enqueuePullRequest(input: {}) { clientMutationId } rateLimit { limit } }',
+				operationName: 'M',
+			},
+			'valid mutation beside a query selecting rateLimit': {
+				query: 'mutation M { enqueuePullRequest(input: {}) { clientMutationId } }\nquery Q { repository(owner: "o", name: "r") { id } rateLimit { limit } }',
+				operationName: 'M',
+			},
+			'query selecting rateLimit': {
+				query: 'query Q { repository(owner: "o", name: "r") { id } rateLimit { limit } }',
+			},
+			'mutation selecting rateLimit below the root': {
+				query: 'mutation M { enqueuePullRequest(input: {}) { rateLimit { limit } } }',
+			},
+			'mutation naming rateLimit inside a string argument': {
+				query: 'mutation M { addComment(input: { body: "rateLimit { limit }" }) { clientMutationId } }',
+			},
+		};
+
+		const rejected: Record<string, boolean> = {};
+		for (const [name, body] of Object.entries(documents)) {
+			await withServer(async server => {
+				server.enqueue(gitHubGraphQLStep({ response: gitHubGraphQLResponse({ ok: true }) }));
+				const response = await nodeFetch(server.graphQlUrl, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(body),
+				});
+				rejected[name] = response.status === 500 && (await response.text()).includes('only exposes on Query');
+			});
+		}
+
+		assert.deepStrictEqual(rejected, {
+			'valid mutation': false,
+			'mutation selecting rateLimit': true,
+			'mutation preceded by a fragment definition': true,
+			'selected mutation of a multi-operation document': true,
+			'valid mutation beside a query selecting rateLimit': false,
+			'query selecting rateLimit': false,
+			'mutation selecting rateLimit below the root': false,
+			'mutation naming rateLimit inside a string argument': false,
+		});
+	});
+
 	test('assertSatisfied reports unconsumed steps', async () => {
 		await withServer(async server => {
 			server.enqueue(gitHubRestStep({

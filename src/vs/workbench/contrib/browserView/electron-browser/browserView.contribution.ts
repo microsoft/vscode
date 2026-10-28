@@ -9,7 +9,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { BrowserEditor } from './browserEditor.js';
-import { BrowserEditorInput, BrowserEditorSerializer } from '../common/browserEditorInput.js';
+import { BrowserEditorInput, BrowserEditorSerializer, reviveBrowserEditorViewState } from '../common/browserEditorInput.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
@@ -40,11 +40,6 @@ import './features/browserEditorFindFeature.js';
 import './features/browserSearchFeatures.js';
 import './features/browserTabManagementFeatures.js';
 import './features/browserRemoteFeatures.js';
-
-function getBrowserViewStateUrl(viewState: object | undefined): string | undefined {
-	const url = Object.entries(viewState ?? {}).find(([key]) => key === 'url')?.[1];
-	return typeof url === 'string' ? url : undefined;
-}
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -88,7 +83,10 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 						throw new Error(`Invalid browser view resource: ${resource.toString()}`);
 					}
 
-					const browserInput = browserViewWorkbenchService.getOrCreateLazy(parsed.id, options?.viewState);
+					const browserInput = browserViewWorkbenchService.getOrCreateLazy({
+						id: parsed.id,
+						...reviveBrowserEditorViewState(options?.viewState)
+					});
 
 					// Start resolving the input right away. This will create the browser view.
 					// This allows browser views to be loaded in the background.
@@ -105,7 +103,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 			}
 		);
 
-		for (const extension of ['html', 'htm']) {
+		for (const extension of ['html', 'htm', 'mhtml', 'mht']) {
 			editorResolverService.registerEditor(
 				`${Schemas.file}:/**/*.${extension}`,
 				{
@@ -121,11 +119,13 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 					createEditorInput: ({ resource, options }) => {
 						logBrowserOpen(telemetryService, 'fileResource');
 
-						const viewState = options?.viewState;
-						const browserInput = browserViewWorkbenchService.getOrCreateLazy(generateUuid(), {
+						const viewState = reviveBrowserEditorViewState(options?.viewState);
+						const browserInput = browserViewWorkbenchService.getOrCreateLazy({
+							id: generateUuid(),
+							associatedResource: resource,
 							...viewState,
-							url: getBrowserViewStateUrl(viewState) ?? resource.toString()
-						}, resource);
+							url: viewState.url ?? resource.toString()
+						});
 						void browserInput.resolve();
 
 						return {

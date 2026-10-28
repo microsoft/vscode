@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { join } from '../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { codexBinaryTriple, codexPackageSuffix, resolveCodexDevSdkRoot } from '../../../node/codex/codexAgent.js';
+import { codexBinaryTriple, codexPackageSuffix, resolveCodexDevSdkRoot } from '../../../node/codex/codexSdk.js';
 
 suite('codex package paths', () => {
 

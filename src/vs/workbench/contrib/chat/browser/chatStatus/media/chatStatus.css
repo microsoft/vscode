@@ -58,7 +58,7 @@
 }
 
 .chat-status-bar-entry-tooltip .collapsible-chevron {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
@@ -67,7 +67,7 @@
 }
 
 .chat-status-bar-entry-tooltip .contributed-info-icon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
@@ -173,6 +173,58 @@
 
 .chat-status-bar-entry-tooltip div.header .monaco-action-bar {
 	flex-shrink: 0;
+}
+
+.codex-status-bar-entry-tooltip .codex-account-avatar,
+.codex-status-bar-entry-tooltip .codex-account-icon {
+	box-sizing: border-box;
+	flex: 0 0 24px;
+	width: 24px;
+	height: 24px;
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+.codex-status-bar-entry-tooltip .codex-account-avatar {
+	object-fit: cover;
+}
+
+.codex-status-bar-entry-tooltip .codex-account-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: var(--vscode-strokeThickness) solid var(--vscode-descriptionForeground);
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.codex-status-bar-entry-tooltip .codex-account-details {
+	display: flex;
+	flex: 1;
+	min-width: 0;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size20);
+}
+
+.codex-status-bar-entry-tooltip .codex-account-email,
+.codex-status-bar-entry-tooltip .codex-account-plan {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.codex-status-bar-entry-tooltip .codex-account-email {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 18px;
+	color: var(--vscode-foreground);
+}
+
+.codex-status-bar-entry-tooltip .codex-account-plan {
+	font-size: var(--vscode-fontSize-body2);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
 }
 
 .chat-status-bar-entry-tooltip div.header .header-cta-button {
@@ -294,6 +346,10 @@
 
 .chat-status-bar-entry-tooltip .quota-indicator.muted {
 	opacity: 0.5;
+}
+
+.codex-status-bar-entry-tooltip .codex-rate-limit:last-child {
+	margin-bottom: 0;
 }
 
 /* Compact Quota Indicator (2x2 grid: plan name + percentage, reset + label) */

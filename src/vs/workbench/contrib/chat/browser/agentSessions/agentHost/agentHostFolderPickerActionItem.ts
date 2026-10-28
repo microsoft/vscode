@@ -128,13 +128,9 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		const folders = this._workspaceContextService.getWorkspace().folders;
 		const sessionResource = this._sessionResource();
 		const stored = sessionResource ? this._newSessionFolderService.getFolder(sessionResource) : undefined;
+		// Stale workspace selections are cleared by the folder service; standalone selections remain valid.
 		if (stored) {
-			if (folders.some(folder => folder.uri.toString() === stored.toString())) {
-				return stored;
-			}
-			// The stored folder is no longer part of the workspace (folders
-			// changed); drop the stale selection and fall back below.
-			this._newSessionFolderService.clear(sessionResource!);
+			return stored;
 		}
 		// A started session's working directory is fixed at creation time and may
 		// differ from the current workspace's first folder (e.g. a single-folder
@@ -151,15 +147,21 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		this.setAriaLabelAttributes(element);
 		const selected = this._selectedFolder();
 		const folder = selected && this._workspaceContextService.getWorkspace().folders.find(f => f.uri.toString() === selected.toString());
 		const label = folder ? folder.name : (selected ? basename(selected) : localize('agentHost.selectFolder', "Folder"));
+		const compact = this.pickerOptions.compact.get();
+		element.classList.toggle('icon-only', compact);
 		dom.reset(
 			element,
-			...renderLabelWithIcons(`$(folder)`),
-			dom.$('span.chat-input-picker-label', undefined, label),
+			...renderLabelWithIcons(`$(folder-compact)`),
+			...(!compact ? [dom.$('span.chat-input-picker-label', undefined, label)] : []),
 		);
+		// Set the aria label after the visible text is in place: the base class
+		// derives it from `element.textContent`, so labeling first would lag one
+		// selection behind.
+		this.setAriaLabelAttributes(element);
+		element.ariaLabel = label;
 		return null;
 	}
 

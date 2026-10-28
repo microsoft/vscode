@@ -11,6 +11,15 @@ import { SessionConfigKey } from '../../../../../../platform/agentHost/common/se
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IsSessionsWindowContext, WorkspaceFolderCountContext } from '../../../../../common/contextkeys.js';
 import { ChatContextKeys, ChatContextKeyExprs } from '../../../common/actions/chatContextKeys.js';
+import { SessionType } from '../../../common/chatSessionsService.js';
+
+const modeAndPermissionsWhen = ContextKeyExpr.and(
+	ChatContextKeys.enabled,
+	ContextKeyExpr.or(
+		ChatContextKeyExprs.isAgentHostSession,
+		ContextKeyExpr.and(IsSessionsWindowContext.negate(), ChatContextKeys.chatSessionType.isEqualTo(SessionType.CloudSandbox)),
+	),
+);
 
 /**
  * Agent-host pickers live under `MenuId.ChatInputSecondary` group
@@ -56,6 +65,9 @@ export class OpenAgentHostFolderPickerAction extends Action2 {
 					IsSessionsWindowContext.negate(),
 					// Equal-peer providers add every workspace folder automatically, so they do not need a primary picker.
 					ChatContextKeys.chatAgentHostHasImmutablePrimaryWorkingDirectory,
+					// Hidden by default; the harness decision reveals the picker (e.g. when several folders carry hooks),
+					// so the chip never flashes visible-then-hidden while the decision is resolving.
+					ChatContextKeys.chatAgentHostFolderPickerVisible,
 				),
 			}],
 		});
@@ -75,7 +87,7 @@ export class OpenAgentHostModePickerAction extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 0.7,
-				when: ChatContextKeyExprs.isAgentHostSession,
+				when: modeAndPermissionsWhen,
 			}],
 		});
 	}
@@ -94,7 +106,7 @@ export class OpenAgentHostAutoApprovePickerAction extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 0.8,
-				when: ChatContextKeyExprs.isAgentHostSession,
+				when: modeAndPermissionsWhen,
 			}],
 		});
 	}

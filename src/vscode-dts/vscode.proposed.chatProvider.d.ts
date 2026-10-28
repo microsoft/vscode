@@ -37,6 +37,12 @@ declare module 'vscode' {
 	export interface LanguageModelChatInformation {
 
 		/**
+		 * The maximum number of tokens in the model's context window, including input and output.
+		 * This is independent of {@link maxInputTokens} and {@link maxOutputTokens}, whose maxima need not add up to the context window.
+		 */
+		readonly maxContextWindowTokens?: number;
+
+		/**
 		 * When present, this gates the use of `requestLanguageModelAccess` behind an authorization flow where
 		 * the user must approve of another extension accessing the models contributed by this extension.
 		 * Additionally, the extension can provide a label that will be shown in the UI.
@@ -97,6 +103,13 @@ declare module 'vscode' {
 		readonly warningText?: Record<string, string>;
 
 		/**
+		 * Optional informational text to display in the model picker hover as an info banner.
+		 * The keys are info categories (e.g. "model_relocated") and the values are markdown strings.
+		 * Unlike {@link warningText}, this renders with an info icon and never signals a problem with the model.
+		 */
+		readonly infoText?: Record<string, string>;
+
+		/**
 		 * Optional promotional information for this model. When present, indicates the model
 		 * is currently experiencing a promotional discount.
 		 */
@@ -109,6 +122,11 @@ declare module 'vscode' {
 			readonly endsAt?: string;
 			/** A human-readable message about the promotion. */
 			readonly message: string;
+			/**
+			 * Whether the promotion may also be surfaced as a banner above the chat input.
+			 * Omit to allow the banner; set to `false` to keep the promotion in the model picker only.
+			 */
+			readonly showBanner?: boolean;
 		};
 	}
 

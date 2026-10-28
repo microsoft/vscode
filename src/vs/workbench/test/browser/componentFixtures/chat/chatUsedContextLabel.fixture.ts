@@ -76,7 +76,7 @@ function renderUsedContextLabel(context: ComponentFixtureContext, hovered: boole
 		'fixture-edits',
 		undefined,
 		undefined,
-		diffEmitter.event,
+		{ onDidChangeDiff: diffEmitter.event, diffData: undefined },
 	);
 	diffEmitter.fire({
 		added: 42,

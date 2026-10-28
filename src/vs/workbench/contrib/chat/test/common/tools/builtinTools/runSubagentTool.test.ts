@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../../../base/common/event.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
@@ -17,15 +19,155 @@ import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetada
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { ICustomAgent, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { MockPromptsService } from '../../promptSyntax/service/mockPromptsService.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
-import { IToolInvocation, ToolProgress } from '../../../../common/tools/languageModelToolsService.js';
+import { IToolData, IToolInvocation, IToolResult, ToolAndToolSetEnablementMap, ToolProgress } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatModel, IChatRequestModeInstructions } from '../../../../common/model/chatModel.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 
+/** Like the real service, includes every known tool and enables only the ones an agent's `tools` lists. */
+class EnablementMapToolsService extends MockLanguageModelToolsService {
+	constructor(private readonly knownToolIds: readonly string[]) {
+		super();
+	}
+
+	override toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[]): ToolAndToolSetEnablementMap {
+		return ToolAndToolSetEnablementMap.fromEntries(this.knownToolIds.map(id => [{ id } as IToolData, toolOrToolSetNames.includes(id)]));
+	}
+}
+
 suite('RunSubagentTool', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createMetadata(name: string, multiplierNumeric?: number, vendor: string = 'TestVendor'): ILanguageModelChatMetadata {
+		return {
+			extension: new ExtensionIdentifier('test.extension'),
+			name,
+			id: name.toLowerCase().replace(/\s+/g, '-'),
+			vendor,
+			version: '1.0',
+			family: 'test',
+			maxInputTokens: 128000,
+			maxOutputTokens: 8192,
+			isDefaultForLocation: {},
+			multiplierNumeric,
+			capabilities: { toolCalling: true },
+			isBYOK: vendor !== COPILOT_VENDOR_ID,
+		};
+	}
+
+	function createAgent(name: string, modelQualifiedNames?: string[]): ICustomAgent {
+		const id = `file:///test/${name}.md`;
+		return {
+			uri: URI.parse(id),
+			id,
+			name,
+			description: `Agent ${name}`,
+			tools: ['tool1'],
+			model: modelQualifiedNames,
+			agentInstructions: { content: 'test', toolReferences: [] },
+			source: { storage: PromptsStorage.local },
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true
+		};
+	}
+
+	function createLanguageModelsServiceMock(models = new Map<string, ILanguageModelChatMetadata>(), opts: {
+		qualifiedNameMap?: Map<string, ILanguageModelChatMetadataAndIdentifier>;
+		modelConfigurations?: Map<string, Record<string, unknown>>;
+	} = {}): ILanguageModelsService {
+		const service: Partial<ILanguageModelsService> = {
+			onDidChangeLanguageModels: Event.None,
+			getLanguageModelIds: () => Array.from(models.keys()),
+			lookupLanguageModel: modelId => models.get(modelId),
+			lookupLanguageModelByQualifiedName: qualifiedName => opts.qualifiedNameMap?.get(qualifiedName),
+			getModelConfiguration: modelId => opts.modelConfigurations?.get(modelId),
+		};
+		return service as ILanguageModelsService;
+	}
+
+	let callIdCounter = 0;
+	function createInvokableTool(opts: {
+		allowInvocationsFromSubagents: boolean;
+		capturedRequests: IChatAgentRequest[];
+		currentModeInstructions?: IChatRequestModeInstructions;
+		customAgents?: ICustomAgent[];
+		models?: Map<string, ILanguageModelChatMetadata>;
+		qualifiedNameMap?: Map<string, ILanguageModelChatMetadataAndIdentifier>;
+	}) {
+		const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
+		const configService = new TestConfigurationService({
+			[ChatConfiguration.SubagentsAllowInvocationsFromSubagents]: opts.allowInvocationsFromSubagents,
+		});
+		const promptsService = new MockPromptsService();
+		if (opts.customAgents) {
+			promptsService.setCustomModes(opts.customAgents);
+		}
+
+		const mockChatAgentService: Pick<IChatAgentService, 'getDefaultAgent' | 'invokeAgent'> = {
+			getDefaultAgent() {
+				return { id: 'default-agent' } as IChatAgentService extends { getDefaultAgent(...args: infer _A): infer R } ? NonNullable<R> : never;
+			},
+			async invokeAgent(_id: string, request: IChatAgentRequest, _progress: (parts: IChatProgress[]) => void, _history: IChatAgentHistoryEntry[], _token: CancellationToken): Promise<IChatAgentResult> {
+				opts.capturedRequests.push(request);
+				return {};
+			},
+		};
+
+		const mockChatService: Pick<IChatService, 'getSession'> = {
+			getSession() {
+				return {
+					getRequests: () => [{
+						id: 'req-1',
+						modeInfo: opts.currentModeInstructions ? {
+							kind: undefined,
+							isBuiltin: false,
+							modeInstructions: opts.currentModeInstructions,
+							telemetryModeId: 'custom',
+							applyCodeBlockSuggestionId: undefined,
+						} : undefined
+					}],
+					acceptResponseProgress: () => { },
+				} as unknown as IChatModel;
+			},
+		};
+
+		const mockInstantiationService: Pick<IInstantiationService, 'createInstance'> = {
+			createInstance(..._args: never[]): { collect: () => Promise<void> } {
+				return { collect: async () => { } };
+			},
+		};
+		const tool = testDisposables.add(new RunSubagentTool(
+			mockChatAgentService as IChatAgentService,
+			mockChatService as IChatService,
+			mockToolsService,
+			createLanguageModelsServiceMock(opts.models, opts),
+			new NullLogService(),
+			configService,
+			promptsService,
+			mockInstantiationService as IInstantiationService,
+			{} as IProductService,
+		));
+
+		return { tool, mockChatAgentService };
+	}
+
+	function createInvocation(sessionUri: URI, userSelectedTools?: UserSelectedTools, modelId?: string): IToolInvocation {
+		return {
+			callId: `call-${++callIdCounter}`,
+			toolId: 'runSubagent',
+			parameters: { prompt: 'do something', description: 'test' },
+			context: { sessionResource: sessionUri },
+			modelId,
+			userSelectedTools: userSelectedTools ?? { runSubagent: true },
+		} as IToolInvocation;
+	}
+
+	const countTokens = async () => 0;
+	const noProgress: ToolProgress = { report() { } };
 
 	suite('resultText trimming', () => {
 		test('trims leading empty codeblocks (```\\n```) from result', () => {
@@ -70,7 +212,7 @@ suite('RunSubagentTool', () => {
 				{} as IChatAgentService,
 				{} as IChatService,
 				mockToolsService,
-				{} as ILanguageModelsService,
+				createLanguageModelsServiceMock(),
 				new NullLogService(),
 				new TestConfigurationService(),
 				promptsService,
@@ -98,6 +240,7 @@ suite('RunSubagentTool', () => {
 				description: 'Test task',
 				agentName: 'CustomAgent',
 				prompt: 'Test prompt',
+				modelId: undefined,
 				modelName: undefined,
 			});
 		});
@@ -113,7 +256,7 @@ suite('RunSubagentTool', () => {
 				{} as IChatAgentService,
 				{} as IChatService,
 				mockToolsService,
-				{} as ILanguageModelsService,
+				createLanguageModelsServiceMock(),
 				new NullLogService(),
 				new TestConfigurationService(),
 				promptsService,
@@ -141,6 +284,7 @@ suite('RunSubagentTool', () => {
 				description: 'Test task',
 				agentName: 'NonExistentAgent',
 				prompt: 'Test prompt',
+				modelId: undefined,
 				modelName: undefined,
 			});
 		});
@@ -155,7 +299,7 @@ suite('RunSubagentTool', () => {
 				{} as IChatAgentService,
 				{} as IChatService,
 				mockToolsService,
-				{} as ILanguageModelsService,
+				createLanguageModelsServiceMock(),
 				new NullLogService(),
 				new TestConfigurationService(),
 				promptsService,
@@ -242,25 +386,9 @@ suite('RunSubagentTool', () => {
 		const BUILTIN_CHAT_EXTENSION_ID = 'github.copilot-chat';
 		const builtinProductService = { defaultChatAgent: { chatExtensionId: BUILTIN_CHAT_EXTENSION_ID } } as IProductService;
 
-		function createMetadata(name: string, multiplierNumeric?: number, vendor: string = 'TestVendor'): ILanguageModelChatMetadata {
-			return {
-				extension: new ExtensionIdentifier('test.extension'),
-				name,
-				id: name.toLowerCase().replace(/\s+/g, '-'),
-				vendor,
-				version: '1.0',
-				family: 'test',
-				maxInputTokens: 128000,
-				maxOutputTokens: 8192,
-				isDefaultForLocation: {},
-				multiplierNumeric,
-				capabilities: { toolCalling: true },
-				isBYOK: vendor !== COPILOT_VENDOR_ID,
-			};
-		}
-
 		function createTool(opts: {
 			models: Map<string, ILanguageModelChatMetadata>;
+			modelConfigurations?: Map<string, Record<string, unknown>>;
 			qualifiedNameMap?: Map<string, ILanguageModelChatMetadataAndIdentifier>;
 			customAgents?: ICustomAgent[];
 		}) {
@@ -270,23 +398,11 @@ suite('RunSubagentTool', () => {
 				promptsService.setCustomModes(opts.customAgents);
 			}
 
-			const mockLanguageModelsService: Partial<ILanguageModelsService> = {
-				getLanguageModelIds() {
-					return Array.from(opts.models.keys());
-				},
-				lookupLanguageModel(modelId: string) {
-					return opts.models.get(modelId);
-				},
-				lookupLanguageModelByQualifiedName(qualifiedName: string) {
-					return opts.qualifiedNameMap?.get(qualifiedName);
-				},
-			};
-
 			const tool = testDisposables.add(new RunSubagentTool(
 				{} as IChatAgentService,
 				{} as IChatService,
 				mockToolsService,
-				mockLanguageModelsService as ILanguageModelsService,
+				createLanguageModelsServiceMock(opts.models, opts),
 				new NullLogService(),
 				new TestConfigurationService(),
 				promptsService,
@@ -295,23 +411,6 @@ suite('RunSubagentTool', () => {
 			));
 
 			return tool;
-		}
-
-		function createAgent(name: string, modelQualifiedNames?: string[]): ICustomAgent {
-			const id = `file:///test/${name}.md`;
-			return {
-				uri: URI.parse(id),
-				id,
-				name,
-				description: `Agent ${name}`,
-				tools: ['tool1'],
-				model: modelQualifiedNames,
-				agentInstructions: { content: 'test', toolReferences: [] },
-				source: { storage: PromptsStorage.local },
-				target: Target.Undefined,
-				visibility: { userInvocable: true, agentInvocable: true },
-				enabled: true
-			};
 		}
 
 		// A built-in (extension-shipped) agent such as Explore, whose model list is a curated fallback list.
@@ -353,8 +452,8 @@ suite('RunSubagentTool', () => {
 			);
 		});
 
-		test('uses subagent model when it has equal multiplier', async () => {
-			const mainMeta = createMetadata('GPT-4o', 1);
+		test('uses subagent model and configuration when it has equal multiplier', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
 			const sameCostMeta = createMetadata('Claude Sonnet', 1);
 			const models = new Map([
 				['main-model-id', mainMeta],
@@ -365,7 +464,14 @@ suite('RunSubagentTool', () => {
 			]);
 
 			const agent = createAgent('SameCostAgent', ['Claude Sonnet (TestVendor)']);
-			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+			const modelConfiguration = { reasoningEffort: 'high', contextSize: 1000000 };
+			const tool = createTool({
+				models, qualifiedNameMap, customAgents: [agent],
+				modelConfigurations: new Map([
+					['main-model-id', { reasoningEffort: 'low', contextSize: 200000 }],
+					['same-cost-model-id', modelConfiguration],
+				]),
+			});
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test task', agentName: 'SameCostAgent' },
@@ -380,7 +486,9 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'SameCostAgent',
 				prompt: 'test',
+				modelId: 'same-cost-model-id',
 				modelName: 'Claude Sonnet',
+				modelConfiguration,
 			});
 		});
 
@@ -411,6 +519,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'CheapAgent',
 				prompt: 'test',
+				modelId: 'cheap-model-id',
 				modelName: 'GPT-4o Mini',
 			});
 		});
@@ -443,6 +552,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'SubAgent',
 				prompt: 'test',
+				modelId: 'sub-model-id',
 				modelName: 'O3 Pro',
 			});
 		});
@@ -475,6 +585,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'CustomAgent',
 				prompt: 'test',
+				modelId: 'sub-model-id',
 				modelName: 'Custom Model',
 			});
 		});
@@ -498,6 +609,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: undefined,
 				prompt: 'test',
+				modelId: 'main-model-id',
 				modelName: 'GPT-4o',
 			});
 		});
@@ -522,8 +634,28 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'NoModelAgent',
 				prompt: 'test',
+				modelId: 'main-model-id',
 				modelName: 'GPT-4o',
 			});
+		});
+
+		test('keeps main model when configured subagent model is unavailable', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
+			const unavailableAgent = createAgent('UnavailableAgent', ['Missing Model (TestVendor)']);
+			const tool = createTool({
+				models: new Map([['main-model-id', mainMeta]]),
+				customAgents: [unavailableAgent],
+			});
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'UnavailableAgent' },
+				toolCallId: 'unavailable-agent-model',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.strictEqual(result.toolSpecificData?.kind === 'subagent' ? result.toolSpecificData.modelName : undefined, 'GPT-4o');
 		});
 
 		test('skips Copilot fallback models when main model is BYOK and inherits the main model', async () => {
@@ -554,6 +686,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'ExploreAgent',
 				prompt: 'test',
+				modelId: 'main-byok-id',
 				modelName: 'Claude Sonnet BYOK',
 			});
 		});
@@ -589,6 +722,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'ExploreAgent',
 				prompt: 'test',
+				modelId: 'byok-fallback-id',
 				modelName: 'Ollama Llama',
 			});
 		});
@@ -620,6 +754,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'ExploreAgent',
 				prompt: 'test',
+				modelId: 'copilot-fallback-id',
 				modelName: 'Copilot Haiku',
 			});
 		});
@@ -649,6 +784,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'ExploreAgent',
 				prompt: 'test',
+				modelId: 'copilot-fallback-id',
 				modelName: 'Copilot Haiku',
 			});
 		});
@@ -681,28 +817,13 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'MyAgent',
 				prompt: 'test',
+				modelId: 'copilot-pinned-id',
 				modelName: 'Copilot Sonnet',
 			});
 		});
 	});
 
 	suite('explicit model parameter', () => {
-		function createMetadata(name: string, multiplierNumeric?: number): ILanguageModelChatMetadata {
-			return {
-				extension: new ExtensionIdentifier('test.extension'),
-				name,
-				id: name.toLowerCase().replace(/\s+/g, '-'),
-				vendor: 'TestVendor',
-				version: '1.0',
-				family: 'test',
-				maxInputTokens: 128000,
-				maxOutputTokens: 8192,
-				isDefaultForLocation: {},
-				multiplierNumeric,
-				capabilities: { toolCalling: true },
-			};
-		}
-
 		function createTool(opts: {
 			models: Map<string, ILanguageModelChatMetadata>;
 			qualifiedNameMap?: Map<string, ILanguageModelChatMetadataAndIdentifier>;
@@ -714,23 +835,11 @@ suite('RunSubagentTool', () => {
 				promptsService.setCustomModes(opts.customAgents);
 			}
 
-			const mockLanguageModelsService: Partial<ILanguageModelsService> = {
-				getLanguageModelIds() {
-					return Array.from(opts.models.keys());
-				},
-				lookupLanguageModel(modelId: string) {
-					return opts.models.get(modelId);
-				},
-				lookupLanguageModelByQualifiedName(qualifiedName: string) {
-					return opts.qualifiedNameMap?.get(qualifiedName);
-				},
-			};
-
 			const tool = testDisposables.add(new RunSubagentTool(
 				{} as IChatAgentService,
 				{} as IChatService,
 				mockToolsService,
-				mockLanguageModelsService as ILanguageModelsService,
+				createLanguageModelsServiceMock(opts.models, opts),
 				new NullLogService(),
 				new TestConfigurationService(),
 				promptsService,
@@ -739,23 +848,6 @@ suite('RunSubagentTool', () => {
 			));
 
 			return tool;
-		}
-
-		function createAgent(name: string, modelQualifiedNames?: string[]): ICustomAgent {
-			const id = `file:///test/${name}.md`;
-			return {
-				id,
-				uri: URI.parse(id),
-				name,
-				description: `Agent ${name}`,
-				tools: ['tool1'],
-				model: modelQualifiedNames,
-				agentInstructions: { content: 'test', toolReferences: [] },
-				source: { storage: PromptsStorage.local },
-				target: Target.Undefined,
-				visibility: { userInvocable: true, agentInvocable: true },
-				enabled: true
-			};
 		}
 
 		test('model property is included in tool schema without enum', () => {
@@ -774,7 +866,7 @@ suite('RunSubagentTool', () => {
 		});
 
 		test('resolves explicit model parameter without agentName', async () => {
-			const mainMeta = createMetadata('GPT-4o', 1);
+			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
 			const explicitMeta = createMetadata('Claude Sonnet', 1);
 			const models = new Map([
 				['main-model-id', mainMeta],
@@ -799,6 +891,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: undefined,
 				prompt: 'test',
+				modelId: 'explicit-model-id',
 				modelName: 'Claude Sonnet',
 			});
 		});
@@ -833,6 +926,7 @@ suite('RunSubagentTool', () => {
 				description: 'test task',
 				agentName: 'MyAgent',
 				prompt: 'test',
+				modelId: 'explicit-model-id',
 				modelName: 'Claude Sonnet',
 			});
 		});
@@ -915,29 +1009,44 @@ suite('RunSubagentTool', () => {
 		});
 	});
 
-	suite('nested subagent depth tracking', () => {
-		/**
-		 * Creates a RunSubagentTool with mocked services suitable for invoke() testing.
-		 * The returned `capturedRequests` array collects every IChatAgentRequest passed to invokeAgent.
-		 */
+	suite('subagent allowlist', () => {
 		let callIdCounter = 0;
-		function createInvokableTool(opts: {
-			allowInvocationsFromSubagents: boolean;
-			capturedRequests: IChatAgentRequest[];
-			currentModeInstructions?: IChatRequestModeInstructions;
+
+		function createAgent(name: string, agents?: readonly string[]): ICustomAgent {
+			const id = `file:///test/${name}.md`;
+			return {
+				id,
+				uri: URI.parse(id),
+				name,
+				description: `Agent ${name}`,
+				agents,
+				agentInstructions: { content: `${name} instructions`, toolReferences: [] },
+				source: { storage: PromptsStorage.local },
+				target: Target.Undefined,
+				visibility: { userInvocable: true, agentInvocable: true },
+				enabled: true
+			};
+		}
+
+		function createAllowlistTool(opts: {
+			customAgents: ICustomAgent[];
+			currentModeInstructions: IChatRequestModeInstructions;
+			capturedRequests?: IChatAgentRequest[];
+			/** Runs while the requested subagent is running, e.g. to simulate it calling the tool itself. */
+			onInvokeAgent?: (request: IChatAgentRequest) => Promise<void>;
+			languageModelsService?: ILanguageModelsService;
 		}) {
-			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
-			const configService = new TestConfigurationService({
-				[ChatConfiguration.SubagentsAllowInvocationsFromSubagents]: opts.allowInvocationsFromSubagents,
-			});
+			const mockToolsService = testDisposables.add(new EnablementMapToolsService(['readTool', RunSubagentTool.Id, 'topLevelTool']));
 			const promptsService = new MockPromptsService();
+			promptsService.setCustomModes(opts.customAgents);
 
 			const mockChatAgentService: Pick<IChatAgentService, 'getDefaultAgent' | 'invokeAgent'> = {
 				getDefaultAgent() {
 					return { id: 'default-agent' } as IChatAgentService extends { getDefaultAgent(...args: infer _A): infer R } ? NonNullable<R> : never;
 				},
 				async invokeAgent(_id: string, request: IChatAgentRequest, _progress: (parts: IChatProgress[]) => void, _history: IChatAgentHistoryEntry[], _token: CancellationToken): Promise<IChatAgentResult> {
-					opts.capturedRequests.push(request);
+					opts.capturedRequests?.push(request);
+					await opts.onInvokeAgent?.(request);
 					return {};
 				},
 			};
@@ -947,13 +1056,13 @@ suite('RunSubagentTool', () => {
 					return {
 						getRequests: () => [{
 							id: 'req-1',
-							modeInfo: opts.currentModeInstructions ? {
+							modeInfo: {
 								kind: undefined,
 								isBuiltin: false,
 								modeInstructions: opts.currentModeInstructions,
 								telemetryModeId: 'custom',
 								applyCodeBlockSuggestionId: undefined,
-							} : undefined
+							},
 						}],
 						acceptResponseProgress: () => { },
 					} as unknown as IChatModel;
@@ -966,34 +1075,304 @@ suite('RunSubagentTool', () => {
 				},
 			};
 
-			const tool = testDisposables.add(new RunSubagentTool(
+			return testDisposables.add(new RunSubagentTool(
 				mockChatAgentService as IChatAgentService,
 				mockChatService as IChatService,
 				mockToolsService,
-				{} as ILanguageModelsService,
+				opts.languageModelsService ?? createLanguageModelsServiceMock(),
 				new NullLogService(),
-				configService,
+				new TestConfigurationService({ [ChatConfiguration.SubagentsAllowInvocationsFromSubagents]: true }),
 				promptsService,
 				mockInstantiationService as IInstantiationService,
 				{} as IProductService,
 			));
-
-			return { tool, mockChatAgentService };
 		}
 
-		function createInvocation(sessionUri: URI, userSelectedTools?: UserSelectedTools): IToolInvocation {
+		const sessionResource = URI.parse('test://session/allowlist');
+
+		/** Creates a call made in the top-level request, or in the request of the subagent that `callingRequest` started. */
+		function createInvocation(agentName: string | undefined, callingRequest?: IChatAgentRequest): IToolInvocation {
 			return {
-				callId: `call-${++callIdCounter}`,
+				callId: `allowlist-call-${++callIdCounter}`,
 				toolId: 'runSubagent',
-				parameters: { prompt: 'do something', description: 'test' },
-				context: { sessionResource: sessionUri },
-				userSelectedTools: userSelectedTools ?? { runSubagent: true },
+				parameters: { prompt: 'do something', description: 'test', agentName },
+				context: { sessionResource, requestId: callingRequest?.requestId ?? 'req-1' },
+				subAgentInvocationId: callingRequest?.subAgentInvocationId,
+				userSelectedTools: { runSubagent: true },
 			} as IToolInvocation;
+		}
+
+		function prepareInvocation(tool: RunSubagentTool, invocation: IToolInvocation) {
+			return tool.prepareToolInvocation({
+				parameters: invocation.parameters,
+				toolCallId: invocation.callId,
+				chatSessionResource: sessionResource,
+				invocationRequestId: invocation.context?.requestId,
+				modelId: invocation.modelId,
+			}, CancellationToken.None);
 		}
 
 		const countTokens = async () => 0;
 		const noProgress: ToolProgress = { report() { } };
+		const notAllowed = (agentName: string) => `Requested agent '${agentName}' is not allowed by the current agent.`;
+		const completed = 'Agent completed with no output';
 
+		function getResultText(result: IToolResult): string | undefined {
+			return result.content[0].kind === 'text' ? result.content[0].value : undefined;
+		}
+
+		interface INestedCallOutcome {
+			readonly caller: string | undefined;
+			readonly agentName: string | undefined;
+			/** `ok`, or the error that `prepareToolInvocation` threw. */
+			readonly prepare: string;
+			readonly invoke: string | undefined;
+		}
+
+		/** Makes the call that the subagent started by `parent` makes when it runs the tool. */
+		async function callFromSubagent(tool: RunSubagentTool, parent: IChatAgentRequest, agentName: string | undefined): Promise<INestedCallOutcome> {
+			const invocation = createInvocation(agentName, parent);
+			let prepare = 'ok';
+			try {
+				await prepareInvocation(tool, invocation);
+			} catch (error) {
+				prepare = error instanceof Error ? error.message : String(error);
+			}
+			const result = await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+			return { caller: parent.subAgentName, agentName, prepare, invoke: getResultText(result) };
+		}
+
+		test('prepareToolInvocation rejects a requested agent outside the current allowlist', async () => {
+			const tool = createAllowlistTool({
+				customAgents: [createAgent('Allowed'), createAgent('Forbidden')],
+				currentModeInstructions: { name: 'Coordinator', content: 'Coordinate', toolReferences: [], allowedSubagents: ['Allowed'] },
+			});
+
+			await assert.rejects(
+				() => tool.prepareToolInvocation({
+					parameters: { prompt: 'test', description: 'test task', agentName: 'Forbidden' },
+					toolCallId: 'allowlist-prepare',
+					chatSessionResource: URI.parse('test://session/allowlist'),
+				}, CancellationToken.None),
+				(err: Error) => {
+					assert.ok(err.message.includes('Requested agent \'Forbidden\' is not allowed'));
+					return true;
+				}
+			);
+		});
+
+		test('invoke rejects a requested agent outside the current allowlist', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const tool = createAllowlistTool({
+				customAgents: [createAgent('Allowed'), createAgent('Forbidden')],
+				currentModeInstructions: { name: 'Coordinator', content: 'Coordinate', toolReferences: [], allowedSubagents: ['Allowed'] },
+				capturedRequests,
+			});
+
+			const result = await tool.invoke(createInvocation('Forbidden'), countTokens, noProgress, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				requestCount: capturedRequests.length,
+				result: result.content[0].kind === 'text' ? result.content[0].value : undefined,
+			}, {
+				requestCount: 0,
+				result: 'Error invoking subagent: Requested agent \'Forbidden\' is not allowed by the current agent.',
+			});
+		});
+
+		test('invoke forwards the selected subagent allowlist to nested requests', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const tool = createAllowlistTool({
+				customAgents: [createAgent('Allowed', ['Nested']), createAgent('Nested')],
+				currentModeInstructions: { name: 'Coordinator', content: 'Coordinate', toolReferences: [], allowedSubagents: ['Allowed'] },
+				capturedRequests,
+			});
+
+			await tool.invoke(createInvocation('Allowed'), countTokens, noProgress, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				requestCount: capturedRequests.length,
+				subAgentName: capturedRequests[0]?.subAgentName,
+				allowedSubagents: capturedRequests[0]?.modeInstructions?.allowedSubagents,
+			}, {
+				requestCount: 1,
+				subAgentName: 'Allowed',
+				allowedSubagents: ['Nested'],
+			});
+		});
+
+		test('validates nested calls against the allowlist of the calling subagent', async () => {
+			// A (the current request's agent) -> B -> C -> D, where each agent only allows the next one.
+			const capturedRequests: IChatAgentRequest[] = [];
+			const outcomes: INestedCallOutcome[] = [];
+			const nextAgent: Record<string, string> = { B: 'C', C: 'D' };
+			const tool = createAllowlistTool({
+				customAgents: [createAgent('B', ['C']), createAgent('C', ['D']), createAgent('D')],
+				currentModeInstructions: { name: 'A', content: 'A instructions', toolReferences: [], allowedSubagents: ['B'] },
+				capturedRequests,
+				onInvokeAgent: async request => {
+					const agentName = nextAgent[request.subAgentName!];
+					if (agentName) {
+						outcomes.push(await callFromSubagent(tool, request, agentName));
+					}
+				},
+			});
+
+			const result = await tool.invoke(createInvocation('B'), countTokens, noProgress, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				result: getResultText(result),
+				invokedAgents: capturedRequests.map(request => request.subAgentName),
+				outcomes,
+			}, {
+				result: completed,
+				invokedAgents: ['B', 'C', 'D'],
+				outcomes: [
+					{ caller: 'C', agentName: 'D', prepare: 'ok', invoke: completed },
+					{ caller: 'B', agentName: 'C', prepare: 'ok', invoke: completed },
+				],
+			});
+		});
+
+		test('rejects nested calls to agents that only the current request\'s agent allows', async () => {
+			const outcomes: INestedCallOutcome[] = [];
+			const tool = createAllowlistTool({
+				customAgents: [createAgent('B', ['C']), createAgent('C'), createAgent('D')],
+				currentModeInstructions: { name: 'A', content: 'A instructions', toolReferences: [], allowedSubagents: ['B', 'D'] },
+				onInvokeAgent: async request => {
+					if (request.subAgentName === 'B') {
+						outcomes.push(await callFromSubagent(tool, request, 'D'));
+						outcomes.push(await callFromSubagent(tool, request, 'C'));
+					}
+				},
+			});
+
+			await tool.invoke(createInvocation('B'), countTokens, noProgress, CancellationToken.None);
+
+			assert.deepStrictEqual(outcomes, [
+				{ caller: 'B', agentName: 'D', prepare: notAllowed('D'), invoke: `Error invoking subagent: ${notAllowed('D')}` },
+				{ caller: 'B', agentName: 'C', prepare: 'ok', invoke: completed },
+			]);
+		});
+
+		test('resolves the calling subagent per request when subagents run in parallel with the same tool call id', async () => {
+			// A runs B and C at the same time, through tool calls that reuse the same id. Only C allows D,
+			// so the same call is rejected for B and allowed for C.
+			const outcomes: INestedCallOutcome[] = [];
+			const bothRunning = new DeferredPromise<void>();
+			let runningCount = 0;
+			const tool = createAllowlistTool({
+				customAgents: [createAgent('B', ['X']), createAgent('C', ['D']), createAgent('D')],
+				currentModeInstructions: { name: 'A', content: 'A instructions', toolReferences: [], allowedSubagents: ['B', 'C'] },
+				onInvokeAgent: async request => {
+					if (request.subAgentName === 'B' || request.subAgentName === 'C') {
+						if (++runningCount === 2) {
+							bothRunning.complete();
+						}
+						await bothRunning.p;
+						outcomes.push(await callFromSubagent(tool, request, 'D'));
+					}
+				},
+			});
+
+			await Promise.all(['B', 'C'].map(agentName => tool.invoke({ ...createInvocation(agentName), chatStreamToolCallId: 'reused-tool-call-id' }, countTokens, noProgress, CancellationToken.None)));
+
+			assert.deepStrictEqual(outcomes.sort((a, b) => a.caller!.localeCompare(b.caller!)), [
+				{ caller: 'B', agentName: 'D', prepare: notAllowed('D'), invoke: `Error invoking subagent: ${notAllowed('D')}` },
+				{ caller: 'C', agentName: 'D', prepare: 'ok', invoke: completed },
+			]);
+		});
+
+		test('copies the calling subagent when a nested call omits agentName', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			let preparedAgentName: string | undefined;
+			const modelName = 'Claude Sonnet (TestVendor)';
+			const modelMetadata = createMetadata('Claude Sonnet', 1);
+			// The tools service gives every call, nested ones too, the model and tools of the top-level request.
+			const inTopLevelRequest = (invocation: IToolInvocation): IToolInvocation => ({ ...invocation, modelId: 'main-model-id', userSelectedTools: { runSubagent: true, topLevelTool: true } });
+			const tool = createAllowlistTool({
+				customAgents: [
+					{
+						...createAgent('B', ['C']),
+						model: [modelName],
+						tools: ['readTool', RunSubagentTool.Id],
+						hooks: { [HookType.PreToolUse]: [{ command: 'guard-read' }], [HookType.Stop]: [{ command: 'on-stop' }] },
+					},
+					createAgent('C'),
+				],
+				currentModeInstructions: { name: 'A', content: 'A instructions', toolReferences: [], allowedSubagents: ['B'] },
+				capturedRequests,
+				languageModelsService: createLanguageModelsServiceMock(
+					new Map([['main-model-id', createMetadata('GPT', 1)], ['b-model-id', modelMetadata]]),
+					{ qualifiedNameMap: new Map([[modelName, { metadata: modelMetadata, identifier: 'b-model-id' }]]) },
+				),
+				onInvokeAgent: async request => {
+					if (capturedRequests.length === 1) {
+						const invocation = inTopLevelRequest(createInvocation(undefined, request));
+						const prepared = await prepareInvocation(tool, invocation);
+						preparedAgentName = prepared?.toolSpecificData?.kind === 'subagent' ? prepared.toolSpecificData.agentName : undefined;
+						await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+					}
+				},
+			});
+
+			await tool.invoke(inTopLevelRequest(createInvocation('B')), countTokens, noProgress, CancellationToken.None);
+
+			const bTools = { readTool: true, runSubagent: true, topLevelTool: false, manage_todo_list: false, copilot_askQuestions: false };
+			const bHooks = { [HookType.PreToolUse]: [{ command: 'guard-read' }], [HookType.Stop]: undefined, [HookType.SubagentStop]: [{ command: 'on-stop' }] };
+			assert.deepStrictEqual({
+				preparedAgentName,
+				invokedAgents: capturedRequests.map(request => ({
+					subAgentName: request.subAgentName,
+					instructions: request.modeInstructions?.content,
+					allowedSubagents: request.modeInstructions?.allowedSubagents,
+					model: request.userSelectedModelId,
+					tools: request.userSelectedTools,
+					hooks: request.hooks,
+				})),
+			}, {
+				preparedAgentName: 'B',
+				invokedAgents: [
+					{ subAgentName: 'B', instructions: 'B instructions', allowedSubagents: ['C'], model: 'b-model-id', tools: bTools, hooks: bHooks },
+					{ subAgentName: 'B', instructions: 'B instructions', allowedSubagents: ['C'], model: 'b-model-id', tools: bTools, hooks: bHooks },
+				],
+			});
+		});
+
+		test('stops treating a subagent as the caller once it has finished', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const whileRunning: (string | undefined)[] = [];
+			const tool = createAllowlistTool({
+				customAgents: [createAgent('B', ['C']), createAgent('Failing', ['C']), createAgent('C')],
+				currentModeInstructions: { name: 'A', content: 'A instructions', toolReferences: [], allowedSubagents: ['B', 'Failing'] },
+				capturedRequests,
+				onInvokeAgent: async request => {
+					if (request.subAgentName === 'C') {
+						return;
+					}
+					whileRunning.push((await callFromSubagent(tool, request, 'C')).invoke);
+					if (request.subAgentName === 'Failing') {
+						throw new Error('subagent failed');
+					}
+				},
+			});
+
+			const afterFinished: (string | undefined)[] = [];
+			for (const agentName of ['B', 'Failing']) {
+				await tool.invoke(createInvocation(agentName), countTokens, noProgress, CancellationToken.None);
+				const finishedSubagent = capturedRequests.find(request => request.subAgentName === agentName)!;
+				const result = await tool.invoke(createInvocation('C', finishedSubagent), countTokens, noProgress, CancellationToken.None);
+				afterFinished.push(getResultText(result));
+			}
+
+			assert.deepStrictEqual({ whileRunning, afterFinished }, {
+				whileRunning: [completed, completed],
+				afterFinished: [`Error invoking subagent: ${notAllowed('C')}`, `Error invoking subagent: ${notAllowed('C')}`],
+			});
+		});
+	});
+
+	suite('nested subagent depth tracking', () => {
 		test('disables runSubagent tool when nesting is disabled', async () => {
 			const capturedRequests: IChatAgentRequest[] = [];
 			const { tool } = createInvokableTool({ allowInvocationsFromSubagents: false, capturedRequests });
@@ -1125,7 +1504,7 @@ suite('RunSubagentTool', () => {
 				mockChatAgentService as IChatAgentService,
 				mockChatService as IChatService,
 				mockToolsService,
-				{} as ILanguageModelsService,
+				createLanguageModelsServiceMock(),
 				new NullLogService(),
 				configService,
 				promptsService,

@@ -20,7 +20,7 @@ export type VoiceDisabledEvent = {
 export type VoiceDisabledClassification = {
 	owner: 'meganrogge';
 	comment: 'Fired when the user disables agents.voice.enabled.';
-	daysActive: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of days the feature was enabled before disabling.' };
+	daysActive: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of days the feature was enabled before disabling.' };
 };
 
 export type VoiceFirstConnectEvent = {
@@ -29,7 +29,7 @@ export type VoiceFirstConnectEvent = {
 export type VoiceFirstConnectClassification = {
 	owner: 'meganrogge';
 	comment: 'Fired on the first successful WebSocket connect in a window lifetime.';
-	timeToConnectMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Milliseconds from connect() call to WebSocket open.' };
+	timeToConnectMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from connect() call to WebSocket open.' };
 };
 
 export type VoiceOnboardingCompletedEvent = {};
@@ -46,7 +46,7 @@ export type VoiceSessionStartedEvent = {
 export type VoiceSessionStartedClassification = {
 	owner: 'meganrogge';
 	comment: 'Fired each time a voice WebSocket session is started (connect or reconnect).';
-	sessionIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Monotonic index of this session within the window lifetime.' };
+	sessionIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Monotonic index of this session within the window lifetime.' };
 };
 
 export type VoiceSessionEndedEvent = {
@@ -57,9 +57,9 @@ export type VoiceSessionEndedEvent = {
 export type VoiceSessionEndedClassification = {
 	owner: 'meganrogge';
 	comment: 'Fired when a voice session ends (user disconnect or window close).';
-	turnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Total user turns (PTT presses) in this session.' };
-	durationSec: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Wall-clock seconds the session was active.' };
-	reconnectCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Number of automatic reconnects during this session.' };
+	turnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total user turns (PTT presses) in this session.' };
+	durationSec: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Wall-clock seconds the session was active.' };
+	reconnectCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of automatic reconnects during this session.' };
 };
 
 export type VoicePttEvent = {
@@ -68,7 +68,7 @@ export type VoicePttEvent = {
 export type VoicePttClassification = {
 	owner: 'meganrogge';
 	comment: 'Fired on each PTT release (pttUp). Measures how long the user held the key.';
-	holdDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Milliseconds between pttDown and pttUp.' };
+	holdDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds between pttDown and pttUp.' };
 };
 
 export type VoiceTtsListenThroughEvent = {
@@ -78,8 +78,8 @@ export type VoiceTtsListenThroughEvent = {
 export type VoiceTtsListenThroughClassification = {
 	owner: 'meganrogge';
 	comment: 'Fired when TTS playback finishes or is interrupted. Tracks listen-through rate.';
-	listenedToEnd: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user listened to the entire response.' };
-	listenedPct: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Approximate percentage of the response the user heard (0-100).' };
+	listenedToEnd: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user listened to the entire response.' };
+	listenedPct: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Approximate percentage of the response the user heard (0-100).' };
 };
 
 /* -- Quality -- */
@@ -92,7 +92,7 @@ export type VoiceToolApprovalClassification = {
 	owner: 'meganrogge';
 	comment: 'Fired when the voice backend approves or rejects a tool confirmation.';
 	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of the voice tool that was invoked (respond_to_session).' };
-	approved: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the action was an approval (true) or denial (false).' };
+	approved: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the action was an approval (true) or denial (false).' };
 };
 
 export type VoiceReconnectEvent = {
@@ -101,7 +101,7 @@ export type VoiceReconnectEvent = {
 export type VoiceReconnectClassification = {
 	owner: 'meganrogge';
 	comment: 'Fired on each automatic WebSocket reconnect.';
-	timeSinceLastConnectSec: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Seconds since the previous successful connect.' };
+	timeSinceLastConnectSec: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Seconds since the previous successful connect.' };
 };
 
 /* -- Latency -- */
@@ -113,8 +113,8 @@ export type VoiceLatencyEvent = {
 export type VoiceLatencyClassification = {
 	owner: 'meganrogge';
 	comment: 'Fired after a complete voice turn (user speaks → assistant responds). Measures latency.';
-	timeToFirstTranscriptionMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Milliseconds from pttDown to first partial transcription received.' };
-	endToEndTurnMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Milliseconds from pttUp to first audio response chunk.' };
+	timeToFirstTranscriptionMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from pttDown to first partial transcription received.' };
+	endToEndTurnMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from pttUp to first audio response chunk.' };
 };
 
 export type VoiceNarrationDeferredEvent = {
@@ -131,10 +131,21 @@ export type VoiceNarrationDeferredClassification = {
 export type VoiceNarrationDroppedEvent = {
 	kind: string;
 	reason: string;
+	rejectionReason?: VoiceNarrationRejectionReason;
 };
 export type VoiceNarrationDroppedClassification = {
 	owner: 'meganrogge';
 	comment: 'Fired client-side when a requested narration is dropped without being played (no narration text is logged).';
 	kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the dropped narration was a response, confirmation prompt, or checkpoint.' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why it was dropped: invalid (narration_ack invalid), stale (no longer the current narratable item), or session_changed (user switched away from the session).' };
+	rejectionReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'For invalid confirmation narrations, the allowlisted backend rejection category. Missing or unrecognized backend reasons are reported as missing or unknown; raw backend text is never logged.' };
 };
+
+export type VoiceNarrationRejectionReason = 'stale_pending' | 'missing' | 'unknown';
+
+export function toVoiceNarrationRejectionReason(reason: string | undefined): VoiceNarrationRejectionReason {
+	if (reason === undefined) {
+		return 'missing';
+	}
+	return reason === 'stale_pending' ? reason : 'unknown';
+}
