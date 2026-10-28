@@ -113,6 +113,7 @@ suite('New session composer layout', () => {
 		assert.deepStrictEqual({
 			layoutDefault: experimentalNewSessionComposerLayoutProperty.default,
 			layoutScope: experimentalNewSessionComposerLayoutProperty.scope,
+			layoutExperiment: experimentalNewSessionComposerLayoutProperty.experiment,
 			optionsDefault: newSessionComposerOptionsExpandedProperty.default,
 			optionsScope: newSessionComposerOptionsExpandedProperty.scope,
 			optionsExperimentMode: newSessionComposerOptionsExpandedProperty.experiment?.mode,
@@ -121,6 +122,7 @@ suite('New session composer layout', () => {
 		}, {
 			layoutDefault: true,
 			layoutScope: ConfigurationScope.WINDOW,
+			layoutExperiment: undefined,
 			optionsDefault: true,
 			optionsScope: ConfigurationScope.APPLICATION,
 			optionsExperimentMode: 'auto',
