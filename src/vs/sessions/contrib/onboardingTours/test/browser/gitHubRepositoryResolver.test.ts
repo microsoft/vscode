@@ -96,6 +96,7 @@ suite('GitHubRepositoryResolver', () => {
 
 		assert.deepStrictEqual(await resolveGitRepositoryFromGitConfig(fileService, ROOT), {
 			gitHub: undefined,
+			root: ROOT,
 		});
 	});
 });

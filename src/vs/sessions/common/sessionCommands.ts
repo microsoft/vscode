@@ -51,6 +51,11 @@ export const HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID = 'sessionsViewPane.hi
 
 export const SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID = 'sessionsViewPane.showApplicationFilters';
 
+/** Project commands. Registered in `sessionsProjectActions.ts`. */
+export const SELECT_SESSIONS_PROJECT_COMMAND_ID = 'sessions.projects.select';
+export const NEW_SESSION_IN_PROJECT_COMMAND_ID = 'sessions.projects.newSession';
+export const SHOW_ALL_SESSIONS_PROJECTS_COMMAND_ID = 'sessions.projects.showAll';
+
 export {
 	AGENT_SESSION_MARK_READ_ACTION_ID as MARK_SESSION_READ_COMMAND_ID,
 	AGENT_SESSION_MARK_UNREAD_ACTION_ID as MARK_SESSION_UNREAD_COMMAND_ID,

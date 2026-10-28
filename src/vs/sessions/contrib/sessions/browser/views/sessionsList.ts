@@ -21,7 +21,7 @@ import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/fi
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { constObservable, IObservable, IReader, ISettableObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, IReader, ISettableObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue, runOnChange } from '../../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { hasKey, isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -4029,6 +4029,11 @@ interface ISessionsListControlBaseOptions {
 	readonly focusNewSessionInput?: () => void;
 	readonly findWidgetContainer?: HTMLElement;
 	readonly onDidScroll?: () => void;
+	/**
+	 * Restricts the listed sessions, such as to the selected project. The active
+	 * session stays visible regardless. Changing the observable updates the list.
+	 */
+	readonly sessionScope?: IObservable<((session: ISession) => boolean) | undefined>;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
 	/**
@@ -5084,6 +5089,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 		this._register(this.filters.onDidChange(() => this.update()));
+		if (this.options.sessionScope) {
+			this._register(runOnChange(this.options.sessionScope, () => this.update()));
+		}
 
 		// Re-render when the active session changes.
 		this._register(autorun(reader => {
@@ -5199,6 +5207,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 			filtered = filtered.filter(s => scoped.has(s.providerId));
 		}
 		filtered = filtered.filter(session => this.filters.matches(session));
+		const sessionScope = this.options.sessionScope?.get();
+		if (sessionScope) {
+			filtered = filtered.filter(sessionScope);
+		}
 		// The default only changes what the list shows for archived content that the other filters keep.
 		if (this._excludeArchivedIsDefault && filtered.some(session => hasArchivedListContent(session))) {
 			logSettingExperimentTrigger(this.telemetryService, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING);

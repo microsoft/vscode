@@ -13,16 +13,19 @@ const MAX_PARENT_LOOKUPS = 50;
 
 export interface IResolvedGitRepository {
 	readonly gitHub: IGitHubRemoteInfo | undefined;
+	/** The checkout root containing `.git`, which may be a worktree of another repository. */
+	readonly root: URI;
 }
 
 export async function resolveGitRepositoryFromGitConfig(fileService: IFileService, workspaceUri: URI, supportedHosts?: readonly string[]): Promise<IResolvedGitRepository | undefined> {
-	const configUri = await findGitConfig(fileService, workspaceUri);
-	if (!configUri) {
+	const found = await findGitConfig(fileService, workspaceUri);
+	if (!found) {
 		return undefined;
 	}
-	const content = await readFileIfExists(fileService, configUri);
+	const content = await readFileIfExists(fileService, found.configUri);
 	return {
 		gitHub: content === undefined ? undefined : parseGitHubRepositoryFromGitConfig(content, supportedHosts),
+		root: found.root,
 	};
 }
 
@@ -59,14 +62,14 @@ export function parseGitHubRepositoryFromGitConfig(content: string, supportedHos
 	return undefined;
 }
 
-async function findGitConfig(fileService: IFileService, workspaceUri: URI): Promise<URI | undefined> {
+async function findGitConfig(fileService: IFileService, workspaceUri: URI): Promise<{ readonly configUri: URI; readonly root: URI } | undefined> {
 	let current = workspaceUri;
 	for (let i = 0; i < MAX_PARENT_LOOKUPS; i++) {
 		const dotGit = joinPath(current, '.git');
 		const stat = await statIfExists(fileService, dotGit);
 		if (stat) {
 			if (stat.isDirectory) {
-				return joinPath(dotGit, 'config');
+				return { configUri: joinPath(dotGit, 'config'), root: current };
 			}
 			const dotGitContent = await readFileIfExists(fileService, dotGit);
 			const gitDirPath = dotGitContent ? /^\s*gitdir:\s*(.+?)\s*$/im.exec(dotGitContent)?.[1] : undefined;
@@ -74,7 +77,7 @@ async function findGitConfig(fileService: IFileService, workspaceUri: URI): Prom
 				const gitDir = resolveGitPath(current, gitDirPath);
 				const commonDirPath = await readFileIfExists(fileService, joinPath(gitDir, 'commondir'));
 				const configRoot = commonDirPath ? resolveGitPath(gitDir, commonDirPath.trim()) : gitDir;
-				return joinPath(configRoot, 'config');
+				return { configUri: joinPath(configRoot, 'config'), root: current };
 			}
 		}
 

@@ -12,6 +12,7 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { isEqual } from '../../../../../base/common/resources.js';
 import { isMobile, isWeb } from '../../../../../base/common/platform.js';
 import { hasKey } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
@@ -707,20 +708,24 @@ const SessionGroupingSectionContext = ContextKeyExpr.or(
  * Opens a new session that starts in the workspace and environment of `session`, or in the
  * composer's own choice of workspace without one.
  */
-async function openNewSessionLike(accessor: ServicesAccessor, session: ISession | undefined): Promise<void> {
+export async function openNewSessionLike(accessor: ServicesAccessor, session: ISession | undefined): Promise<void> {
+	const folderUri = session?.workspace.get()?.folders[0]?.root;
+	const target = inheritableSessionTarget(accessor.get(ISessionsManagementService), session, folderUri);
+	return openNewSessionAt(accessor, folderUri && { folderUri: target.folderUri ?? folderUri, providerId: target.providerId });
+}
+
+/** Opens the new-session composer, starting it in `location` when given, as if the user selected that folder. */
+export async function openNewSessionAt(accessor: ServicesAccessor, location: { readonly folderUri: URI; readonly providerId?: string } | undefined): Promise<void> {
 	const sessionsService = accessor.get(ISessionsService);
-	const sessionsManagementService = accessor.get(ISessionsManagementService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 	const commandService = accessor.get(ICommandService);
 
 	accessor.get(INewSessionComposerService).notifyUserWorkspaceSelection();
 	await sessionsService.openNewSession();
 
-	const folderUri = session?.workspace.get()?.folders[0]?.root;
 	const newSession = sessionsService.activeSession.get();
-	if (session && folderUri) {
-		const target = inheritableSessionTarget(sessionsManagementService, session, folderUri);
-		sessionsPartService.getSessionView(newSession?.sessionId)?.selectWorkspace(target.folderUri ?? folderUri, { providerId: target.providerId, selectionOrigin: WorkspaceSelectionOrigin.User });
+	if (location) {
+		sessionsPartService.getSessionView(newSession?.sessionId)?.selectWorkspace(location.folderUri, { providerId: location.providerId, selectionOrigin: WorkspaceSelectionOrigin.User });
 	}
 
 	// On mobile web, the sidebar drawer covers the viewport; close it so

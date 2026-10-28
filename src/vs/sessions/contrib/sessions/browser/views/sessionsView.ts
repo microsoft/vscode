@@ -9,7 +9,7 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derivedOpts, IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
@@ -49,6 +49,7 @@ import { PANEL_SECTION_BORDER } from '../../../../../workbench/common/theme.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsProjectsService } from '../../../../services/projects/common/sessionsProjects.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobileSessionFilterChips.js';
@@ -198,6 +199,7 @@ export class SessionsView extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IMenuService private readonly menuService: IMenuService,
+		@ISessionsProjectsService private readonly sessionsProjectsService: ISessionsProjectsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.separateNavigation = observableConfigValue(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, false, configurationService);
@@ -309,6 +311,7 @@ export class SessionsView extends ViewPane {
 			onDidChangeNavigationHeight: () => this.layoutSidebarSplitView(),
 			focusNewSessionInput: () => this.sessionsPartService.focusSession(this.sessionsService.activeSession.get()),
 			findWidgetContainer,
+			sessionScope: this.createProjectScope(),
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const session = this.sessionsManagementService.getSession(resource);
 				if (!session) {
@@ -484,8 +487,30 @@ export class SessionsView extends ViewPane {
 		const header = renderSessionsHeader(parent, phoneLayout, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportFilterMenuShown());
 		this.sessionsHeaders.add(header);
 		disposables.add(toDisposable(() => this.sessionsHeaders.delete(header)));
+		if (!phoneLayout) {
+			// The header names the selected project, so the scoped list is never mistaken for every session.
+			const defaultLabel = header.label.textContent;
+			disposables.add(autorun(reader => {
+				header.label.textContent = this.sessionsProjectsService.selectedProject.read(reader)?.label ?? defaultLabel;
+				this.updateHeaderLayout();
+			}));
+		}
 		this.updateHeaderLayout();
 		return header;
+	}
+
+	/** Scopes the list to the selected project; changes only when another project is selected. */
+	private createProjectScope(): IObservable<((session: ISession) => boolean) | undefined> {
+		const selectedKey = derived(this, reader => this.sessionsProjectsService.selectedProject.read(reader)?.key);
+		return derived(this, reader => {
+			if (!selectedKey.read(reader)) {
+				return undefined;
+			}
+			return (session: ISession) => {
+				const project = this.sessionsProjectsService.selectedProject.read(undefined);
+				return !project || this.sessionsProjectsService.isSessionInProject(session, project);
+			};
+		});
 	}
 
 	showApplicationFilters(): void {
