@@ -25,9 +25,14 @@ suite('ColorThemeData - loading', () => {
 			}
 		};
 
-		await assert.rejects(theme.ensureLoaded(resourceLoaderService), {
-			message: `Problem parsing tmTheme file: ${theme.location.toString()}. 'settings' is not array.`,
-		});
+		let message: string | undefined;
+		try {
+			await theme.ensureLoaded(resourceLoaderService);
+		} catch (error) {
+			assert.ok(error instanceof Error);
+			message = error.message;
+		}
+		assert.strictEqual(message, `Problem parsing tmTheme file: ${theme.location.toString()}. 'settings' is not array.`);
 	});
 });
 
