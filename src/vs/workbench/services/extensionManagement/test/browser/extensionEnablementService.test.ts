@@ -1208,6 +1208,10 @@ suite('ExtensionEnablementService Test', () => {
 
 		const server = instantiationService.get(IExtensionManagementServerService).localExtensionManagementServer;
 		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, null, server));
+		// Keep the simulated web host independent of the test runner's platform.
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('remote.extensionKind', {
+			'vscode.typescript-language-features': ['web'],
+		});
 		const typescript = aLocalExtension2('vscode.typescript-language-features', {
 			main: './out/extension',
 			browser: './dist/browser/extension',
