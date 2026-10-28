@@ -1657,6 +1657,8 @@ suite('ChatListWidget', () => {
 			}, true);
 			const { model, container, widget, viewModel } = context;
 			container.classList.add('interactive-list');
+			// Pin the workbench font size so prompt wrapping doesn't depend on the body font, which the full suite changes to 11px.
+			container.style.fontSize = '13px';
 			container.style.setProperty('--vscode-spacing-size80', '8px');
 			const request = model.addRequest({
 				text,
