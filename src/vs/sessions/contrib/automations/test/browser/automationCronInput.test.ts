@@ -24,8 +24,10 @@ suite('Automation cron segmented input', () => {
 			elements[index].value = value;
 			elements[index].dispatchEvent(new targetWindow.Event('input'));
 		};
-		const key = (index: number, key: string, ctrlKey = false) => {
-			elements[index].dispatchEvent(new KeyboardEvent('keydown', { key, ctrlKey, bubbles: true, cancelable: true }));
+		const key = (index: number, key: string, ctrlKey = false, metaKey = false) => {
+			const event = new KeyboardEvent('keydown', { key, ctrlKey, metaKey, bubbles: true, cancelable: true });
+			elements[index].dispatchEvent(event);
+			return event;
 		};
 		const paste = (index: number, text: string) => {
 			const clipboardData = new DataTransfer();
@@ -83,6 +85,32 @@ suite('Automation cron segmented input', () => {
 			copied: '*/2 * * * MON-FRI', replaced: '* * * JAN *', pasted: '0 9 * * MON', cleared: '',
 			changes: ['* * * JAN *', '0 9 * * MON', ''],
 		});
+	});
+
+	test('caret navigation cancels whole-expression selection before field edits and deletion', () => {
+		const parts = ['15', '1', '*', '*', 'MON-FRI'];
+		const cases = ['ArrowLeft', 'ArrowRight', 'Home', 'End', 'ArrowUp', 'ArrowDown'].flatMap(navigation =>
+			['Control', 'Meta'].flatMap(modifier =>
+				['edit', 'Backspace', 'Delete'].map(action => ({ navigation, modifier, action }))));
+		const results = cases.map(({ navigation, modifier, action }) => {
+			const { container, elements, key, change } = create(parts.join(' '));
+			const index = navigation === 'ArrowUp' || navigation === 'ArrowDown' ? 4 : 1;
+			elements[index].focus();
+			key(index, 'a', modifier === 'Control', modifier === 'Meta');
+			const event = key(index, navigation);
+			const selected = container.querySelector('.automation-cron-segments')!.classList.contains('all-selected');
+			const deletionPrevented = action === 'edit' ? false : key(index, action).defaultPrevented;
+			change(index, action === 'edit' ? '2' : '');
+			return {
+				navigation, modifier, action, selected,
+				navigationPrevented: event.defaultPrevented, deletionPrevented,
+				untouched: elements.filter((_, position) => position !== index).map(element => element.value),
+			};
+		});
+		assert.deepStrictEqual(results, cases.map(({ navigation, modifier, action }) => ({
+			navigation, modifier, action, selected: false, navigationPrevented: false, deletionPrevented: false,
+			untouched: parts.filter((_, index) => index !== (navigation === 'ArrowUp' || navigation === 'ArrowDown' ? 4 : 1)),
+		})));
 	});
 
 	test('arrow keys cycle numeric values and wildcards but leave compound expressions alone', () => {
