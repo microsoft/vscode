@@ -240,6 +240,8 @@ class TestHandlerChatOwnership extends AgentHostChatOwnershipService {
 class MockAgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
 	sessionWorktreeCleanup?: IAgentService['sessionWorktreeCleanup'];
+	listManagedWorktrees?: IAgentService['listManagedWorktrees'];
+	cleanupManagedWorktree?: IAgentService['cleanupManagedWorktree'];
 	private readonly _worktreeDiskUsage = this._register(new AgentHostWorktreeDiskUsageService(undefined, new class extends mock<IAgentHostDatabase>() { }(), new class extends mock<AgentHostStateManager>() { }()));
 
 	measureWorktreeDiskUsage(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined> {
@@ -2484,6 +2486,34 @@ suite('ProtocolServerHandler', () => {
 
 		teardown(async () => {
 			await rm(root, { recursive: true, force: true });
+		});
+
+		test('routes managed inventory and explicit cleanup without a session identity', async () => {
+			const calls: string[][] = [];
+			agentService.listManagedWorktrees = async repositories => {
+				calls.push(repositories.map(repository => repository.toString()));
+				return [];
+			};
+			agentService.cleanupManagedWorktree = async (repository, worktree, branch) => {
+				calls.push([repository.toString(), worktree.toString(), branch]);
+			};
+			const transport = connectClient('managed-worktrees');
+			const inventory = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/listManagedWorktrees', { repositories: ['file:///repo'] }));
+			assert.deepStrictEqual(await inventory, { jsonrpc: '2.0', id: 20, result: [] });
+			const cleanup = waitForResponse(transport, 21);
+			transport.simulateMessage(request(21, 'vscode/cleanupManagedWorktree', { repository: 'file:///repo', worktree: 'file:///repo.worktrees/recovered', branch: 'agents/recovered' }));
+			await cleanup;
+			assert.deepStrictEqual(calls, [['file:///repo'], ['file:///repo', 'file:///repo.worktrees/recovered', 'agents/recovered']]);
+		});
+
+		test('rejects managed cleanup without its expected branch', async () => {
+			agentService.cleanupManagedWorktree = async () => { throw new Error('Must not be called'); };
+			const transport = connectClient('managed-worktrees-invalid');
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/cleanupManagedWorktree', { repository: 'file:///repo', worktree: 'file:///repo.worktrees/recovered' }));
+			const result = await response;
+			assert.ok(hasKey(result, { error: true }) && result.error?.code === JsonRpcErrorCodes.InvalidParams);
 		});
 
 		test('routes cleanup state and retry requests to the owning host', async () => {

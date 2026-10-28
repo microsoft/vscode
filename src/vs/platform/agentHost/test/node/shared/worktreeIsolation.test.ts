@@ -1475,7 +1475,7 @@ suite('WorktreeIsolation', () => {
 		const afterFailure = { deletionAttempts, attempts: (await database.readPendingWorktreeRemoval('detached', created.handle))?.attempts };
 
 		// After a restart, the removal is retried once its backoff elapsed.
-		const restarted = disposables.add(new AgentHostWorktreeCleanupService({ now: () => Date.now() + 60 * 60 * 1000 }, database, createIsolation(disposables, { gitService, sessionDataService }), new NullLogService()));
+		const restarted = disposables.add(new AgentHostWorktreeCleanupService({ now: () => Date.now() + 60 * 60 * 1000 }, database, createIsolation(disposables, { gitService, sessionDataService }), new NullLogService(), gitService));
 		await restarted.runPass();
 
 		assert.deepStrictEqual({

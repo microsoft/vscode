@@ -28,7 +28,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { SessionWorktreeCleanupEditor } from '../../browser/sessionWorktreeCleanupEditor.js';
 import { SessionWorktreeCleanupEditorInput } from '../../browser/sessionWorktreeCleanupEditorInput.js';
-import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, ISessionWorktree, ISessionWorktreeCleanupCandidate, ISessionWorktreeCleanupService, ISessionWorktreeMeasurementProgress, SessionWorktreeCleanupProgress } from '../../browser/sessionWorktreeCleanupService.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, getWorktreeCleanupId, ISessionWorktree, ISessionWorktreeCleanupCandidate, ISessionWorktreeCleanupService, ISessionWorktreeMeasurementProgress, SessionWorktreeCleanupProgress } from '../../browser/sessionWorktreeCleanupService.js';
 import '../../../../../workbench/browser/actions/listCommands.js';
 
 suite('SessionWorktreeCleanupEditor', () => {
@@ -73,6 +73,38 @@ suite('SessionWorktreeCleanupEditor', () => {
 			element.dispatchEvent(new mainWindow.FocusEvent('focus'));
 		}
 	}
+
+	test('shows unlinked worktrees with unknown size, leaves them unselected, and allows explicit cleanup', async () => {
+		const unlinked: ISessionWorktree = {
+			unlinkedWorktree: { providerId: 'test', repository: URI.file('/repos/app').toString(), worktree: URI.file('/repos/app.worktrees/recovered').toString(), branch: 'agents/recovered', cleanupStatus: { state: 'unknown' } },
+			sizeBytes: undefined, worktreeCount: 1, cleanupState: 'unlinked', worktreeExists: true, cleanupStatus: { state: 'unknown' },
+		};
+		const requests: ISessionWorktreeCleanupCandidate[][] = [];
+		const { editor, container, opened } = createEditor({
+			getWorktrees: async () => [unlinked],
+			cleanupWorktrees: async (candidates, onProgress) => {
+				requests.push([...candidates]);
+				return scheduleCleanup(candidates, onProgress);
+			},
+		});
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		await timeout(0);
+		const row = container.querySelector('.session-worktree-cleanup-row:not(.header)')!;
+		const checkbox = row.querySelector<HTMLElement>('.monaco-checkbox')!;
+		assert.deepStrictEqual({
+			title: row.querySelector('.title')?.textContent,
+			storage: row.querySelector('.storage')?.textContent,
+			lastUsed: row.querySelector('.lastUsed')?.textContent,
+			selected: checkbox.getAttribute('aria-checked'),
+			selectable: checkbox.getAttribute('aria-disabled'),
+		}, { title: 'agents/recoveredNo matching session', storage: 'Unknown', lastUsed: 'Unknown', selected: 'false', selectable: null });
+		checkbox.click();
+		container.querySelector<HTMLAnchorElement>('.session-worktree-cleanup-action')!.click();
+		await timeout(0);
+		assert.deepStrictEqual({ requests: requests.map(candidates => candidates.map(getWorktreeCleanupId)), opened }, {
+			requests: [[getWorktreeCleanupId(unlinked)]], opened: [],
+		});
+	});
 
 	test('finishes opening before worktree sessions load and then updates the results', async () => {
 		const worktrees = new DeferredPromise<readonly ISessionWorktree[]>();
@@ -183,7 +215,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		const requests: string[][] = [];
 		const { editor, container, instantiationService, opened } = createEditor({
 			getWorktrees: async () => { measurements++; return worktrees; },
-			cleanupWorktrees: async candidates => { requests.push(candidates.map(candidate => candidate.session.sessionId)); return false; },
+			cleanupWorktrees: async candidates => { requests.push(candidates.map(candidate => getWorktreeCleanupId(candidate))); return false; },
 		});
 		editor.layout(new dom.Dimension(960, 600));
 		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
@@ -661,7 +693,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		const { editor, container } = createEditor({
 			getWorktrees: async () => [removed ? removedWorktree(first) : scheduled ? { ...first, cleanupState: 'archived', cleanupStatus: { state: 'pending' } } : first, failed],
 			cleanupWorktrees: async (candidates, onProgress) => {
-				requests.push(candidates.map(candidate => candidate.session.sessionId));
+				requests.push(candidates.map(candidate => getWorktreeCleanupId(candidate)));
 				scheduled = true;
 				return scheduleCleanup(candidates, onProgress);
 			},
@@ -993,10 +1025,10 @@ suite('SessionWorktreeCleanupEditor', () => {
 		const { editor, container, errors } = createEditor({
 			getWorktrees: async () => getWorktrees(),
 			cleanupWorktrees: async (candidates, onProgress) => {
-				requests.push(candidates.map(candidate => candidate.session.sessionId));
+				requests.push(candidates.map(candidate => getWorktreeCleanupId(candidate)));
 				onProgress?.({ state: 'started' });
 				for (const candidate of candidates) {
-					onProgress?.(candidate.session.sessionId === 'second' && requests.length === 1
+					onProgress?.(getWorktreeCleanupId(candidate) === 'second' && requests.length === 1
 						? { state: 'failed', candidate, message: 'host disconnected' }
 						: { state: 'scheduled', candidate });
 				}
@@ -1054,7 +1086,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		const { editor, container } = createEditor({
 			getWorktrees: async () => worktrees,
 			cleanupWorktrees: async (candidates, onProgress) => {
-				requests.push(candidates.map(candidate => candidate.session.sessionId));
+				requests.push(candidates.map(candidate => getWorktreeCleanupId(candidate)));
 				onProgress?.({ state: 'started' });
 				for (const candidate of candidates) {
 					onProgress?.({ state: 'failed', candidate, message: 'host disconnected' });
@@ -1182,7 +1214,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 			headingIcons: 0,
 			gears: 0,
 			configureActions: 0,
-			intro: 'Clean up worktrees to free disk space. Uncommitted changes are committed and sessions marked as done; restore a session to recreate its worktree.',
+			intro: 'Clean up worktrees to free disk space. Uncommitted changes are committed and sessions marked as done; restore a session to recreate its worktree. Managed worktrees with no matching session can also be selected for cleanup; their branches are kept.',
 		});
 	});
 
@@ -1219,7 +1251,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		const ages: number[] = [];
 		const { editor, container } = createEditor({
 			getWorktrees: async age => { ages.push(age); return worktrees; },
-			cleanupWorktrees: async candidates => { cleaned.push(candidates.map(candidate => candidate.session.sessionId)); return false; },
+			cleanupWorktrees: async candidates => { cleaned.push(candidates.map(candidate => getWorktreeCleanupId(candidate))); return false; },
 		});
 		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
 		await timeout(0);
@@ -1561,7 +1593,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 				selected: picker.value,
 				rows: [...container.querySelectorAll('.session-worktree-cleanup-session-link')].map(link => link.textContent),
 			});
-			if (worktrees.some(worktree => worktree.session.sessionId === 'other')) {
+			if (worktrees.some(worktree => getWorktreeCleanupId(worktree) === 'other')) {
 				picker.value = URI.file('/repos/app').toString();
 				picker.dispatchEvent(new Event(dom.EventType.CHANGE));
 			}
