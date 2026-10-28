@@ -7,7 +7,7 @@ import { asArray } from '../../../base/common/arrays.js';
 import { DeferredPromise, timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
@@ -40,7 +40,7 @@ type SelectKernelReturnArgs = ControllerInfo | { notebookEditorId: string } | Co
 type ControllerInfo = { id: string; extension: string };
 
 
-export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
+export class ExtHostNotebookKernels extends Disposable implements ExtHostNotebookKernelsShape {
 
 	private readonly _proxy: MainThreadNotebookKernelsShape;
 	private readonly _activeExecutions = new ResourceMap<NotebookCellExecutionTask>();
@@ -49,7 +49,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 	private _kernelDetectionTask = new Map<number, vscode.NotebookControllerDetectionTask>();
 	private _kernelDetectionTaskHandlePool: number = 0;
 
-	private _kernelSourceActionProviders = new Map<number, vscode.NotebookKernelSourceActionProvider>();
+	private readonly _kernelSourceActionProviders = this._register(new DisposableMap<number, IDisposable & { provider: vscode.NotebookKernelSourceActionProvider; commands: DisposableStore; requestId: number }>());
 	private _kernelSourceActionProviderHandlePool: number = 0;
 
 	private readonly _kernelData = new Map<number, IKernelData>();
@@ -62,6 +62,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		private _commands: ExtHostCommands,
 		@ILogService private readonly _logService: ILogService,
 	) {
+		super();
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebookKernels);
 
 		// todo@rebornix @joyceerhl: move to APICommands once stabilized.
@@ -339,7 +340,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const eventHandle = typeof provider.onDidChangeNotebookKernelSourceActions === 'function' ? handle : undefined;
 		const that = this;
 
-		this._kernelSourceActionProviders.set(handle, provider);
+		const commands = new DisposableStore();
+		this._kernelSourceActionProviders.set(handle, { provider, commands, requestId: 0, dispose: () => commands.dispose() });
 		this._logService.trace(`NotebookKernelSourceActionProvider[${handle}], CREATED by ${extension.identifier.value}`);
 		this._proxy.$addKernelSourceActionProvider(handle, handle, viewType);
 
@@ -350,7 +352,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 		return {
 			dispose: () => {
-				this._kernelSourceActionProviders.delete(handle);
+				this._kernelSourceActionProviders.deleteAndDispose(handle);
 				that._proxy.$removeKernelSourceActionProvider(handle, handle);
 				subscription?.dispose();
 			}
@@ -360,9 +362,13 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 	async $provideKernelSourceActions(handle: number, token: CancellationToken): Promise<INotebookKernelSourceAction[]> {
 		const provider = this._kernelSourceActionProviders.get(handle);
 		if (provider) {
-			const disposables = new DisposableStore();
-			const ret = await provider.provideNotebookKernelSourceActions(token);
-			return (ret ?? []).map(item => extHostTypeConverters.NotebookKernelSourceAction.from(item, this._commands.converter, disposables));
+			const requestId = ++provider.requestId;
+			const ret = await provider.provider.provideNotebookKernelSourceActions(token);
+			if (provider.commands.isDisposed || provider.requestId !== requestId || token.isCancellationRequested) {
+				return [];
+			}
+			provider.commands.clear();
+			return (ret ?? []).map(item => extHostTypeConverters.NotebookKernelSourceAction.from(item, this._commands.converter, provider.commands));
 		}
 		return [];
 	}
