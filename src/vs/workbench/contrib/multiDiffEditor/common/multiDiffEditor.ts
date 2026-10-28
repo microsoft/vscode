@@ -148,7 +148,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		},
 		[multiDiffEditorExperimentalFileListSetting]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			description: localize('multiDiffEditor.experimental.fileList', "Controls whether newly created multi diff editors support a list of the changed files alongside the diffs. Reload the window to apply this change to existing editors."),
 			agentsWindow: { default: true },
 			scope: ConfigurationScope.WINDOW,
