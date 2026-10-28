@@ -77,7 +77,9 @@ suite('Files - Paste', () => {
 
 		await instantiationService.invokeFunction(cutFileHandler);
 		context = [destination];
-		await assert.rejects(instantiationService.invokeFunction(pasteFileHandler), repaintError);
+		// the browser assert shim's rejects() takes no expected error, so compare the rejection itself
+		const rejection = await instantiationService.invokeFunction(pasteFileHandler).then(() => undefined, error => error);
+		assert.strictEqual(rejection, repaintError);
 
 		// A file copied afterwards is pasted as a copy, not moved
 		await clipboardService.writeResources([source.resource]);
