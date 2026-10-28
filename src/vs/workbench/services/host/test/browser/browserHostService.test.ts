@@ -9,10 +9,8 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IResourceEditorInput, ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { EditorCloseContext, IEditorCloseEvent, IUntypedEditorInput } from '../../../../common/editor.js';
-import { IEditorService } from '../../../editor/common/editorService.js';
 import { BrowserHostService } from '../../browser/browserHostService.js';
 import { TestEditorService, TestFileEditorInput, TestLayoutService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestFileService } from '../../../../test/common/workbenchTestServices.js';
@@ -56,8 +54,6 @@ suite('BrowserHostService', () => {
 			editorService: () => editorService
 		}, disposables);
 		instantiationService.stub(ILayoutService, new TestLayoutService());
-		instantiationService.stub(IFileService, fileService);
-		instantiationService.stub(IEditorService, editorService);
 
 		const hostService = disposables.add(instantiationService.createInstance(BrowserHostService));
 		const waitMarkerFileURI = URI.file('/tmp/wait-marker');
