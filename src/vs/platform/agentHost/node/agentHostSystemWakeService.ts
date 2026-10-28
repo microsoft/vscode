@@ -21,6 +21,7 @@ export interface IAgentHostSystemWakeService {
 	readonly _serviceBrand: undefined;
 	readonly isFullyAwake: IObservable<boolean>;
 	setFullyAwake(fullyAwake: boolean): void;
+	setNetworkOnline(online: boolean): void;
 }
 
 export class AgentHostSystemWakeService implements IAgentHostSystemWakeService {
@@ -28,8 +29,13 @@ export class AgentHostSystemWakeService implements IAgentHostSystemWakeService {
 
 	private readonly _isFullyAwake = observableValue<boolean>(this, true);
 	readonly isFullyAwake: IObservable<boolean> = this._isFullyAwake;
+	private readonly _isNetworkOnline = observableValue<boolean>(this, true);
 
 	setFullyAwake(fullyAwake: boolean): void {
 		this._isFullyAwake.set(fullyAwake, undefined);
+	}
+
+	setNetworkOnline(online: boolean): void {
+		this._isNetworkOnline.set(online, undefined);
 	}
 }
