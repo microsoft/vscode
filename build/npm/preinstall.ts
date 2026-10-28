@@ -8,7 +8,7 @@ import * as child_process from 'child_process';
 import * as os from 'os';
 import { isUpToDate, forceInstallMessage } from './installStateHash.ts';
 import { isCloudSandbox } from './cloudSandbox.ts';
-import { installNodeGypHeaders } from '../lib/nodeGypHeaders.ts';
+import { installNodeGypHeaders } from './nodeGypHeaders.ts';
 
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	// Get the running Node.js version

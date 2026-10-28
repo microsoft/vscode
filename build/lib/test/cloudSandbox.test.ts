@@ -544,7 +544,7 @@ suite('Cloud Sandbox install setup', () => {
 		const root = fixture(t);
 		const npmDirectory = path.join(root, 'build/npm');
 		fs.mkdirSync(npmDirectory, { recursive: true });
-		for (const name of ['fast-install.ts', 'preinstall.ts', 'postinstall.ts']) {
+		for (const name of ['fast-install.ts', 'preinstall.ts', 'postinstall.ts', 'nodeGypHeaders.ts']) {
 			fs.copyFileSync(path.join(repositoryRoot, 'build/npm', name), path.join(npmDirectory, name));
 		}
 		fs.writeFileSync(path.join(npmDirectory, 'cloudSandbox.ts'), `

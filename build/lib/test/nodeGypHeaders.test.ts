@@ -8,7 +8,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { suite, test } from 'node:test';
-import { installNodeGypHeaders } from '../nodeGypHeaders.ts';
+import { installNodeGypHeaders } from '../../npm/nodeGypHeaders.ts';
 
 // A stand-in for node-gyp's entry point. Each run appends its arguments to a log, then
 // behaves as the next entry of the plan says: exit 0, exit 1 or hang.
