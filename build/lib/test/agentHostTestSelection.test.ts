@@ -15,7 +15,7 @@ import { detectAgentHostE2EChanges } from '../../../.github/actions/detect-agent
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const profilePath = path.join(repositoryRoot, 'src/vs/platform/agentHost/test/node/agentHostTestProfile.ts');
 
-async function detect(files: readonly { filename: string; previous_filename?: string }[], expectedCount = files.length, failure?: Error) {
+async function detect(files: readonly { filename: string; previous_filename?: string; status?: string; patch?: string }[], expectedCount = files.length, failure?: Error) {
 	const outputs: Record<string, string> = {};
 	const messages: string[] = [];
 	await detectAgentHostE2EChanges({
@@ -105,6 +105,22 @@ suite('Agent Host PR test selection', () => {
 			results.push([outputs.affected, outputs.profile, outputs.reason.includes(filename), messages.some(message => message.includes('profile: full'))]);
 		}
 		assert.deepStrictEqual(results, filenames.map(() => ['true', 'full', true, true]));
+	});
+
+	test('a change that only updates the distro commit in package.json does not run Agent Host E2E', async () => {
+		const { outputs } = await detect([{
+			filename: 'package.json',
+			status: 'modified',
+			patch: [
+				'@@ -1,5 +1,5 @@',
+				' {',
+				'   "name": "code-oss-dev",',
+				'-  "distro": "2733515d0a50cde08bdfbbe4368f0f75b7828882",',
+				'+  "distro": "eb93e228cf5aa5544a0eccb94616d63902d7e4e8",',
+				'   "author": {',
+			].join('\n'),
+		}]);
+		assert.deepStrictEqual({ affected: outputs.affected, profile: outputs.profile }, { affected: 'false', profile: 'pr' });
 	});
 
 	test('both sides of a rename participate in selection', async () => {
