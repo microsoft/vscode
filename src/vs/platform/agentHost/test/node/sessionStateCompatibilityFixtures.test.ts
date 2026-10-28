@@ -647,7 +647,7 @@ suite('Session state compatibility fixtures', () => {
 		});
 	}
 
-	test('the 1.141 writer advances the revision and leaves the projection marker, and runs against a version 21 database', async () => {
+	test('the 1.141 writer advances the revision and leaves the projection marker against the current database schema', async () => {
 		const { fixture, sessionData, today } = await publishedNormalizedSession();
 		const sqlite = await (today.raw as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
 		const header = () => new Promise<Record<string, unknown>>((resolve, reject) => sqlite.get('SELECT revision, projected_revision, (SELECT user_version FROM pragma_user_version) AS version FROM session_chat_catalogs WHERE session_uri = ?', [fixture.session], (error, row) => error ? reject(error) : resolve(row as Record<string, unknown>)));
