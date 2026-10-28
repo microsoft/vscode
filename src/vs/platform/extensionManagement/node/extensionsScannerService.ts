@@ -13,8 +13,12 @@ import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
+import { getExtensionManagementStoreCoordinator } from './extensionManagementStoreCoordinator.js';
 
 export class ExtensionsScannerService extends NativeExtensionsScannerService implements IExtensionsScannerService {
+	protected override withStoreMutation<T>(task: () => Promise<T>): Promise<T> {
+		return getExtensionManagementStoreCoordinator().withMutation(task);
+	}
 
 	constructor(
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,

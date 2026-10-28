@@ -220,7 +220,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 	}
 
 	private async withProfileExtensions(file: URI, updateFn?: (extensions: Mutable<IScannedProfileExtension>[]) => IScannedProfileExtension[], options?: IProfileExtensionsScanOptions): Promise<IScannedProfileExtension[]> {
-		return this.getResourceAccessQueue(file).queue(async () => {
+		const access = () => this.getResourceAccessQueue(file).queue(async () => {
 			let extensions: IScannedProfileExtension[] = [];
 
 			// Read
@@ -279,7 +279,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 					});
 				}
 				if (migrate) {
-					await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedProfileExtensions)));
+					await this.withStoreMutation(() => this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedProfileExtensions))));
 				}
 			}
 
@@ -299,6 +299,11 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 
 			return extensions;
 		});
+		return updateFn ? this.withStoreMutation(access) : access();
+	}
+
+	protected withStoreMutation<T>(task: () => Promise<T>): Promise<T> {
+		return task();
 	}
 
 	private throwInvalidConentError(file: URI): void {
@@ -318,7 +323,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 	private _migrationPromise: Promise<IStoredProfileExtension[] | undefined> | undefined;
 	private async migrateFromOldDefaultProfileExtensionsLocation(): Promise<IStoredProfileExtension[] | undefined> {
 		if (!this._migrationPromise) {
-			this._migrationPromise = (async () => {
+			const migrationPromise = (async () => {
 				const oldDefaultProfileExtensionsLocation = this.uriIdentityService.extUri.joinPath(this.userDataProfilesService.defaultProfile.location, 'extensions.json');
 				const oldDefaultProfileExtensionsInitLocation = this.uriIdentityService.extUri.joinPath(this.extensionsLocation, '.init-default-profile-extensions');
 				let content: string;
@@ -347,7 +352,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 
 				if (storedProfileExtensions) {
 					try {
-						await this.fileService.createFile(this.userDataProfilesService.defaultProfile.extensionsResource, VSBuffer.fromString(JSON.stringify(storedProfileExtensions)), { overwrite: false });
+						await this.withStoreMutation(() => this.fileService.createFile(this.userDataProfilesService.defaultProfile.extensionsResource, VSBuffer.fromString(JSON.stringify(storedProfileExtensions)), { overwrite: false }));
 						this.logService.info('Migrated extensions from old default profile location to new location', oldDefaultProfileExtensionsLocation.toString(), this.userDataProfilesService.defaultProfile.extensionsResource.toString());
 					} catch (error) {
 						if (toFileOperationResult(error) === FileOperationResult.FILE_MODIFIED_SINCE) {
@@ -359,7 +364,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 				}
 
 				try {
-					await this.fileService.del(oldDefaultProfileExtensionsLocation);
+					await this.withStoreMutation(() => this.fileService.del(oldDefaultProfileExtensionsLocation));
 				} catch (error) {
 					if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
 						this.logService.error(error);
@@ -367,7 +372,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 				}
 
 				try {
-					await this.fileService.del(oldDefaultProfileExtensionsInitLocation);
+					await this.withStoreMutation(() => this.fileService.del(oldDefaultProfileExtensionsInitLocation));
 				} catch (error) {
 					if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
 						this.logService.error(error);
@@ -376,6 +381,12 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 
 				return storedProfileExtensions;
 			})();
+			this._migrationPromise = migrationPromise;
+			void migrationPromise.catch(() => {
+				if (this._migrationPromise === migrationPromise) {
+					this._migrationPromise = undefined;
+				}
+			});
 		}
 		return this._migrationPromise;
 	}

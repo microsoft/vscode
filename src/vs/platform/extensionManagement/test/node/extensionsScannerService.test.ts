@@ -5,6 +5,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Event } from '../../../../base/common/event.js';
 import { dirname, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -539,10 +540,11 @@ suite('NativeExtensionsScanerService Test', () => {
 		});
 
 		test('a user cache hit validates the cache by scanning again', async () => {
-			await runWithFakedTimers({}, async () => {
+			await runWithFakedTimers({ useFakeTimers: false }, async () => {
 				const extensionLocation = await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
 				const profileLocation = instantiationService.get(IUserDataProfilesService).defaultProfile.extensionsResource;
 				const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+				const cacheInvalidated = Event.toPromise(Event.filter(testObject.onDidChangeCache, type => type === ExtensionType.User));
 				// The first scan creates the profile resource, so scan twice to cache a stable input
 				await testObject.scanUserExtensions({ profileLocation, language: 'en', useCache: true });
 				await testObject.scanUserExtensions({ profileLocation, language: 'en', useCache: true });
@@ -550,7 +552,13 @@ suite('NativeExtensionsScanerService Test', () => {
 				// Leaves the mtime of the scanned profile resource untouched, so the next scan still hits the cache
 				await instantiationService.get(IFileService).writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '2.0.0' }))));
 				await testObject.scanUserExtensions({ profileLocation, language: 'en', useCache: true });
-				await timeout(CACHE_VALIDATION_DELAY);
+				const validationTimeout = timeout(CACHE_VALIDATION_DELAY);
+				try {
+					await Promise.race([cacheInvalidated, validationTimeout]);
+				} finally {
+					cacheInvalidated.cancel();
+					validationTimeout.cancel();
+				}
 
 				assert.deepStrictEqual(await cacheFileNames(), []);
 			});
