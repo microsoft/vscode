@@ -14523,34 +14523,52 @@ suite('CopilotAgent', () => {
 			],
 		});
 
-		test('presents Auto, not Fusion, with CAPI\'s Fusion tiers unavailable and no HydraFusion when CAPI offers no Fusion tier the account can run', async () => {
-			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'gpt-5', name: 'GPT-5' }]);
-			client.autoTierMetadata = fusionTierMetadata(false);
-			const { agent } = createTestAgentContext(disposables, {
-				copilotClient: client,
-				rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: true, [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true },
-			});
-			try {
-				await agent.authenticate('https://api.github.com', 'token');
-				await agent.listChatsToMigrate();
-				await agent.refreshModels();
-				const auto = agent.models.get().find(model => model.id === 'auto');
-				const tier = auto?.configSchema?.properties.tier;
-				assert.deepStrictEqual({
-					models: agent.models.get().map(model => `${model.id}:${model.name}${isAgentModelFusion(model) ? ':fusion' : ''}`),
-					tier: `${tier?.enum?.join('/')}=${tier?.default}:${tier?.enumLabels?.join('/')}:${tier?.title}`,
-					autoTiers: readAgentModelAutoTiersMeta(auto!)?.tiers.map(({ id, enabled }) => `${id}:${enabled}`),
-					acceptsEfficiencyAsIs: getCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }),
-				}, {
+		test('presents Fusion with CAPI\'s Fusion tiers unavailable and no HydraFusion when the account cannot run them, and Auto when CAPI offers no Fusion tier', async () => {
+			const presented = async (models: { id: string; name: string }[], autoTierMetadata: CopilotAutoTierMetadata) => {
+				const client = new TestCopilotClient([], models);
+				client.autoTierMetadata = autoTierMetadata;
+				const { agent } = createTestAgentContext(disposables, {
+					copilotClient: client,
+					rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: true, [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true },
+				});
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					await agent.listChatsToMigrate();
+					await agent.refreshModels();
+					const auto = agent.models.get().find(model => model.id === 'auto');
+					const tier = auto?.configSchema?.properties.tier;
+					return {
+						models: agent.models.get().map(model => `${model.id}:${model.name}${isAgentModelFusion(model) ? ':fusion' : ''}`),
+						tier: `${tier?.enum?.join('/')}=${tier?.default}:${tier?.enumLabels?.join('/')}:${tier?.title}`,
+						autoTiers: readAgentModelAutoTiersMeta(auto!)?.tiers.map(({ id, enabled }) => `${id}:${enabled}`),
+					};
+				} finally {
+					await disposeAgent(agent);
+					setAdvertisedAutoModeTiers(undefined);
+				}
+			};
+			const withoutFusionTiers = fusionTierMetadata();
+			assert.deepStrictEqual({
+				unavailableFusion: await presented([{ id: 'auto', name: 'Auto' }, { id: 'gpt-5', name: 'GPT-5' }], fusionTierMetadata(false)),
+				unavailableFusionWithoutModels: await presented([], fusionTierMetadata(false)),
+				noFusionTier: await presented([{ id: 'auto', name: 'Auto' }, { id: 'gpt-5', name: 'GPT-5' }], { ...withoutFusionTiers, tiers: withoutFusionTiers.tiers.filter(tier => tier.type !== 'fusion') }),
+			}, {
+				unavailableFusion: {
+					models: ['auto:Copilot Fusion:fusion', 'gpt-5:GPT-5'],
+					tier: 'efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Effort Level',
+					autoTiers: ['efficiency:true', 'balance:true', 'intelligence:true', 'hydrafusion:false', 'hydrafusion-max:false'],
+				},
+				unavailableFusionWithoutModels: {
+					models: ['auto:Copilot Fusion:fusion'],
+					tier: 'efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Effort Level',
+					autoTiers: ['efficiency:true', 'balance:true', 'intelligence:true', 'hydrafusion:false', 'hydrafusion-max:false'],
+				},
+				noFusionTier: {
 					models: ['auto:Auto', 'gpt-5:GPT-5'],
 					tier: 'efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for',
-					autoTiers: ['efficiency:true', 'balance:true', 'intelligence:true', 'hydrafusion:false', 'hydrafusion-max:false'],
-					acceptsEfficiencyAsIs: 'efficiency',
-				});
-			} finally {
-				await disposeAgent(agent);
-				setAdvertisedAutoModeTiers(undefined);
-			}
+					autoTiers: ['efficiency:true', 'balance:true', 'intelligence:true'],
+				},
+			});
 		});
 
 		test('advertises Fusion\'s inline chat tier only while the provider accepts it', async () => {
