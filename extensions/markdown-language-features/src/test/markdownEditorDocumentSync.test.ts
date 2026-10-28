@@ -102,6 +102,17 @@ suite('Markdown editor document sync', () => {
 		}
 	});
 
+	test('rewrites typing the document rejected because only its line breaks changed', async () => {
+		const test = await setup('a\nb');
+		test.type(3, 'X');
+		await test.network.deliver();
+		assert.strictEqual(test.document.pendingWrites, 1);
+		test.document.changeEol('\r\n');
+		await test.settle();
+		assert.deepStrictEqual(test.state(), { document: 'a\r\nbX', sync: 'a\nbX', editor: 'a\nbX' });
+		assert.deepStrictEqual(test.logs, []);
+	});
+
 	test('reverts typing a read-only document rejects', async () => {
 		const test = await setup('locked');
 		test.document.readonly = true;
@@ -177,7 +188,7 @@ class FakeDocument implements SyncedDocument {
 	#writes: { version: number; edits: readonly DocumentEdit[]; resolve: (applied: boolean) => void }[] = [];
 	readonly #onDidChange = new vscode.EventEmitter<void>();
 
-	constructor(public text: string, readonly eol: '\n' | '\r\n') { }
+	constructor(public text: string, public eol: '\n' | '\r\n') { }
 
 	get pendingWrites(): number {
 		return this.#writes.length;
@@ -200,6 +211,12 @@ class FakeDocument implements SyncedDocument {
 		this.text = this.text.slice(0, start) + text + this.text.slice(end);
 		this.version++;
 		this.fireChange();
+	}
+
+	/** Changes every line break to eol, like the status bar's line ending picker. */
+	changeEol(eol: '\n' | '\r\n'): void {
+		this.eol = eol;
+		this.change(0, this.text.length, this.text.replace(/\r?\n/g, eol));
 	}
 
 	fireChange(): void {

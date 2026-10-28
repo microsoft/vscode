@@ -976,9 +976,11 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			await sync.drain();
 			const originalVersion = originalDocument.version;
 			const modifiedVersion = modifiedDocument.version;
+			const revision = sync.revision;
 			const changes = await lineDiffProvider.getChangedLineRanges();
 			const version = sync.version;
-			if (originalVersion !== originalDocument.version || modifiedVersion !== modifiedDocument.version || !version) {
+			// Typing in the meantime may not be in the document yet; its write triggers a new publication.
+			if (originalVersion !== originalDocument.version || modifiedVersion !== modifiedDocument.version || revision !== sync.revision || !version) {
 				return;
 			}
 			editorWebview.renderer.gutterMarkers({ version, markers: toEditorRanges(modifiedDocument, sync.text, lineRangesToGutterMarkers(modifiedDocument, changes)) });

@@ -223,11 +223,12 @@ export class MarkdownEditorDocumentSync implements MarkdownEditorText, vscode.Di
 			return;
 		}
 		const operation = this.#unwritten;
+		const version = this.#document.version;
 		const writing = this.#writing = { operation, expected: operation.apply(this.#documentText) };
 		this.#unwritten = TextOperation.identity;
 		let applied = false;
 		try {
-			applied = await this.#document.applyEdits(this.#document.version, toDocumentEdits(this.#documentText, operation, this.#document.eol));
+			applied = await this.#document.applyEdits(version, toDocumentEdits(this.#documentText, operation, this.#document.eol));
 		} catch (error) {
 			this.#log('Failed to write Markdown editor changes', error);
 		}
@@ -239,8 +240,9 @@ export class MarkdownEditorDocumentSync implements MarkdownEditorText, vscode.Di
 		const documentText = normalizeLineBreaks(this.#document.getText());
 		if (applied && documentText === writing.expected) {
 			this.#documentText = writing.expected;
-		} else if (documentText === this.#documentText) {
+		} else if (documentText === this.#documentText && this.#document.version === version) {
 			// Rejected although the document did not change, e.g. because it is read-only: the editor changes cannot be kept.
+			// (A change of only the line breaks keeps the text but changes the version; then the write is retried.)
 			this.#log('The document rejected the Markdown editor changes');
 			this.#unwritten = TextOperation.identity;
 			this.#applyToText(diffText(this.#text, this.#documentText));
