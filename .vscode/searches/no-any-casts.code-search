@@ -1,7 +1,7 @@
 # Query: // eslint-disable-next-line (local/code-no-any-casts|@typescript-eslint/no-explicit-any)
 # Flags: RegExp
 
-727 results - 269 files
+724 results - 266 files
 
 .eslint-plugin-local/code-policy-localization-key-match.ts:
   123: 					// eslint-disable-next-line local/code-no-any-casts
@@ -1258,12 +1258,3 @@ test/automation/src/code.ts:
 
 test/automation/src/terminal.ts:
   315: 		// eslint-disable-next-line local/code-no-any-casts
-
-test/mcp/src/application.ts:
-  250: 		// eslint-disable-next-line local/code-no-any-casts
-
-test/mcp/src/playwright.ts:
-  17: 		// eslint-disable-next-line local/code-no-any-casts
-
-test/mcp/src/automationTools/problems.ts:
-  76: 			// eslint-disable-next-line local/code-no-any-casts

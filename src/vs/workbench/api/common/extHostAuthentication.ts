@@ -660,7 +660,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 			} catch (err) {
 				const nextMode = this._createFlows[i + 1]?.label;
 				if (!nextMode) {
-					break; // No more flows to try
+					throw err;
 				}
 				const message = isCancellationError(err)
 					? nls.localize('userCanceledContinue', "Having trouble authenticating to '{0}'? Would you like to try a different way? ({1})", this.label, nextMode)

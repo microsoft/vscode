@@ -179,4 +179,33 @@ suite('Dialog', () => {
 		dialog.dispose();
 		await result;
 	});
+
+	test('keeps Tab inside a dialog with nothing to focus', async () => {
+		const container = append(document.body, $('.test-dialog-container'));
+		disposables.add(toDisposable(() => container.remove()));
+		const dialog = disposables.add(new Dialog(container, 'Message', [], {
+			disableDefaultAction: true,
+			buttonStyles: unthemedButtonStyles,
+			checkboxStyles: unthemedCheckboxStyles,
+			inputBoxStyles: unthemedInboxStyles,
+			dialogStyles: unthemedDialogStyles,
+		}));
+		const result = dialog.show();
+
+		const targetWindow = getWindow(container);
+		const focused = targetWindow.document.activeElement;
+		const event = new targetWindow.KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true });
+		focused?.dispatchEvent(event);
+
+		assert.deepStrictEqual({
+			activeElement: targetWindow.document.activeElement,
+			defaultPrevented: event.defaultPrevented,
+		}, {
+			activeElement: focused,
+			defaultPrevented: true,
+		});
+
+		dialog.dispose();
+		await result;
+	});
 });

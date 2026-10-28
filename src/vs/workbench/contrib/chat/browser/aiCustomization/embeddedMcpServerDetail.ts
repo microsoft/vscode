@@ -278,6 +278,18 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		return this.titleActionsEl;
 	}
 
+	/**
+	 * Focuses the read-only definition editor when it is shown.
+	 * @returns Whether the editor received focus.
+	 */
+	focusDefinitionEditor(): boolean {
+		if (!this.definitionEditor?.hasModel() || this.definitionEditorContainer.style.display === 'none') {
+			return false;
+		}
+		this.definitionEditor.focus();
+		return true;
+	}
+
 	setInput(server: IMcpServerDetailInput): void {
 		this.current = server;
 		this.bindDiagnostics();

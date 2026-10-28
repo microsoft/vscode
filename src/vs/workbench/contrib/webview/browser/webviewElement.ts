@@ -34,7 +34,7 @@ import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
 import { WebviewPortMappingManager } from '../../../../platform/webview/common/webviewPortMapping.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
-import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from '../common/webview.js';
+import { decodeAuthority, webviewGenericCspSource, webviewMouseActivityEvent, webviewRootResourceAuthority } from '../common/webview.js';
 import { loadLocalResource, WebviewResourceResponse } from './resourceLoading.js';
 import { WebviewThemeDataProvider } from './themeing.js';
 import { areWebviewContentOptionsEqual, IWebviewElement, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
@@ -243,6 +243,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 		this._register(this.on('did-scroll-wheel', (event) => {
 			this._onDidWheel.fire(event);
+		}));
+
+		this._register(this.on('did-mouse-move', ({ screenX, screenY }) => {
+			this.window?.dispatchEvent(new CustomEvent(webviewMouseActivityEvent, { detail: { screenX, screenY } }));
 		}));
 
 		this._register(this.on('did-find', ({ didFind }) => {

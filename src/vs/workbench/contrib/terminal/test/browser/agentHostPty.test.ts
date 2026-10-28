@@ -107,6 +107,7 @@ class MockAgentConnection implements IAgentConnection {
 	async getCompletionTriggerCharacters(): Promise<readonly string[]> { return []; }
 	async disposeSession(_session: URI): Promise<void> { }
 	async createChat(_session: URI, _chat: URI): Promise<void> { }
+	async setChatWorkspace(_chat: URI): Promise<void> { throw new Error('not implemented'); }
 	async disposeChat(_chat: URI): Promise<void> { }
 	async shutdown(): Promise<void> { }
 	async resourceList(_uri: URI): Promise<ResourceListResult> { return { entries: [] }; }

@@ -48,7 +48,7 @@ jobs:
     name: Compile
     needs: caches
     if: ${{ !cancelled() && (needs.caches.result != 'success' || needs.caches.outputs.compile == 'true') }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: vscode-large-runners-ubuntu-8-core
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -119,7 +119,7 @@ jobs:
     name: Linux
     needs: caches
     if: ${{ !cancelled() && (needs.caches.result != 'success' || needs.caches.outputs.linux == 'true') }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=linux-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: vscode-large-runners-ubuntu-8-core
     env:
       NPM_ARCH: x64
       VSCODE_ARCH: x64
@@ -284,7 +284,7 @@ jobs:
     name: Windows
     needs: caches
     if: ${{ !cancelled() && (needs.caches.result != 'success' || needs.caches.outputs.windows == 'true') }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: vscode-large-runners-windows-8-core
     env:
       NPM_ARCH: x64
       VSCODE_ARCH: x64
@@ -368,7 +368,7 @@ jobs:
     name: Copilot (Linux)
     needs: caches
     if: ${{ !cancelled() && (needs.caches.result != 'success' || needs.caches.outputs.copilot-linux == 'true') }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-linux-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: vscode-large-runners-ubuntu-8-core
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -403,7 +403,7 @@ jobs:
     name: Copilot (Windows)
     needs: caches
     if: ${{ !cancelled() && (needs.caches.result != 'success' || needs.caches.outputs.copilot-windows == 'true') }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=copilot-windows-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: vscode-large-runners-windows-8-core
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

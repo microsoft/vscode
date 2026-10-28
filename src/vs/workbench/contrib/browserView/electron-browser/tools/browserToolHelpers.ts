@@ -303,6 +303,21 @@ export function remoteUrlRewriteNotice(originalUrl: string, rewrittenUrl: string
 }
 
 /**
+ * A notice for pages that use the user's local network although the session
+ * requested a remote one (`requested`), for example because the agent host
+ * cannot proxy browsers. `used` is the network the pages actually use.
+ */
+export function localNetworkFallbackNotice(requested: IBrowserViewNetwork | undefined, used: IBrowserViewNetwork | undefined): { kind: 'text'; value: string } | undefined {
+	if (!requested || used) {
+		return undefined;
+	}
+	return {
+		kind: 'text',
+		value: 'Note: These browser pages load from the user\'s local network, not the remote host\'s network, so `localhost` refers to the user\'s machine. Services running on the remote host are not reachable from them.',
+	};
+}
+
+/**
  * Checks whether a browser editor with the same host (hostname + port) on the
  * same network already exists. Pages keep the network they were opened on, so
  * the same URL on another network is a different destination.

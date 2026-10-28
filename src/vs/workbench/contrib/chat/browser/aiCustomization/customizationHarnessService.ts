@@ -16,6 +16,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IChatWidgetService } from '../chat.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { isUntitledChatSession } from '../../common/model/chatUri.js';
 
 /**
  * Core implementation of the customization harness service.
@@ -34,9 +36,9 @@ export class CustomizationHarnessService extends CustomizationHarnessServiceBase
 		);
 	}
 
-	override getSessionResourceForHarness(sessionType: string): URI {
+	override getSessionResourceForHarness(harnessId: string): URI {
 		// const lastUsedSession = this.agentSessionsService.model.sessions
-		// 	.filter(session => session.providerType === sessionType)
+		// 	.filter(session => session.providerType === harnessId)
 		// 	.sort((a, b) => (b.timing.lastRequestEnded ?? b.timing.created) - (a.timing.lastRequestEnded ?? a.timing.created))
 		// 	.at(0);
 
@@ -44,7 +46,7 @@ export class CustomizationHarnessService extends CustomizationHarnessServiceBase
 		// 	return lastUsedSession.resource;
 		// }
 
-		return super.getSessionResourceForHarness(sessionType);
+		return super.getSessionResourceForHarness(harnessId);
 	}
 }
 
@@ -56,6 +58,7 @@ export class ActiveChatHarnessSyncContribution extends Disposable implements IWo
 	constructor(
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@ICustomizationHarnessService harnessService: ICustomizationHarnessService,
+		@IAgentHostUntitledProvisionalSessionService provisionalSessionService: IAgentHostUntitledProvisionalSessionService,
 	) {
 		super();
 
@@ -66,6 +69,17 @@ export class ActiveChatHarnessSyncContribution extends Disposable implements IWo
 			}
 		};
 		this._register(chatWidgetService.onDidChangeFocusedSession(updateActiveSession));
+		this._register(provisionalSessionService.onDidChange(sessionResource => {
+			const focusedSessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+			const activeSessionResource = harnessService.activeSessionResource.get();
+			const isActiveUntitledRebind = focusedSessionResource
+				&& isUntitledChatSession(activeSessionResource)
+				&& activeSessionResource.toString() === focusedSessionResource.toString()
+				&& activeSessionResource.scheme === sessionResource.scheme;
+			if (chatWidgetService.getWidgetBySessionResource(sessionResource) === chatWidgetService.lastFocusedWidget || isActiveUntitledRebind) {
+				harnessService.setActiveSession(sessionResource);
+			}
+		}));
 		updateActiveSession();
 	}
 }

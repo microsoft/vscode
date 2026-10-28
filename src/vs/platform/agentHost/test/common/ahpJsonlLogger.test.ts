@@ -18,6 +18,15 @@ suite('AhpJsonlLogger', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('redacts direct and fragmented channel payloads without changing messages', () => {
+		for (const method of ['tcp/data', 'channel/frame']) {
+			const message = { jsonrpc: '2.0', method, params: { channel: 'ahp-tcp:/test', data: 'private bytes', final: true } };
+			const logged = JSON.parse(stringifyAhpLogEntry(message));
+			assert.deepStrictEqual(logged, { ...message, params: { ...message.params, data: '<redacted channel payload>' } });
+			assert.strictEqual(message.params.data, 'private bytes');
+		}
+	});
+
 	test('does not record inspection of its own logs or log-only file-watch changes', async () => {
 		const files = store.add(new FileService(new NullLogService()));
 		store.add(files.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
@@ -401,6 +410,14 @@ suite('AhpJsonlLogger', () => {
 			fileCount: retained.length,
 			latest: JSON.parse((await files.readFile(retained[0].resource)).value.toString().trim()).id,
 		}, { bytesWithinBudget: true, fileCount: 1, latest: 2 });
+	});
+
+	test('redacts client certificate responses without modifying the live result', () => {
+		const response = { jsonrpc: '2.0', id: 1, result: { certificates: ['PRIVATE CLIENT CA'] } };
+		assert.deepStrictEqual({
+			logged: JSON.parse(stringifyAhpLogEntry(response)).result.certificates,
+			live: response.result.certificates,
+		}, { logged: '<redacted>', live: ['PRIVATE CLIENT CA'] });
 	});
 
 	test('preserves existing authentication redaction markers', () => {

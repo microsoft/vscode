@@ -38,6 +38,7 @@ import { getPluginCacheUri, parseMarketplaceObjectEntry, validatePluginCacheUri 
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, extraKnownMarketplacesToConfigDict, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource, readConfiguredMarketplaces } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
 import { StrictKnownMarketplaces } from '../../../common/plugins/strictKnownMarketplaces.js';
+import { TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
 
 class TestManagedSettingsService extends Disposable implements IManagedSettingsService {
 	declare readonly _serviceBrand: undefined;
@@ -1576,7 +1577,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		});
 		instantiationService.stub(IExtensionsWorkbenchService, { getAutoUpdateValue: () => 'on' });
 		stubMarketplaceServices(instantiationService);
-		instantiationService.stub(IAgentPluginEnablementService, store.add(new AgentPluginEnablementService(storageService)));
+		instantiationService.stub(IAgentPluginEnablementService, store.add(new AgentPluginEnablementService(storageService, new TestUserDataProfileService())));
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
 	}
 
@@ -1873,7 +1874,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 				const installedJson = URI.joinPath(CACHE_ROOT, 'installed.json');
 				for (const profile of profiles) {
 					storeMarketplaceCache(profile, marketplace, plugin);
-					const enablement = store.add(new AgentPluginEnablementService(profile));
+					const enablement = store.add(new AgentPluginEnablementService(profile, new TestUserDataProfileService()));
 					enablement.setEnabled(identity.toString(), state);
 					if (hasStableIdentity) {
 						enablement.copyEnablement(identity, targetUri);
@@ -1902,7 +1903,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 
 				const second = createPersistedService(fileService, profiles[1]);
 				await waitForState(second.installedPlugins, plugins => plugins.length === 1);
-				const enablement = store.add(new AgentPluginEnablementService(profiles[1]));
+				const enablement = store.add(new AgentPluginEnablementService(profiles[1], new TestUserDataProfileService()));
 				assert.deepStrictEqual({
 					file: JSON.parse(fileService.files.get(installedJson.toString())!),
 					state: enablement.readEnabled(targetUri.toString()),
@@ -1935,7 +1936,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 				const installedJson = URI.joinPath(CACHE_ROOT, 'installed.json');
 				for (const profile of profiles) {
 					storeMarketplaceCache(profile, marketplace, plugin);
-					store.add(new AgentPluginEnablementService(profile)).setEnabled(identity.toString(), state);
+					store.add(new AgentPluginEnablementService(profile, new TestUserDataProfileService())).setEnabled(identity.toString(), state);
 				}
 				fileService.setFile(installedJson, JSON.stringify({
 					version: 1,
@@ -1959,7 +1960,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 
 				const second = createPersistedService(fileService, profiles[1]);
 				await waitForState(second.installedPlugins, plugins => plugins.length === 1);
-				const enablement = store.add(new AgentPluginEnablementService(profiles[1]));
+				const enablement = store.add(new AgentPluginEnablementService(profiles[1], new TestUserDataProfileService()));
 				assert.deepStrictEqual({
 					file: JSON.parse(fileService.files.get(installedJson.toString())!),
 					installed: second.installedPlugins.get().map(entry => entry.pluginUri.toString()),

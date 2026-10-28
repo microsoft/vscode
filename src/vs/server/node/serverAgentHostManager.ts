@@ -10,6 +10,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../base/commo
 import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../../platform/agentHost/common/agent.js';
 import { reportAgentHostProcessError } from '../../platform/agentHost/common/agentHostProcessTelemetry.js';
+import type { IAgentHostProcessExitEvent } from '../../platform/agentHost/common/agentHostProcessExit.js';
 import { AgentHostLaunchKind } from '../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostIpcChannels, IAgentService, IAgentHostManagementService, IMissionControlOptions } from '../../platform/agentHost/common/agentService.js';
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
@@ -239,7 +240,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 		this._connectionStore.value = connection.store;
 	}
 
-	private _handleUnexpectedExit(connection: IAgentHostConnection, e: { code: number; signal: string }): void {
+	private _handleUnexpectedExit(connection: IAgentHostConnection, e: IAgentHostProcessExitEvent): void {
 		if (this._store.isDisposed || this._connection !== connection) {
 			return;
 		}
@@ -255,6 +256,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 			code: e.code,
 			restartCount: this._restartCount,
 			willRestart,
+			exitDiagnostics: e.diagnostics,
 		});
 		this._connection = undefined;
 		this._connectionStore.clear();

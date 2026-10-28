@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -29,7 +29,7 @@ import { GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, IGitH
 import { ISessionArtifact, SessionArtifactKind } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, registerFixtureHoverService, waitForFixtureCondition } from '../fixtureUtils.js';
+import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, registerFixtureHoverService, waitForFixtureCondition, waitForFixtureDomCondition } from '../fixtureUtils.js';
 import { createMockSession, renderPills } from './sessionChatInputToolbar.fixture.js';
 import { createFixtureGitHubService, createFixtureWorkbenchGitHubService } from './githubFixtureUtils.js';
 import { SessionCustomizationKind } from '../../../../contrib/chat/common/sessionChatCustomizations.js';
@@ -122,6 +122,23 @@ function resources(isArtifact: boolean): ISessionArtifact[] {
 	];
 }
 
+/**
+ * Artifacts that sit next to the {@link resources} references. A chat shows each resource once, so every artifact
+ * points to a different resource than its reference.
+ */
+function generatedResources(): ISessionArtifact[] {
+	return resources(true).map(item => {
+		const id = `artifact-${item.id}`;
+		switch (item.id) {
+			case 'commit': return { ...item, id, commitHash: 'def5678', link: URI.parse('https://github.com/microsoft/vscode/commit/def5678') };
+			case 'website': return { ...item, id, link: URI.parse('https://code.visualstudio.com/docs/copilot/overview') };
+			case 'settings': return { ...item, id, uri: URI.parse('vscode://settings/chat.agent') };
+			case 'ado': return { ...item, id, link: URI.parse('https://dev.azure.com/example/project/_workitems/edit/43') };
+			default: return { ...item, id, uri: item.uri?.with({ path: item.uri.path.replace('/repo/', '/repo/output/') }) };
+		}
+	});
+}
+
 type Scenario = 'single' | 'collections' | 'copied' | 'mixed' | 'cold' | 'resolved' | 'pullRequests' | 'file' | 'image' | 'website' | 'commitUrl' | 'commitPending' | 'customizations';
 
 async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario): Promise<void> {
@@ -136,7 +153,7 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 			? gitHubArtifacts(false).map(artifact => ({ ...artifact, label: artifact.kind === SessionArtifactKind.PullRequest ? 'Pull Request' : 'Issue' }))
 			: dedicatedCollection
 				? authored
-				: [gitHubArtifacts(false)[0], gitHubArtifacts(false)[2], ...resources(false).map(item => scenario === 'commitUrl' && item.kind === SessionArtifactKind.Commit ? { ...item, label: 'External commit', link: URI.parse('https://example.com/commit/abc1234') } : item), ...resources(true).map(item => ({ ...item, id: `artifact-${item.id}`, ...(item.uri ? { uri: item.uri.with({ path: item.uri.path.replace('/repo/', '/repo/output/') }) } : {}) }))];
+				: [gitHubArtifacts(false)[0], gitHubArtifacts(false)[2], ...resources(false).map(item => scenario === 'commitUrl' && item.kind === SessionArtifactKind.Commit ? { ...item, label: 'External commit', link: URI.parse('https://example.com/commit/abc1234') } : item), ...generatedResources()];
 	const session = createMockSession({
 		artifacts: entries, removableArtifacts: true,
 		customizations: scenario === 'customizations' ? [
@@ -174,8 +191,8 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 	});
 	let finishHoverConstruction: (() => void) | undefined;
 	try {
-		renderPills(ctx, session, {
-			height: referenceList ? '420px' : resourcePreview ? '600px' : dedicatedCollection ? '280px' : '420px',
+		await renderPills(ctx, session, {
+			height: referenceList ? '420px' : resourcePreview ? '600px' : dedicatedCollection ? '320px' : '420px',
 			width: referenceList ? '700px' : scenario === 'single' ? '660px' : '1200px',
 			popupPlacement: 'above',
 			prepareServices: services => {
@@ -260,7 +277,7 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 			? scenario === 'cold' ? 'Cold cache: IDs stay in front while titles are pending.' : 'Resolved titles: IDs stay in the same leading position.'
 			: 'Click a collection, then hover or focus a row for details. Escape returns to the pills.';
 	const toolbar = container.querySelector<HTMLElement>('.session-chat-input-toolbar')!;
-	toolbar.style.top = referenceList ? '330px' : scenario === 'single' ? '52px' : resourcePreview ? '450px' : `${toolbar.offsetTop}px`;
+	toolbar.style.top = referenceList ? '330px' : scenario === 'single' ? '52px' : resourcePreview ? '450px' : dedicatedCollection ? '200px' : `${toolbar.offsetTop}px`;
 	toolbar.style.bottom = 'auto';
 
 	// Icon fonts must be ready before the dropdown measures row widths.
@@ -281,13 +298,13 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 	if (!ctx.isInteractive) {
 		if (scenario === 'single') {
 			container.querySelector<HTMLElement>('.chat-dropdown-pill-button')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-			await waitForPreview(container, '.sessions-pr-hover');
+			await waitForPreview(container, '.sessions-pr-hover', ctx.disposableStore);
 		} else if (!referenceList && scenario !== 'pullRequests') {
 			const label = scenario === 'collections' || scenario === 'copied' ? 'Issues' : scenario === 'customizations' ? 'Customizations' : 'References';
 			Array.from(container.querySelectorAll<HTMLElement>('.chat-dropdown-pill-button')).find(button => button.textContent?.includes(label))!.click();
 			if (resourcePreview && scenario !== 'customizations') {
 				await waitForFixtureCondition(() => refreshedResources >= 2, 'GitHub reference metadata did not finish prefetching');
-				await waitForPreview(container, '.monaco-list-row[aria-label^="#335448, Open Issue:"] .action-item-badge');
+				await waitForPreview(container, '.monaco-list-row[aria-label^="#335448, Open Issue:"] .action-item-badge', ctx.disposableStore);
 			}
 			const preview = scenario === 'collections' || scenario === 'copied'
 				? { row: '.monaco-list-row[aria-label^="#337045, Open Issue:"]', content: '.sessions-issue-hover' }
@@ -304,14 +321,14 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 									: scenario === 'customizations'
 										? { row: '.monaco-list-row[aria-label^="Coding guidelines"]', content: '.chat-pill-location-hover' }
 										: { row: '.monaco-list-row[aria-label^="Open Commit abc1234"]', content: '.sessions-commit-hover' };
-			const row = await waitForPreview(container, preview.row);
+			const row = await waitForPreview(container, preview.row, ctx.disposableStore);
 			row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 			row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
-			await waitForPreview(container, preview.content);
+			await waitForPreview(container, preview.content, ctx.disposableStore);
 			if (scenario === 'copied') {
-				const copyAction = await waitForPreview(row, '[aria-label="Copy issue URL"]');
+				const copyAction = await waitForPreview(row, '[aria-label="Copy issue URL"]', ctx.disposableStore);
 				copyAction.click();
-				await waitForPreview(row, '[aria-label="Copied"]');
+				await waitForPreview(row, '[aria-label="Copied"]', ctx.disposableStore);
 				const targetWindow = dom.getWindow(row);
 				const refreshCopiedState = targetWindow.setInterval(() => copyAction.click(), 600);
 				ctx.disposableStore.add(toDisposable(() => targetWindow.clearInterval(refreshCopiedState)));
@@ -320,19 +337,18 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 	}
 }
 
-async function waitForPreview(container: HTMLElement, selector: string): Promise<HTMLElement> {
-	for (let attempt = 0; attempt < 100; attempt++) {
+async function waitForPreview(container: HTMLElement, selector: string, store: DisposableStore): Promise<HTMLElement> {
+	const findPreview = () => {
 		const element = container.querySelector<HTMLElement>(selector);
-		if (element && element.getBoundingClientRect().height > 0) {
-			const bounds = (element.closest('.monaco-hover, .action-list-submenu-panel') ?? element).getBoundingClientRect();
-			const canvas = container.getBoundingClientRect();
-			if (bounds.left >= canvas.left && bounds.top >= canvas.top && bounds.right <= canvas.right + 1 && bounds.bottom <= canvas.bottom + 1) {
-				return element;
-			}
+		if (!element || element.getBoundingClientRect().height === 0) {
+			return undefined;
 		}
-		await timeout(10);
-	}
-	throw new Error(`Reference preview did not appear: ${selector}`);
+		const bounds = (element.closest('.monaco-hover, .action-list-submenu-panel') ?? element).getBoundingClientRect();
+		const canvas = container.getBoundingClientRect();
+		return bounds.left >= canvas.left && bounds.top >= canvas.top && bounds.right <= canvas.right + 1 && bounds.bottom <= canvas.bottom + 1 ? element : undefined;
+	};
+	await waitForFixtureDomCondition(container, () => findPreview() !== undefined, store);
+	return findPreview()!;
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
@@ -349,7 +365,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	'Pull Request Collection': defineComponentFixture({
 		virtualTime: { enabled: false },
 		render: ctx => renderReferences(ctx, 'pullRequests'),
-		expectedVisualDescriptions: ['The open Pull Requests collection uses the same leading number, resolving-title slot, and trailing copy/remove actions as the Issues and References collections.'],
+		expectedVisualDescriptions: ['The open Pull Requests collection uses the same leading number and resolving-title slot as the Issues and References collections. Its trailing actions appear as Open Changes, Copy, Pin, then Remove, with the destructive X right-most.'],
 	}),
 	'Copied Feedback': defineComponentFixture({
 		virtualTime: { enabled: false },

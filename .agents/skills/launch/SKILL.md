@@ -32,6 +32,7 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
 - `@playwright/cli` available (it's a devDependency in the vscode repo - `npm install` then use `npx @playwright/cli`).
 - For debugger work: `dap-cli` on `PATH`. If debugger support would be useful but the `dap-cli` skill is not present, prompt the user to install it from https://github.com/roblourens/dap-cli.
 - CSS selectors are internal implementation details. If a selector-based `eval` stops working, take a fresh `snapshot`, inspect the current DOM, and update the selector rather than assuming an old one still applies.
+- Code OSS cannot be launched or driven from a sandboxed agent terminal. On Windows the sandbox either cannot start without local network access or the launcher fails with `[launch.ps1] Access is denied`; enabling local network access alone is not enough. If your shell tool can request unsandboxed execution, use that for the launcher, `@playwright/cli`, and cleanup. Otherwise, before launching, ask the user once to turn off terminal sandboxing for this session (Permissions picker → "Sandboxing for terminal") and continue after they confirm.
 
 > The launcher **copies** the source profile to a temp dir and never mutates the original. Each launch gets its own isolated `--user-data-dir` and `--extensions-dir`.
 
@@ -410,6 +411,14 @@ npx @playwright/cli -s=$PW_SESSION screenshot e42 --filename="$SHOTS/panel.png"
 ```
 
 On macOS, a screenshot "Permission denied" failure usually means the terminal lacks Screen Recording permission. Use text/state verification while resolving that permission issue.
+
+### Recording a video
+
+To record a demo video, use the attached session as the Playwright `page` for a general `page.screencast` recording workflow:
+
+- Write the whole scenario, including `page.screencast.start()` and `stop()`, as a bare `async page => { ... }` function in a file and run it with a single `npx @playwright/cli -s=$PW_SESSION run-code --filename=<file>` call. `page` is the attached workbench window.
+- Keep typed text short. Typing into Monaco key by key is visible but slow: about 400 characters produced a nearly four-minute video. Paste long setup text before recording starts.
+- To run a command, press `F1`, fill the `Type the name of a command to run.` textbox with `>Command Name`, and click the exact matching option. The list updates asynchronously, so pressing `Enter` right after filling can run a stale result.
 
 ## Debug with dap-cli
 

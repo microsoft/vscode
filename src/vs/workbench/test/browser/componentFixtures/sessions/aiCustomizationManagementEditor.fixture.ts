@@ -22,7 +22,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSection, ICustomizationMarketplaceBrowseSectionsProgress, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfirmation, IConfirmationResult, IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -31,6 +31,8 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { IAgentExtensionInventory } from '../../../../../platform/agentHost/common/agent.js';
+import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IListService, ListService, WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
@@ -62,6 +64,7 @@ import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AIC
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
 import { CustomizationMarketplaceInstallService } from '../../../../contrib/chat/browser/aiCustomization/customizationMarketplaceInstallService.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../../contrib/chat/browser/aiCustomization/copilotConnectorsService.js';
+import { ICopilotExtensionsService } from '../../../../contrib/chat/browser/aiCustomization/copilotExtensionsService.js';
 import { EmbeddedConnectorDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedConnectorDetail.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMarketplaceManagementProvider, ICustomizationMcpServerCompatibility, ICustomizationMcpServerMigrationProvider, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
@@ -80,6 +83,7 @@ import { IAgentPluginRepositoryService } from '../../../../contrib/chat/common/p
 import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
 import { IPluginGitService } from '../../../../contrib/chat/common/plugins/pluginGitService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
+import { IChatAgentData, IChatAgentService } from '../../../../contrib/chat/common/participants/chatAgents.js';
 import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IAgentHostActiveClientService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupportSnapshot } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
@@ -89,6 +93,7 @@ import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginS
 import { IMarketplaceReference, MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
 import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { aiCustomizationManagementSectionRegistry } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { AICustomizationItemsModel, IAICustomizationItemsModel, ItemsModelSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
@@ -114,6 +119,7 @@ import { McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/
 import { PluginListWidget } from '../../../../contrib/chat/browser/aiCustomization/pluginListWidget.js';
 import { IIterativePager } from '../../../../../base/common/paging.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService } from '../../../../contrib/canvases/common/canvas.js';
 import { CustomizationEnablementKind, McpAuthRequiredReason, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
@@ -122,7 +128,7 @@ import { ICodeReviewService } from '../../../../../sessions/contrib/codeReview/b
 import { createMockCodeReviewService } from './mockCodeReviewService.js';
 import { IChatEditingService } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition, waitForFixtureDomCondition } from '../fixtureUtils.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 
 // Ensure theme colors & widget CSS are loaded
@@ -131,6 +137,7 @@ import '../../../../../platform/theme/common/colors/listColors.js';
 import '../../../../contrib/chat/browser/aiCustomization/media/aiCustomizationManagement.css';
 import '../../../../contrib/chat/browser/aiCustomization/customizationMarketplace.contribution.js';
 import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
+import '../../../../contrib/chat/browser/aiCustomization/copilotCanvases.contribution.js';
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 
 // ============================================================================
@@ -496,6 +503,7 @@ function createMockHarnessService(sessionResource: URI, descriptors: readonly IH
 	const activeSessionResource = observableValue<URI>('activeSessionResource', sessionResource);
 	const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
 	return new class extends mock<ICustomizationHarnessService>() {
+		override readonly onDidChangeCustomAgents = Event.None;
 		override readonly activeSessionResource = activeSessionResource;
 		override readonly activeHarness = activeHarness;
 		override readonly availableHarnesses = constObservable(descriptors);
@@ -783,6 +791,25 @@ const fixtureToolSets: readonly IToolSet[] = [
 	},
 ];
 
+const userReviewToolSet: IToolSet = {
+	id: 'user-review-tools',
+	referenceName: 'review-tools',
+	description: 'Review tools',
+	icon: Codicon.tools,
+	source: { type: 'user', label: 'User', file: URI.file('/home/dev/.vscode/prompts/review.toolsets.jsonc') },
+	getTools: () => [],
+};
+
+const codeReviewParticipant: IChatAgentData = new class extends mock<IChatAgentData>() {
+	override readonly id = 'example.code-review.participant';
+	override readonly name = 'code-review';
+	override readonly extensionId = new ExtensionIdentifier('example.code-review');
+	override readonly extensionDisplayName = 'Code Review Extension';
+	override readonly isCore = false;
+	override readonly isDefault = false;
+	override readonly isDynamic = false;
+}();
+
 const overflowingExtensionToolSets: readonly IToolSet[] = Array.from({ length: 8 }, (_, index) => {
 	const toolSetNumber = index + 1;
 	const source: ToolDataSource = { type: 'extension', label: 'Acme Agent Tools', extensionId: new ExtensionIdentifier('acme.agent-tools') };
@@ -897,6 +924,53 @@ const customizationMarketplaceResources: readonly ICustomizationMarketplaceResou
 		representativeQueries: [],
 	},
 ];
+
+function curatedMarketplaceResource(
+	identifier: string,
+	displayName: string,
+	description: string,
+	mediaType: CustomizationMarketplaceMediaType,
+	publisher: string,
+): ICustomizationMarketplaceResource {
+	return {
+		sourceId: 'testSource',
+		identifier,
+		displayName,
+		description,
+		mediaType,
+		publisher,
+		tags: [],
+		capabilities: [],
+		representativeQueries: [],
+	};
+}
+
+const curatedMarketplaceSections = [{
+	id: 'editors',
+	title: 'Editor\'s picks',
+	items: [
+		curatedMarketplaceResource('curated/impeccable', 'Impeccable', 'Polish frontend interfaces with focused design reviews and concrete implementation guidance.', CustomizationMarketplaceMediaType.Skill, 'pbakaus'),
+		curatedMarketplaceResource('curated/foundry', 'Microsoft Foundry canvas', 'Design and inspect hosted agents with project-aware tools and an integrated canvas.', CustomizationMarketplaceMediaType.CopilotPlugin, 'Microsoft'),
+	],
+}, {
+	id: 'plan',
+	title: 'Plan, build, and ship',
+	items: [
+		curatedMarketplaceResource('curated/figma', 'Figma MCP', 'Bring design context into implementation.', CustomizationMarketplaceMediaType.McpServer, 'Figma'),
+		curatedMarketplaceResource('curated/playwright', 'Playwright MCP', 'Automate browsers through accessible page snapshots.', CustomizationMarketplaceMediaType.McpServer, 'Microsoft'),
+		curatedMarketplaceResource('curated/grill-me', 'Grill Me', 'Stress-test a plan through a relentless interview.', CustomizationMarketplaceMediaType.Skill, 'Matt Pocock'),
+		curatedMarketplaceResource('curated/security', 'Security best practices', 'Review security, accessibility, performance, and code quality.', CustomizationMarketplaceMediaType.CopilotPlugin, 'GitHub'),
+	],
+}, {
+	id: 'connect',
+	title: 'Connect your work',
+	items: [
+		curatedMarketplaceResource('curated/workiq', 'WorkIQ', 'Find answers across Microsoft 365 mail, meetings, documents, and Teams.', CustomizationMarketplaceMediaType.CopilotPlugin, 'Microsoft'),
+		curatedMarketplaceResource('curated/sentry', 'Sentry canvas', 'Investigate and triage application issues from Sentry.', CustomizationMarketplaceMediaType.CopilotPlugin, 'Sentry'),
+		curatedMarketplaceResource('curated/azure', 'Azure plugin', 'Plan, deploy, troubleshoot, and manage Azure resources.', CustomizationMarketplaceMediaType.CopilotPlugin, 'Microsoft'),
+		curatedMarketplaceResource('curated/azure-devops', 'Azure DevOps MCP', 'Connect repositories, work items, pipelines, and test plans.', CustomizationMarketplaceMediaType.McpServer, 'Microsoft'),
+	],
+}] satisfies ICustomizationMarketplaceBrowseSection[];
 
 const connectorIconDataUri = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#5b5fc7"/><path d="M13 20h38v27H13z" fill="#fff"/><path d="m13 20 19 16 19-16" fill="none" stroke="#5b5fc7" stroke-width="4"/></svg>')}`;
 
@@ -1107,11 +1181,14 @@ interface IRenderEditorOptions {
 	readonly agentFinderPublicFeedEnabled?: boolean;
 	readonly copilotConnectorsEnabled?: boolean;
 	readonly copilotConnectors?: readonly ICopilotConnector[];
+	readonly copilotExtensionInventory?: IAgentExtensionInventory;
+	readonly copilotCanvases?: readonly ICanvasDefinition[];
 	readonly connectorConnectDelayMs?: number;
 	readonly marketplaceVisibilityEnabled?: boolean;
+	readonly curatedFeedsEnabled?: boolean;
 	readonly otherSourceEnabled?: boolean;
 	readonly toggleMarketplaceVisibility?: boolean;
-	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
+	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore' | 'partialLoading' | 'cachedRefresh';
 	readonly customizationMarketplaceInstallationState?: 'mixed' | 'missing' | 'error';
 	readonly customizationMarketplaceDetailState?: 'missing' | 'error' | 'unavailable';
 	readonly useRealConnectorInstallService?: boolean;
@@ -1145,6 +1222,10 @@ interface IRenderEditorOptions {
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly migrationDashboard?: boolean;
 	readonly openFirstMigrationItem?: boolean;
+	/** Adds a user tool set and an extension chat participant that need manual migration. */
+	readonly migrationGuidance?: boolean;
+	/** Opens the migration item with this label from the dashboard. */
+	readonly openMigrationItemLabel?: string;
 	readonly migrationConfirmation?: 'promptFiles' | 'mcpWarning' | 'pluginMarketplaces';
 	readonly migrationActivity?: boolean;
 	readonly pluginMarketplaceMigration?: boolean;
@@ -1173,6 +1254,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Plugins,
+		AICustomizationManagementSection.Canvases,
 		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Skills,
 		AICustomizationManagementSection.Instructions,
@@ -1184,6 +1266,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const mcpServerCompatibility = options.mcpServerCompatibility;
 	const marketplaceManagementProvider: ICustomizationMarketplaceManagementProvider | undefined = options.pluginMarketplaceMigration ? {
 		onDidChange: Event.None,
+		onDidChangeMarketplaces: Event.None,
 		list: async () => [],
 		add: async (_sessionResource, source) => ({ name: 'vscode-team-kit', source, isDefault: false, managed: false, available: true }),
 		queryMarketplace: async () => ({ items: [], total: 0 }),
@@ -1211,7 +1294,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	];
 
 	const allMcpServers = [...(options.mcpWorkbenchServers ?? [...mcpWorkspaceServers, ...mcpUserServers])];
-	const toolSets = options.toolSets ?? fixtureToolSets;
+	const toolSets = [...options.toolSets ?? fixtureToolSets, ...options.migrationGuidance ? [userReviewToolSet] : []];
 	const selectedPromptType = options.selectedSection === AICustomizationManagementSection.Agents ? PromptsType.agent
 		: options.selectedSection === AICustomizationManagementSection.Skills ? PromptsType.skill
 			: options.selectedSection === AICustomizationManagementSection.Instructions ? PromptsType.instructions
@@ -1244,6 +1327,52 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}
 		},
 	});
+	let copilotExtensionInventory = options.copilotExtensionInventory ?? { mode: 'disabled', extensions: [] };
+	const copilotExtensionsService = new class extends mock<ICopilotExtensionsService>() {
+		override async listExtensions(): Promise<IAgentExtensionInventory> {
+			return copilotExtensionInventory;
+		}
+		override async setExtensionEnabled(_sessionResource: URI, extensionId: string, enabled: boolean): Promise<void> {
+			copilotExtensionInventory = {
+				...copilotExtensionInventory,
+				extensions: copilotExtensionInventory.extensions.map(extension => extension.id === extensionId ? {
+					...extension,
+					status: enabled ? 'running' : 'disabled',
+				} : extension),
+			};
+		}
+	}();
+	const copilotCanvasDefinitions = options.copilotCanvases ?? [];
+	const copilotCanvasContext: ICanvasContext = {
+		owner: {
+			providerId: 'copilot',
+			session: options.sessionResource,
+			chat: URI.parse('ahp-chat:/fixture-chat'),
+		},
+		canvases: constObservable([]),
+		definitionProvider: {
+			onDidChangeDefinitions: Event.None,
+			async listCanvases() { return copilotCanvasDefinitions; },
+			async openCanvas(canvas, instanceId) {
+				ctx.container.dataset.openedCanvas = `${canvas.extensionId}:${canvas.canvasId}:${instanceId}`;
+			},
+		},
+	};
+	const canvasContextService = new class extends mock<ICanvasContextService>() {
+		override readonly contexts = constObservable(copilotCanvasDefinitions.length ? [copilotCanvasContext] : []);
+		override readonly onDidRemoveOwner = Event.None;
+		override isOwnerVisible() { return true; }
+		override getContext() { return copilotCanvasDefinitions.length ? copilotCanvasContext : undefined; }
+		override getFrontendSessionResource() { return options.sessionResource; }
+		override getEditorGroup() { return undefined; }
+	}();
+	const canvasService = new class extends mock<ICanvasService>() {
+		override readonly enabled = constObservable(true);
+		override readonly reopenableCanvases = constObservable([]);
+		override isOwnerPresentable() { return true; }
+		override async revealCanvas() { }
+		override async reopenCanvas() { }
+	}();
 	ctx.container.dataset.connectorConnectCalls = '0';
 	const createdFolders = new ResourceSet();
 	const migrationFileService = new class extends mock<IFileService>() {
@@ -1261,6 +1390,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const modelServiceRef: { value: IModelService | undefined } = { value: undefined };
 	const languageServiceRef: { value: ILanguageService | undefined } = { value: undefined };
 	let customizationMarketplaceQueryCount = 0;
+	let customizationMarketplacePrimaryQueryCount = 0;
+	const browseHomeReady = new DeferredPromise<void>();
 	let marketplaceConfiguration: TestConfigurationService | undefined;
 	const customizationMarketplaceInstallChanged = ctx.disposableStore.add(new Emitter<void>());
 	const getFixtureInstallationTarget = (resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallationTarget => resource.installation?.kind === 'copilotConnector'
@@ -1309,6 +1440,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: options.copilotConnectorsEnabled ?? false,
 				'test.marketplace.other.enabled': options.otherSourceEnabled ?? false,
 				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplaceVisibilityEnabled,
+				[CanvasesEnabledSettingId]: true,
 				[ChatConfiguration.PluginMarketplaces]: options.pluginMarketplaceMigration ? ['microsoft/vscode-team-kit'] : undefined,
 				...options.configuration,
 				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: agentFinderPublicFeedEnabled,
@@ -1344,6 +1476,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly sentiment = { hidden: false };
 				override readonly onDidChangeSentiment = Event.None;
 			}());
+			reg.defineInstance(ICopilotExtensionsService, copilotExtensionsService);
+			reg.defineInstance(ICanvasContextService, canvasContextService);
+			reg.defineInstance(ICanvasService, canvasService);
 			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
 				override readonly sources = [
 					CustomizationMarketplaceSources.PluginMarketplaces,
@@ -1353,23 +1488,59 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					{ id: 'additionalSource', displayName: 'Additional Feed', enablementSetting: 'test.marketplace.other.enabled', requiresMarketplaceVisibility: true },
 					CustomizationMarketplaceSources.CopilotConnectors,
 				];
-				override async query(query: ICustomizationMarketplaceQuery): Promise<ICustomizationMarketplacePage> {
+				override getBrowseSections(query: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>, _token: CancellationToken, onProgress?: (progress: ICustomizationMarketplaceBrowseSectionsProgress) => void) {
+					if (!options.curatedFeedsEnabled || query.sourceIds && !query.sourceIds.includes('testSource')) {
+						return Promise.resolve(undefined);
+					}
+					const result = {
+						sourceId: 'testSource',
+						sections: curatedMarketplaceSections,
+					};
+					onProgress?.({
+						result,
+						completedSectionCount: curatedMarketplaceSections.length,
+						cachedSectionCount: 0,
+						totalSectionCount: curatedMarketplaceSections.length,
+					});
+					return Promise.resolve(result);
+				}
+				override query(query: ICustomizationMarketplaceQuery, _token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage> {
+					const isSourcePreviewQuery = query.pageSize === 4 && query.sourceIds?.length === 1 && !query.query && !query.mediaType && !query.cursor;
+					const queryCountBeforeRequest = customizationMarketplaceQueryCount;
 					customizationMarketplaceQueryCount++;
-					assert(sourceEnabled(), 'A fixture with no enabled sources must not query the catalog.');
+					if (!isSourcePreviewQuery) {
+						customizationMarketplacePrimaryQueryCount++;
+					}
+					if (!sourceEnabled()) {
+						assert(options.toggleMarketplaceVisibility === true && queryCountBeforeRequest > 0 && isSourcePreviewQuery, 'A fixture with no enabled sources must not query the catalog.');
+						return Promise.resolve({ items: [], total: 0 });
+					}
 					const pageSize = query.pageSize ?? 24;
 					const createCursor = (offset: number) => ({ token: String(offset) });
 					switch (options.customizationMarketplaceState) {
 						case 'loading': return new DeferredPromise<ICustomizationMarketplacePage>().p;
+						case 'partialLoading':
+						case 'cachedRefresh': {
+							onProgress?.({
+								page: { items: marketplaceResources.slice(0, 6) },
+								completedSourceIds: ['testSource'],
+								cachedSourceIds: options.customizationMarketplaceState === 'cachedRefresh' ? ['testSource'] : [],
+								totalSourceCount: 4,
+							});
+							return new DeferredPromise<ICustomizationMarketplacePage>().p;
+						}
 						case 'loadingMore': {
 							const resources = options.discoveryQuery?.includes('@type:plugin')
 								? marketplaceResources.filter(resource => resource.mediaType === CustomizationMarketplaceMediaType.CopilotPlugin || resource.mediaType === CustomizationMarketplaceMediaType.ClaudePlugin)
 								: marketplaceResources;
 							return query.cursor
 								? new DeferredPromise<ICustomizationMarketplacePage>().p
-								: { items: resources.slice(0, 2), total: resources.length, nextCursor: createCursor(2) };
+								: Promise.resolve({ items: resources.slice(0, 2), total: resources.length, nextCursor: createCursor(2) });
 						}
-						case 'error': throw new Error('The catalog is temporarily unavailable. Try again later.');
-						case 'empty': return { items: [], total: 0 };
+						case 'error': return isSourcePreviewQuery
+							? Promise.resolve({ items: [], total: 0 })
+							: Promise.reject(new Error('The catalog is temporarily unavailable. Try again later.'));
+						case 'empty': return Promise.resolve({ items: [], total: 0 });
 					}
 					const text = query.query?.toLowerCase() ?? '';
 					const resources = marketplaceResources.filter(resource =>
@@ -1377,11 +1548,23 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 						&& (!query.sourceIds || query.sourceIds.includes(resource.sourceId))
 						&& (!text || `${resource.displayName} ${resource.description} ${resource.tags.join(' ')}`.toLowerCase().includes(text)));
 					const offset = Number(query.cursor?.token ?? 0);
-					return {
+					const page = {
 						items: resources.slice(offset, offset + pageSize),
 						total: resources.length,
 						nextCursor: offset + pageSize < resources.length ? createCursor(offset + pageSize) : undefined,
 					};
+					onProgress?.({
+						page,
+						completedSourceIds: this.sources.map(source => source.id),
+						cachedSourceIds: [],
+						totalSourceCount: this.sources.length,
+					});
+					const response = Promise.resolve(page);
+					if (query.pageSize === 4 && query.sourceIds?.[0] === 'otherSource') {
+						// Signal after the query consumer's promise continuation has rendered the final source shelf.
+						void response.then(() => queueMicrotask(() => browseHomeReady.complete()));
+					}
+					return response;
 				}
 			}());
 			if (options.useRealConnectorInstallService) {
@@ -1600,12 +1783,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			if (activeDescriptor) {
 				Object.assign(activeDescriptor, { mcpServerMigrationProvider: activeMcpServerMigrationProvider });
 			}
-			reg.defineInstance(ICustomizationMigrationService, new CustomizationMigrationService(
-				promptsService,
-				harnessService,
-				configurationService,
-				mcpService,
-			));
+			reg.define(ICustomizationMigrationService, CustomizationMigrationService);
+			reg.defineInstance(IChatAgentService, new class extends mock<IChatAgentService>() {
+				override readonly onDidChangeAgents = Event.None;
+				override getAgents() { return options.migrationGuidance ? [codeReviewParticipant] : []; }
+			}());
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
 				override readonly welcomePageFeatures = {
@@ -1948,6 +2130,18 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.selectSectionById(options.selectedSection);
 	}
 	editor.setVisible(true);
+	if (options.curatedFeedsEnabled || options.clearDiscoveryQuery) {
+		await browseHomeReady.p;
+	}
+	const expectedCopilotRows = options.selectedSection === AICustomizationManagementSection.Canvases
+		? options.copilotCanvases?.length ?? 0
+		: 0;
+	if (expectedCopilotRows > 0) {
+		await waitForFixtureCondition(
+			() => ctx.container.querySelector('.copilot-customizations-widget .copilot-customization-tree-item') !== null,
+			'Copilot customization rows did not finish rendering.',
+		);
+	}
 	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
 	if (options.selectedSection === AICustomizationManagementSection.McpServers && options.marketplaceVisibilityEnabled === false) {
 		editor.revealLastItem();
@@ -1964,10 +2158,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(overview.querySelector('.welcome-prompts-content-container') !== null, 'Disabled Marketplace must render the original Overview cards.');
 		assert(overview.querySelector('.customization-discovery') === null, 'Disabled Marketplace must not construct Discover.');
 		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes('Overview') === true, 'Disabled Marketplace must label the home page Overview.');
-		assert(customizationMarketplaceQueryCount === 0, 'Disabled Marketplace must not query the catalog.');
+		assert(customizationMarketplacePrimaryQueryCount === 0, 'Disabled Marketplace must not query the catalog.');
 	} else if (!options.selectedSection) {
 		await Promise.resolve();
-		assert(customizationMarketplaceQueryCount === 1, 'Visible Discover must query the catalog once for browse mode.');
+		assert(customizationMarketplacePrimaryQueryCount === 1, 'Visible Discover must issue one primary catalog query for browse mode.');
 		assert(ctx.container.querySelector('.welcome-prompts-content-container') === null, 'Enabled Marketplace must hide the original Overview.');
 		assert(ctx.container.querySelector('.customization-discovery') !== null, 'The customization overview must render Discover.');
 		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-search')?.offsetHeight === 24, 'Discover must use the standard compact search control height.');
@@ -1975,10 +2169,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(ctx.container.querySelector('.customization-discovery-filters') === null, 'Discover must keep filters in the search toolbar instead of rendering quick-filter pills.');
 		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-source')?.textContent?.includes('All Sources') === true, 'Discover must default to all customization sources.');
 		const description = ctx.container.querySelector<HTMLElement>('.customization-discovery-description');
-		const descriptionLinks = [...description?.querySelectorAll('a') ?? []].map(link => link.textContent);
 		assert(
 			description?.textContent === 'Tailor your agent to your tools, your team, and your workflow. Learn more'
-			&& descriptionLinks.join('\n') === 'Learn more',
+			&& [...description.querySelectorAll('a')].map(link => link.textContent).join('\n') === 'Learn more',
 			'Discover must describe customization benefits with a single Learn more link.',
 		);
 		const featured = ctx.container.querySelector<HTMLElement>('.customization-discovery-section.featured');
@@ -2008,7 +2201,27 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			'Discover card actions must remain right-aligned.',
 		);
 		const cardIcon = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-icon');
-		assert(!cardIcon || cardIcon.offsetWidth === 40 && cardIcon.offsetHeight === 40, 'Discover cards must use the compact marketplace icon size.');
+		assert(!cardIcon || cardIcon.offsetWidth === 40 && cardIcon.offsetHeight === 40, 'Discover cards must retain the existing compact marketplace icon size.');
+		if (options.curatedFeedsEnabled) {
+			const renderedSections = [...ctx.container.querySelectorAll<HTMLElement>('.customization-discovery-section')];
+			const curatedRenderedSections = renderedSections.slice(0, curatedMarketplaceSections.length);
+			const actualOrder = curatedRenderedSections.flatMap(section => [
+				section.querySelector('.customization-discovery-section-title')?.textContent ?? '',
+				...[...section.querySelectorAll<HTMLElement>('.customization-discovery-card-name')].map(element => element.textContent ?? ''),
+			]);
+			const expectedOrder = curatedMarketplaceSections.flatMap(section => [section.title, ...section.items.map(item => item.displayName)]);
+			assert(actualOrder.join('\n') === expectedOrder.join('\n'), 'Discover must preserve the saved feed section and item order.');
+			assert(renderedSections[0]?.classList.contains('featured') && renderedSections.slice(1).every(section => !section.classList.contains('featured')), 'Curated feeds must retain the existing Browse card styling.');
+			if (options.copilotConnectorsEnabled) {
+				const connectorSection = renderedSections[curatedMarketplaceSections.length];
+				assert(
+					connectorSection?.querySelector('.customization-discovery-section-title')?.textContent === 'Copilot Connectors'
+					&& connectorSection.querySelector('.customization-discovery-card-name')?.textContent === 'Work IQ Mail'
+					&& connectorSection.querySelector<HTMLButtonElement>('.customization-discovery-show-all')?.ariaLabel === 'View all customizations from Copilot Connectors',
+					'Curated Browse must append the Copilot Connectors source shelf with its View All action.',
+				);
+			}
+		}
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
 		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
 		const browse = ctx.container.querySelector<HTMLElement>('.customization-discovery-browse');
@@ -2041,7 +2254,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	if (options.toggleMarketplaceVisibility) {
 		const configuration = marketplaceConfiguration!;
 		const setting = CustomizationMarketplaceConfiguration.MarketplaceEnabled;
-		const queryCountBeforeToggle = customizationMarketplaceQueryCount;
+		const queryCountBeforeToggle = customizationMarketplacePrimaryQueryCount;
 		await configuration.setUserConfiguration(setting, !marketplaceVisibilityEnabled);
 		await Promise.resolve();
 		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
@@ -2055,7 +2268,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes(discoverEnabledAfterToggle ? 'Browse' : 'Overview') === true, 'Home navigation must match the selected surface.');
 		assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabledAfterToggle ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must update when Marketplace visibility changes.');
 		const expectedQueryCount = queryCountBeforeToggle + (discoverEnabledAfterToggle ? 1 : 0);
-		assert(customizationMarketplaceQueryCount === expectedQueryCount, `Toggling Marketplace visibility must query only when enabling Discover. Expected ${expectedQueryCount} queries, got ${customizationMarketplaceQueryCount}.`);
+		assert(customizationMarketplacePrimaryQueryCount === expectedQueryCount, `Toggling Marketplace visibility must issue a primary query only when enabling Discover. Expected ${expectedQueryCount} queries, got ${customizationMarketplacePrimaryQueryCount}.`);
 		assert(!home?.textContent?.includes('Could not load available customizations.'), 'Changing Marketplace visibility must not show a catalog error.');
 	}
 
@@ -2143,19 +2356,13 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const selectedRow = resultRows[resultRows.length - 1];
 			(selectedRow?.querySelector<HTMLElement>('.customization-discovery-result-aside')
 				?? selectedRow?.querySelector<HTMLButtonElement>('.customization-discovery-result-primary'))?.click();
-			let detailContainer: HTMLElement | null = null;
-			let scrollHost: HTMLElement | null = null;
-			for (let attempt = 0; attempt < 40; attempt++) {
-				await timeout(50);
-				detailContainer = ctx.container.querySelector('.marketplace-detail-container');
-				scrollHost = detailContainer?.querySelector('.marketplace-detail-scrollable') ?? null;
-				const pluginPreviewReady = options.discoveryQuery !== 'figma'
-					|| !!detailContainer?.querySelector('.plugin-detail-readme-content h1');
-				if (detailContainer?.style.display !== 'none' && scrollHost && pluginPreviewReady) {
-					break;
-				}
-			}
+			const detailContainer = ctx.container.querySelector<HTMLElement>('.marketplace-detail-container');
+			const scrollHost = detailContainer?.querySelector<HTMLElement>('.marketplace-detail-scrollable') ?? null;
 			assert(detailContainer !== null && scrollHost !== null, 'Marketplace detail must render inside its page scroll host.');
+			// A plugin's README loads asynchronously, and the scrollbar it needs is revealed on a timer after the rescan.
+			const isReadmeReady = () => !!detailContainer.querySelector('.plugin-detail-readme-content h1')
+				&& scrollHost.querySelector('.scrollbar.vertical')?.classList.contains('invisible') === false;
+			await waitForFixtureDomCondition(detailContainer, () => detailContainer.style.display !== 'none' && (options.discoveryQuery !== 'figma' || isReadmeReady()), ctx.disposableStore);
 			if (options.customizationMarketplaceDetailState) {
 				const diagnostic = detailContainer.querySelector<HTMLElement>('.mcp-detail-diagnostic-card');
 				assert(Boolean(diagnostic?.textContent?.trim()), 'Marketplace failure detail must render its diagnostic banner.');
@@ -2172,7 +2379,18 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				scrollHost.getBoundingClientRect().bottom <= detailContainer.getBoundingClientRect().bottom + 1,
 				'Marketplace detail scroll host must remain inside the detail page bounds.',
 			);
+			const marketplaceDetail = detailContainer.querySelector<HTMLElement>('.embedded-marketplace-detail');
+			assert(
+				marketplaceDetail !== null && DOM.getWindow(marketplaceDetail).getComputedStyle(marketplaceDetail).userSelect === 'text',
+				'Marketplace detail text must be selectable.',
+			);
 			if (options.discoveryQuery === 'figma') {
+				// The editor rescans the scroll host when its ResizeObserver reports the shown detail, and again on the next animation frame.
+				await new Promise<void>(resolve => {
+					const observer = ctx.disposableStore.add(new DOM.DisposableResizeObserver('AICustomizationManagementEditorFixture.marketplaceDetail', () => resolve(), DOM.getWindow(scrollHost)));
+					ctx.disposableStore.add(observer.observe(scrollHost));
+				});
+				await new Promise<void>(resolve => DOM.getWindow(scrollHost).requestAnimationFrame(() => resolve()));
 				const scrollContent = scrollHost.querySelector<HTMLElement>('.marketplace-detail-editor-container');
 				if (!scrollContent) {
 					throw new Error('Marketplace detail scroll content did not render');
@@ -2195,7 +2413,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}
 		}
 		if (options.discoveryQuery.includes('@installed')) {
-			assert(customizationMarketplaceQueryCount === 1, 'The Installed filter must not issue another catalog query.');
+			assert(customizationMarketplacePrimaryQueryCount === 1, 'The Installed filter must not issue another primary catalog query.');
 			const resultActions = [...resultList.querySelectorAll<HTMLElement>('.customization-discovery-result-actions .monaco-button')];
 			assert(resultActions.every(action => action.textContent !== 'Install'), 'The Installed filter must hide available catalog actions.');
 		}
@@ -2208,7 +2426,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			assert(list instanceof WorkbenchList, 'Discover results must register their list for keyboard navigation.');
 			list.scrollTop = list.scrollHeight;
 			await new Promise(resolve => setTimeout(resolve, 0));
-			assert(customizationMarketplaceQueryCount >= 3, 'Scrolling near the end of Discover results must request the next catalog page.');
+			assert(customizationMarketplacePrimaryQueryCount >= 3, 'Scrolling near the end of Discover results must request the next catalog page.');
 			list.scrollTop = list.scrollHeight;
 			assert(resultList.querySelector('.customization-discovery-result-content.loading') !== null, 'Continuation must render a trailing Marketplace loading placeholder.');
 			assert(ctx.container.querySelector('.monaco-progress-container.active') === null, 'Continuation must not show the initial-loading progress bar.');
@@ -2217,14 +2435,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			editor.getWelcomePage()?.setSearchQuery('');
 			await Promise.resolve();
 			assert(resultList.hidden, 'Clearing Discover search must hide the results list.');
-			assert(ctx.container.querySelector('.customization-discovery-section.featured') !== null, 'Clearing Discover search must restore featured items immediately.');
+			assert(ctx.container.querySelector('.customization-discovery-section') !== null, 'Clearing Discover search must restore Browse sections immediately.');
 		}
 	}
 
 	if (options.customizationMarketplaceState === 'loading' || options.customizationMarketplaceState === 'loadingMore') {
 		const progress = ctx.container.querySelector<HTMLElement>('.customization-discovery-progress');
 		assert(progress !== null && progress.offsetHeight > 0, 'Discover must always reserve space for its progress bar.');
-		assert([...ctx.container.querySelectorAll('.customization-discovery-state')].every(state => state.textContent === ''), 'Loading must not insert status text above Discover content.');
+		assert([...ctx.container.querySelectorAll('.customization-discovery-state')].every(state => state.closest('[hidden]') || state.textContent === ''), 'Loading must not insert status text above visible Discover content.');
 		if (options.customizationMarketplaceState === 'loading') {
 			assert(progress.querySelector('.monaco-progress-container.active') !== null, 'Initial loading must show the shared progress bar.');
 			const track = progress.querySelector<HTMLElement>('.monaco-progress-container');
@@ -2313,6 +2531,22 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		);
 	}
 
+	if (options.openMigrationItemLabel) {
+		const label = options.openMigrationItemLabel;
+		const findRow = () => [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-item')]
+			.find(row => row.querySelector('.migration-tree-item-label')?.textContent === label);
+		await waitForFixtureCondition(() => findRow() !== undefined, `Migration item ${label} did not appear`);
+		// Clicking the Review button avoids a virtualized row selection being canceled during teardown.
+		const row = findRow()!;
+		const review = row.querySelector<HTMLElement>('.migration-tree-item-review');
+		(review && review.style.display !== 'none' ? review : row).click();
+		await waitForFixtureCondition(
+			() => ctx.container.querySelector('.migration-guidance-detail') !== null,
+			`Migration detail did not open for ${label}`,
+		);
+		await DOM.getWindow(ctx.container).document.fonts.ready;
+	}
+
 	if (options.migrationConfirmation === 'promptFiles') {
 		await waitForFixtureCondition(
 			() => [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
@@ -2325,11 +2559,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	} else if (options.migrationConfirmation === 'pluginMarketplaces') {
 		await waitForFixtureCondition(
 			() => [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
-				.some(button => button.getAttribute('aria-label') === 'Migrate: Plugin Marketplaces (User)'),
+				.some(button => button.getAttribute('aria-label') === 'Migrate...: Plugin Marketplaces (User)'),
 			'The plugin marketplace migration action did not render.',
 		);
 		const migrateButton = [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
-			.find(button => button.getAttribute('aria-label') === 'Migrate: Plugin Marketplaces (User)')!;
+			.find(button => button.getAttribute('aria-label') === 'Migrate...: Plugin Marketplaces (User)')!;
 		migrateButton.click();
 	} else if (options.migrationConfirmation === 'mcpWarning') {
 		const server: IMcpServerCustomizationMigrationCandidate = {
@@ -2392,24 +2626,20 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}
 
 		if (options.pluginReadmeContent !== undefined) {
-			let pluginDetailScrollHost: HTMLElement | null = null;
-			let pluginDetailScrollContent: HTMLElement | null = null;
-			let overflowingCodeBlock: HTMLElement | null = null;
-			for (let attempt = 0; attempt < 40 && (!pluginDetailScrollHost || !pluginDetailScrollContent || !overflowingCodeBlock); attempt++) {
-				await timeout(50);
-				const pluginDetailView = ctx.container.querySelector<HTMLElement>('.plugin-detail-container');
-				const scrollHost = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-scrollable');
-				const detailContainer = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-container');
-				const codeBlock = detailContainer?.querySelector<HTMLElement>('div[data-code]');
-				if (pluginDetailView?.style.display !== 'none' && scrollHost && detailContainer && detailContainer.scrollHeight > detailContainer.clientHeight && codeBlock && codeBlock.scrollWidth > codeBlock.clientWidth) {
-					pluginDetailScrollHost = scrollHost;
-					pluginDetailScrollContent = detailContainer;
-					overflowingCodeBlock = codeBlock;
-				}
+			const pluginDetailView = ctx.container.querySelector<HTMLElement>('.plugin-detail-container');
+			const pluginDetailScrollHost = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-scrollable');
+			const pluginDetailScrollContent = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-container');
+			if (!pluginDetailView || !pluginDetailScrollHost || !pluginDetailScrollContent) {
+				throw new Error('Plugin detail did not render');
 			}
-			if (!pluginDetailScrollHost || !pluginDetailScrollContent || !overflowingCodeBlock) {
-				throw new Error('Overflowing plugin detail did not render');
-			}
+			// The README and its code blocks render asynchronously, and the scrollbar is revealed on a timer after the rescan.
+			await waitForFixtureDomCondition(pluginDetailView, () => {
+				const codeBlock = pluginDetailScrollContent.querySelector<HTMLElement>('div[data-code]');
+				return pluginDetailView.style.display !== 'none'
+					&& pluginDetailScrollContent.scrollHeight > pluginDetailScrollContent.clientHeight
+					&& !!codeBlock && codeBlock.scrollWidth > codeBlock.clientWidth
+					&& pluginDetailScrollHost.querySelector('.scrollbar.vertical')?.classList.contains('invisible') === false;
+			}, ctx.disposableStore);
 			const verticalScrollbar = pluginDetailScrollHost.querySelector<HTMLElement>('.scrollbar.vertical');
 			const scrollbarSlider = verticalScrollbar?.querySelector<HTMLElement>('.slider');
 			if (!verticalScrollbar || !scrollbarSlider) {
@@ -2599,7 +2829,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 // Plugin Browse Mode — standalone widget with marketplace results
 // ============================================================================
 
-function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | ContributionEnablementState, policyBlocked = false): IAgentPlugin {
+function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | ContributionEnablementState, policyBlocked = false, fromMarketplace?: IMarketplacePlugin): IAgentPlugin {
 	const contributionName = name.toLowerCase().replace(/\s+/g, '-');
 	const enablementState = typeof enablement === 'boolean'
 		? (enablement ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile)
@@ -2608,6 +2838,7 @@ function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | Contr
 		override readonly uri = uri;
 		override readonly format = PluginFormat.Copilot;
 		override readonly label = name;
+		override readonly fromMarketplace = fromMarketplace;
 		override readonly version = constObservable('1.0.0');
 		override readonly enablement = constObservable(enablementState);
 		override readonly policyBlocked = constObservable(policyBlocked);
@@ -2632,8 +2863,8 @@ function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | Contr
 }
 
 const installedPlugins: IAgentPlugin[] = [
-	makeInstalledPlugin('Linear', URI.file('/workspace/.copilot/plugins/linear'), true),
-	makeInstalledPlugin('Sentry', URI.file('/workspace/.copilot/plugins/sentry'), true),
+	makeInstalledPlugin('Linear', URI.file('/workspace/.copilot/plugins/linear'), true, false, makeMarketplacePlugin('Linear', 'Issue tracking and project management integration', 'linear-plugin')),
+	makeInstalledPlugin('Sentry', URI.file('/home/dev/.vscode/agent-plugins/github.com/example/sentry-plugin'), true, false, makeMarketplacePlugin('Sentry', 'Error monitoring and performance tracing', 'sentry-plugin')),
 	makeInstalledPlugin('Datadog', URI.file('/workspace/.copilot/plugins/datadog'), true),
 	makeInstalledPlugin('Notion', URI.file('/workspace/.copilot/plugins/notion'), true),
 	makeInstalledPlugin('Confluence', URI.file('/workspace/.copilot/plugins/confluence'), true),
@@ -3110,6 +3341,136 @@ function makeMarketplacePluginItem(name: string, description: string): IAgentPlu
 
 const localSessionResource = LocalChatSessionUri.getNewSessionUri();
 const agentHostCopilotSessionResource = URI.from({ scheme: 'agent-host-copilotcli', path: '/fixture-session' });
+const fixtureCopilotExtensionInventory: IAgentExtensionInventory = {
+	mode: 'load_and_augment',
+	extensions: [
+		{
+			id: 'user:token-tracker',
+			name: 'token-tracker',
+			resource: URI.file('/home/dev/.copilot/extensions/token-tracker/extension.mjs'),
+			source: 'user',
+			status: 'running',
+		},
+		{
+			id: 'user:scratchpad',
+			name: 'scratchpad',
+			resource: URI.file('/home/dev/.copilot/extensions/scratchpad/extension.mjs'),
+			source: 'user',
+			status: 'running',
+		},
+		{
+			id: 'user:old-notes',
+			name: 'old-notes',
+			resource: URI.file('/home/dev/.copilot/extensions/old-notes/extension.mjs'),
+			source: 'user',
+			status: 'disabled',
+		},
+		{
+			id: 'project:pr-tools',
+			name: 'pr-tools',
+			source: 'project',
+			status: 'running',
+		},
+		{
+			id: 'plugin:circleci:artifact-explorer',
+			name: 'artifact-explorer',
+			resource: URI.file('/workspace/.copilot/plugins/circleci/extensions/artifact-explorer/extension.mjs'),
+			source: 'plugin',
+			status: 'running',
+			pluginName: 'CircleCI',
+		},
+		{
+			id: 'plugin:azure-tools:resource-map',
+			name: 'resource-map',
+			resource: URI.file('/workspace/.copilot/plugins/azure-tools/extensions/resource-map/extension.mjs'),
+			source: 'plugin',
+			status: 'disabled',
+			pluginName: 'azure-tools',
+		},
+		{
+			id: 'plugin:microsoft-foundry:microsoft-foundry',
+			name: 'microsoft-foundry',
+			resource: URI.file('/workspace/.copilot/plugins/microsoft-foundry/extensions/microsoft-foundry/extension.mjs'),
+			source: 'plugin',
+			status: 'running',
+			pluginName: 'microsoft-foundry',
+		},
+	],
+};
+const fixtureCopilotCanvases: readonly ICanvasDefinition[] = [
+	{
+		canvasId: 'token-usage',
+		extensionId: 'user:token-tracker',
+		extensionSource: 'user',
+		extensionName: 'token-tracker',
+		displayName: 'Token Usage',
+		description: 'Track model token usage across the turns in this chat.',
+		requiresInput: false,
+	},
+	{
+		canvasId: 'scratchpad',
+		extensionId: 'user:scratchpad',
+		extensionSource: 'user',
+		extensionName: 'scratchpad',
+		displayName: 'Scratchpad',
+		description: 'A shared notes surface that you and Copilot can both edit.',
+		requiresInput: false,
+	},
+	{
+		canvasId: 'diagram',
+		extensionId: 'user:scratchpad',
+		extensionSource: 'user',
+		extensionName: 'scratchpad',
+		displayName: 'Diagram Sketch',
+		description: 'Sketch architecture diagrams that Copilot can read and update.',
+		requiresInput: false,
+	},
+	{
+		canvasId: 'notes',
+		extensionId: 'user:old-notes',
+		extensionSource: 'user',
+		extensionName: 'old-notes',
+		displayName: 'old-notes',
+		description: 'Legacy notes canvas.',
+		requiresInput: false,
+	},
+	{
+		canvasId: 'review',
+		extensionId: 'project:pr-tools',
+		extensionSource: 'project',
+		extensionName: 'pr-tools',
+		displayName: 'PR Review Board',
+		description: 'Review open pull requests side by side with their checks.',
+		requiresInput: false,
+	},
+	{
+		canvasId: 'release-notes',
+		extensionId: 'project:pr-tools',
+		extensionSource: 'project',
+		extensionName: 'pr-tools',
+		displayName: 'Release Notes Draft',
+		description: 'Draft release notes from pull requests merged since the last tag.',
+		requiresInput: false,
+	},
+	{
+		canvasId: 'artifact-explorer',
+		extensionId: 'plugin:circleci:artifact-explorer',
+		extensionSource: 'plugin',
+		extensionName: 'Artifact Explorer',
+		displayName: 'Artifact Explorer',
+		description: 'Browse workflow artifacts and preview static sites.',
+		requiresInput: false,
+	},
+	{
+		canvasId: 'resource-map',
+		extensionId: 'plugin:azure-tools:resource-map',
+		extensionSource: 'plugin',
+		extensionName: 'Resource Map',
+		displayName: 'Resource Map',
+		description: 'Visualize Azure resources.',
+		requiresInput: false,
+	},
+];
 
 async function renderCodexSkillMissingDescriptionHover(ctx: ComponentFixtureContext, isSessionsWindow: boolean): Promise<void> {
 	const skill: IFixtureFile = {
@@ -3182,6 +3543,17 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 550, height: 500, expectedDiscoveryContentWidth: 310 }),
 	}),
 
+	CanvasesTab: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Canvases literally reuses the shared Tools content container, including its recessed panel background, border, padding, title/search alignment, and source-group tree styling. It groups every supported inventory extension under User, Workspace, and Plugins sections, including extensions that report no Canvases. Extension rows do not repeat source icons; User and Plugin parents have enablement switches, while Workspace parents are read-only.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Canvases,
+			copilotExtensionInventory: fixtureCopilotExtensionInventory,
+			copilotCanvases: fixtureCopilotCanvases,
+		}),
+	}),
+
 	// Full editor with Local (VS Code) harness — all sections visible, harness dropdown,
 	// Generate buttons, AGENTS.md shortcut, all storage groups
 	LocalHarness: defineComponentFixture({
@@ -3232,6 +3604,41 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				AICustomizationManagementSection.Prompts,
 			],
 		}),
+	}),
+
+	// Sessions variant whose contributed section shows a badge in the navigation list.
+	SessionsContributedSectionBadge: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		render: ctx => {
+			ctx.disposableStore.add(aiCustomizationManagementSectionRegistry.register({
+				id: AICustomizationManagementSection.Extensions,
+				label: 'Extensions',
+				icon: Codicon.extensions,
+				description: 'Choose which installed extensions run in the Agents window.',
+				separatorBefore: true,
+				supportsHarness: () => true,
+				getBadge: () => constObservable('Some installed extensions can be enabled in the Agents window.'),
+				create: () => ({ dispose: () => { } }),
+			}));
+			return renderEditor(ctx, {
+				sessionResource: localSessionResource,
+				isSessionsWindow: true,
+				selectedSection: AICustomizationManagementSection.Agents,
+				availableHarnesses: [
+					createVSCodeHarnessDescriptor(),
+				],
+				managementSections: [
+					AICustomizationManagementSection.Plugins,
+					AICustomizationManagementSection.McpServers,
+					AICustomizationManagementSection.Skills,
+					AICustomizationManagementSection.Instructions,
+					AICustomizationManagementSection.Agents,
+					AICustomizationManagementSection.Hooks,
+					AICustomizationManagementSection.Tools,
+					AICustomizationManagementSection.Extensions,
+				],
+			});
+		},
 	}),
 
 	// Sessions Skills tab showing UI Integration badges on built-in skills
@@ -3669,6 +4076,63 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	MigrationGuidanceDashboard: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The migrations dashboard lists Chat Participants (Extensions) and Tool Sets (User) groups below the MCP server migration. Guidance groups show Ignore and Learn More actions, and their read-only rows show the item source and a Review button.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			migrationGuidance: true,
+			files: [],
+		}),
+	}),
+
+	MigrationToolSetGuidanceDetail: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The user tool-set migration detail uses the shared detail header with an arrow back button and a linked source file, followed by a migration warning card that explains why the tool set needs replacement and links to guidance.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			migrationGuidance: true,
+			files: [],
+			openMigrationItemLabel: 'review-tools',
+		}),
+	}),
+
+	MigrationParticipantGuidanceDetail: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The chat-participant migration detail uses the shared detail header with an arrow back button and a linked contributing extension, followed by a migration warning card with publisher-facing guidance.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			migrationGuidance: true,
+			files: [],
+			openMigrationItemLabel: '@code-review',
+		}),
+	}),
+
+	MigrationToolSetGuidanceDetailNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		virtualTime: { enabled: false },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			migrationGuidance: true,
+			files: [],
+			openMigrationItemLabel: 'review-tools',
+			// Omits the extension tool set so the user tool set row is rendered in the short viewport.
+			toolSets: [],
+			width: 550,
+			height: 560,
+		}),
+	}),
+
 	MigrationConfirmation: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		virtualTime: { enabled: false },
@@ -3876,6 +4340,21 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	BrowseCuratedFeeds: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: [
+			'Browse leads with the three GitHub editorial sections in feed order, followed by a Copilot Connectors shelf with four or fewer items and a View All action. Editor\'s picks retains the existing featured-section treatment, and the remaining sections use the existing two-column card grid.',
+		],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			marketplaceVisibilityEnabled: true,
+			curatedFeedsEnabled: true,
+			copilotConnectorsEnabled: true,
+			width: 1200,
+			height: 760,
+		}),
+	}),
+
 	DiscoverSearchResults: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['Wide Discover search uses the same centered content measure as the management pages. The title, search control, result selection bounds, and state messages share horizontal edges; rows retain compact icons, two-line text hierarchy, ratings, and centered actions.'],
@@ -3903,7 +4382,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverClearedSearch: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Clearing the search restores the featured customization cards immediately and the source picker defaults to All Sources.'],
+		expectedVisualDescriptions: ['Clearing the search restores the Browse source sections immediately and the source picker defaults to All Sources.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
@@ -3925,6 +4404,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverCopilotConnector: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['Discover shows Work IQ Mail as an available MCP resource from Copilot Connectors with a Connect action.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -4086,6 +4566,26 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
 			customizationMarketplaceState: 'loading',
+		}),
+	}),
+
+	DiscoverPartialLoading: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Browse renders available customization cards immediately while a quiet status reports that one of four sources has loaded and the shared progress bar remains active.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			customizationMarketplaceState: 'partialLoading',
+		}),
+	}),
+
+	DiscoverCachedRefresh: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Browse reuses cached customization cards immediately while a quiet status reports background source refresh progress and the shared progress bar remains active.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			customizationMarketplaceState: 'cachedRefresh',
 		}),
 	}),
 

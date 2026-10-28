@@ -173,6 +173,7 @@ jobs:
           path: $(TEST_DIR)/node_modules
           cacheHitVar: SANITY_NODE_MODULES_RESTORED
         displayName: Restore node_modules cache
+        retryCountOnTaskFailure: 2
 
       - script: npm config set registry "$(NPM_REGISTRY)" --location=project
         workingDirectory: $(TEST_DIR)

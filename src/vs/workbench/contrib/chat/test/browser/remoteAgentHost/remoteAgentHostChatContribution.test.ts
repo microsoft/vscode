@@ -11,6 +11,7 @@ import { Disposable, toDisposable } from '../../../../../../base/common/lifecycl
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection, type AuthenticateParams } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { IAgentHostMcpAuthenticationRequest } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { ICloudSandboxAgentHostService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -33,6 +34,8 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
@@ -122,6 +125,8 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		instantiation.stub(IAgentHostTerminalService, {});
 		instantiation.stub(IAgentHostActiveClientService, {});
 		instantiation.stub(IWorkbenchEnvironmentService, { isSessionsWindow });
+		instantiation.stub(IEditorGroupsService, {});
+		instantiation.stub(IEditorService, {});
 		instantiation.stub(IProgressService, new class extends mock<IProgressService>() {
 			override withProgress<R>(options: Parameters<IProgressService['withProgress']>[0], task: (progress: { report(step: IProgressStep): void }) => Promise<R>): Promise<R> {
 				const steps: IProgressStep[] = [];
@@ -132,6 +137,7 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		}());
 		instantiation.stub(IConfigurationService, new TestConfigurationService());
 		instantiation.stub(ILogService, store.add(new NullLogService()));
+		instantiation.stub(IAgentHostAdvertisedAuthenticationResolver, { takePendingSessionRemovals: () => [] });
 		instantiation.stub(ILabelService, { getHostLabel: () => 'Remote' });
 		instantiation.stub(ITelemetryService, NullTelemetryService);
 		store.add(instantiation.createInstance(RemoteAgentHostContribution));
@@ -160,19 +166,14 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		assert.strictEqual(context.opened.length, 0);
 	});
 
-	test('seals remembered MCP credentials through the user-local connection customization', async () => {
-		const sealed: AuthenticateParams[] = [];
+	test('forwards remembered MCP credentials to the user-local protocol sealing boundary', async () => {
 		const customization = createCloudSandboxConnectionCustomization('cloudsandbox:remote',
-			new class extends mock<ICloudSandboxAgentHostService>() { }(), true, async params => {
-				sealed.push(params);
-				return { ...params, token: 'copilot-sealed.v1.mcp.ciphertext' };
-			});
+			new class extends mock<ICloudSandboxAgentHostService>() { }(), true);
 		const context = fixture(customization);
 		const authenticated = await context.authenticate(request);
-		assert.deepStrictEqual({ authenticated, sealed, sent: context.sent, silent: context.sessionOptions }, {
+		assert.deepStrictEqual({ authenticated, sent: context.sent, silent: context.sessionOptions }, {
 			authenticated: true,
-			sealed: [{ target: request.target, resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token' }],
-			sent: [{ target: request.target, resource: 'https://docs.example/mcp', scopes: ['read'], token: 'copilot-sealed.v1.mcp.ciphertext' }],
+			sent: [{ target: request.target, resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token' }],
 			silent: [true],
 		});
 	});

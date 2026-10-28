@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { applyChatConfigLayers, filterChatConfigValues, filterSessionConfigValues, getChatConfigChain, getChatConfigWriteTarget, getEffectiveChatConfig, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionBaseBranchProperty, getSessionConfigPresentationKey, getSessionIsolationProperty, getSessionModeProperty, getSessionWorkspaceProperties, isChatConfigProperty, isSessionConfigWritable, readSessionApprovalLevel, readSessionIsolation, mergeChatConfigChain, splitChatConfigPatch, validateChatConfigWrite, validateChatPickerConfigWrite, validateSessionConfigWrite, writeSessionApprovalLevel, writeSessionIsolation } from '../../common/sessionConfigProperties.js';
+import { applyChatConfigLayers, filterChatConfigValues, filterSessionConfigValues, getChatConfigChain, getChatConfigWriteTarget, getEffectiveChatConfig, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getWithheldSessionApprovalValues, getSessionApprovalProperty, getSessionBaseBranchProperty, getSessionConfigPresentationKey, getSessionIsolationProperty, getSessionModeProperty, getSessionWorkspaceProperties, isChatConfigProperty, isSessionConfigWritable, readSessionApprovalLevel, readSessionIsolation, mergeChatConfigChain, splitChatConfigPatch, validateChatConfigWrite, validateChatPickerConfigWrite, validateSessionConfigWrite, writeSessionApprovalLevel, writeSessionIsolation } from '../../common/sessionConfigProperties.js';
 import type { SessionConfigSchema } from '../../common/state/protocol/commands.js';
 import { ChatOriginKind, type ChatSummary } from '../../common/state/protocol/state.js';
 
@@ -158,9 +158,12 @@ suite('Session config properties', () => {
 			absent: getEffectiveSessionApprovalValue(approvalProperty, copilot, { approvalMode: 'assisted' }),
 			unknown: readSessionApprovalLevel(approvalProperty, getEffectiveSessionApprovalValue(approvalProperty, copilot, { effectiveApprovalMode: 'unknown' })),
 			emptyChoices: getAvailableSessionApprovalValues(approvalProperty, copilot, { availableApprovalModes: [] }),
+			withheld: getWithheldSessionApprovalValues(approvalProperty, copilot, values),
+			noReport: getWithheldSessionApprovalValues(approvalProperty, copilot, { approvalMode: 'manual' }),
 		}, {
 			effective: 'manual', requested: 'allow-all', choices: ['manual', 'assisted'],
 			absent: 'assisted', unknown: undefined, emptyChoices: [],
+			withheld: ['allow-all'], noReport: [],
 		});
 	});
 

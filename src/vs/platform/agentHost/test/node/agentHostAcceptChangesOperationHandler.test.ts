@@ -12,9 +12,9 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { ITrackedEditSource } from '../../common/agentHostChangesetService.js';
 import { buildSessionChangesetUri, buildWorkingSetChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
 import type { IFileEditContent, IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
-import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
+import { ChangesetOperationTargetKind } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildChatUri, buildDefaultChatUri, FileEditKind, MessageKind, SessionStatus, type TextRange } from '../../common/state/sessionState.js';
 import { AgentHostAcceptChangesOperationHandler } from '../../node/agentHostAcceptChangesOperationHandler.js';
 import { AgentHostAcceptChangesOperationContribution } from '../../node/agentHostAcceptChangesOperationProvider.js';
@@ -82,13 +82,14 @@ function setup(disposables: Pick<DisposableStore, 'add'>) {
 	changesets.onFileEditsAccepted = owner => { accepted.push(owner); };
 	const diffService = new InProcessDiffComputeService();
 	const handler = new AgentHostAcceptChangesOperationHandler(new NullLogService(), stateManager, changesets, diffService);
-	const invoke = (resource: URI | undefined, channel = buildWorkingSetChangesetUri(SESSION), range?: IRangeTarget) => handler.invoke({
+	const invoke = (resource: URI | undefined, channel = buildWorkingSetChangesetUri(SESSION), range?: IRangeTarget, nonce?: string) => handler.invoke({
 		channel,
 		operationId: AgentHostAcceptChangesOperationHandler.OPERATION_ACCEPT_CHANGES,
-		// The protocol target carries the protocol `URI` (a branded string).
-		target: !resource ? undefined : range
-			? { kind: ChangesetOperationTargetKind.Range, resource: resource.toString() as unknown as InvokeChangesetOperationParams['channel'], ...range }
-			: { kind: ChangesetOperationTargetKind.Resource, resource: resource.toString() as unknown as InvokeChangesetOperationParams['channel'] },
+		target: !resource ? undefined : {
+			resource: resource.toString(),
+			...(range ? { kind: ChangesetOperationTargetKind.Range, ...range } : { kind: ChangesetOperationTargetKind.Resource }),
+			...(nonce !== undefined ? { nonce } : {}),
+		},
 	}, CancellationToken.None);
 	const workingSet = async () => {
 		const diffs = await computeWorkingSetDiffs(tracked.sources.map(source => ({ sessionUri: source.storage, db: source.db })), new TestDiffComputeService(), tracked.folderScope);
@@ -264,10 +265,6 @@ suite('AgentHostAcceptChangesOperationHandler', () => {
 			missingTarget: async () => ({ target: null }),
 			fileNotInSession: async () => ({ target: URI.file('/repo/src/unknown.ts') }),
 			outsideFolderScope: async ({ tracked }) => { tracked.folderScope = [URI.file('/elsewhere')]; return {}; },
-			turnRunning: async ({ stateManager, chat }) => {
-				stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 't3', startedAt: new Date(1).toISOString(), message: { text: 'Edit', origin: { kind: MessageKind.User } } });
-				return {};
-			},
 			renamed: async ({ db }) => {
 				await db.storeFileEdit({ turnId: 't2', toolCallId: 'tc-rename', filePath: URI.file('/repo/src/renamed.ts').fsPath, originalPath: FILE.fsPath, kind: FileEditKind.Rename, addedLines: undefined, removedLines: undefined });
 				return {};
@@ -310,12 +307,51 @@ suite('AgentHostAcceptChangesOperationHandler', () => {
 			missingTarget: rejected(`Operation 'accept-changes' requires a resource or range target.`),
 			fileNotInSession: rejected(`'unknown.ts' has no changes to accept.`),
 			outsideFolderScope: rejected(`'file.ts' has no changes to accept.`),
-			turnRunning: rejected(`Changes can't be accepted while a turn is running.`),
 			renamed: rejected(`Changes to a renamed file can't be accepted.`),
 			changedBySeveralChats: rejected(`Changes to 'file.ts' can't be accepted because another chat in this session also changed it.`),
 			editedByAnotherChat: rejected(`Changes to 'file.ts' can't be accepted because another chat in this session also changed it.`),
 			editedWhileAccepting: rejected(`'file.ts' changed while its changes were being accepted. Try again.`),
 			rewrittenWhileAccepting: rejected(`'file.ts' changed while its changes were being accepted. Try again.`),
+		});
+	});
+
+	test('checks supplied nonces while accepting omitted nonces during a turn', async () => {
+		const results: Record<string, unknown> = {};
+		const run = async (name: string, arrange: (context: ReturnType<typeof setup>) => Promise<string | undefined>) => {
+			const context = setup(disposables);
+			await storeEdit(context.db, 't1', 'tc1', FILE, FileEditKind.Edit, 'v0', 'v1');
+			context.stateManager.dispatchServerAction(context.chat, { type: ActionType.ChatTurnStarted, turnId: 't2', startedAt: new Date(1).toISOString(), message: { text: 'Edit', origin: { kind: MessageKind.User } } });
+			const nonce = await arrange(context);
+			const error = await toError(context.invoke(FILE, undefined, undefined, nonce));
+			results[name] = { error, accepted: context.accepted.length, rows: await context.rows() };
+		};
+		const publish = ({ stateManager }: ReturnType<typeof setup>, nonce: string) => {
+			const channel = buildWorkingSetChangesetUri(SESSION);
+			stateManager.registerChangeset(channel);
+			stateManager.dispatchServerAction(channel, {
+				type: ActionType.ChangesetFileSet,
+				file: { id: FILE.toString(), edit: { after: { uri: FILE.toString(), content: { uri: FILE.toString() } } }, nonce },
+			});
+		};
+		const recordLaterEdit = ({ db }: ReturnType<typeof setup>) => storeEdit(db, 't2', 'tc2', FILE, FileEditKind.Edit, 'v1', 'v2');
+
+		await run('omittedNonce', async () => undefined);
+		await run('namedNonce', async () => 'tc1');
+		await run('namedNonceAfterLaterEdit', async context => { await recordLaterEdit(context); return 'tc1'; });
+		await run('namedNonceChangesBeforeCommit', async context => { context.db.beforeStore = () => recordLaterEdit(context); return 'tc1'; });
+		await run('publishedNonce', async context => { publish(context, 'tc1'); return undefined; });
+		await run('publishedNonceAfterLaterEdit', async context => { publish(context, 'tc1'); await recordLaterEdit(context); return undefined; });
+		await run('publishedLatestNonce', async context => { await recordLaterEdit(context); publish(context, 'tc2'); return undefined; });
+
+		const stale = { code: AhpErrorCodes.Conflict, message: `The changes to 'file.ts' were updated after they were shown. Try again.` };
+		assert.deepStrictEqual(results, {
+			omittedNonce: { error: undefined, accepted: 1, rows: ['tc1', 'accept:t1:edit'] },
+			namedNonce: { error: undefined, accepted: 1, rows: ['tc1', 'accept:t1:edit'] },
+			namedNonceAfterLaterEdit: { error: stale, accepted: 0, rows: ['tc1', 'tc2'] },
+			namedNonceChangesBeforeCommit: { error: stale, accepted: 0, rows: ['tc1', 'tc2'] },
+			publishedNonce: { error: undefined, accepted: 1, rows: ['tc1', 'accept:t1:edit'] },
+			publishedNonceAfterLaterEdit: { error: undefined, accepted: 1, rows: ['tc1', 'tc2', 'accept:t2:edit'] },
+			publishedLatestNonce: { error: undefined, accepted: 1, rows: ['tc1', 'tc2', 'accept:t2:edit'] },
 		});
 	});
 });

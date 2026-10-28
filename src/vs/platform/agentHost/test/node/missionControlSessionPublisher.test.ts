@@ -40,6 +40,7 @@ suite('MissionControlSessionPublisher', () => {
 		workingDirectories?: string[];
 		root?: URI | false | null;
 		gate?: Promise<void>;
+		repositoryMetadataEnabled?: boolean;
 	} = {}) {
 		const instantiation = store.add(new TestInstantiationService());
 		const log = store.add(new NullLogService());
@@ -73,11 +74,13 @@ suite('MissionControlSessionPublisher', () => {
 		const events: MissionControlMirrorEvent[] = [];
 		store.add(mirror.attach(event => { events.push(event); }));
 		let enabled = true;
-		const publisher = store.add(instantiation.createInstance(MissionControlSessionPublisher, mirror, () => enabled));
+		let repositoryMetadataEnabled = options.repositoryMetadataEnabled ?? true;
+		const publisher = store.add(instantiation.createInstance(MissionControlSessionPublisher, mirror, () => enabled, () => repositoryMetadataEnabled));
 		return {
 			state, publisher, mirror, events, reads, errors,
 			frames: () => events.flatMap(event => event.event === 'sessionEvents' ? [event.data] : []),
 			setEnabled: (value: boolean) => { enabled = value; },
+			setRepositoryMetadataEnabled: (value: boolean) => { repositoryMetadataEnabled = value; },
 		};
 	}
 
@@ -143,6 +146,35 @@ suite('MissionControlSessionPublisher', () => {
 			],
 		});
 	});
+
+	for (const project of [localProject, { uri: 'https://github.com/microsoft/vscode', displayName: 'vscode' }]) {
+		test(`omits repository metadata from both namespaces and backfill without Git probes: ${project.uri}`, async () => {
+			const f = fixture({ project, repositoryMetadataEnabled: false, root: null, remotes: null });
+			f.publisher.enqueue(envelope(), session);
+			await f.publisher.registerSession(session);
+			f.setRepositoryMetadataEnabled(true);
+			f.mirror.reserveSdkSequences(session, 0, 1024);
+			f.mirror.enqueueSdk(session, { type: 'session.idle', data: {} }, at);
+			clock.runAll();
+			f.mirror.backfill({ kind: 'backfill_request', environment_id: 'environment', session_id: session, ns: 'ahp', from_seq: 0, to_seq: 0, request_id: 'backfill' });
+			clock.runAll();
+			assert.deepStrictEqual({
+				reads: f.reads,
+				frames: f.frames().map(frame => ({ ns: frame.ns, project: frame.project, payload: frame.payload })),
+				localProject: f.state.getSessionSummary(session)?.project,
+				errors: f.errors.callCount,
+			}, {
+				reads: [],
+				frames: [
+					{ ns: 'ahp', project: undefined, payload: { kind: 'message', data: JSON.parse(JSON.stringify(envelope())) } },
+					{ ns: 'sdk', project: undefined, payload: { type: 'session.idle', data: {} } },
+					{ ns: 'ahp', project: undefined, payload: { kind: 'message', data: JSON.parse(JSON.stringify(envelope())) } },
+				],
+				localProject: project,
+				errors: 0,
+			});
+		});
+	}
 
 	for (const remotes of [
 		[],

@@ -43,6 +43,10 @@ export interface IGitHubTransport {
 	invalidateAccount(account: AccountHandle, reason?: unknown): void;
 }
 
+export function isSamlEnforcementError(message: string): boolean {
+	return message.toLowerCase().includes('saml enforcement');
+}
+
 export interface GitHubRestRequest extends GitHubRequestOptions {
 	readonly method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 	readonly url: string;
@@ -72,6 +76,8 @@ export interface GitHubRestTextRequest extends Omit<GitHubRestRequest, 'method' 
 	readonly bodyText?: string;
 	/** Separates representation and acknowledgement modes in the cache and coalescing keys. */
 	readonly responseBody?: 'json' | 'text' | 'none';
+	/** A tighter response limit for an endpoint with smaller payloads. */
+	readonly maximumResponseBytes?: number;
 }
 
 export interface GitHubRestResponse<T> extends GitHubResponseMetadata {
@@ -250,6 +256,9 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 
 	private async _restText(account: RequestAccount, token: string | undefined, request: GitHubRestTextRequest, signal: AbortSignal, anonymousApiBasePath?: string, onBlockedUntil?: (time: number) => void): Promise<GitHubRestResponse<string>> {
 		signal.throwIfAborted();
+		if (request.maximumResponseBytes !== undefined && (!Number.isSafeInteger(request.maximumResponseBytes) || request.maximumResponseBytes <= 0)) {
+			throw new GitHubRequestError('Invalid GitHub response byte limit', 'validation');
+		}
 		const deadline = this._deadline(request);
 		const finalUrl = request.followRedirects === false ? request.url : this._redirects.get(request.url) ?? request.url;
 		const cacheKey = this._restCacheKey(account, request, finalUrl);
@@ -604,7 +613,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			});
 			signal.throwIfAborted();
 			if (!response.ok) {
-				throw this._httpError('GitHub GraphQL request failed', response, body);
+				throw this._httpError('GitHub GraphQL request failed', response, body, url);
 			}
 			const metadata = this._responseMetadata(response);
 			let json;
@@ -806,7 +815,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			} else if (!response.ok) {
 				const requestUrl = new URL(request.url);
 				const route = `${requestUrl.pathname.replace(/^\//, '')}${requestUrl.search}`;
-				throw this._httpError(`GitHub API request failed: ${request.method} ${route}`, response, body);
+				throw this._httpError(`GitHub API request failed: ${request.method} ${route}`, response, body, request.url);
 			}
 			const responseEtag = response.headers.get('etag') ?? undefined;
 			const representationVersion = request.representationVersion ?? 1;
@@ -880,7 +889,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			if (discardBody && response.body) {
 				cancelResponseBody(response.body, this._logService);
 			}
-			return { response, body: discardBody ? '' : await this._readResponse(account, response, init.signal, request.rateLimitResource ?? getGitHubRestResource(response.url || url)) };
+			return { response, body: discardBody ? '' : await this._readResponse(account, response, init.signal, request.rateLimitResource ?? getGitHubRestResource(response.url || url), request.maximumResponseBytes) };
 		};
 		for (let redirectCount = 0; redirectCount <= maximumRedirects; redirectCount++) {
 			const result = await this._fetchWithRetry(account, request.rateLimitResource ?? getGitHubRestResource(url), url, init, (request.method === 'GET' || request.method === 'HEAD') && request.retry !== false, request.caller, onDispatch, readResponse);
@@ -1002,8 +1011,8 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		throw new GitHubRequestError(`GitHub network request failed: ${String(failure)}`, 'network');
 	}
 
-	private async _readResponse(account: RequestAccount, response: Response, signal: AbortSignal, resource: string): Promise<string> {
-		const result = await this._readResponseBody(response, this._options.maximumResponseBytes, signal).catch(error => {
+	private async _readResponse(account: RequestAccount, response: Response, signal: AbortSignal, resource: string, maximumBytes = this._options.maximumResponseBytes): Promise<string> {
+		const result = await this._readResponseBody(response, Math.min(maximumBytes, this._options.maximumResponseBytes), signal).catch(error => {
 			if (resource.startsWith('agents')) {
 				this._updateRateLimits(account, response, resource);
 			}
@@ -1056,6 +1065,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			request.rateLimitResource ?? '',
 			request.responseBody ?? 'json',
 			request.representationVersion ?? 1,
+			request.maximumResponseBytes ?? this._options.maximumResponseBytes,
 		].join('\x00');
 	}
 
@@ -1081,10 +1091,14 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		}
 	}
 
-	private _httpError(prefix: string, response: Response, body: string): GitHubRequestError {
+	private _httpError(prefix: string, response: Response, body: string, requestUrl: string): GitHubRequestError {
 		const detail = formatErrorBody(body);
 		const message = `${prefix} - ${response.status} ${response.statusText}${detail ? ` - ${detail}` : ''}`;
-		return new GitHubRequestError(message, classifyHttpError(response, body), response.status, body, undefined, response.statusText, this._responseMetadata(response));
+		const ssoAuthorizationUrl = parseSsoAuthorizationUrl(response.headers.get('x-github-sso'), requestUrl);
+		return new GitHubRequestError(message, classifyHttpError(response, body), response.status, body, undefined, response.statusText, {
+			...this._responseMetadata(response),
+			...(ssoAuthorizationUrl ? { ssoAuthorizationUrl } : {}),
+		});
 	}
 
 	private _responseMetadata(response: Response): GitHubResponseMetadata {
@@ -1188,6 +1202,37 @@ function classifyHttpError(response: Response, body: string): RequestErrorKind {
 		case 422: return 'validation';
 		default: return response.status >= 500 ? 'server' : 'unknown';
 	}
+}
+
+/**
+ * Reads where GitHub lets the user authorize the credential of a refused
+ * request for an organization's SAML single sign-on, from an
+ * `X-GitHub-SSO: required; url=<page>` header. Only a secure single sign-on
+ * page of the host the request went to, or of the web host its `api.` host
+ * serves, is accepted.
+ */
+function parseSsoAuthorizationUrl(header: string | null, requestUrl: string): string | undefined {
+	const directives = header?.split(';').map(directive => directive.trim()) ?? [];
+	const value = directives[0]?.toLowerCase() === 'required'
+		? directives.find(directive => directive.toLowerCase().startsWith('url='))?.slice('url='.length)
+		: undefined;
+	if (!value) {
+		return undefined;
+	}
+	let url: URL;
+	let request: URL;
+	try {
+		url = new URL(value);
+		request = new URL(requestUrl);
+	} catch {
+		return undefined;
+	}
+	const host = url.host.toLowerCase();
+	const requestHost = request.host.toLowerCase();
+	return url.protocol === 'https:' && !url.username && !url.password
+		&& (host === requestHost || `api.${host}` === requestHost)
+		&& /^\/orgs\/[^/]+\/sso$/.test(url.pathname)
+		? url.href : undefined;
 }
 
 function formatErrorBody(body: string): string | undefined {

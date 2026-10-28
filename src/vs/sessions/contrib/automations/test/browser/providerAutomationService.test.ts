@@ -45,6 +45,7 @@ class TestAuthority extends mock<ISessionsProviderAutomations>() {
 	override readonly runs = observableValue<readonly IAutomationRun[]>(this, []);
 	readonly calls: string[] = [];
 	readonly refreshOptions: (IAutomationRefreshOptions | undefined)[] = [];
+	readonly retainedHistory = new Map<string, 'retained' | 'deleting'>();
 
 	override async refresh(options?: IAutomationRefreshOptions): Promise<void> {
 		this.refreshOptions.push(options);
@@ -66,6 +67,13 @@ class TestAuthority extends mock<ISessionsProviderAutomations>() {
 	override canRunAutomation(id: string): boolean { return this.canCreateAutomation.get() && !!this.getAutomation(id); }
 	override canUpdateAutomation(id: string): boolean { return this.canRunAutomation(id); }
 	override canDeleteAutomation(id: string): boolean { return this.canRunAutomation(id); }
+	override getAutomationHistoryName(id: string): string | undefined { return this.retainedHistory.has(id) ? 'Deleted review' : undefined; }
+	override getAutomationHistoryState(id: string) { return this.retainedHistory.get(id); }
+	override canDeleteAutomationHistory(id: string): boolean { return this.retainedHistory.has(id); }
+	override async deleteAutomationHistory(id: string): Promise<void> {
+		this.calls.push('deleteHistory');
+		this.retainedHistory.delete(id);
+	}
 	override getActiveRunFor(id: string) { return this.runs.get().find(run => run.automationId === id && run.status === 'running'); }
 
 	override async createAutomation(options: ICreateAutomationOptions, guard?: AutomationMutationGuard) {
@@ -279,6 +287,44 @@ suite('ProviderAutomationService', () => {
 		});
 	});
 
+	test('hiding an available host only removes it from creation choices, not its catalogue, runs or refresh', async () => {
+		const host = new TestAuthority('agenthost-ssh');
+		const run: IAutomationRun = { id: 'run', automationId: `${host.providerId}-automation`, status: 'running', trigger: 'manual', startedAt: '2026-01-02T00:00:00Z' };
+		host.runs.set([run], undefined);
+		host.historyState.set('error', undefined);
+		host.isRefreshing.set(true, undefined);
+		const visibility = observableValue('visibility', true);
+		const availability = observableValue('availability', true);
+		const { service } = setup([upcastPartial<IAgentHostSessionsProvider>({
+			...provider(host), isVisibleInEnvironmentPicker: visibility, isAvailableInEnvironmentPicker: availability,
+		})]);
+		const snapshot = () => ({
+			catalogue: service.catalogueState.get(), choices: service.availableProviders.get().map(provider => provider.id),
+			automations: service.automations.get().map(automation => automation.id),
+			runs: service.runsFor(run.automationId).get().map(run => run.id),
+			history: service.historyState.get(), refreshing: service.isRefreshing.get(),
+			unavailable: service.unavailableProviders.get().map(provider => provider.id),
+		});
+		const shown = snapshot();
+		visibility.set(false, undefined);
+		const hidden = snapshot();
+		await service.refresh();
+		await service.updateAutomation(run.automationId, { name: 'Changed' });
+		await service.runAutomation(run.automationId);
+		host.catalogueState.set('unavailable', undefined);
+		const disconnected = snapshot();
+		host.catalogueState.set('ready', undefined);
+		visibility.set(true, undefined);
+		assert.deepStrictEqual({ shown, hidden, disconnected, restored: snapshot(), refreshes: host.refreshOptions, calls: host.calls }, {
+			shown: { catalogue: 'ready', choices: [host.providerId], automations: [run.automationId], runs: [run.id], history: 'error', refreshing: true, unavailable: [] },
+			hidden: { catalogue: 'ready', choices: [], automations: [run.automationId], runs: [run.id], history: 'error', refreshing: true, unavailable: [] },
+			disconnected: { catalogue: 'unavailable', choices: [], automations: [run.automationId], runs: [run.id], history: 'error', refreshing: true, unavailable: [host.providerId] },
+			restored: shown, refreshes: [undefined], calls: ['update', 'run'],
+		});
+		availability.set(false, undefined);
+		assert.deepStrictEqual({ automations: service.automations.get(), runs: service.runs.get() }, { automations: [], runs: [] });
+	});
+
 	test('session-only environments are excluded from the catalogue', () => {
 		const local = new TestAuthority('local');
 		const environment = new TestAuthority('agenthost-github-environment');
@@ -386,6 +432,24 @@ suite('ProviderAutomationService', () => {
 		await service.deleteAutomation('remote-automation');
 		assert.deepStrictEqual({ result, history: service.runsFor('remote-automation').get(), calls: [local.calls, remote.calls] }, {
 			result: { kind: 'alreadyRunning', run }, history: [run], calls: [[], ['update', 'run', 'delete']],
+		});
+	});
+
+	test('routes retained history deletion and retry only to the owning host', async () => {
+		const local = new TestAuthority('local');
+		const remote = new TestAuthority('remote');
+		remote.automations.set([], undefined);
+		remote.retainedHistory.set('remote-automation', 'retained');
+		const { service } = setup([provider(local), provider(remote)]);
+
+		await service.deleteAutomationHistory('remote-automation');
+
+		assert.deepStrictEqual({
+			state: service.getAutomationHistoryState('remote-automation'),
+			calls: [local.calls, remote.calls],
+		}, {
+			state: undefined,
+			calls: [[], ['deleteHistory']],
 		});
 	});
 

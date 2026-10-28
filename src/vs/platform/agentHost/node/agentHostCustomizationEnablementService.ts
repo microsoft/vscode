@@ -12,6 +12,7 @@ import { AgentSession } from '../common/agentService.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
 import { DEFAULT_CUSTOMIZATION_ENABLED, isCustomizationEnabled, sortCustomizationEnablement, withCustomizationEnablement } from '../common/customizationEnablement.js';
 import { isAhpChatChannel, readSessionWorkspaceless } from '../common/state/sessionState.js';
+import { isChatWorkspaceless } from './agentChatContext.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
@@ -232,7 +233,11 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 
 	getWorkingDirectoryState(session: string): WorkingDirectoryState {
 		const summary = this._sessionState.getSessionSummary(session);
-		if (readSessionWorkspaceless(summary?._meta)) {
+		// The session's customizations follow its default chat, so the default chat's own decision applies.
+		const defaultChat = this._chatOwnership.getDefaultChat(session);
+		if (defaultChat !== undefined
+			? isChatWorkspaceless(this._sessionState, defaultChat, this._sessionStateStore.peek(URI.parse(session)), readSessionWorkspaceless(summary?._meta))
+			: readSessionWorkspaceless(summary?._meta)) {
 			return { kind: 'workspaceless' };
 		}
 		if (this._worktree.isWorkingDirectoryPending(AgentSession.id(session))) {

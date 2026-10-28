@@ -33,7 +33,7 @@ export function parseGitHubCloneUrl(cloneUrl: string): RepositoryRef | undefined
 	if (segments.length !== 2 || !segments[0] || !segments[1]) {
 		return undefined;
 	}
-	return { owner: segments[0], name: segments[1] };
+	return { owner: segments[0], repo: segments[1] };
 }
 
 /** Stages a repository's files and replaces the target only after every supported blob has been written. */
@@ -46,9 +46,9 @@ export async function fetchAndExtractGitHubRepo(
 	targetDir: URI,
 	signal: AbortSignal,
 ): Promise<void> {
-	const tree = await content.getTree(repo.owner, repo.name, sha, signal, { caller: 'pluginGit.tree', noCache: true, query: { recursive: true } });
+	const tree = await content.getTree(repo, sha, signal, { caller: 'pluginGit.tree', noCache: true, query: { recursive: true } });
 	if (tree.truncated) {
-		logService.warn(`[GitHubRepoFetcher] Tree for ${repo.owner}/${repo.name}@${sha} is truncated; some files will be missing from the install`);
+		logService.warn(`[GitHubRepoFetcher] Tree for ${repo.owner}/${repo.repo}@${sha} is truncated; some files will be missing from the install`);
 	}
 
 	const stagingDir = joinPath(dirname(targetDir), `.staging-${generateUuid()}`);
@@ -94,7 +94,7 @@ export async function fetchAndExtractGitHubRepo(
 
 		await Promise.all(blobsToFetch.map(({ entry, dest }) => limiter.queue(async () => {
 			operationSignal.throwIfAborted();
-			const blob = await content.getBlob(repo.owner, repo.name, entry.sha, operationSignal, { caller: 'pluginGit.blob', noCache: true });
+			const blob = await content.getBlob(repo, entry.sha, operationSignal, { caller: 'pluginGit.blob', noCache: true });
 			operationSignal.throwIfAborted();
 			await fileService.writeFile(dest, decodeBase64(blob.content.replace(/\s+/g, '')));
 		})));

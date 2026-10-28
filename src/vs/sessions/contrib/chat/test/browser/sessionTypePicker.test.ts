@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../base/browser/dom.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -18,6 +19,8 @@ import { IActionListDelegate, IActionListItem, ActionListItemKind } from '../../
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -30,6 +33,7 @@ import { IProviderSessionType, ISessionsManagementService } from '../../../../se
 import { GITHUB_REMOTE_FILE_SCHEME, SessionTypeAuthRequirement, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IPickedSessionType, IPreferredSessionType, ISessionTypePickerOptions, SessionTypePicker } from '../../browser/sessionTypePicker.js';
+import '../../browser/media/chatWidget.css';
 
 // ---- Mocks ------------------------------------------------------------------
 
@@ -172,6 +176,7 @@ function createPicker(
 		lookupLanguageModel: () => undefined,
 	});
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	return disposables.add(instantiationService.createInstance(TestSessionTypePicker, session, options));
 }
 
@@ -392,7 +397,7 @@ suite('SessionTypePicker', () => {
 		picker.render(container);
 		const trigger = container.querySelector<HTMLElement>('.action-label')!;
 		const states: { expanded: string | null; focused: boolean }[] = [];
-		for (const key of [undefined, 'Enter', ' ']) {
+		for (const key of [undefined, 'Enter', ' ', 'ArrowDown']) {
 			if (key) {
 				trigger.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
 			} else {
@@ -406,10 +411,95 @@ suite('SessionTypePicker', () => {
 		}
 		assert.deepStrictEqual({ popup: trigger.getAttribute('aria-haspopup'), states }, {
 			popup: 'listbox',
-			states: Array.from({ length: 3 }, () => [
+			states: Array.from({ length: 4 }, () => [
 				{ expanded: 'true', focused: false },
 				{ expanded: 'false', focused: true },
 			]).flat(),
+		});
+	});
+
+	for (const hostClass of ['new-chat-session-options', 'new-chat-bottom-container', 'new-session-quick-chat-header']) {
+		test(`an environment without harnesses hides the whole picker in ${hostClass} and restores its label when types arrive`, () => {
+			const copilot = sessionType('local', 'copilot-cli', 'Copilot');
+			management.setSessionTypes([copilot]);
+			const allowedProviders = observableValue<readonly string[]>('allowedProviders', ['local']);
+			const picker = createPicker(disposables, session, management, storage, { allowedProviders });
+			picker.setFolderSource(constObservable(folder));
+			const container = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+			disposables.add(toDisposable(() => container.remove()));
+			const widget = dom.append(container, dom.$('.new-chat-widget-container.revealed'));
+			const content = dom.append(widget, dom.$('.experimental-new-session-composer'));
+			const host = dom.append(content, dom.$(`.${hostClass}`));
+			picker.render(host, { className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' });
+			const trigger = host.querySelector<HTMLElement>('.action-label')!;
+			const slot = host.querySelector<HTMLElement>('.sessions-chat-picker-slot')!;
+			const readState = () => ({
+				slotVisible: slot.checkVisibility(),
+				triggerVisible: trigger.checkVisibility(),
+				label: trigger.querySelector('.sessions-chat-dropdown-label')?.textContent ?? null,
+				interactive: picker.isVisible.get(),
+			});
+
+			const states = [readState()];
+			allowedProviders.set(['remote'], undefined);
+			states.push(readState());
+			management.setSessionTypes([
+				copilot,
+				sessionType('remote', 'claude', 'Claude'),
+				sessionType('remote', 'codex', 'Codex'),
+			]);
+			states.push(readState());
+			allowedProviders.set(['local'], undefined);
+			states.push(readState());
+
+			assert.deepStrictEqual(states, [
+				{ slotVisible: true, triggerVisible: true, label: 'Copilot', interactive: false },
+				{ slotVisible: false, triggerVisible: false, label: null, interactive: false },
+				{ slotVisible: true, triggerVisible: true, label: 'Claude', interactive: true },
+				{ slotVisible: true, triggerVisible: true, label: 'Copilot', interactive: false },
+			]);
+		});
+	}
+
+	test('a single harness retains disabled styling through toolbar nesting in every theme', () => {
+		const copilot = sessionType('copilot', 'copilot-cli', 'Copilot');
+		management.setSessionTypes([copilot]);
+		const picker = createPicker(disposables, session, management, storage);
+		picker.setFolderSource(constObservable(folder));
+		const container = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => container.remove()));
+		const widget = dom.append(container, dom.$('.new-chat-widget-container'));
+		const row = dom.append(widget, dom.$('.new-chat-session-options'));
+		picker.render(row, { className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' });
+		const trigger = row.querySelector<HTMLElement>('.action-label')!;
+		const slot = row.querySelector<HTMLElement>('.sessions-chat-picker-slot')!;
+		const readState = () => {
+			const style = dom.getWindow(trigger).getComputedStyle(trigger);
+			return {
+				slotDisabled: slot.classList.contains('disabled'),
+				actionDisabled: trigger.classList.contains('disabled'),
+				ariaDisabled: trigger.getAttribute('aria-disabled'),
+				opacity: style.opacity,
+				cursor: style.cursor,
+				pointerEvents: style.pointerEvents,
+			};
+		};
+		const disabled = ['vs', 'vs-dark', 'hc-black', 'hc-light'].map(theme => {
+			container.classList.add(theme);
+			const state = readState();
+			container.classList.remove(theme);
+			return state;
+		});
+		management.setSessionTypes([copilot, sessionType('claude', 'claude', 'Claude')]);
+		assert.deepStrictEqual({ disabled, enabled: readState() }, {
+			disabled: Array(4).fill({
+				slotDisabled: true, actionDisabled: true, ariaDisabled: 'true',
+				opacity: '0.5', cursor: 'default', pointerEvents: 'none',
+			}),
+			enabled: {
+				slotDisabled: false, actionDisabled: false, ariaDisabled: 'false',
+				opacity: '1', cursor: 'pointer', pointerEvents: 'auto',
+			},
 		});
 	});
 
