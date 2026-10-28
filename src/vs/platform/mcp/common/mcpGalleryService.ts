@@ -73,6 +73,12 @@ export class UnsupportedMcpGalleryPackageError extends Error {
 	}
 }
 
+export class McpGalleryServerUrlError extends Error {
+	constructor() {
+		super('Cannot fetch MCP server from outside the configured MCP gallery');
+	}
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -1241,7 +1247,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		}
 		const validatedMcpServerUrl = getMcpServerUrlInGallery(mcpServerUrl, manifest);
 		if (!validatedMcpServerUrl) {
-			throw new Error('Cannot fetch MCP server from outside the configured MCP gallery');
+			throw new McpGalleryServerUrlError();
 		}
 
 		const context = await this.requestService.request({

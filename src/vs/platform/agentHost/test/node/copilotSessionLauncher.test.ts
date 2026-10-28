@@ -27,11 +27,10 @@ import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IB
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type IAgentHostWorkspaceTrust, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
-import { withAgentToolFullReferenceName } from '../../common/meta/agentToolDefinitionMeta.js';
+import { withAgentToolFullReferenceName, withAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
 import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
-import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import { autoModeTiers, isAutoAdvertisedAsFusion, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
@@ -42,7 +41,6 @@ import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
-import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
 import { resolveCopilotMcpServerInfo, type ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
@@ -60,26 +58,7 @@ import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionSt
 import type { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 import { createSentinelContribution, FakeLocalModelProvider, MAI_ROW } from './localModelBridge/fakeLocalModelProvider.js';
 
-const testRuntime: ICopilotSessionRuntime = {
-	chatUri: URI.parse(buildDefaultChatUri('copilot:/sess-1')),
-	launchOwner: URI.parse('copilot:/sess-1'),
-	getLaunchSandboxConfig: () => undefined,
-	applyLaunchSandbox: async session => { await session.rpc.options.update({ sandboxConfig: { enabled: false } }); },
-	handlePermissionRequest: async () => { throw new Error('Unexpected permission request'); },
-	handleExitPlanModeRequest: async () => { throw new Error('Unexpected exit plan mode request'); },
-	handleUserInputRequest: async () => { throw new Error('Unexpected user input request'); },
-	handleElicitationRequest: async () => { throw new Error('Unexpected elicitation request'); },
-	adoptLaunchConnectorReconcile: () => { },
-	handleMcpAuthRequest: async () => { throw new Error('Unexpected MCP auth request'); },
-	requestUnsandboxedCommandConfirmation: async () => false,
-	handlePreToolUse: async () => { },
-	handlePostToolUse: async () => undefined,
-	handlePostToolUseFailure: () => undefined,
-	handleUserPromptSubmitted: () => undefined,
-	createClientSdkTools: () => [],
-	createServerSdkTools: () => [],
-	reloadExtensions: async () => { },
-};
+import { createTestLauncher, noopSessionOpenTelemetry, testRuntime } from './copilotSessionLauncherTestHelpers.js';
 
 const testWorkingDirectory = URI.file(process.cwd());
 const disabledWorkflowTools = ['builtin:run_dynamic_workflow', 'builtin:dynamic_workflows_manage'];
@@ -128,52 +107,6 @@ class CapturingLogService extends NullLogService {
 	override warn(message: string, ...args: unknown[]): void {
 		this.warnings.push({ message, args });
 	}
-}
-
-const noopSessionOpenTelemetry: IAgentHostSessionOpenTelemetry = {
-	_serviceBrand: undefined,
-	withSubscription: async (_resource, operation) => operation({
-		servedFromMemory: undefined,
-		setServedFromMemory: () => { },
-		restoreStarted: () => { },
-		restoreCompleted: () => { },
-		setSession: () => { },
-	}),
-	withSdkResume: async (_session, operation) => operation(),
-	sdkResumeFallbackCreated: () => { },
-};
-
-function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Record<string, unknown> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService, telemetryService?: ITelemetryService): CopilotSessionLauncher {
-	const configurationService = configuration ?? {
-		getRootValue: (_schema: unknown, key: string) => rootValues[key],
-		getRootConfigValues: () => rootValues,
-		getSessionConfigValues: () => undefined,
-		getChatConfigValues: () => undefined,
-		resolveConfigurationOwner: (session: string) => session,
-		getSessionSandboxPolicy: () => undefined,
-		getSessionSandboxEnabled: () => undefined,
-		getChatSandboxEnabled: () => undefined,
-		setSessionSandboxPolicy: () => { },
-		setChatSandboxEnabled: () => { },
-		rejectChatSandboxChange: () => { },
-	} as Partial<IAgentConfigurationService> as IAgentConfigurationService;
-	return new CopilotSessionLauncher(
-		configurationService,
-		{ permissions: managedSettingsPermissions ?? {} } as IAgentHostManagedSettingsService,
-		{} as IAgentHostTerminalManager,
-		logService,
-		{} as IFileService,
-		{ _serviceBrand: undefined, onDidCapTools: Event.None, start: async () => { throw new Error('Unexpected proxy start'); }, dispose: () => { } },
-		new ByokLmBridgeRegistry(),
-		{
-			_serviceBrand: undefined,
-			getSessionTraceContext: () => undefined,
-			releaseSessionTraceContext: () => { },
-			withTraceContext: <T>(_context: undefined, fn: () => T): T => fn(),
-		} as unknown as IAgentHostOTelService,
-		sessionOpenTelemetry,
-		telemetryService ?? ({ telemetryLevel: TelemetryLevel.USAGE } as ITelemetryService),
-	);
 }
 
 suite('CopilotSessionLauncher customization policy session', () => {
@@ -1543,6 +1476,79 @@ suite('CopilotSessionLauncher shared session config', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const kind of ['create', 'resume', 'recover', 'recover-empty', 'create-selection-error', 'resume-selection-error'] as const) {
+		test(`${kind} selects native plugin agents without registering their definitions`, async () => {
+			let captured: ResumeSessionConfig | undefined;
+			const calls: string[] = [];
+			const selectionFails = kind.endsWith('-selection-error');
+			const planKind = kind.startsWith('create') ? 'create' : 'resume';
+			let disconnected = false;
+			const session = {
+				sessionId: 'native-agent', on: () => () => { }, disconnect: async () => { disconnected = true; },
+				rpc: {
+					agent: {
+						list: async () => { calls.push('list'); return { agents: [] }; },
+						select: async ({ name }: { name: string }) => {
+							calls.push(`select:${name}`);
+							if (selectionFails) {
+								throw Object.assign(new Error(`Custom agent '${name}' not found`), { code: -32603 });
+							}
+							return {};
+						},
+					},
+					options: { update: async () => ({ success: true }) },
+				},
+			} as unknown as CopilotSession;
+			const initialize = (config: ResumeSessionConfig | undefined) => {
+				captured = config;
+				assert.strictEqual(config?.agent, undefined);
+				reportManagedSettings(config);
+				return session;
+			};
+			const client = {
+				createSession: async (config: SessionConfig) => { calls.push('create'); return initialize(config); },
+				resumeSession: async (_id: string, config: ResumeSessionConfig | undefined) => {
+					calls.push('resume');
+					assert.strictEqual(config?.agent, undefined);
+					if (kind.startsWith('recover')) {
+						throw Object.assign(new Error(kind === 'recover-empty' ? 'Session has no events' : 'Session not found: native-agent'), { code: -32603 });
+					}
+					return initialize(config);
+				},
+				rpc: { managedSettings: createUnmanagedCopilotSettings() },
+			} as unknown as CopilotClient;
+			const nativeAgent = { type: CustomizationType.Agent, id: 'reviewer@shop:review', uri: URI.file('/plugins/reviewer/agents/review.agent.md').toString(), name: 'Review' } as const;
+			const shared = {
+				client, sessionId: 'native-agent', workingDirectory: testWorkingDirectory,
+				resolvedAgentName: nativeAgent.id,
+				snapshot: { discoveredAgents: [], nativeAgents: [nativeAgent], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+			};
+			const plan: CopilotSessionLaunchPlan = planKind === 'create'
+				? { ...shared, kind: planKind, model: undefined }
+				: { ...shared, kind: 'resume', fallback: { model: undefined } };
+			if (selectionFails) {
+				await assert.rejects(createTestLauncher().launch(plan, testRuntime), /Custom agent 'reviewer@shop:review' not found/);
+				assert.deepStrictEqual({ calls, disconnected }, { calls: [planKind, 'list', `select:${nativeAgent.id}`], disconnected: true });
+				return;
+			}
+			const wrapper = await createTestLauncher().launch(plan, testRuntime);
+			try {
+				assert.deepStrictEqual({
+					agent: captured?.agent,
+					nativeDefinitions: captured?.customAgents?.filter(agent => agent.name === nativeAgent.name || agent.name === nativeAgent.id),
+					calls,
+				}, {
+					agent: undefined, nativeDefinitions: [],
+					calls: [...(kind.startsWith('recover') ? ['resume', 'create'] : [kind]), 'list', `select:${nativeAgent.id}`],
+				});
+			} finally {
+				wrapper.dispose();
+			}
+		});
+	}
+
 	for (const scoped of [false, true]) {
 		test(`keeps configured tools and defaults with ${scoped ? 'client-owned' : 'legacy'} credentials`, async () => {
 			const configs: SessionConfig[] = [];
@@ -2468,6 +2474,19 @@ suite('CopilotSessionLauncher resume fallback', () => {
 			sessions.dispose();
 			await launcher.disposeByokProxyHandle();
 		}
+	});
+
+	test('does not clear a requested native selection after a resume agent-not-found error', async () => {
+		const { launcher, plan, getCreateSessionCalls, interactiveUserOptions } = createResumeFailingLaunch('Custom agent \'native:reviewer\' not found');
+		const nativeAgent = {
+			type: CustomizationType.Agent, id: 'native:reviewer',
+			name: 'Reviewer', uri: URI.file('/plugin/agents/reviewer.agent.md').toString(),
+		} as const;
+		await assert.rejects(launcher.launch({
+			...plan, resolvedAgentName: nativeAgent.id,
+			snapshot: { ...plan.snapshot, nativeAgents: [nativeAgent] },
+		}, testRuntime), /Custom agent 'native:reviewer' not found/);
+		assert.deepStrictEqual({ creates: getCreateSessionCalls(), interactiveUserOptions }, { creates: 0, interactiveUserOptions: [true] });
 	});
 
 	test('reports SDK resume failure and fallback creation milestones', async () => {
@@ -3791,6 +3810,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		const snapshot = { discoveredAgents: [], additionalRootInstructions: [], tools: [{ name: SEMANTIC_SEARCH_TOOL_NAME }], plugins: [], mcpServers: {} };
 		const disabled = await buildResumeConfig(createLauncher(store, {}), undefined, { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} });
 		const enabled = await buildResumeConfig(createLauncher(store, {}), undefined, snapshot);
+		const app = await buildResumeConfig(createLauncher(store, {}), undefined, { ...snapshot, tools: snapshot.tools.map(tool => withAgentToolOrigin(tool, 'mcpApp')) });
 		const filtered = await buildResumeConfig(
 			createLauncher(store, { modelCapabilityOverrides: { '*': { excludedTools: [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`] } } }),
 			undefined,
@@ -3798,8 +3818,8 @@ suite('CopilotSessionLauncher resume config', () => {
 		);
 
 		assert.deepStrictEqual(
-			[disabled.excludedTools, enabled.excludedTools, filtered.excludedTools],
-			[[...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], defaultDisabledTools, [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`, ...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
+			[disabled.excludedTools, enabled.excludedTools, filtered.excludedTools, app.excludedTools],
+			[[...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], defaultDisabledTools, [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`, ...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
 		);
 		store.dispose();
 	});
@@ -3964,6 +3984,26 @@ suite('CopilotSessionLauncher resume config', () => {
 				{ enabled: true, deferThreshold: 1 },
 			]
 		);
+		store.dispose();
+	});
+
+	test('an app named toolSearch does not activate the trusted tool-search override', async () => {
+		const store = new DisposableStore();
+		const decisions: boolean[] = [];
+		const config = await buildResumeConfig(
+			createLauncher(store, { toolSearchEnabled: true }),
+			{ id: 'claude-opus-4.8' },
+			{
+				discoveredAgents: [], additionalRootInstructions: [],
+				tools: [withAgentToolOrigin({ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME }, 'mcpApp')],
+				plugins: [], mcpServers: {},
+			},
+			toolSearchActive => {
+				decisions.push(toolSearchActive);
+				return [];
+			},
+		);
+		assert.deepStrictEqual({ config: config.toolSearch, decisions }, { config: { enabled: false }, decisions: [false] });
 		store.dispose();
 	});
 

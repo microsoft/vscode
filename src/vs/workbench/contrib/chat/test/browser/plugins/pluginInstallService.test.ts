@@ -1057,7 +1057,7 @@ suite('PluginInstallService', () => {
 			}, {
 				updated: false,
 				updateCalls: 0,
-				notifications: ['Updates from \'microsoft/vscode\' are blocked by your organization\'s policy.'],
+				notifications: ['Updates from \'microsoft/vscode\' are blocked by your organization.'],
 			});
 		});
 

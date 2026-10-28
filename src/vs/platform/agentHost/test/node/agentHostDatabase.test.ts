@@ -312,7 +312,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			}, {
 				record: [{ value: JSON.stringify({ session, revision, sizeBytes: 42 }) }],
 				table: [],
-				version: [{ user_version: 21 }],
+				version: [{ user_version: 22 }],
 				revision,
 				generation,
 				unrelated: undefined,
@@ -409,7 +409,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				sessionV2ForeignKeys,
 				sessionChatColumns: sessionChatColumns.map(row => row.name),
 			}, {
-				version: [{ user_version: 21 }],
+				version: [{ user_version: 22 }],
 				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'scratch_folders', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2', 'worktree_co_owners'],
 				sessionColumns: ['session_uri', 'provider', 'start_time', 'external', 'registration_source', 'modified_time'],
 				sessionV2Columns: [
@@ -890,7 +890,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					directCurrent: await upgraded.getSessionV2Registration(direct),
 				}, {
 					version,
-					schemaVersion: [{ user_version: 21 }],
+					schemaVersion: [{ user_version: 22 }],
 					foreignKeys: [],
 					published: undefined,
 					directLegacy: undefined,
@@ -937,7 +937,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				version: await all(rawDatabase, 'PRAGMA user_version'),
 				tables: (await all(rawDatabase, `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)).map(row => row.name),
 			}, {
-				version: [{ user_version: 21 }],
+				version: [{ user_version: 22 }],
 				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'scratch_folders', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2', 'worktree_co_owners'],
 			});
 		} finally {
@@ -996,7 +996,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				source: 'explicit',
 			},
 			afterRetry: {
-				version: [{ user_version: 21 }],
+				version: [{ user_version: 22 }],
 				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'scratch_folders', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2', 'worktree_co_owners'],
 			},
 		});
@@ -1087,7 +1087,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredRevision: 0,
 				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://v11', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 21 }],
+			version: [{ user_version: 22 }],
 		});
 	});
 
@@ -1124,7 +1124,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredRevision: 0,
 				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://future-v20', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 21 }],
+			version: [{ user_version: 22 }],
 			columns: ['session_uri', 'chat_uri', 'chat_order', 'provider_data', 'origin', 'inherited_turn_id', 'archived', 'parent_chat', 'storage_resource', 'is_read'],
 		});
 	});
@@ -1163,7 +1163,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				external: false,
 				source: 'explicit',
 			},
-			version: [{ user_version: 21 }],
+			version: [{ user_version: 22 }],
 			marker: [{ name: 'future_v6_marker' }],
 		});
 	});
@@ -2203,8 +2203,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				written: [defaultChat, peer, privateChat].sort().map(chat => ({ chat_uri: chat, origin_session_uri: session })),
 				olderBuildRow: session,
 				reopened: {
-					15: { listed: [session, session, session], version: [{ user_version: 21 }] },
-					17: { listed: [session, session, session], version: [{ user_version: 21 }] },
+					15: { listed: [session, session, session], version: [{ user_version: 22 }] },
+					17: { listed: [session, session, session], version: [{ user_version: 22 }] },
 				},
 			});
 		});
@@ -2591,7 +2591,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 							worktreeRemovals: (await all(raw, `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'pending_worktree_removals'`)).length,
 							candidates,
 							recorded: (await all(raw, 'SELECT revision = projected_revision AS current FROM session_chat_catalogs WHERE session_uri = ?', [session]))[0].current,
-						}, { version: [{ user_version: 21 }], columns: { projectedRevision: true, chatOrigins: true }, worktreeRemovals: 1, candidates: [session], recorded: 1 });
+						}, { version: [{ user_version: 22 }], columns: { projectedRevision: true, chatOrigins: true }, worktreeRemovals: 1, candidates: [session], recorded: 1 });
 					} finally {
 						await database?.close();
 						database = undefined;
@@ -2953,7 +2953,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					retained: (await all(inspect, `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('session_chats', 'sessions_v2') ORDER BY name`)).map(row => row.name),
 					legacy: (await database.getSessionChatCatalog(session))?.chats.map(chat => chat.chat),
 				}, {
-					restarted: before, before, version: [{ user_version: 21 }],
+					restarted: before, before, version: [{ user_version: 22 }],
 					retained: ['session_chats', 'sessions_v2'], legacy: [peer],
 				});
 			} finally {

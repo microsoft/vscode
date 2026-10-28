@@ -709,6 +709,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().runAutomation(params);
 	}
 
+	deleteAutomation(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[], requestId?: string): Promise<readonly string[]> {
+		return this._requireClient().deleteAutomation(resource, deleteHistory, legacySessions, requestId);
+	}
+
+	acknowledgeAutomationDeletion(requestId: string): Promise<void> {
+		return this._requireClient().acknowledgeAutomationDeletion(requestId);
+	}
+
 	fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> {
 		return this._requireClient().fetchAutomationRuns(params);
 	}
@@ -786,6 +794,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	sessionWorktreeCleanup(session: URI, retry: boolean) {
 		return this._requireClient().sessionWorktreeCleanup(session, retry);
+	}
+
+	listManagedWorktrees(repositories: readonly URI[]) {
+		return this._requireClient().listManagedWorktrees(repositories);
+	}
+
+	cleanupManagedWorktree(repository: URI, worktree: URI, branch: string) {
+		return this._requireClient().cleanupManagedWorktree(repository, worktree, branch);
 	}
 
 	resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {

@@ -108,6 +108,8 @@
 
 .monaco-workbench.agent-sessions-workbench.automation-dialog-open.modern-ui-frosted-glass:not(.hc-black):not(.hc-light) {
 	--modern-ui-solid-dialog-background: var(--vscode-agentsPanel-background);
+	/* Keep the modal dimmer from showing through the dialog's panel surface. */
+	--modern-ui-glass-dialog-background: var(--vscode-agentsPanel-background);
 }
 
 .monaco-workbench .monaco-dialog-box.automation-dialog:focus:not(:focus-visible) {
