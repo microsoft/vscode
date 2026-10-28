@@ -5,6 +5,7 @@
 
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
@@ -18,10 +19,10 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { asTextOrError, IRequestService } from '../../../../../platform/request/common/request.js';
 import { localize } from '../../../../../nls.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
-import { IMarketplacePlugin } from '../../common/plugins/pluginMarketplaceService.js';
+import { getGitHubRepositoryUri, getMarketplacePluginRepositoryUri, IMarketplacePlugin } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { ContributionEnablementState, isContributionEnabled } from '../../common/enablement.js';
-import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
+import { ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { defaultButtonStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -31,6 +32,7 @@ import { createPolicyManagedEnablementAction, createUninstallPluginAction, getPl
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../../../../platform/files/common/files.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -172,6 +174,8 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private pluginVersionRowEl: HTMLElement | undefined;
 	private pluginVersionValueEl: HTMLElement | undefined;
 	private renderedPolicyEnablement: boolean | undefined;
+	private renderedRepository: string | undefined;
+	private readonly factHoverGroupId = generateUuid();
 
 	constructor(
 		parent: HTMLElement,
@@ -275,6 +279,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		this.installWaitDisposables.clear();
 		this.contributionLoadDisposables.clear();
 		this.current = item;
+		this.renderedRepository = getPluginRepository(item, this.marketplaceInstallService.installations.get())?.toString();
 		this.renderItem();
 		if (item.kind === AgentPluginItemKind.Installed) {
 			this.renderedPolicyEnablement = getPluginPolicyEnablement(item.plugin);
@@ -282,11 +287,13 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 				item.plugin.enablement.read(reader);
 				const policyEnablement = getPluginPolicyEnablement(item.plugin, reader);
 				item.plugin.version?.read(reader);
+				const repository = getPluginRepository(item, this.marketplaceInstallService.installations.read(reader))?.toString();
 				if (this._store.isDisposed || this.current !== item) {
 					return;
 				}
-				if (policyEnablement !== this.renderedPolicyEnablement) {
+				if (policyEnablement !== this.renderedPolicyEnablement || repository !== this.renderedRepository) {
 					this.renderedPolicyEnablement = policyEnablement;
+					this.renderedRepository = repository;
 					this.renderItem();
 					return;
 				}
@@ -350,9 +357,12 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		this.renderContributions(item);
 		this.renderReadme(item, readmeRenderGeneration);
 
-		const description = (item.description || '').trim();
-		this.descriptionEl.textContent = description || localize('pluginNoDescription', "No description provided.");
-		this.descriptionEl.style.display = '';
+		const itemDescription = item.description.trim();
+		const description = item.kind === AgentPluginItemKind.Installed && item.location?.trim() === itemDescription
+			? item.plugin.fromMarketplace?.description?.trim() ?? ''
+			: itemDescription;
+		this.descriptionEl.textContent = description || (item.kind === AgentPluginItemKind.Marketplace ? localize('pluginNoDescription', "No description provided.") : '');
+		this.descriptionEl.style.display = this.descriptionEl.textContent ? '' : 'none';
 		this._onDidChangeContent.fire();
 	}
 
@@ -506,7 +516,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		return {
 			kind: AgentPluginItemKind.Installed,
 			name: plugin.label || basename(plugin.uri),
-			description: plugin.fromMarketplace?.description ?? this.labelService.getUriLabel(plugin.uri, { relative: true }),
+			description: plugin.fromMarketplace?.description ?? '',
 			marketplace: plugin.fromMarketplace?.marketplace,
 			plugin,
 		};
@@ -517,6 +527,10 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			const link = $('a.embedded-detail-fact-link') as HTMLAnchorElement;
 			link.href = uri.toString();
 			link.textContent = label;
+			this.renderDisposables.add(this.hoverService.setupDelayedHover(link, {
+				content: label,
+				style: HoverStyle.Pointer,
+			}, { groupId: this.factHoverGroupId }));
 			this.renderDisposables.add(DOM.addDisposableListener(link, 'click', e => {
 				e.preventDefault();
 				this.openerService.open(uri);
@@ -540,6 +554,10 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		this.appendPluginVersionFact(item);
 		if (item.marketplace) {
 			this.appendFact(this.factsEl, localize('pluginDetailMarketplace', "Marketplace"), this.renderMarketplaceLink(item.marketplace, item.plugin.fromMarketplace ? getMarketplaceUri(item.plugin.fromMarketplace) : undefined));
+		}
+		const repository = getPluginRepository(item, this.marketplaceInstallService.installations.get());
+		if (repository) {
+			this.appendFact(this.factsEl, localize('pluginDetailRepository', "Repository"), this.renderMarketplaceLink(getGitHubRepositoryLabel(repository), repository));
 		}
 		this.appendFact(this.factsEl, localize('pluginDetailLocation', "Location"), this.createLocationValue(item.plugin.uri));
 	}
@@ -853,6 +871,20 @@ export function getPluginVersion(item: IAgentPluginItem): string | undefined {
 		? item.version
 		: item.plugin.version?.get() ?? item.plugin.fromMarketplace?.version;
 	return version?.trim() || undefined;
+}
+
+export function getPluginRepository(item: IAgentPluginItem, installations: Pick<ICustomizationMarketplaceInstallationSnapshot, 'findByTarget'>): URI | undefined {
+	const marketplacePlugin = item.kind === AgentPluginItemKind.Marketplace ? item : item.plugin.fromMarketplace;
+	const marketplaceRepository = marketplacePlugin ? getMarketplacePluginRepositoryUri(marketplacePlugin) : undefined;
+	if (marketplaceRepository || item.kind === AgentPluginItemKind.Marketplace) {
+		return marketplaceRepository;
+	}
+	const installedResource = installations.findByTarget({ kind: 'plugin', uri: item.plugin.uri, name: item.name })?.resource;
+	return getGitHubRepositoryUri(installedResource?.repository);
+}
+
+function getGitHubRepositoryLabel(repository: URI): string {
+	return repository.path.slice(1);
 }
 
 function getPluginEnablementActionState(current: ContributionEnablementState): {

@@ -90,7 +90,7 @@ import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostM
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../../contrib/extensions/common/extensions.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
-import { IMarketplaceReference, MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
+import { IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
 import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { aiCustomizationManagementSectionRegistry } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
@@ -3253,11 +3253,26 @@ function renderEmbeddedMcpDetail(
 	}
 }
 
-function renderEmbeddedPluginDetail(ctx: ComponentFixtureContext, item: IAgentPluginItem | undefined): void {
-	const width = 480;
-	const height = 320;
+function renderEmbeddedPluginDetail(
+	ctx: ComponentFixtureContext,
+	item: IAgentPluginItem | undefined,
+	options?: {
+		readonly marketplaceResource?: ICustomizationMarketplaceResource;
+		readonly width?: number;
+		readonly height?: number;
+		readonly focusRepository?: boolean;
+	},
+): void {
+	const width = options?.width ?? 480;
+	const height = options?.height ?? 320;
 	ctx.container.style.width = `${width}px`;
 	ctx.container.style.height = `${height}px`;
+	const marketplaceInstallations = item?.kind === AgentPluginItemKind.Installed && options?.marketplaceResource
+		? createCustomizationMarketplaceInstallationSnapshot([{
+			resource: options.marketplaceResource,
+			state: { kind: 'installed', target: { kind: 'plugin', uri: item.plugin.uri, name: item.name } },
+		}])
+		: emptyCustomizationMarketplaceInstallationSnapshot;
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
@@ -3285,7 +3300,10 @@ function renderEmbeddedPluginDetail(ctx: ComponentFixtureContext, item: IAgentPl
 				override readonly enablementModel = undefined!;
 			}());
 			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() { }());
-			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
+				override readonly onDidChange = Event.None;
+				override readonly installations = constObservable(marketplaceInstallations);
+			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override async readFile(): Promise<IFileContent> { throw new Error('Fixture README not found'); }
 			}());
@@ -3304,16 +3322,49 @@ function renderEmbeddedPluginDetail(ctx: ComponentFixtureContext, item: IAgentPl
 	const detail = ctx.disposableStore.add(instantiationService.createInstance(EmbeddedAgentPluginDetail, host));
 	if (item) {
 		detail.setInput(item);
+		if (options?.focusRepository) {
+			host.querySelector<HTMLAnchorElement>('.embedded-detail-fact-link[href*="github.com"]')?.focus();
+		}
 	}
 }
 
-function makeInstalledPluginItem(name: string, description: string, enablement = ContributionEnablementState.EnabledProfile, policyBlocked = false): IAgentPluginItem {
+function makeInstalledPluginItem(name: string, description: string, enablement = ContributionEnablementState.EnabledProfile, policyBlocked = false, fromMarketplace?: IMarketplacePlugin): IAgentPluginItem {
 	return {
 		kind: AgentPluginItemKind.Installed,
 		name,
 		description,
-		marketplace: 'GitHub',
-		plugin: makeInstalledPlugin(name, URI.file(`/workspace/.copilot/plugins/${name.toLowerCase()}`), enablement, policyBlocked),
+		marketplace: fromMarketplace?.marketplace,
+		plugin: makeInstalledPlugin(name, URI.file(`/workspace/.copilot/plugins/${name.toLowerCase()}`), enablement, policyBlocked, fromMarketplace),
+	};
+}
+
+function makeConfiguredMarketplacePlugin(name: string, marketplaceRepository: string): IMarketplacePlugin {
+	const marketplaceReference = parseMarketplaceReference(marketplaceRepository)!;
+	return {
+		name,
+		description: `${name} from a configured plugin marketplace`,
+		version: '1.0.0',
+		source: `plugins/${name.toLowerCase()}`,
+		sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: `plugins/${name.toLowerCase()}` },
+		marketplace: marketplaceReference.displayLabel,
+		marketplaceReference,
+		marketplaceType: MarketplaceType.Copilot,
+	};
+}
+
+function makePluginMarketplaceResource(name: string, repository: string): ICustomizationMarketplaceResource {
+	return {
+		sourceId: 'github-feed',
+		identifier: `fixture/${name.toLowerCase()}`,
+		displayName: name,
+		description: `${name} from GitHub Feed`,
+		mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+		publisher: repository.split('/')[0],
+		version: '1.0.0',
+		tags: [],
+		capabilities: [],
+		representativeQueries: [],
+		repository: URI.parse(`https://github.com/${repository}`),
 	};
 }
 
@@ -5156,8 +5207,51 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	EmbeddedPluginDetailInstalled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The installed plugin detail has Disable and Uninstall actions. Uninstall uses the standard secondary button style, and the Disable split-button divider is visible without leaking through the outer border at its top or bottom edge.'],
-		render: ctx => renderEmbeddedPluginDetail(ctx, makeInstalledPluginItem('Linear', 'Issue tracking and project management integration')),
+		expectedVisualDescriptions: ['The installed plugin detail shows its version and linked GitHub repository alongside Disable and Uninstall actions. Uninstall uses the standard secondary button style, and the Disable split-button divider is visible without leaking through the outer border at its top or bottom edge.'],
+		render: ctx => renderEmbeddedPluginDetail(
+			ctx,
+			makeInstalledPluginItem('Linear', 'Issue tracking and project management integration'),
+			{ marketplaceResource: makePluginMarketplaceResource('Linear', 'acme/linear-plugin') },
+		),
+	}),
+
+	EmbeddedPluginDetailInstalledRepositoryFocused: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The installed plugin repository link has visible keyboard focus in the Details table.'],
+		render: ctx => renderEmbeddedPluginDetail(
+			ctx,
+			makeInstalledPluginItem('Linear', 'Issue tracking and project management integration'),
+			{ marketplaceResource: makePluginMarketplaceResource('Linear', 'acme/linear-plugin'), focusRepository: true },
+		),
+	}),
+
+	EmbeddedPluginDetailConfiguredMarketplace: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['An installed plugin from a configured marketplace falls back to the marketplace GitHub repository when the plugin has no direct repository metadata.'],
+		render: ctx => renderEmbeddedPluginDetail(
+			ctx,
+			makeInstalledPluginItem('Accessibility Kanban', 'Kanban board for accessibility remediation', ContributionEnablementState.EnabledProfile, false, makeConfiguredMarketplacePlugin('Accessibility Kanban', 'github/awesome-copilot')),
+		),
+	}),
+
+	EmbeddedPluginDetailInstalledNoRepository: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['An installed plugin without trustworthy repository metadata omits the Repository row while retaining Version and Location.'],
+		render: ctx => renderEmbeddedPluginDetail(ctx, makeInstalledPluginItem('Local Tools', 'Local-only plugin without marketplace provenance')),
+	}),
+
+	EmbeddedPluginDetailInstalledRepositoryNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['A narrow installed plugin detail keeps a long GitHub repository link contained in the Details table without overlapping the location actions.'],
+		render: ctx => renderEmbeddedPluginDetail(
+			ctx,
+			makeInstalledPluginItem('Dependency Maintenance', 'Cross-repository dependency maintenance'),
+			{
+				marketplaceResource: makePluginMarketplaceResource('Dependency Maintenance', 'example-enterprise-organization/dependency-maintenance-and-compatibility-plugin'),
+				width: 360,
+				height: 360,
+			},
+		),
 	}),
 
 	EmbeddedPluginDetailExcludedWorkspace: defineComponentFixture({

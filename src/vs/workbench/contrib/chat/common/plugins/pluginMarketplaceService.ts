@@ -13,6 +13,7 @@ import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual, isEqualOrParent, joinPath, normalizePath, relativePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -120,6 +121,36 @@ export interface IMarketplacePlugin {
 	/** The type of marketplace this plugin comes from. */
 	readonly marketplaceType: MarketplaceType;
 	readonly readmeUri?: URI;
+}
+
+export function getMarketplacePluginRepositoryUri(plugin: Pick<IMarketplacePlugin, 'sourceDescriptor' | 'marketplaceReference'>): URI | undefined {
+	switch (plugin.sourceDescriptor.kind) {
+		case PluginSourceKind.GitHub:
+			return getGitHubRepositoryUri(plugin.sourceDescriptor.repo);
+		case PluginSourceKind.GitUrl:
+			return getGitHubRepositoryUri(plugin.sourceDescriptor.url);
+		default:
+			return getGitHubRepositoryUri(plugin.marketplaceReference.githubRepo);
+	}
+}
+
+export function getGitHubRepositoryUri(repository: string | URI | undefined): URI | undefined {
+	if (!repository) {
+		return undefined;
+	}
+	const uri = URI.isUri(repository)
+		? repository
+		: repository.includes('://')
+			? URI.parse(repository)
+			: URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repository}` });
+	if (uri.scheme !== Schemas.https || uri.authority.toLowerCase() !== 'github.com' || uri.query || uri.fragment) {
+		return undefined;
+	}
+	const segments = uri.path.replace(/\.git$/, '').split('/').filter(Boolean);
+	if (segments.length !== 2) {
+		return undefined;
+	}
+	return URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${segments[0]}/${segments[1]}` });
 }
 
 /** Raw JSON shape of a remote plugin source object in marketplace.json. */

@@ -16,13 +16,15 @@ import { FileService } from '../../../../../../platform/files/common/fileService
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { AgentPluginItemKind, IAgentPluginItem, IMarketplacePluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
-import { getPluginVersion, loadMarketplacePluginContributionEntries, loadPluginReadme, PluginReadmeRenderGuard, waitForInstalledPlugin } from '../../../browser/aiCustomization/embeddedAgentPluginDetail.js';
-import { MarketplaceType, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
+import { getPluginRepository, getPluginVersion, loadMarketplacePluginContributionEntries, loadPluginReadme, PluginReadmeRenderGuard, waitForInstalledPlugin } from '../../../browser/aiCustomization/embeddedAgentPluginDetail.js';
+import { IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { parseMarketplaceReference } from '../../../common/plugins/marketplaceReference.js';
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { createCustomizationMarketplaceInstallationSnapshot, emptyCustomizationMarketplaceInstallationSnapshot } from '../../../common/customizationMarketplaceInstallService.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 
 class StatusRequestService extends mock<IRequestService>() {
 	override readonly onDidCompleteRequest = Event.None;
@@ -106,6 +108,60 @@ suite('embeddedAgentPluginDetail', () => {
 			getPluginVersion(createMarketplaceItem(URI.parse('https://example.test/README.md'))),
 			'1.2.3',
 		);
+	});
+
+	test('uses trustworthy GitHub repository provenance', () => {
+		const marketplaceItem = createMarketplaceItem(URI.parse('https://example.test/README.md'));
+		const configuredPlugin = {
+			...marketplaceItem,
+			version: marketplaceItem.version!,
+			sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'octo-org/example' },
+		} satisfies IMarketplacePlugin;
+		const installedUri = URI.file('/plugins/example');
+		const createInstalledItem = (fromMarketplace?: IMarketplacePlugin) => ({
+			kind: AgentPluginItemKind.Installed,
+			name: 'example',
+			description: 'Example plugin',
+			plugin: new class extends mock<IAgentPlugin>() {
+				override readonly uri = installedUri;
+				override readonly label = 'example';
+				override readonly fromMarketplace = fromMarketplace;
+			}(),
+		} satisfies IAgentPluginItem);
+		const installedItem = createInstalledItem(configuredPlugin);
+		const providerItem = createInstalledItem();
+		const catalogInstallations = createCustomizationMarketplaceInstallationSnapshot([{
+			resource: {
+				sourceId: 'github-feed',
+				identifier: 'example',
+				displayName: 'Example',
+				description: 'Example plugin',
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				tags: [],
+				capabilities: [],
+				representativeQueries: [],
+				repository: URI.parse('https://github.com/catalog/example'),
+			} satisfies ICustomizationMarketplaceResource,
+			state: { kind: 'installed', target: { kind: 'plugin', uri: installedUri, name: 'example' } },
+		}]);
+
+		assert.deepStrictEqual({
+			marketplaceRepository: getPluginRepository(marketplaceItem, emptyCustomizationMarketplaceInstallationSnapshot)?.toString(),
+			configuredPluginRepository: getPluginRepository(installedItem, catalogInstallations)?.toString(),
+			providerCatalogRepository: getPluginRepository(providerItem, catalogInstallations)?.toString(),
+			missingRepository: getPluginRepository(providerItem, emptyCustomizationMarketplaceInstallationSnapshot)?.toString(),
+			nonGitHubRepository: getPluginRepository({
+				...marketplaceItem,
+				sourceDescriptor: { kind: PluginSourceKind.GitUrl, url: 'https://example.com/example.git' },
+				marketplaceReference: parseMarketplaceReference('https://example.com/marketplace.git')!,
+			}, emptyCustomizationMarketplaceInstallationSnapshot)?.toString(),
+		}, {
+			marketplaceRepository: 'https://github.com/owner/repo',
+			configuredPluginRepository: 'https://github.com/octo-org/example',
+			providerCatalogRepository: 'https://github.com/catalog/example',
+			missingRepository: undefined,
+			nonGitHubRepository: undefined,
+		});
 	});
 
 	test('loads contribution details from a marketplace plugin source', async () => {
