@@ -13878,7 +13878,7 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.listChatsToMigrate();
 				const callback = getCreatedClientOptions(agent).at(-1)?.kerberosAuth;
-				assert.deepStrictEqual({ mode: callback?.mode, scope: callback?.scope, token: await callback?.callback(request), calls }, {
+				assert.deepStrictEqual({ mode: callback?.mode, scope: callback?.scope, token: await callback?.callback(request, new AbortController().signal), calls }, {
 					mode: 'fallback', scope: 'runtime', token: 'ticket', calls: [request],
 				});
 			} finally {
