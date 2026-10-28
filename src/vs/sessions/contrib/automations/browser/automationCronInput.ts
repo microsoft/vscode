@@ -86,14 +86,16 @@ export class AutomationCronInput extends Disposable {
 					event.preventDefault();
 					input.select();
 					this.setAllSelected(true);
+				} else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Home' || event.key === 'End') {
+					this.setAllSelected(false);
 				} else if (this.allSelected && (event.key === 'Backspace' || event.key === 'Delete')) {
 					event.preventDefault();
 					this.clear();
 				} else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+					this.setAllSelected(false);
 					const value = input.value.trim();
 					if (value === '' || value === '*' || /^\d+$/.test(value)) {
 						event.preventDefault();
-						this.setAllSelected(false);
 						const up = event.key === 'ArrowUp';
 						input.value = value === '' || value === '*' ? String(up ? field.minimum : field.maximum)
 							: (up ? Number(value) >= field.maximum : Number(value) <= field.minimum) ? '*'

@@ -68,23 +68,38 @@ suite('Automation cron segmented input', () => {
 	});
 
 	test('supports whole-expression selection, copy, replacement, and clearing', () => {
-		const { input, elements, key, change, paste } = create('*/2 * * * MON-FRI');
-		const changes: string[] = [];
-		store.add(input.onDidChange(value => changes.push(value)));
-		key(3, 'a', true);
-		const clipboardData = new DataTransfer();
-		elements[3].dispatchEvent(new ClipboardEvent('copy', { clipboardData, bubbles: true, cancelable: true }));
-		change(3, 'JAN');
-		const replaced = input.value;
-		key(3, 'a', true);
-		paste(3, '0 9 * * MON');
-		const pasted = input.value;
-		key(0, 'a', true);
-		key(0, 'Backspace');
-		assert.deepStrictEqual({ copied: clipboardData.getData('text/plain'), replaced, pasted, cleared: input.value, changes }, {
-			copied: '*/2 * * * MON-FRI', replaced: '* * * JAN *', pasted: '0 9 * * MON', cleared: '',
-			changes: ['* * * JAN *', '0 9 * * MON', ''],
+		const expression = '*/2 * * * MON-FRI';
+		const results = [false, true].map(metaKey => {
+			const { input, elements, key, change, paste } = create(expression);
+			const changes: string[] = [];
+			store.add(input.onDidChange(value => changes.push(value)));
+			const selectAll = (index: number) => key(index, 'a', !metaKey, metaKey);
+			selectAll(3);
+			const clipboardData = new DataTransfer();
+			elements[3].dispatchEvent(new ClipboardEvent('copy', { clipboardData, bubbles: true, cancelable: true }));
+			change(3, 'JAN');
+			const replaced = input.value;
+			selectAll(3);
+			paste(3, '0 9 * * MON');
+			const pasted = input.value;
+			selectAll(0);
+			key(0, 'Backspace');
+			const cleared = input.value;
+			paste(0, expression);
+			selectAll(0);
+			const deletePrevented = key(0, 'Delete').defaultPrevented;
+			const deleted = input.value;
+			paste(0, expression);
+			selectAll(0);
+			const cutData = new DataTransfer();
+			elements[0].dispatchEvent(new ClipboardEvent('cut', { clipboardData: cutData, bubbles: true, cancelable: true }));
+			return { copied: clipboardData.getData('text/plain'), replaced, pasted, cleared, deleted, deletePrevented, cut: cutData.getData('text/plain'), afterCut: input.value, changes };
 		});
+		assert.deepStrictEqual(results, [false, true].map(() => ({
+			copied: expression, replaced: '* * * JAN *', pasted: '0 9 * * MON', cleared: '',
+			deleted: '', deletePrevented: true, cut: expression, afterCut: '',
+			changes: ['* * * JAN *', '0 9 * * MON', '', expression, '', expression, ''],
+		})));
 	});
 
 	test('caret navigation cancels whole-expression selection before field edits and deletion', () => {
