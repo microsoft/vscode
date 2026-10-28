@@ -1108,6 +1108,11 @@
 
 					// Workaround for https://bugs.chromium.org/p/chromium/issues/detail?id=978325
 					setTimeout(() => {
+						// If the frame is no longer mounted, loading has stopped
+						if (!newFrame.parentElement) {
+							return;
+						}
+
 						contentDocument.open();
 						contentDocument.write(newDocument);
 						contentDocument.close();
@@ -1138,6 +1143,11 @@
 					}, 10);
 				} else {
 					assertIsDefined(newFrame.contentWindow).addEventListener('DOMContentLoaded', e => {
+						// If the frame is no longer mounted, loading has stopped
+						if (!newFrame.parentElement) {
+							return;
+						}
+
 						const contentDocument = e.target ? (/** @type {HTMLDocument} */ (e.target)) : undefined;
 						onFrameLoaded(assertIsDefined(contentDocument));
 					});
@@ -1205,17 +1215,28 @@
 				 * @param {HTMLIFrameElement} newFrame
 				 */
 				function hookupOnLoadHandlers(newFrame) {
+					// If the frame is no longer mounted, loading has stopped
+					if (!newFrame.parentElement) {
+						return;
+					}
+
 					clearTimeout(loadTimeout);
 					loadTimeout = undefined;
 					loadTimeout = setTimeout(() => {
 						clearTimeout(loadTimeout);
 						loadTimeout = undefined;
+						if (!newFrame.parentElement) {
+							return;
+						}
 						onLoad(assertIsDefined(newFrame.contentDocument), assertIsDefined(newFrame.contentWindow));
 					}, 200);
 
 					const contentWindow = assertIsDefined(newFrame.contentWindow);
 
 					contentWindow.addEventListener('load', function (e) {
+						if (!newFrame.parentElement) {
+							return;
+						}
 						const contentDocument = /** @type {Document} */ (e.target);
 
 						if (loadTimeout) {
