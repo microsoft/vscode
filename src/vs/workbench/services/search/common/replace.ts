@@ -166,6 +166,7 @@ export class ReplacePattern {
 	 * \t => TAB
 	 * \\ => \
 	 * $0 => $& (see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace#Specifying_a_string_as_a_parameter)
+	 * $$ => $
 	 * everything else stays untouched
 	 */
 	private parseReplaceString(replaceString: string): void {
@@ -230,6 +231,8 @@ export class ReplacePattern {
 						replaceWithCharacter = '$&';
 						this._hasParameters = true;
 						break;
+					// $$ => $
+					case CharCode.DollarSign:
 					case CharCode.BackTick:
 					case CharCode.SingleQuote:
 						this._hasParameters = true;
