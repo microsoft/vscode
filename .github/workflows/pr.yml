@@ -782,7 +782,7 @@ jobs:
     name: chat-lib - Test (macOS)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: vscode-large-runners-macos-5-core
+    runs-on: vscode-large-runners-macos-5-core-0
     timeout-minutes: 30
     permissions:
       contents: read
