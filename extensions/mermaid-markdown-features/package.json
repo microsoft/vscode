@@ -277,11 +277,5 @@
     "@vscode/web-editors": "^0.0.2-104",
     "dompurify": "^3.4.16",
     "mermaid": "^11.16.1"
-  },
-  "overrides": {
-    "lodash-es": "4.18.1"
-  },
-  "allowScripts": {
-    "fsevents@2.3.3": true
   }
 }

@@ -1,6 +1,7 @@
 {
 	"name": "@vscode/chat-lib",
 	"version": "0.0.0",
+	"packageManager": "pnpm@12.16.0",
 	"description": "Chat and inline editing SDK extracted from VS Code Copilot Chat",
 	"main": "dist/src/main.js",
 	"types": "dist/src/main.d.ts",
