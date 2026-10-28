@@ -682,8 +682,8 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		}
 		const policyChanged = !equals(previousPolicy, policy);
 		if (policyChanged) {
-			// A previously unmanaged Off is not an authorized bypass of a new floor.
-			const meta = policy?.enabled && !previousPolicy?.enabled
+			// Retain confirmed Off only when the new floor permits bypass.
+			const meta = policy?.enabled && !previousPolicy?.enabled && policy.allowBypass !== true
 				? withSessionSandboxState(state._meta, undefined)
 				: state._meta;
 			this._stateManager.setSessionMeta(session, withSessionSandboxPolicy(meta, policy));

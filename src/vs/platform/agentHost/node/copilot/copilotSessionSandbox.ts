@@ -192,10 +192,22 @@ export class CopilotSessionSandbox extends Disposable {
 		return { session: this._options.ownerSession.toString(), chat: this._options.chat.toString() };
 	}
 
+	private _getLaunchSelection(isResume: boolean): 'on' | 'off' | 'default' | undefined {
+		if (this._pendingSelection !== undefined || !isResume) {
+			return this._pendingSelection;
+		}
+		const target = this._target();
+		const policy = this._configurationService.getSessionSandboxPolicy(target.session);
+		return policy?.enabled && policy.allowBypass === true
+			&& this._configurationService.getChatSandboxEnabled(target) === false
+			&& this._configurationService.getChatConfigValues(target)?.[SessionConfigKey.SandboxEnabled] === 'off'
+			? 'off' : undefined;
+	}
+
 	applyLaunchConfig(session: CopilotSession, isResume = false): Promise<void> {
 		return this._configSequencer.queue(async () => {
 			this._launchSession = session;
-			const requestedSelection = this._pendingSelection;
+			const requestedSelection = this._getLaunchSelection(isResume);
 			this._pendingSelection = undefined;
 			this._appliedConfig = undefined;
 			if (isResume) {
@@ -212,7 +224,7 @@ export class CopilotSessionSandbox extends Disposable {
 
 	/** The config {@link applyLaunchConfig} pushes, so it can also be applied when the SDK session opens; `undefined` when the launch uses the session command or pushes nothing. */
 	getLaunchConfig(isResume = false): SandboxConfig | undefined {
-		return this._configForUpdate(this._pendingSelection, this._computeConfig(!isResume), isResume);
+		return this._configForUpdate(this._getLaunchSelection(isResume), this._computeConfig(), isResume);
 	}
 
 	private _configForUpdate(requestedSelection: 'on' | 'off' | 'default' | undefined, base: SandboxConfig | undefined, isResume = false): SandboxConfig | undefined {
@@ -227,9 +239,9 @@ export class CopilotSessionSandbox extends Disposable {
 		return requestedSelection === 'off' && policy?.failClosed ? { enabled: false } : base ?? { enabled: false };
 	}
 
-	private _computeConfig(useAppliedState = true): SandboxConfig | undefined {
+	private _computeConfig(): SandboxConfig | undefined {
 		const target = this._target();
-		const sandbox = getSessionSandboxConfig(this._configurationService, target, this._options.platform, useAppliedState);
+		const sandbox = getSessionSandboxConfig(this._configurationService, target, this._options.platform);
 		const policy = this._configurationService.getSessionSandboxPolicy(target.session);
 		const readonlyPaths = getVSCodeSandboxReadRoots({
 			sessionDataDirectories: [this._options.ownerSession.toString(), this._options.storage.toString(), ...this._configurationService.getChatAttachmentScopes(target)]
@@ -332,7 +344,7 @@ export class CopilotSessionSandbox extends Disposable {
 			this._configUpdateDeferred = true;
 			return;
 		}
-		const base = this._computeConfig(!isResume);
+		const base = this._computeConfig();
 		const target = this._target();
 		const writeTarget = this._options.getConfigWriteTarget();
 		const values = this._configurationService.getChatConfigValues(writeTarget);

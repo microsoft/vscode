@@ -490,7 +490,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		manager.setSessionConfig(owner, { schema: platformSessionSchema.toProtocol(), values: { sandboxEnabled: 'off' } });
 		configuration.updateRootConfig({ sandbox: { enabled: 'on' } });
 		let disconnected = false;
-		let captured: (ResumeSessionConfig & { sandboxConfig?: SandboxConfig }) | undefined;
+		let captured: ResumeSessionConfig | undefined;
 		const updates: Array<{ sandboxConfig?: SandboxConfig }> = [];
 		const commands: string[] = [];
 		const raw = {
@@ -647,7 +647,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		}, { disconnected: false, enabled: undefined, message: error.message, broadcast: true });
 	});
 
-	test('resume reconciles an old bypass with unchanged managed policy without changing sibling chats', async () => {
+	test('resume preserves confirmed bypass with unchanged managed policy without changing sibling chats', async () => {
 		const fixture = setup('resume', true, true, true);
 		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
 		const sibling = { session: fixture.owner, chat: buildChatUri(fixture.owner, 'sibling') };
@@ -679,18 +679,18 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			siblingState: fixture.configuration.getChatSandboxEnabled(sibling),
 			commands: fixture.commands,
 		}, {
-			opened: true,
-			applied: [true],
-			selection: 'on',
-			published: [true, true],
-			state: { enabled: true },
+			opened: undefined,
+			applied: [],
+			selection: 'off',
+			published: [],
+			state: { enabled: false },
 			siblingSelection: 'off',
 			siblingState: false,
-			commands: [],
+			commands: ['disable session'],
 		});
 	});
 
-	test('resume reconciles a bypass when managed policy is first reported during open', async () => {
+	test('resume preserves confirmed off when bypass is first allowed during open', async () => {
 		const fixture = setup('resume', true, true, true);
 		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
 		fixture.configuration.setChatSandboxEnabled(target, false);
@@ -702,18 +702,59 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
 			state: fixture.sandboxState,
 			applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
-		}, { selection: 'on', state: { enabled: true }, applied: [true] });
+			commands: fixture.commands,
+		}, { selection: 'off', state: { enabled: false }, applied: [], commands: ['disable session'] });
 	});
 
-	test('resume fails without claiming reconciliation when managed policy rejects the update', async () => {
-		const error = Object.assign(new Error('Managed sandbox conflict'), { data: { code: 'managed_sandbox_policy_conflict' } });
-		const fixture = setup('resume', true, true, true, undefined, error);
+	test('resume enforces on when bypass is revoked during open', async () => {
+		const fixture = setup('resume', true, true, false);
 		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
 		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
 		fixture.configuration.setChatSandboxEnabled(target, false);
 		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
 
-		await assert.rejects(() => fixture.launcher.launch(fixture.plan, fixture.runtime), error);
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+		assert.deepStrictEqual({
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			state: fixture.sandboxState,
+			applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
+			commands: fixture.commands,
+		}, { selection: 'on', state: { enabled: true }, applied: [true], commands: [] });
+	});
+
+	test('resume honors a newer on selection over previously confirmed off metadata', async () => {
+		const fixture = setup('resume', true, true, true);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'on' });
+
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+		assert.deepStrictEqual({
+			opened: fixture.captured?.sandboxConfig?.enabled,
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			state: fixture.sandboxState,
+		}, { opened: true, selection: 'on', state: { enabled: true } });
+	});
+
+	test('resume disconnects when the runtime rejects restoring confirmed bypass', async () => {
+		const error = new Error('Session sandbox bypass rejected');
+		const fixture = setup('resume', true, true, true);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+		const runtime: ICopilotSessionRuntime = {
+			...fixture.runtime,
+			applyLaunchSandbox: async (session, isResume) => {
+				session.rpc.commands.invoke = async () => ({ kind: 'text', text: error.message });
+				await fixture.runtime.applyLaunchSandbox(session, isResume);
+			},
+		};
+
+		await assert.rejects(() => fixture.launcher.launch(fixture.plan, runtime), error);
 
 		assert.deepStrictEqual({
 			disconnected: fixture.disconnected,
@@ -732,12 +773,10 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		const runtime: ICopilotSessionRuntime = {
 			...fixture.runtime,
 			applyLaunchSandbox: async (session, isResume) => {
-				const update = session.rpc.options.update;
-				session.rpc.options.update = async options => {
-					const result = await update(options);
-					if (options.sandboxConfig) {
-						fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'default' });
-					}
+				const invoke = session.rpc.commands.invoke;
+				session.rpc.commands.invoke = async params => {
+					const result = await invoke(params);
+					fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'default' });
 					return result;
 				};
 				await fixture.runtime.applyLaunchSandbox(session, isResume);
@@ -749,7 +788,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		assert.deepStrictEqual({
 			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
 			state: fixture.sandboxState,
-		}, { selection: 'default', state: { enabled: true } });
+		}, { selection: 'default', state: { enabled: false } });
 	});
 
 	test('resume still honors a new pending bypass request', async () => {

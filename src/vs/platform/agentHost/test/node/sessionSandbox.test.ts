@@ -95,7 +95,7 @@ suite('Session sandbox configuration', () => {
 		}, { values: {}, property: ['default', 'on', 'off'], mutable: true });
 	});
 
-	test('resume resolution ignores previous bypass authorization without mutating applied state', () => {
+	test('resolution preserves confirmed bypass metadata without mutating applied state', () => {
 		const { configuration, create } = setupSession();
 		const owner = create('resume');
 		const target = { session: owner, chat: buildDefaultChatUri(owner) };
@@ -104,11 +104,31 @@ suite('Session sandbox configuration', () => {
 		configuration.updateSessionConfig(owner, { sandboxEnabled: 'off' });
 
 		assert.deepStrictEqual({
-			live: getSessionSandboxConfig(configuration, target).enabled,
-			resume: getSessionSandboxConfig(configuration, target, process.platform, false).enabled,
+			enabled: getSessionSandboxConfig(configuration, target).enabled,
 			applied: configuration.getChatSandboxEnabled(target),
 			selection: configuration.getChatConfigValues(target)?.sandboxEnabled,
-		}, { live: 'off', resume: 'on', applied: false, selection: 'off' });
+		}, { enabled: 'off', applied: false, selection: 'off' });
+	});
+
+	test('new managed policy retains confirmed off metadata only when bypass is allowed', () => {
+		const results = [];
+		for (const allowBypass of [undefined, false, true]) {
+			const { configuration, create } = setupSession();
+			const owner = create(`confirmed-off-${allowBypass}`, { sandboxEnabled: 'off' });
+			const target = { session: owner, chat: buildDefaultChatUri(owner) };
+			configuration.setChatSandboxEnabled(target, false);
+			configuration.setSessionSandboxPolicy(owner, { enabled: true, ...(allowBypass !== undefined ? { allowBypass } : {}) });
+			results.push({
+				enabled: getSessionSandboxConfig(configuration, target).enabled,
+				applied: configuration.getChatSandboxEnabled(target),
+				selection: configuration.getChatConfigValues(target)?.sandboxEnabled,
+			});
+		}
+		assert.deepStrictEqual(results, [
+			{ enabled: 'on', applied: undefined, selection: 'on' },
+			{ enabled: 'on', applied: undefined, selection: 'on' },
+			{ enabled: 'off', applied: false, selection: 'off' },
+		]);
 	});
 
 	test('publishes session-scoped policy changes in serializable subscription state', () => {
@@ -1381,7 +1401,6 @@ suite('Session sandbox configuration', () => {
 	test('managed enablement rejects direct Off but permits confirmed opt-out and re-enablement', () => {
 		const { configuration, create } = setupSession();
 		const owner = create('bypass', { sandboxEnabled: 'off' });
-		configuration.setChatSandboxEnabled({ session: owner, chat: buildDefaultChatUri(owner) }, false);
 		configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: true });
 		const beforeApproval = { selection: configuration.getSessionConfigValues(owner)?.sandboxEnabled, enabled: getSessionSandboxOverrides(configuration, { session: owner, chat: buildDefaultChatUri(owner) }).enabled };
 		configuration.setChatSandboxEnabled({ session: owner, chat: buildDefaultChatUri(owner) }, false);
