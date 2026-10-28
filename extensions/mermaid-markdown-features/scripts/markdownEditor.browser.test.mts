@@ -91,6 +91,29 @@ it('renders diagrams at their natural size in the VS Code theme, and follows edi
 		assert.match(await frame.getByRole('alert').textContent() ?? '', /\S/);
 		await page.evaluate(() => window.mermaidTest.setText('flowchart LR\n A[Recovered] --> B[Second]'));
 		await frame.locator('svg').filter({ hasText: 'Recovered' }).waitFor();
+
+		// Subgraph titles sit at the top left, clear of the edge that enters the subgraph at its top center.
+		await page.evaluate(() => window.mermaidTest.setText('flowchart TD\n A[Source] --> B\n subgraph Webview\n  B[Layout graph] --> C[Render SVG]\n end'));
+		await frame.locator('svg').filter({ hasText: 'Webview' }).waitFor();
+		const subgraphTitle = await frame.evaluate(() => {
+			const cluster = document.querySelector('g.cluster')!;
+			const rect = cluster.querySelector('rect')!;
+			const box = rect.getBoundingClientRect();
+			const title = cluster.querySelector('.cluster-label foreignObject')!.getBoundingClientRect();
+			const scale = box.width / rect.width.baseVal.value;
+			const crossedByEdge = [...document.querySelectorAll<SVGPathElement>('.edgePaths path')].some(path => {
+				const toScreen = path.getScreenCTM()!;
+				for (let length = 0; length <= path.getTotalLength(); length++) {
+					const point = path.getPointAtLength(length).matrixTransform(toScreen);
+					if (point.x >= title.left && point.x <= title.right && point.y >= title.top && point.y <= title.bottom) {
+						return true;
+					}
+				}
+				return false;
+			});
+			return { insetLeft: Math.round((title.left - box.left) / scale), insetTop: Math.round((title.top - box.top) / scale), crossedByEdge };
+		});
+		assert.deepEqual(subgraphTitle, { insetLeft: 8, insetTop: 8, crossedByEdge: false });
 		assert.deepEqual(errors, []);
 	} finally {
 		await browser.close();
