@@ -22,6 +22,19 @@ export interface ICustomizationCardListItem {
 	readonly contextMenuAction?: HTMLElement;
 }
 
+export function focusFirstCustomizationTreeItem<T>(
+	list: { getFocus(): readonly (T | null)[]; setFocus(elements: T[]): void },
+	entries: readonly T[],
+	isItem: (entry: T) => boolean,
+): void {
+	if (list.getFocus().length === 0) {
+		const firstItem = entries.find(isItem) ?? entries[0];
+		if (firstItem) {
+			list.setFocus([firstItem]);
+		}
+	}
+}
+
 interface ICardListItem extends ICustomizationCardListItem {
 	readonly actions: readonly HTMLElement[];
 	actionsTabbable: boolean;

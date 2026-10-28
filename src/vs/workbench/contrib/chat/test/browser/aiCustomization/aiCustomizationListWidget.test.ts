@@ -21,7 +21,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getMultiRootWorkspaceRelativeFilename, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getCustomizationSearchAriaLabel, getMultiRootWorkspaceRelativeFilename, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { AICustomizationItemNormalizer, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, splitPathLabel, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
@@ -34,8 +34,9 @@ import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/se
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, focusFirstCustomizationTreeItem, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
 import { getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups } from '../../../browser/aiCustomization/aiCustomizationWorkspaceGroups.js';
+import { getCustomizationGroupAriaLabel } from '../../../browser/aiCustomization/customizationGroupHeaderRenderer.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 
 suite('aiCustomizationListWidget', () => {
@@ -55,6 +56,52 @@ suite('aiCustomizationListWidget', () => {
 			hooks: true,
 			prompts: true,
 		});
+	});
+
+	test('provides section-specific search labels', () => {
+		assert.deepStrictEqual([
+			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Agents),
+			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Skills),
+			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Instructions),
+			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Hooks),
+			getCustomizationSearchAriaLabel(AICustomizationManagementSection.Prompts),
+		], [
+			'Search agents',
+			'Search skills',
+			'Search instructions',
+			'Search hooks',
+			'Search prompts',
+		]);
+	});
+
+	test('group labels include their descriptions', () => {
+		assert.strictEqual(
+			getCustomizationGroupAriaLabel('User', 2, 'Customizations available across workspaces.'),
+			'User, 2 items. Customizations available across workspaces.',
+		);
+	});
+
+	test('focuses the first item when a customization tree receives focus', () => {
+		type Entry = { type: 'group-header' } | { type: 'item'; id: string };
+		const group: Entry = { type: 'group-header' };
+		const firstItem: Entry = { type: 'item', id: 'first' };
+		const secondItem: Entry = { type: 'item', id: 'second' };
+		let focus: Entry[] = [];
+		const focusChanges: Entry[][] = [];
+		const list = {
+			getFocus: () => focus,
+			setFocus: (entries: Entry[]) => {
+				focus = entries;
+				focusChanges.push(entries);
+			},
+		};
+
+		focusFirstCustomizationTreeItem(list, [group, firstItem, secondItem], entry => entry.type === 'item');
+		focusFirstCustomizationTreeItem(list, [group, firstItem, secondItem], entry => entry.type === 'item');
+		focus = [];
+		focusFirstCustomizationTreeItem(list, [group], entry => entry.type === 'item');
+
+		assert.deepStrictEqual(focusChanges, [[firstItem], [group]]);
 	});
 
 	test('keeps editable source sections visible until search filtering starts', () => {

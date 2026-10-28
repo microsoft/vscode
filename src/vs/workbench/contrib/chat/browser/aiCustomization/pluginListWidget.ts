@@ -40,7 +40,7 @@ import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketpla
 import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWidget.js';
 import { MiddleEllipsisPathLabel } from './aiCustomizationListWidgetUtils.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
+import { CustomizationGroupHeaderRenderer, getCustomizationGroupAriaLabel, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -54,7 +54,7 @@ import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setVirtualizedRowActionsTabbable, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, focusFirstCustomizationTreeItem, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setVirtualizedRowActionsTabbable, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
@@ -981,6 +981,7 @@ export class PluginListWidget extends Disposable {
 		const searchContainer = DOM.append(this.searchAndButtonContainer, $('.list-search-container'));
 		this.searchInput = this._register(new InputBox(searchContainer, this.contextViewService, {
 			placeholder: localize('searchPluginsPlaceholder', "Type to search..."),
+			ariaLabel: localize('searchPluginsAriaLabel', "Search plugins"),
 			inputBoxStyles: defaultInputBoxStyles,
 		}));
 
@@ -1103,6 +1104,9 @@ export class PluginListWidget extends Disposable {
 			installedRenderer.setFocusedItemId(entry?.type === 'plugin-item' ? entry.item.plugin.uri.toString() : undefined);
 			remoteRenderer.setFocusedItemId(entry?.type === 'remote-item' ? getRemotePluginEntryId(entry) : undefined);
 			marketplaceRenderer.setFocusedItemId(entry?.type === 'marketplace-item' ? getMarketplacePluginEntryId(entry) : undefined);
+		}));
+		this._register(this.list.onDidFocus(() => {
+			focusFirstCustomizationTreeItem<IPluginListEntry>(this.list, this.getVisiblePluginEntries(), entry => entry.type !== 'group-header');
 		}));
 
 		// Handle context menu
@@ -1302,7 +1306,7 @@ export class PluginListWidget extends Disposable {
 
 	private getPluginEntryAriaLabel(element: IPluginListEntry): string | IObservable<string> {
 		if (element.type === 'group-header') {
-			return localize('pluginGroupAriaLabel2', "{0}, {1} items", element.label, element.count);
+			return getCustomizationGroupAriaLabel(element.label, element.count, element.description);
 		}
 		if (element.type === 'search-header') {
 			return element.label;
