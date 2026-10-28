@@ -361,6 +361,8 @@
 		try {
 			// load
 			const testFiles = claimTestFiles ? parallelTestFiles.trackTestFiles(mocha.suite) : undefined;
+			const { installRegistryLeakCheck } = await import(`../../../${out}/vs/platform/actions/test/common/registryLeakCheck.js`);
+			installRegistryLeakCheck(mocha.suite);
 			await loadModules(modules);
 			prepareTestsForRerun(rerunTargets);
 			if (testFiles) {
