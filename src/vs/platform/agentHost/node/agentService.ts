@@ -14851,7 +14851,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (await this._sessionRegistry.isSuppressed(session)) {
 			return true;
 		}
-		if (!agent || !usesStandardSessionUris(agent.id)) {
+		if (!agent || !usesStandardSessionUris(agent.id) || (registeredSession && !session.authority && !session.query && !session.fragment)) {
 			return false;
 		}
 		const sessionId = AgentSession.id(session);
@@ -14860,9 +14860,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return true;
 		}
 		const standardSession = AgentSession.uri('ahp-session', sessionId);
-		if ((!registeredSession || session.authority || session.query || session.fragment)
-			&& !isEqual(session, standardSession)
-			&& await this._sessionRegistry.isSuppressed(standardSession)) {
+		if (!isEqual(session, standardSession) && await this._sessionRegistry.isSuppressed(standardSession)) {
 			return true;
 		}
 		return false;

@@ -24948,7 +24948,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(svc, cliAgent);
 
 			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
-			const cliSession = await svc.createSession({ provider: 'copilotcli' });
+			const cliSession = await svc.createSession({ legacyChatUris: false, provider: 'copilotcli' });
 			const cliSessionId = AgentSession.id(cliSession);
 			const poisonedSubagentSession = AgentSession.uri('copilotcli', cliSessionId).with({ query: 'subagentChatResource=ahp-chat%3A%2Fchild' });
 			await database.registerRuntimeSession(poisonedSubagentSession.toString(), { provider: 'copilotcli', startTime: 1, source: 'restore' }, { checkTombstone: false });
@@ -24966,6 +24966,14 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(getStateManager(svc).getSessionState(session.toString()), undefined, 'a rejected restore must not have populated any state');
 			assert.strictEqual(getStateManager(svc).getSessionState(cliSession.toString()), undefined);
 			assert.strictEqual(getStateManager(svc).getSessionState(poisonedSubagentSession.toString()), undefined);
+
+			// An explicitly registered standard session still restores even if an unrelated legacy URI with the same ID was previously tombstoned.
+			const reusedStandardSession = AgentSession.uri('ahp-session', 'reused-after-legacy-tombstone');
+			await database.tombstoneAndUnregisterSession(AgentSession.uri('copilotcli', 'reused-after-legacy-tombstone').toString());
+			await database.registerRuntimeSession(reusedStandardSession.toString(), { provider: 'copilotcli', startTime: 2, source: 'explicit' }, { checkTombstone: false });
+			await createAgentSession(cliAgent, { session: reusedStandardSession });
+			await svc.restoreSession(reusedStandardSession);
+			assert.strictEqual(!!getStateManager(svc).getSessionState(reusedStandardSession.toString()), true);
 		});
 
 		suite('initial provider migration race (#331648)', () => {
