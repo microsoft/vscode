@@ -42,7 +42,9 @@ import { IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../browser/menus.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatWindowContext, ChatWindowHasEditorAreaContext, ChatWindowTerminalRowContext } from '../../../../services/chatWindow/browser/chatWindowService.js';
+import '../../../chatWindow/browser/chatWindowChangesFileList.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -1024,8 +1026,15 @@ suite('Changes View Actions', () => {
 	test('Changes header layout actions move to the tab-level overflow with Files View in its own final group', () => {
 		const getGroups = (menuId: MenuId) => [...new Set(MenuRegistry.getMenuItems(menuId).flatMap(item => item.group ? [item.group] : []))].sort();
 		const overflowGroups = getGroups(Menus.SessionsEditorTitle).filter(group => group !== 'navigation');
+		// The main window shows the Changes editor with chat enabled and a file list, but is no chat window.
+		const mainWindowContext = new Context(1, null);
+		mainWindowContext.setValue(ActiveEditorContext.key, SessionChangesEditor.ID);
+		mainWindowContext.setValue(ChatContextKeys.enabled.key, true);
+		mainWindowContext.setValue(MultiDiffEditorFileListAvailableContext.key, true);
+		mainWindowContext.setValue(ChatWindowContext.key, false);
 		assert.deepStrictEqual({
-			oldHeaderItems: MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+			oldHeaderItems: [...MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout), ...MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)]
+				.filter(item => !item.when || item.when.evaluate(mainWindowContext))
 				.map(item => isIMenuItem(item) ? item.command.id : item.submenu.id),
 			lastOverflowGroup: overflowGroups.at(-1),
 			filesViewGroupItems: MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)

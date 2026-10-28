@@ -21,6 +21,8 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { IDiffEditorOptionsService, SessionsWordWrap } from '../../../editor/common/diffEditorOptionsService.js';
+import { MultiDiffEditorWithFileListWidget } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorWithFileListWidget.js';
+import { MultiDiffEditorFileListAvailableContext } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { ISessionChangesService } from '../../browser/sessionChangesService.js';
 import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
@@ -191,5 +193,90 @@ suite('SessionChangesEditor spacing', () => {
 		}
 		assert.deepStrictEqual(results, ['vs', 'vs-dark', 'hc-black', 'hc-light'].flatMap(theme =>
 			[0, 10, 0].map(top => ({ theme, top, sticky: top > 0, headerFlowHeight: 36, bodyOffset: 36 }))));
+	});
+});
+
+suite('SessionChangesEditor host widget', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createEditor(chatWindow: boolean) {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const contextKeyService = store.add(new class extends MockContextKeyService {
+			override getContextKeyValue<T>(key: string): T | undefined {
+				return key === 'sessions.chatWindow' ? (chatWindow ? 'chat' : '') as T : super.getContextKeyValue(key) as T | undefined;
+			}
+		});
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const activeSession = constObservable<IActiveSession | undefined>(undefined);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = activeSession;
+			override readonly mainWindowActiveSession = activeSession;
+			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
+		}());
+		instantiationService.stub(ISessionScope, { session: activeSession });
+		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+			override readonly activeSessionHasGitRepositoryObs = constObservable(false);
+		}());
+		instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop });
+		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() { }());
+		instantiationService.stub(IDiffEditorOptionsService, new class extends mock<IDiffEditorOptionsService>() {
+			override readonly viewMode = constObservable<DiffEditorViewMode>('automatic');
+			override readonly diffEditorWordWrap = constObservable<SessionsWordWrap>('off');
+		}());
+		const diffWidget = {
+			viewModel: observableValue<MultiDiffEditorViewModel | undefined>('viewModel', undefined),
+			onDidChangeActiveControl: Event.None,
+			setPaddingBottom() { },
+			setVariant() { },
+			setDiffLayoutOptions() { },
+			layout() { },
+			dispose() { },
+		};
+		instantiationService.stubInstance(MultiDiffEditorWidget, diffWidget);
+		const fileListLayouts: string[] = [];
+		instantiationService.stubInstance(MultiDiffEditorWithFileListWidget, {
+			multiDiffEditorWidget: diffWidget as unknown as MultiDiffEditorWidget,
+			isFileListVisible: observableValue('visible', false),
+			layout(dimension: Dimension) { fileListLayouts.push(`${dimension.width}x${dimension.height}`); },
+			dispose() { },
+		});
+		const parent = append(mainWindow.document.body, $('.editor-instance'));
+		store.add(toDisposable(() => parent.remove()));
+		const editor = store.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
+		editor.create(parent);
+		return { editor, contextKeyService, parent, fileListLayouts };
+	}
+
+	test('chat windows host the diffs with their changed files list, the main window the plain widget', () => {
+		const results = [true, false].map(chatWindow => {
+			const { editor, contextKeyService } = createEditor(chatWindow);
+			return {
+				chatWindow,
+				togglesFromTitle: editor.togglesFileListFromEditorTitle,
+				fileListAvailable: contextKeyService.getContextKeyValue(MultiDiffEditorFileListAvailableContext.key) === true,
+			};
+		});
+		assert.deepStrictEqual(results, [
+			{ chatWindow: true, togglesFromTitle: true, fileListAvailable: true },
+			{ chatWindow: false, togglesFromTitle: false, fileListAvailable: false },
+		]);
+	});
+
+	test('chat windows give the diffs and the changed files list the whole editor at every width', () => {
+		const { editor, parent, fileListLayouts } = createEditor(true);
+		editor.layout(new Dimension(500, 400));
+		editor.layout(new Dimension(1200, 400));
+
+		assert.deepStrictEqual({ fileListLayouts, togglesFromTitle: editor.togglesFileListFromEditorTitle, hostsView: parent.querySelector('.session-changes-editor-view') !== null }, {
+			fileListLayouts: ['500x400', '1200x400'],
+			togglesFromTitle: true,
+			hostsView: false,
+		});
+	});
+
+	test('the main window never hosts the Changes view in its editor', () => {
+		const { parent } = createEditor(false);
+		assert.strictEqual(parent.querySelector('.session-changes-editor-view'), null);
 	});
 });

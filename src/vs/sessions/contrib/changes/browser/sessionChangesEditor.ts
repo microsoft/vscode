@@ -35,6 +35,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/servic
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
+import { IMultiDiffEditorWidgetOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { MultiDiffEditorLogger } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorLogging.js';
@@ -65,7 +66,9 @@ import { localize } from '../../../../nls.js';
 import { getChangesEditorFileStats } from './changesEditorLabels.js';
 import { IDiffEditorOptionsService } from '../../editor/common/diffEditorOptionsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { observableWorkbenchMultiDiffEditorVariant } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFileListVisibleContext, observableMultiDiffEditorFileListPosition, observableMultiDiffEditorFileListViewMode, observableMultiDiffEditorFileListVisible, observableWorkbenchMultiDiffEditorVariant, toggleMultiDiffEditorFileList } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { MultiDiffEditorWithFileListWidget } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorWithFileListWidget.js';
+import { ChatWindowContext } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { ChangesEmptyState } from './changesEmptyState.js';
 
 const HEADER_HEIGHT = 35;
@@ -203,9 +206,12 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	static readonly ID = SessionChangesEditorInput.EDITOR_ID;
 
 	private widget: MultiDiffEditorWidget | undefined;
+	/** Set in chat windows, whose Changes editor shows the changed files list beside the diffs instead of the Changes view. */
+	private fileListWidget: MultiDiffEditorWithFileListWidget | undefined;
 	private viewModel: MultiDiffEditorViewModel | undefined;
 	get hasViewModel(): boolean { return this.viewModel !== undefined; }
 	private bodyContainer: HTMLElement | undefined;
+	/** Chat windows host the Changes view beside the diffs while wide enough, else the multi-diff file list is the fallback. */
 	private emptyState: ChangesEmptyState | undefined;
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
@@ -257,7 +263,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
@@ -310,6 +316,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			this._register(this._buildHeaderToolbars(left, right, scopedInstantiationService));
 		}
 
+		const inChatWindow = !!ChatWindowContext.getValue(this.contextKeyService);
 		this.bodyContainer = append(root, $('.session-changes-editor-body'));
 
 		// Create the widget in the editor-pane context (not the deeper scoped one)
@@ -319,15 +326,14 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const paneInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this.contextKeyService])));
 		const variant = observableWorkbenchMultiDiffEditorVariant(this, this.configurationService);
-		this.widget = this._register(paneInstantiationService.createInstance(
-			MultiDiffEditorWidget,
-			this.bodyContainer,
-			paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs, this._scope, this),
-			{
-				variant: variant.get(),
-				diffEditorOptions: CHANGES_DIFF_EDITOR_OPTIONS,
-			},
-		));
+		const uiElementFactory = paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs, this._scope, this);
+		const widgetOptions = { variant: variant.get(), diffEditorOptions: CHANGES_DIFF_EDITOR_OPTIONS };
+		if (inChatWindow) {
+			this.fileListWidget = this._register(this.createFileListWidget(paneInstantiationService, uiElementFactory, widgetOptions));
+			this.widget = this.fileListWidget.multiDiffEditorWidget;
+		} else {
+			this.widget = this._register(paneInstantiationService.createInstance(MultiDiffEditorWidget, this.bodyContainer, uiElementFactory, widgetOptions));
+		}
 		this._register(autorun(reader => this.widget?.setVariant(variant.read(reader))));
 		this._register(this.widget.onDidChangeActiveControl(() => this._onDidChangeControl.fire()));
 		this.widget.setPaddingBottom(CHANGES_LIST_BOTTOM_PADDING_PX);
@@ -348,6 +354,33 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 				this.diffEditorOptionsService.diffEditorWordWrap.read(reader),
 			);
 		}));
+	}
+
+	private createFileListWidget(instantiationService: IInstantiationService, uiElementFactory: IWorkbenchUIElementFactory, widgetOptions: IMultiDiffEditorWidgetOptions): MultiDiffEditorWithFileListWidget {
+		const fileListSetting = observableMultiDiffEditorFileListVisible(this, this.configurationService, this.storageService, this._store);
+		const fileListVisible = derived(reader => fileListSetting.read(reader));
+		const fileListViewMode = observableMultiDiffEditorFileListViewMode(this, this.storageService, this._store);
+		const fileListPosition = observableMultiDiffEditorFileListPosition(this, this.storageService, this._store);
+		this._register(bindContextKey(MultiDiffEditorFileListAvailableContext, this.contextKeyService, () => true));
+		this._register(bindContextKey(MultiDiffEditorFileListEnabledContext, this.contextKeyService, reader => fileListVisible.read(reader)));
+		this._register(bindContextKey(MultiDiffEditorFileListViewModeContext, this.contextKeyService, reader => fileListViewMode.read(reader)));
+		this._register(bindContextKey(MultiDiffEditorFileListPositionContext, this.contextKeyService, reader => fileListPosition.read(reader)));
+		const widget = instantiationService.createInstance(MultiDiffEditorWithFileListWidget, this.bodyContainer!, uiElementFactory, widgetOptions, fileListVisible, fileListViewMode, fileListPosition);
+		this._register(bindContextKey(MultiDiffEditorFileListVisibleContext, this.contextKeyService, reader => widget.isFileListVisible.read(reader)));
+		return widget;
+	}
+
+	/** Chat windows offer Toggle Files in the editor title, the main window has no changed files list. */
+	get togglesFileListFromEditorTitle(): boolean {
+		return !!this.fileListWidget;
+	}
+
+	/** Moves focus into the changed files list of a chat window's Changes editor, showing it first when hidden. */
+	focusFileList(): void {
+		if (this.fileListWidget && !MultiDiffEditorFileListEnabledContext.getValue(this.contextKeyService)) {
+			toggleMultiDiffEditorFileList(this.storageService);
+		}
+		this.fileListWidget?.focusFileList();
 	}
 
 	/**
@@ -588,7 +621,12 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// In desktop the header is external (the editor part reserves a top inset),
 		// so the diff fills the full dimension; otherwise reserve the internal header.
 		const bodyHeight = this._desktop ? dimension.height : Math.max(0, dimension.height - HEADER_HEIGHT);
-		this.widget?.layout(new Dimension(dimension.width, bodyHeight));
+		const size = new Dimension(dimension.width, bodyHeight);
+		if (this.fileListWidget) {
+			this.fileListWidget.layout(size);
+		} else {
+			this.widget?.layout(size);
+		}
 		this.emptyState?.layout();
 	}
 }
