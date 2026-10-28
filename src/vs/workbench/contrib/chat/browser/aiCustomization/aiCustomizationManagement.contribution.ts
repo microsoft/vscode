@@ -884,11 +884,12 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				}
 				const editorService = accessor.get(IEditorService);
 				const input = AICustomizationManagementEditorInput.getOrCreate();
-				const pane = await editorService.openEditor(input, { pinned: true });
+				const preserveFocus = typeof target !== 'string' && target?.preserveFocus;
+				const pane = await editorService.openEditor(input, { pinned: true, preserveFocus });
 				if (pane instanceof AICustomizationManagementEditor) {
 					const section = typeof target === 'string' ? target : target?.section ?? AICustomizationManagementSection.McpServers;
 					if (typeof target !== 'string' && target?.mcpServer) {
-						await pane.showMcpMarketplaceDetail(target.mcpServer.name, target.mcpServer.registryUrl);
+						await pane.showMcpMarketplaceDetail(target.mcpServer.name, target.mcpServer.registryUrl, preserveFocus);
 					} else if (typeof target !== 'string' && target?.connectorName) {
 						const result = await pane.showCopilotConnectorDetail(target.connectorName, target.connectorDisplayName);
 						if (result === CopilotConnectorDetailOpenResult.NotFound) {
@@ -896,9 +897,9 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 						}
 					} else {
 						const sourceId = typeof target === 'string' ? undefined : target?.sourceId;
-						pane.selectSectionById(section, { showMarketplace: true, marketplaceSourceId: sourceId });
+						pane.selectSectionById(section, { showMarketplace: true, marketplaceSourceId: sourceId, preserveFocus });
 						if (typeof target !== 'string' && target?.searchQuery !== undefined) {
-							pane.setSearchQuery(target.searchQuery);
+							pane.setSearchQuery(target.searchQuery, preserveFocus);
 						}
 					}
 				}

@@ -333,7 +333,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	readonly onReset = this._onReset.event;
 
 	constructor(
-		@IMcpGalleryManifestService mcpGalleryManifestService: IMcpGalleryManifestService,
+		@IMcpGalleryManifestService private readonly mcpGalleryManifestService: IMcpGalleryManifestService,
 		@IMcpGalleryService private readonly mcpGalleryService: IMcpGalleryService,
 		@IWorkbenchMcpManagementService private readonly mcpManagementService: IWorkbenchMcpManagementService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -1017,22 +1017,20 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 	private async handleMcpServerByName(name: string): Promise<boolean> {
 		const registryGeneration = this.registryGeneration;
-		let gallery: IGalleryMcpServer | undefined;
-		try {
-			[gallery] = await this.mcpGalleryService.getMcpServersFromGallery([{ name }]);
-		} catch (e) {
-			this.logService.error(e);
-			if (!this.isMarketplaceEnabled) {
-				this.notificationService.error(e);
-				return true;
-			}
-			this.notificationService.warn(localize('mcpLegacyGalleryUnavailable', "The MCP registry could not be reached. Looking for this server in Customizations."));
-		}
-		if (gallery) {
+		const manifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
+		const result = (await this.mcpGalleryService.resolveMcpServersFromGallery([{ name }], manifest ?? undefined)).get(name);
+		if (result?.status === McpGalleryResolveStatus.Found) {
+			const gallery = result.server;
 			this.rememberGallerySource(gallery, registryGeneration);
 			await this.openGallery(gallery);
+		} else if (result?.status === McpGalleryResolveStatus.Failed && !this.isMarketplaceEnabled) {
+			this.logService.info(`Cannot determine whether MCP server '${name}' is available: the configured registry could not be reached`);
+			this.notificationService.warn(localize('mcpLinkLookupRetry', "The MCP registry could not be reached. Check your connection or sign-in, then try this link again."));
 		} else if (this.isMarketplaceEnabled) {
-			await this.openMarketplace({ section: AICustomizationManagementSection.McpServers, mcpServer: { name } });
+			if (result?.status === McpGalleryResolveStatus.Failed) {
+				this.notificationService.warn(localize('mcpLegacyGalleryUnavailable', "The MCP registry could not be reached. Looking for this server in Customizations."));
+			}
+			await this.openMarketplace({ section: AICustomizationManagementSection.McpServers, mcpServer: { name, registryUrl: manifest?.url } });
 		} else if (!this.mcpGalleryService.isEnabled()) {
 			this.logService.info(`Cannot open MCP server '${name}': no MCP gallery configured`);
 			this.notificationService.warn(localize('mcpLinkGalleryNotConfigured', "The MCP gallery is not configured. Configure 'chat.mcp.gallery.serviceUrl' to open MCP server details."));
@@ -1045,7 +1043,11 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 	async openSearch(searchValue: string, preserveFocus?: boolean): Promise<void> {
 		if (this.isMarketplaceEnabled) {
-			await this.openMarketplace({ section: AICustomizationManagementSection.McpServers, searchQuery: searchValue });
+			await this.openMarketplace({
+				section: AICustomizationManagementSection.McpServers,
+				searchQuery: searchValue ? `@type:mcp ${searchValue}` : '@type:mcp',
+				preserveFocus,
+			});
 		} else {
 			await this.extensionsWorkbenchService.openSearch(`@mcp ${searchValue}`, preserveFocus);
 		}
@@ -1059,21 +1061,22 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		await this.commandService.executeCommand(AICustomizationManagementCommands.OpenMarketplace, target);
 	}
 
-	private async openGallery(gallery: IGalleryMcpServer): Promise<void> {
+	private async openGallery(gallery: IGalleryMcpServer, options?: IMcpServerEditorOptions): Promise<void> {
 		if (!this.isMarketplaceEnabled) {
 			const server = this.getInstalledGalleryServer(gallery.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, gallery, undefined);
-			await this.open(server);
+			await this.open(server, options);
 			return;
 		}
 		await this.openMarketplace({
 			section: AICustomizationManagementSection.McpServers,
 			mcpServer: { name: gallery.name, registryUrl: gallery.galleryUrl },
+			preserveFocus: options?.preserveFocus,
 		});
 	}
 
 	async open(extension: IWorkbenchMcpServer, options?: IMcpServerEditorOptions): Promise<void> {
 		if (this.isMarketplaceEnabled && extension.gallery && options?.tab !== McpServerEditorTab.Configuration) {
-			await this.openGallery(extension.gallery);
+			await this.openGallery(extension.gallery, options);
 			return;
 		}
 		const useModal = this.configurationService.getValue<boolean>('extensions.allowOpenInModalEditor');

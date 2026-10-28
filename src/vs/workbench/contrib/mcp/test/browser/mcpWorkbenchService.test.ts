@@ -69,6 +69,7 @@ class TestMcpGalleryService extends mock<IMcpGalleryService>() {
 	queryItems: IGalleryMcpServer[] = [];
 	queryBarrier: DeferredPromise<void> | undefined;
 	enabled = true;
+	autoResolve = false;
 	get requestCount(): number { return this.requests.length; }
 
 	constructor(store: Pick<DisposableStore, 'add'>) {
@@ -81,6 +82,12 @@ class TestMcpGalleryService extends mock<IMcpGalleryService>() {
 	}
 
 	override resolveMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<Map<string, IMcpGalleryServerResolveResult>> {
+		if (this.autoResolve) {
+			return Promise.resolve(new Map(infos.map(info => {
+				const server = this.queryItems.find(candidate => candidate.name === info.name);
+				return [info.name, server ? found(server) : notFound()];
+			})));
+		}
 		const result = new DeferredPromise<Map<string, IMcpGalleryServerResolveResult>>();
 		this.requests.push({ infos, result });
 		this.onDidRequestEmitter.fire();
@@ -119,6 +126,7 @@ class TestMcpGalleryManifestService extends mock<IMcpGalleryManifestService>() {
 	override readonly onDidChangeMcpGalleryManifestStatus = Event.None;
 	private readonly onDidChangeMcpGalleryManifestEmitter: Emitter<IMcpGalleryManifest | null>;
 	override readonly onDidChangeMcpGalleryManifest: Event<IMcpGalleryManifest | null>;
+	manifest: IMcpGalleryManifest | null = { version: '1', url: 'https://api.mcp.github.com', resources: [] };
 
 	constructor(store: Pick<DisposableStore, 'add'>) {
 		super();
@@ -128,6 +136,10 @@ class TestMcpGalleryManifestService extends mock<IMcpGalleryManifestService>() {
 
 	fireChange(): void {
 		this.onDidChangeMcpGalleryManifestEmitter.fire(null);
+	}
+
+	override async getMcpGalleryManifest(): Promise<IMcpGalleryManifest | null> {
+		return this.manifest;
 	}
 }
 
@@ -1210,10 +1222,10 @@ suite('McpWorkbenchService', () => {
 		const { service, galleryService, openedEditors, marketplaceTargets } = await createFixture([]);
 		const initialized = new DeferredPromise<void>();
 		const enabled = sinon.stub(galleryService, 'isEnabled').returns(false);
-		const lookup = sinon.stub(galleryService, 'getMcpServersFromGallery').callsFake(async () => {
+		const lookup = sinon.stub(galleryService, 'resolveMcpServersFromGallery').callsFake(async () => {
 			await initialized.p;
 			enabled.returns(true);
-			return [createGallery('startup')];
+			return new Map([['startup', found(createGallery('startup'))]]);
 		});
 		const opening = service.handleURL(URI.parse('vscode:mcp/by-name/startup'));
 		await initialized.complete();
@@ -1225,17 +1237,18 @@ suite('McpWorkbenchService', () => {
 		}, {
 			lookups: 1,
 			opened: 0,
-			targets: [{ section: AICustomizationManagementSection.McpServers, mcpServer: { name: 'startup', registryUrl: undefined } }],
+			targets: [{ section: AICustomizationManagementSection.McpServers, mcpServer: { name: 'startup', registryUrl: undefined }, preserveFocus: undefined }],
 		});
 	});
 
 	test('missing gallery names still redirect to current marketplace sources', async () => {
-		const { service, openedEditors, marketplaceTargets } = await createFixture([]);
+		const { service, galleryService, openedEditors, marketplaceTargets } = await createFixture([]);
+		galleryService.autoResolve = true;
 		const handled = await service.handleURL(URI.parse('vscode:mcp/by-name/com.figma.mcp/mcp'));
 		assert.deepStrictEqual({ handled, opened: openedEditors.length, targets: marketplaceTargets }, {
 			handled: true,
 			opened: 0,
-			targets: [{ section: AICustomizationManagementSection.McpServers, mcpServer: { name: 'com.figma.mcp/mcp' } }],
+			targets: [{ section: AICustomizationManagementSection.McpServers, mcpServer: { name: 'com.figma.mcp/mcp', registryUrl: 'https://api.mcp.github.com' } }],
 		});
 	});
 
@@ -1246,6 +1259,7 @@ suite('McpWorkbenchService', () => {
 			displayName: 'Netdata',
 			galleryUrl: 'https://api.mcp.github.com',
 		}];
+		galleryService.autoResolve = true;
 
 		const handled = await service.handleURL(URI.parse('vscode-insiders:mcp/by-name/io.github.netdata/mcp-server'));
 
@@ -1255,6 +1269,7 @@ suite('McpWorkbenchService', () => {
 			targets: [{
 				section: AICustomizationManagementSection.McpServers,
 				mcpServer: { name: 'io.github.netdata/mcp-server', registryUrl: 'https://api.mcp.github.com' },
+				preserveFocus: undefined,
 			}],
 		});
 	});
@@ -1264,7 +1279,7 @@ suite('McpWorkbenchService', () => {
 		await service.openSearch('figma');
 		assert.deepStrictEqual({ opened: openedEditors.length, targets: marketplaceTargets }, {
 			opened: 0,
-			targets: [{ section: AICustomizationManagementSection.McpServers, searchQuery: 'figma' }],
+			targets: [{ section: AICustomizationManagementSection.McpServers, searchQuery: '@type:mcp figma', preserveFocus: undefined }],
 		});
 	});
 
@@ -1289,22 +1304,20 @@ suite('McpWorkbenchService', () => {
 			await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 			await service.open(server);
 			await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
-			await service.open(server);
+			await service.open(server, { preserveFocus: true });
 			assert.deepStrictEqual({ editors: openedEditors.map(editor => editor.mcpServer.gallery), targets: marketplaceTargets }, {
 				editors: [gallery],
-				targets: [{ section: AICustomizationManagementSection.McpServers, mcpServer: { name: gallery.name, registryUrl: undefined } }],
+				targets: [{ section: AICustomizationManagementSection.McpServers, mcpServer: { name: gallery.name, registryUrl: undefined }, preserveFocus: true }],
 			});
 		});
 
 		test('disabling Browse during a link lookup preserves the legacy editor', async () => {
 			const { service, configurationService, galleryService, openedEditors, marketplaceTargets } = await createFixture([]);
-			const result = new DeferredPromise<IGalleryMcpServer[]>();
-			const lookup = sinon.stub(galleryService, 'getMcpServersFromGallery').returns(result.p);
-			store.add(toDisposable(() => lookup.restore()));
 			const opening = service.handleURL(URI.parse('vscode-insiders:mcp/by-name/io.github.netdata/mcp-server'));
+			const request = await galleryService.nextRequest();
 			await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 			const gallery = createGallery('io.github.netdata/mcp-server');
-			await result.complete([gallery]);
+			await complete(request, new Map([[gallery.name, found(gallery)]]));
 			await opening;
 			assert.deepStrictEqual({ editors: openedEditors.map(editor => editor.mcpServer.gallery), targets: marketplaceTargets }, {
 				editors: [gallery],
@@ -1313,8 +1326,9 @@ suite('McpWorkbenchService', () => {
 		});
 
 		test('missing and obsolete links never open Customizations when Browse is disabled', async () => {
-			const { service, configurationService, marketplaceTargets, extensionSearches, warnings } = await createFixture([]);
+			const { service, configurationService, galleryService, marketplaceTargets, extensionSearches, warnings } = await createFixture([]);
 			await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+			galleryService.autoResolve = true;
 			await service.handleURL(URI.parse('vscode:mcp/by-name/missing'));
 			await service.handleURL(URI.parse('vscode:mcp/registry.example.test/obsolete'));
 			await service.handleURL(URI.parse('vscode:mcp/by-name/'));
@@ -1326,9 +1340,11 @@ suite('McpWorkbenchService', () => {
 		});
 
 		test('by-name link explains a missing gallery instead of reporting a missing server when Browse is disabled', async () => {
-			const { service, configurationService, galleryService, openedEditors, marketplaceTargets, warnings } = await createFixture([]);
+			const { service, configurationService, galleryService, manifestService, openedEditors, marketplaceTargets, warnings } = await createFixture([]);
 			await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 			galleryService.enabled = false;
+			galleryService.autoResolve = true;
+			manifestService.manifest = null;
 			await service.handleURL(URI.parse('vscode:mcp/by-name/com.figma.mcp/mcp'));
 			assert.deepStrictEqual({ opened: openedEditors.length, targets: marketplaceTargets, warnings }, {
 				opened: 0,
@@ -1337,14 +1353,17 @@ suite('McpWorkbenchService', () => {
 			});
 		});
 
-		test('failed link lookup reports the error without redirecting when Browse is disabled', async () => {
+		test('failed link lookup reports a retryable warning without redirecting when Browse is disabled', async () => {
 			const { service, configurationService, galleryService, marketplaceTargets, warnings, errors } = await createFixture([]);
 			await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
-			const error = new Error('Registry unavailable');
-			const lookup = sinon.stub(galleryService, 'getMcpServersFromGallery').rejects(error);
-			store.add(toDisposable(() => lookup.restore()));
-			await service.handleURL(URI.parse('vscode:mcp/by-name/com.figma.mcp/mcp'));
-			assert.deepStrictEqual({ targets: marketplaceTargets, warnings, errors }, { targets: [], warnings: [], errors: [error] });
+			const opening = service.handleURL(URI.parse('vscode:mcp/by-name/com.figma.mcp/mcp'));
+			await complete(await galleryService.nextRequest(), new Map([['com.figma.mcp/mcp', failed()]]));
+			await opening;
+			assert.deepStrictEqual({ targets: marketplaceTargets, warnings, errors }, {
+				targets: [],
+				warnings: ['The MCP registry could not be reached. Check your connection or sign-in, then try this link again.'],
+				errors: [],
+			});
 		});
 
 	test('preserves explicit configuration editing for installed gallery servers', async () => {
@@ -1367,21 +1386,21 @@ suite('McpWorkbenchService', () => {
 		assert.deepStrictEqual({ handled, opened: openedEditors.length, targets: marketplaceTargets, warnings: warnings.length }, {
 			handled: [true, true],
 			opened: 0,
-			targets: Array.from({ length: 2 }, () => ({ section: AICustomizationManagementSection.McpServers, searchQuery: '' })),
+			targets: Array.from({ length: 2 }, () => ({ section: AICustomizationManagementSection.McpServers, searchQuery: '@type:mcp', preserveFocus: undefined })),
 			warnings: 2,
 		});
 	});
 
 	test('gallery lookup failures do not block a by-name redirect', async () => {
-		const { service, galleryService, marketplaceTargets, warnings, logService } = await createFixture([]);
-		const error = new Error('Registry unavailable');
-		const lookup = sinon.stub(galleryService, 'getMcpServersFromGallery').rejects(error);
-		store.add(toDisposable(() => lookup.restore()));
-		await service.handleURL(URI.parse('vscode:mcp/by-name/com.figma.mcp/mcp'));
+		const { service, galleryService, manifestService, marketplaceTargets, warnings, logService } = await createFixture([]);
+		manifestService.manifest = { version: '1', url: 'https://custom.registry.test', resources: [] };
+		const opening = service.handleURL(URI.parse('vscode:mcp/by-name/com.figma.mcp/mcp'));
+		await complete(await galleryService.nextRequest(), new Map([['com.figma.mcp/mcp', failed()]]));
+		await opening;
 		assert.deepStrictEqual({ targets: marketplaceTargets, warnings: warnings.length, errors: logService.errors }, {
-			targets: [{ section: AICustomizationManagementSection.McpServers, mcpServer: { name: 'com.figma.mcp/mcp' } }],
+			targets: [{ section: AICustomizationManagementSection.McpServers, mcpServer: { name: 'com.figma.mcp/mcp', registryUrl: 'https://custom.registry.test' } }],
 			warnings: 1,
-			errors: [error],
+			errors: [],
 		});
 	});
 
@@ -1424,6 +1443,7 @@ suite('McpWorkbenchService', () => {
 				await configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 				const gallery = { ...createGallery(local.name), galleryUrl: 'https://registry.example.test/servers/same' };
 				galleryService.queryItems = [gallery];
+				galleryService.autoResolve = source === 'name';
 				const link = source === 'name' ? 'vscode:mcp/by-name/same'
 					: source === 'url' ? 'vscode:mcp/registry.example.test/servers/same'
 						: `vscode:mcp/install?${encodeURIComponent(JSON.stringify({ name: local.name, command: 'node', gallery: true }))}`;
@@ -1443,13 +1463,14 @@ suite('McpWorkbenchService', () => {
 			const { service, galleryService, openedEditors, marketplaceTargets } = await createFixture([local]);
 			const gallery = { ...createGallery(local.name), galleryUrl: 'https://registry.example.test/servers/same' };
 			galleryService.queryItems = [gallery];
+			galleryService.autoResolve = source === 'name';
 			const link = source === 'name' ? 'vscode:mcp/by-name/same'
 				: source === 'url' ? 'vscode:mcp/registry.example.test/servers/same'
 					: `vscode:mcp/install?${encodeURIComponent(JSON.stringify({ name: local.name, command: 'node', gallery: true }))}`;
 			await service.handleURL(URI.parse(link));
 			assert.deepStrictEqual({ opened: openedEditors.length, targets: marketplaceTargets }, {
 				opened: 0,
-				targets: [{ section: AICustomizationManagementSection.McpServers, mcpServer: { name: gallery.name, registryUrl: gallery.galleryUrl } }],
+				targets: [{ section: AICustomizationManagementSection.McpServers, mcpServer: { name: gallery.name, registryUrl: gallery.galleryUrl }, preserveFocus: undefined }],
 			});
 		});
 
@@ -1459,6 +1480,7 @@ suite('McpWorkbenchService', () => {
 			const { service, galleryService, managementService, openedEditors, marketplaceTargets } = await createFixture([root], McpAccessValue.All);
 			const gallery = { ...createGallery(root.name), galleryUrl: 'https://registry.example.test/servers/same' };
 			galleryService.queryItems = [gallery];
+			galleryService.autoResolve = source === 'name';
 			managementService.installFromGalleryResult = legacy;
 			const link = source === 'name' ? 'vscode:mcp/by-name/same'
 				: source === 'url' ? 'vscode:mcp/registry.example.test/servers/same'
@@ -1466,7 +1488,7 @@ suite('McpWorkbenchService', () => {
 			await service.handleURL(URI.parse(link));
 			assert.deepStrictEqual({ opened: openedEditors.length, targets: marketplaceTargets }, {
 				opened: 0,
-				targets: [{ section: AICustomizationManagementSection.McpServers, mcpServer: { name: gallery.name, registryUrl: gallery.galleryUrl } }],
+				targets: [{ section: AICustomizationManagementSection.McpServers, mcpServer: { name: gallery.name, registryUrl: gallery.galleryUrl }, preserveFocus: undefined }],
 			});
 			const candidate = (await service.getMcpServerFromGallery(gallery.name))!;
 			const before = { resource: candidate.local?.mcpResource.toString(), state: candidate.installState };

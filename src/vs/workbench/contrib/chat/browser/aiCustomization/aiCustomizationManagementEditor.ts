@@ -1062,6 +1062,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				openMarketplaceItem: (resource, origin) => {
 					this.showMarketplaceDetail(resource, origin);
 				},
+				marketplaceNavigationChanged: () => this.contentNavigationGeneration++,
 				closeEditor: () => {
 					if (this.input) {
 						this.group.closeEditor(this.input);
@@ -3637,7 +3638,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	private selectSection(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string }): void {
+	private selectSection(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string; preserveFocus?: boolean }): void {
 		if (this.showMarketplaceInDiscover(section, options)) {
 			return;
 		}
@@ -4236,7 +4237,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	/**
 	 * Selects a specific section programmatically.
 	 */
-	public selectSectionById(sectionId: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string }): boolean {
+	public selectSectionById(sectionId: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string; preserveFocus?: boolean }): boolean {
 		if (this.showMarketplaceInDiscover(sectionId, options)) {
 			return true;
 		}
@@ -4288,7 +4289,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return false;
 	}
 
-	private showMarketplaceInDiscover(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string }): boolean {
+	private showMarketplaceInDiscover(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string; preserveFocus?: boolean }): boolean {
 		if (!options?.showMarketplace ||
 			!isCustomizationDiscoveryAvailable(this.configurationService, this.marketplaceService)) {
 			return false;
@@ -4301,7 +4302,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return false;
 		}
 		this.showWelcomePage();
-		this.welcomePage?.showMarketplace(`@type:${type}`, options.marketplaceSourceId);
+		this.welcomePage?.showMarketplace(`@type:${type}`, options.marketplaceSourceId, options.preserveFocus);
 		return true;
 	}
 
@@ -4357,9 +4358,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.listWidget.refresh();
 	}
 
-	public setSearchQuery(query: string): void {
+	public setSearchQuery(query: string, preserveFocus?: boolean): void {
 		if (this.selectedSection === undefined) {
-			this.welcomePage?.setSearchQuery(query);
+			this.welcomePage?.setSearchQuery(query, preserveFocus);
 		} else if (this.selectedSection === AICustomizationManagementSection.McpServers) {
 			this.mcpListWidget?.setSearchQuery(query);
 		} else if (this.selectedSection === AICustomizationManagementSection.Plugins) {
@@ -4433,8 +4434,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return CopilotConnectorDetailOpenResult.Opened;
 	}
 
-	public async showMcpMarketplaceDetail(name: string, registryUrl?: string): Promise<void> {
-		this.selectSectionById(AICustomizationManagementSection.McpServers, { showMarketplace: true });
+	public async showMcpMarketplaceDetail(name: string, registryUrl?: string, preserveFocus?: boolean): Promise<void> {
+		this.selectSectionById(AICustomizationManagementSection.McpServers, { showMarketplace: true, preserveFocus });
 		const navigationGeneration = this.contentNavigationGeneration;
 		const input = this.input;
 		const isCurrent = () => isCurrentConnectorDetailNavigation(navigationGeneration, this.contentNavigationGeneration, input, this.input);
@@ -4491,7 +4492,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 						?? getGitHubMcpRegistryIdentity(installation?.kind === 'providerCatalog' ? installation.itemUrl : undefined)) === name;
 				});
 				if (resource) {
-					this.showMarketplaceDetail(resource, { resourceKey: getCustomizationMarketplaceResourceKey(resource), mode: 'browse' });
+					this.showMarketplaceDetail(resource, { resourceKey: getCustomizationMarketplaceResourceKey(resource), mode: 'browse' }, preserveFocus);
 					return;
 				}
 				// Catalog searches can return broad matches; do not exhaust the feed before trying the registry.
@@ -4499,7 +4500,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			} while (cursor);
 		}
 		if (isCurrent()) {
-			this.setSearchQuery(name);
+			this.setSearchQuery(`@type:mcp ${name}`, preserveFocus);
 			this.notificationService.info(localize('mcpLinkNotFound', "The MCP server '{0}' is not available in the enabled marketplace sources. You can browse MCP servers in Customizations.", name));
 		}
 	}
@@ -5627,8 +5628,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 	}
 
-	private showMarketplaceDetail(resource: ICustomizationMarketplaceResource, origin: ICustomizationMarketplaceOrigin): void {
-		this.showGenericMarketplaceDetail(resource, origin);
+	private showMarketplaceDetail(resource: ICustomizationMarketplaceResource, origin: ICustomizationMarketplaceOrigin, preserveFocus?: boolean): void {
+		this.showGenericMarketplaceDetail(resource, origin, preserveFocus);
 	}
 
 	private ensureMarketplaceDetailInstallState(): void {
@@ -5642,7 +5643,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.showGenericMarketplaceDetail(this.marketplaceDetailResource, this.marketplaceDetailOrigin);
 	}
 
-	private showGenericMarketplaceDetail(resource: ICustomizationMarketplaceResource, origin: ICustomizationMarketplaceOrigin): void {
+	private showGenericMarketplaceDetail(resource: ICustomizationMarketplaceResource, origin: ICustomizationMarketplaceOrigin, preserveFocus?: boolean): void {
 		this.marketplaceDetailResource = resource;
 		this.marketplaceDetailOrigin = origin;
 		this.viewMode = 'marketplaceDetail';
@@ -5653,7 +5654,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
-		this.focusDetailPage();
+		if (!preserveFocus) {
+			this.focusDetailPage();
+		}
 	}
 
 	private goBackFromMarketplaceDetail(): void {

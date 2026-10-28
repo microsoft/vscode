@@ -174,6 +174,7 @@ suite('aiCustomizationManagementEditor', () => {
 			const opened: ICustomizationMarketplaceResource[] = [];
 			const messages: string[] = [];
 			const searches: string[] = [];
+			const preserveFocusValues: (boolean | undefined)[] = [];
 			const requests: ICustomizationMarketplaceQuery[] = [];
 			const configurationService = new TestConfigurationService({
 				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
@@ -191,14 +192,17 @@ suite('aiCustomizationManagementEditor', () => {
 					},
 				},
 				selectSectionById: () => { harness.contentNavigationGeneration++; },
-				showMarketplaceDetail: (resource: ICustomizationMarketplaceResource) => opened.push(resource),
+				showMarketplaceDetail: (resource: ICustomizationMarketplaceResource, _origin: unknown, preserveFocus?: boolean) => {
+					opened.push(resource);
+					preserveFocusValues.push(preserveFocus);
+				},
 				setSearchQuery: (value: string) => searches.push(value),
 				notificationService: { info: (message: string) => messages.push(message), warn: (message: string) => messages.push(message) },
 			};
 			const show = Reflect.get(AICustomizationManagementEditor.prototype, 'showMcpMarketplaceDetail') as (
-				this: typeof harness, name: string, registryUrl?: string
+				this: typeof harness, name: string, registryUrl?: string, preserveFocus?: boolean
 			) => Promise<void>;
-			return { harness, opened, messages, searches, requests, show: (registryUrl?: string) => show.call(harness, serverName, registryUrl) };
+			return { harness, opened, messages, searches, preserveFocusValues, requests, show: (registryUrl?: string, preserveFocus?: boolean) => show.call(harness, serverName, registryUrl, preserveFocus) };
 		}
 
 		test('opens Netdata MCP details from the gallery for the Agents window registry link (#344496)', async () => {
@@ -230,12 +234,13 @@ suite('aiCustomizationManagementEditor', () => {
 
 		test('prefers the exact GitHub feed identity, without installing or connecting', async () => {
 			const fixture = createHarness(async () => ({ items: [githubEntry] }));
-			await fixture.show();
+			await fixture.show(undefined, true);
 			assert.deepStrictEqual({
 				opened: fixture.opened,
 				sources: fixture.requests.map(request => request.sourceIds),
+				preserveFocus: fixture.preserveFocusValues,
 				messages: fixture.messages,
-			}, { opened: [githubEntry], sources: [['agentFinder']], messages: [] });
+			}, { opened: [githubEntry], sources: [['agentFinder']], preserveFocus: [true], messages: [] });
 		});
 
 		test('matches a GitHub card URL, not a similar display name', async () => {
@@ -322,7 +327,7 @@ suite('aiCustomizationManagementEditor', () => {
 			const fixture = createHarness(async () => ({ items: [] }));
 			await fixture.show();
 			assert.deepStrictEqual({ opened: fixture.opened, searches: fixture.searches, messages: fixture.messages.length },
-				{ opened: [], searches: [name], messages: 1 });
+				{ opened: [], searches: [`@type:mcp ${name}`], messages: 1 });
 		});
 
 		test('does not query disabled marketplace sources', async () => {
@@ -333,7 +338,7 @@ suite('aiCustomizationManagementEditor', () => {
 				{ opened: [], requests: [], messages: 1 });
 		});
 
-		test('does not replace navigation that happened while resolving a link', async () => {
+		test('does not replace a query or source navigation that happened while resolving a link', async () => {
 			const pending = new DeferredPromise<ICustomizationMarketplacePage>();
 			const fixture = createHarness(() => pending.p);
 			const opening = fixture.show();
