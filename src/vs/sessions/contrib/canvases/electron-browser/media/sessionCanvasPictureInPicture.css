@@ -1,0 +1,369 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Holds every floating element; clipping keeps a tucked or tossed canvas from making the window scrollable. */
+.canvas-pip-layer {
+	position: absolute;
+	inset: 0;
+	z-index: 40;
+	overflow: clip;
+	pointer-events: none;
+}
+
+.canvas-pip-layer > .canvas-pip-window {
+	pointer-events: auto;
+}
+
+/* Floating window: positioned with an inline translate so springs never trigger layout. */
+.canvas-pip-window {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 40;
+	display: flex;
+	flex-direction: column;
+	box-sizing: border-box;
+	padding: 0 var(--vscode-spacing-size40) var(--vscode-spacing-size40);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
+	border-radius: var(--vscode-cornerRadius-large);
+	background: var(--vscode-editorWidget-background);
+	color: var(--vscode-editorWidget-foreground);
+	box-shadow: var(--vscode-shadow-xl);
+	cursor: grab;
+	transition: scale 160ms ease-out, opacity 160ms ease-out;
+	will-change: transform;
+	outline: none;
+}
+
+.canvas-pip-window[hidden] {
+	display: none;
+}
+
+.canvas-pip-window:focus-visible,
+.canvas-pip-window:has(.canvas-pip-stash-cover:focus-visible) {
+	border-color: var(--vscode-focusBorder);
+}
+
+.canvas-pip-window.dragging,
+.canvas-pip-window.dragging .canvas-pip-header {
+	cursor: grabbing;
+}
+
+.canvas-pip-window.will-stash {
+	opacity: 0.8;
+}
+
+.canvas-pip-window.dock-armed {
+	scale: 0.6;
+	opacity: 0.9;
+}
+
+.canvas-pip-window.docking {
+	pointer-events: none;
+}
+
+.canvas-pip-header {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+	gap: var(--vscode-spacing-size40);
+	height: 28px;
+	padding-left: var(--vscode-spacing-size40);
+	cursor: grab;
+	user-select: none;
+}
+
+.canvas-pip-title {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.canvas-pip-window:hover .canvas-pip-title,
+.canvas-pip-window:focus-within .canvas-pip-title {
+	color: var(--vscode-editorWidget-foreground);
+}
+
+/* Actions stay quiet at rest so the floating canvas reads as content, not chrome. */
+.canvas-pip-actions {
+	flex: 0 0 auto;
+	opacity: 0;
+	transition: opacity 120ms ease-out;
+	cursor: default;
+}
+
+/* Shown only above another conversation, as the way back to the chat the canvas belongs to. */
+.canvas-pip-go-to-chat {
+	flex: 0 1 auto;
+	min-width: 0;
+	cursor: default;
+}
+
+.canvas-pip-go-to-chat[hidden] {
+	display: none;
+}
+
+.canvas-pip-go-to-chat .monaco-button {
+	width: auto;
+	max-width: 100%;
+	height: 20px;
+	padding: 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-label2);
+	line-height: 18px;
+	white-space: nowrap;
+}
+
+.canvas-pip-go-to-chat .monaco-button .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.canvas-pip-header:hover .canvas-pip-actions,
+.canvas-pip-window:focus-within .canvas-pip-actions {
+	opacity: 1;
+}
+
+.canvas-pip-content {
+	position: relative;
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: hidden;
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: default;
+}
+
+/* While the live page is hidden, its snapshot fills the window as it moves and resizes. */
+.canvas-pip-window .canvas-pip-content .browser-container {
+	/* Native bounds come from the wrapper, so the container can follow every frame of a resize without relayout. */
+	width: 100% !important;
+	height: 100% !important;
+}
+
+.canvas-pip-window .canvas-pip-content .browser-placeholder-screenshot {
+	background-size: cover;
+	background-position: top left;
+}
+
+.canvas-pip-resize {
+	position: absolute;
+	z-index: 1;
+}
+
+.canvas-pip-resize-n,
+.canvas-pip-resize-s {
+	left: 14px;
+	right: 14px;
+	height: 8px;
+	cursor: ns-resize;
+}
+
+.canvas-pip-resize-e,
+.canvas-pip-resize-w {
+	top: 14px;
+	bottom: 14px;
+	width: 8px;
+	cursor: ew-resize;
+}
+
+.canvas-pip-resize-n { top: -5px; }
+.canvas-pip-resize-s { bottom: -5px; }
+.canvas-pip-resize-e { right: -5px; }
+.canvas-pip-resize-w { left: -5px; }
+
+.canvas-pip-resize-ne,
+.canvas-pip-resize-nw,
+.canvas-pip-resize-se,
+.canvas-pip-resize-sw {
+	width: 16px;
+	height: 16px;
+}
+
+.canvas-pip-resize-ne { top: -5px; right: -5px; cursor: nesw-resize; }
+.canvas-pip-resize-sw { bottom: -5px; left: -5px; cursor: nesw-resize; }
+.canvas-pip-resize-nw { top: -5px; left: -5px; cursor: nwse-resize; }
+.canvas-pip-resize-se { bottom: -5px; right: -5px; cursor: nwse-resize; }
+
+.canvas-pip-window.stashed .canvas-pip-resize,
+.canvas-pip-window.docking .canvas-pip-resize,
+.canvas-pip-window.dragging .canvas-pip-resize {
+	display: none;
+}
+
+/* Tucked away: the frosted cover owns the visible sliver and invites a pull back in. */
+.canvas-pip-stash-cover {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	display: none;
+	border-radius: inherit;
+	background: color-mix(in srgb, var(--vscode-editorWidget-background) 55%, transparent);
+	backdrop-filter: blur(6px);
+	cursor: pointer;
+	outline: none;
+}
+
+.canvas-pip-window.stashed .canvas-pip-stash-cover {
+	display: flex;
+	align-items: center;
+}
+
+.canvas-pip-window.stashed-left .canvas-pip-stash-cover {
+	justify-content: flex-end;
+}
+
+.canvas-pip-window.stashed-right .canvas-pip-stash-cover {
+	justify-content: flex-start;
+}
+
+.canvas-pip-stash-chevron {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 100%;
+	color: var(--vscode-icon-foreground);
+	transition: width 160ms ease-out;
+}
+
+.canvas-pip-stash-chevron::before {
+	content: '';
+	width: 8px;
+	height: 8px;
+	border-top: 2px solid currentColor;
+	border-right: 2px solid currentColor;
+	transform: rotate(-135deg);
+}
+
+.canvas-pip-stash-chevron.left::before {
+	transform: rotate(45deg);
+}
+
+.canvas-pip-stash-cover:hover .canvas-pip-stash-chevron,
+.canvas-pip-stash-cover:focus-visible .canvas-pip-stash-chevron {
+	color: var(--vscode-focusBorder);
+}
+
+/* Drag affordances drawn on the window while the canvas moves. */
+.canvas-pip-edge-glow {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	z-index: 39;
+	width: 6px;
+	background: var(--vscode-focusBorder);
+	opacity: 0.6;
+	pointer-events: none;
+}
+
+.canvas-pip-edge-glow.left {
+	left: 0;
+}
+
+.canvas-pip-edge-glow.right {
+	right: 0;
+}
+
+.canvas-pip-dock-target {
+	position: absolute;
+	z-index: 39;
+	box-sizing: border-box;
+	border: 2px solid var(--vscode-focusBorder);
+	border-radius: var(--vscode-cornerRadius-small);
+	background: var(--vscode-editorGroup-dropBackground);
+	pointer-events: none;
+}
+
+.canvas-pip-dock-hint {
+	position: absolute;
+	z-index: 41;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size100);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-editorWidget-background);
+	color: var(--vscode-editorWidget-foreground);
+	box-shadow: var(--vscode-shadow-lg);
+	font-size: var(--vscode-fontSize-label2);
+	white-space: nowrap;
+	transform: translateX(-50%);
+	pointer-events: none;
+}
+
+.canvas-pip-edge-glow[hidden],
+.canvas-pip-dock-target[hidden],
+.canvas-pip-dock-hint[hidden],
+.canvas-pip-tab-ghost[hidden] {
+	display: none;
+}
+
+/* The tab lifted from the tab bar before it tears away into a floating canvas. */
+.canvas-pip-tab-ghost {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 41;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	box-sizing: border-box;
+	padding: 0 var(--vscode-spacing-size100);
+	border: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	border-radius: var(--vscode-cornerRadius-small);
+	background: var(--vscode-tab-activeBackground);
+	color: var(--vscode-tab-activeForeground);
+	box-shadow: var(--vscode-shadow-lg);
+	font-size: var(--vscode-fontSize-body1);
+	pointer-events: none;
+	transition: scale 120ms ease-out;
+}
+
+.canvas-pip-tab-ghost.pulled {
+	scale: 1.04;
+}
+
+.canvas-pip-tab-ghost-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.hc-black .canvas-pip-window,
+.hc-light .canvas-pip-window,
+.hc-black .canvas-pip-dock-hint,
+.hc-light .canvas-pip-dock-hint,
+.hc-black .canvas-pip-tab-ghost,
+.hc-light .canvas-pip-tab-ghost {
+	border-color: var(--vscode-contrastBorder);
+	box-shadow: none;
+}
+
+.hc-black .canvas-pip-window:focus-visible,
+.hc-light .canvas-pip-window:focus-visible {
+	border-color: var(--vscode-contrastActiveBorder);
+}
+
+.hc-black .canvas-pip-stash-cover,
+.hc-light .canvas-pip-stash-cover {
+	background: var(--vscode-editorWidget-background);
+	backdrop-filter: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.canvas-pip-window,
+	.canvas-pip-actions,
+	.canvas-pip-stash-chevron,
+	.canvas-pip-tab-ghost {
+		transition: none;
+	}
+}
+
+.monaco-workbench.monaco-reduce-motion .canvas-pip-window,
+.monaco-workbench.monaco-reduce-motion .canvas-pip-actions,
+.monaco-workbench.monaco-reduce-motion .canvas-pip-stash-chevron,
+.monaco-workbench.monaco-reduce-motion .canvas-pip-tab-ghost {
+	transition: none;
+}

@@ -7,25 +7,30 @@ import './media/sessionCanvas.css';
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { $, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../../base/common/observable.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, IReader, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType, IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IBrowserViewBounds } from '../../../../platform/browserView/common/browserView.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
@@ -34,7 +39,7 @@ import { IBrowserViewModel } from '../../browserView/common/browserView.js';
 import { focusWebContentsViewContainer, WebContentsViewHost } from '../../browserView/electron-browser/webContentsViewHost.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { CanvasInput, ICanvasService } from '../common/canvas.js';
+import { CanvasInput, CanvasPictureInPictureEnabledSettingId, ICanvasService } from '../common/canvas.js';
 
 export const SessionCanvasFocusedContext = new RawContextKey<boolean>('sessionCanvasFocused', false);
 
@@ -59,6 +64,7 @@ export class CanvasEditor extends EditorPane {
 	private wrapper!: HTMLElement;
 	private container!: HTMLElement;
 	private message!: HTMLElement;
+	private detached!: HTMLElement;
 	private host!: WebContentsViewHost;
 	private model: IBrowserViewModel | undefined;
 	private readonly modelLifetime = this._register(new DisposableStore());
@@ -74,6 +80,10 @@ export class CanvasEditor extends EditorPane {
 	private semanticSequence = 0;
 	private semanticText = '';
 	private helpAnnounced = false;
+	private standalonePresentation = false;
+	private presentationHelp: string | undefined;
+	private standalonePresentable: ((reader: IReader | undefined) => boolean) | undefined;
+	private nativeSuspensions = 0;
 
 	constructor(
 		group: IEditorGroup,
@@ -89,6 +99,7 @@ export class CanvasEditor extends EditorPane {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(CanvasEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -110,6 +121,8 @@ export class CanvasEditor extends EditorPane {
 		this.container.appendChild(placeholder);
 		this.wrapper.appendChild(this.container);
 		root.appendChild(this.wrapper);
+		this.detached = this.createDetachedPlaceholder();
+		root.appendChild(this.detached);
 		parent.appendChild(root);
 
 		this.host = this._register(this.instantiationService.createInstance(WebContentsViewHost, this.window, () => focusWebContentsViewContainer(this.container)));
@@ -123,8 +136,19 @@ export class CanvasEditor extends EditorPane {
 		}));
 		this._register(autorun(reader => {
 			const input = this.currentInput.read(reader);
-			if (!input || !this.canvasService.enabled.read(reader) || !this.canvasService.isOwnerPresentable(input.reference, reader)) {
+			const detached = !this.standalonePresentation && !!input?.presentation.read(reader);
+			this.detached.hidden = !detached;
+			// While its canvas floats, a tab only offers to show or return it, even beside another conversation.
+			if (detached) {
+				this._detach('');
+				return;
+			}
+			if (!input || !this.canvasService.enabled.read(reader) || !this.isPresentable(input, reader)) {
 				this._detach(localize('canvas.ownerUnavailable', "This canvas is only shown beside its owning conversation."));
+				return;
+			}
+			if (this.standalonePresentation && !input.presentation.read(reader)) {
+				this._detach('');
 				return;
 			}
 			const canvas = input.canvas.read(reader);
@@ -156,6 +180,53 @@ export class CanvasEditor extends EditorPane {
 		if (!token.isCancellationRequested && this.input === input) {
 			this.currentInput.set(input, undefined);
 		}
+	}
+
+	/**
+	 * Configures a standalone presentation before creating the pane. It shows its canvas while
+	 * `isPresentable` holds, instead of only beside the owning conversation.
+	 */
+	setStandalonePresentation(help: string, isPresentable: (reader: IReader | undefined) => boolean): void {
+		this.standalonePresentation = true;
+		this.presentationHelp = help;
+		this.standalonePresentable = isPresentable;
+	}
+
+	private isPresentable(input: CanvasInput, reader: IReader | undefined): boolean {
+		return this.standalonePresentable ? this.standalonePresentable(reader) : this.canvasService.isOwnerPresentable(input.reference, reader);
+	}
+
+	/** Hides the live page behind its latest snapshot until the returned handle is disposed. */
+	suspendNativePresentation(): IDisposable {
+		this.nativeSuspensions++;
+		this.layout();
+		let released = false;
+		return toDisposable(() => {
+			if (!released) {
+				released = true;
+				this.nativeSuspensions--;
+				this.layout();
+			}
+		});
+	}
+
+	private createDetachedPlaceholder(): HTMLElement {
+		const element = $('.session-canvas-detached');
+		element.hidden = true;
+		element.setAttribute('role', 'status');
+		const icon = $(`span${ThemeIcon.asCSSSelector(Codicon.window)}`);
+		icon.setAttribute('aria-hidden', 'true');
+		const text = $('.session-canvas-detached-text');
+		text.textContent = localize('canvas.detached', "This canvas is floating above the window.");
+		const actions = $('.session-canvas-detached-actions');
+		element.append(icon, text, actions);
+		const show = this._register(new Button(actions, { ...defaultButtonStyles, secondary: true }));
+		show.label = localize('canvas.detachedShow', "Show");
+		this._register(show.onDidClick(() => this.currentInput.get()?.presentation.get()?.reveal({ focus: true })));
+		const dock = this._register(new Button(actions, { ...defaultButtonStyles, secondary: true }));
+		dock.label = localize('canvas.detachedDock', "Return to Tab");
+		this._register(dock.onDidClick(() => this.currentInput.get()?.presentation.get()?.dock()));
+		return element;
 	}
 
 	private async _load(input: CanvasInput, key: string): Promise<void> {
@@ -209,7 +280,8 @@ export class CanvasEditor extends EditorPane {
 			&& sequence === this.loadSequence
 			&& this.currentInput.get() === input
 			&& isEqual(input.canvas.get()?.source, source)
-			&& this.canvasService.isOwnerPresentable(input.reference);
+			&& !!input.presentation.get() === this.standalonePresentation
+			&& this.isPresentable(input, undefined);
 	}
 
 	private _setModel(model: IBrowserViewModel | undefined): void {
@@ -262,7 +334,7 @@ export class CanvasEditor extends EditorPane {
 			this.host.setModel(undefined);
 			const input = this.currentInput.get();
 			const canvas = input?.canvas.get();
-			if (input && canvas?.source && this.canvasService.isOwnerPresentable(input.reference)) {
+			if (input && canvas?.source && this.isPresentable(input, undefined)) {
 				void this._load(input, `${canvas.resource.toString()}\u0000${canvas.source.toString()}`);
 			}
 		}));
@@ -347,6 +419,7 @@ export class CanvasEditor extends EditorPane {
 		const snap = (value: number) => Math.floor(value * zoomFactor) / zoomFactor;
 		const bounds = { x: snap(rect.left), y: snap(rect.top), width: snap(rect.width), height: snap(rect.height), windowId: this.group.windowId, zoomFactor, cornerRadius: 0 };
 		const visible = this.editorVisible.get()
+			&& this.nativeSuspensions === 0
 			&& bounds.width > 0
 			&& bounds.height > 0
 			&& rect.right > 0
@@ -397,6 +470,10 @@ export class CanvasEditor extends EditorPane {
 			localize('canvas.help.overview', "This canvas is a private page owned by its conversation. Its content is available while that conversation is shown."),
 			localize('canvas.help.navigation', "Tab moves through page controls. Use <keybinding:workbench.action.focusNextPart> to leave the page."),
 			localize('canvas.help.externalLinks', "User-initiated HTTP and HTTPS links that request a new tab or window open outside the canvas."),
+			...(this.presentationHelp ? [this.presentationHelp] : []),
+			...(this.environmentService.isSessionsWindow && !this.standalonePresentation && this.configurationService.getValue<boolean>(CanvasPictureInPictureEnabledSettingId) === true ? [
+				localize('canvas.help.agentsPictureInPicture', "Drag this tab out of the side pane, or use Open in Picture-in-Picture, to float the canvas above this window without reloading it. While it floats, this tab offers Show and Return to Tab."),
+			] : []),
 			// Only the Agents window offers an Add Tab menu.
 			this.environmentService.isSessionsWindow
 				? localize('canvas.help.close', "Closing the tab hides this canvas. Use the Add Tab menu in the editor toolbar, then Canvas, to open any available canvas or reopen a hidden canvas.")
@@ -409,7 +486,7 @@ export class CanvasEditor extends EditorPane {
 			{ type, language: 'plaintext' },
 			() => type === AccessibleViewType.Help ? help : this.semanticText,
 			() => {
-				if (input instanceof CanvasInput && this.input === input && this.presentationVisible.get() && this.canvasService.isOwnerPresentable(input.reference)) {
+				if (input instanceof CanvasInput && this.input === input && this.presentationVisible.get() && this.isPresentable(input, undefined)) {
 					this.focus();
 				}
 			},
