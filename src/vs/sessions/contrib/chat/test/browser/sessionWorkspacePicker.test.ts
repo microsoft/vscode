@@ -4240,6 +4240,31 @@ suite('WorkspacePicker - Category Triggers', () => {
 			button = container.querySelector<HTMLElement>('.sessions-workspace-clear-button')!;
 		});
 
+		for (const state of ['', 'workspace-focus-visible', 'workspace-picker-open']) {
+			test(`hides workspace clearing when compact and restores it when expanded with state '${state}'`, () => {
+				const slot = button.parentElement!;
+				const icon = trigger.querySelector<HTMLElement>('.codicon')!;
+				if (state) {
+					slot.classList.add(state);
+				}
+				const presentation = () => ({
+					closeVisible: button.checkVisibility(),
+					closeOpacity: getWindow(button).getComputedStyle(button).opacity,
+					iconOpacity: getWindow(icon).getComputedStyle(icon).opacity,
+				});
+				const expanded = presentation();
+				slot.classList.add('compact-picker');
+				const compact = presentation();
+				slot.classList.remove('compact-picker');
+
+				assert.deepStrictEqual({ expanded, compact, restored: presentation() }, {
+					expanded: { closeVisible: true, closeOpacity: state ? '1' : '0', iconOpacity: state ? '0' : '1' },
+					compact: { closeVisible: false, closeOpacity: state ? '1' : '0', iconOpacity: '1' },
+					restored: expanded,
+				});
+			});
+		}
+
 		for (const dismissal of ['trigger', 'outside'] as const) {
 			test(`keeps the close icon while open and restores the workspace icon after ${dismissal} dismissal`, () => {
 				const slot = button.parentElement!;

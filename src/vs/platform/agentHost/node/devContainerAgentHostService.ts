@@ -5,9 +5,9 @@
 
 import type WebSocket from 'ws';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
-import { createHash, randomUUID } from 'crypto';
+import { createHash } from 'crypto';
 import { EventEmitter as NodeEventEmitter } from 'events';
-import { lstat, mkdtemp, rename, rm, stat, writeFile } from 'fs/promises';
+import { mkdtemp, rm, stat } from 'fs/promises';
 import { Duplex } from 'stream';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
@@ -28,6 +28,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IRequestService } from '../../request/common/request.js';
+import { writeCertificatesFile, writeUserDataCertificatesFile } from '../../request/node/certificates.js';
 import { IGitHubService } from '../../github/common/githubService.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDiscoveredDevContainer, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
@@ -205,7 +206,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	private _nativeRequire: NodeJS.Require | undefined;
 	private _shellEnvironment: Promise<typeof process.env> | undefined;
 	private _dockerExecutable: Promise<string | undefined> | undefined;
-	private _devContainerEnvironment: Promise<typeof process.env> | undefined;
+	private _certificatesFile: Promise<string | undefined> | undefined;
 	private _dockerAvailable: Promise<boolean> | undefined;
 
 	constructor(
@@ -410,6 +411,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				name: config.name,
 				remoteWorkspaceFolder: upResult.remoteWorkspaceFolder,
 				sandboxSupported,
+				...await this._shouldForwardCertificates(tokenSource.token) ? { forwardClientCertificates: true } : {},
 				...(repository ? { repository } : {}),
 				...(hasKey(config, { workspaceFolder: true }) ? { hostWorkspaceFolder: config.workspaceFolder } : {}),
 			};
@@ -845,7 +847,14 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	protected abstract _resolveUserShellEnvironment(): Promise<typeof process.env>;
-	protected abstract _useSystemCertificates(): boolean;
+
+	protected _useSystemCertificates(): boolean {
+		return true;
+	}
+
+	protected async _shouldForwardCertificates(_token: CancellationToken): Promise<boolean> {
+		return false;
+	}
 
 	protected _resolveShellEnvironment(): Promise<typeof process.env> {
 		this._shellEnvironment ??= this._doResolveShellEnvironment();
@@ -869,27 +878,27 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return environment;
 	}
 
-	protected _resolveDevContainerEnvironment(): Promise<typeof process.env> {
-		this._devContainerEnvironment ??= this._doResolveDevContainerEnvironment();
-		return this._devContainerEnvironment;
+	protected async _resolveDevContainerEnvironment(): Promise<typeof process.env> {
+		const environment = await this._resolveShellEnvironment();
+		const path = await this._resolveCertificatesFile(environment);
+		return path ? { ...environment, NODE_EXTRA_CA_CERTS: path } : environment;
 	}
 
-	private async _doResolveDevContainerEnvironment(): Promise<typeof process.env> {
-		const environment = await this._resolveShellEnvironment();
+	/** Matches Remote Containers: a supplied bundle is used as-is; otherwise system roots are written once when enabled. */
+	protected _resolveCertificatesFile(environment: typeof process.env): Promise<string | undefined> {
+		this._certificatesFile ??= this._doResolveCertificatesFile(environment);
+		return this._certificatesFile;
+	}
+
+	private async _doResolveCertificatesFile(environment: typeof process.env): Promise<string | undefined> {
 		if (environment.NODE_EXTRA_CA_CERTS && await this._isFile(environment.NODE_EXTRA_CA_CERTS)) {
-			return environment;
+			return environment.NODE_EXTRA_CA_CERTS;
 		}
 		if (!this._useSystemCertificates()) {
-			return environment;
+			return undefined;
 		}
 		const certificates = await this._requestService.loadCertificates();
-		if (certificates.length === 0) {
-			return environment;
-		}
-		return {
-			...environment,
-			NODE_EXTRA_CA_CERTS: await this._writeCertificatesFile(certificates),
-		};
+		return certificates.length ? this._writeCertificatesFile(certificates) : undefined;
 	}
 
 	protected async _isFile(path: string): Promise<boolean> {
@@ -904,51 +913,16 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		}
 	}
 
-	protected async _writeCertificatesFile(certificates: readonly string[]): Promise<string> {
-		const content = certificates.join(process.platform === 'win32' ? '\r\n' : '\n');
-		const hash = createHash('sha256').update(content).digest('hex');
+	protected async _writeCertificatesFile(certificates: readonly string[]): Promise<string | undefined> {
 		const directory = this._getCertificatesDirectory();
 		await prepareOwnerOnlyDirectory(directory);
-		const path = join(directory, `certificates-${hash}.pem`);
-		if (await this._isSecureCacheFile(path)) {
-			return path;
-		}
-		const temporaryPath = `${path}-${randomUUID()}`;
-		await writeFile(temporaryPath, content, { mode: 0o600 });
-		try {
-			await this._renameCertificateFile(temporaryPath, path);
-		} catch (error) {
-			if (!await this._isSecureCacheFile(path)) {
-				await rm(temporaryPath, { force: true });
-				throw error;
-			}
-			await rm(temporaryPath, { force: true });
-		}
-		return path;
+		return writeCertificatesFile(certificates, directory, this._logService);
 	}
 
 	protected _getCertificatesDirectory(): string {
 		const owner = process.getuid?.().toString()
 			?? createHash('sha256').update(this._environmentService.userDataPath).digest('hex').slice(0, 12);
 		return join(this._environmentService.tmpDir.fsPath, `vscode-dev-container-${owner}`);
-	}
-
-	protected async _isSecureCacheFile(path: string): Promise<boolean> {
-		try {
-			const fileStat = await lstat(path);
-			return fileStat.isFile() && !fileStat.isSymbolicLink()
-				&& (!process.getuid || fileStat.uid === process.getuid());
-		} catch (error) {
-			const code = (error as NodeJS.ErrnoException).code;
-			if (code === 'ENOENT' || code === 'ENOTDIR') {
-				return false;
-			}
-			throw error;
-		}
-	}
-
-	protected _renameCertificateFile(from: string, to: string): Promise<void> {
-		return rename(from, to);
 	}
 
 	protected _reportOutput(connectionId: string, data: string): void {
@@ -1117,16 +1091,62 @@ export class DevContainerAgentHostMainService extends DevContainerAgentHostServi
 	protected override _useSystemCertificates(): boolean {
 		return this._configurationService.getValue<boolean>('http.systemCertificates') !== false;
 	}
+
+	protected override async _shouldForwardCertificates(token: CancellationToken): Promise<boolean> {
+		try {
+			const environment = await this._resolveShellEnvironment();
+			if (environment.VSCODE_DOCKER_HOST) {
+				return false;
+			}
+			// Docker resolves DOCKER_HOST before DOCKER_CONTEXT and the active context.
+			let host = environment.DOCKER_HOST;
+			if (!host) {
+				const result = await this._runDocker(['context', 'inspect', '--format', '{{.Endpoints.docker.Host}}'], token);
+				if (result.code !== 0 || !result.stdout.trim()) {
+					this._mainLogService.warn(`${LOG_PREFIX} Cannot determine whether Docker is local; not forwarding certificates`, result.stderr);
+					return false;
+				}
+				host = result.stdout.trim();
+			}
+			return host.startsWith('unix://') || host.startsWith('npipe://');
+		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			this._mainLogService.warn(`${LOG_PREFIX} Cannot determine whether Docker is local; not forwarding certificates`, getErrorMessage(error));
+			return false;
+		}
+	}
 }
 
 /** Standalone hosts inherit the environment of their SSH, tunnel, or CLI launcher. */
 export class RemoteDevContainerAgentHostService extends DevContainerAgentHostService {
+	constructor(
+		@ILogService private readonly _remoteLogService: ILogService,
+		@IProductService productService: IProductService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@INativeEnvironmentService private readonly _remoteEnvironmentService: INativeEnvironmentService,
+		@IRequestService private readonly _remoteRequestService: IRequestService,
+		@IGitHubService gitHubService: IGitHubService,
+	) {
+		super(_remoteLogService, productService, telemetryService, _remoteEnvironmentService, _remoteRequestService, gitHubService);
+	}
+
 	protected override _resolveUserShellEnvironment(): Promise<typeof process.env> {
 		return Promise.resolve(process.env);
 	}
 
-	protected override _useSystemCertificates(): boolean {
-		return true;
+	/**
+	 * Refreshes Copilot's shared bundle before each CLI run. Agent Host roots include its `NODE_EXTRA_CA_CERTS` file;
+	 * native roots are loaded once and client roots once per connection.
+	 */
+	protected override async _resolveCertificatesFile(): Promise<string | undefined> {
+		try {
+			return await writeUserDataCertificatesFile(await this._remoteRequestService.loadCertificates(), this._remoteEnvironmentService.userDataPath, this._remoteLogService);
+		} catch (error) {
+			this._remoteLogService.warn(`${LOG_PREFIX} Failed to configure CA certificates for the Dev Container CLI`, getErrorMessage(error));
+			return undefined;
+		}
 	}
 }
 

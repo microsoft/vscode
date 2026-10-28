@@ -1379,6 +1379,33 @@ suite('ExtensionEnablementService Test', () => {
 		});
 	});
 
+	test('test sessions window enables extensions without code while extensions are managed', async () => {
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+		const skills = aLocalExtension2('pub.skills', { contributes: someContributions({ chatSkills: [{}] }) });
+		const withCode = aLocalExtension2('pub.withCode', { main: 'main.js', contributes: someContributions({ chatSkills: [{}] }) });
+		const theme = aLocalExtension2('pub.theme', { contributes: aContributes('themes') });
+		installed.push(skills, withCode, theme);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await testObject.waitUntilInitialized();
+		const changed: string[][] = [];
+		disposableStore.add(testObject.onEnablementChanged(extensions => changed.push(extensions.map(e => e.identifier.id))));
+		const states = () => [skills, withCode, theme].map(extension => testObject.getEnablementState(extension));
+
+		const unmanaged = states();
+		await configurationService.setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, true);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === EXTENSIONS_AGENTS_WINDOW_MANAGEMENT }));
+		const managed = states();
+		await testObject.setEnablement([skills], EnablementState.DisabledWorkspace);
+
+		assert.deepStrictEqual({ unmanaged, managed, disabledByUser: testObject.getEnablementState(skills), changed }, {
+			unmanaged: [EnablementState.DisabledByEnvironment, EnablementState.DisabledByEnvironment, EnablementState.EnabledGlobally],
+			managed: [EnablementState.EnabledGlobally, EnablementState.DisabledWorkspace, EnablementState.EnabledGlobally],
+			disabledByUser: EnablementState.DisabledWorkspace,
+			changed: [['pub.skills', 'pub.withCode'], ['pub.skills']],
+		});
+	});
+
 	test('test sessions window automatically enables useful extensions unless users disabled them', async () => {
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configurationService.setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, true);

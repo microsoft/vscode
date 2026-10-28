@@ -522,7 +522,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 			if (!currentServers.servers) {
 				return;
 			}
-			await this.mcpResourceScannerService.removeMcpServers([server.name], this.mcpResource, this.target, this.format);
+			await this.mcpResourceScannerService.removeMcpServers([server.name], this.mcpResource, this.target, this.format, options?.preserveInputIds);
 			if (server.location) {
 				await this.fileService.del(URI.revive(server.location), { recursive: true });
 			}

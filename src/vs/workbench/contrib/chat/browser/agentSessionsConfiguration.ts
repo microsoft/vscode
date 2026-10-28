@@ -110,6 +110,14 @@ for (const key of [ChatConfiguration.AgentsParallelWorkBannerEnabled, ChatConfig
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'chat',
 	properties: {
+		[ChatConfiguration.AgentsPickerInAttachContextMenu]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.WINDOW,
+			description: nls.localize('chat.agentsPickerInAttachContextMenu', "Controls whether the Agent picker appears in Add Context for chat inputs in the editor and Agents windows when the default agent is selected. While a non-default agent is selected, the picker appears in its usual position."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
 		[ChatConfiguration.UnifiedWorkspacePicker]: {
 			type: 'boolean',
 			default: true,

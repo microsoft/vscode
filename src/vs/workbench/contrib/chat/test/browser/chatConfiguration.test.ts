@@ -25,6 +25,7 @@ const registeredAgentSessionsSettings = [
 	ChatConfiguration.AutoDeleteMarkedAsDoneMergedSessionsAfterDays,
 ].map(key => configurationProperties[key] !== undefined);
 const unifiedWorkspacePickerSetting = configurationProperties[ChatConfiguration.UnifiedWorkspacePicker];
+const agentsPickerSetting = configurationProperties[ChatConfiguration.AgentsPickerInAttachContextMenu];
 const migrations = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations;
 const legacyAutoArchiveMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoArchiveMergedSessionsAfterDays');
 const legacyAutoDeleteArchivedMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays');
@@ -39,6 +40,22 @@ suite('Chat configuration', () => {
 
 	test('registers Agents Window settings in the shared workbench contribution', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);
+	});
+
+	test('registers the existing Agent picker setting for both editor and Agents windows', () => {
+		assert.deepStrictEqual({
+			key: ChatConfiguration.AgentsPickerInAttachContextMenu,
+			type: agentsPickerSetting.type,
+			default: agentsPickerSetting.default,
+			scope: agentsPickerSetting.scope,
+			experiment: agentsPickerSetting.experiment,
+		}, {
+			key: 'sessions.chat.experimental.agentsPickerInAttachContextMenu',
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.WINDOW,
+			experiment: { mode: 'auto' },
+		});
 	});
 
 	for (const [key, value, expected] of [

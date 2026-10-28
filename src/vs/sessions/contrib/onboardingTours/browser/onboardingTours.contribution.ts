@@ -9,6 +9,7 @@
 // `vs/workbench/contrib/onboarding` and are booted from the workbench
 // contribution imported in the entry point.
 import './agentHostReadinessContext.js';
+import './firstTaskTourContribution.js';
 import './newSessionTourContribution.js';
 import './newSessionViewV2TourContribution.js';
 import './newSessionViewV3TourContribution.js';

@@ -11,6 +11,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -102,7 +103,7 @@ suite('BreadcrumbsControl', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function createControl(withOutline = false, nestedOutline = false): Promise<void> {
+	async function createControl(withOutline = false, nestedOutline = false, editorResource = resource): Promise<void> {
 		const outline: IOutline<string> = {
 			uri: resource,
 			outlineKind: 'test',
@@ -140,7 +141,7 @@ suite('BreadcrumbsControl', () => {
 			override readonly onDidChange = Event.None;
 			override async createOutline() { return withOutline ? outline : undefined; }
 		});
-		const input = disposables.add(new TestFileEditorInput(resource, 'testEditorInput'));
+		const input = disposables.add(new TestFileEditorInput(editorResource, 'testEditorInput'));
 		const pane = new class extends mock<IVisibleEditorPane>() {
 			override readonly onDidChangeControl = Event.None;
 			override focus() { group.focus(); }
@@ -238,6 +239,21 @@ suite('BreadcrumbsControl', () => {
 			});
 		}
 	}
+
+	test('untitled files show their symbol path without file path elements', async () => {
+		await createControl(true, false, URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' }));
+
+		assert.deepStrictEqual({
+			hidden: control.isHidden(),
+			items: Array.from(control.domNode.querySelectorAll('.monaco-breadcrumb-item'), item => item.textContent)
+		}, { hidden: false, items: ['symbol'] });
+	});
+
+	test('does not show a placeholder when there are no elements and showPlaceholder is false', async () => {
+		await createControl(false, false, URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' }));
+
+		assert.deepStrictEqual(Array.from(control.domNode.querySelectorAll('.monaco-breadcrumb-item'), item => item.textContent), []);
+	});
 
 	test('outline picker activates its group without focusing the editor', async () => {
 		await createControl(true);

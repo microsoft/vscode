@@ -114,12 +114,40 @@ function isRustCrate(path: string): boolean {
 	return path.startsWith('cli/') || path.startsWith('copilot_shim/');
 }
 
+/** The ESLint configuration. Entries ending in `/` match a folder; other entries match a file. */
+const eslintConfigurationPaths = [
+	'eslint.config.js',
+	'.eslint-ignore',
+	'.eslint-allowed-javascript-files',
+	'.eslint-allowed-bracket-notation-files',
+	'.eslint-plugin-local/',
+];
+
 /**
- * The Azure Pipelines definitions, which only the product builds run. In pull requests, only the build script tests of
- * Compile & Hygiene read them. The scripts next to them are not definitions: some of them run in the pull request jobs.
+ * Paths that only Compile & Hygiene reads, so that a change to them can skip the test jobs (and the other jobs that
+ * Detect Changes selects):
+ *
+ * - The Azure Pipelines definitions, which only the product builds run. In pull requests, only the build script tests
+ *   of Compile & Hygiene read them. The scripts next to them are not definitions: some of them run in the pull request
+ *   jobs.
+ * - The workspace configuration of the repository in the root .vscode/ folder, including the self-hosting extensions
+ *   in .vscode/extensions/. No test reads them: the test jobs only install the dependencies of the extensions and
+ *   transpile their sources, which Compile & Hygiene also covers by installing the dependencies, loading their
+ *   tsconfig.json files and linting their sources. The telemetry extractor searches the sources with ripgrep, which
+ *   skips hidden folders such as .vscode/. The .vscode folders elsewhere, such as those of the test workspaces in
+ *   extensions/, are test inputs.
+ * - The ESLint configuration and the local ESLint rules in .eslint-plugin-local/, which only ESLint, hygiene and the
+ *   build script tests read. Loading the gulpfiles also reads .eslint-ignore (see build/filters.ts), which Compile &
+ *   Hygiene also does. The Copilot checks lint with the same configuration, so the copilot rule lists these paths.
+ * - The sanity tests in test/sanity/, which only the product builds run against the built packages (see
+ *   build/azure-pipelines/common/sanity-tests.yml). In pull requests, only ESLint and hygiene check their sources.
  */
-export function isAzurePipelinesDefinition(path: string): boolean {
-	return path.startsWith('build/azure-pipelines/') && /\.ya?ml$/.test(path);
+export function shouldSkipTestJobs(path: string): boolean {
+	const isAzurePipelinesDefinition = path.startsWith('build/azure-pipelines/') && /\.ya?ml$/.test(path);
+	const isWorkspaceConfiguration = path.startsWith('.vscode/');
+	const isEslintConfiguration = matchesAny(path, eslintConfigurationPaths);
+	const isSanityTest = path.startsWith('test/sanity/');
+	return isAzurePipelinesDefinition || isWorkspaceConfiguration || isEslintConfiguration || isSanityTest;
 }
 
 /**
@@ -137,26 +165,26 @@ const coreTestRules: readonly ICoreTestRule[] = [
 	{
 		// Electron, node.js and browser unit tests load only the core sources and their test fixtures.
 		output: 'unit-tests',
-		canSkip: path => isDocumentation(path) || isRustCrate(path) || isAzurePipelinesDefinition(path) || isExtensionNotReadByUnitTests(path),
+		canSkip: path => isDocumentation(path) || isRustCrate(path) || shouldSkipTestJobs(path) || isExtensionNotReadByUnitTests(path),
 	},
 	{
 		// The browser integration and smoke tests do not load the Copilot extension.
 		output: 'browser-integration',
-		canSkip: path => isDocumentation(path) || isRustCrate(path) || isAzurePipelinesDefinition(path) || path.startsWith('extensions/copilot/'),
+		canSkip: path => isDocumentation(path) || isRustCrate(path) || shouldSkipTestJobs(path) || path.startsWith('extensions/copilot/'),
 	},
 	{
 		// The Electron integration, Electron smoke and remote tests exercise the built-in extensions.
 		output: 'product-tests',
-		canSkip: path => isDocumentation(path) || isRustCrate(path) || isAzurePipelinesDefinition(path),
+		canSkip: path => isDocumentation(path) || isRustCrate(path) || shouldSkipTestJobs(path),
 	},
 	{
 		// The Monaco Editor checks also package Markdown files, such as build/monaco/README-npm.md.
 		output: 'monaco-editor',
-		canSkip: isAzurePipelinesDefinition,
+		canSkip: shouldSkipTestJobs,
 	},
 	{
 		output: 'telemetry',
-		canSkip: isAzurePipelinesDefinition,
+		canSkip: shouldSkipTestJobs,
 	},
 ];
 

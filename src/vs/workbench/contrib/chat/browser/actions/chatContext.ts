@@ -101,6 +101,7 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 		// ###############################################################################################
 
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ToolsContextPickerPick)));
+		this._store.add(contextPickService.registerChatContextItem(new AgentContextValuePick()));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ChatInstructionsPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(OpenEditorContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ClipboardImageContextValuePick)));
@@ -108,6 +109,22 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(SessionReferenceContextPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'issue')));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'pullRequest')));
+	}
+}
+
+export class AgentContextValuePick implements IChatContextValueItem {
+	readonly type = 'valuePick';
+	readonly label = localize('chatContext.agent', "Agent...");
+	readonly icon = Codicon.agent;
+	readonly ordinal = 1000;
+
+	isEnabled(widget: IChatWidget): boolean {
+		return widget.inputPart.isAgentPickerInAttachContextMenu;
+	}
+
+	async asAttachment(widget: IChatWidget): Promise<undefined> {
+		widget.inputPart.openModePicker(widget.inputPart.attachContextButtonElement ?? widget.inputPart.inputToolbarElement);
+		return undefined;
 	}
 }
 
