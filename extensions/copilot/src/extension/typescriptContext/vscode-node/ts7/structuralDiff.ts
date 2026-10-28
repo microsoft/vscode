@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as ts from '@typescript/native/unstable/ast';
+import * as ts from '@typescript/native/ast';
 import * as vscode from 'vscode';
 import { CancellationError } from '../../../../util/vs/base/common/errors';
 import { basename } from '../../../../util/vs/base/common/path';
@@ -178,10 +178,7 @@ function getEntityInfo(node: ts.Node, file: ts.SourceFile): EntityInfo | undefin
 			&& node.parent.declarations.length === 1 && ts.isVariableStatement(node.parent.parent)) {
 			rangeNode = node.parent.parent;
 		}
-		let initializer = node.initializer;
-		while (initializer !== undefined && ts.isOuterExpression(initializer)) {
-			initializer = initializer.expression;
-		}
+		const initializer = node.initializer;
 		const base = { name: node.name.getText(file), nameNode: node.name, rangeNode };
 		if (initializer !== undefined) {
 			if (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) {

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { API } from '@typescript/native/unstable/async';
-import type { SourceFile } from '@typescript/native/unstable/ast';
+import type { API } from '@typescript/native/async';
+import type { SourceFile } from '@typescript/native/ast';
 import type * as vscode from 'vscode';
 import type { ILogService } from '../../../../platform/log/common/logService';
 import { CancellationError } from '../../../../util/vs/base/common/errors';
@@ -12,7 +12,7 @@ import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { computeStructuralDiff } from './structuralDiff';
 import { TypeScript7Api } from './ts7Api';
 
-type StructuralDiffApi = Pick<API<true>, 'clearSourceFileCache' | 'updateSnapshot' | 'runWithTemporaryFileUpdate'>;
+type StructuralDiffApi = Pick<API<true>, 'clearSourceFileCache' | 'createSnapshot' | 'runWithTemporaryFileUpdate'>;
 
 interface StructuralDiffApiProvider extends vscode.Disposable {
 	getApi(): Promise<StructuralDiffApi | undefined>;
@@ -51,7 +51,7 @@ export class TS7StructuralDiffProvider implements vscode.StructuralDiffProvider,
 		}
 		const file = { uri: modifiedDocument.uri.toString() };
 		api.clearSourceFileCache();
-		const snapshot = await api.updateSnapshot({ openFiles: [file] });
+		const snapshot = await api.createSnapshot({ openFiles: [file] });
 		let result: vscode.StructuralDiff | undefined;
 		try {
 			checkCancellation();
@@ -79,7 +79,7 @@ export class TS7StructuralDiffProvider implements vscode.StructuralDiffProvider,
 			try {
 				await snapshot.dispose();
 			} finally {
-				const closedSnapshot = await api.updateSnapshot({ closeFiles: [file] });
+				const closedSnapshot = await api.createSnapshot({ closeFiles: [file] });
 				await closedSnapshot.dispose();
 			}
 		}

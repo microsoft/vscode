@@ -6,7 +6,7 @@
 import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
-import { API, type DocumentIdentifier, type Snapshot } from '@typescript/native/unstable/async';
+import { API, type DocumentIdentifier, type Snapshot } from '@typescript/native/async';
 import { afterAll, afterEach, beforeAll, beforeEach, suite, test } from 'vitest';
 import * as vscode from 'vscode';
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
@@ -252,7 +252,7 @@ suite('TypeScript 7 structural diff', () => {
 
 	test('balances opened files and disposes all native snapshots without modifying the project file', async () => {
 		await compute('function oldName() {}', 'function newName() {}');
-		const snapshot = await api.updateSnapshot({ openFiles: [fileName] });
+		const snapshot = await api.createSnapshot({ openFiles: [fileName] });
 		try {
 			const project = await snapshot.getDefaultProjectForFile(fileName);
 			const source = await project?.program.getSourceFile(fileName);
@@ -267,7 +267,7 @@ suite('TypeScript 7 structural diff', () => {
 			});
 		} finally {
 			await snapshot.dispose();
-			await (await api.updateSnapshot({ closeFiles: [fileName] })).dispose();
+			await (await api.createSnapshot({ closeFiles: [fileName] })).dispose();
 		}
 	});
 
@@ -338,6 +338,15 @@ suite('TypeScript 7 structural diff', () => {
 	}
 });
 
+type FirstOfTwoOverloads<T> = T extends {
+    (...args: infer A): infer R;
+    (...args: never[]): unknown;
+} ? (...args: A) => R : never;
+
+type CreateSnapshotParams = Parameters<
+    FirstOfTwoOverloads<API<true>['createSnapshot']>
+>[0];
+
 class TestTypeScript7Api {
 	available = true;
 	failure?: Error;
@@ -345,7 +354,7 @@ class TestTypeScript7Api {
 	beforeTemporaryUpdate?: () => void;
 	afterCloseSnapshot?: () => void;
 	readonly snapshots: Snapshot[] = [];
-	readonly requests: Parameters<API<true>['updateSnapshot']>[0][] = [];
+	readonly requests: CreateSnapshotParams[] = [];
 
 	constructor(private readonly api: API) { }
 
@@ -355,9 +364,9 @@ class TestTypeScript7Api {
 		}
 		return {
 			clearSourceFileCache: () => this.api.clearSourceFileCache(),
-			updateSnapshot: async (params?: Parameters<API<true>['updateSnapshot']>[0]) => {
-				this.requests.push(params);
-				const snapshot = await this.api.updateSnapshot(params);
+			createSnapshot: async (params?: CreateSnapshotParams) => {
+				this.requests.push(params ?? {});
+				const snapshot = params === undefined ? await this.api.createSnapshot() : await this.api.createSnapshot(params);
 				this.snapshots.push(snapshot);
 				if (params?.closeFiles !== undefined) {
 					this.afterCloseSnapshot?.();
