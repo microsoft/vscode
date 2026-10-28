@@ -52,6 +52,7 @@ import { SessionModelInfo } from '../../../../../platform/agentHost/common/state
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
 import { GITHUB_DOT_COM_COPILOT_API_BASE_URI, deriveGitHubEndpoints } from '../../../../../platform/github/common/githubEndpoints.js';
+import { nextLink } from '../../../../../platform/github/common/githubResponse.js';
 import { parseMissionControlError } from '../../../../../platform/github/common/missionControl/missionControlError.js';
 import { ApiRequestError } from '../../../../../platform/github/common/missionControl/missionControlClient.js';
 import type { TaskClient } from '../../../../../platform/github/common/missionControl/tasks.js';
@@ -578,7 +579,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		this._discoveryGeneration++;
 	}
 
-	/** Incremental scans preserve absent tasks; full scans also find tasks without environment-kind metadata. */
+	/** Follows task-list continuation links to completion. Incremental scans preserve absent tasks; full scans also find tasks without environment-kind metadata. */
 	async listSessions(token: CancellationToken, options?: ISandboxDiscoveryOptions): Promise<ICloudSandboxDiscoveryResult> {
 		const updates = new Map<string, ICachedSandboxTask | undefined>();
 		this._activeDiscoveryReads.add(updates);
@@ -636,21 +637,27 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			{ withRepository: true, archived: false }, { withRepository: false, archived: false },
 			{ withRepository: true, archived: true }, { withRepository: false, archived: true },
 		]) {
-			for (let page = 1; ; page++) {
+			const query: Record<string, string> = {
+				per_page: String(DISCOVERY_TASK_SCAN_LIMIT),
+				sort: 'updated_at',
+				direction: 'desc',
+				with_repo: String(withRepository),
+				is_archived: String(archived),
+				...(since ? { since, include_environment_kinds: 'managed-sandbox' } : {}),
+			};
+			const seenUrls = new Set<string>();
+			let nextUrl: string | undefined = `${this._tasksBaseUrl()}/tasks${toQuery({ ...query, page: '1' })}`;
+			let page = 1;
+			while (nextUrl) {
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
-				const query: Record<string, string> = {
-					per_page: String(DISCOVERY_TASK_SCAN_LIMIT),
-					page: String(page),
-					sort: 'updated_at',
-					direction: 'desc',
-					with_repo: String(withRepository),
-					is_archived: String(archived),
-					...(since ? { since, include_environment_kinds: 'managed-sandbox' } : {}),
-				};
 				try {
-					const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks${toQuery(query)}`, 'list', token);
+					if (seenUrls.has(nextUrl)) {
+						throw new Error('Task list returned a repeated pagination URL');
+					}
+					seenUrls.add(nextUrl);
+					const context = await this._sendTask(nextUrl, 'list', token);
 					const response = await this._readJson<{ tasks?: readonly ITaskSummary[] }>(context);
 					if (!Array.isArray(response?.tasks)) {
 						throw new Error('listTasks returned no tasks array');
@@ -667,9 +674,8 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 							latestUpdate = Math.max(latestUpdate ?? updatedAt, updatedAt);
 						}
 					}
-					if (!hasNextLink(context.res.headers?.link)) {
-						break;
-					}
+					nextUrl = nextTaskPageUrl(context.res.headers?.link, nextUrl, query);
+					page++;
 				} catch (error) {
 					if (isCancellationError(error) || token.isCancellationRequested) {
 						throw new CancellationError();
@@ -1685,10 +1691,27 @@ function isCloudSandboxTask(task: ITaskSummary): boolean {
 	return provider === 'sandboxes' || ((provider === undefined || provider === '') && task.current_environment?.kind === 'managed-sandbox');
 }
 
-/** Whether a `Link` header advertises another page (`rel="next"`). */
-function hasNextLink(value: string | string[] | undefined): boolean {
-	const raw = Array.isArray(value) ? value.join(',') : value;
-	return raw ? /rel="?next"?/.test(raw) : false;
+/** Keeps task pagination on the CORS-enabled endpoint and preserves filters omitted by legacy numbered links. */
+function nextTaskPageUrl(value: string | string[] | undefined, requestUrl: string, query: Record<string, string>): string | undefined {
+	const link = nextLink(Array.isArray(value) ? value.join(',') : value);
+	if (!link) {
+		return undefined;
+	}
+	const current = new URL(requestUrl);
+	const next = new URL(link, current);
+	if ((next.origin !== current.origin && next.origin !== GITHUB_DOT_COM_API_BASE_URI)
+		|| next.pathname !== current.pathname || next.username || next.password || next.hash) {
+		throw new Error('Task list returned an invalid pagination URL');
+	}
+	if (!next.searchParams.has('cursor')) {
+		for (const [key, value] of Object.entries(query)) {
+			if (!next.searchParams.has(key)) {
+				next.searchParams.set(key, value);
+			}
+		}
+	}
+	current.search = next.search;
+	return current.href;
 }
 
 function isConcreteEnvironmentId(value: unknown): value is string {

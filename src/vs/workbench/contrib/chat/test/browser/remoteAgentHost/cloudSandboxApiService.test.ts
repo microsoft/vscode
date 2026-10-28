@@ -42,7 +42,7 @@ import { ITelemetryService, type ITelemetryData } from '../../../../../../platfo
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { CloudSandboxLifecycleTelemetry } from '../../../browser/remoteAgentHost/cloudSandboxLifecycleTelemetry.js';
 
-function jsonResponse(body: unknown, statusCode = 200, headers: Record<string, string> = {}): IRequestContext {
+function jsonResponse(body: unknown, statusCode = 200, headers: Record<string, string | string[]> = {}): IRequestContext {
 	return {
 		res: { headers: { date: new Date().toUTCString(), ...headers }, statusCode },
 		stream: bufferToStream(VSBuffer.fromString(JSON.stringify(body))),
@@ -2776,13 +2776,208 @@ suite('CloudSandboxApiService repository resolution', () => {
 				if (url.searchParams.get('page') === '11') {
 					cancellation.cancel();
 				}
-				return jsonResponse({ tasks: [] }, 200, { link: '<https://api.github.com/agents/tasks?page=2>; rel="next"' });
+				const query = new URLSearchParams(url.search);
+				query.set('page', String(Number(query.get('page')) + 1));
+				return jsonResponse({ tasks: [] }, 200, { link: `<?${query}>; rel="next"` });
 			},
 		});
 
 		await assert.rejects(service.listSessions(cancellation.token), isCancellationError);
 		assert.deepStrictEqual(requestedUrls.map(url => new URL(url).searchParams.get('page')),
 			Array.from({ length: 11 }, (_, i) => String(i + 1)));
+	});
+});
+
+suite('CloudSandboxApiService pagination', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const incremental of [false, true]) {
+		test(`follows cursor links beyond ten pages and through empty pages in every discovery scope (incremental=${incremental})`, async () => {
+			const date = 'Tue, 22 Sep 2026 10:00:00 GMT';
+			const tasks: ITestTask[] = [
+				task('repo', 'Repository', 42, 'repo-session', 'repo-environment'),
+				task('no-repo', 'No repository', undefined, 'no-repo-session', 'no-repo-environment'),
+				{ ...task('archived-repo', 'Archived repository', 42, 'archived-repo-session', 'archived-repo-environment'), archived_at: date },
+				{ ...task('archived-no-repo', 'Archived without repository', undefined, 'archived-no-repo-session', 'archived-no-repo-environment'), archived_at: date },
+			];
+			const cursors = Array.from({ length: 11 }, (_, i) => `page-${i + 2}+/= opaque`);
+			const expectedContinuations: string[] = [];
+			let discovering = !incremental;
+			const { service, requestedUrls } = createService(store, {
+				tasks,
+				repositories: new Map([[42, { full_name: 'owner/repo' }]]),
+				onRequest: url => {
+					if (url.pathname !== '/agents/tasks') {
+						return undefined;
+					}
+					if (!discovering) {
+						return jsonResponse({ tasks: [] }, 200, { date });
+					}
+					const cursor = url.searchParams.get('cursor');
+					const page = cursor ? cursors.indexOf(cursor) + 1 : 0;
+					if (page === cursors.length) {
+						return jsonResponse({
+							tasks: tasks.filter(task => (task.repository !== undefined) === (url.searchParams.get('with_repo') === 'true')
+								&& !!task.archived_at === (url.searchParams.get('is_archived') === 'true')),
+						}, 200, { date, link: '<?page=1>; rel="first"' });
+					}
+					const query = new URLSearchParams(url.search);
+					query.delete('page');
+					query.set('cursor', cursors[page]);
+					const link = `?${query}`;
+					expectedContinuations.push(new URL(link, url).href);
+					return jsonResponse({ tasks: [] }, 200, { date, link: ['<?page=1>; rel="first"', `<${link}>; rel="next"`] });
+				},
+			});
+			if (incremental) {
+				await service.listSessions(CancellationToken.None);
+				requestedUrls.length = 0;
+				discovering = true;
+			}
+
+			const result = await service.listSessions(CancellationToken.None, { incremental });
+			const requests = requestedUrls.map(url => new URL(url)).filter(url => url.pathname === '/agents/tasks');
+
+			assert.deepStrictEqual({
+				kind: result.kind,
+				tasks: result.kind === 'failed' ? [] : result.sessions.map(session => session.taskId),
+				continuations: requests.filter(url => url.searchParams.has('cursor')).map(url => url.href),
+				scopes: requests.map(url => [
+					url.searchParams.get('with_repo'), url.searchParams.get('is_archived'),
+					url.searchParams.get('page'), url.searchParams.get('cursor'),
+					url.searchParams.get('since'), url.searchParams.get('include_environment_kinds'),
+				]),
+			}, {
+				kind: incremental ? 'incremental' : 'complete',
+				tasks: tasks.map(task => task.id),
+				continuations: expectedContinuations,
+				scopes: [false, true].flatMap(archived => [true, false].flatMap(withRepository => [null, ...cursors].map(cursor => [
+					String(withRepository), String(archived), cursor ? null : '1', cursor,
+					incremental ? '2026-09-22T09:59:00.000Z' : null, incremental ? 'managed-sandbox' : null,
+				]))),
+			});
+		});
+	}
+
+	test('follows the advertised numbered page while retaining the API endpoint and omitted filters', async () => {
+		const older = task('older', 'Older task', undefined, 'older-session', 'older-environment');
+		const { service, requestedUrls } = createService(store, {
+			tasks: [older], repositories: new Map(),
+			onRequest: url => {
+				if (url.pathname !== '/agents/tasks' || url.searchParams.get('with_repo') !== 'false' || url.searchParams.get('is_archived') !== 'false') {
+					return undefined;
+				}
+				return url.searchParams.get('page') === '7'
+					? jsonResponse({ tasks: [older] })
+					: jsonResponse({ tasks: [] }, 200, { link: '<https://api.github.com/agents/tasks?page=7&per_page=100>; rel="next"' });
+			},
+		});
+
+		const result = await service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual({
+			kind: result.kind,
+			tasks: result.kind === 'failed' ? [] : result.sessions.map(session => session.taskId),
+			pages: requestedUrls.map(url => new URL(url))
+				.filter(url => url.pathname === '/agents/tasks' && url.searchParams.get('with_repo') === 'false' && url.searchParams.get('is_archived') === 'false')
+				.map(url => [url.origin, url.searchParams.get('page'), url.searchParams.get('sort'), url.searchParams.get('direction')]),
+		}, {
+			kind: 'complete',
+			tasks: ['older'],
+			pages: [
+				['https://api.githubcopilot.com', '1', 'updated_at', 'desc'],
+				['https://api.githubcopilot.com', '7', 'updated_at', 'desc'],
+			],
+		});
+	});
+
+	for (const link of [
+		'https://example.com/agents/tasks?cursor=opaque',
+		'http://api.githubcopilot.com/agents/tasks?cursor=opaque',
+		'https://user:password@api.githubcopilot.com/agents/tasks?cursor=opaque',
+		'/other?cursor=opaque',
+		'?cursor=opaque#fragment',
+	]) {
+		test(`rejects a pagination URL outside the task endpoint: ${link}`, async () => {
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: () => jsonResponse({ tasks: [] }, 200, { link: `<${link}>; rel="next"` }),
+			});
+
+			assert.deepStrictEqual({
+				result: await service.listSessions(CancellationToken.None),
+				requests: requestedUrls.length,
+			}, {
+				result: { kind: 'failed', reason: 'listTasks failed: Task list returned an invalid pagination URL' },
+				requests: 1,
+			});
+		});
+	}
+
+	for (const cycle of [false, true]) {
+		test(`rejects repeated pagination URLs without fetching them again (cycle=${cycle})`, async () => {
+			const nextCursors = cycle ? ['first', 'second', 'first'] : ['first', 'first'];
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: url => {
+					const cursor = nextCursors.shift();
+					if (!cursor) {
+						return jsonResponse({}, 500);
+					}
+					const query = new URLSearchParams(url.search);
+					query.delete('page');
+					query.set('cursor', cursor);
+					return jsonResponse({ tasks: [] }, 200, { link: `<?${query}>; rel="next"` });
+				},
+			});
+
+			assert.deepStrictEqual({
+				result: await service.listSessions(CancellationToken.None),
+				cursors: requestedUrls.map(url => new URL(url).searchParams.get('cursor')),
+			}, {
+				result: { kind: 'failed', reason: 'listTasks failed: Task list returned a repeated pagination URL' },
+				cursors: cycle ? [null, 'first', 'second'] : [null, 'first'],
+			});
+		});
+	}
+
+	test('stops following cursor links when discovery is cancelled', async () => {
+		const cancellation = store.add(new CancellationTokenSource());
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => {
+				const query = new URLSearchParams(url.search);
+				if (query.has('cursor')) {
+					cancellation.cancel();
+				}
+				query.delete('page');
+				query.set('cursor', query.has('cursor') ? 'second' : 'first');
+				return jsonResponse({ tasks: [] }, 200, { link: `<?${query}>; rel="next"` });
+			},
+		});
+
+		await assert.rejects(service.listSessions(cancellation.token), CancellationError);
+		assert.deepStrictEqual(requestedUrls.map(url => new URL(url).searchParams.get('cursor')), [null, 'first']);
+	});
+
+	test('omits the cursor from task request failure logs', async () => {
+		const logService = new TestLogService();
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(), logService,
+			onRequest: url => {
+				if (url.searchParams.has('cursor')) {
+					throw new Error('network unavailable');
+				}
+				return jsonResponse({ tasks: [] }, 200, { link: '<?cursor=opaque>; rel="next"' });
+			},
+		});
+
+		assert.deepStrictEqual({
+			result: await service.listSessions(CancellationToken.None),
+			errors: logService.errors,
+		}, {
+			result: { kind: 'failed', reason: 'listTasks failed: network unavailable' },
+			errors: ['[CloudSandboxApi] GET listTasks failed before a response was available.'],
+		});
 	});
 });
 
@@ -3115,7 +3310,7 @@ suite('CloudSandboxApiService stalled sandbox discovery', () => {
 		assert.deepStrictEqual(results, [['stalled'], []]);
 	}));
 
-	for (const truncation of ['scope failure', 'page failure']) {
+	for (const truncation of ['scope failure', 'page failure', 'repeated page']) {
 		for (const observed of [false, true]) {
 			test(`only removes observed candidates during ${truncation} (observed=${observed})`, () => runWithFakedTimers({ useFakeTimers: true, startTime }, async () => {
 				const current = { ...unstartedTask('stalled', startTime - oneHour + 1_000), repository: observed ? { id: 123 } : undefined };
