@@ -370,6 +370,8 @@ interface IBackgroundPassiveSessionMetadataWrite {
 const PASSIVE_METADATA_SHUTDOWN_REPLAY_TIMEOUT_MS = 250;
 
 const UNMANAGEABLE_CHAT_ARCHIVE_REJECTION = 'Only a known independently manageable non-default chat can be archived.';
+/** Client identity of actions that session server tools dispatch through the client action pipeline. */
+const SESSION_SERVER_TOOLS_CLIENT_ID = 'session-server-tools';
 
 interface ISessionListComputation {
 	epoch: number;
@@ -1140,6 +1142,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _restoreSessionInFlight = new Map<string, Promise<void>>();
 	private readonly _savedChatContinuations = new Map<string, Promise<IAgentHostSavedChatContinuationResult>>();
 	private readonly _savedChatArchivePublications = new WeakSet<IIsArchivedChangedAction>();
+	/** Sequence of the actions session server tools dispatch as {@link SESSION_SERVER_TOOLS_CLIENT_ID}. */
+	private _serverToolActionSequence = 0;
 	private readonly _restoreSubagentInFlight = new Map<string, Promise<void>>();
 	private readonly _restoredSubagentAdmissionRetries = new Map<string, { run(): Promise<void>; cancel(): void; isCurrent(): boolean }>();
 	private readonly _sessionResidency: AgentSessionResidency;
@@ -2217,6 +2221,8 @@ export class AgentService extends Disposable implements IAgentService {
 			prepareChatWorkingDirectory: (session, directory, options) => this.prepareChatWorkingDirectory(session, directory, options),
 			renameChat: (session, chat, title) => this._renameChatFromTool(session, chat, title),
 			reportToolError: (toolName, error) => this._logService.error(`[AgentService] ${toolName} failed after the tool returned: ${toErrorMessage(error)}`),
+			archiveSession: session => this._dispatchServerToolAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }),
+			archiveChat: chat => this._dispatchServerToolAction(chat.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }),
 			deleteSession: session => this.disposeSession(session),
 			getChatContext: (session, chatId) => this._getChatContext(session, chatId),
 			// Reads the `create_session` spawn depth from a session's `_meta` (0 when absent).
@@ -2776,6 +2782,40 @@ export class AgentService extends Disposable implements IAgentService {
 			],
 			hasMoreHistory: !!chatState.turnsNextCursor,
 		};
+	}
+
+	/**
+	 * Dispatches an action for a session server tool through the same pipeline
+	 * as a client, so it gets the same validation, persistence and side effects,
+	 * and resolves once the host applied it. Rejects with the host's reason when
+	 * the host refuses it.
+	 */
+	private async _dispatchServerToolAction(channel: string, action: SessionAction | ChatAction): Promise<void> {
+		const clientSeq = ++this._serverToolActionSequence;
+		const isOwnEnvelope = (envelope: ActionEnvelope) => envelope.origin?.clientId === SESSION_SERVER_TOOLS_CLIENT_ID && envelope.origin.clientSeq === clientSeq;
+		let outcome: { readonly rejectionReason?: string } | undefined;
+		const store = new DisposableStore();
+		try {
+			store.add(this._stateManager.onDidEmitEnvelope(envelope => {
+				if (isOwnEnvelope(envelope)) {
+					outcome = {};
+				}
+			}));
+			store.add(this._stateManager.onDidRejectClientAction(envelope => {
+				if (isOwnEnvelope(envelope)) {
+					outcome = { rejectionReason: envelope.rejectionReason };
+				}
+			}));
+			await this.dispatchAction(channel, action, SESSION_SERVER_TOOLS_CLIENT_ID, clientSeq);
+		} finally {
+			store.dispose();
+		}
+		if (!outcome) {
+			throw new Error(`The host did not apply ${action.type} to ${channel}.`);
+		}
+		if (outcome.rejectionReason !== undefined) {
+			throw new Error(outcome.rejectionReason);
+		}
 	}
 
 	private async _renameChatFromTool(session: URI, chat: URI, title: string): Promise<IRenameTitleResult> {
