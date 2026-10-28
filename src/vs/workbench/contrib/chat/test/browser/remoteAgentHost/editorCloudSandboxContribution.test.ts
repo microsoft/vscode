@@ -1118,6 +1118,16 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 	});
 
+	test('discovered Cloud sessions advertise image attachments without local file attachments', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		const capabilities = h.contributions.get(sessionType)?.capabilities;
+		assert.deepStrictEqual({
+			files: capabilities?.supportsFileAttachments,
+			images: capabilities?.supportsImageAttachments,
+		}, { files: undefined, images: true });
+	});
+
 	test('a fork tracks its origin only, so the picker never asks which remote to clone', async () => {
 		const h = createHarness(store, {
 			repositories: [repository([

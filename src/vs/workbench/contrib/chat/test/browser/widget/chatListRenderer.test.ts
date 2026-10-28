@@ -2341,6 +2341,156 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
+	test('sticky progress preserves provider updates before the response is mounted', async () => {
+		const { model, request, container, renderer } = createPersistentProgressRenderer();
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		renderer.setWorkingProgressContainer(sticky, () => true);
+		const progress = sticky.querySelector('.chat-working-progress');
+		assert.ok(progress);
+		model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Connecting to the workspace') });
+		await timeout(0);
+		assert.deepStrictEqual({
+			sameComponent: sticky.querySelector('.chat-working-progress') === progress,
+			label: progress.querySelector('.progress-step')?.textContent,
+			copies: container.querySelectorAll('.chat-working-progress').length,
+		}, {
+			sameComponent: true,
+			label: 'Connecting to the workspace',
+			copies: 1,
+		});
+	});
+
+	test('sticky progress replaces a stale anchor when a hidden completed turn resumes', async () => {
+		const { request, container, renderer, template, node } = createPersistentProgressRenderer();
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		renderer.setWorkingProgressContainer(sticky, () => false);
+		renderer.renderElement(node, 0, template);
+		const initial = template.value.querySelector('.chat-working-progress');
+		assert.ok(initial);
+
+		renderer.setVisible(false);
+		renderer.updateStickyProgress();
+		request.response!.complete();
+		await timeout(0);
+		request.response!.reopen();
+		await timeout(0);
+		renderer.setVisible(true);
+		renderer.renderElement(node, 0, template);
+		const resumed = template.value.querySelector<HTMLElement>('.chat-working-progress');
+		assert.deepStrictEqual({
+			oldProgressConnected: initial.isConnected,
+			resumedLabel: resumed?.textContent?.trim(),
+			resumedVisibility: resumed ? dom.getWindow(resumed).getComputedStyle(resumed).visibility : undefined,
+			inlineCopies: template.value.querySelectorAll('.chat-working-progress-anchor > .chat-working-progress').length,
+			stickyCopies: sticky.childElementCount,
+		}, {
+			oldProgressConnected: false,
+			resumedLabel: 'Working',
+			resumedVisibility: 'visible',
+			inlineCopies: 1,
+			stickyCopies: 0,
+		});
+	});
+
+	for (const interaction of ['question', 'plan review'] as const) {
+		test(`sticky progress keeps authoritative ${interaction} status while markdown is buffered`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { disposables, configurationService, model, request, response, container, renderer, template, node } = createPersistentProgressRenderer();
+			try {
+				const announcements = dom.$('div');
+				setARIAContainer(announcements);
+				disposables.add(toDisposable(() => announcements.remove()));
+				configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+				const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+				renderer.setWorkingProgressContainer(sticky, () => false);
+				renderer.renderElement(node, 0, template);
+				const progress = template.value.querySelector('.chat-working-progress');
+				assert.ok(progress);
+
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Buffered words. '.repeat(200)) });
+				model.acceptResponseProgress(request, interaction === 'question'
+					? new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true)
+					: new ChatPlanReviewData('Review plan', 'Check the changes.', [{ label: 'Implement' }], false));
+				await timeout(1);
+				const label = interaction === 'question' ? 'Waiting for your response' : 'Plan review required';
+				const readAnnouncements = () => [...announcements.querySelectorAll('.monaco-alert')].map(alert => alert.textContent);
+				const initiallyAnnounced = readAnnouncements();
+				assert.ok(initiallyAnnounced.includes(label));
+
+				response.renderData = { lastRenderTime: Date.now(), renderedWordCount: 1, renderedParts: [] };
+				renderer.renderElement(node, 0, template);
+				await timeout(50);
+				const whileBuffered = {
+					status: progress.textContent?.replace(/\u00a0/g, ' ').trim(),
+					stillBuffered: (response.renderData?.renderedWordCount ?? 0) < 400,
+				};
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\nMore details.') });
+				await timeout(0);
+				assert.deepStrictEqual({
+					whileBuffered,
+					announcements: readAnnouncements(),
+					sameComponent: template.value.querySelector('.chat-working-progress') === progress,
+				}, {
+					whileBuffered: { status: label, stillBuffered: true },
+					announcements: initiallyAnnounced,
+					sameComponent: true,
+				});
+			} finally {
+				disposables.dispose();
+			}
+		}));
+	}
+
+	for (const progressBorder of [false, true]) {
+		test(`sticky progress respects the initial progress border setting (${progressBorder})`, () => {
+			const { configurationService, container, renderer, template, node } = createPersistentProgressRenderer();
+			configurationService.setUserConfiguration(ChatConfiguration.ProgressBorder, progressBorder);
+			const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+			renderer.setWorkingProgressContainer(sticky, () => true);
+			renderer.renderElement(node, 0, template);
+			assert.deepStrictEqual({
+				sticky: sticky.querySelectorAll('.chat-working-progress').length,
+				inline: template.value.querySelectorAll('.chat-working-progress').length,
+				copies: container.querySelectorAll('.chat-working-progress').length,
+			}, { sticky: progressBorder ? 0 : 1, inline: progressBorder ? 1 : 0, copies: 1 });
+		});
+	}
+
+	test('sticky progress relocation does not reannounce or recreate the working status', () => {
+		const { disposables, configurationService, container, renderer, template, node } = createPersistentProgressRenderer();
+		const announcements = dom.$('div');
+		setARIAContainer(announcements);
+		disposables.add(toDisposable(() => announcements.remove()));
+		configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		let outside = false;
+		renderer.setWorkingProgressContainer(sticky, () => outside);
+		renderer.renderElement(node, 0, template);
+		const progress = template.value.querySelector('.chat-working-progress');
+		assert.ok(progress);
+		const initialAnnouncements = [...announcements.querySelectorAll('.monaco-alert')].map(alert => alert.textContent);
+		outside = true;
+		renderer.updateStickyProgress();
+		const pinned = sticky.contains(progress);
+		const pinnedAnnouncements = [...announcements.querySelectorAll('.monaco-alert')].map(alert => alert.textContent);
+		outside = false;
+		renderer.updateStickyProgress();
+		assert.deepStrictEqual({
+			pinned,
+			restored: template.value.contains(progress),
+			copies: container.querySelectorAll('.chat-working-progress').length,
+			initialAnnouncements,
+			pinnedAnnouncements,
+			returnedAnnouncements: [...announcements.querySelectorAll('.monaco-alert')].map(alert => alert.textContent),
+		}, {
+			pinned: true,
+			restored: true,
+			copies: 1,
+			initialAnnouncements: ['Working', ''],
+			pinnedAnnouncements: ['Working', ''],
+			returnedAnnouncements: ['Working', ''],
+		});
+	});
+
 	suite('single-tool completed response collapse', () => {
 		async function addCompletionResponse({ model, request }: ReturnType<typeof createPersistentProgressRenderer>, serialized: boolean): Promise<void> {
 			for (const id of ['initial-work', 'follow-up-work', 'final-bookkeeping']) {
@@ -6682,9 +6832,12 @@ suite('ChatListRenderer', () => {
 		]);
 		const showAll = observableValue('showAll', true);
 		const data = createSessionSubagentsPillData(subagents, { showAll, setShowAll: value => showAll.set(value, undefined) });
-		const { disposables, instantiationService, model, request, renderer, template, node } = createPersistentProgressRenderer({
+		const { disposables, instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer({
 			rendererOptions: { backgroundActivityPillSections: { subagents: data.inProgressSections } },
 		});
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		let pinned = false;
+		renderer.setWorkingProgressContainer(sticky, () => pinned);
 		let visible = false;
 		let onHide = () => { };
 		let selectFirst = () => { };
@@ -6728,12 +6881,15 @@ suite('ChatListRenderer', () => {
 		const activations = [];
 		for (const keyCode of [undefined, 13, 32]) {
 			button.focus();
+			pinned = keyCode !== undefined;
+			renderer.updateStickyProgress();
 			if (keyCode === undefined) {
 				button.click();
 			} else {
 				button.dispatchEvent(new KeyboardEvent('keydown', { keyCode, bubbles: true }));
 			}
 			activations.push({
+				inExpectedHost: (pinned ? sticky : template.value).contains(button),
 				sameWidget: menu?.id === pillMenu?.id,
 				labels: menu?.labels,
 				anchoredToStatus: menu?.anchor === button,
@@ -6774,7 +6930,7 @@ suite('ChatListRenderer', () => {
 			popup: 'listbox',
 			expanded: 'false',
 			activations: Array.from({ length: 3 }, () => ({
-				sameWidget: true, labels: ['Subagents: In Progress', 'Background review', 'Foreground review'], anchoredToStatus: true, expanded: 'true',
+				inExpectedHost: true, sameWidget: true, labels: ['Subagents: In Progress', 'Background review', 'Foreground review'], anchoredToStatus: true, expanded: 'true',
 			})),
 			pillLabels: ['Subagents: In Progress', 'Background review', 'Foreground review', '', 'Subagents: Completed', 'Finished review'],
 			filteredLabels: ['Subagents: In Progress', 'Background review', 'Foreground review'],

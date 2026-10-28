@@ -126,7 +126,6 @@ export interface INewChatComposerInputOptions {
 	readonly canSubmitWithoutSession?: IObservable<boolean>;
 	readonly hasAdditionalSendContent?: IObservable<boolean>;
 	readonly loading: IObservable<boolean>;
-	readonly useExperimentalLayout?: IObservable<boolean>;
 	readonly placeholder?: string;
 	/** Marks the input box as this onboarding spotlight target. */
 	readonly onboardingTargetId?: string;

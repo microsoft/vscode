@@ -108,7 +108,8 @@ suite('SessionCustomizationDiscovery', () => {
 
 		const pluginRoot = '/home/.copilot/installed-plugins/example';
 		await seed(`${pluginRoot}/.github/plugin/plugin.json`, JSON.stringify({ name: 'example-plugin', version: '1.2.3' }));
-		const pluginAgent = await seed(`${pluginRoot}/agents/reviewer.agent.md`, '---\nname: reviewer\ndescription: Reviews changes\n---\n');
+		const pluginAgent = await seed(`${pluginRoot}/agents/reviewer.agent.md`, '---\nname: reviewer\ndescription: Reviews changes\nuser-invocable: false\ndisable-model-invocation: true\nmodel: test-model\ntools: [read, search]\n---\n');
+		await seed(`${pluginRoot}/agents/not-discovered.agent.md`, '---\nname: not-discovered\n---\n');
 		const pluginSkill = await seed(`${pluginRoot}/skills/example/SKILL.md`, '---\nname: example\ndescription: Example skill\n---\n');
 		const pluginRule = await seed(`${pluginRoot}/rules/example.instructions.md`, '---\nname: Example instruction\n---\n');
 		const builtinSkill = await seed('/runtime/skills/builtin/SKILL.md', '---\nname: builtin\n---\n');
@@ -119,7 +120,7 @@ suite('SessionCustomizationDiscovery', () => {
 				agents: {
 					getDiscoveryPaths: async () => ({ paths: [] }),
 					discover: async () => ({
-						agents: [{ id: 'reviewer', name: 'reviewer', description: 'Reviews changes', path: pluginAgent.path, source: 'plugin', userInvocable: true }],
+						agents: [{ id: 'example-plugin@marketplace:reviewer', name: 'example-plugin:reviewer', description: 'Reviews changes', path: pluginAgent.path, source: 'plugin', userInvocable: false }],
 					}),
 				},
 				instructions: {
@@ -145,6 +146,13 @@ suite('SessionCustomizationDiscovery', () => {
 
 		assert.deepStrictEqual({
 			errors,
+			nativeAgents: customizations.flatMap(customization => customization.type === CustomizationType.Plugin
+				? customization.children?.filter(child => child.type === CustomizationType.Agent).map(child => ({
+					id: child.id, name: child.name, meta: child._meta,
+					disableUserInvocation: child.disableUserInvocation, disableModelInvocation: child.disableModelInvocation,
+					model: child.model, tools: child.tools,
+				})) ?? []
+				: []),
 			skillDirectories: customizations
 				.filter(customization => customization.type === CustomizationType.Directory && customization.contents === 'skill')
 				.map(customization => ({
@@ -161,6 +169,10 @@ suite('SessionCustomizationDiscovery', () => {
 				})),
 		}, {
 			errors: [],
+			nativeAgents: [{
+				id: 'example-plugin@marketplace:reviewer', name: 'reviewer', meta: { userInvocable: false },
+				disableUserInvocation: true, disableModelInvocation: true, model: 'test-model', tools: ['read', 'search'],
+			}],
 			skillDirectories: [{
 				uri: URI.from({ scheme: Schemas.inMemory, path: '/workspace/.github/skills' }).toString(),
 				children: [projectSkill.toString()],
@@ -175,6 +187,43 @@ suite('SessionCustomizationDiscovery', () => {
 					{ type: CustomizationType.Rule, uri: pluginRule.toString() },
 				],
 			}],
+		});
+	});
+
+	test('does not re-register native agents as loose files when their plugin manifest is missing', async () => {
+		const warnings: string[] = [];
+		instantiationService.stub(ILogService, new class extends NullLogService {
+			override warn(message: string): void {
+				warnings.push(message);
+			}
+		}());
+		const pluginAgent = await seed('/workspace/.github/agents/native.agent.md', '---\nname: native\n---\n');
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = {
+			rpc: {
+				agents: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({
+						agents: [{ id: 'plugin:native', name: 'native', path: pluginAgent.path, source: 'plugin' }],
+					}),
+				},
+				instructions: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({ sources: [] }),
+				},
+				skills: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({ skills: [] }),
+				},
+			},
+		} as unknown as CopilotClient;
+		const customizations = await discovery.discover(client, CancellationToken.None);
+		assert.deepStrictEqual({
+			agents: customizations.flatMap(customization => customization.children?.filter(child => child.type === CustomizationType.Agent) ?? []),
+			warned: warnings.some(message => message.includes('Could not find a plugin manifest')),
+		}, {
+			agents: [],
+			warned: true,
 		});
 	});
 
