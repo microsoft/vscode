@@ -10,30 +10,55 @@ import { NullLogService } from '../../../../log/common/log.js';
 import type { ILocalModelHttpClient, ILocalModelHttpRequest, ILocalModelHttpResponse } from '../../../node/copilot/localModelBridge/shim/downloader.js';
 import { buildSyntheticGguf } from '../../../node/copilot/localModelBridge/shim/gguf.js';
 import { parseLlamaPreset } from '../../../node/copilot/localModelBridge/shim/llamaPreset.js';
-import { buildTagSearchBody, computeCatalogState, computeContentId, deriveCapiId, isSafeLicenseUrl, isServingCompatible, LocalModelCatalogError, mergeCatalogFamilies, ModelCatalog, parseBlobListXml, sanitizeDisplayName, selectModelFiles, sourceKey, unwrapModelFolder, validateLocalModelTags, type ICatalogInstallFact, type ILocalModelProfile, type IMergeInput } from '../../../node/copilot/localModelBridge/shim/modelCatalog.js';
+import { buildTagSearchBody, computeCatalogState, computeContentId, deriveCapiId, isSafeLicenseUrl, isServingCompatible, LocalModelCatalogError, mergeCatalogFamilies, ModelCatalog, parseBlobListXml, sanitizeDisplayName, selectModelFiles, sourceKey, unwrapModelFolder, validateLocalModelVersion, type ICatalogInstallFact, type ILocalModelProfile, type IMergeInput } from '../../../node/copilot/localModelBridge/shim/modelCatalog.js';
 
 // #region Fixtures
 
-const MAI_TAGS: Record<string, string> = {
-	localCoding: 'true',
-	modelFormat: 'gguf',
-	supportsToolCalls: 'true',
-	displayName: 'MAI Code 1.1 Flash',
-	downloadBytes: '56688835228',
-	peakDiskBytes: '58000000000',
-	recommendedVramBytes: '62000000000',
-	maxPromptTokens: '200000',
-	maxContextWindowTokens: '262144',
-	maxOutputTokens: '32768',
-	licenseName: 'MAI Model License',
-	licenseUrl: 'https://example.com/mai-license',
-	autoLocalCapiId: 'mai-code-1.1-flash-local',
-	directoryPath: 'mai-code-1.1-flash/3',
+/** A registry version: its typed system metadata (eligibility and published facts) and its tags (optional serving hints). */
+interface IVersionFixture {
+	readonly metadata?: Readonly<Record<string, unknown>>;
+	readonly tags: Readonly<Record<string, string>>;
+}
+
+/** A copy of `source` with `changes` applied; an `undefined` value removes the key. */
+function override<T>(source: Readonly<Record<string, T>>, changes: Readonly<Record<string, T | undefined>> = {}): Record<string, T> {
+	const result: Record<string, T> = { ...source };
+	for (const [key, value] of Object.entries(changes)) {
+		if (value === undefined) {
+			delete result[key];
+		} else {
+			result[key] = value;
+		}
+	}
+	return result;
+}
+
+function withVersion(base: IVersionFixture, changes: { readonly metadata?: Readonly<Record<string, unknown>>; readonly tags?: Readonly<Record<string, string | undefined>> }): IVersionFixture {
+	return { metadata: override(base.metadata ?? {}, changes.metadata), tags: override(base.tags, changes.tags) };
+}
+
+/** A model published for GitHub Copilot local use. */
+const MAI: IVersionFixture = {
+	metadata: {
+		githubCopilotLocal: true,
+		modelFlavor: 'GGUF',
+		supportsToolCalling: true,
+		displayName: 'MAI Code 1.1 Flash',
+		githubCopilotLocalRequirements: { downloadBytes: 56_688_835_228, peakDiskBytes: 58_000_000_000, recommendedVramBytes: 62_000_000_000 },
+		maxInputTokens: 200_000,
+		textContextWindow: 262_144,
+		maxOutputTokens: 32_768,
+		license: 'MAI Model License',
+	},
+	tags: { licenseUrl: 'https://example.com/mai-license', directoryPath: 'mai-code-1.1-flash/3' },
 };
 
 /** A model outside the Auto allowlist, served from llama.cpp b11000. */
-const EXAMPLE_TAGS: Record<string, string> = { ...MAI_TAGS, displayName: 'Example Coder', autoLocalCapiId: 'example-coder-local', recommendedVramBytes: '30000000000', minLlamaCppBuild: 'b11000', directoryPath: 'example/2' };
-const OTHER_TAGS: Record<string, string> = { ...MAI_TAGS, displayName: 'Some Other Coder', autoLocalCapiId: '', directoryPath: 'other/1' };
+const EXAMPLE = withVersion(MAI, {
+	metadata: { displayName: 'Example Coder', githubCopilotLocalRequirements: { downloadBytes: 56_688_835_228, peakDiskBytes: 58_000_000_000, recommendedVramBytes: 30_000_000_000 } },
+	tags: { minLlamaCppBuild: 'b11000', directoryPath: 'example/2' },
+});
+const OTHER = withVersion(MAI, { metadata: { displayName: 'Some Other Coder' }, tags: { directoryPath: 'other/1' } });
 
 const MAI_INI = 'version = 1\n[MAI-Code-1.1-Flash]\nctx-size = 262144\nparallel = 1\nspec-type = draft-dflash\nspec-draft-n-max = 3\nn-gpu-layers = all\nfit = off\nmodel-draft = dflash-v3-lc1.gguf\njinja = true\n';
 const MAI_FILES = [
@@ -43,49 +68,53 @@ const MAI_FILES = [
 ];
 
 /*
- * The production registry as served on 2026-10-12 (anonymous search row, lookup,
- * container listing, HEAD metadata and `llama-config.json`), SAS removed.
+ * The production registry as served on 2026-10-15 (anonymous search row, lookup, container listing, HEAD metadata and
+ * `llama-config.json`), SAS removed and the license text shortened.
  */
-const PROD_ASSET_ID = 'azureml://registries/azureml/models/MAI-Code-1.1-Flash-On-Device/versions/1';
+const PROD_ASSET_ID = 'azureml://registries/azureml/models/MAI-Code-1.1-Flash-On-Device/versions/2';
+const PROD_LICENSE_TEXT = 'MIT License Copyright (c) Microsoft Corporation. Permission is hereby granted, free of charge, to any person obtaining a copy of this software.';
 const PROD_TAGS = {
 	author: 'Microsoft', task: 'chat-completion', license: 'MIT', displayName: 'MAI Code 1.1 Flash', textContextWindow: '256000', maxOutputTokens: '128000',
-	modelCapabilities: 'tool-calling', keywords: 'Coding', licenseDescription: 'MIT License at https://opensource.org/license/mit', model_flavor: 'GGUF', supportsToolCalling: 'true',
+	modelCapabilities: 'tool-calling', keywords: 'Coding', licenseDescription: PROD_LICENSE_TEXT, model_flavor: 'GGUF', supportsToolCalling: 'true',
 };
 const PROD_METADATA = {
 	publisher: 'Microsoft', modelCapabilities: ['tool-calling'], license: 'MIT', inferenceTasks: ['chat-completion'], displayName: 'MAI Code 1.1 Flash',
-	textContextWindow: 256000, maxOutputTokens: 128000, maxInputTokens: 128000, keywords: ['Coding'], licenseDescription: 'MIT License at https://opensource.org/license/mit',
+	textContextWindow: 256000, maxOutputTokens: 128000, maxInputTokens: 128000, keywords: ['Coding'], licenseDescription: PROD_LICENSE_TEXT,
+	githubCopilotLocal: true, githubCopilotLocalRequirements: { downloadBytes: 56_688_835_352, peakDiskBytes: 56_688_835_352, recommendedVramBytes: 96_636_764_160 },
 	modelFlavor: 'GGUF', supportsToolCalling: true, directoryPath: null, domain: ['Code & Software Engineering'], foundryLocal: null, minFLVersion: null,
 };
 const PROD_SEARCH_ROW = {
-	entityId: 'azureml://registries/b98c40bc-36d6-4175-b131-bad4502fe1a3/type/models/objectId/MAI-Code-1.1-Flash-On-Device/version/1',
+	entityId: 'azureml://registries/b98c40bc-36d6-4175-b131-bad4502fe1a3/type/models/objectId/MAI-Code-1.1-Flash-On-Device/version/2',
 	kind: 'Versioned',
 	assetId: PROD_ASSET_ID,
 	annotations: { invisibleUntil: '0001-01-01T00:00:00+00:00', archived: false, tags: PROD_TAGS, systemCatalogData: PROD_METADATA, labels: ['default', 'latest', 'invisibleLatest'], name: 'MAI-Code-1.1-Flash-On-Device' },
-	properties: { creationContext: { createdTime: '2026-10-09T18:32:14.2398251+00:00' }, id: 'MAI-Code-1.1-Flash-On-Device:1', name: 'MAI-Code-1.1-Flash-On-Device', modelFormat: 'CUSTOM', version: 1, alphanumericVersion: '1' },
+	properties: { creationContext: { createdTime: '2026-10-13T17:13:43.6212571+00:00' }, id: 'MAI-Code-1.1-Flash-On-Device:2', name: 'MAI-Code-1.1-Flash-On-Device', modelFormat: 'CUSTOM', version: 2, alphanumericVersion: '2' },
 };
-const PROD_CONTAINER = 'https://amlwlrt4use01.blob.core.windows.net/azureml-a0e04996-d159-59b1-a799-614950c54f73';
-/** `5/llama-config.json` (504 bytes, CRLF). */
+const PROD_CONTAINER = 'https://amlwlrt4use01.blob.core.windows.net/azureml-830b67f9-ff2c-555a-bf22-798f82eb69e3';
+/** `llama-config.json` (504 bytes, CRLF). */
 const PROD_LLAMA_CONFIG = JSON.stringify({
 	model: 'MAI-Code-1.1-Flash-Q2-XS.gguf', draftModel: 'dflash-v3-lc1.gguf', ctxSize: 262144, parallel: 1, nGpuLayers: 999,
 	args: ['--spec-type', 'draft-dflash', '--spec-draft-n-max', '3', '--spec-draft-p-min', '0.2', '--spec-draft-ngl', 'all', '--flash-attn', 'on', '--batch-size', '2048', '--ubatch-size', '2048', '--fit', 'off', '--ctx-checkpoints', '0', '--no-host'],
 }, undefined, 2).replace(/\n/g, '\r\n') + '\r\n';
-/** Every file sits in one `5/` folder; the blobs carry annotations copied from the original upload (`MAI-Code-1.1-Flash`, version 5). */
+/** The files sit at the container root; the blobs carry annotations copied from the original upload (`MAI-Code-1.1-Flash`, version 5). */
 const PROD_FILES = [
-	{ name: '5/MAI-Code-1.1-Flash-Q2-XS.gguf', size: 56_307_620_832, sha: '048788de4848e92c7a543feb1c5e0c9144515ac8a3fec1508d5857d25b0e556e', etag: '"0x8DF2633A17EB866"' },
-	{ name: '5/dflash-v3-lc1.gguf', size: 381_214_016, sha: '7052df547898b46fab3ff23f8c1085547003116899506099467f948debb75b15', etag: '"0x8DF2633A1DE0329"' },
-	{ name: '5/llama-config.json', size: 504, sha: 'afcfce372a09bfa79f8b655f048eadd12b2551a4d656d8bd8e6b662e2598fa96', etag: '"0x8DF2633A1825DD1"' },
+	{ name: 'MAI-Code-1.1-Flash-Q2-XS.gguf', size: 56_307_620_832, sha: '048788de4848e92c7a543feb1c5e0c9144515ac8a3fec1508d5857d25b0e556e', etag: '"0x8DF294D539EBDD4"' },
+	{ name: 'dflash-v3-lc1.gguf', size: 381_214_016, sha: '7052df547898b46fab3ff23f8c1085547003116899506099467f948debb75b15', etag: '"0x8DF294C36B7FEBD"' },
+	{ name: 'llama-config.json', size: 504, sha: 'afcfce372a09bfa79f8b655f048eadd12b2551a4d656d8bd8e6b662e2598fa96', etag: '"0x8DF294C3559E4E5"' },
 ];
+/** The same files in one `5/` packaging folder, as version 1 was served on 2026-10-12. */
+const PROD_WRAPPED_FILES = PROD_FILES.map(file => ({ ...file, name: `5/${file.name}` }));
 
-function profile(registry: 'azureml', assetName: string, version: string, tags: Record<string, string> = MAI_TAGS): ILocalModelProfile {
-	const result = validateLocalModelTags(tags, { registry, assetName, version });
+function profile(registry: 'azureml', assetName: string, version: string, fixture: IVersionFixture = MAI): ILocalModelProfile {
+	const result = validateLocalModelVersion(fixture.metadata, { registry, assetName, version, tags: fixture.tags });
 	if (!result.ok) {
 		throw new Error(result.reason);
 	}
 	return result.profile;
 }
 
-function searchHit(registry: string, name: string, version: string, tags: Record<string, string>, archived = false) {
-	return { assetId: `azureml://registries/${registry}/models/${name}/versions/${version}`, annotations: { tags, archived }, properties: { name, creationContext: { createdTime: '2026-09-01T00:00:00Z' } } };
+function searchHit(registry: string, name: string, version: string, fixture: IVersionFixture, archived = false) {
+	return { assetId: `azureml://registries/${registry}/models/${name}/versions/${version}`, annotations: { tags: fixture.tags, ...(fixture.metadata ? { systemCatalogData: fixture.metadata } : {}), archived }, properties: { name, creationContext: { createdTime: '2026-09-01T00:00:00Z' } } };
 }
 
 function blobList(prefix: string, files: readonly { name: string; size: number }[]): string {
@@ -111,7 +140,7 @@ class FakeHttp implements ILocalModelHttpClient {
 	}
 }
 
-/** A registry backend: public search and lookup, blob listing, INI and HEAD. */
+/** A registry backend: the public gallery search and lookup, blob listing, INI and HEAD. */
 function registryServer(options: {
 	readonly publicHits?: readonly unknown[][];
 	readonly publicStatus?: number;
@@ -121,28 +150,25 @@ function registryServer(options: {
 	readonly ini?: (prefix: string) => string;
 	/** The asset id the public lookup answers with (`null`: none); the requested one by default. */
 	readonly lookupAssetId?: string | null;
-	readonly lookupTags?: Record<string, string>;
+	readonly lookupMetadata?: Readonly<Record<string, unknown>>;
 } = {}) {
 	return async (request: ILocalModelHttpRequest): Promise<IReply> => {
 		if (options.delayMs) {
 			await new Promise(resolve => setTimeout(resolve, options.delayMs));
 		}
 		const url = new URL(request.url);
-		if (url.pathname.endsWith('/entities/crossRegion')) {
-			const body = JSON.parse(request.body ?? '{}');
-			if (body.resourceIds[0].resourceId !== 'azureml') {
-				return { status: 404 };
-			}
+		if (url.pathname.endsWith('/asset-gallery/v1.0/models')) {
 			if (options.publicStatus) {
 				return { status: options.publicStatus };
 			}
+			const body = JSON.parse(request.body ?? '{}');
 			const pages = options.publicHits ?? [[]];
-			const page = Number(body.indexEntitiesRequest.continuationToken ?? 0);
-			return { status: 200, json: { indexEntitiesResponse: { value: pages[page] ?? [], continuationToken: page + 1 < pages.length ? String(page + 1) : null } } };
+			const page = Number(body.continuationToken ?? 0);
+			return { status: 200, json: { value: pages[page] ?? [], continuationToken: page + 1 < pages.length ? String(page + 1) : null } };
 		}
 		if (url.pathname.endsWith('/nonazureaccount')) {
 			const assetId = options.lookupAssetId === undefined ? url.searchParams.get('assetId') : options.lookupAssetId;
-			return { status: 200, json: { modelEntity: { ...(assetId !== null ? { assetId } : {}), kvTags: options.lookupTags ?? MAI_TAGS, isArchived: false }, blobSasUri: 'https://acct.blob.core.windows.net/models?sv=2024&sig=PUBLICSAS' } };
+			return { status: 200, json: { modelEntity: { ...(assetId !== null ? { assetId } : {}), kvTags: MAI.tags, systemMetadata: options.lookupMetadata ?? MAI.metadata, isArchived: false }, blobSasUri: 'https://acct.blob.core.windows.net/models?sv=2024&sig=PUBLICSAS' } };
 		}
 		if (url.hostname.endsWith('.blob.core.windows.net')) {
 			if (url.searchParams.get('comp') === 'list') {
@@ -194,75 +220,86 @@ suite('localModel modelCatalog', () => {
 		return { catalog };
 	}
 
-	test('tag rules: accept, and reject each invalid case', () => {
-		const reasonFor = (overrides: Record<string, string | undefined>) => {
-			const tags: Record<string, string> = { ...MAI_TAGS };
-			for (const [key, value] of Object.entries(overrides)) {
-				if (value === undefined) {
-					delete tags[key];
-				} else {
-					tags[key] = value;
-				}
-			}
-			const result = validateLocalModelTags(tags, { registry: 'azureml', assetName: 'MAI-Code-1.1-Flash', version: '3' });
+	test('version rules: eligibility and published facts come from typed system metadata only, tags add optional hints, and each invalid case is rejected', () => {
+		const reasonFor = (changes: Parameters<typeof withVersion>[1]) => {
+			const fixture = withVersion(MAI, changes);
+			const result = validateLocalModelVersion(fixture.metadata, { registry: 'azureml', assetName: 'MAI-Code-1.1-Flash', version: '3', tags: fixture.tags });
 			return result.ok ? 'ok' : result.reason;
 		};
+		const requirements = (values: Record<string, unknown>) => ({ githubCopilotLocalRequirements: { downloadBytes: 1, peakDiskBytes: 2, recommendedVramBytes: 3, ...values } });
 		assert.deepStrictEqual({
 			valid: reasonFor({}),
-			notLocalCoding: reasonFor({ localCoding: 'false' }),
-			notGguf: reasonFor({ modelFormat: 'onnx' }),
-			appTags: reasonFor({ localCoding: undefined, modelFormat: undefined, githubCopilotLocal: 'true', model_flavor: 'GGUF' }),
-			noToolCalls: reasonFor({ supportsToolCalls: 'false' }),
-			toolCallsCanonicalTag: reasonFor({ supportsToolCalls: undefined, supportsToolCalling: 'true' }),
-			noDisplayName: reasonFor({ displayName: undefined }),
-			longDisplayName: reasonFor({ displayName: 'x'.repeat(101) }),
-			urlDisplayName: reasonFor({ displayName: 'Other https://acct.blob.core.windows.net/c?sig=SECRET' }),
-			sasDisplayName: reasonFor({ displayName: 'Model sv=2024&sig=SECRET' }),
-			peakBelowDownload: reasonFor({ peakDiskBytes: '1' }),
-			nonIntegerSize: reasonFor({ downloadBytes: '5.5' }),
-			noVram: reasonFor({ recommendedVramBytes: undefined }),
-			noRequirements: reasonFor({ downloadBytes: undefined, peakDiskBytes: undefined, recommendedVramBytes: undefined }),
-			requirementsTag: reasonFor({ downloadBytes: undefined, peakDiskBytes: undefined, recommendedVramBytes: undefined, githubCopilotLocalRequirements: '{"downloadBytes":1,"peakDiskBytes":2,"recommendedVramBytes":3}' }),
-			badRequirementsTag: reasonFor({ githubCopilotLocalRequirements: '{"downloadBytes":2,"peakDiskBytes":1,"recommendedVramBytes":3}' }),
-			malformedRequirementsTag: reasonFor({ githubCopilotLocalRequirements: 'not json' }),
-			promptOverWindow: reasonFor({ maxPromptTokens: '300000' }),
-			zeroOutput: reasonFor({ maxOutputTokens: '0' }),
-			httpLicense: reasonFor({ licenseUrl: 'http://example.com/license' }),
-			localhostLicense: reasonFor({ licenseUrl: 'https://localhost/license' }),
-			signedLicense: reasonFor({ licenseUrl: 'https://acct.blob.core.windows.net/license?sv=2024&sig=SECRET' }),
-			queryLicense: reasonFor({ licenseUrl: 'https://example.com/license?view=full' }),
+			noMetadata: validateLocalModelVersion(undefined, { registry: 'azureml', assetName: 'MAI-Code-1.1-Flash', version: '3', tags: MAI.tags }),
+			notCopilotLocal: reasonFor({ metadata: { githubCopilotLocal: false } }),
+			copilotLocalAsText: reasonFor({ metadata: { githubCopilotLocal: 'true' } }),
+			notGguf: reasonFor({ metadata: { modelFlavor: 'ONNX' } }),
+			// Publisher and keywords no longer scope the catalog, as for the Copilot CLI and app.
+			anyPublisher: reasonFor({ metadata: { publisher: 'Contoso', keywords: [] } }),
+			// Tags never opt a version in or supply its published facts.
+			legacyTagsOnly: reasonFor({ metadata: { githubCopilotLocal: undefined, modelFlavor: undefined }, tags: { localCoding: 'true', modelFormat: 'gguf', githubCopilotLocal: 'true', model_flavor: 'GGUF' } }),
+			displayNameTagOnly: reasonFor({ metadata: { displayName: undefined }, tags: { displayName: 'MAI Code 1.1 Flash' } }),
+			requirementsTagsOnly: reasonFor({ metadata: { githubCopilotLocalRequirements: undefined }, tags: { githubCopilotLocalRequirements: '{"downloadBytes":1,"peakDiskBytes":2,"recommendedVramBytes":3}', downloadBytes: '1', peakDiskBytes: '2', recommendedVramBytes: '3' } }),
+			noToolCalls: reasonFor({ metadata: { supportsToolCalling: false } }),
+			toolCallsAsText: reasonFor({ metadata: { supportsToolCalling: 'true' } }),
+			noDisplayName: reasonFor({ metadata: { displayName: undefined } }),
+			longDisplayName: reasonFor({ metadata: { displayName: 'x'.repeat(101) } }),
+			urlDisplayName: reasonFor({ metadata: { displayName: 'Other https://acct.blob.core.windows.net/c?sig=SECRET' } }),
+			sasDisplayName: reasonFor({ metadata: { displayName: 'Model sv=2024&sig=SECRET' } }),
+			peakBelowDownload: reasonFor({ metadata: requirements({ downloadBytes: 2, peakDiskBytes: 1 }) }),
+			nonIntegerSize: reasonFor({ metadata: requirements({ downloadBytes: 5.5 }) }),
+			sizeAsText: reasonFor({ metadata: requirements({ downloadBytes: '1' }) }),
+			noVram: reasonFor({ metadata: requirements({ recommendedVramBytes: undefined }) }),
+			requirementsAsText: reasonFor({ metadata: { githubCopilotLocalRequirements: '{"downloadBytes":1,"peakDiskBytes":2,"recommendedVramBytes":3}' } }),
+			// Unlike the Copilot CLI, which lists such a version with its requirements marked unpublished.
+			noRequirements: reasonFor({ metadata: { githubCopilotLocalRequirements: undefined } }),
+			nullRequirements: reasonFor({ metadata: { githubCopilotLocalRequirements: null } }),
+			promptOverWindow: reasonFor({ metadata: { maxInputTokens: 300_000 } }),
+			zeroOutput: reasonFor({ metadata: { maxOutputTokens: 0 } }),
+			limitAsText: reasonFor({ metadata: { textContextWindow: '262144' } }),
+			httpLicense: reasonFor({ tags: { licenseUrl: 'http://example.com/license' } }),
+			localhostLicense: reasonFor({ tags: { licenseUrl: 'https://localhost/license' } }),
+			signedLicense: reasonFor({ tags: { licenseUrl: 'https://acct.blob.core.windows.net/license?sv=2024&sig=SECRET' } }),
+			queryLicense: reasonFor({ tags: { licenseUrl: 'https://example.com/license?view=full' } }),
+			license: [profile('azureml', 'MAI-Code-1.1-Flash', '3').licenseName, profile('azureml', 'MAI-Code-1.1-Flash', '3', withVersion(MAI, { metadata: { licenseDescription: 'MIT License at https://opensource.org/license/mit' }, tags: { licenseUrl: undefined } })).licenseUrl],
 			// The `autoLocalCapiId` tag is not honoured: the CAPI id comes from the asset name only.
-			ignoredAutoId: profile('azureml', 'MAI-Code-1.1-Flash', '3', { ...MAI_TAGS, autoLocalCapiId: 'other-model-local' }).capiId,
-			ignoredBadAutoId: reasonFor({ autoLocalCapiId: 'model&sv=2024&sig=SECRET-local' }),
-			badMinBuild: reasonFor({ minLlamaCppBuild: 'latest' }),
-			traversal: reasonFor({ directoryPath: '../../etc' }),
+			ignoredAutoId: profile('azureml', 'MAI-Code-1.1-Flash', '3', withVersion(MAI, { tags: { autoLocalCapiId: 'other-model-local' } })).capiId,
+			ignoredBadAutoId: reasonFor({ tags: { autoLocalCapiId: 'model&sv=2024&sig=SECRET-local' } }),
+			badMinBuild: reasonFor({ tags: { minLlamaCppBuild: 'latest' } }),
+			traversal: reasonFor({ tags: { directoryPath: '../../etc' } }),
 			sanitized: sanitizeDisplayName('  MAI\u202E Code\u0007   Flash  '),
 			registryName: profile('azureml', 'MAI-Code-1.1-Flash', '3').displayName,
-			noOverride: profile('azureml', 'Example-Coder', '2', EXAMPLE_TAGS).displayName,
+			noOverride: profile('azureml', 'Example-Coder', '2', EXAMPLE).displayName,
 		}, {
 			valid: 'ok',
-			notLocalCoding: 'scope',
+			noMetadata: { ok: false, reason: 'noMetadata' },
+			notCopilotLocal: 'scope',
+			copilotLocalAsText: 'scope',
 			notGguf: 'scope',
-			appTags: 'ok',
-			noToolCalls: 'tag:supportsToolCalls',
-			toolCallsCanonicalTag: 'ok',
-			noDisplayName: 'tag:displayName',
-			longDisplayName: 'tag:displayName',
-			urlDisplayName: 'tag:displayName',
-			sasDisplayName: 'tag:displayName',
-			peakBelowDownload: 'tag:sizes',
-			nonIntegerSize: 'tag:sizes',
-			noVram: 'tag:recommendedVramBytes',
-			noRequirements: 'tag:sizes',
-			requirementsTag: 'ok',
-			badRequirementsTag: 'tag:requirements',
-			malformedRequirementsTag: 'tag:requirements',
-			promptOverWindow: 'tag:limits',
-			zeroOutput: 'tag:limits',
+			anyPublisher: 'ok',
+			legacyTagsOnly: 'scope',
+			displayNameTagOnly: 'metadata:displayName',
+			requirementsTagsOnly: 'requirementsUnpublished',
+			noToolCalls: 'metadata:supportsToolCalling',
+			toolCallsAsText: 'metadata:supportsToolCalling',
+			noDisplayName: 'metadata:displayName',
+			longDisplayName: 'metadata:displayName',
+			urlDisplayName: 'metadata:displayName',
+			sasDisplayName: 'metadata:displayName',
+			peakBelowDownload: 'metadata:requirements',
+			nonIntegerSize: 'metadata:requirements',
+			sizeAsText: 'metadata:requirements',
+			noVram: 'metadata:requirements',
+			requirementsAsText: 'metadata:requirements',
+			noRequirements: 'requirementsUnpublished',
+			nullRequirements: 'requirementsUnpublished',
+			promptOverWindow: 'metadata:limits',
+			zeroOutput: 'metadata:limits',
+			limitAsText: 'metadata:limits',
 			httpLicense: 'tag:licenseUrl',
 			localhostLicense: 'tag:licenseUrl',
 			signedLicense: 'tag:licenseUrl',
 			queryLicense: 'ok',
+			license: ['MAI Model License', 'https://opensource.org/license/mit'],
 			ignoredAutoId: 'mai-code-1.1-flash-local',
 			ignoredBadAutoId: 'ok',
 			badMinBuild: 'tag:minLlamaCppBuild',
@@ -274,8 +311,8 @@ suite('localModel modelCatalog', () => {
 	});
 
 	test('capiId derivation: the asset name only, lowercased, -on-device replaced by -local, -local never doubled (the table shared with the Copilot CLI and app); the KNOWN_AUTO_LOCAL_IDS gate and serving compatibility', () => {
-		const other = profile('azureml', 'Some-Coder', '1', OTHER_TAGS);
-		const otherWithMin = profile('azureml', 'Some-Coder', '1', { ...OTHER_TAGS, minLlamaCppBuild: 'b11000' });
+		const other = profile('azureml', 'Some-Coder', '1', OTHER);
+		const otherWithMin = profile('azureml', 'Some-Coder', '1', withVersion(OTHER, { tags: { minLlamaCppBuild: 'b11000' } }));
 		// The CAPI id cases the Copilot CLI and app share.
 		const table: [string, string][] = [
 			['MAI-Code-1.1-Flash-On-Device', 'mai-code-1.1-flash-local'],
@@ -298,7 +335,7 @@ suite('localModel modelCatalog', () => {
 		assert.deepStrictEqual({
 			table: table.filter(([name, expected]) => deriveCapiId(name) !== expected),
 			productionMai: [profile('azureml', 'MAI-Code-1.1-Flash-On-Device', '1').capiId, profile('azureml', 'MAI-Code-1.1-Flash-On-Device', '1').autoCapable],
-			bareOnDevice: validateLocalModelTags(MAI_TAGS, { registry: 'azureml', assetName: 'on-device', version: '1' }).ok,
+			bareOnDevice: validateLocalModelVersion(MAI.metadata, { registry: 'azureml', assetName: 'on-device', version: '1', tags: MAI.tags }).ok,
 			maiAuto: profile('azureml', 'mai-code-1.1-flash', '1').autoCapable,
 			otherAuto: [other.capiId, other.autoCapable],
 			compatible: {
@@ -324,7 +361,7 @@ suite('localModel modelCatalog', () => {
 	test('merge: one row per family with its offered build, install and update', () => {
 		const pub = profile('azureml', 'MAI-Code-1.1-Flash-On-Device', '1');
 		const pubNext = profile('azureml', 'MAI-Code-1.1-Flash-On-Device', '2');
-		const example = profile('azureml', 'Example-Coder', '2', EXAMPLE_TAGS);
+		const example = profile('azureml', 'Example-Coder', '2', EXAMPLE);
 		const install = (contentId: string, channelVersion: string): ICatalogInstallFact => ({ familyId: 'mai-code-1.1-flash-local', assetName: 'MAI-Code-1.1-Flash-On-Device', contentId, channelVersion, owned: true, adopted: false });
 		const merge = (input: Partial<IMergeInput>) => mergeCatalogFamilies({ profiles: [], installs: [], contentIds: new Map(), resolvedLlamaCppBuild: 11459, ...input }).map(family => ({
 			familyId: family.familyId,
@@ -355,41 +392,68 @@ suite('localModel modelCatalog', () => {
 		});
 	});
 
-	test('public search: request shape, paging, archived and invalid hits skipped; the User-Agent keeps the prefix the search requires and names VS Code', async () => {
+	test('public search: request shape, paging, archived, invalid and other registries\' hits skipped; the User-Agent names VS Code', async () => {
 		const http = new FakeHttp(registryServer({
 			publicHits: [
-				[searchHit('azureml', 'mai-code-1.1-flash', '1', MAI_TAGS), searchHit('azureml', 'Archived-Model', '1', OTHER_TAGS, true)],
-				[searchHit('azureml', 'Broken', '1', { ...MAI_TAGS, supportsToolCalls: 'false' }), searchHit('azureml', 'Example-Coder', '2', EXAMPLE_TAGS)],
+				[searchHit('azureml', 'mai-code-1.1-flash', '1', MAI), searchHit('azureml', 'Archived-Model', '1', OTHER, true), searchHit('other-registry', 'Other-Coder', '1', MAI)],
+				[searchHit('azureml', 'Broken', '1', withVersion(MAI, { metadata: { supportsToolCalling: false } })), searchHit('azureml', 'Example-Coder', '2', EXAMPLE)],
 			]
 		}));
 		const { catalog } = createCatalog(http, { productVersion: '1.143.0' });
 		const snapshot = await catalog.refresh({});
 		const first = http.requests[0];
 		const body = JSON.parse(first.body!);
-		const unversionedHttp = new FakeHttp(registryServer({ publicHits: [[searchHit('azureml', 'mai-code-1.1-flash', '1', MAI_TAGS)]] }));
+		const unversionedHttp = new FakeHttp(registryServer({ publicHits: [[searchHit('azureml', 'mai-code-1.1-flash', '1', MAI)]] }));
 		await createCatalog(unversionedHttp).catalog.refresh({});
 		assert.deepStrictEqual({
 			state: snapshot.publicState,
 			profiles: snapshot.publicProfiles.map(p => `${p.registry}/${p.assetName}:${p.version}`),
-			pages: http.requests.map(r => JSON.parse(r.body!).indexEntitiesRequest.continuationToken),
+			pages: http.requests.map(r => JSON.parse(r.body!).continuationToken ?? null),
 			method: first.method,
 			userAgent: first.headers?.['User-Agent'],
 			userAgentWithoutVersion: unversionedHttp.requests[0].headers?.['User-Agent'],
+			fullContracts: first.headers?.['x-ms-use-full-service-contracts'],
 			auth: http.requests.some(r => r.headers?.Authorization),
-			resourceIds: body.resourceIds,
-			filters: body.indexEntitiesRequest.filters.map((f: { field: string; values: string[] }) => `${f.field}=${f.values.join(',')}`),
-			sameAsBuilder: first.body === buildTagSearchBody('azureml', undefined),
+			filters: body.filters.map((f: { field: string; values: string[] }) => `${f.field}=${f.values.join(',')}`),
+			sameAsBuilder: first.body === buildTagSearchBody(undefined),
 		}, {
 			state: 'ready',
 			profiles: ['azureml/mai-code-1.1-flash:1', 'azureml/Example-Coder:2'],
 			pages: [null, '1'],
 			method: 'POST',
-			userAgent: 'AzureAiStudio VSCode/1.143.0',
-			userAgentWithoutVersion: 'AzureAiStudio',
+			userAgent: 'VSCode/1.143.0',
+			userAgentWithoutVersion: 'VSCode',
+			fullContracts: 'true',
 			auth: false,
-			resourceIds: [{ resourceId: 'azureml', entityContainerType: 'Registry' }],
-			filters: ['type=models', 'kind=Versioned', 'labels=latest', 'annotations/systemCatalogData/publisher=Microsoft', 'annotations/systemCatalogData/modelFlavor=GGUF', 'annotations/systemCatalogData/keywords=Coding'],
+			// The Copilot CLI's filter: eligibility is checked per hit, so a newer version that opted out is still seen.
+			filters: ['type=models', 'kind=Versioned', 'labels=latest', 'annotations/systemCatalogData/modelFlavor=GGUF'],
 			sameAsBuilder: true,
+		});
+	});
+	test('public search: a model labeled latest at more than one version is hidden until the index settles, counting versions before eligibility and across pages; a repeated row counts once', async () => {
+		const log = new CapturingLog();
+		const optedOut = withVersion(MAI, { metadata: { githubCopilotLocal: false } });
+		const http = new FakeHttp(registryServer({
+			publicHits: [
+				[
+					searchHit('azureml', 'mai-code-1.1-flash', '1', MAI),
+					searchHit('azureml', 'two-eligible', '1', MAI), searchHit('azureml', 'two-eligible', '2', MAI),
+					searchHit('azureml', 'newer-opted-out', '1', MAI), searchHit('azureml', 'newer-opted-out', '2', optedOut),
+					searchHit('azureml', 'newer-without-metadata', '1', MAI), searchHit('azureml', 'newer-without-metadata', '2', { tags: MAI.tags }),
+					searchHit('azureml', 'Mixed-Case', '1', MAI), searchHit('azureml', 'mixed-case', '2', MAI),
+					searchHit('azureml', 'split-pages', '1', MAI),
+					searchHit('azureml', 'repeated-coder', '3', EXAMPLE), searchHit('azureml', 'repeated-coder', '3', EXAMPLE),
+				],
+				[searchHit('azureml', 'split-pages', '2', MAI)],
+			],
+		}));
+		const { catalog } = createCatalog(http, { log });
+		const snapshot = await catalog.refresh({});
+		assert.deepStrictEqual({ profiles: snapshot.publicProfiles.map(p => `${p.registry}/${p.assetName}:${p.version}`), logged: log.messages }, {
+			profiles: ['azureml/mai-code-1.1-flash:1', 'azureml/repeated-coder:3'],
+			logged: [
+				'[LocalModelCatalog] Skipping 5 model(s) from azureml labeled latest at more than one version',
+			],
 		});
 	});
 
@@ -400,22 +464,25 @@ suite('localModel modelCatalog', () => {
 			return `${snapshot.publicState}/${computeCatalogState(snapshot.publicState, catalog.merge([], undefined).length)}`;
 		};
 		assert.deepStrictEqual({
-			ready: await states({ publicHits: [[searchHit('azureml', 'MAI-Code-1.1-Flash-On-Device', '1', MAI_TAGS)]] }),
+			ready: await states({ publicHits: [[searchHit('azureml', 'MAI-Code-1.1-Flash-On-Device', '1', MAI)]] }),
 			empty: await states({}),
 			down: await states({ publicStatus: 503 }),
 			denied: await states({ publicStatus: 403 }),
+			// Hits beyond the page limit could make a `latest` label ambiguous, so an incomplete search isn't used.
+			pastPageLimit: await states({ publicHits: Array.from({ length: 21 }, (_, page) => [searchHit('azureml', `Model-${page}`, '1', MAI)]) }),
 		}, {
 			ready: 'ready/ready',
 			empty: 'empty/empty',
 			down: 'unavailable/unavailable',
 			denied: 'unavailable/unavailable',
+			pastPageLimit: 'unavailable/unavailable',
 		});
 	});
 
 	test('24 h cache in Agent Host storage, without SAS URLs', async () => {
 		const storage = createStorage();
 		let now = 1_000_000;
-		const http = new FakeHttp(registryServer({ publicHits: [[searchHit('azureml', 'mai-code-1.1-flash', '1', MAI_TAGS)]] }));
+		const http = new FakeHttp(registryServer({ publicHits: [[searchHit('azureml', 'mai-code-1.1-flash', '1', MAI)]] }));
 		const { catalog } = createCatalog(http, { storage, now: () => now });
 		const first = await catalog.refresh({});
 		await catalog.resolveForSetup(first.publicProfiles[0], new AbortController().signal);
@@ -444,14 +511,14 @@ suite('localModel modelCatalog', () => {
 
 	test('review-15 (a): the modelUri tag keeps only a validated file name; a signed or unsafe modelUri rejects the version and never reaches the cache', async () => {
 		const tagged = (modelUri: string) => {
-			const result = validateLocalModelTags({ ...MAI_TAGS, modelUri }, { registry: 'azureml', assetName: 'mai-code-1.1-flash', version: '1' });
+			const result = validateLocalModelVersion(MAI.metadata, { registry: 'azureml', assetName: 'mai-code-1.1-flash', version: '1', tags: { ...MAI.tags, modelUri } });
 			return result.ok ? { modelFileName: result.profile.modelFileName, uriKeys: Object.keys(result.profile).filter(key => /uri/i.test(key)) } : result.reason;
 		};
 		const storage = createStorage();
 		const http = new FakeHttp(registryServer({
 			publicHits: [[
-				searchHit('azureml', 'mai-code-1.1-flash', '1', { ...MAI_TAGS, modelUri: 'https://acct.blob.core.windows.net/models/mai-code-1.1-flash/3/MAI-Code-1.1-Flash-Q2-XS.gguf?sv=2024&sig=SECRET' }),
-				searchHit('azureml', 'example-coder', '2', { ...EXAMPLE_TAGS, modelUri: 'https://acct.blob.core.windows.net/models/example/2/Example.gguf' }),
+				searchHit('azureml', 'mai-code-1.1-flash', '1', withVersion(MAI, { tags: { modelUri: 'https://acct.blob.core.windows.net/models/mai-code-1.1-flash/3/MAI-Code-1.1-Flash-Q2-XS.gguf?sv=2024&sig=SECRET' } })),
+				searchHit('azureml', 'example-coder', '2', withVersion(EXAMPLE, { tags: { modelUri: 'https://acct.blob.core.windows.net/models/example/2/Example.gguf' } })),
 			]],
 		}));
 		const { catalog } = createCatalog(http, { storage, now: () => 1_000_000 });
@@ -483,11 +550,11 @@ suite('localModel modelCatalog', () => {
 	test('review-15 (c, e): the cache reader drops each record with an unsafe, mismatched or credential-bearing identity, and logs only a count', async () => {
 		const storage = createStorage();
 		const mai = profile('azureml', 'mai-code-1.1-flash', '1');
-		const example = profile('azureml', 'example-coder', '2', EXAMPLE_TAGS);
+		const example = profile('azureml', 'example-coder', '2', EXAMPLE);
 		const files = MAI_FILES.map(file => ({ path: file.name, sizeBytes: file.size, sha256: file.sha }));
 		const contentId = computeContentId(files);
 		storage.set('localModel.catalog', {
-			schemaVersion: 2,
+			schemaVersion: 3,
 			refreshedAt: 1_000_000,
 			publicState: 'ready',
 			publicProfiles: [
@@ -542,12 +609,14 @@ suite('localModel modelCatalog', () => {
 				ctxSize: resolved.preset.ctxSize,
 				contentId: resolved.contentId === computeContentId(MAI_FILES.map(file => ({ path: file.name, sizeBytes: file.size, sha256: file.sha }))),
 			},
-			noChecksum: await resolve({ headOverrides: name => name.endsWith('.gguf') ? { 'x-ms-meta-sha256': '' } : undefined }),
+			// A regional replica has no checksum: its strong ETag binds the file, and the content is known only once downloaded.
+			checksumless: await resolve({ headOverrides: name => name.endsWith('.gguf') ? { 'x-ms-meta-sha256': '' } : undefined }).then(result => typeof result === 'string' ? result : { contentId: result.contentId ?? 'unknown', sha256s: result.files.map(file => file.sha256 ?? `etag ${file.etag}`) }),
+			noChecksum: await resolve({ headOverrides: name => name.endsWith('.gguf') ? { 'x-ms-meta-sha256': '', 'etag': 'W/"weak"' } : undefined }),
 			// Blob annotations copied from the original upload (another name and version) are not identity.
 			copiedAnnotations: await resolve({ headOverrides: () => ({ 'x-ms-meta-name': 'Other-Model', 'x-ms-meta-version': '5' }) }).then(result => typeof result === 'string' || typeof resolved === 'string' ? result : result.contentId === resolved.contentId),
 			otherAssetLookup: await resolve({ lookupAssetId: 'azureml://registries/azureml/models/other-model/versions/1' }),
 			noLookupAssetId: await resolve({ lookupAssetId: null }),
-			outOfScopeLookup: await resolve({ lookupTags: { ...MAI_TAGS, localCoding: 'false' } }),
+			outOfScopeLookup: await resolve({ lookupMetadata: { ...MAI.metadata, githubCopilotLocal: false } }),
 			sizeMismatch: await resolve({ headOverrides: name => name === 'dflash-v3-lc1.gguf' ? { 'content-length': '1' } : undefined }),
 			sharded: await resolve({ files: { 'mai-code-1.1-flash/3/': [{ name: 'MAI-00001-of-00002.gguf', size: 10, sha: 'a'.repeat(64) }, { name: 'llama-default.ini', size: MAI_INI.length, sha: 'c'.repeat(64) }] } }),
 			twoInis: await resolve({ files: { 'mai-code-1.1-flash/3/': [...MAI_FILES, { name: 'sub/llama-default.ini', size: 1, sha: 'd'.repeat(64) }, { name: 'LLAMA-DEFAULT.INI', size: 1, sha: 'd'.repeat(64) }] } }),
@@ -563,6 +632,7 @@ suite('localModel modelCatalog', () => {
 				ctxSize: 262144,
 				contentId: true,
 			},
+			checksumless: { contentId: 'unknown', sha256s: ['etag "etag-MAI-Code-1.1-Flash-Q2-XS.gguf"', 'c'.repeat(64), 'etag "etag-dflash-v3-lc1.gguf"'] },
 			noChecksum: 'noChecksum: noChecksum',
 			copiedAnnotations: true,
 			otherAssetLookup: 'invalidContent: The lookup answered for another model version',
@@ -598,12 +668,12 @@ suite('localModel modelCatalog', () => {
 
 	test('a skipped search hit is logged by registry and reason only: no name, version, URL or signed parameter reaches the log', async () => {
 		const log = new CapturingLog();
-		const hit = (name: string, version: string, tags = MAI_TAGS) => ({ annotations: { tags, archived: false }, properties: { name, version } });
+		const hit = (name: string, version: string, fixture = MAI) => ({ assetId: `azureml://registries/azureml/models/${name}/versions/${version}`, annotations: { tags: fixture.tags, systemCatalogData: fixture.metadata, archived: false } });
 		const hits = [
 			hit('model?sig=SECRET1.gguf', '1'),
-			hit('mai-code-1.1-flash', 'https://acct.blob.core.windows.net/c/m.gguf?sv=2024&sig=SECRET2'),
+			hit('mai-code-1.1-flash', 'm.gguf?sv=2024&sig=SECRET2'),
 			hit('other', '1&sig=SECRET3'),
-			hit('example-coder', '2', { ...EXAMPLE_TAGS, displayName: 'Example https://acct.blob.core.windows.net/c?sig=SECRET4' }),
+			hit('example-coder', '2', withVersion(EXAMPLE, { metadata: { displayName: 'Example https://acct.blob.core.windows.net/c?sig=SECRET4' } })),
 		];
 		const { catalog } = createCatalog(new FakeHttp(registryServer({ publicHits: [hits] })), { log });
 		const snapshot = await catalog.refresh({});
@@ -613,7 +683,7 @@ suite('localModel modelCatalog', () => {
 				'[LocalModelCatalog] Skipping a search hit from azureml (invalidName)',
 				'[LocalModelCatalog] Skipping a search hit from azureml (invalidName)',
 				'[LocalModelCatalog] Skipping a search hit from azureml (invalidName)',
-				'[LocalModelCatalog] Skipping a search hit from azureml (tag:displayName)',
+				'[LocalModelCatalog] Skipping a search hit from azureml (metadata:displayName)',
 			],
 		});
 	});
@@ -641,7 +711,7 @@ suite('localModel modelCatalog', () => {
 		});
 		const telemetry: { name: string; data: unknown }[] = [];
 		const { catalog } = createCatalog(http, { telemetry });
-		const profiles = names.map(name => profile('azureml', name, '1', { ...MAI_TAGS, autoLocalCapiId: '', directoryPath: `${name}/1` }));
+		const profiles = names.map(name => profile('azureml', name, '1', withVersion(MAI, { tags: { directoryPath: `${name}/1` } })));
 		const results = await Promise.all(profiles.map(p => catalog.resolveForSetup(p, new AbortController().signal).then(() => 'ok', (e: Error) => e.message)));
 		await catalog.refresh({});
 		assert.deepStrictEqual({ results, maxActive, telemetry: telemetry.map(event => [event.name, (event.data as { public: string }).public, (event.data as { families: number }).families]) }, {
@@ -693,17 +763,17 @@ suite('localModel modelCatalog', () => {
 		});
 	});
 
-	/** The production registry from the 2026-10-12 evidence; `sig` counts the lookups (fresh SAS each time). */
-	function productionServer() {
+	/** The production registry from the 2026-10-15 evidence, serving `files`; `sig` counts the lookups (fresh SAS each time). */
+	function productionServer(files: readonly { name: string; size: number; sha: string; etag: string }[] = PROD_FILES) {
 		let lookups = 0;
 		return (request: ILocalModelHttpRequest): IReply => {
 			const url = new URL(request.url);
-			if (url.pathname.endsWith('/entities/crossRegion')) {
+			if (url.pathname.endsWith('/asset-gallery/v1.0/models')) {
 				const body = JSON.parse(request.body ?? '{}');
-				const filters: string[] = body.indexEntitiesRequest.filters.map((f: { field: string; values: string[] }) => `${f.field}=${f.values.join(',')}`);
-				// The production index carries no `localCoding`/`modelFormat` tags: only the metadata scope finds MAI.
-				const found = body.resourceIds[0].resourceId === 'azureml' && filters.includes('annotations/systemCatalogData/keywords=Coding') && !filters.some(filter => filter.startsWith('annotations/tags/'));
-				return { status: 200, json: { indexEntitiesResponse: { value: found ? [PROD_SEARCH_ROW] : [], continuationToken: null } } };
+				const filters: string[] = body.filters.map((f: { field: string; values: string[] }) => `${f.field}=${f.values.join(',')}`);
+				// The gallery returns full system metadata only on request; the registry's tags carry no eligibility.
+				const found = request.headers?.['x-ms-use-full-service-contracts'] === 'true' && filters.includes('annotations/systemCatalogData/modelFlavor=GGUF') && !filters.some(filter => filter.startsWith('annotations/tags/'));
+				return { status: 200, json: { totalCount: found ? 1 : 0, value: found ? [PROD_SEARCH_ROW] : [], nextSkip: null, continuationToken: null } };
 			}
 			if (url.pathname.endsWith('/nonazureaccount')) {
 				lookups++;
@@ -713,11 +783,11 @@ suite('localModel modelCatalog', () => {
 			}
 			if (`${url.origin}${url.pathname}`.startsWith(PROD_CONTAINER)) {
 				if (url.searchParams.get('comp') === 'list') {
-					return url.searchParams.get('prefix') === '' ? { status: 200, text: blobList('', PROD_FILES) } : { status: 200, text: blobList('', []) };
+					return url.searchParams.get('prefix') === '' ? { status: 200, text: blobList('', files) } : { status: 200, text: blobList('', []) };
 				}
 				const name = decodeURIComponent(url.pathname.slice(new URL(PROD_CONTAINER).pathname.length + 1));
-				const file = PROD_FILES.find(candidate => candidate.name === name);
-				if (file && request.method === 'GET' && name === '5/llama-config.json') {
+				const file = files.find(candidate => candidate.name === name);
+				if (file && request.method === 'GET' && name.endsWith('llama-config.json')) {
 					return { status: 200, text: PROD_LLAMA_CONFIG };
 				}
 				if (file && request.method === 'HEAD') {
@@ -728,11 +798,8 @@ suite('localModel modelCatalog', () => {
 		};
 	}
 
-	test('production registry (2026-10-12 evidence): the metadata scope finds MAI-Code-1.1-Flash-On-Device v1, its canonical metadata validates with the temporary requirements, the 5/ wrapper is unwrapped (also on renewal), copied blob annotations are accepted, and an install recorded with the same content gets no update', async () => {
-		const server = productionServer();
-		const http = new FakeHttp(server);
-		const { catalog } = createCatalog(http);
-		// An install whose files the store recorded as this version's content.
+	test('production registry (2026-10-15 evidence): MAI-Code-1.1-Flash-On-Device v2 validates from its system metadata alone with its published requirements, copied blob annotations are accepted, an install recorded with the same content gets no update, and the same files in one packaging folder (as v1 was served) are unwrapped, also on renewal', async () => {
+		// An install whose files the store recorded as this content (version 1 had the same files).
 		const recordedInstall: ICatalogInstallFact = {
 			familyId: 'mai-code-1.1-flash-local',
 			assetName: 'MAI-Code-1.1-Flash',
@@ -745,18 +812,24 @@ suite('localModel modelCatalog', () => {
 			owned: true,
 			adopted: false,
 		};
-		const snapshot = await catalog.refresh({});
-		const prod = snapshot.publicProfiles[0];
-		const resolved = await catalog.resolveForSetup(prod, new AbortController().signal);
-		const renewed = await catalog.renewDownloadUrls(resolved, new AbortController().signal);
-		const [family] = catalog.merge([recordedInstall], undefined);
+		const run = async (files: typeof PROD_FILES) => {
+			const { catalog } = createCatalog(new FakeHttp(productionServer(files)));
+			const snapshot = await catalog.refresh({});
+			const prod = snapshot.publicProfiles[0];
+			const resolved = await catalog.resolveForSetup(prod, new AbortController().signal);
+			const renewed = await catalog.renewDownloadUrls(resolved, new AbortController().signal);
+			const [family] = catalog.merge([recordedInstall], undefined);
+			return { catalog, snapshot, prod, resolved, renewed, family };
+		};
+		const { catalog, snapshot, prod, resolved, renewed, family } = await run(PROD_FILES);
+		const wrapped = await run(PROD_WRAPPED_FILES);
 		const blobPath = (url: string) => decodeURIComponent(new URL(url).pathname.slice(new URL(PROD_CONTAINER).pathname.length));
 		assert.deepStrictEqual({
 			configBytes: PROD_LLAMA_CONFIG.length,
 			states: [snapshot.publicState, computeCatalogState(snapshot.publicState, catalog.merge([], undefined).length)],
 			profile: prod,
 			resolved: {
-				files: resolved.files.map(file => [file.relativePath, blobPath(file.url), file.sizeBytes, file.sha256.slice(0, 8), file.etag]),
+				files: resolved.files.map(file => [file.relativePath, blobPath(file.url), file.sizeBytes, file.sha256?.slice(0, 8), file.etag]),
 				primaryFile: resolved.primaryFile,
 				wrapperFolder: resolved.wrapperFolder,
 				preset: [resolved.preset.primaryModel, resolved.preset.draftModel, resolved.preset.ctxSize, resolved.preset.parallel],
@@ -764,45 +837,63 @@ suite('localModel modelCatalog', () => {
 			},
 			renewed: renewed.map(file => [blobPath(file.url), new URL(file.url).searchParams.get('sig')]),
 			family: { familyId: family.familyId, autoCapable: family.autoCapable, offer: `${family.offer?.registry}:${family.offer?.version}`, install: family.install?.channelVersion, update: family.update },
+			wrapped: {
+				files: wrapped.resolved.files.map(file => [file.relativePath, blobPath(file.url)]),
+				wrapperFolder: wrapped.resolved.wrapperFolder,
+				renewed: wrapped.renewed.map(file => [blobPath(file.url), new URL(file.url).searchParams.get('sig')]),
+				matchesRecordedInstall: wrapped.resolved.contentId === recordedInstall.contentId,
+			},
 		}, {
 			configBytes: 504,
 			states: ['ready', 'ready'],
 			profile: {
 				registry: 'azureml',
 				assetName: 'MAI-Code-1.1-Flash-On-Device',
-				version: '1',
+				version: '2',
 				capiId: 'mai-code-1.1-flash-local',
 				familyId: 'mai-code-1.1-flash-local',
 				autoCapable: true,
 				displayName: 'MAI Code 1.1 Flash',
-				// The Copilot CLI's temporary values until `githubCopilotLocalRequirements` is published.
 				downloadBytes: 56_688_835_352,
 				peakDiskBytes: 56_688_835_352,
-				recommendedVramBytes: 103_079_215_104,
+				recommendedVramBytes: 96_636_764_160,
 				maxPromptTokens: 128000,
 				maxContextWindowTokens: 256000,
 				maxOutputTokens: 128000,
 				licenseName: 'MIT',
-				licenseUrl: 'https://opensource.org/license/mit',
-				createdTime: '2026-10-09T18:32:14.2398251+00:00',
+				createdTime: '2026-10-13T17:13:43.6212571+00:00',
 			},
 			resolved: {
 				files: [
-					['MAI-Code-1.1-Flash-Q2-XS.gguf', '/5/MAI-Code-1.1-Flash-Q2-XS.gguf', 56_307_620_832, '048788de', '"0x8DF2633A17EB866"'],
-					['llama-config.json', '/5/llama-config.json', 504, 'afcfce37', '"0x8DF2633A1825DD1"'],
-					['dflash-v3-lc1.gguf', '/5/dflash-v3-lc1.gguf', 381_214_016, '7052df54', '"0x8DF2633A1DE0329"'],
+					['MAI-Code-1.1-Flash-Q2-XS.gguf', '/MAI-Code-1.1-Flash-Q2-XS.gguf', 56_307_620_832, '048788de', '"0x8DF294D539EBDD4"'],
+					['llama-config.json', '/llama-config.json', 504, 'afcfce37', '"0x8DF294C3559E4E5"'],
+					['dflash-v3-lc1.gguf', '/dflash-v3-lc1.gguf', 381_214_016, '7052df54', '"0x8DF294C36B7FEBD"'],
 				],
 				primaryFile: 'MAI-Code-1.1-Flash-Q2-XS.gguf',
-				wrapperFolder: '5',
+				wrapperFolder: undefined,
 				preset: ['MAI-Code-1.1-Flash-Q2-XS.gguf', 'dflash-v3-lc1.gguf', 262144, 1],
 				matchesRecordedInstall: true,
 			},
 			renewed: [
-				['/5/MAI-Code-1.1-Flash-Q2-XS.gguf', 'SAS2'],
-				['/5/llama-config.json', 'SAS2'],
-				['/5/dflash-v3-lc1.gguf', 'SAS2'],
+				['/MAI-Code-1.1-Flash-Q2-XS.gguf', 'SAS2'],
+				['/llama-config.json', 'SAS2'],
+				['/dflash-v3-lc1.gguf', 'SAS2'],
 			],
-			family: { familyId: 'mai-code-1.1-flash-local', autoCapable: true, offer: 'azureml:1', install: '1', update: undefined },
+			family: { familyId: 'mai-code-1.1-flash-local', autoCapable: true, offer: 'azureml:2', install: '1', update: undefined },
+			wrapped: {
+				files: [
+					['MAI-Code-1.1-Flash-Q2-XS.gguf', '/5/MAI-Code-1.1-Flash-Q2-XS.gguf'],
+					['llama-config.json', '/5/llama-config.json'],
+					['dflash-v3-lc1.gguf', '/5/dflash-v3-lc1.gguf'],
+				],
+				wrapperFolder: '5',
+				renewed: [
+					['/5/MAI-Code-1.1-Flash-Q2-XS.gguf', 'SAS2'],
+					['/5/llama-config.json', 'SAS2'],
+					['/5/dflash-v3-lc1.gguf', 'SAS2'],
+				],
+				matchesRecordedInstall: true,
+			},
 		});
 	});
 

@@ -17,9 +17,9 @@ declare module 'vscode' {
 		timestamp: number;
 
 		/**
-		 * A human-readable string describing the timeline item.
+		 * A human-readable string describing the timeline item. When `falsy`, it is derived from {@link TimelineItem.resourceUri resourceUri}.
 		 */
-		label: string;
+		label?: string;
 
 		/**
 		 * Optional id for the timeline item. It must be unique across all the timeline items provided by its provider.
@@ -30,6 +30,10 @@ declare module 'vscode' {
 
 		/**
 		 * The icon path or {@link ThemeIcon} for the timeline item.
+		 *
+		 * When {@link TimelineItem.label label} is `falsy` and {@link TimelineItem.resourceUri resourceUri} is set,
+		 * the icon is derived from the current file icon theme when `iconPath` is `falsy` or set to
+		 * {@link ThemeIcon.File} or {@link ThemeIcon.Folder}.
 		 */
 		iconPath?: IconPath;
 
@@ -59,8 +63,11 @@ declare module 'vscode' {
 		 * Leave it `undefined` when the item does not represent a single version of a resource, for example
 		 * a commit in a folder or workspace timeline.
 		 *
-		 * Unlike {@link TreeItem.resourceUri}, it is not used to derive the label or icon, and no file
-		 * decorations are shown for it.
+		 * When {@link TimelineItem.label label} is `falsy`, this property is used to derive several item properties:
+		 * - **Label**: Derived from the resource's file name.
+		 * - **Icon**: Derived from the current file icon theme when {@link TimelineItem.iconPath iconPath} is `falsy`
+		 *   or set to {@link ThemeIcon.File} or {@link ThemeIcon.Folder}.
+		 * - **Decorations**: The resource's {@link FileDecoration file decorations} are shown.
 		 */
 		resourceUri?: Uri;
 
@@ -106,6 +113,12 @@ declare module 'vscode' {
 		 * @param timestamp When the item occurred, in milliseconds since 1 January 1970 00:00:00 UTC.
 		 */
 		constructor(label: string, timestamp: number);
+
+		/**
+		 * @param resourceUri The {@link Uri} of the resource's content as of this item, see {@link TimelineItem.resourceUri}.
+		 * @param timestamp When the item occurred, in milliseconds since 1 January 1970 00:00:00 UTC.
+		 */
+		constructor(resourceUri: Uri, timestamp: number);
 	}
 
 	/**
@@ -169,7 +182,8 @@ declare module 'vscode' {
 	 * Provides the timelines of files and folders.
 	 *
 	 * Commands contributed to the `timeline/title` menu are run with the {@link Uri} of the file or folder whose
-	 * timeline is shown, or `undefined` for the workspace timeline.
+	 * timeline is shown, or `undefined` for the workspace timeline. Use the `timelineForWorkspace` context key in
+	 * their `when` clauses to tell whether the workspace timeline is shown.
 	 */
 	export interface TimelineProvider {
 		/**
@@ -208,6 +222,8 @@ declare module 'vscode' {
 	/**
 	 * Provides the timeline of the whole workspace, for example the history of the workspace's repositories.
 	 * In a multi-root workspace, the timeline covers all workspace folders.
+	 *
+	 * While the workspace timeline is shown, the `timelineForWorkspace` context key is `true`.
 	 */
 	export interface WorkspaceTimelineProvider {
 		/**

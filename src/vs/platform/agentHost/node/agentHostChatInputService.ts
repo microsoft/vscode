@@ -13,6 +13,7 @@ import { ActionType } from '../common/state/sessionActions.js';
 import { ChatInteractivity, isChatReadOnly, isSessionStatusArchived, type ErrorInfo } from '../common/state/sessionState.js';
 import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { createAgentChatContext } from './agentChatContext.js';
+import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
@@ -45,6 +46,7 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 		@IAgentHostProviderService private readonly _providers: IAgentHostProviderService,
 		@IAgentHostSubscriptionService private readonly _subscriptions: IAgentHostSubscriptionService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 	) {
 		super();
@@ -85,7 +87,7 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 				if (owner === undefined) {
 					return;
 				}
-				const result = await provider.chats.prepareChat!(chat, createAgentChatContext(this._stateManager, owner, chat, this._chatOwnership.resolveChatStorageResource(owner, chatKey), this._sessionStateStore.peek(URI.parse(owner))));
+				const result = await provider.chats.prepareChat!(chat, createAgentChatContext(this._stateManager, this._authenticationService, owner, chat, this._chatOwnership.resolveChatStorageResource(owner, chatKey), this._sessionStateStore.peek(URI.parse(owner))));
 				const completed = currentOwner();
 				if (completed !== undefined) {
 					this._setState(completed, chatKey, result.error ? { kind: 'blocked', error: result.error } : undefined);

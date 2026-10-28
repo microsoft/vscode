@@ -88,7 +88,10 @@ export class AgentHostCanvasCollection extends Disposable {
 				}, owner.chat),
 			}
 			: undefined;
-		return { owner, canvases, openRequests, definitionProvider };
+		const closeCanvas = this.connection.closeSessionCanvas
+			? (canvas: ICanvas) => this.connection.closeSessionCanvas!(owner.session, { resource: canvas.resource }, owner.chat)
+			: undefined;
+		return { owner, canvases, openRequests, definitionProvider, closeCanvas };
 	}
 }
 

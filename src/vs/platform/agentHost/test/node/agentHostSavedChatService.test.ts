@@ -156,7 +156,7 @@ suite('AgentHostSavedChatService', () => {
 			cwd: '/workspace', cliVersion: '0.160.0', originator: 'vscode_agent_host', source: 'vscode',
 			canAcceptDirectInput: null, threadSource: null, agentNickname: null, agentRole: null, gitInfo: null, name: null, daybreakEnabled: null,
 			turns: [{
-				id: 'native-turn', status: 'completed', itemsView: 'full', error: null, startedAt: null, completedAt: null, durationMs: null,
+				id: 'native-turn', rootTurnId: null, status: 'completed', itemsView: 'full', error: null, startedAt: null, completedAt: null, durationMs: null,
 				items: [
 					{ type: 'userMessage', id: 'prompt', clientId: null, content: [{ type: 'text', text: 'Saved question', text_elements: [] }] },
 					{ type: 'agentMessage', id: 'answer', text: 'Saved answer', phase: 'final_answer', memoryCitation: null, delivery: null, questions: null },

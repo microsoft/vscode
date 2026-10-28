@@ -4,17 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { spy } from 'sinon';
+import { spy, stub } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { addDisposableListener } from '../../../../../../../base/browser/dom.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
+import { resolvePath } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { mock } from '../../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
+import { IMenuService, MenuId } from '../../../../../../../platform/actions/common/actions.js';
+import { IContextMenuService } from '../../../../../../../platform/contextview/browser/contextView.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { SymbolKind, SymbolTag } from '../../../../../../../editor/common/languages.js';
 import { ILinkPresentation, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
@@ -22,14 +26,22 @@ import { IHoverService } from '../../../../../../../platform/hover/browser/hover
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { BrowserResourceService } from '../../../../../../../platform/files/browser/browserResourceService.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
-import { toAgentHostUri } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AgentHostFileSystemProvider, IRemoteFilesystemConnection } from '../../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
+import { ContentEncoding, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceType } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatMarkdownContentPart } from '../../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
 import { ChatMarkdownDecorationsRenderer } from '../../../../browser/widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatPetService } from '../../../../browser/chatPetService.js';
+import { IChatImageCarouselService } from '../../../../browser/chatImageCarouselService.js';
 import { ChatContentMarkdownRenderer } from '../../../../browser/widget/chatContentMarkdownRenderer.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { CodeBlockPart, ICodeBlockData } from '../../../../browser/widget/chatContentParts/codeBlockPart.js';
@@ -37,6 +49,7 @@ import { IChatOutputRendererService, type RenderedOutputPart } from '../../../..
 import { IChatOutputPartStateCache, IOutputPartState } from '../../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { IChatContentInlineReference } from '../../../../common/chatService/chatService.js';
+import { getChatMarkdownImageId } from '../../../../common/chatImageExtraction.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { rewriteAgentHostLinkTarget } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -117,11 +130,11 @@ suite('ChatMarkdownContentPart', () => {
 		};
 	}
 
-	function createMarkdownPart(markdownText: string, context?: IChatContentPartRenderContext, fillInIncompleteTokens = false): ChatMarkdownContentPart {
+	function createMarkdownPart(markdown: string | MarkdownString, context?: IChatContentPartRenderContext, fillInIncompleteTokens = false, supportHtml = false): ChatMarkdownContentPart {
 		const ctx = context ?? createRenderContext();
 		return store.add(instantiationService.createInstance(
 			ChatMarkdownContentPart,
-			{ kind: 'markdownContent', content: new MarkdownString(markdownText) },
+			{ kind: 'markdownContent', content: typeof markdown === 'string' ? new MarkdownString(markdown, { supportHtml }) : markdown },
 			ctx,
 			editorPool,
 			fillInIncompleteTokens,
@@ -383,7 +396,7 @@ suite('ChatMarkdownContentPart', () => {
 					{ text: 'session', href: 'agent-host-session://copilotcli/session-1' },
 					{ text: 'chat', href: 'agent-host-session://copilotcli/session-1?chat=chat-2' },
 				],
-				imageSource: null,
+				imageSource: toAgentHostUri(URI.file('/remote/image.png'), 'my-host').toString(true),
 			},
 		);
 	});
@@ -405,6 +418,322 @@ suite('ChatMarkdownContentPart', () => {
 			Array.from(part.domNode.querySelectorAll('a'), link => ({ text: link.textContent, href: link.dataset.href })),
 			files.map(path => ({ text: 'simple.txt', href: toAgentHostUri(URI.file(path), 'windows-host').toString() })),
 		);
+	});
+
+	suite('Agent Host file images', () => {
+		const imageBytes = decodeBase64('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=');
+		const directory = URI.file('/remote/my project');
+		const resource = toAgentHostUri(URI.file('/remote/my project/image.png'), 'sandbox');
+		let fileService: FileService;
+		let browserResources: BrowserResourceService;
+		let resolveImage: ((href: string) => string) | undefined;
+
+		function useFileService(service: FileService): void {
+			browserResources?.dispose();
+			browserResources = disposables.add(new BrowserResourceService(undefined, service));
+			disposables.add(browserResources.registerScheme(AGENT_HOST_SCHEME));
+			instantiationService.stub(IFileService, service);
+			renderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
+		}
+
+		setup(async () => {
+			resolveImage = undefined;
+			fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(AGENT_HOST_SCHEME, disposables.add(new InMemoryFileSystemProvider())));
+			useFileService(fileService);
+			disposables.add(chatSessionsService.registerChatSessionContentProvider('chat-session', {
+				provideChatSessionContent: async () => { throw new Error('Unexpected session resolution'); },
+				resolveChatResponseUri: (_resource, href, kind) => kind === 'image' && resolveImage ? resolveImage(href) : rewriteAgentHostLinkTarget(href, 'sandbox', undefined, kind === 'image' ? directory : undefined),
+			}));
+			await fileService.createFolder(toAgentHostUri(directory, 'sandbox'));
+			await fileService.writeFile(resource, imageBytes);
+		});
+
+		async function waitForImage(part: ChatMarkdownContentPart): Promise<HTMLImageElement> {
+			const image = part.domNode.querySelector('img')!;
+			if (image.complete && image.naturalWidth > 0) {
+				return image;
+			}
+
+			const loaded = new DeferredPromise<void>();
+			disposables.add(addDisposableListener(image, 'load', () => loaded.complete()));
+			disposables.add(addDisposableListener(image, 'error', () => loaded.error(new Error('Image failed to decode'))));
+			await loaded.p;
+			return image;
+		}
+
+		test('renders a tool-result snapshot without reading the inaccessible sandbox file', async () => {
+			resolveImage = () => `data:image/png;base64,${encodeBase64(imageBytes)}`;
+			const read = spy(fileService, 'readFile');
+			disposables.add(toDisposable(() => read.restore()));
+			const part = createMarkdownPart('![Screenshot](/tmp/unavailable.png)');
+			const image = await waitForImage(part);
+			assert.deepStrictEqual({
+				bytes: new Uint8Array(await (await fetch(image.src)).arrayBuffer()), alt: image.alt, reads: read.callCount,
+			}, { bytes: new Uint8Array(imageBytes.buffer), alt: 'Screenshot', reads: 0 });
+		});
+
+		for (const target of ['file:///remote/my%20project/image.png', '/remote/my%20project/image.png', './image.png', toAgentHostUri(URI.file('/remote/my project/image.png'), 'sandbox').toString()]) {
+			test(`loads ${target} through the owning file provider`, async () => {
+				const read = spy(fileService, 'readFile');
+				disposables.add(toDisposable(() => read.restore()));
+				const part = createMarkdownPart(`![Robot](<${target}|width=12,height=8> "Test image")`);
+				const initialSource = part.domNode.querySelector('img')?.getAttribute('src');
+				const image = await waitForImage(part);
+				const bytes = new Uint8Array(await (await fetch(image.src)).arrayBuffer());
+
+				assert.deepStrictEqual({
+					initialSource,
+					resource: read.firstCall.args[0].toString(),
+					blob: image.src.startsWith('blob:'),
+					alt: image.alt,
+					title: image.title,
+					width: image.width,
+					height: image.height,
+					bytes,
+				}, {
+					initialSource: null,
+					resource: resource.toString(),
+					blob: true,
+					alt: 'Robot',
+					title: 'Test image',
+					width: 12,
+					height: 8,
+					bytes: new Uint8Array(imageBytes.buffer),
+				});
+			});
+		}
+
+		test('reads the host-local URI as binary through the Agent Host filesystem provider', async () => {
+			const reads: { uri: string; encoding?: ContentEncoding }[] = [];
+			const resolves: string[] = [];
+			const provider = disposables.add(new AgentHostFileSystemProvider());
+			disposables.add(provider.registerAuthority('sandbox', new class extends mock<IRemoteFilesystemConnection>() {
+				override async resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
+					resolves.push(params.uri);
+					return { uri: params.uri, type: ResourceType.File, size: imageBytes.byteLength };
+				}
+				override async resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult> {
+					reads.push({ uri: uri.toString(), encoding });
+					return { data: encodeBase64(imageBytes), encoding: ContentEncoding.Base64 };
+				}
+			}()));
+			const service = disposables.add(new FileService(new NullLogService()));
+			disposables.add(service.registerProvider(AGENT_HOST_SCHEME, provider));
+			useFileService(service);
+			const part = createMarkdownPart('![Robot](./image.png)');
+			const image = await waitForImage(part);
+			const bytes = new Uint8Array(await (await fetch(image.src)).arrayBuffer());
+
+			assert.deepStrictEqual({ reads, resolves, bytes }, {
+				reads: [{ uri: 'file:///remote/my%20project/image.png', encoding: ContentEncoding.Base64 }],
+				resolves: ['file:///remote/my%20project/image.png'],
+				bytes: new Uint8Array(imageBytes.buffer),
+			});
+		});
+
+		test('supports JPEG files using the existing raster image formats', async () => {
+			const canvas = mainWindow.document.createElement('canvas');
+			canvas.width = canvas.height = 1;
+			const jpegBytes = decodeBase64(canvas.toDataURL('image/jpeg').split(',')[1]);
+			await fileService.writeFile(toAgentHostUri(URI.file('/remote/my project/image.jpg'), 'sandbox'), jpegBytes);
+			const part = createMarkdownPart('![Robot](./image.jpg)');
+			const image = await waitForImage(part);
+			const blob = await (await fetch(image.src)).blob();
+
+			assert.deepStrictEqual({ mime: blob.type, width: image.naturalWidth, height: image.naturalHeight }, { mime: 'image/jpg', width: 1, height: 1 });
+		});
+
+		test('reuses image bytes during streaming and revokes blob URLs on disposal', async () => {
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
+			const read = spy(fileService, 'readFile');
+			disposables.add(toDisposable(() => read.restore()));
+			const part = createMarkdownPart('![Robot](./image.png)', createRenderContext(false), true);
+			const first = await waitForImage(part);
+			const source = first.src;
+			const drained = Event.toPromise(part.onDidFinishRendering);
+			const changed = part.tryIncrementalUpdate({ kind: 'markdownContent', content: new MarkdownString('![Robot](./image.png)\n\nMore text.') });
+			part.updateStreamRate(100, true);
+			await drained;
+			await waitForImage(part);
+			assert.deepStrictEqual({ changed, reads: read.callCount, source: part.domNode.querySelector('img')?.src }, { changed: true, reads: 1, source });
+			part.dispose();
+			await timeout(0);
+			await assert.rejects(fetch(source));
+		});
+
+		test('does not activate a pending image after disposal', async () => {
+			const content = await fileService.readFile(resource);
+			const pending = new DeferredPromise<typeof content>();
+			const read = stub(fileService, 'readFile').returns(pending.p);
+			disposables.add(toDisposable(() => read.restore()));
+			const part = createMarkdownPart('![Robot](./image.png)');
+			const image = part.domNode.querySelector('img')!;
+			part.dispose();
+			await pending.complete(content);
+			await timeout(0);
+			assert.strictEqual(image.getAttribute('src'), null);
+		});
+
+		test('rejects SVG before reading or activating its content', async () => {
+			const svg = toAgentHostUri(URI.file('/remote/my project/diagram.svg'), 'sandbox');
+			await fileService.writeFile(svg, VSBuffer.fromString('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="red"/></svg>'));
+			const read = spy(fileService, 'readFile');
+			disposables.add(toDisposable(() => read.restore()));
+			const part = createMarkdownPart('![Diagram](./diagram.svg)');
+			await timeout(0);
+			assert.deepStrictEqual({
+				source: part.domNode.querySelector('img')?.getAttribute('src'),
+				reads: read.callCount,
+			}, { source: undefined, reads: 0 });
+		});
+
+		test('verifies ownership using the actual file, not a synthetic root URI', async () => {
+			const resolve = spy(chatSessionsService, 'resolveChatResponseUri');
+			disposables.add(toDisposable(() => resolve.restore()));
+			const part = createMarkdownPart('![Robot](./image.png)');
+			await waitForImage(part);
+			assert.deepStrictEqual(resolve.getCalls().map(call => call.args.slice(1)), [
+				['./image.png', 'image'],
+				['file:///remote/my%20project/image.png', 'image'],
+			]);
+		});
+
+		test('preserves embedded data images without reading a sandbox resource', async () => {
+			const read = spy(fileService, 'readFile');
+			disposables.add(toDisposable(() => read.restore()));
+			const source = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=';
+			const part = createMarkdownPart(`![Embedded](${source})`);
+			const image = await waitForImage(part);
+			assert.deepStrictEqual({ source: image.src, alt: image.alt, reads: read.callCount }, { source, alt: 'Embedded', reads: 0 });
+		});
+
+		test('does not activate HTTP, network-file, or other-host images', async () => {
+			const read = spy(fileService, 'readFile');
+			disposables.add(toDisposable(() => read.restore()));
+			const targets = [
+				'https://github.com/example/repo/image.png?secret=value',
+				'http://example.com/image.png',
+				'//server/share/image.png',
+				'file://server/share/image.png',
+				'vscode-remote://ssh-remote+host/remote/image.png',
+				'vscode-managed-remote-resource://window:1/remote/image.png?authority=host',
+				toAgentHostUri(URI.file('/remote/image.png'), 'another-sandbox').toString(),
+				toAgentHostUri(URI.parse('https://example.com/image.png'), 'sandbox').toString(),
+				resource.with({ query: '_ah=invalid' }).toString(),
+			];
+			const part = createMarkdownPart(targets.map(target => `![Blocked](<${target}>)`).join('\n'));
+			await timeout(0);
+			assert.deepStrictEqual({
+				reads: read.callCount,
+				sources: Array.from(part.domNode.querySelectorAll('img[src]'), image => image.getAttribute('src')),
+			}, { reads: 0, sources: [] });
+		});
+
+		test('does not load raw HTML images through the Markdown file-image extension', async () => {
+			const read = spy(fileService, 'readFile');
+			disposables.add(toDisposable(() => read.restore()));
+			const part = createMarkdownPart(`<img src="${resource.toString()}"><img src="https://github.com/example/image.png">`, undefined, false, true);
+			await timeout(0);
+			assert.deepStrictEqual({
+				reads: read.callCount,
+				sources: Array.from(part.domNode.querySelectorAll('img[src]'), image => image.getAttribute('src')),
+			}, { reads: 0, sources: [] });
+		});
+
+		test('preserves alternative text when the browser cannot decode the image', async () => {
+			await fileService.writeFile(resource, VSBuffer.fromString('not an image'));
+			const part = createMarkdownPart('![Robot](./image.png)');
+			const image = part.domNode.querySelector('img')!;
+			const failed = new DeferredPromise<void>();
+			disposables.add(addDisposableListener(image, 'error', () => failed.complete()));
+			await failed.p;
+			assert.deepStrictEqual({ alt: image.alt, width: image.naturalWidth }, { alt: 'Robot', width: 0 });
+		});
+
+		test('opens file images, but not linked or remote images, in the conversation image carousel', () => {
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.ImageCarouselEnabled, true);
+			const opened: Parameters<IChatImageCarouselService['openCarouselAtResource']>[] = [];
+			instantiationService.stub(IChatImageCarouselService, upcastPartial<IChatImageCarouselService>({ openCarouselAtResource: async (...args) => { opened.push(args); } }));
+			const part = createMarkdownPart('![Robot](./image.png) [![Linked](./image.png)](https://example.com) ![Remote](https://github.com/user-attachments/assets/image.png)');
+			const images = Array.from(part.domNode.querySelectorAll('img'));
+
+			images[0].click();
+			images[0].dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 13, bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({
+				images: images.map(image => ({ alt: image.alt, role: image.getAttribute('role'), tabIndex: image.tabIndex, label: image.getAttribute('aria-label') })),
+				opened: opened.map(([openedResource, data, options]) => ({ resource: openedResource.toString(), data, sessionResource: options?.sessionResource?.toString(), imageId: options?.imageId })),
+			}, {
+				images: [
+					{ alt: 'Robot', role: 'button', tabIndex: 0, label: 'Open image Robot' },
+					{ alt: 'Linked', role: null, tabIndex: 0, label: null },
+					{ alt: 'Remote', role: null, tabIndex: 0, label: null },
+				],
+				opened: [0, 1].map(() => ({ resource: resource.toString(), data: undefined, sessionResource: 'chat-session://test/session1', imageId: getChatMarkdownImageId('test-response-id', resource) })),
+			});
+		});
+
+		test('drags file images as their resource instead of the browser transport URL', () => {
+			const part = createMarkdownPart('![Robot](./image.png)');
+			const dataTransfer = new DataTransfer();
+			dataTransfer.setData('text/uri-list', 'blob:vscode-file://vscode-app/image');
+
+			part.domNode.querySelector('img')!.dispatchEvent(new DragEvent('dragstart', { dataTransfer, bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({
+				types: [...dataTransfer.types].sort(),
+				uriList: dataTransfer.getData('text/uri-list'),
+			}, {
+				types: ['application/vnd.code.uri-list', 'codeeditors', 'resourceurls', 'text/plain', 'text/uri-list'],
+				uriList: resource.toString(),
+			});
+		});
+	});
+
+	test('makes response images interactive at the resource that the renderer loads', () => {
+		(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.ImageCarouselEnabled, true);
+		const opened: Parameters<IChatImageCarouselService['openCarouselAtResource']>[] = [];
+		instantiationService.stub(IChatImageCarouselService, upcastPartial<IChatImageCarouselService>({ openCarouselAtResource: async (...args) => { opened.push(args); } }));
+		const relative = new MarkdownString('![Relative](images/relative.png)');
+		relative.baseUri = URI.file('/workspace/README.md');
+		const local = 'file:///workspace/mapped.png';
+		const mapped = new MarkdownString(`![Mapped](${local})`);
+		mapped.uris = { [local]: URI.parse('vscode-remote://ssh-remote+host/workspace/mapped.png') };
+
+		for (const markdown of [relative, mapped]) {
+			createMarkdownPart(markdown).domNode.querySelector('img')!.click();
+		}
+
+		assert.deepStrictEqual(
+			opened.map(([openedResource, , options]) => ({ resource: openedResource.toString(), imageId: options?.imageId })),
+			// Like the renderer, relative resolution adds the current drive on Windows.
+			[resolvePath(URI.file('/workspace'), 'images/relative.png'), URI.parse('vscode-remote://ssh-remote+host/workspace/mapped.png')].map(target => ({
+				resource: target.toString(),
+				imageId: getChatMarkdownImageId('test-response-id', target),
+			})),
+		);
+	});
+
+	test('uses the image menu rather than editor and Explorer navigation for file images', async () => {
+		const requestedMenus: MenuId[] = [];
+		const actionLabels: string[][] = [];
+		instantiationService.stub(IMenuService, upcastPartial<IMenuService>({
+			getMenuActions: menuId => {
+				requestedMenus.push(menuId);
+				return [];
+			}
+		}));
+		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({
+			showContextMenu: delegate => { actionLabels.push(delegate.getActions?.().map(action => action.label) ?? []); }
+		}));
+		const part = createMarkdownPart('![File](file:///workspace/image.png)');
+		part.domNode.querySelector('img')!.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		await Promise.resolve();
+		assert.deepStrictEqual({ requestedMenus, actionLabels }, {
+			requestedMenus: [MenuId.ChatImageContext],
+			actionLabels: [['Copy Image', 'Copy Image Path']],
+		});
 	});
 
 	test('renders plain markdown without code blocks', () => {

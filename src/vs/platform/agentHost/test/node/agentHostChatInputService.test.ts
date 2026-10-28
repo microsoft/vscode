@@ -14,6 +14,7 @@ import { readChatInputState } from '../../common/meta/vscode/agentHostChatInputS
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, ChatInteractivity, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostChatInputService } from '../../node/agentHostChatInputService.js';
+import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostStateManager, ChatRemovalReason, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
@@ -38,8 +39,9 @@ suite('AgentHostChatInputService', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const chatOwnership = createTestChatOwnershipService(stateManager);
 		const subscriptions = disposables.add(new AgentHostSubscriptionService(chatOwnership));
+		const authenticationService = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
 		const service = disposables.add(new AgentHostChatInputService(stateManager, createTestAgentHostProviderService(() => agent),
-			subscriptions, chatOwnership,
+			subscriptions, chatOwnership, authenticationService,
 			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), createNullSessionDataService())));
 		// What the chat input contribution forwards.
 		disposables.add(stateManager.onDidEmitEnvelope(({ channel, action }) => {
@@ -87,7 +89,7 @@ suite('AgentHostChatInputService', () => {
 		stateManager.removeChat(source, buildChatUri(source, 'peer'));
 		service.setBlocked(chat, { errorType: 'CodexThreadInUse', message: 'In use' });
 
-		stateManager.transferSession(source, target, [chat], undefined);
+		stateManager.transferSession(source, target, [chat], undefined, true);
 
 		assert.deepStrictEqual(inputOf(stateManager, target, chat), { input: 'blocked', interactivity: ChatInteractivity.ReadOnly });
 	});

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -79,6 +79,16 @@ function matchesLocalCopilotAuto(model: ILanguageModelChatMetadataAndIdentifier)
 	return model.metadata.vendor === LOCAL_COPILOT_VENDOR && isAutoLanguageModel(model);
 }
 
+/** Whether Auto may run requests on the family now: active, auto-capable, Use in Auto on and passing the Auto gate. */
+function isUsableByAuto(status: ILocalModelStatusV1, family: ILocalModelFamilyV1): boolean {
+	return family.autoCapable && status.useInAuto && status.active?.familyId === family.familyId && status.active.autoEligible === true;
+}
+
+/** Whether `model` already acts on the family's ready offer: its direct row, or Auto once Auto may use it. */
+export function isLocalModelReadyOfferTakenBy(status: ILocalModelStatusV1, family: ILocalModelFamilyV1, model: ILanguageModelChatMetadataAndIdentifier | undefined): boolean {
+	return !!model && (matchesLocalModelRow(family.install?.modelId)(model) || (matchesLocalCopilotAuto(model) && isUsableByAuto(status, family)));
+}
+
 /** Inputs to {@link resolveLocalModelReadyOfferBody}. */
 export interface ILocalModelReadyOfferInput {
 	readonly status: ILocalModelStatusV1;
@@ -93,7 +103,6 @@ export function resolveLocalModelReadyOfferBody(input: ILocalModelReadyOfferInpu
 	const name = family.displayName;
 	const readyOfferId = family.readyOfferId ?? '';
 	const currentModelKind = getLocalModelCurrentModelKind(input.currentModel, status);
-	const onLocalRow = !!input.currentModel && matchesLocalModelRow(family.install?.modelId)(input.currentModel);
 
 	const notNow: IChatInputNotificationAction = {
 		kind: ChatInputNotificationActionKind.Command,
@@ -128,15 +137,13 @@ export function resolveLocalModelReadyOfferBody(input: ILocalModelReadyOfferInpu
 		};
 	}
 
-	const active = status.active?.familyId === family.familyId ? status.active : undefined;
-	const usableByAuto = family.autoCapable && status.useInAuto && active?.autoEligible === true;
-	if (!usableByAuto) {
-		const tooSlow = family.autoCapable && active?.autoEligible === false;
+	if (!isUsableByAuto(status, family)) {
+		const tooSlow = family.autoCapable && status.active?.familyId === family.familyId && status.active.autoEligible === false;
 		return {
 			description: tooSlow
 				? localize('localModel.ready.tooSlow', "It's too slow on this device for Auto, but you can select it directly.")
 				: localize('localModel.ready.directOnly', "Select it directly to run on your device."),
-			actions: onLocalRow ? [notNow] : [notNow, switchToLocal(true)],
+			actions: [notNow, switchToLocal(true)],
 		};
 	}
 
@@ -159,12 +166,12 @@ export function resolveLocalModelReadyOfferBody(input: ILocalModelReadyOfferInpu
 		label: localize('localModel.ready.useAuto', "Use Auto"),
 		matchesModel: matchesLocalCopilotAuto,
 		requireUniqueModel: true,
-		primary: onLocalRow,
+		primary: false,
 		telemetryActionId: 'useAuto',
 	};
 	return {
 		description: localize('localModel.ready.server', "Run this chat on your device, or let Auto choose between local and cloud."),
-		actions: onLocalRow ? [notNow, useAuto] : [useAuto, notNow, switchToLocal(true)],
+		actions: [useAuto, notNow, switchToLocal(true)],
 	};
 }
 
@@ -175,6 +182,7 @@ function isLocalCopilotChat(widget: IChatWidget | undefined): boolean {
 
 interface IRegisteredOffer {
 	readonly familyId: string;
+	readonly flavor: LocalModelReadyOfferFlavor;
 	readonly signature: string;
 	readonly inputUri: URI | undefined;
 }
@@ -187,6 +195,7 @@ interface IRegisteredOffer {
 export class LocalModelReadyNotificationContribution extends Disposable {
 
 	private readonly _registered = new Map<string, IRegisteredOffer>();
+	private readonly _widgetListeners = this._register(new DisposableMap<IChatWidget>());
 	private readonly _enabled: IObservable<boolean>;
 	private readonly _status: IObservable<ILocalModelStatusV1 | undefined>;
 
@@ -211,7 +220,30 @@ export class LocalModelReadyNotificationContribution extends Disposable {
 		}));
 		this._register(autorun(reader => this._update(this._enabled.read(reader) ? this._status.read(reader) : undefined)));
 		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, LOCAL_MODEL_READY_OFFER_ACKNOWLEDGED_KEY, this._store)(() => this._updateNow()));
-		this._register(this._chatWidgetService.onDidRemoveWidget(widget => this._untarget(widget.input.inputUri)));
+		for (const widget of this._chatWidgetService.getAllWidgets()) {
+			this._trackWidget(widget);
+		}
+		this._register(this._chatWidgetService.onDidAddWidget(widget => this._trackWidget(widget)));
+		this._register(this._chatWidgetService.onDidRemoveWidget(widget => {
+			this._widgetListeners.deleteAndDispose(widget);
+			this._untarget(widget.input.inputUri);
+		}));
+	}
+
+	/** Selecting the offered model, or Auto once Auto may use it, in any chat input acts on the offer. */
+	private _trackWidget(widget: IChatWidget): void {
+		this._widgetListeners.set(widget, widget.input.onDidChangeUserSelectedModel(() => {
+			const status = this._enabled.get() ? this._status.get() : undefined;
+			if (!status) {
+				return;
+			}
+			const model = widget.input.selectedLanguageModel.get();
+			for (const family of status.families) {
+				if (family.readyOfferId && isLocalModelReadyOfferTakenBy(status, family, model)) {
+					this._acknowledge(family.readyOfferId);
+				}
+			}
+		}));
 	}
 
 	private _updateNow(): void {
@@ -221,6 +253,7 @@ export class LocalModelReadyNotificationContribution extends Disposable {
 	private _update(status: ILocalModelStatusV1 | undefined): void {
 		const acknowledged = readDismissedNotificationIds(this._storageService, LOCAL_MODEL_READY_OFFER_ACKNOWLEDGED_KEY);
 		const keep = new Set<string>();
+		const loaded: string[] = [];
 		for (const family of status?.families ?? []) {
 			const readyOfferId = family.readyOfferId;
 			if (!status || !readyOfferId || acknowledged.has(readyOfferId)) {
@@ -232,13 +265,18 @@ export class LocalModelReadyNotificationContribution extends Disposable {
 			if (!flavor) {
 				continue;
 			}
+			// Loading the installed model by any route (Load, the model's page, Make On-Device Model Active) acts on its offer.
+			if (registered?.flavor === 'secondInstall' && flavor === 'ready') {
+				loaded.push(readyOfferId);
+				continue;
+			}
 			keep.add(id);
 			const signature = `${flavor}\u0000${family.displayName}`;
 			if (registered?.signature === signature) {
 				continue;
 			}
 			const inputUri = registered ? registered.inputUri : this._focusedLocalInputUri();
-			this._registered.set(id, { familyId: family.familyId, signature, inputUri });
+			this._registered.set(id, { familyId: family.familyId, flavor, signature, inputUri });
 			this._chatInputNotificationService.setNotification(this._createNotification(readyOfferId, family, flavor, inputUri));
 		}
 		for (const id of [...this._registered.keys()]) {
@@ -246,6 +284,9 @@ export class LocalModelReadyNotificationContribution extends Disposable {
 				this._registered.delete(id);
 				this._chatInputNotificationService.deleteNotification(id);
 			}
+		}
+		for (const readyOfferId of loaded) {
+			addDismissedNotificationId(this._storageService, LOCAL_MODEL_READY_OFFER_ACKNOWLEDGED_KEY, readyOfferId);
 		}
 	}
 
@@ -270,6 +311,11 @@ export class LocalModelReadyNotificationContribution extends Disposable {
 				: localize('localModel.ready.message', "{0} is ready on this device.", family.displayName),
 			description: initial.description,
 			actions: initial.actions,
+			// Hidden in an input already on the model, however it got there (a restored selection, Load, another window).
+			when: context => {
+				const current = this._status.get()?.families.find(candidate => candidate.familyId === familyId);
+				return !context.modelState.currentModel || !matchesLocalModelRow(current?.install?.modelId)(context.modelState.currentModel);
+			},
 			resolveBody: context => resolve(context.modelState.currentModel),
 			onDidShow: context => this._recordShown(readyOfferId, context.modelState.currentModel),
 			dismissible: true,

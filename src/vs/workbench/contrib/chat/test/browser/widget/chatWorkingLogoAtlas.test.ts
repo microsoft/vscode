@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { $ } from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -18,13 +18,50 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IColorTheme, IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme } from '../../../../../../platform/theme/test/common/testThemeService.js';
-import { ChatWorkingLogoAtlasCache, IChatWorkingLogoAtlas, createChatWorkingLogoAtlas, getChatWorkingLogoAtlasKeyframes, loadChatWorkingLogoAtlasImage } from '../../../browser/widget/chatWorkingLogoAtlas.js';
+import { ChatWorkingLogoAtlasCache, IChatWorkingLogoAtlas, createChatWorkingLogoAtlas, getChatWorkingLogoAtlasKeyframes, hasChatWorkingLogoAtlas, loadChatWorkingLogoAtlasImage } from '../../../browser/widget/chatWorkingLogoAtlas.js';
 import { CHAT_WORKING_LOGO_DRAW_PAINT_ORDER, chatWorkingLogoFacePaths, getChatWorkingLogoDrawFrame } from '../../../browser/widget/chatWorkingLogoDraw.js';
 import { ChatWorkingLogo, ChatWorkingProgressLogo } from '../../../browser/widget/chatWorkingLogo.js';
 import { ChatConfiguration, ChatProgressAnimation } from '../../../common/constants.js';
 
 suite('ChatWorkingLogoAtlas', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/**
+	 * Tests that rasterize real atlases decode every frame, which can take tens of seconds on slow CI agents.
+	 * Keep this above the runner's 30s CI default.
+	 */
+	const atlasGenerationTimeout = 60_000;
+
+	/**
+	 * Mocha does not stop a test body after it times out. Teardown cancels this token so that pending
+	 * atlas work ends with the test instead of leaking disposables into later tests.
+	 */
+	function cancelOnTeardown(): CancellationToken {
+		const source = new CancellationTokenSource();
+		store.add(toDisposable(() => source.dispose(true)));
+		return source.token;
+	}
+
+	/**
+	 * Resolves once `condition` holds, checking it after each mutation in `target`'s subtree. The logo
+	 * attaches its atlas sheet only after the image has loaded, and toggles its classes and SVG fallback
+	 * frames in the DOM, so every state these tests wait for comes with a mutation.
+	 */
+	function waitForMutation(target: Node, condition: () => boolean): Promise<void> {
+		if (condition()) {
+			return Promise.resolve();
+		}
+		return new Promise(resolve => {
+			const observer = new mainWindow.MutationObserver(() => {
+				if (condition()) {
+					observer.disconnect();
+					resolve();
+				}
+			});
+			store.add(toDisposable(() => observer.disconnect()));
+			observer.observe(target, { attributes: true, childList: true, subtree: true });
+		});
+	}
 
 	function atlas(dispose: () => void = () => { }): IChatWorkingLogoAtlas {
 		return Object.assign(toDisposable(dispose), { url: 'test', width: 560, height: 448, frameWidth: 24, frameHeight: 24 });
@@ -104,6 +141,31 @@ suite('ChatWorkingLogoAtlas', () => {
 		assert.strictEqual(attempts, 2);
 	});
 
+	test('reports ready and in-flight atlases, keeps released ready ones, and forgets released pending ones', async () => {
+		const generations: DeferredPromise<IChatWorkingLogoAtlas>[] = [];
+		const cache = store.add(new ChatWorkingLogoAtlasCache(mainWindow, () => {
+			const generation = new DeferredPromise<IChatWorkingLogoAtlas>();
+			generations.push(generation);
+			return generation.p;
+		}));
+		const options = { width: 12, height: 12, color: '#007acc' };
+		const empty = cache.has(options);
+		const pending = store.add(cache.acquire(options));
+		const inFlight = cache.has(options);
+		pending.dispose();
+		const releasedPending = cache.has(options);
+		const canceled = assert.rejects(pending.object, isCancellationError);
+		await generations[0].complete(atlas());
+		await canceled;
+		const ready = store.add(cache.acquire(options));
+		await generations[1].complete(atlas());
+		await ready.object;
+		ready.dispose();
+		assert.deepStrictEqual({ empty, inFlight, releasedPending, releasedReady: cache.has(options), generations: generations.length }, {
+			empty: false, inFlight: true, releasedPending: false, releasedReady: true, generations: 2,
+		});
+	});
+
 	test('rejects unsupported dimensions and canceled generation explicitly', async () => {
 		const cache = store.add(new ChatWorkingLogoAtlasCache(mainWindow));
 		for (const width of [0, -1, 1.5, 129, NaN, Infinity]) {
@@ -113,9 +175,10 @@ suite('ChatWorkingLogoAtlas', () => {
 	});
 
 	test('uses padded, native-resolution tiles and 120 Hz stepped transforms', async () => {
-		const resource = store.add(await createChatWorkingLogoAtlas(mainWindow, { width: 24, height: 24, color: '#007acc' }, CancellationToken.None));
+		const token = cancelOnTeardown();
+		const resource = store.add(await createChatWorkingLogoAtlas(mainWindow, { width: 24, height: 24, color: '#007acc' }, token));
 		const image = $<HTMLImageElement>('img');
-		await loadChatWorkingLogoAtlasImage(image, resource.url, CancellationToken.None);
+		await loadChatWorkingLogoAtlasImage(image, resource.url, token);
 		const canvas = $<HTMLCanvasElement>('canvas');
 		canvas.width = resource.width;
 		canvas.height = resource.height;
@@ -158,7 +221,7 @@ suite('ChatWorkingLogoAtlas', () => {
 			...chatWorkingLogoFacePaths.map(d => $.SVG<SVGPathElement>('path', { d, fill: '#007acc' })));
 		const source = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' }));
 		store.add(toDisposable(() => URL.revokeObjectURL(source)));
-		await loadChatWorkingLogoAtlasImage(image, source, CancellationToken.None);
+		await loadChatWorkingLogoAtlasImage(image, source, token);
 		expectedContext.drawImage(image, 0, 0);
 		assert.deepStrictEqual(held, expectedContext.getImageData(0, 0, 24, 24).data);
 
@@ -175,7 +238,7 @@ suite('ChatWorkingLogoAtlas', () => {
 			}
 			const source = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(animatedSvg)], { type: 'image/svg+xml' }));
 			try {
-				await loadChatWorkingLogoAtlasImage(image, source, CancellationToken.None);
+				await loadChatWorkingLogoAtlasImage(image, source, token);
 				expectedContext.clearRect(0, 0, 24, 24);
 				expectedContext.drawImage(image, 0, 0);
 				assert.deepStrictEqual(context.getImageData(index % 20 * 28 + 2, Math.floor(index / 20) * 28 + 2, 24, 24).data, expectedContext.getImageData(0, 0, 24, 24).data, `Frame ${index}`);
@@ -183,36 +246,50 @@ suite('ChatWorkingLogoAtlas', () => {
 				URL.revokeObjectURL(source);
 			}
 		}
-	});
+	}).timeout(atlasGenerationTimeout);
 
 	test('live atlas pauses when hidden, resumes on remount, and returns to static artwork', async () => {
 		const host = mainWindow.document.body.appendChild($('.monaco-enable-motion'));
 		host.style.cssText = '--vscode-codiconFontSize: 12px; --vscode-chat-workingProgressStableIconForeground: #007acc;';
 		store.add(toDisposable(() => host.remove()));
 		const errors: Error[] = [];
-		const logo = store.add(new ChatWorkingLogo(ChatProgressAnimation.Draw, 'stable', { onAtlasError: error => errors.push(error) }));
+		// Remounts reacquire the cached atlas instead of rasterizing all frames again after each release.
+		const cache = store.add(new ChatWorkingLogoAtlasCache(mainWindow));
+		const logo = store.add(new ChatWorkingLogo(ChatProgressAnimation.Draw, 'stable', {
+			acquireAtlas: (_window, options) => cache.acquire(options),
+			atlasPreparationDelay: 0,
+			onAtlasError: error => errors.push(error),
+		}));
 		host.appendChild(logo.domNode);
-		const waitForAtlas = () => retry(async () => assert.ok(logo.domNode.classList.contains('chat-working-logo-atlas')), 10, 300);
+		const waitForAtlas = () => waitForMutation(logo.domNode, () => logo.domNode.classList.contains('chat-working-logo-atlas'));
+		const nextFrame = () => new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 		await waitForAtlas();
 		const animation = logo.domNode.querySelector('.chat-working-logo-atlas-sheet')!.getAnimations()[0];
 		const firstTime = animation.currentTime;
-		await retry(async () => assert.notStrictEqual(animation.currentTime, firstTime), 10, 100);
+		// The start time is the time of the frame in which the animation becomes ready, and the first requested
+		// frame can still be that one, so the current time has advanced by the second.
+		await animation.ready;
+		await nextFrame();
+		await nextFrame();
+		const advanced = animation.currentTime !== firstTime;
+		const canceled = new Promise<void>(resolve => animation.addEventListener('cancel', () => resolve(), { once: true }));
 		host.style.display = 'none';
-		await retry(async () => assert.strictEqual(animation.playState, 'idle'), 10, 100);
+		await canceled;
 		host.style.display = '';
 		await waitForAtlas();
 		host.remove();
-		await retry(async () => assert.ok(!logo.domNode.classList.contains('chat-working-logo-atlas')), 10, 100);
+		await waitForMutation(logo.domNode, () => !logo.domNode.classList.contains('chat-working-logo-atlas'));
 		mainWindow.document.body.appendChild(host);
 		await waitForAtlas();
 		logo.setActive(false);
 		assert.deepStrictEqual({
+			advanced,
 			errors,
 			animations: logo.domNode.getAnimations({ subtree: true }).length,
 			assembled: logo.domNode.classList.contains('chat-working-logo-draw-assembled'),
 			atlas: !!logo.domNode.querySelector('.chat-working-logo-atlas-sheet'),
-		}, { errors: [], animations: 0, assembled: true, atlas: false });
-	}).timeout(15000);
+		}, { advanced: true, errors: [], animations: 0, assembled: true, atlas: false });
+	}).timeout(atlasGenerationTimeout);
 
 	test('DPR changes replace the atlas without changing its CSS footprint', async () => {
 		const changed = store.add(new Emitter<number>());
@@ -220,37 +297,42 @@ suite('ChatWorkingLogoAtlas', () => {
 		const host = mainWindow.document.body.appendChild($('.monaco-enable-motion'));
 		host.style.cssText = '--vscode-codiconFontSize: 12px; --vscode-chat-workingProgressStableIconForeground: #007acc;';
 		store.add(toDisposable(() => host.remove()));
-		const logo = store.add(new ChatWorkingLogo(ChatProgressAnimation.Draw, 'stable', { pixelRatio: ratio }));
+		const logo = store.add(new ChatWorkingLogo(ChatProgressAnimation.Draw, 'stable', { pixelRatio: ratio, atlasPreparationDelay: 0 }));
 		host.appendChild(logo.domNode);
 		const image = () => logo.domNode.querySelector<HTMLImageElement>('.chat-working-logo-atlas-sheet');
-		await retry(async () => assert.ok(image()?.complete), 10, 300);
+		await waitForMutation(logo.domNode, () => !!image()?.complete);
 		const first = image()!;
 		const firstWidth = first.naturalWidth;
 		ratio.value = 2.5;
 		changed.fire(ratio.value);
-		await retry(async () => assert.ok(image() && image() !== first), 10, 300);
+		await waitForMutation(logo.domNode, () => !!image() && image() !== first);
 		const bounds = logo.domNode.getBoundingClientRect();
 		assert.deepStrictEqual({
 			firstWidth,
 			replacementWidth: image()!.naturalWidth,
 			bounds: [bounds.width, bounds.height],
 		}, { firstWidth: 320, replacementWidth: 680, bounds: [12, 12] });
-	}).timeout(15000);
+	}).timeout(atlasGenerationTimeout);
 
 	test('atlas failure logs once and leaves the SVG fallback active', async () => {
 		const errors: Error[] = [];
+		const errorReported = new DeferredPromise<void>();
 		const host = mainWindow.document.body.appendChild($('.monaco-enable-motion'));
 		host.style.cssText = '--vscode-codiconFontSize: 12px; --vscode-chat-workingProgressStableIconForeground: #007acc;';
 		store.add(toDisposable(() => host.remove()));
 		const logo = store.add(new ChatWorkingLogo(ChatProgressAnimation.Draw, 'stable', {
 			acquireAtlas: () => Object.assign(toDisposable(() => { }), { object: Promise.reject(new Error('encode failed')) }),
-			onAtlasError: error => errors.push(error),
+			atlasPreparationDelay: 0,
+			onAtlasError: error => {
+				errors.push(error);
+				errorReported.complete();
+			},
 		}));
 		host.appendChild(logo.domNode);
-		await retry(async () => assert.strictEqual(errors.length, 1), 10, 100);
+		await errorReported.p;
 		const paths = () => [...logo.domNode.querySelectorAll('.chat-working-logo-draw-band')].map(path => path.getAttribute('d'));
 		const initial = paths();
-		await retry(async () => assert.notDeepStrictEqual(paths(), initial), 10, 100);
+		await waitForMutation(logo.domNode, () => paths().some((path, index) => path !== initial[index]));
 		assert.deepStrictEqual({
 			errors: errors.map(error => error.message),
 			atlas: logo.domNode.classList.contains('chat-working-logo-atlas'),
@@ -271,11 +353,11 @@ suite('ChatWorkingLogoAtlas', () => {
 		const logo = store.add(new ChatWorkingProgressLogo('stable', configuration, store.add(new NullLogService()), new TestAccessibilityService(), theme));
 		host.appendChild(logo.domNode);
 		const image = () => logo.domNode.querySelector<HTMLImageElement>('.chat-working-logo-atlas-sheet');
-		await retry(async () => assert.ok(image()?.complete), 10, 300);
+		await waitForMutation(logo.domNode, () => !!image()?.complete);
 		const original = image()!;
 		host.style.setProperty('--vscode-chat-workingProgressStableIconForeground', '#24bfa5');
 		changed.fire(new TestColorTheme());
-		await retry(async () => assert.ok(image() && image() !== original), 10, 300);
+		await waitForMutation(logo.domNode, () => !!image() && image() !== original);
 		const colored = image()!;
 		const canvas = $<HTMLCanvasElement>('canvas');
 		canvas.width = colored.naturalWidth;
@@ -296,24 +378,25 @@ suite('ChatWorkingLogoAtlas', () => {
 			animations: logo.domNode.getAnimations({ subtree: true }).length,
 			hidden: mainWindow.getComputedStyle(logo.domNode).visibility,
 		}, { rgba: [36, 191, 165, 255], atlas: false, animations: 0, hidden: 'hidden' });
-	}).timeout(15000);
+	}).timeout(atlasGenerationTimeout);
 
 	test('disposal during generation prevents late image and animation attachment', async () => {
 		const pending = new DeferredPromise<IChatWorkingLogoAtlas>();
 		let released = 0;
-		let acquired = false;
+		const acquired = new DeferredPromise<void>();
 		const host = mainWindow.document.body.appendChild($('.monaco-enable-motion'));
 		host.style.cssText = '--vscode-codiconFontSize: 12px;';
 		store.add(toDisposable(() => host.remove()));
 		const logo = store.add(new ChatWorkingLogo(ChatProgressAnimation.Draw, 'stable', {
 			acquireAtlas: () => {
-				acquired = true;
+				acquired.complete();
 				return Object.assign(toDisposable(() => released++), { object: pending.p });
 			},
+			atlasPreparationDelay: 0,
 			pixelRatio: { value: 1, onDidChange: Event.None },
 		}));
 		host.appendChild(logo.domNode);
-		await retry(async () => assert.ok(acquired), 10, 100);
+		await acquired.p;
 		logo.dispose();
 		await pending.error(new CancellationError());
 		await timeout(0);
@@ -324,4 +407,55 @@ suite('ChatWorkingLogoAtlas', () => {
 			animations: logo.domNode.getAnimations({ subtree: true }).length,
 		}, { released: 1, connected: false, atlas: null, animations: 0 });
 	});
+
+	test('new atlases wait for the preparation delay while existing ones are used immediately', async () => {
+		const host = mainWindow.document.body.appendChild($('.monaco-enable-motion'));
+		host.style.cssText = '--vscode-codiconFontSize: 12px;';
+		store.add(toDisposable(() => host.remove()));
+		const acquiredAfter = new Map<string, number>();
+		const bothAcquired = new DeferredPromise<void>();
+		const createLogo = (name: string, existing: boolean, atlasPreparationDelay: number) => {
+			const createdAt = mainWindow.performance.now();
+			const logo = store.add(new ChatWorkingLogo(ChatProgressAnimation.Draw, 'stable', {
+				atlasPreparationDelay,
+				hasAtlas: () => existing,
+				acquireAtlas: () => {
+					acquiredAfter.set(name, mainWindow.performance.now() - createdAt);
+					if (acquiredAfter.has('existing') && acquiredAfter.has('new')) {
+						bothAcquired.complete();
+					}
+					return Object.assign(toDisposable(() => { }), { object: new Promise<IChatWorkingLogoAtlas>(() => { }) });
+				},
+				pixelRatio: { value: 1, onDidChange: Event.None },
+			}));
+			host.appendChild(logo.domNode);
+		};
+		createLogo('existing', true, 60_000);
+		createLogo('new', false, 1000);
+		await bothAcquired.p;
+		assert.deepStrictEqual({
+			existingSkippedDelay: acquiredAfter.get('existing')! < 60_000,
+			newWaitedForDelay: acquiredAfter.get('new')! >= 1000,
+		}, { existingSkippedDelay: true, newWaitedForDelay: true });
+	}).timeout(10_000);
+
+	test('later indicators reuse the window atlas after earlier ones are disposed, without waiting for the delay', async () => {
+		const host = mainWindow.document.body.appendChild($('.monaco-enable-motion'));
+		// The window retains completed atlases for its lifetime, so use a color that no other test generates.
+		host.style.cssText = '--vscode-codiconFontSize: 12px; --vscode-chat-workingProgressStableIconForeground: #2a7ab0;';
+		store.add(toDisposable(() => host.remove()));
+		const pixelRatio = { value: 1, onDidChange: Event.None };
+		const first = store.add(new ChatWorkingLogo(ChatProgressAnimation.Draw, 'stable', { pixelRatio, atlasPreparationDelay: 0 }));
+		host.appendChild(first.domNode);
+		await waitForMutation(first.domNode, () => first.domNode.classList.contains('chat-working-logo-atlas'));
+		const options = { width: 12, height: 12, color: mainWindow.getComputedStyle(first.domNode).color };
+		first.dispose();
+		const retained = hasChatWorkingLogoAtlas(mainWindow, options);
+		const second = store.add(new ChatWorkingLogo(ChatProgressAnimation.Draw, 'stable', { pixelRatio, atlasPreparationDelay: 60_000 }));
+		host.appendChild(second.domNode);
+		await waitForMutation(second.domNode, () => second.domNode.classList.contains('chat-working-logo-atlas'));
+		assert.deepStrictEqual({ retained, sheetLoaded: !!second.domNode.querySelector<HTMLImageElement>('.chat-working-logo-atlas-sheet')?.complete }, {
+			retained: true, sheetLoaded: true,
+		});
+	}).timeout(atlasGenerationTimeout);
 });

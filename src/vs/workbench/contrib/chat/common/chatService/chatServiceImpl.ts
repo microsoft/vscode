@@ -53,6 +53,7 @@ import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPen
 import { ChatRequestTelemetry, ChatServiceTelemetry, getChatSessionTelemetryIds } from './chatServiceTelemetry.js';
 import { IRemoteChatHistoryScheduler, IRemoteChatSessionRestoreOptions, IRemoteChatSessionRestoreResult, RemoteChatSessionRestorer } from './remoteChatSessionRestorer.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { isCopilotAgentHostProvider } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IChatSession, IChatSessionsService, IChatSessionServerRequest, isAgentHostTarget, isTerminalCommandPrompt, localChatSessionType } from '../chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessionStore.js';
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
@@ -1274,6 +1275,8 @@ export class ChatService extends Disposable implements IChatService {
 				streamingResponseCompletedAt = undefined;
 			};
 			const processProgress = (progressArray: readonly IChatProgress[], isComplete: boolean) => {
+				// The first observation replays whatever the session did before it was watched.
+				const restoredProgress = wasComplete === undefined;
 				const justCompleted = wasComplete === false && isComplete;
 				wasComplete = isComplete;
 
@@ -1286,7 +1289,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (streamingRequest && progressArray.length > lastProgressLength) {
 					const newProgress = progressArray.slice(lastProgressLength);
 					for (const progress of newProgress) {
-						model?.acceptResponseProgress(streamingRequest, progress);
+						model?.acceptResponseProgress(streamingRequest, progress, undefined, restoredProgress);
 					}
 					lastProgressLength = progressArray.length;
 				}
@@ -1307,7 +1310,7 @@ export class ChatService extends Disposable implements IChatService {
 			// Handle server-initiated requests (e.g. consumed queued messages).
 			let progressDeferredForServerRequest = false;
 			if (providedSession.onDidStartServerRequest) {
-				const handleServerRequest = ({ id, prompt, metadata, variableData, modelId, modelConfiguration, timestamp, isSystemInitiated, requestSource, isHidden, isRequestHidden, systemInitiatedLabel, isTerminalRequest, resume, origin }: IChatSessionServerRequest) => {
+				const handleServerRequest = ({ id, prompt, metadata, variableData, modelId, modelConfiguration, timestamp, isSystemInitiated, requestSource, artifactRequest, isHidden, isRequestHidden, systemInitiatedLabel, isTerminalRequest, resume, replacesRequestId, origin }: IChatSessionServerRequest) => {
 					if (resume) {
 						const request = model.getRequests().find(request => request.id === id);
 						if (!request?.response) {
@@ -1323,6 +1326,12 @@ export class ChatService extends Disposable implements IChatService {
 					// Complete any in-flight request
 					if (streamingRequest?.response && !streamingRequest.response.isComplete) {
 						completeStreamingResponse(true);
+					}
+					// Requests are applied in order, so a replaced request that arrived just before is already in the model.
+					const replaced = replacesRequestId === undefined ? undefined : model.getRequests().find(request => request.id === replacesRequestId);
+					if (replaced?.response?.isComplete) {
+						// A replaced request without usage did not bill anything, so the session cost stays valid.
+						model.removeRequest(replaced.id, replaced.response.usage ? ChatRequestRemovalReason.Removal : ChatRequestRemovalReason.Replacement);
 					}
 
 					// Create a new request in the model
@@ -1352,6 +1361,8 @@ export class ChatService extends Disposable implements IChatService {
 						requestSource,
 						modelConfiguration,
 						metadata,
+						undefined,
+						artifactRequest,
 					);
 
 					// Reset progress tracking for the new turn
@@ -1602,6 +1613,12 @@ export class ChatService extends Disposable implements IChatService {
 			if (isSubmission && !options?.isSystemInitiated && !options?.hideFromTranscript) {
 				this._modelsWithAcceptedRequests.add(model);
 				this._onDidAcceptRequest.fire({ chatSessionResource: sessionResource, isNewSession });
+				const provider = this.chatSessionService.getChatSessionContribution(getChatSessionType(sessionResource))?.agentHostProviderId;
+				if (isCopilotAgentHostProvider(provider)) {
+					// Copilot harness submissions bypass the extension's legacy usage signal, including queued sends in either window.
+					this.commandService.executeCommand('github.copilot.survey.signalUsage', 'agent.copilot')
+						.catch(error => this.logService.warn('[CopilotSurvey] Failed to signal Copilot harness usage', error));
+				}
 			}
 		};
 
@@ -2132,10 +2149,18 @@ export class ChatService extends Disposable implements IChatService {
 					this.generateInitialChatTitleIfNeeded(model, requestProps, defaultAgent, token);
 					const pendingRequest = this._pendingRequests.get(sessionResource);
 					if (pendingRequest) {
+						let yieldForwardedRequestId: string | undefined;
 						store.add(autorun(reader => {
 							const yieldRequested = pendingRequest.yieldRequested.read(reader);
 							if (request) {
+								yieldForwardedRequestId = yieldRequested ? request.id : undefined;
 								this.chatAgentService.setYieldRequested(agent.id, request.id, yieldRequested);
+							}
+						}));
+						// Clear a forwarded yield when the request ends, including when the agent was never invoked
+						store.add(toDisposable(() => {
+							if (yieldForwardedRequestId) {
+								this.chatAgentService.setYieldRequested(agent.id, yieldForwardedRequestId, false);
 							}
 						}));
 						pendingRequest.requestId ??= requestProps.requestId;
@@ -2189,7 +2214,8 @@ export class ChatService extends Disposable implements IChatService {
 					const message = parsedRequest.text;
 					const commandResult = await this.chatSlashCommandService.executeCommand(commandPart.slashCommand.command, message.substring(commandPart.slashCommand.command.length + 1).trimStart(), new Progress<IChatProgress>(p => {
 						progressCallback([p]);
-					}), history, location, model.sessionResource, token, options);
+					}), history, location, model.sessionResource, token, options, { input: message });
+					options?.onDidExecuteSlashCommand?.();
 					agentOrCommandFollowups = Promise.resolve(commandResult?.followUp);
 					rawResult = {};
 
@@ -2354,8 +2380,8 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
-		// Dequeue all consecutive steering requests and combine them into one
-		const steeringRequests = model.dequeueAllSteeringRequests();
+		// Dequeue consecutive steering requests from the same initiator and combine them into one
+		const steeringRequests = model.dequeueSteeringBatch();
 
 		// Then dequeue a single non-steering request if no steering was found
 		const nextQueued = steeringRequests.length === 0 ? model.dequeuePendingRequest() : undefined;
@@ -2438,6 +2464,10 @@ export class ChatService extends Disposable implements IChatService {
 		const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 
 		const responseState = this._sendRequestAsync(model, model.sessionResource, parsedRequest, firstRequest.request.attempt, !sendOptions.noCommandDetection, silentAgent ?? defaultAgent, location, sendOptions);
+		// Steering from the other initiator is still queued, so this request should yield to it.
+		if (steeringRequests.length > 0 && model.getPendingRequests().some(r => r.kind === ChatRequestQueueKind.Steering)) {
+			this.setYieldRequested(model.sessionResource);
+		}
 
 		const result: ChatSendResultSent = {
 			kind: 'sent',
@@ -2588,7 +2618,7 @@ export class ChatService extends Disposable implements IChatService {
 			model.acceptResponseProgress(request, { content: new MarkdownString(response.message), kind: 'markdownContent' });
 		} else {
 			for (const part of response.message) {
-				model.acceptResponseProgress(request, part, true);
+				model.acceptResponseProgress(request, part, true, true /* restored */);
 			}
 		}
 		model.setResponse(request, response.result || {});
@@ -2712,10 +2742,13 @@ export class ChatService extends Disposable implements IChatService {
 			const agentHostMessageOrigin = remote.agentHostMessageOrigin ?? local?.sendOptions.agentHostMessageOrigin;
 			const metadata = remote.agentHostMessageOrigin !== undefined ? remote.metadata : remote.metadata ?? local?.sendOptions.metadata;
 			const isSystemInitiated = remote.isSystemInitiated ?? local?.request.isSystemInitiated;
+			const requestSource = remote.agentHostMessageOrigin !== undefined ? remote.requestSource : remote.requestSource ?? local?.request.requestSource;
+			const artifactRequest = remote.agentHostMessageOrigin !== undefined ? remote.artifactRequest : remote.artifactRequest ?? local?.request.artifactRequest;
 			const systemInitiatedLabel = remote.agentHostMessageOrigin !== undefined ? remote.systemInitiatedLabel : remote.systemInitiatedLabel ?? local?.request.systemInitiatedLabel;
 			if (local && local.request.message.text === remote.message && equals(local.request.variableData, variableData)
 				&& local.request.modelId === modelId && equals(local.request.modelConfiguration, modelConfiguration)
 				&& local.request.isSystemInitiated === isSystemInitiated && local.request.systemInitiatedLabel === systemInitiatedLabel
+				&& local.request.requestSource === requestSource && equals(local.request.artifactRequest, artifactRequest)
 				&& equals(local.sendOptions.agentHostMessageOrigin, agentHostMessageOrigin) && equals(local.sendOptions.metadata, metadata)) {
 				return local.kind === remote.kind ? local : { ...local, kind: remote.kind };
 			}
@@ -2730,6 +2763,8 @@ export class ChatService extends Disposable implements IChatService {
 				modelId,
 				modelConfiguration,
 				isSystemInitiated,
+				requestSource,
+				artifactRequest,
 				systemInitiatedLabel,
 			});
 			return {

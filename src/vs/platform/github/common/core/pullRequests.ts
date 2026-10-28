@@ -126,14 +126,14 @@ export interface PullRequest extends PullRequestSummary {
 	readonly review_comments: number;
 	/** Auto-merge configuration, or null when not enabled. */
 	readonly auto_merge: {
-		/** Actor who enabled auto-merge. */
-		readonly enabled_by: Account;
+		/** Actor who enabled auto-merge, or null when unavailable. */
+		readonly enabled_by: Account | null;
 		/** REST merge-method name. */
 		readonly merge_method: MergeMethod;
-		/** Requested merge commit title. */
-		readonly commit_title: string;
-		/** Requested merge commit message. */
-		readonly commit_message: string;
+		/** Requested merge commit title, or null when GitHub selects the default. */
+		readonly commit_title: string | null;
+		/** Requested merge commit message, or null when GitHub selects the default. */
+		readonly commit_message: string | null;
 	} | null;
 }
 

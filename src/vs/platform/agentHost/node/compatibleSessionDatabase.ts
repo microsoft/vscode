@@ -132,6 +132,10 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 		return result;
 	}
 
+	async deleteProviderTurns(...[providerTurnIds, afterHostTurnId]: Parameters<ISessionDatabase['deleteProviderTurns']>): ReturnType<ISessionDatabase['deleteProviderTurns']> {
+		return this.raw.deleteProviderTurns(providerTurnIds, afterHostTurnId);
+	}
+
 	async insertPersistedTurn(...[record]: Parameters<ISessionDatabase['insertPersistedTurn']>): ReturnType<ISessionDatabase['insertPersistedTurn']> {
 		const result = await this.raw.insertPersistedTurn({ ...record, chatUri: this.identity.toStorage(record.chatUri), payload: this.identity.turnPayload(record.payload, 'storage') });
 		return result;
@@ -183,6 +187,11 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 
 	async storeFileEdit(...[edit]: Parameters<ISessionDatabase['storeFileEdit']>): ReturnType<ISessionDatabase['storeFileEdit']> {
 		const result = await this.raw.storeFileEdit(edit);
+		return result;
+	}
+
+	async storeFileEdits(...[edits, beforeCommit]: Parameters<ISessionDatabase['storeFileEdits']>): ReturnType<ISessionDatabase['storeFileEdits']> {
+		const result = await this.raw.storeFileEdits(edits, beforeCommit);
 		return result;
 	}
 

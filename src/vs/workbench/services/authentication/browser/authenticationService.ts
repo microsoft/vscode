@@ -364,20 +364,20 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return undefined;
 	}
 
-	async createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string, clientSecret?: string): Promise<IAuthenticationProvider | undefined> {
+	async createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string, clientSecret?: string, providerId?: string): Promise<IAuthenticationProvider | undefined> {
 		const delegate = this._delegates[0];
 		if (!delegate) {
 			this._logService.error('No authentication provider host delegate found');
 			return undefined;
 		}
-		const providerId = await delegate.create(authorizationServer, serverMetadata, resource, clientId, clientSecret);
-		const provider = this._authenticationProviders.get(providerId);
+		const createdProviderId = await delegate.create(authorizationServer, serverMetadata, resource, clientId, clientSecret, providerId);
+		const provider = this._authenticationProviders.get(createdProviderId);
 		if (provider) {
-			this._logService.debug(`Created dynamic authentication provider: ${providerId}`);
-			this._dynamicAuthenticationProviderIds.add(providerId);
+			this._logService.debug(`Created dynamic authentication provider: ${createdProviderId}`);
+			this._dynamicAuthenticationProviderIds.add(createdProviderId);
 			return provider;
 		}
-		this._logService.error(`Failed to create dynamic authentication provider: ${providerId}`);
+		this._logService.error(`Failed to create dynamic authentication provider: ${createdProviderId}`);
 		return undefined;
 	}
 

@@ -44,7 +44,7 @@ export function isSessionAttachmentPath(sessionDataService: ISessionDataService,
 export interface IFileEditRecord {
 	/** The turn that owns this file edit. */
 	turnId: string;
-	/** The tool call that produced this edit. */
+	/** The tool call or cumulative provider turn snapshot that produced this edit. */
 	toolCallId: string;
 	/** Primary file path (after-path for edits/creates/renames, before-path for deletes). */
 	filePath: string;
@@ -215,9 +215,9 @@ export interface ISessionDatabase extends IDisposable {
 	deleteTurn(turnId: string): Promise<void>;
 
 	/**
-	 * Associates a Copilot SDK event ID with a turn. The event ID corresponds
-	 * to the `user.message` event in the SDK event stream and is used by
-	 * the SDK's `history.truncate` and `sessions.fork` RPCs.
+	 * Associates a provider history ID with a host turn: a Copilot user-message
+	 * event ID or a Codex native turn ID. Used to resolve restored history and
+	 * provider truncation and fork boundaries.
 	 */
 	setTurnEventId(turnId: string, eventId: string): Promise<void>;
 
@@ -368,6 +368,9 @@ export interface ISessionDatabase extends IDisposable {
 	 */
 	deleteAllTurns(): Promise<void>;
 
+	/** Deletes provider turns and later host segments of a retained native turn, preserving host-persisted and foreign turns. */
+	deleteProviderTurns(providerTurnIds: readonly string[], afterHostTurnId?: string): Promise<void>;
+
 	// ---- Host-persisted turns --------------------------------------------
 
 	/**
@@ -392,12 +395,18 @@ export interface ISessionDatabase extends IDisposable {
 
 	/**
 	 * Store a file-edit snapshot (metadata + content) for a tool invocation
-	 * within a turn.
+	 * or cumulative provider turn snapshot.
 	 *
 	 * If a record for the same `toolCallId` and `filePath` already exists
 	 * it is replaced.
 	 */
 	storeFileEdit(edit: IFileEditRecord & IFileEditContent): Promise<void>;
+
+	/**
+	 * Stores a single file's snapshots atomically and in order, rolling back if `beforeCommit` throws.
+	 * The callback runs after insertion; use its supplied content reader because the public reader waits for queued writes.
+	 */
+	storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: (readContent: ISessionDatabase['readFileEditContent']) => Promise<void> | void): Promise<void>;
 
 	/**
 	 * Retrieve file-edit metadata for the given tool call IDs.

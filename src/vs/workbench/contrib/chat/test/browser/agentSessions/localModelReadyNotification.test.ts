@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
@@ -135,15 +136,16 @@ suite('LocalModelReadyNotification', () => {
 	});
 
 	suite('contribution', () => {
-		function setup<T extends IChatInputNotificationService>(storage: InMemoryStorageService, connection: TestLocalModelConnection, chatInputNotifications: T) {
+		function setup<T extends IChatInputNotificationService>(storage: InMemoryStorageService, connection: TestLocalModelConnection, chatInputNotifications: T, widgets: readonly IChatWidget[] = []) {
 			const service = disposables.add(new LocalModelService(connection, new TestConfigurationService(), new NullLogService()));
 			const telemetry = new RecordingTelemetryService();
 			const contextKeyService = new MockContextKeyService();
 			contextKeyService.createKey(ChatContextKeys.enabled.key, true);
 			const chatWidgetService = new class extends mock<IChatWidgetService>() {
 				override readonly lastFocusedWidget = undefined;
+				override readonly onDidAddWidget = Event.None;
 				override readonly onDidRemoveWidget = Event.None;
-				override getAllWidgets(): readonly IChatWidget[] { return []; }
+				override getAllWidgets(): readonly IChatWidget[] { return widgets; }
 			};
 			const contribution = disposables.add(new LocalModelReadyNotificationContribution(
 				connection,
@@ -208,6 +210,58 @@ suite('LocalModelReadyNotification', () => {
 				inSecondBeforeAck: true,
 				afterAck: { first: false, second: false, acknowledged: `["${installedFamily.readyOfferId}"]` },
 				reloaded: [`localModel.ready.${installedFamily.familyId}:c2`],
+			});
+		});
+
+		test('selecting the model directly acknowledges the ready offer, as do Auto once Auto may use it and loading a second install', () => {
+			const selected = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('selected', serverModel);
+			const onDidSelect = disposables.add(new Emitter<{ readonly fromModelId: string; readonly toModelId: string }>());
+			const widget = new class extends mock<IChatWidget>() {
+				override readonly input = new class extends mock<IChatWidget['input']>() {
+					override get selectedLanguageModel() { return selected; }
+					override get onDidChangeUserSelectedModel() { return onDidSelect.event; }
+				}();
+			};
+			type Step = { readonly select?: ILanguageModelChatMetadataAndIdentifier; readonly status?: ILocalModelStatusV1 };
+			function run(status: ILocalModelStatusV1, steps: readonly Step[]) {
+				const storage = disposables.add(new InMemoryStorageService());
+				const connection = createConnection(status);
+				const { chatInputNotifications } = setup(storage, connection, new RecordingChatInputNotificationService(), [widget]);
+				const offers = () => [...chatInputNotifications.notifications.keys()];
+				const shownOnRow = chatInputNotifications.notifications.get(`localModel.ready.${installedFamily.readyOfferId}`)?.when?.(context(localRow));
+				const results = [offers()];
+				for (const step of steps) {
+					if (step.status) {
+						connection.setStatus(step.status);
+					}
+					if (step.select) {
+						const from = selected.get()!;
+						selected.set(step.select, undefined);
+						onDidSelect.fire({ fromModelId: from.identifier, toModelId: step.select.identifier });
+					}
+					results.push(offers());
+				}
+				return { results, shownOnRow };
+			}
+
+			const ready = `localModel.ready.${installedFamily.readyOfferId}`;
+			const second = `localModel.ready.${otherFamily.readyOfferId}`;
+			const otherActive = { ...readyActive, familyId: otherFamily.familyId, contentId: 'q1' };
+			const direct = run(createStatus([installedFamily, otherFamily], { active: readyActive }), [
+				{ select: serverModel },
+				{ select: localRow },
+				{ status: createStatus([installedFamily, otherFamily], { active: otherActive }) },
+			]);
+			const auto = run(createStatus([installedFamily], { active: readyActive, useInAuto: false }), [
+				{ select: autoModel },
+				{ status: createStatus([installedFamily], { active: readyActive }) },
+				{ select: serverModel },
+				{ select: autoModel },
+			]);
+
+			assert.deepStrictEqual({ direct, auto }, {
+				direct: { results: [[ready, second], [ready, second], [second], []], shownOnRow: false },
+				auto: { results: [[ready], [ready], [ready], [ready], []], shownOnRow: false },
 			});
 		});
 

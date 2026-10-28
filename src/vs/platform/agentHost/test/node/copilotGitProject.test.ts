@@ -34,6 +34,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async copyWorktreeIncludeFiles(): Promise<void> { }
 	async symlinkWorktreeFolders(): Promise<readonly string[]> { return []; }
 	async addExistingWorktree(): Promise<void> { }
+	async isWorktreeRegistered(): Promise<boolean> { return true; }
 	async removeWorktree(): Promise<void> { }
 	async branchExists(): Promise<boolean> { return false; }
 	async createBranch(): Promise<void> { }

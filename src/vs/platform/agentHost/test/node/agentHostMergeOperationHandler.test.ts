@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createTestGitHubService } from './testGitHubService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -150,6 +151,7 @@ async function setup(disposables: Pick<DisposableStore, 'add'>, options: ISetupO
 		gitService,
 		new NullLogService(),
 		stateManager,
+		createTestGitHubService(),
 	);
 	return { gitService, handler, merged, refreshed };
 }

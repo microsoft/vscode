@@ -23,7 +23,7 @@ import { ComponentFixtureContext, createEditorServices, createTextModel, defineC
 import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
 import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
-import '../../browser/media/agentFeedbackEditorInput.css';
+import '../../../../../workbench/browser/media/feedbackInputWidget.css';
 
 const sessionResource = URI.parse('vscode-agent-session://fixture/session-1');
 const fileResource = URI.parse('inmemory://model/agent-feedback-input.ts');

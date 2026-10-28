@@ -105,6 +105,40 @@ suite('Gridview', function () {
 		assert.deepStrictEqual(nodesToArrays(gridview.getView()), [view1, [view5, [view8, view7], [view4, view3], view2], view6]);
 	});
 
+	test('restoring a branch preserves hidden child visibility', () => {
+		const gridview = createGridView();
+		gridview.orientation = Orientation.HORIZONTAL;
+		gridview.layout(800, 600);
+
+		const visibilityChanges: { view: string; visible: boolean }[] = [];
+		const createView = (name: string) => store.add(new class extends TestView {
+			setVisible(visible: boolean): void {
+				visibilityChanges.push({ view: name, visible });
+			}
+		}(50, Number.POSITIVE_INFINITY, 50, Number.POSITIVE_INFINITY));
+		const sessions = createView('sessions');
+		const editor = createView('editor');
+		const panel = createView('panel');
+		gridview.addView(sessions, 400, [0]);
+		gridview.addView(editor, 400, [1]);
+		gridview.addView(panel, 200, [0, 1]);
+
+		gridview.setViewVisible([0, 1], false);
+		gridview.setViewVisible([0, 0], false);
+		visibilityChanges.length = 0;
+		gridview.setViewVisible([0, 0], true);
+
+		assert.deepStrictEqual({
+			shownViews: [...new Set(visibilityChanges.filter(change => change.visible).map(change => change.view))],
+			sessionsVisible: gridview.isViewVisible([0, 0]),
+			panelVisible: gridview.isViewVisible([0, 1]),
+		}, {
+			shownViews: ['sessions'],
+			sessionsVisible: true,
+			panelVisible: false,
+		});
+	});
+
 	test('simple layout', function () {
 		const gridview = createGridView();
 		gridview.layout(800, 600);

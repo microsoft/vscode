@@ -12,6 +12,10 @@ parameters:
     type: boolean
     default: false
 
+# Cargo steps fetch crates from the ADO Cargo feed, which intermittently cancels HTTP/2 streams
+# ("[92] HTTP/2 stream ... CANCEL"), so they fetch without multiplexing, with more cargo retries,
+# and retry the step on top. The settings are --config flags rather than CARGO_* environment
+# variables, which sccache hashes into every compile key.
 steps:
   - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-windows-') }}:
     - pwsh: Write-Host "##vso[task.setvariable variable=VSCODE_CLI_PRODUCT_JSON]$(Build.SourcesDirectory)/.build/distro/mixin/${{ parameters.VSCODE_QUALITY }}/product.json"
@@ -25,6 +29,7 @@ steps:
     inputs:
       key: 'sccache | "$(Agent.OS)" | "${{ parameters.VSCODE_CLI_TARGET }}" | "${{ parameters.VSCODE_CHECK_ONLY }}" | $(Build.SourcesDirectory)/cli/Cargo.toml | $(Build.SourcesDirectory)/build/.cachesalt'
       path: $(Pipeline.Workspace)/sccache
+    retryCountOnTaskFailure: 2
 
   - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-windows-') }}:
     - pwsh: |
@@ -62,8 +67,13 @@ steps:
       displayName: Install sccache
 
   - ${{ if parameters.VSCODE_CHECK_ONLY }}:
-    - script: cargo clippy --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
+    # clippy occasionally hangs on Windows until the job times out (#344111). A
+    # step timeout would cancel the step without retrying it, so the script
+    # fails itself after 10 min (the step takes ~1 min) and resets sccache,
+    # which lets the step's retry run.
+    - script: node ../build/azure-pipelines/common/runWithTimeout.ts 600 --on-timeout "sccache --stop-server" -- cargo clippy --config http.multiplexing=false --config net.retry=5 --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
       displayName: Lint ${{ parameters.VSCODE_CLI_TARGET }}
+      retryCountOnTaskFailure: 2
       workingDirectory: $(Build.SourcesDirectory)/cli
       env:
         CARGO_NET_GIT_FETCH_WITH_CLI: true
@@ -109,7 +119,7 @@ steps:
             fi
           fi
 
-          cargo build --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
+          cargo build --config http.multiplexing=false --config net.retry=5 --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
 
           # verify glibc requirement
           if [ -n "$SYSROOT_ARCH" ] && [ -n "$OBJDUMP" ]; then
@@ -131,6 +141,7 @@ steps:
             fi
           fi
         displayName: Compile ${{ parameters.VSCODE_CLI_TARGET }}
+        retryCountOnTaskFailure: 2
         workingDirectory: $(Build.SourcesDirectory)/cli
         env:
           CARGO_NET_GIT_FETCH_WITH_CLI: true
@@ -142,8 +153,12 @@ steps:
             ${{ pair.key }}: ${{ pair.value }}
 
     - ${{ else }}:
-      - script: cargo build --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
+      # cargo build has also hung on Windows until the job timed out, failing the 11:00 insider
+      # 489779 (#344111). As for clippy, the script fails itself after 20 min (the step takes
+      # 1.5 to 4 min) and resets sccache, so the step's retry runs instead of a 90 min job timeout.
+      - script: node ../build/azure-pipelines/common/runWithTimeout.ts 1200 --on-timeout "sccache --stop-server" -- cargo build --config http.multiplexing=false --config net.retry=5 --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
         displayName: Compile ${{ parameters.VSCODE_CLI_TARGET }}
+        retryCountOnTaskFailure: 2
         workingDirectory: $(Build.SourcesDirectory)/cli
         env:
           CARGO_NET_GIT_FETCH_WITH_CLI: true

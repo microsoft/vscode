@@ -40,6 +40,7 @@ import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/co
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../../../workbench/services/environment/common/copilotHomeService.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { areDevContainerSamplesEnabled, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
@@ -195,6 +196,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		@IDevContainerAgentHostService devContainerAgentHostService: IDevContainerAgentHostService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IPathService pathService: IPathService,
+		@ICopilotHomeService copilotHomeService: ICopilotHomeService,
 		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
@@ -228,7 +230,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		const updateResourceLabelHomes = () => {
 			const homes = this.getResourceLabelHomes();
 			const userHome = pathService.userHome({ preferLocal: true });
-			const sessionStateRoot = buildLocalSessionStateUri(userHome);
+			const sessionStateRoot = buildLocalSessionStateUri(copilotHomeService.home);
 			for (const session of this.getKnownSessions()) {
 				const rawId = AgentSession.id(session.resource);
 				const label = this.getResourceLabelHomeLabel(session);

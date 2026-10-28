@@ -255,6 +255,44 @@ suite('buildSandboxConfigForSdk', () => {
 			}
 		});
 
+		test('forwards environment credentials independently of authentication on every platform', () => {
+			const maskedCredentials = {
+				envVars: { MY_API_TOKEN: { injectHosts: ['api.example.com', '*.example.org'] } },
+				authenticategit: true,
+				authenticategh: true,
+			};
+			for (const platform of ['linux', 'darwin', 'win32'] as const) {
+				assert.deepStrictEqual([undefined, {}, maskedCredentials, { envVars: {} }].map(value => buildSandboxConfigForSdk(platform, {
+					enabled: AgentSandboxEnabledValue.On,
+					authenticateGit: false,
+					authenticateGh: false,
+					credentials: value,
+				})), [undefined, {}, maskedCredentials.envVars, {}].map(envVars => ({
+					...expectedSandboxConfig(),
+					auth: { git: false, gh: false },
+					...(envVars !== undefined ? { credentials: { envVars } } : {}),
+				})));
+				assert.strictEqual(buildSandboxConfigForSdk(platform, {
+					enabled: AgentSandboxEnabledValue.Off,
+					credentials: maskedCredentials,
+				}), undefined);
+			}
+		});
+
+		test('validates the credentials container and leaves map entries to the runtime', () => {
+			assert.deepStrictEqual([
+				{},
+				{ envVars: {} },
+				{ envVars: { MY_API_TOKEN: { injectHosts: ['api.example.com'] } } },
+				null,
+				[],
+				{ envVars: null },
+				{ envVars: [] },
+				{ envVars: 'MY_API_TOKEN' },
+			].map(maskedCredentials => sandboxConfigSchema.validate(AgentHostSandboxConfigKey.Sandbox, { credentials: maskedCredentials })),
+				[true, true, true, false, false, false, false, false]);
+		});
+
 	});
 
 	suite('filesystem policy', () => {
