@@ -20,7 +20,7 @@ import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } fro
 import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChatMovedEvent, ISessionChangeEvent, SessionMoveRefusedError } from '../../../../services/sessions/common/sessionsProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { canMoveIntoSession, getChatMoveAnchorBefore, getChatMoveAppendAnchor, getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, ISessionsListChatDropTarget, ISessionsListMoveDestination, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListMoveNotice } from '../../browser/views/sessionsListChatMove.js';
+import { canMoveIntoSession, getChatMoveAnchorBefore, isCrossAgentChatMoveEnabled, getChatMoveAppendAnchor, getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, ISessionsListChatDropTarget, ISessionsListMoveDestination, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListMoveNotice } from '../../browser/views/sessionsListChatMove.js';
 import { createListHarness, createTestSession, ITestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -46,6 +46,7 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IView } from '../../../../../workbench/common/views.js';
 import { SessionsListNotification } from '../../browser/views/sessionsListNotification.js';
+import { ChatProvidersSettingId } from '../../../../../platform/agentHost/common/agentHostChatProviders.js';
 
 
 function multiChatSession(title: string, options?: { readonly providerId?: string; readonly status?: SessionStatus; readonly isArchived?: boolean; readonly chats?: readonly IChat[] }): ITestSession {
@@ -284,6 +285,55 @@ suite('Move Chats Drag and Drop', () => {
 			archived: false,
 			untitled: false,
 			singleChat: false,
+		});
+	});
+
+	test('with chats on their own agents and Move Chats both on, also lists sessions of another agent that offer the moved chat\'s harness', () => {
+		const moving = { ...chat('moving', ChatOriginKind.User), harness: 'claude' };
+		const source = multiChatSession('Source', { chats: [chat('source-main'), moving] }).session;
+		// Another agent of the same provider, without and with the harnesses of the moved chat and the source's main chat.
+		const otherAgent = (title: string, harnesses: readonly string[]) => {
+			const test = multiChatSession(title, { chats: [chat(`${title}-main`)] });
+			test.capabilities.set({ supportsMultipleChats: true, supportsChatHarnesses: harnesses }, undefined);
+			return { ...test.session, sessionType: 'claude', harness: 'claude' };
+		};
+		const sessions = [
+			source,
+			otherAgent('Claude', ['claude', 'codex']),
+			otherAgent('Claude Copilot', ['claude', 'copilot']),
+			otherAgent('Codex', ['codex']),
+			{ ...otherAgent('Other Provider', ['claude', 'copilot']), providerId: 'other' },
+		];
+		const describeAll = (destinations: readonly ISessionsListMoveDestination[]) => destinations.map(destination => destination.session.title.get());
+		const destinations = (crossAgent: boolean | undefined) => ({
+			chat: describeAll(getChatMoveDestinations(source, moving, sessions, { canMoveChat: () => true }, crossAgent)),
+			chatDrop: sessions.flatMap(session => {
+				const drop = getSessionsListChatDrop(source, moving, { session, chat: undefined, position: 'after' }, true, crossAgent);
+				return drop?.kind === 'session' ? [drop.session.title.get()] : [];
+			}),
+			// A whole session moves with the harness of its main chat: the session's.
+			session: describeAll(getSessionMoveDestinations(source, sessions, { canMoveSessionUnder: () => true }, crossAgent)),
+			sessionDrop: sessions.flatMap(session => {
+				const drop = getSessionsListSessionDrop(source, { session, chat: undefined, quarter: ListViewTargetSector.CENTER_BOTTOM, isManuallyOrdered: () => false, isLastInSection: () => false, canPlace: () => false }, true, crossAgent);
+				return drop?.kind === 'nest' ? [drop.session.title.get()] : [];
+			}),
+		});
+		const configured = (moveChats: boolean, chatProviders: boolean) => isCrossAgentChatMoveEnabled(new TestConfigurationService({ [ChatMoveSettingId.Enabled]: moveChats, [ChatProvidersSettingId.Enabled]: chatProviders }));
+
+		assert.deepStrictEqual({
+			gates: { both: configured(true, true), moveChatsOnly: configured(true, false), chatProvidersOnly: configured(false, true) },
+			off: destinations(false),
+			on: destinations(true),
+		}, {
+			gates: { both: true, moveChatsOnly: false, chatProvidersOnly: false },
+			// Either setting off: only sessions of the same agent, as without chats on their own agents.
+			off: { chat: [], chatDrop: [], session: [], sessionDrop: [] },
+			on: {
+				chat: ['Claude', 'Claude Copilot'],
+				chatDrop: ['Claude', 'Claude Copilot'],
+				session: ['Claude Copilot'],
+				sessionDrop: ['Claude Copilot'],
+			},
 		});
 	});
 

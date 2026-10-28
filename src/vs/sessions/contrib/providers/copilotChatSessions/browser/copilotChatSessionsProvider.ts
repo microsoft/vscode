@@ -33,7 +33,7 @@ import { linkKey } from '../../../../common/sessionLinks.js';
 import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, IPreparedNewSession, ISessionChatMoveDestination, SessionMoveRefusedError, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions, INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, IPreparedNewSession, ISessionChatMoveDestination, SessionMoveRefusedError, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions, INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError, ICreateNewChatOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../../../base/common/cancellation.js';
@@ -2013,7 +2013,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 	}
 
-	async createNewChat(sessionId: string, _prompt?: string): Promise<IChat> {
+	async createNewChat(sessionId: string, _prompt?: string, _options?: ICreateNewChatOptions): Promise<IChat> {
 		const session = this._newSessions.get(sessionId);
 		if (!session) {
 			throw new Error(`[CopilotChatSessionsProvider] Session '${sessionId}' does not support multiple chats`);
@@ -2026,15 +2026,15 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return newChat;
 	}
 
-	getNestedChatWorkspaceSupport(_sessionId: string, _reader: IReader | undefined): INestedChatWorkspaceSupport | undefined {
+	getNestedChatWorkspaceSupport(_sessionId: string, _chat: URI, _reader: IReader | undefined): INestedChatWorkspaceSupport | undefined {
 		return undefined;
 	}
 
-	async resolveNestedChatFolder(_sessionId: string, _folder: URI, _token: CancellationToken): Promise<INestedChatFolderInfo> {
+	async resolveNestedChatFolder(_sessionId: string, _chat: URI, _folder: URI, _token: CancellationToken): Promise<INestedChatFolderInfo> {
 		throw NestedChatWorkspaceError.notSupported();
 	}
 
-	async getNestedChatBranches(_sessionId: string, _folder: URI, _query: string, _token: CancellationToken): Promise<readonly string[]> {
+	async getNestedChatBranches(_sessionId: string, _chat: URI, _folder: URI, _query: string, _token: CancellationToken): Promise<readonly string[]> {
 		throw NestedChatWorkspaceError.notSupported();
 	}
 

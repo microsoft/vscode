@@ -62,6 +62,7 @@ import type { InvokeChangesetOperationParams } from '../../common/state/protocol
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { rootReducer } from '../../common/state/sessionReducers.js';
+import { getAgentHostClientProtocolVersions } from '../../common/agentHostProtocolCompatibility.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, AHP_AUTH_REQUIRED, type AhpNotification, type InitializeResult, type ProtocolMessage, type JsonRpcResponse, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
 import { supportsAgentHostManagedWorktrees } from '../../common/meta/agentHostWorktreeCleanupMeta.js';
@@ -342,6 +343,7 @@ class MockAgentService extends Disposable implements IAgentService {
 	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return { items: [] }; }
 	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
 	automationCapabilities: AutomationCapabilities | undefined;
+	multipleChatProvidersEnabled = false;
 	async listAutomationTriggerDefinitions(_params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> { return { items: [] }; }
 	async runAutomation(params: RunAutomationParams): Promise<RunAutomationResult> {
 		this.automationRunRequests.push(params);
@@ -8856,6 +8858,106 @@ suite('ProtocolServerHandler', () => {
 
 	suite('createChat / disposeChat', () => {
 		const peerChat = buildChatUri(sessionUri, 'peer-1');
+
+		test('chat/moved is server-only, and reaches only clients from protocol 1.1.0', async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+			const connect = async (clientId: string, protocolVersions: readonly string[]) => {
+				const transport = disposables.add(new MockProtocolTransport());
+				server.simulateConnection(transport);
+				const response = waitForResponse(transport, 1);
+				transport.simulateMessage(request(1, 'initialize', { protocolVersions, clientId, initialSubscriptions: [sessionUri, defaultChatUri] }));
+				await response;
+				transport.sent.length = 0;
+				return transport;
+			};
+			const current = await connect('moved-current', [PROTOCOL_VERSION]);
+			const older = await connect('moved-older', ['1.0.0']);
+			const hostActions: ActionType[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => hostActions.push(envelope.action.type)));
+
+			current.simulateMessage(notification('dispatchAction', { channel: defaultChatUri, clientSeq: 1, action: { type: ActionType.ChatMoved, session: sessionUri } }));
+			await timeout(0);
+			const rejected = findNotifications(current.sent, 'action').at(-1)?.params as ActionEnvelope | undefined;
+			current.sent.length = 0;
+			older.sent.length = 0;
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatMoved, session: sessionUri, provider: 'other' });
+			const received = (transport: MockProtocolTransport) => findNotifications(transport.sent, 'action').map(message => (message.params as ActionEnvelope).action.type);
+
+			assert.deepStrictEqual({
+				rejection: { action: rejected?.action.type, reason: rejected?.rejectionReason },
+				hostActions,
+				current: received(current),
+				older: received(older),
+			}, {
+				rejection: { action: ActionType.ChatMoved, reason: `Server-only action: ${ActionType.ChatMoved}` },
+				hostActions: [ActionType.ChatMoved],
+				current: [ActionType.ChatMoved],
+				older: [],
+			});
+		});
+
+		test('advertises multipleChatProviders only behind the setting and from protocol 1.1.0', () => {
+			const capability = (clientId: string, protocolVersions: readonly string[]) => {
+				const transport = disposables.add(new MockProtocolTransport());
+				server.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { protocolVersions, clientId }));
+				const resp = findResponse(transport.sent, 1);
+				const result = resp && hasKey(resp, { result: true }) ? resp.result as InitializeResult : undefined;
+				return { advertised: result?.multipleChatProviders, hasKey: !!result && Object.hasOwn(result, 'multipleChatProviders') };
+			};
+			const off = capability('providers-off', [PROTOCOL_VERSION]);
+			agentService.multipleChatProvidersEnabled = true;
+			assert.deepStrictEqual({
+				off,
+				on: capability('providers-on', [PROTOCOL_VERSION]),
+				older: capability('providers-older', ['1.0.0']),
+			}, {
+				off: { advertised: undefined, hasKey: false },
+				on: { advertised: {}, hasKey: true },
+				older: { advertised: undefined, hasKey: false },
+			});
+		});
+
+		test('the offer a client makes advertises multipleChatProviders only with the client setting on (regression: the default offer never reached 1.1.0)', () => {
+			agentService.multipleChatProvidersEnabled = true;
+			const advertised = (clientId: string, clientSetting: boolean) => {
+				const transport = disposables.add(new MockProtocolTransport());
+				server.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { protocolVersions: getAgentHostClientProtocolVersions(clientSetting), clientId }));
+				const resp = findResponse(transport.sent, 1);
+				const result = resp && hasKey(resp, { result: true }) ? resp.result as InitializeResult : undefined;
+				return { negotiated: result?.protocolVersion, multipleChatProviders: result?.multipleChatProviders };
+			};
+			assert.deepStrictEqual({ off: advertised('offer-off', false), on: advertised('offer-on', true) }, {
+				off: { negotiated: '1.0.0', multipleChatProviders: undefined },
+				on: { negotiated: PROTOCOL_VERSION, multipleChatProviders: {} },
+			});
+		});
+
+		test('createChat rejects a provider unless multipleChatProviders is advertised, and forwards it when it is', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const off = connectClient('client-provider-off');
+			off.sent.length = 0;
+			const rejected = waitForResponse(off, 2);
+			off.simulateMessage(request(2, 'createChat', { channel: sessionUri, chat: peerChat, provider: 'codex' }));
+			const rejectedResponse = await rejected;
+
+			agentService.multipleChatProvidersEnabled = true;
+			const on = connectClient('client-provider-on');
+			on.sent.length = 0;
+			const accepted = waitForResponse(on, 2);
+			on.simulateMessage(request(2, 'createChat', { channel: sessionUri, chat: peerChat, provider: 'codex' }));
+			await accepted;
+
+			assert.deepStrictEqual({
+				rejectedCode: hasKey(rejectedResponse as JsonRpcResponse, { error: true }) ? (rejectedResponse as { error: { code: number } }).error.code : undefined,
+				created: agentService.createdChats.map(created => created.options),
+			}, {
+				rejectedCode: JsonRpcErrorCodes.InvalidParams,
+				created: [{ provider: 'codex' }],
+			});
+		});
 
 		test('createChat on the default chat URI is a no-op', async () => {
 			stateManager.createSession(makeSessionSummary());

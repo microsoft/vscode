@@ -10,7 +10,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -25,7 +25,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../services/se
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../../services/sessions/common/sessionsProvider.js';
-import { IChat, SessionStatus } from '../../../services/sessions/common/session.js';
+import { getChatHarness, IChat, SessionStatus } from '../../../services/sessions/common/session.js';
 import { getNoWorkspaceChoicePresentation } from './noWorkspaceChoice.js';
 import { INestedChatFolderSources, isSameNestedChatWorkspace, NestedChatWorkspaceControls } from './nestedChatWorkspacePicker.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
@@ -52,16 +52,40 @@ const STORAGE_KEY_SESSION_OPTIONS_EXPANDED = 'sessions.nestedSession.sessionOpti
 /** How long a send waits for a check of the session folder before keeping it, e.g. while a remote host reconnects. */
 const FOLDER_EXISTS_TIMEOUT_MS = 2000;
 
+/** Telemetry source of the session-type picker when it picks a new peer chat's harness. */
+const NEW_CHAT_IN_SESSION_HARNESS_PICKER_TELEMETRY_SOURCE = 'NewChatInSessionHarnessPicker';
+
+/**
+ * The session's unsent peer chat, whose harness the composer may choose; `undefined` for its main chat or a sent one.
+ * `composerChat` is the chat the composer shows, which can differ from the session's active chat (e.g. one open in
+ * another group); the session's active chat until it is known.
+ */
+export function getUnsentPeerChat(session: IActiveSession | undefined, reader: IReader | undefined, composerChat?: IChat): IChat | undefined {
+	if (!session || !session.isCreated.read(reader)) {
+		return undefined;
+	}
+	const chat = composerChat ?? session.activeChat.read(reader);
+	return !isEqual(chat.resource, session.mainChat.read(reader).resource) && chat.status.read(reader) === SessionStatus.Untitled ? chat : undefined;
+}
+
+/** The chat the composer creates: its unsent peer draft, or the main chat (on the session's agent) until one exists. */
+function getNewChatResource(session: IActiveSession, reader: IReader | undefined, composerChat: IChat | undefined): URI {
+	return (getUnsentPeerChat(session, reader, composerChat) ?? session.mainChat.read(reader)).resource;
+}
+
 /**
  * A widget for composing a secondary chat within an existing session.
  * Looks like the New Session composer: the same input, options row and picker placement. There is
- * no harness (session type) or environment picker: the nested chat uses the parent session's agent
- * and host. Where the host supports it, folder, isolation and branch pickers choose the nested
+ * no environment picker: the nested chat uses the parent session's host. It uses the session's agent
+ * unless the session offers its chats more than one harness: then the harness picker in its session
+ * options, where New Session has it, picks the agent of the new chat. Where the host supports it, folder, isolation and branch pickers choose the nested
  * chat's own workspace, which is applied to the composer's untitled chat when its first request is sent.
  */
 export class NewChatInSessionWidget extends Disposable {
 
 	private readonly _newChatInput: SharedChatInputComposer;
+	/** The harness switch in flight; a send waits for it so it reaches the chat of the picked harness. */
+	private _harnessSwitch: Promise<void> | undefined;
 	private readonly _tipDisposable = this._register(new MutableDisposable());
 	private readonly _session: IObservable<IActiveSession | undefined>;
 	/**
@@ -140,12 +164,18 @@ export class NewChatInSessionWidget extends Disposable {
 			}
 			session.workspace.read(reader);
 			session.capabilities.read(reader);
-			return this.sessionsProvidersService.getProvider(session.providerId)?.getNestedChatWorkspaceSupport(session.sessionId, reader);
+			return this.sessionsProvidersService.getProvider(session.providerId)?.getNestedChatWorkspaceSupport(session.sessionId, getNewChatResource(session, reader, this._chat.read(reader)), reader);
 		});
 		this._workspaceControls = this._register(this.instantiationService.createInstance(NestedChatWorkspaceControls, {
 			support: this._workspaceSupport,
-			resolveFolder: (folder, token) => this._requireProvider().resolveNestedChatFolder(this._requireSession().sessionId, folder, token),
-			getBranches: (folder, token) => this._requireProvider().getNestedChatBranches(this._requireSession().sessionId, folder, '', token),
+			resolveFolder: (folder, token) => {
+				const session = this._requireSession();
+				return this._requireProvider().resolveNestedChatFolder(session.sessionId, getNewChatResource(session, undefined, this._chat.get()), folder, token);
+			},
+			getBranches: (folder, token) => {
+				const session = this._requireSession();
+				return this._requireProvider().getNestedChatBranches(session.sessionId, getNewChatResource(session, undefined, this._chat.get()), folder, '', token);
+			},
 			getFolderSources: () => this._getFolderSources(),
 			describeNoWorkspace: () => {
 				const session = this._session.get();
@@ -168,6 +198,17 @@ export class NewChatInSessionWidget extends Disposable {
 				lastSessionId = sessionId;
 				this._workspaceControls.reset();
 			}
+		}));
+		// A harness switch replaces the draft with one of another agent: re-read what that agent allows and the
+		// folder's facts for it, keeping the user's choice where it still applies.
+		let lastChat = this._session.get() && getNewChatResource(this._session.get()!, undefined, this._chat.get());
+		this._register(autorun(reader => {
+			const session = this._session.read(reader);
+			const chat = session && getNewChatResource(session, reader, this._chat.read(reader));
+			if (session?.sessionId === lastSessionId && chat && lastChat && !isEqual(chat, lastChat)) {
+				this._workspaceControls.refresh();
+			}
+			lastChat = chat;
 		}));
 
 		const canSendRequest = derived(reader => {
@@ -194,6 +235,13 @@ export class NewChatInSessionWidget extends Disposable {
 			supportsBackground: true,
 			voiceRoutesWhileSessionActive: true,
 			useExperimentalLayout: this._useExperimentalComposerLayout,
+			sessionTypePickerOptions: {
+				telemetrySource: NEW_CHAT_IN_SESSION_HARNESS_PICKER_TELEMETRY_SOURCE,
+				peerChat: {
+					chat: derived(reader => getUnsentPeerChat(this._session.read(reader), reader, this._chat.read(reader))),
+					selectHarness: harness => this._selectHarness(harness),
+				},
+			},
 		}));
 	}
 
@@ -209,8 +257,10 @@ export class NewChatInSessionWidget extends Disposable {
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 
 		// The New Session options row: the folder picker, then the session options (isolation and
-		// branch) wherever the New Session composer shows its repository controls. Hidden when the
-		// host can't give a nested chat its own workspace: then the composer is unchanged.
+		// branch, and the harness picker where the session offers its chats more than one harness)
+		// wherever the New Session composer shows them. Hidden when the host can't give a nested chat
+		// its own workspace and there is no harness to choose: then the composer is unchanged.
+		const harnessPicker = this._newChatInput.sessionTypePicker;
 		const workspacePickerContainer = dom.append(chatWidgetContent, dom.$('.new-session-workspace-picker-container'));
 		const row = dom.append(workspacePickerContainer, dom.$('.sessions-workspace-category-picker'));
 		this._workspaceControls.renderFolderPicker(row, this._newChatInput.pickerHoverDelegate);
@@ -221,15 +271,25 @@ export class NewChatInSessionWidget extends Disposable {
 			screenReaderOptimized: this._screenReaderOptimized,
 			expanded: this._sessionOptionsExpanded,
 			collapsedShowIcons: this._collapsedSessionOptionsShowIcons,
-			// Unlike New Session there is no harness picker: without a worktree to offer the tray is empty.
-			hasDetails: this._workspaceControls.offersWorktree,
+			// The harness picker shows only where the session offers its chats more than one harness: without
+			// it or a worktree to offer, the tray is empty.
+			hasDetails: derived(reader => this._workspaceControls.offersWorktree.read(reader) || harnessPicker.isVisible.read(reader)),
 			setExpanded: expanded => {
 				this._sessionOptionsExpanded.set(expanded, undefined);
 				this.storageService.store(STORAGE_KEY_SESSION_OPTIONS_EXPANDED, expanded, StorageScope.PROFILE, StorageTarget.USER);
 			},
 		}));
+		// Like New Session, the harness picker follows the repository controls in the session options.
+		harnessPicker.render(sessionOptionsRow.details, {
+			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
+			hoverDelegate: this._newChatInput.pickerHoverDelegate,
+		});
+		const harnessSlot = sessionOptionsRow.details.lastElementChild;
+		if (harnessSlot) {
+			sessionOptionsRow.repositoryControlsHost.after(harnessSlot);
+		}
 		this._register(autorun(reader => {
-			workspacePickerContainer.hidden = !this._workspaceSupport.read(reader);
+			workspacePickerContainer.hidden = !this._workspaceSupport.read(reader) && !harnessPicker.isVisible.read(reader);
 			sessionOptionsRow.layout();
 		}));
 
@@ -245,6 +305,41 @@ export class NewChatInSessionWidget extends Disposable {
 		this._renderSubSessionTip();
 
 		chatWidgetContainer.classList.add('revealed');
+	}
+
+	/**
+	 * Switches the unsent peer chat to `harness`: opens (or reuses) a draft of that harness and
+	 * deletes the empty draft it replaces, rather than leaving it behind as an empty tab.
+	 */
+	protected async _selectHarness(harness: string): Promise<void> {
+		const session = this._session.get();
+		const draft = session && getUnsentPeerChat(session, undefined, this._chat.get());
+		// One switch at a time: a pick while one is pending is ignored.
+		if (!session || !draft || this._harnessSwitch || getChatHarness(session, draft) === harness) {
+			return;
+		}
+		const switched = this._switchHarness(session, draft, harness);
+		this._harnessSwitch = switched;
+		try {
+			await switched;
+		} finally {
+			this._harnessSwitch = undefined;
+		}
+	}
+
+	private async _switchHarness(session: IActiveSession, draft: IChat, harness: string): Promise<void> {
+		try {
+			// The typed text and attachments live in this composer, not in the draft, so they carry over.
+			await this.sessionsService.openNewChatInSession(session, { harness });
+			// Only replace the draft while the user is still in this session's composer.
+			const current = this._session.get();
+			const replacement = current?.sessionId === session.sessionId ? getUnsentPeerChat(current, undefined, this._chat.get()) : undefined;
+			if (replacement && !isEqual(replacement.resource, draft.resource) && draft.status.get() === SessionStatus.Untitled) {
+				await this.sessionsManagementService.deleteChat(session, draft.resource, { skipConfirmation: true });
+			}
+		} catch (error) {
+			this.logService.error('[NewChatInSessionWidget] Failed to switch the new chat\'s harness', error);
+		}
 	}
 
 	private _renderSubSessionTip(): void {
@@ -371,7 +466,12 @@ export class NewChatInSessionWidget extends Disposable {
 
 	// --- Send ---
 
-	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
+	protected async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
+		// The picker already shows a picked harness while its chat is being opened: sending now would
+		// reach the draft being replaced (and then deleted), so wait until the picked chat is active.
+		if (this._harnessSwitch) {
+			await this._harnessSwitch;
+		}
 		const activeSession = this._session.get();
 		if (!activeSession) {
 			return false;

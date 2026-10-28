@@ -366,10 +366,98 @@ suite('Sessions - New Nested Session composer', () => {
 		assert.deepStrictEqual({ unsupported, resolves }, { unsupported: { resolves: 0, workspace: undefined }, resolves: 1 });
 	});
 
+	test('refresh re-reads the chosen folder for the new agent, and falls back to the session folder when the choice is no longer offered', async () => {
+		const value = observableValue<INestedChatWorkspaceSupport | undefined>('support', support(repo));
+		let resolves = 0;
+		let info: INestedChatFolderInfo = git;
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { } } as Partial<IActionWidgetService>);
+		instantiationService.stub(ILabelService, { getUriBasenameLabel: (uri: URI) => uri.path.split('/').pop() ?? '' } as Partial<ILabelService>);
+		const controls = store.add(instantiationService.createInstance(NestedChatWorkspaceControls, {
+			support: value,
+			resolveFolder: async () => { resolves++; return info; },
+			getBranches: async () => [],
+			getFolderSources: () => ({ recentFolders: [], canOpenLocalFolder: false }),
+			describeNoWorkspace: () => getNoWorkspaceChoicePresentation(false, undefined),
+			describeFolder: () => undefined,
+			folderExists: async () => true,
+			openLocalFolder: async () => undefined,
+		}));
+		const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+		const h = { controls, pick: (folder: URI) => Reflect.get(controls, '_select').call(controls, { kind: 'folder', folder }) };
+		await settle();
+		h.pick(other);
+		await settle();
+		const resolvesBefore = resolves;
+
+		// The new agent still offers other folders, but this one has no worktrees for it.
+		info = { supportsWorktree: false, defaultBranch: undefined };
+		controls.refresh();
+		await settle();
+		const reread = { workspace: controls.getWorkspace(), resolves: resolves - resolvesBefore };
+
+		// The new agent works only in the session folder.
+		value.set(support(repo, false), undefined);
+		controls.refresh();
+		await settle();
+
+		assert.deepStrictEqual({ reread, fallback: controls.getWorkspace() }, {
+			reread: { workspace: { kind: 'folder', folder: other, isolation: 'folder' }, resolves: 1 },
+			// The default: the session folder without a worktree, which needs no request.
+			fallback: undefined,
+		});
+	});
+
+	test('a chat sent right after a refresh waits for the folder to be re-read, so its kept worktree choice is requested', async () => {
+		const answers: (() => void)[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { } } as Partial<IActionWidgetService>);
+		instantiationService.stub(ILabelService, { getUriBasenameLabel: (uri: URI) => uri.path.split('/').pop() ?? '' } as Partial<ILabelService>);
+		const controls = store.add(instantiationService.createInstance(NestedChatWorkspaceControls, {
+			support: constObservable(support(repo)),
+			resolveFolder: () => new Promise<INestedChatFolderInfo>(resolve => answers.push(() => resolve(git))),
+			getBranches: async () => [],
+			getFolderSources: () => ({ recentFolders: [], canOpenLocalFolder: false }),
+			describeNoWorkspace: () => getNoWorkspaceChoicePresentation(false, undefined),
+			describeFolder: () => undefined,
+			folderExists: async () => true,
+			openLocalFolder: async () => undefined,
+		}));
+		const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+		const answerAll = () => answers.splice(0).forEach(answer => answer());
+		Reflect.get(controls, '_select').call(controls, { kind: 'folder', folder: other });
+		answerAll();
+		await settle();
+		Reflect.get(controls, '_setWorktree').call(controls, true);
+
+		// The new chat's agent changed: the folder is re-read, and the chat is sent before that finishes.
+		controls.refresh();
+		const sent = controls.resolveWorkspace();
+		const whileReading = controls.getWorkspace();
+		answerAll();
+
+		assert.deepStrictEqual({ whileReading, sent: await sent }, {
+			whileReading: { kind: 'folder', folder: other, isolation: 'folder' },
+			sent: { kind: 'folder', folder: other, isolation: 'worktree', baseBranch: 'main' },
+		});
+	});
+
+	/** The input's shared harness picker, rendering its slot like the real one. */
+	function fakeHarnessPicker(isVisible: IObservable<boolean>) {
+		return {
+			isVisible,
+			render: (container: HTMLElement, options?: { className?: string }) => {
+				container.appendChild(mainWindow.document.createElement('div')).className = `sessions-chat-picker-slot ${options?.className}`;
+			},
+		};
+	}
+
 	test('renders the New Session structure: the options row in the centered content, the repository controls where New Session has them', () => {
 		const experimental = observableValue('experimental', false);
 		const supported = observableValue<INestedChatWorkspaceSupport | undefined>('support', support(repo));
 		const offersWorktree = observableValue('offersWorktree', true);
+		// Hidden unless the session offers its chats more than one harness (and behind the setting).
+		const harnessVisible = observableValue('harnessVisible', false);
 		const placements: (string | undefined)[] = [];
 		const parent = mainWindow.document.createElement('div');
 		const owner = {
@@ -387,6 +475,7 @@ suite('Sessions - New Nested Session composer', () => {
 				render: (content: HTMLElement) => content.appendChild(mainWindow.document.createElement('div')).classList.add('new-chat-input-container'),
 				placeRepositoryControls: (host?: HTMLElement) => placements.push(host?.className),
 				hostNoticeContainerElement: undefined,
+				sessionTypePicker: fakeHarnessPicker(harnessVisible),
 			},
 			storageService: { getBoolean: () => true },
 			_renderSubSessionTip: Reflect.get(NewChatInSessionWidget.prototype, '_renderSubSessionTip'),
@@ -405,8 +494,17 @@ suite('Sessions - New Nested Session composer', () => {
 		const noWorktree = structure()[0];
 		supported.set(undefined, undefined);
 		const unsupported = structure()[0][0];
+		// More than one harness: the harness picker follows the repository controls in the tray, which it fills even
+		// without a worktree to offer, and keeps the row shown on a host without nested chat workspaces.
+		harnessVisible.set(true, undefined);
+		const details = parent.querySelector('.new-chat-session-options-details')!;
+		const withHarness = {
+			row: structure()[0][0],
+			tray: structure()[0][2],
+			trayChildren: [...details.children].map(child => child.className),
+		};
 
-		assert.deepStrictEqual({ standard, experimentalLayout, noWorktree, unsupported }, {
+		assert.deepStrictEqual({ standard, experimentalLayout, noWorktree, unsupported, withHarness }, {
 			standard: {
 				structure: [
 					['new-session-workspace-picker-container', 'nested-chat-folder-picker', 'new-chat-session-options-details legacy-session-options-details', 'monaco-button new-chat-session-options-toggle codicon codicon-chevron-left-compact[hidden]'],
@@ -425,6 +523,11 @@ suite('Sessions - New Nested Session composer', () => {
 			},
 			noWorktree: ['new-session-workspace-picker-container', 'nested-chat-folder-picker', 'new-chat-session-options-details[hidden]', 'monaco-button new-chat-session-options-toggle codicon codicon-chevron-left-compact[hidden]'],
 			unsupported: 'new-session-workspace-picker-container[hidden]',
+			withHarness: {
+				row: 'new-session-workspace-picker-container',
+				tray: 'new-chat-session-options-details',
+				trayChildren: ['new-chat-repository-controls-host', 'sessions-chat-picker-slot sessions-chat-session-type-picker sessions-workspace-category-picker-slot'],
+			},
 		});
 	});
 
@@ -440,7 +543,7 @@ suite('Sessions - New Nested Session composer', () => {
 			_sessionOptionsExpanded: observableValue('expanded', Reflect.get(NewChatInSessionWidget.prototype, '_getInitialSessionOptionsExpanded').call({ storageService: storage })),
 			_workspaceSupport: constObservable(support(repo)),
 			_workspaceControls: { renderFolderPicker: () => { }, offersWorktree: constObservable(true) },
-			_newChatInput: { render: () => { }, placeRepositoryControls: () => { }, hostNoticeContainerElement: undefined },
+			_newChatInput: { render: () => { }, placeRepositoryControls: () => { }, hostNoticeContainerElement: undefined, sessionTypePicker: fakeHarnessPicker(constObservable(false)) },
 			storageService: storage,
 			_renderSubSessionTip: () => { },
 		};

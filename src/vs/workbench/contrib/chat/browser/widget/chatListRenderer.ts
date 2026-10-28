@@ -73,7 +73,7 @@ import { ClickAnimation } from '../../../../../base/browser/ui/animations/animat
 import { ForkConversationActionId } from '../actions/chatForkActions.js';
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
 import { focusChatModelFeedbackSurveyAction } from '../actions/chatModelFeedbackSurveyActions.js';
-import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService } from '../chat.js';
+import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatResponseIdentity, IChatWidget, IChatWidgetService } from '../chat.js';
 import { getCompactCodicon } from '../chatIcons.js';
 import { stripSystemNotificationWrapper } from '../chatRequestText.js';
 import { ChatModelFeedbackSurveyWidget } from '../feedbackSurvey/chatModelFeedbackSurveyWidget.js';
@@ -1033,6 +1033,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._pendingDragController = controller;
 	}
 
+	/** Who responses are presented as coming from, when not the responding agent. */
+	get responseIdentity(): IChatResponseIdentity | undefined {
+		return this.rendererOptions.responseIdentity;
+	}
+
 	public updateOptions(options: IChatListItemRendererOptions): void {
 		const wasReadOnly = this.rendererOptions.readOnly;
 		this.rendererOptions = { ...this.rendererOptions, ...options };
@@ -1896,8 +1901,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const isSystemInitiatedRequest = isRequestVM(element) && !!element.isSystemInitiated;
 
-		templateData.username.textContent = element.username;
-		const hideChatUserIdentity = shouldHideChatUserIdentity(element.username, element.sessionResource, isResponseVM(element), this.environmentService.isSessionsWindow, isSystemInitiatedRequest);
+		// A chat answered by another agent than its session type's presents that agent, which is not the session type's.
+		const responseIdentity = isResponseVM(element) ? this.rendererOptions.responseIdentity : undefined;
+		templateData.username.textContent = responseIdentity?.label ?? element.username;
+		const hideChatUserIdentity = responseIdentity
+			? this.environmentService.isSessionsWindow
+			: shouldHideChatUserIdentity(element.username, element.sessionResource, isResponseVM(element), this.environmentService.isSessionsWindow, isSystemInitiatedRequest);
 		templateData.username.classList.toggle('hidden', hideChatUserIdentity);
 		templateData.avatarContainer.classList.toggle('hidden', hideChatUserIdentity);
 
@@ -2158,7 +2167,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		let icon: URI | ThemeIcon;
 		if (isResponseVM(element)) {
-			icon = this.getAgentIcon(element.agent?.metadata);
+			icon = this.rendererOptions.responseIdentity?.icon ?? this.getAgentIcon(element.agent?.metadata);
 		} else if (isRequestVM(element)) {
 			icon = element.avatarIcon ?? Codicon.account;
 		} else {

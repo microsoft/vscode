@@ -3530,7 +3530,8 @@ suite('AgentHostStateManager', () => {
 				sourceStatus: manager.getSessionState(sessionUri)!.status & SessionStatus.InProgress,
 				targetStatus: manager.getSessionState(target)!.status & SessionStatus.InProgress,
 			}, {
-				envelopes: ['source session/chatRemoved', 'source session/chatRemoved', 'target session/chatAdded', 'target session/chatAdded', 'target session/chatsReordered', 'root root/activeSessionsChanged', 'root root/activeSessionsChanged'],
+				// Each moved chat, its subagent included, then tells its own subscribers its new owner.
+				envelopes: ['source session/chatRemoved', 'source session/chatRemoved', 'target session/chatAdded', 'target session/chatAdded', 'target session/chatsReordered', 'other chat/moved', 'other chat/moved', 'root root/activeSessionsChanged', 'root root/activeSessionsChanged'],
 				owners: ['peer true', 'sub true'],
 				removalReasons: [ChatRemovalReason.Moved, ChatRemovalReason.Moved],
 				sourceChats: [sessionChatUri],
@@ -3613,7 +3614,7 @@ suite('AgentHostStateManager', () => {
 				targetActive: manager.getSessionState(target)!.status & SessionStatus.InProgress,
 			}, {
 				// The former default chat is announced as the movable peer it is now; its own state follows once the target lists it.
-				published: ['target session/chatAdded', 'target session/chatAdded', 'other chat/movableChanged', 'target session/chatsReordered', 'notification root/sessionRemoved'],
+				published: ['target session/chatAdded', 'target session/chatAdded', 'other chat/movableChanged', 'target session/chatsReordered', 'other chat/moved', 'other chat/moved', 'notification root/sessionRemoved'],
 				source: undefined,
 				targetChats: [[sessionChatUri, 'Moved session', true], [sub, '', false], [targetDefault, 'Test', false]],
 				movable: true,

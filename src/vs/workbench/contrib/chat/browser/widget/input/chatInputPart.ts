@@ -31,7 +31,7 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { mixin } from '../../../../../../base/common/objects.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable, ISettableObservable, ITransaction, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { isMacintosh, isWeb, OS } from '../../../../../../base/common/platform.js';
 import { isTerminalSandboxSupported } from '../../../../../../platform/sandbox/common/settings.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
@@ -1046,7 +1046,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private set _pendingDelegationTarget(value: AgentSessionTarget | undefined) { this._pendingDelegationTargetObservable.set(value, undefined); }
 
 	private readonly _currentSessionTypeObservable = observableValue<string | undefined>(this, undefined);
-	private get _currentSessionType(): string | undefined { return this._currentSessionTypeObservable.get(); }
+	private get _currentSessionType(): string | undefined { return this._readModelSessionTypeOverride() ?? this._currentSessionTypeObservable.get(); }
+	/**
+	 * The session type whose models the bound chat selects from when it differs from its resource's
+	 * (a chat answered by another agent of its session). Scoped to that chat so a rebound input drops it.
+	 */
+	private readonly _modelSessionTypeOverride = observableValue<{ readonly resource: URI; readonly sessionType: string | undefined } | undefined>(this, undefined);
 	private set _currentSessionType(value: string | undefined) { this._currentSessionTypeObservable.set(value, undefined); }
 
 	/** The session type (harness) whose models this input selects from. */
@@ -1073,6 +1078,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private readonly _notificationModelTargetChatSessionType = derived(this, reader =>
 		this._pendingDelegationTargetObservable.read(reader)
+		?? this._readModelSessionTypeOverride(reader)
 		?? this._currentSessionTypeObservable.read(reader)
 		?? this.getCurrentSessionType()
 	);
@@ -2251,6 +2257,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * additionally requires an empty model list.
 	 */
 	private _showAutoModel(): boolean {
+		if (this._readBoundModelPoolOverride() && this._readModelSessionTypeOverride() === undefined) {
+			return false;
+		}
 		const sessionType = this.getCurrentSessionType();
 		return !sessionType || this.chatSessionsService.supportsAutoModelForSessionType(sessionType);
 	}
@@ -2266,9 +2275,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private getModelsForSessionType(sessionType: string | undefined): ILanguageModelChatMetadataAndIdentifier[] {
+		// A chat answered by another agent whose pool is not known yet offers nothing rather than its session type's models.
+		const poolOverride = this._readBoundModelPoolOverride();
+		if (poolOverride && poolOverride.sessionType === undefined) {
+			return [];
+		}
 		const allModels = this.getAllMergedModels();
 
 		// Session owns a pool but no targeted models registered yet: return empty so callers don't treat general-pool models as valid.
+		// Agent-host session types all require custom models, which is what keeps a chat answered by another agent of the host
+		// (see setModelSessionTypeOverride) on an empty pool, rather than general or another agent's models, while its models load.
 		if (sessionType
 			&& this.chatSessionsService.requiresCustomModelsForSessionType(sessionType)
 			&& !hasModelsTargetingSession(allModels, sessionType)) {
@@ -2295,9 +2311,44 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private getCurrentSessionType(): string | undefined {
 		const sessionResource = this._widget?.viewModel?.model.sessionResource;
 		if (sessionResource) {
-			return getChatSessionType(sessionResource);
+			return this._readModelSessionTypeOverride() ?? getChatSessionType(sessionResource);
 		}
 		return this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
+	}
+
+	private _boundModelResource(): URI | undefined {
+		return this._inputModelSessionResource ?? this._widget?.viewModel?.model.sessionResource;
+	}
+
+	private _readBoundModelPoolOverride(reader?: IReader): { readonly sessionType: string | undefined } | undefined {
+		const override = this._modelSessionTypeOverride.read(reader);
+		return override && isEqual(override.resource, this._boundModelResource()) ? override : undefined;
+	}
+
+	private _readModelSessionTypeOverride(reader?: IReader): string | undefined {
+		return this._readBoundModelPoolOverride(reader)?.sessionType;
+	}
+
+	/**
+	 * Selects models for the chat at `resource` (the bound one by default) from another session type's
+	 * pool than its resource's, for a chat answered by another agent than its session type serves.
+	 * `{ sessionType: undefined }` means that agent's pool is not known yet, so nothing is selectable;
+	 * `undefined` restores the resource's own pool. Another pool's models are never offered.
+	 * Set for a chat before it binds, the pool applies from its first model validation.
+	 */
+	setModelSessionTypeOverride(override: { readonly sessionType: string | undefined } | undefined, resource: URI | undefined = this._boundModelResource(), options?: { readonly revalidate?: boolean }): void {
+		const next = override && resource ? { resource, sessionType: override.sessionType } : undefined;
+		const current = this._modelSessionTypeOverride.get();
+		if (!!current === !!next && current?.sessionType === next?.sessionType && isEqual(current?.resource, next?.resource)) {
+			return;
+		}
+		this._modelSessionTypeOverride.set(next, undefined);
+		// Only the chat bound to the view revalidates; an input still holding an outgoing chat's model, or none, keeps it.
+		const viewResource = this._widget?.viewModel?.model.sessionResource;
+		const affectsBound = !!viewResource && (isEqual(current?.resource, viewResource) || isEqual(next?.resource, viewResource));
+		if (options?.revalidate !== false && affectsBound) {
+			this._modelSelectionController.revalidateForSessionType(() => this.initSelectedModel());
+		}
 	}
 
 	/**

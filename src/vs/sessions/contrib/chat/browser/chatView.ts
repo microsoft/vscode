@@ -14,7 +14,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -36,7 +36,7 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/th
 import { ChatContentMarkdownRenderer } from '../../../../workbench/contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
 import { chatPersistentContentVisibleClass, ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING } from '../../../../workbench/contrib/chat/browser/widget/chatOptions.js';
-import { isResponseSelectionSupported, setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatRespondent, isResponseSelectionSupported, setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatOpen, IChatOpenDiagnosticsService } from '../../../../workbench/contrib/chat/common/chatOpenDiagnosticsService.js';
 import { IChatModelReference, IChatService, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -46,8 +46,8 @@ import { ChatRequestTextPart } from '../../../../workbench/contrib/chat/common/r
 import { Range } from '../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { getHarnessPresentationOrDefault, ISendRequestOptions, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISendRequestOptions } from '../../../services/sessions/common/sessionsProvider.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType, getNewChatSessionResource } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -55,7 +55,7 @@ import { IChatSessionHistoryStatus } from '../../../../platform/chat/common/chat
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
 import { IsPhoneLayoutContext, SessionUsesExperimentalComposerLayoutContext } from '../../../common/contextkeys.js';
-import { ChatInteractivity, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatInteractivity, getChatHarness, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { isExperimentalSessionComposerLayoutEnabled, NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
@@ -136,6 +136,40 @@ export function isFocusChatPillsKeyDown(event: Pick<IKeyboardEvent, 'keyCode' | 
  */
 export interface INewChatViewOptions extends IChatViewOptions {
 	readonly initialAttachments?: readonly IChatRequestVariableEntry[];
+}
+
+const providerModelSignals = new WeakMap<ISessionsProvider, IObservable<void>>();
+
+/** Signals when a provider's models or harnesses may have changed; one per provider, alive while observed. */
+function readProviderModelsChanged(provider: ISessionsProvider, reader: IReader | undefined): void {
+	let signal = providerModelSignals.get(provider);
+	if (!signal) {
+		signal = observableSignalFromEvent(provider, Event.any(provider.onDidChangeModels, provider.onDidChangeSessionTypes));
+		providerModelSignals.set(provider, signal);
+	}
+	signal.read(reader);
+}
+
+/**
+ * The respondent of a chat whose harness differs from its session's: its harness's presentation
+ * (with the provider's generic fallback while unknown) and the session type its models come from,
+ * `undefined` until the provider resolves that agent's models apart from the session's.
+ */
+export function getChatRespondent(session: ISession, chatResource: URI, sessionsProvidersService: ISessionsProvidersService, reader: IReader | undefined): IChatRespondent | undefined {
+	const chat = session.chats.read(reader).find(candidate => isEqual(candidate.resource, chatResource));
+	const harness = chat && getChatHarness(session, chat);
+	if (!chat || !harness || harness === session.harness) {
+		return undefined;
+	}
+	const provider = sessionsProvidersService.getProvider(session.providerId);
+	if (provider) {
+		readProviderModelsChanged(provider, reader);
+	}
+	const modelTarget = provider?.getModelsSnapshot(session.sessionId, undefined, chat.resource).modelTarget;
+	// The session's own target is never this chat's: it means the chat's agent is not resolved yet.
+	const modelSessionType = modelTarget && modelTarget !== getChatSessionType(session.resource) ? modelTarget : undefined;
+	const presentation = getHarnessPresentationOrDefault(provider, harness, reader);
+	return { label: presentation.label, icon: presentation.icon, modelSessionType };
 }
 
 export class NewChatView extends AbstractChatView {
@@ -308,6 +342,8 @@ export class ChatView extends AbstractChatView {
 
 	/** Reference to the loaded chat model; disposing releases the model. */
 	private readonly _modelRef = this._register(new MutableDisposable<IChatModelReference>());
+	/** Keeps the bound chat presented as answered by its own harness while it differs from its session's. */
+	private readonly _respondentBinding = this._register(new MutableDisposable());
 	private readonly _preparationModel = this._register(new MutableDisposable<ChatModel>());
 	private readonly _transcriptDisposables = this._register(new DisposableStore());
 
@@ -989,6 +1025,8 @@ export class ChatView extends AbstractChatView {
 			this._pendingLoadInput = undefined;
 			this._modelRef.value = ref;
 			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
+			// Bound ahead of the model so a chat answered by another agent never validates against its session's models.
+			this._respondentBinding.value = session ? autorun(reader => this._widget.setRespondent(getChatRespondent(session, resource, this.sessionsProvidersService, reader), resource)) : undefined;
 			if (inputState) {
 				this._widget.setModel(ref.object);
 			} else {
@@ -1052,6 +1090,7 @@ export class ChatView extends AbstractChatView {
 			this.sessionOpenTelemetryService.modelUnbound(previousSession.resource, previousChatResource);
 		}
 		this._widget.clear().catch(err => this.logService.error('[ChatView] Failed to clear chat widget', err));
+		this._respondentBinding.clear();
 		this._widget.setModel(undefined);
 		this._selectionSideChatController.setChat(undefined, constObservable(true));
 		this._modelRef.clear();
