@@ -439,7 +439,6 @@ suite('AgentMergeController', () => {
 		const laterChat = buildChatUri(session, 'later');
 		stateManager.addChat(session, laterChat, creationTimeChatStorageResource(session, laterChat, defaultChat), { workingDirectories: ['file:///second', OTHER_REPOSITORY] });
 		const orphanKey = getWorkingDirectoryKey('file:///no-chat');
-		const complete = { [SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.AutoApprove]: 'default' };
 		const read = () => ({
 			session: [SessionConfigKey.Mode, SessionConfigKey.AutoApprove].map(key => configurationService.getSessionConfigValues(session)?.[key]),
 			peer: configurationService.getChatOwnConfigValues({ session, chat: peerChat }),
@@ -454,10 +453,9 @@ suite('AgentMergeController', () => {
 		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { [getWorkingDirectoryKey(OTHER_REPOSITORY)]: { enabled: false }, [orphanKey]: { enabled: false } } });
 
 		assert.deepStrictEqual({ secondFolder, noChat, none: read() }, {
-			// A chat's values are its complete config, from its session when it was registered; elevation restores them.
-			secondFolder: { session: ['interactive', 'default'], peer: { [SessionConfigKey.Mode]: 'autopilot', [SessionConfigKey.AutoApprove]: 'assisted' }, later: complete, defaultChat: {} },
-			noChat: { session: ['autopilot', 'assisted'], peer: complete, later: complete, defaultChat: {} },
-			none: { session: ['interactive', 'default'], peer: complete, later: complete, defaultChat: {} },
+			secondFolder: { session: ['interactive', 'default'], peer: { [SessionConfigKey.Mode]: 'autopilot', [SessionConfigKey.AutoApprove]: 'assisted' }, later: {}, defaultChat: {} },
+			noChat: { session: ['autopilot', 'assisted'], peer: {}, later: {}, defaultChat: {} },
+			none: { session: ['interactive', 'default'], peer: {}, later: {}, defaultChat: {} },
 		});
 	});
 
@@ -515,24 +513,23 @@ suite('AgentMergeController', () => {
 		const peerOnly = snapshot();
 		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { [repoKey]: { enabled: false }, [otherKey]: { enabled: false } } });
 
-		// The peer's values are complete: registered with the approvals it set, and its session's mode.
 		assert.deepStrictEqual({ both, peerOnly, none: snapshot() }, {
 			both: {
 				session: ['interactive', 'default'],
 				defaultChat: ['autopilot', 'assisted'],
 				peer: { [SessionConfigKey.AutoApprove]: 'assisted', [SessionConfigKey.Mode]: 'autopilot' },
-				elevation: { default: {}, peer: { [SessionConfigKey.AutoApprove]: 'default', [SessionConfigKey.Mode]: 'interactive' } },
+				elevation: { default: {}, peer: { [SessionConfigKey.AutoApprove]: 'default' } },
 			},
 			peerOnly: {
 				session: ['interactive', 'default'],
 				defaultChat: ['interactive', 'default'],
 				peer: { [SessionConfigKey.AutoApprove]: 'assisted', [SessionConfigKey.Mode]: 'autopilot' },
-				elevation: { peer: { [SessionConfigKey.AutoApprove]: 'default', [SessionConfigKey.Mode]: 'interactive' } },
+				elevation: { peer: { [SessionConfigKey.AutoApprove]: 'default' } },
 			},
 			none: {
 				session: ['interactive', 'default'],
 				defaultChat: ['interactive', 'default'],
-				peer: { [SessionConfigKey.AutoApprove]: 'default', [SessionConfigKey.Mode]: 'interactive' },
+				peer: { [SessionConfigKey.AutoApprove]: 'default' },
 				elevation: {},
 			},
 		});

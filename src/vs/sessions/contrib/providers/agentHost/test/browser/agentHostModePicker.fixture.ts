@@ -204,7 +204,6 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 			[StateComponents.Session]: { value: state, verifiedValue: state, onDidChange: changed.event, onWillApplyAction: Event.None, onDidApplyAction: Event.None },
 		};
 		const hostService = new class extends mock<IAgentHostService>() {
-			override readonly initializeResult = constObservable(undefined);
 			override readonly onAgentHostStart = Event.None;
 			override readonly onAgentHostExit = Event.None;
 			override readonly onDidNotification = Event.None;

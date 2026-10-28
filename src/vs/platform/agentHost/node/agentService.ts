@@ -10707,8 +10707,8 @@ export class AgentService extends Disposable implements IAgentService {
 		if (configValues && Object.keys(configValues).length > 0) {
 			this._persistConfigValues(session, configValues);
 		}
-		// Its default chat's values were not persisted while the session was provisional.
-		const defaultChatConfig = state.defaultChat === undefined ? undefined : this._configurationService.getChatPersistedConfigValues(state.defaultChat);
+		// With complete chat values, its default chat's values were not persisted while the session was provisional.
+		const defaultChatConfig = state.defaultChat === undefined || !this.multipleChatProvidersEnabled ? undefined : this._configurationService.getChatPersistedConfigValues(state.defaultChat);
 		if (state.defaultChat && defaultChatConfig && Object.keys(defaultChatConfig).length > 0) {
 			this._sessionStateStore.chatRows.setChatConfig(session, URI.parse(state.defaultChat), defaultChatConfig).catch(err => {
 				this._logService.warn(`[AgentService] Failed to persist the config of ${state.defaultChat}`, err);

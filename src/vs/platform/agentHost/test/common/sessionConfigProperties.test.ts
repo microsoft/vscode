@@ -298,15 +298,28 @@ suite('Chat config properties', () => {
 		});
 	});
 
-	test('a chat\'s values are its complete config: the session gives only its session-wide properties', () => {
+	test('the effective config applies the chat\'s own settable values over the session\'s', () => {
+		const session = { schema, values: { autoApprove: 'default', mode: 'plan', webSearch: true } };
+		assert.deepStrictEqual({
+			absent: getEffectiveChatConfig(session, undefined) === session,
+			empty: getEffectiveChatConfig(session, { values: {} }) === session,
+			overlay: getEffectiveChatConfig(session, { values: { autoApprove: 'autoApprove', webSearch: false } }).values,
+		}, {
+			absent: true,
+			empty: true,
+			overlay: { autoApprove: 'autoApprove', mode: 'plan', webSearch: true },
+		});
+	});
+
+	test('with complete values (chats with their own agents on), a chat\'s values are its complete config: the session gives only its session-wide properties', () => {
 		const session = { schema, values: { autoApprove: 'autoApprove', mode: 'plan', webSearch: true, isolation: 'worktree' } };
 		const ownSchema: SessionConfigSchema = { type: 'object', properties: { mode: { type: 'string', title: 'Mode', enum: ['ask', 'agent'], default: 'agent', chatMutable: true } } };
 		assert.deepStrictEqual({
 			absent: getEffectiveChatConfig(session, undefined) === session,
 			// A missing property is the schema's default, never the session's value.
-			empty: getEffectiveChatConfig(session, { values: {} }).values,
-			complete: getEffectiveChatConfig(session, { values: { autoApprove: 'assisted', mode: 'interactive', webSearch: false } }).values,
-			ownSchema: getEffectiveChatConfig(session, { schema: ownSchema, values: {} }),
+			empty: getEffectiveChatConfig(session, { values: {} }, true).values,
+			complete: getEffectiveChatConfig(session, { values: { autoApprove: 'assisted', mode: 'interactive', webSearch: false } }, true).values,
+			ownSchema: getEffectiveChatConfig(session, { schema: ownSchema, values: {} }, false),
 			schemaOf: [getChatConfigSchema(session, undefined) === schema, getChatConfigSchema(session, { schema: ownSchema, values: {} }) === ownSchema],
 			// What a new chat starts with, or an older build's overlay completes to: the session's settable, non-reported values with the chat's over them.
 			completed: getCompleteChatConfigValues({ schema, values: { ...session.values, effectiveApprovalMode: 'autoApprove' } }, { mode: 'autopilot' }),
@@ -327,12 +340,14 @@ suite('Chat config properties', () => {
 			return getEffectiveSessionApprovalValue(getSessionApprovalProperty(schema)!, schema, config.values);
 		};
 		assert.deepStrictEqual({
-			session: approval(undefined),
+			inherited: approval(undefined),
+			otherProperty: approval({ mode: 'plan' }),
 			chosen: approval({ autoApprove: 'assisted' }),
 			reported: approval({ autoApprove: 'assisted', effectiveApprovalMode: 'default' }),
 		}, {
-			// The session is shown the mode reported for it.
-			session: 'autoApprove',
+			// A chat taking the session's approvals is shown the mode reported for them.
+			inherited: 'autoApprove',
+			otherProperty: 'autoApprove',
 			chosen: 'assisted',
 			reported: 'default',
 		});

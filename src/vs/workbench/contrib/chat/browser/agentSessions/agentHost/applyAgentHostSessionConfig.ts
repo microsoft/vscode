@@ -12,9 +12,8 @@ import { ActionType } from '../../../../../../platform/agentHost/common/state/pr
 import { getSessionChatResource, StateComponents, type ChatConfigState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { readChatSandboxState, readSessionSandboxState, type ISessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
-import { getChatConfigChain, getChatConfigWriteTarget, getCompleteChatConfigValues, getEffectiveChatConfig, isChatConfigProperty, mergeChatConfigChain, splitChatConfigPatch } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { getChatConfigChain, getChatConfigWriteTarget, getEffectiveChatConfig, isChatConfigProperty, mergeChatConfigChain, splitChatConfigPatch } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { ChatProvidersConfigKey } from '../../../../../../platform/agentHost/common/agentHostChatProviders.js';
-import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { getLocalAgentHostSessionProvider, resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
@@ -60,20 +59,23 @@ export function getAgentHostChatOwnAgent(state: SessionState, backendChat: strin
 	return provider !== undefined && provider !== state.provider ? provider : undefined;
 }
 
-/** The first protocol version whose hosts publish a chat's complete config values rather than an overlay on its session's. */
-const COMPLETE_CHAT_CONFIG_PROTOCOL_VERSION = '1.1.0';
+/**
+ * Whether the host publishes each chat's complete config values: only while its
+ * chats may use their own agents (root `multipleChatProviders.enabled`). Older
+ * hosts, and hosts with the setting off, publish the values a chat set itself, as
+ * an overlay on its session's.
+ */
+export function hostPublishesCompleteChatConfig(rootState: RootState | Error | undefined): boolean {
+	return !!rootState && !(rootState instanceof Error) && rootState.config?.values[ChatProvidersConfigKey.Enabled] === true;
+}
 
 /**
- * A chat's effective config (see {@link getEffectiveChatConfig}) on a connection
- * that negotiated `protocolVersion`. A host on an older version publishes only
- * the values a chat set itself, as an overlay on its session's: those are
- * completed with the session's values first, as that host reads them.
+ * A chat's effective config (see {@link getEffectiveChatConfig}), read as its
+ * host publishes it: complete values, or an overlay on its session's (see
+ * {@link hostPublishesCompleteChatConfig}).
  */
-export function getAgentHostEffectiveChatConfig(session: SessionConfigState, chat: ChatConfigState | undefined, protocolVersion: string | undefined): SessionConfigState {
-	if (chat && !chat.schema && protocolVersion !== undefined && compareProtocolVersions(protocolVersion, COMPLETE_CHAT_CONFIG_PROTOCOL_VERSION) < 0) {
-		return getEffectiveChatConfig(session, { values: getCompleteChatConfigValues(session, chat.values) });
-	}
-	return getEffectiveChatConfig(session, chat);
+export function getAgentHostEffectiveChatConfig(session: SessionConfigState, chat: ChatConfigState | undefined, completeValues: boolean): SessionConfigState {
+	return getEffectiveChatConfig(session, chat, completeValues);
 }
 
 /**
@@ -85,7 +87,7 @@ export function getAgentHostEffectiveChatConfig(session: SessionConfigState, cha
  * state and never uses the session's config: until its state is known it has
  * none.
  */
-export function getAgentHostChatConfig(state: SessionState, backendChat: string | undefined, readChat: (chat: string) => ChatState | Error | undefined, protocolVersion: string | undefined): SessionConfigState | undefined {
+export function getAgentHostChatConfig(state: SessionState, backendChat: string | undefined, readChat: (chat: string) => ChatState | Error | undefined, completeValues: boolean): SessionConfigState | undefined {
 	const chat = mergeChatConfigChain(getAgentHostChatConfigChain(state, backendChat).map(member => {
 		const chatState = readChat(member);
 		return chatState && !(chatState instanceof Error) ? chatState.config : undefined;
@@ -93,7 +95,7 @@ export function getAgentHostChatConfig(state: SessionState, backendChat: string 
 	if (getAgentHostChatOwnAgent(state, backendChat) !== undefined && !chat?.schema) {
 		return undefined;
 	}
-	return state.config && getAgentHostEffectiveChatConfig(state.config, chat, protocolVersion);
+	return state.config && getAgentHostEffectiveChatConfig(state.config, chat, completeValues);
 }
 
 /**
@@ -107,12 +109,11 @@ export function readAgentHostChatSandboxState(state: SessionState, backendChat: 
 
 /**
  * Whether the host behind `rootState` applies a session config write to its session's default chat, replacing the
- * value the default chat set itself. Hosts that do always publish the chats-with-their-own-agents root config key,
- * whether or not that feature is on; older hosts let the default chat's own value override the session's, so a client
- * writes the default chat itself there.
+ * value the default chat set itself: only while its chats may use their own agents. Otherwise, as on older hosts, the
+ * default chat's own value overrides the session's, so a client writes the default chat itself.
  */
 export function hostAppliesSessionConfigToDefaultChat(rootState: RootState | Error | undefined): boolean {
-	return !!rootState && !(rootState instanceof Error) && !!rootState.config?.schema.properties[ChatProvidersConfigKey.Enabled];
+	return hostPublishesCompleteChatConfig(rootState);
 }
 
 /**
@@ -170,7 +171,7 @@ export function getAgentHostSessionConfig(
 		return provisionalService.getResolvedConfig(sessionResource);
 	}
 	const chat = getAgentHostBackendChat(sessionResource, snapshot);
-	const config = getAgentHostChatConfig(snapshot, chat, chat => resolution.connection.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value, resolution.connection.initializeResult.get()?.protocolVersion);
+	const config = getAgentHostChatConfig(snapshot, chat, chat => resolution.connection.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value, hostPublishesCompleteChatConfig(resolution.connection.rootState?.value));
 	// Never the session's (or its provisional) config for a chat on another agent.
 	return getAgentHostChatOwnAgent(snapshot, chat) !== undefined ? config : config ?? provisionalService.getResolvedConfig(sessionResource);
 }
@@ -206,7 +207,7 @@ export async function applyAgentHostSessionConfigChange(
 	const state = subscribed && !(subscribed instanceof Error) ? subscribed : undefined;
 	const backendChat = state && getAgentHostBackendChat(sessionResource, state);
 	const chatOnOwnAgent = !!state && getAgentHostChatOwnAgent(state, backendChat) !== undefined;
-	const chatConfig = state && getAgentHostChatConfig(state, backendChat, chat => agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value, agentHostService.initializeResult.get()?.protocolVersion);
+	const chatConfig = state && getAgentHostChatConfig(state, backendChat, chat => agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value, hostPublishesCompleteChatConfig(agentHostService.rootState?.value));
 	const currentConfig = chatOnOwnAgent ? chatConfig : chatConfig ?? provisionalService.getResolvedConfig(sessionResource);
 	const policyRestricted = isAutoApprovePolicyRestricted(configurationService, currentConfig?.schema);
 	const partial = Object.fromEntries(Object.entries(config).map(([key, value]) => [key, normalizeSessionConfigValue(key, value, policyRestricted)]));

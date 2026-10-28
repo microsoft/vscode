@@ -233,13 +233,20 @@ suite('AgentConfigurationService', () => {
 			});
 		});
 
-		test('a malformed own value falls back to the schema\'s default and the host, not the session', async () => {
+		test('a malformed own value falls back to the session', () => {
+			setUpSession({ level: 'low' });
+			manager.dispatchServerAction(peer, { type: ActionType.ChatConfigChanged, config: { level: 'bogus' } });
+			assert.strictEqual(effective(peer), 'low');
+		});
+
+		test('with chats with their own agents on, a malformed own value falls back to the schema\'s default and the host, not the session', async () => {
+			service.updateRootConfig({ [ChatProvidersConfigKey.Enabled]: true });
 			setUpSession({ level: 'low' });
 			// A chat registered with its session's config takes its complete values once registered.
 			await Promise.resolve();
 			manager.dispatchServerAction(peer, { type: ActionType.ChatConfigChanged, config: { level: 'bogus' } });
 			const withoutHost = effective(peer);
-			seedRootConfig({ level: 'high' });
+			seedRootConfig({ level: 'high', [ChatProvidersConfigKey.Enabled]: true });
 			assert.deepStrictEqual([withoutHost, effective(peer)], [undefined, 'high']);
 		});
 
@@ -262,26 +269,31 @@ suite('AgentConfigurationService', () => {
 			});
 		});
 
-		test('fires chat changes for the changed chat and its subagents, and session changes only of session-wide properties to other chats: their values are their complete config', () => {
-			setUpSession({ level: 'low', limit: 1 });
-			const events: string[] = [];
-			disposables.add(service.onDidChatConfigChange(e => events.push(`${e.chat.substring(session.length)} ${JSON.stringify(e.config)}`)));
-			service.updateChatConfig({ session, chat: peer }, { level: 'low' });
-			service.updateSessionConfig(session, { level: 'high', limit: 3 });
-			assert.deepStrictEqual(events, [
-				`${peer.substring(session.length)} {"level":"low"}`,
-				`${subagent.substring(session.length)} {"level":"low"}`,
-				`${nested.substring(session.length)} {"level":"low"}`,
-				// The session's config is its default chat's for what that chat has not set itself.
-				`${defaultChat.substring(session.length)} {"level":"high","limit":3}`,
-				`${peer.substring(session.length)} {"limit":3}`,
-				`${subagent.substring(session.length)} {"limit":3}`,
-				`${nested.substring(session.length)} {"limit":3}`,
-				`${lookalike.substring(session.length)} {"limit":3}`,
-			]);
-		});
+		for (const complete of [false, true]) {
+			test(`fires chat changes for the changed chat and its subagents, and session changes for chats that do not set the key${complete ? ' (with chats with their own agents on, only session-wide properties reach chats other than the default chat: their values are their complete config)' : ''}`, async () => {
+				if (complete) {
+					service.updateRootConfig({ [ChatProvidersConfigKey.Enabled]: true });
+				}
+				setUpSession({ level: 'low', limit: 1 });
+				await Promise.resolve();
+				const events: string[] = [];
+				disposables.add(service.onDidChatConfigChange(e => events.push(`${e.chat.substring(session.length)} ${JSON.stringify(e.config)}`)));
+				service.updateChatConfig({ session, chat: peer }, { level: 'low' });
+				service.updateSessionConfig(session, { level: 'high', limit: 3 });
+				assert.deepStrictEqual(events, [
+					`${peer.substring(session.length)} {"level":"low"}`,
+					`${subagent.substring(session.length)} {"level":"low"}`,
+					`${nested.substring(session.length)} {"level":"low"}`,
+					`${defaultChat.substring(session.length)} {"level":"high","limit":3}`,
+					`${peer.substring(session.length)} {"limit":3}`,
+					`${subagent.substring(session.length)} {"limit":3}`,
+					`${nested.substring(session.length)} {"limit":3}`,
+					`${lookalike.substring(session.length)} ${complete ? '{"limit":3}' : '{"level":"high","limit":3}'}`,
+				]);
+			});
+		}
 
-		test('a replacement fans out the keys it removed, from the session (only session-wide ones reach chats other than the default chat) and from a chat', () => {
+		test('a replacement fans out the keys it removed, from the session and from a chat', () => {
 			setUpSession({ level: 'low', limit: 1 });
 			const events: string[] = [];
 			disposables.add(service.onDidChatConfigChange(e => {
@@ -294,7 +306,16 @@ suite('AgentConfigurationService', () => {
 			assert.deepStrictEqual(events, ['default level,limit', 'peer limit', 'peer level,limit']);
 		});
 
-		test('a session write replaces the default chat\'s own value of a property it may set, persisted cleared; a peer keeps its own', async () => {
+		test('without chats with their own agents, a session write leaves the default chat\'s own value, as before', async () => {
+			setUpSession({ level: 'low', limit: 1 });
+			service.updateChatConfig({ session, chat: defaultChat }, { level: 'high' });
+			manager.dispatchClientAction(session, { type: ActionType.SessionConfigChanged, config: { level: 'low' } }, { clientId: 'client', clientSeq: 1 });
+			await Promise.resolve();
+			assert.deepStrictEqual({ effective: effective(defaultChat), published: manager.getChatConfig(defaultChat)?.values }, { effective: 'high', published: { level: 'high' } });
+		});
+
+		test('with chats with their own agents on, a session write replaces the default chat\'s own value of a property it may set, persisted cleared; a peer keeps its own', async () => {
+			service.updateRootConfig({ [ChatProvidersConfigKey.Enabled]: true });
 			setUpSession({ level: 'low', limit: 1 });
 			await Promise.resolve();
 			service.updateChatConfig({ session, chat: defaultChat }, { level: 'high' });

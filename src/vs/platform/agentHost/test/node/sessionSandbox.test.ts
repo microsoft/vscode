@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
+import { ChatProvidersConfigKey } from '../../common/agentHostChatProviders.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -340,8 +341,6 @@ suite('Session sandbox configuration', () => {
 			updates: [
 				{ type: ActionType.SessionMetaChanged, value: 'off', error: 'SDK rejected update' },
 				{ type: ActionType.SessionConfigChanged, value: 'on', error: 'SDK rejected update' },
-				// The default chat publishes the session's value it follows.
-				{ type: ActionType.ChatConfigChanged, value: 'on', error: 'SDK rejected update' },
 			],
 			values: { sandboxEnabled: 'on', mode: 'interactive' },
 			state: { enabled: true, rejectedSelection: true, error: { clientId: 'client', clientSeq: 1, message: 'SDK rejected update' } },
@@ -915,8 +914,9 @@ suite('Session sandbox configuration', () => {
 			});
 		});
 
-		test('the session\'s "Disable sandboxing" replaces the default chat\'s own selection, not a peer\'s, and the default chat follows a managed floor', async () => {
+		test('with chats with their own agents on, the session\'s "Disable sandboxing" replaces the default chat\'s own selection, not a peer\'s, and the default chat follows a managed floor', async () => {
 			const { manager, configuration, owner, peer, defaultTarget, peerTarget } = setupChats({ sandboxEnabled: 'on' });
+			configuration.updateRootConfig({ [ChatProvidersConfigKey.Enabled]: true });
 			await timeout(0);
 			manager.dispatchClientAction(defaultTarget.chat, { type: ActionType.ChatConfigChanged, config: { sandboxEnabled: 'on' } }, { clientId: 'client', clientSeq: 1 });
 			manager.dispatchClientAction(peer, { type: ActionType.ChatConfigChanged, config: { sandboxEnabled: 'on' } }, { clientId: 'client', clientSeq: 2 });

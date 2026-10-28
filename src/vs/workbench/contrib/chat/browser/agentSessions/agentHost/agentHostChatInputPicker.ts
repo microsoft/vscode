@@ -66,7 +66,7 @@ import { isCopilotCliSessionType } from './agentHostToolSetEnablementService.js'
 import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filterBranchPickerItems } from './agentHostBranchPicker.js';
 import { AgentHostInitialSessionConfig, retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 import { getCompactCodicon } from '../../chatIcons.js';
-import { dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostChatConfig, getAgentHostChatConfigChain, readAgentHostChatSandboxState } from './applyAgentHostSessionConfig.js';
+import { dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostChatConfig, hostPublishesCompleteChatConfig, getAgentHostChatConfigChain, readAgentHostChatSandboxState } from './applyAgentHostSessionConfig.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
 import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, getPermissionLevelBadge, getPermissionLevelUnavailablePresentation, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, MODE_SECTION_ID, PERMISSIONS_SECTION_ID, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
@@ -1369,7 +1369,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	private _readChatConfig(state: SessionState): SessionConfigState | undefined {
 		const chat = this._subRef.value?.getChat();
 		const connection = this._subRef.value?.connection;
-		return getAgentHostChatConfig(state, chat?.resource, member => chat?.chain.get(member)?.value, connection?.initializeResult.get()?.protocolVersion);
+		return getAgentHostChatConfig(state, chat?.resource, member => chat?.chain.get(member)?.value, hostPublishesCompleteChatConfig(connection?.rootState?.value));
 	}
 
 	/** Confirms an elevated approval selection before writing through its host binding. */
