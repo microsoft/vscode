@@ -387,7 +387,7 @@ jobs:
   electron-smoke-1:
     name: Electron-Smoke (shard 1/2)
     if: ${{ inputs.electron_smoke_affected }}
-    runs-on: vscode-large-runners-macos-5-core-2
+    runs-on: vscode-large-runners-macos-5-core-1
     env:
       ARTIFACT_NAME: electron-smoke-shard1
       ELECTRON_TESTS: 'true'
@@ -399,7 +399,7 @@ jobs:
   electron-smoke-2:
     name: Electron-Smoke (shard 2/2)
     if: ${{ inputs.electron_smoke_affected }}
-    runs-on: vscode-large-runners-macos-5-core-1
+    runs-on: vscode-large-runners-macos-5-core-2
     env:
       ARTIFACT_NAME: electron-smoke-shard2
       ELECTRON_TESTS: 'true'
