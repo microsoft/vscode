@@ -263,6 +263,10 @@ class QuickPickSeparatorElement extends BaseQuickPickItemElement {
 	 */
 	focusInsideSeparator = QuickPickSeparatorFocusReason.NONE;
 
+	get isDivider(): boolean {
+		return !this.separator.label && !this.separator.buttons?.length;
+	}
+
 	constructor(
 		index: number,
 		readonly fireSeparatorButtonTriggered: (event: IQuickPickSeparatorButtonEvent) => void,
@@ -276,7 +280,7 @@ class QuickInputItemDelegate implements IListVirtualDelegate<IQuickPickElement> 
 	getHeight(element: IQuickPickElement): number {
 
 		if (element instanceof QuickPickSeparatorElement) {
-			return 30;
+			return element.isDivider ? 8 : 30;
 		}
 		return element.saneDetail ? 44 : 22;
 	}
@@ -307,7 +311,7 @@ class QuickInputAccessibilityProvider implements IListAccessibilityProvider<IQui
 	}
 
 	getRole(element: IQuickPickElement) {
-		return element.hasCheckbox ? 'checkbox' : 'option';
+		return element instanceof QuickPickSeparatorElement && element.isDivider ? 'separator' : element.hasCheckbox ? 'checkbox' : 'option';
 	}
 
 	isChecked(element: IQuickPickElement): IValueWithChangeEvent<boolean> | undefined {
@@ -658,11 +662,12 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 			labelEscapeNewLines: true
 		};
 		data.entry.classList.add('quick-input-list-separator-as-item');
+		data.entry.classList.toggle('quick-input-list-separator-empty', element.isDivider);
 		data.label.setLabel(element.saneLabel, element.saneDescription, options);
 
 		// Separator
 		data.separator.style.display = 'none';
-		data.entry.classList.add('quick-input-list-separator-border');
+		data.entry.classList.toggle('quick-input-list-separator-border', !element.isDivider);
 
 		// Actions
 		const buttons = mainItem.buttons;
@@ -1119,7 +1124,7 @@ export class QuickInputList extends Disposable {
 		this._elementTree = inputElements.reduce((result, item, index) => {
 			let element: IQuickPickElement;
 			if (item.type === 'separator') {
-				if (!item.buttons) {
+				if (!item.buttons && item.label) {
 					// This separator will be rendered as a part of the list item
 					return result;
 				}
@@ -1132,7 +1137,7 @@ export class QuickInputList extends Disposable {
 			} else {
 				const previous = index > 0 ? inputElements[index - 1] : undefined;
 				let separator: IQuickPickSeparator | undefined;
-				if (previous && previous.type === 'separator' && !previous.buttons) {
+				if (previous && previous.type === 'separator' && !previous.buttons && previous.label) {
 					separator = previous;
 				}
 				const qpi = new QuickPickItemElement(
@@ -1439,7 +1444,7 @@ export class QuickInputList extends Disposable {
 				element.hidden = false;
 				const previous = element.index && this._inputElements[element.index - 1];
 				if (element.item) {
-					element.separator = previous && previous.type === 'separator' && !previous.buttons ? previous : undefined;
+					element.separator = previous && previous.type === 'separator' && !previous.buttons && previous.label ? previous : undefined;
 				}
 			});
 		}
@@ -1479,7 +1484,7 @@ export class QuickInputList extends Disposable {
 				// we can show the separator unless the list gets sorted by match
 				if (!this.sortByLabel) {
 					const previous = element.index && this._inputElements[element.index - 1] || undefined;
-					if (previous?.type === 'separator' && !previous.buttons) {
+					if (previous?.type === 'separator' && !previous.buttons && previous.label) {
 						currentSeparator = previous;
 					}
 					if (currentSeparator && !element.hidden) {
@@ -1547,10 +1552,23 @@ export class QuickInputList extends Disposable {
 
 	//#region private methods
 
+	private hasCustomWidget = false;
+
+	setHasCustomWidget(hasCustomWidget: boolean): void {
+		if (this.hasCustomWidget !== hasCustomWidget) {
+			this.hasCustomWidget = hasCustomWidget;
+			this._setElementsToTree(this._elementTree);
+		}
+	}
+
 	private _setElementsToTree(elements: IQuickPickElement[]) {
 		const treeElements = new Array<IObjectTreeElement<IQuickPickElement>>();
 		for (const element of elements) {
 			if (element instanceof QuickPickSeparatorElement) {
+				if (element.isDivider && element.index === 0 && !this.hasCustomWidget) {
+					treeElements.push(...element.children.map(child => ({ element: child })));
+					continue;
+				}
 				treeElements.push({
 					element,
 					collapsible: false,

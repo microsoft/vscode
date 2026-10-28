@@ -26,7 +26,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { backButton, QuickPick } from '../../browser/quickInput.js';
-import { IQuickInput, IQuickInputService, IQuickPickItem, ItemActivation, isKeyModified, NO_KEY_MODS } from '../../common/quickInput.js';
+import { IQuickInput, IQuickInputService, IQuickPickItem, ItemActivation, isKeyModified, NO_KEY_MODS, QuickPickFocus } from '../../common/quickInput.js';
 import { CommandsRegistry } from '../../../commands/common/commands.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IThemeService } from '../../../theme/common/themeService.js';
@@ -114,7 +114,15 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 					inputBox: unthemedInboxStyles,
 					toggle: unthemedToggleStyles,
 					keybindingLabel: unthemedKeybindingLabelOptions,
-					list: unthemedListStyles,
+					list: {
+						...unthemedListStyles,
+						listFocusBackground: 'var(--vscode-quickInputList-focusBackground)',
+						listFocusForeground: 'var(--vscode-quickInputList-focusForeground)',
+						listInactiveFocusBackground: 'var(--vscode-quickInputList-focusBackground)',
+						listInactiveFocusForeground: 'var(--vscode-quickInputList-focusForeground)',
+						listFocusOutline: 'var(--vscode-list-focusOutline)',
+						listInactiveFocusOutline: 'var(--vscode-list-focusOutline)',
+					},
 					progressBar: unthemedProgressBarOptions,
 					widget: {
 						quickInputBackground: undefined,
@@ -241,14 +249,108 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		picker.widget = mainWindow.document.createElement('div');
 		picker.items = [{ type: 'separator' }, { label: 'Reset to default' }];
 		picker.show();
-		const entry = fixture.querySelector<HTMLElement>('.quick-input-list-entry')!;
-		const withContent = mainWindow.getComputedStyle(entry).borderTopStyle;
+		const withContent = fixture.querySelectorAll('.quick-input-list-separator-empty').length;
 		picker.widget = undefined;
 		assert.deepStrictEqual({
 			withContent,
-			withoutContent: mainWindow.getComputedStyle(entry).borderTopStyle,
+			withoutContent: fixture.querySelectorAll('.quick-input-list-separator-empty').length,
 			contentMarker: fixture.querySelector('.quick-input-widget')?.classList.contains('has-custom-widget'),
-		}, { withContent: 'solid', withoutContent: 'none', contentMarker: false });
+		}, { withContent: 1, withoutContent: 0, contentMarker: false });
+	});
+
+	test('appearance picker selection is neutral without changing the next ordinary picker', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		fixture.style.setProperty('--vscode-quickInputList-focusBackground', '#0000ff');
+		fixture.style.setProperty('--vscode-quickInputList-focusForeground', '#ffffff');
+		fixture.style.setProperty('--vscode-list-inactiveSelectionBackground', '#dddddd');
+		fixture.style.setProperty('--vscode-list-inactiveSelectionForeground', '#111111');
+		fixture.style.setProperty('--vscode-list-focusOutline', '#ff00ff');
+		const picker = store.add(controller.createQuickPick());
+		picker.useNeutralSelection = true;
+		picker.items = [{ label: 'Red' }, { label: 'Reset to default' }];
+		picker.show();
+		const colors = () => {
+			const row = fixture.querySelector<HTMLElement>('.monaco-list-row.focused')!;
+			const style = mainWindow.getComputedStyle(row);
+			return { background: style.backgroundColor, foreground: style.color };
+		};
+		const appearance = colors();
+		picker.focus(QuickPickFocus.Last);
+		const reset = colors();
+		const list = fixture.querySelector<HTMLElement>('.quick-input-list > .monaco-list')!;
+		list.focus();
+		const focusStyle = mainWindow.getComputedStyle(list.querySelector<HTMLElement>('.monaco-list-row.focused')!);
+		const focusOutline = { color: focusStyle.outlineColor, visible: focusStyle.outlineStyle !== 'none', width: focusStyle.outlineWidth };
+		picker.hide();
+		const ordinary = store.add(controller.createQuickPick());
+		ordinary.items = [{ label: 'Ordinary command' }];
+		ordinary.show();
+		assert.deepStrictEqual({ appearance, reset, focusOutline, ordinary: colors() }, {
+			appearance: { background: 'rgb(221, 221, 221)', foreground: 'rgb(17, 17, 17)' },
+			reset: { background: 'rgb(221, 221, 221)', foreground: 'rgb(17, 17, 17)' },
+			focusOutline: { color: 'rgb(255, 0, 255)', visible: true, width: '1px' },
+			ordinary: { background: 'rgb(0, 0, 255)', foreground: 'rgb(255, 255, 255)' },
+		});
+	});
+
+	test('labelled separators keep their inline labels and button separators keep their header height', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+		picker.items = [
+			{ type: 'separator', label: 'Inline section' }, { label: 'First item' },
+			{ type: 'separator', label: 'Section with actions', buttons: [{ iconClass: 'codicon-add', tooltip: 'Add' }] }, { label: 'Second item' },
+		];
+		picker.show();
+		const header = fixture.querySelector<HTMLElement>('.quick-input-list-separator-as-item')!;
+		picker.focus(QuickPickFocus.Next);
+		assert.deepStrictEqual({
+			inline: fixture.querySelector('.quick-input-list-entry .quick-input-list-separator')?.textContent,
+			headerHeight: header.getBoundingClientRect().height,
+			dividers: fixture.querySelectorAll('.quick-input-list-separator-empty').length,
+			active: picker.activeItems.map(item => item.label),
+		}, { inline: 'Inline section', headerHeight: 30, dividers: 0, active: ['Second item'] });
+	});
+
+	test('unlabelled dividers have their own geometry outside the centered Reset row', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		fixture.style.setProperty('--vscode-strokeThickness', '1px');
+		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+		picker.items = [{ label: 'Red' }, { type: 'separator' }, { label: 'Reset to default' }];
+		picker.show();
+		const divider = fixture.querySelector<HTMLElement>('.quick-input-list-separator-empty')!;
+		const reset = [...fixture.querySelectorAll<HTMLElement>('.quick-input-list-entry')].find(entry => entry.textContent === 'Reset to default')!;
+		const dividerBounds = divider.getBoundingClientRect();
+		const row = reset.closest<HTMLElement>('.monaco-list-row')!;
+		const rowBounds = row.getBoundingClientRect();
+		const labelBounds = reset.querySelector<HTMLElement>('.quick-input-list-row')!.getBoundingClientRect();
+		picker.focus(QuickPickFocus.Next);
+		const active = picker.activeItems.map(item => item.label);
+		picker.value = 'Reset';
+		const filteredDividers = fixture.querySelectorAll('.quick-input-list-separator-empty').length;
+		picker.value = '';
+		assert.deepStrictEqual({
+			dividerHeight: dividerBounds.height,
+			dividerStroke: mainWindow.getComputedStyle(divider, '::before').borderTopWidth,
+			separate: dividerBounds.bottom <= rowBounds.top,
+			rowHeight: rowBounds.height,
+			entryHeight: reset.getBoundingClientRect().height,
+			contentCentered: Math.abs((labelBounds.top + labelBounds.bottom) - (rowBounds.top + rowBounds.bottom)) <= 1,
+			rowHasDivider: reset.classList.contains('quick-input-list-separator-border'),
+			active,
+			filteredDividers,
+			restoredDividers: fixture.querySelectorAll('.quick-input-list-separator-empty').length,
+		}, {
+			dividerHeight: 8,
+			dividerStroke: '1px',
+			separate: true,
+			rowHeight: 22,
+			entryHeight: 22,
+			contentCentered: true,
+			rowHasDivider: false,
+			active: ['Reset to default'],
+			filteredDividers: 0,
+			restoredDividers: 1,
+		});
 	});
 
 	test('close motion requires modern UI with motion enabled', () => {
