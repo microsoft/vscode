@@ -46,6 +46,9 @@ suite('Agent Host PR test selection', () => {
 			'src/vs/workbench/browser/editor.ts',
 			'README.md',
 			'build/azure-pipelines/product-build.yml',
+			'.vscode/settings.json',
+			'.vscode/extensions/vscode-extras/package.json',
+			'.vscode/extensions/vscode-selfhost-test-provider/package-lock.json',
 			'src/vs/platform/agentHost/node/copilot/copilotAgent.ts',
 			'src/vs/base/common/async.ts',
 		]) {
@@ -53,6 +56,9 @@ suite('Agent Host PR test selection', () => {
 			results.push({ affected: outputs.affected, profile: outputs.profile });
 		}
 		assert.deepStrictEqual(results, [
+			{ affected: 'false', profile: 'pr' },
+			{ affected: 'false', profile: 'pr' },
+			{ affected: 'false', profile: 'pr' },
 			{ affected: 'false', profile: 'pr' },
 			{ affected: 'false', profile: 'pr' },
 			{ affected: 'false', profile: 'pr' },
