@@ -10496,7 +10496,10 @@ class SessionPluginController extends Disposable {
 			result.push(this._projectForPublish(definition.customization));
 		}
 		result.push(buildCopilotBuiltinAgentsContainer());
-		return resolveCustomizationEnablement(this._customizationEnablementService, this._session, result, this._clientChildEnablement(), this._clientPlugins());
+		return {
+			...resolveCustomizationEnablement(this._customizationEnablementService, this._session, result, this._clientChildEnablement(), this._clientPlugins()),
+			explicitPluginIds,
+		};
 	}
 
 	/**
@@ -10644,7 +10647,7 @@ class SessionPluginController extends Disposable {
 		const discovered = anchor?.discoveredEntry()?.currentCustomizations() ?? [];
 		const discoveredDirectories = discovered.filter((customization): customization is DirectoryCustomization => customization.type === CustomizationType.Directory && isEnabledForSdk(customization));
 		const discoveredCustomizations = mapDiscoveredCustomizations(discoveredDirectories, anchor?.directory, anchor?.additionalDirectories ?? []);
-		const nativeAgents = discovered.flatMap(customization => customization.type === CustomizationType.Plugin && isEnabledForSdk(customization)
+		const nativeAgents = discovered.flatMap(customization => customization.type === CustomizationType.Plugin && !resolved.explicitPluginIds.has(customization.id) && isEnabledForSdk(customization)
 			? customization.children?.filter((child): child is AgentCustomization => child.type === CustomizationType.Agent) ?? []
 			: []);
 		const withSdkRegistration = (plugin: IParsedPlugin, pluginDir: URI | undefined): ICopilotPluginInfo => ({

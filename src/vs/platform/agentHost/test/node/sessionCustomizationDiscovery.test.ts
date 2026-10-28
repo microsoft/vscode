@@ -108,7 +108,7 @@ suite('SessionCustomizationDiscovery', () => {
 
 		const pluginRoot = '/home/.copilot/installed-plugins/example';
 		await seed(`${pluginRoot}/.github/plugin/plugin.json`, JSON.stringify({ name: 'example-plugin', version: '1.2.3' }));
-		const pluginAgent = await seed(`${pluginRoot}/agents/reviewer.agent.md`, '---\nname: reviewer\ndescription: Reviews changes\n---\n');
+		const pluginAgent = await seed(`${pluginRoot}/agents/reviewer.agent.md`, '---\nname: reviewer\ndescription: Reviews changes\nuser-invocable: false\ndisable-model-invocation: true\nmodel: test-model\ntools: [read, search]\n---\n');
 		await seed(`${pluginRoot}/agents/not-discovered.agent.md`, '---\nname: not-discovered\n---\n');
 		const pluginSkill = await seed(`${pluginRoot}/skills/example/SKILL.md`, '---\nname: example\ndescription: Example skill\n---\n');
 		const pluginRule = await seed(`${pluginRoot}/rules/example.instructions.md`, '---\nname: Example instruction\n---\n');
@@ -120,7 +120,7 @@ suite('SessionCustomizationDiscovery', () => {
 				agents: {
 					getDiscoveryPaths: async () => ({ paths: [] }),
 					discover: async () => ({
-						agents: [{ id: 'example-plugin@marketplace:reviewer', name: 'reviewer', description: 'Reviews changes', path: pluginAgent.path, source: 'plugin', userInvocable: false }],
+						agents: [{ id: 'example-plugin@marketplace:reviewer', name: 'example-plugin:reviewer', description: 'Reviews changes', path: pluginAgent.path, source: 'plugin', userInvocable: false }],
 					}),
 				},
 				instructions: {
@@ -147,7 +147,11 @@ suite('SessionCustomizationDiscovery', () => {
 		assert.deepStrictEqual({
 			errors,
 			nativeAgents: customizations.flatMap(customization => customization.type === CustomizationType.Plugin
-				? customization.children?.filter(child => child.type === CustomizationType.Agent).map(child => ({ id: child.id, name: child.name, meta: child._meta })) ?? []
+				? customization.children?.filter(child => child.type === CustomizationType.Agent).map(child => ({
+					id: child.id, name: child.name, meta: child._meta,
+					disableUserInvocation: child.disableUserInvocation, disableModelInvocation: child.disableModelInvocation,
+					model: child.model, tools: child.tools,
+				})) ?? []
 				: []),
 			skillDirectories: customizations
 				.filter(customization => customization.type === CustomizationType.Directory && customization.contents === 'skill')
@@ -165,7 +169,10 @@ suite('SessionCustomizationDiscovery', () => {
 				})),
 		}, {
 			errors: [],
-			nativeAgents: [{ id: 'example-plugin@marketplace:reviewer', name: 'reviewer', meta: { userInvocable: false } }],
+			nativeAgents: [{
+				id: 'example-plugin@marketplace:reviewer', name: 'reviewer', meta: { userInvocable: false },
+				disableUserInvocation: true, disableModelInvocation: true, model: 'test-model', tools: ['read', 'search'],
+			}],
 			skillDirectories: [{
 				uri: URI.from({ scheme: Schemas.inMemory, path: '/workspace/.github/skills' }).toString(),
 				children: [projectSkill.toString()],

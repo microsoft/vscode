@@ -133,7 +133,7 @@ import { ModelCallTurnCorrelation, type IModelCallTurnCorrelationResult } from '
 import { addCopilotSandboxPath, createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { CopilotClientStartupConfigChangedError } from '../../node/copilot/copilotFailureTelemetry.js';
 import { AgentBranchNameGenerator, getAgentBranchNameHintFromMessage, normalizeAgentBranchName } from '../../node/shared/agentBranchNameGenerator.js';
-import { getCopilotAutoTier, getCopilotCustomAgents, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
+import { getCopilotAutoTier, getCopilotCustomAgents, getCopilotAgentSelectionName, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
 import { setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { modelConfigurationSourceKey } from '../../common/agentModelConfiguration.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
@@ -20583,7 +20583,7 @@ suite('CopilotAgent', () => {
 					{ id: 'other-agent', name: 'discovered-agent', displayName: 'discovered-agent', description: 'discovered', path: sameNamedAgent.fsPath, source: 'plugin' },
 				],
 			});
-			const { agent } = createTestAgentContext(disposables, {
+			const { agent, stateManager } = createTestAgentContext(disposables, {
 				sessionDataService,
 				copilotClient: client,
 				fileService,
@@ -20601,6 +20601,11 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				const session = AgentSession.uri('copilotcli', 'client-plugin-discovery-shadow');
 				const chat = defaultChatUri(session);
+				stateManager.createSession({
+					resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+					workingDirectories: [workspace.toString()], defaultChat: chat.toString(),
+				});
 				await provisionSession(agent, { session, workingDirectories: [workspace] });
 				assert.deepStrictEqual(
 					(await getDefaultChatCustomizations(agent, session))
@@ -20655,6 +20660,12 @@ suite('CopilotAgent', () => {
 							children: [{ id: 'other-agent', type: CustomizationType.Agent, uri: sameNamedAgent.toString(), name: 'discovered-agent' }],
 						},
 					].sort((a, b) => a.uri.localeCompare(b.uri)));
+					const applied = await agent['_getOrCreateActiveClient'](session, workspace).snapshot(chat.toString());
+					assert.deepStrictEqual({
+						nativeAgents: applied.nativeAgents?.map(agent => agent.id),
+						shadowedSelection: getCopilotAgentSelectionName(applied, sourceAgent.toString()),
+						otherSelection: getCopilotAgentSelectionName(applied, sameNamedAgent.toString()),
+					}, { nativeAgents: ['other-agent'], shadowedSelection: undefined, otherSelection: 'other-agent' });
 				}
 
 				const hasPublishedLoad = (kind: CustomizationLoadStatus): boolean => actions.some(action =>
@@ -20717,7 +20728,7 @@ suite('CopilotAgent', () => {
 
 			const client = new TestCopilotClient([]);
 			client.discoverAgents = async () => ({
-				agents: [{ id: 'host-agent', name: 'host-agent', displayName: 'host-agent', description: 'host', path: agentFile.fsPath, source: 'plugin' }],
+				agents: [{ id: 'native:host-agent', name: 'host-agent', displayName: 'host-agent', description: 'host', path: agentFile.fsPath, source: 'plugin' }],
 			});
 			const { agent } = createTestAgentContext(disposables, {
 				copilotClient: client,
@@ -20748,6 +20759,12 @@ suite('CopilotAgent', () => {
 						load: CustomizationLoadStatus.Loaded,
 						children: [{ type: CustomizationType.Agent, uri: agentFile.toString(), name: 'host-agent' }],
 					}]);
+				const applied = await agent['_getOrCreateActiveClient'](session, workspace).snapshot(defaultChatUri(session).toString());
+				assert.deepStrictEqual({
+					nativeAgents: applied.nativeAgents ?? [],
+					selected: getCopilotAgentSelectionName(applied, agentFile.toString()),
+					registered: getCopilotCustomAgents(applied).map(agent => agent.name),
+				}, { nativeAgents: [], selected: 'host-agent', registered: ['host-agent'] });
 			} finally {
 				await disposeAgent(agent);
 			}

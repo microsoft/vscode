@@ -753,7 +753,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 							return [child];
 						}
 						const agent = agentsByUri.get(URI.parse(child.uri));
-						return agent ? [agent] : [];
+						return agent ? [{ ...child, ...agent, name: child.name }] : [];
 					}),
 				});
 			} catch (error) {
