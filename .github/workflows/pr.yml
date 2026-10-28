@@ -210,7 +210,7 @@ jobs:
     name: Compile & Hygiene
     needs: changes
     if: ${{ !cancelled() }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: vscode-large-runners-ubuntu-32-core
     env:
       # Hygiene and ESLint check only the files that changed since this commit, unless
       # a change can affect other files (see build/lib/changedFiles.ts). The full checks
