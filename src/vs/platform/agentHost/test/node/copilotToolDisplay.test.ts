@@ -409,6 +409,110 @@ suite('getPermissionDisplay — workflow confirmation', () => {
 	});
 });
 
+suite('getPermissionDisplay — hook confirmation', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const [toolName, command] of [
+		['bash', 'cd /repo/project && echo review-me'],
+		['powershell', 'cd /repo/project; echo review-me'],
+	]) {
+		test(`shows the ${toolName} command and hook reason without changing the request`, () => {
+			const request = {
+				kind: 'hook',
+				toolCallId: 'hook-tool-call',
+				toolName,
+				toolArgs: { command, description: 'Print a review marker', timeout: 1000 },
+				hookMessage: 'Please review this command before it runs.',
+			} satisfies PermissionRequest;
+
+			assert.deepStrictEqual({
+				display: getPermissionDisplay(request, URI.file('/repo/project')),
+				command: request.toolArgs.command,
+			}, {
+				display: {
+					confirmationTitle: 'Run in terminal?',
+					invocationMessage: request.hookMessage,
+					toolInput: JSON.stringify({ ...request.toolArgs, command: 'echo review-me' }, null, 2),
+					permissionKind: 'hook',
+					shellCommand: 'echo review-me',
+				},
+				command,
+			});
+		});
+	}
+
+	test('keeps multiline commands and other working directories intact', () => {
+		const toolArgs = { command: 'cd /tmp && echo first\necho second' };
+		const display = getPermissionDisplay({
+			kind: 'hook', toolName: 'bash', toolArgs, hookMessage: 'Review both commands.',
+		}, URI.file('/repo/project'));
+
+		assert.deepStrictEqual({
+			input: display.toolInput,
+			command: display.shellCommand,
+		}, {
+			input: JSON.stringify(toolArgs, null, 2),
+			command: toolArgs.command,
+		});
+	});
+
+	test('shows non-shell arguments without the permission envelope', () => {
+		assert.deepStrictEqual(getPermissionDisplay({
+			kind: 'hook',
+			toolName: 'view',
+			toolArgs: { path: '/repo/project/README.md' },
+			hookMessage: 'Review access to this file.',
+		}), {
+			confirmationTitle: 'Allow tool call?',
+			invocationMessage: 'Review access to this file.',
+			toolInput: JSON.stringify({ path: '/repo/project/README.md' }, null, 2),
+			permissionKind: 'hook',
+			shellCommand: undefined,
+		});
+	});
+
+	test('treats the hook reason as plain text rather than markdown', () => {
+		const hookMessage = '[Review](command:workbench.action.reloadWindow) **before** running <script>alert(1)</script>';
+		assert.strictEqual(getPermissionDisplay({
+			kind: 'hook', toolName: 'bash', toolArgs: { command: 'echo review-me' }, hookMessage,
+		}).invocationMessage, hookMessage);
+	});
+
+	for (const hookMessage of [undefined, '', ' \n\t ']) {
+		test(`falls back to the tool invocation for ${JSON.stringify(hookMessage)} hook reasons`, () => {
+			const shellArgs = { command: 'echo review-me' };
+			assert.deepStrictEqual({
+				shell: getPermissionDisplay({ kind: 'hook', toolName: 'bash', toolArgs: shellArgs, hookMessage }).invocationMessage,
+				other: getPermissionDisplay({ kind: 'hook', toolName: 'my_tool', hookMessage }).invocationMessage,
+			}, {
+				shell: getInvocationMessage('bash', 'Run Shell Command', shellArgs),
+				other: { markdown: 'Allow the model to call `my_tool`?' },
+			});
+		});
+	}
+
+	for (const toolArgs of [undefined, null, 'raw input', ['first', 'second'], { command: 42 }]) {
+		test(`handles ${JSON.stringify(toolArgs)} tool arguments without serializing the request`, () => {
+			assert.deepStrictEqual({
+				withReason: getPermissionDisplay({
+					kind: 'hook', toolName: 'bash', toolArgs, hookMessage: 'Review this tool call.',
+				}),
+				withoutReason: getPermissionDisplay({ kind: 'hook', toolName: 'bash', toolArgs }).invocationMessage,
+			}, {
+				withReason: {
+					confirmationTitle: 'Run in terminal?',
+					invocationMessage: 'Review this tool call.',
+					toolInput: JSON.stringify(toolArgs, null, 2),
+					permissionKind: 'hook',
+					shellCommand: undefined,
+				},
+				withoutReason: getInvocationMessage('bash', getToolDisplayName('bash'), undefined),
+			});
+		});
+	}
+});
+
 suite('getPermissionDisplay — cd-prefix stripping', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
