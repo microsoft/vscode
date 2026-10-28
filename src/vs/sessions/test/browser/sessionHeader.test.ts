@@ -838,4 +838,24 @@ suite('Sessions - Headers', () => {
 			hasInputWhenUntitled: false,
 		});
 	});
+
+	test('inline rename lets clipboard and editing shortcuts reach the workbench keybinding dispatcher', () => {
+		const { header } = createHarness(disposables, { supportsMultipleChats: false, supportsRename: true });
+		const bubbled: string[] = [];
+		header.element.parentElement!.addEventListener(EventType.KEY_DOWN, e => bubbled.push(e.code));
+		header.startTitleEditing();
+		const input = header.element.querySelector<HTMLInputElement>('.chat-composite-bar-session-title-input')!;
+
+		for (const code of ['KeyV', 'KeyC', 'KeyX', 'KeyA', 'KeyZ']) {
+			input.dispatchEvent(new KeyboardEvent(EventType.KEY_DOWN, { code, key: code.slice(-1).toLowerCase(), ctrlKey: true, metaKey: true, bubbles: true }));
+		}
+
+		assert.deepStrictEqual({
+			bubbled,
+			stillEditing: header.element.querySelector('.chat-composite-bar-session-title-input') === input,
+		}, {
+			bubbled: ['KeyV', 'KeyC', 'KeyX', 'KeyA', 'KeyZ'],
+			stillEditing: true,
+		});
+	});
 });
