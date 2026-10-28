@@ -672,6 +672,9 @@ suite('Sessions - Agents Part Card', () => {
 		const { container } = createCard(true, true);
 		container.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs', 'dock-detail-panel');
 		container.style.setProperty('--modern-ui-connected-tab-border', '#808080');
+		// When connectedEditorTabs.css is loaded (by other suites in a full run, as in the workbench), the group
+		// derives its frame color from the theme's tab border instead, so define that too.
+		container.style.setProperty('--vscode-tab-border', '#808080');
 		const grid = append(container, $('.monaco-grid-view'));
 		const editor = append(grid, $('.part.editor.editor-tabs-multiple'));
 		const group = append(append(editor, $('.content')), $('.editor-group-container'));
