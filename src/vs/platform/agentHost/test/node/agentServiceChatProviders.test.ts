@@ -617,21 +617,28 @@ suite('AgentService - chats with their own agent', () => {
 		const { session, chat } = await createSessionWithSecondChat(service);
 		const native = URI.parse(buildChatUri(session, 'native'));
 		await service.createChat(session, native);
+		// A chat on its own session's agent, 'second', which differs from the fork's new session's.
+		const secondSession = await service.createSession({ legacyChatUris: true, provider: 'second', workingDirectories: [URI.file('/repo')] });
+		const secondNative = URI.parse(buildChatUri(secondSession, 'second-native'));
+		await service.createChat(secondSession, secondNative);
 		await timeout(10);
 		const stateManager = getTestAgentStateManager(service);
 		stateManager.deleteSession(session.toString());
 		await service.restoreSession(session);
+		stateManager.deleteSession(secondSession.toString());
+		await service.restoreSession(secondSession);
 		const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 		const resolver = service as unknown as { _resolveCreateChatProvider(session: URI, sessionProvider: IAgent, options: { fork: { source: URI; turnId: string } }): IAgent };
 		const forkAgent = (source: URI) => resolver._resolveCreateChatProvider(target, copilot, { fork: { source, turnId: 't' } }).id;
-		const on = { unloaded: !stateManager.getChatState(chat.toString()), ownAgent: forkAgent(chat), sessionAgent: forkAgent(native) };
+		const on = { unloaded: !stateManager.getChatState(chat.toString()) && !stateManager.getChatState(secondNative.toString()), ownAgent: forkAgent(chat), sessionAgent: forkAgent(native), otherSessionAgent: forkAgent(secondNative) };
 		getTestAgentServiceComposition(service).configurationService.updateRootConfig({ [ChatProvidersConfigKey.Enabled]: false });
-		const off = { ownAgent: forkAgent(chat), sessionAgent: forkAgent(native), unknown: forkAgent(URI.parse(buildChatUri(session, 'unknown'))) };
+		const off = { ownAgent: forkAgent(chat), sessionAgent: forkAgent(native), otherSessionAgent: forkAgent(secondNative), unknown: forkAgent(URI.parse(buildChatUri(session, 'unknown'))) };
 
 		assert.deepStrictEqual({ on, off }, {
-			on: { unloaded: true, ownAgent: 'second', sessionAgent: 'copilot' },
+			// A fork keeps its source chat's agent: its own, else its session's ('second' for a chat of a 'second' session).
+			on: { unloaded: true, ownAgent: 'second', sessionAgent: 'copilot', otherSessionAgent: 'second' },
 			// A chat that already uses its own agent keeps it; any other fork uses its new session's agent, as before.
-			off: { ownAgent: 'second', sessionAgent: 'copilot', unknown: 'copilot' },
+			off: { ownAgent: 'second', sessionAgent: 'copilot', otherSessionAgent: 'copilot', unknown: 'copilot' },
 		});
 	});
 
