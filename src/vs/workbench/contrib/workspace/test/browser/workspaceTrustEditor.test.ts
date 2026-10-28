@@ -376,6 +376,21 @@ suite('WorkspaceTrustedUrisTable', () => {
 		assert.deepStrictEqual([errors, mainWindow.document.activeElement === list], [[], false]);
 	});
 
+	test('picking a replacement during a save replaces the edited folder', async () => {
+		createTable(['a-one', 'b-two', 'c-three']);
+		const gate = new DeferredPromise<void>();
+		trustService.completionGate = gate.p;
+		table.acceptEdit({ uri: folder('b-two'), parentOfWorkspaceItem: false }, folder('b-edited'));
+
+		dialogService.nextPick = [folder('b-picked')];
+		const editing = table.edit({ uri: folder('b-two'), parentOfWorkspaceItem: false }, true);
+		gate.complete();
+		await editing;
+		await timeout(0);
+
+		assert.deepStrictEqual(trustService.getTrustedUris().map(uri => uri.path), ['/trusted/a-one', '/trusted/b-picked', '/trusted/c-three']);
+	});
+
 	test('edit selects the row matching an equivalent URI', () => {
 		createTable(['c-two', 'm-middle', 'z-last']);
 		selectRow('z-last');
@@ -591,6 +606,46 @@ suite('WorkspaceTrustedUrisTable', () => {
 			await deletion;
 
 			assert.deepStrictEqual(trustService.getTrustedUris().map(uri => uri.path), ['/home/b2', '/home/c2']);
+		});
+
+		test('deletes the edited folder when its row is deleted during the save', async () => {
+			createTableWithUris([hostA, hostB]);
+			const gate = new DeferredPromise<void>();
+			trustService.completionGate = gate.p;
+
+			table.acceptEdit({ uri: hostB, parentOfWorkspaceItem: false }, hostB.with({ path: '/home/b2' }));
+			const deletion = table.delete({ uri: hostB, parentOfWorkspaceItem: false });
+			gate.complete();
+			await deletion;
+
+			assert.deepStrictEqual(trustService.getTrustedUris().map(uri => uri.path), ['/home/a']);
+		});
+
+		test('opens the editor of the latest edit only, after all queued saves', async () => {
+			const hostC = URI.parse('vscode-remote://ssh-remote+hostC/home/c');
+			const labelService = createTableWithUris([hostA, hostB, hostC]);
+			store.add(labelService.registerFormatter(formatter('ssh-remote+*', 'SSH')));
+			const gate = new DeferredPromise<void>();
+			trustService.completionGate = gate.p;
+			table.acceptEdit({ uri: hostA, parentOfWorkspaceItem: false }, hostA.with({ path: '/home/a2' }));
+
+			const firstEdit = table.edit({ uri: hostB, parentOfWorkspaceItem: false });
+			const secondEdit = table.edit({ uri: hostC, parentOfWorkspaceItem: false });
+			await timeout(0);
+			table.acceptEdit({ uri: hostB, parentOfWorkspaceItem: false }, hostB.with({ path: '/home/b2' }));
+			gate.complete();
+			await Promise.all([firstEdit, secondEdit]);
+			const input = getRow(hostC).querySelector<HTMLInputElement>('.path input')!;
+			input.value = '/home/typed';
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				editors: Array.from(container.querySelectorAll('.path.input-mode')).map(element => element.querySelector('input')!.value),
+				trusted: trustService.getTrustedUris().map(uri => uri.path),
+			}, {
+				editors: ['/home/typed'],
+				trusted: ['/home/a2', '/home/b2', '/home/c'],
+			});
 		});
 
 		test('opens an inline editor only after a pending save, so typing survives it', async () => {

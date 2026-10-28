@@ -14,6 +14,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { debounce } from '../../../../base/common/decorators.js';
 import { Sequencer } from '../../../../base/common/async.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -95,7 +96,9 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 	private inlineEditItem: ITrustedUriItem | undefined;
 	private pendingLabelRefresh = false;
 	private readonly trustUpdates = new Sequencer();
-	private pendingTrustUpdates = 0;
+	private queuedTrustUpdateCount = 0;
+	private readonly editedUris = new ResourceMap<URI>();
+	private latestEditRequest = 0;
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -387,6 +390,7 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 	}
 
 	acceptEdit(item: ITrustedUriItem, uri: URI) {
+		this.editedUris.set(item.uri, uri);
 		this.updateTrust(() => {
 			const trustedFolders = this.workspaceTrustManagementService.getTrustedUris();
 			const index = trustedFolders.findIndex(u => this.uriService.extUri.isEqual(u, item.uri));
@@ -408,11 +412,31 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 	 * clears its list while it saves, so a change must not read or write it before the
 	 * previous one is done. Label refreshes are deferred until all changes are saved.
 	 */
+	/**
+	 * Waits until all of this table's changes to the trusted folders are saved and the rows are rebuilt
+	 * from them, then resolves the row that is now shown for `item`, following an accepted edit of it.
+	 */
+	private async resolveRowWhenSaved(item: ITrustedUriItem): Promise<ITrustedUriItem | undefined> {
+		while (this.queuedTrustUpdateCount && !this._store.isDisposed) {
+			await this.trustUpdates.queue(async () => { });
+		}
+		if (this._store.isDisposed) {
+			return undefined;
+		}
+
+		let index = this.getIndexOfTrustedUriEntry(item);
+		const editedUri = this.editedUris.get(item.uri);
+		if (index === -1 && editedUri) {
+			index = this.getIndexOfTrustedUriEntry({ uri: editedUri, parentOfWorkspaceItem: item.parentOfWorkspaceItem });
+		}
+		return index === -1 ? undefined : this.table.row(index);
+	}
+
 	private updateTrust(task: () => Promise<void>): Promise<void> {
-		this.pendingTrustUpdates++;
+		this.queuedTrustUpdateCount++;
 		const update = this.trustUpdates.queue(task);
 		const onDidUpdate = () => {
-			this.pendingTrustUpdates--;
+			this.queuedTrustUpdateCount--;
 			this.refreshLabelsIfIdle();
 		};
 		update.then(onDidUpdate, onDidUpdate);
@@ -430,12 +454,20 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 	}
 
 	private refreshLabelsIfIdle(): void {
-		if (this.pendingLabelRefresh && !this.inlineEditItem && !this.pendingTrustUpdates && !this._store.isDisposed) {
+		if (this.pendingLabelRefresh && !this.inlineEditItem && !this.queuedTrustUpdateCount && !this._store.isDisposed) {
 			this.updateTable();
 		}
 	}
 
 	async delete(item: ITrustedUriItem) {
+		if (this.queuedTrustUpdateCount) {
+			const current = await this.resolveRowWhenSaved(item);
+			if (!current) {
+				return;
+			}
+			item = current;
+		}
+
 		const index = this.table.indexOf(item);
 		if (index < this.table.length - 1) {
 			this.table.setFocus([index + 1]);
@@ -451,6 +483,17 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 	}
 
 	async edit(item: ITrustedUriItem, usePickerIfPossible?: boolean) {
+		const request = ++this.latestEditRequest;
+		if (this.queuedTrustUpdateCount) {
+			// The rows are rebuilt once the queued changes are saved, which would discard an inline edit,
+			// and the row itself may have been edited, so edit the row that is shown once they are saved.
+			const current = await this.resolveRowWhenSaved(item);
+			if (!current || request !== this.latestEditRequest) {
+				return;
+			}
+			item = current;
+		}
+
 		const canUseOpenDialog = item.uri.scheme === Schemas.file ||
 			(
 				item.uri.scheme === this.currentWorkspaceUri.scheme &&
@@ -473,14 +516,6 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 				this.rejectEdit(item);
 			}
 		} else {
-			if (this.pendingTrustUpdates) {
-				// The rows are rebuilt once the pending changes are saved, which would discard the edit.
-				await this.trustUpdates.queue(async () => { });
-				if (this._store.isDisposed) {
-					return;
-				}
-			}
-
 			this.selectTrustedUriEntry(item);
 			// Focusing the table can end another row's edit and rebuild the rows,
 			// so open the editor of the row that is rendered now.
