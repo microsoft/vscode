@@ -346,6 +346,9 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 			localize('trustedFoldersDescription', "You trust the following folders, their subfolders, and workspace files.") :
 			localize('noTrustedFoldersDescriptions', "You haven't trusted any folders or workspace files yet.");
 
+		// Rebuilding re-renders every row, which ends any inline edit.
+		this.inlineEditItem = undefined;
+		this.pendingLabelRefresh = false;
 		this.table.splice(0, Number.POSITIVE_INFINITY, this.trustedUriEntries);
 		this.layout();
 	}
@@ -405,7 +408,6 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 	private endInlineEdit(): void {
 		this.inlineEditItem = undefined;
 		if (this.pendingLabelRefresh) {
-			this.pendingLabelRefresh = false;
 			this.updateTable();
 		}
 	}
@@ -449,8 +451,12 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 			}
 		} else {
 			this.selectTrustedUriEntry(item);
-			this.inlineEditItem = item;
-			this._onEdit.fire(item);
+			// Focusing the table can end another row's edit and rebuild the rows,
+			// so open the editor of the row that is rendered now.
+			const index = this.getIndexOfTrustedUriEntry(item);
+			const current = index === -1 ? item : this.table.row(index);
+			this.inlineEditItem = current;
+			this._onEdit.fire(current);
 		}
 	}
 }

@@ -796,14 +796,16 @@ suite('cached label formatters', () => {
 	test('ignores malformed cache entries', () => {
 		const labelService = createLabelService();
 
-		writeExternally({ formatters: [null, 5, { scheme: 1 }, { scheme: SCHEME, authority: host('hostC') }, exact('hostB', 'SSH: hostB')] });
-		const withInvalidEntries = hostLabels(labelService, 'hostB', 'hostC');
+		writeExternally({ formatters: [null, 5, { scheme: 1 }, { scheme: SCHEME, authority: host('hostC') }, { scheme: SCHEME, authority: host('hostD'), formatting: {} }, { scheme: SCHEME, authority: host('hostE'), formatting: { label: '${path}', separator: 'x' } }, exact('hostB', 'SSH: hostB')] });
+		const withInvalidEntries = hostLabels(labelService, 'hostB', 'hostC', 'hostD', 'hostE');
+		const uriLabel = labelService.getUriLabel(URI.from({ scheme: SCHEME, authority: host('hostD'), path: '/home/d' }));
 
 		writeExternally({ formatters: 'not an array' });
 		const withInvalidList = hostLabels(labelService, 'hostB');
 
-		assert.deepStrictEqual({ withInvalidEntries, withInvalidList }, {
-			withInvalidEntries: { hostB: 'SSH: hostB', hostC: 'SSH' },
+		assert.deepStrictEqual({ withInvalidEntries, uriLabel, withInvalidList }, {
+			withInvalidEntries: { hostB: 'SSH: hostB', hostC: 'SSH', hostD: 'SSH', hostE: 'SSH' },
+			uriLabel: '/home/d',
 			withInvalidList: { hostB: 'SSH' },
 		});
 	});

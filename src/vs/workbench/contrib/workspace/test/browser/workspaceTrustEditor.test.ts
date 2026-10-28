@@ -441,6 +441,54 @@ suite('WorkspaceTrustedUrisTable', () => {
 				trusted: [hostA.toString(), hostB.toString()],
 			});
 		});
+
+		function startEditing(uri: URI): HTMLInputElement {
+			getRow(uri).querySelector<HTMLElement>('.codicon-workspace-trust-editor-edit-folder')!.click();
+			return getRow(uri).querySelector<HTMLInputElement>('.path input')!;
+		}
+
+		test('resumes refreshing after the edited folder is removed externally', async () => {
+			const labelService = createTableWithUris([hostA, hostB]);
+			store.add(labelService.registerFormatter(formatter('ssh-remote+*', 'SSH')));
+			startEditing(hostB);
+			await timeout(0);
+
+			await trustService.setUrisTrust([hostB], false);
+			store.add(labelService.registerFormatter(formatter('ssh-remote+hostA', 'SSH: hostA')));
+
+			assert.deepStrictEqual(getHostState().map(row => row.host), ['SSH: hostA']);
+		});
+
+		test('opens the editor of another row while a refresh is deferred', async () => {
+			const labelService = createTableWithUris([hostA, hostB]);
+			store.add(labelService.registerFormatter(formatter('ssh-remote+*', 'SSH')));
+			startEditing(hostA);
+			await timeout(0);
+			store.add(labelService.registerFormatter(formatter('ssh-remote+hostA', 'SSH: hostA')));
+
+			const inputA = getRow(hostA).querySelector<HTMLInputElement>('.path input')!;
+			// Focus events are not delivered while the test window is in the background, so emulate the
+			// blur of row A's editor that focusing the table for row B causes synchronously in the product.
+			const list = container.querySelector<HTMLElement>('.monaco-list')!;
+			const originalFocus = list.focus;
+			list.focus = options => {
+				originalFocus.call(list, options);
+				list.focus = originalFocus;
+				inputA.dispatchEvent(new FocusEvent('blur'));
+			};
+			const inputB = startEditing(hostB);
+			await timeout(0);
+			const editingB = { inputMode: !!getRow(hostB).querySelector('.path.input-mode'), focused: mainWindow.document.activeElement === getRow(hostB).querySelector('.path input'), hosts: getHostState().map(row => row.host) };
+
+			getRow(hostB).querySelector<HTMLInputElement>('.path input')!.dispatchEvent(new FocusEvent('blur'));
+			store.add(labelService.registerFormatter(formatter('ssh-remote+hostB', 'SSH: hostB')));
+
+			assert.deepStrictEqual({ inputFound: !!inputB, editingB, afterEdit: getHostState().map(row => row.host) }, {
+				inputFound: true,
+				editingB: { inputMode: true, focused: true, hosts: ['SSH: hostA', 'SSH'] },
+				afterEdit: ['SSH: hostA', 'SSH: hostB'],
+			});
+		});
 	});
 });
 

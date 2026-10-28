@@ -149,9 +149,12 @@ function isValidCachedFormatter(candidate: unknown): candidate is ResourceLabelF
 		return false;
 	}
 	const formatter = candidate as Partial<ResourceLabelFormatter>;
+	const formatting = formatter.formatting as Partial<ResourceLabelFormatting> | undefined;
 	return typeof formatter.scheme === 'string' &&
 		(formatter.authority === undefined || typeof formatter.authority === 'string') &&
-		!!formatter.formatting && typeof formatter.formatting === 'object';
+		!!formatting && typeof formatting === 'object' &&
+		typeof formatting.label === 'string' &&
+		(formatting.separator === '/' || formatting.separator === '\\' || formatting.separator === '');
 }
 
 function isTemplateFormatter(formatter: ResourceLabelFormatter | ResourceLabelTemplateFormatter): formatter is ResourceLabelTemplateFormatter {
