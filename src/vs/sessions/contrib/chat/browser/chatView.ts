@@ -358,6 +358,7 @@ export class ChatView extends AbstractChatView {
 	private readonly _isVisibleObs = observableValue(this, false);
 	private _lastLayout: { width: number; height: number } | undefined;
 	private _chatItemHorizontalPadding: number;
+	private readonly _inputOnly: boolean;
 
 	/**
 	 * Per-view mirror of `agentsVoiceInitiatedHere`, scoped above the chat widget.
@@ -393,6 +394,7 @@ export class ChatView extends AbstractChatView {
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
+		this._inputOnly = options.inputOnly === true;
 		this._register(toDisposable(() => this._reportModelUnbound()));
 		this._chatItemHorizontalPadding = getSessionChatItemHorizontalPadding(!!this.chatBackgroundService.getBackground());
 
@@ -1000,7 +1002,7 @@ export class ChatView extends AbstractChatView {
 			} else {
 				setModelPreservingInputTypedWhileLoading(this._widget, input.inputBeforeLoad, () => this._widget.setModel(ref.object));
 			}
-			const widgetViewState = this.viewStateService.get(resource);
+			const widgetViewState = this._inputOnly ? undefined : this.viewStateService.get(resource);
 			if (widgetViewState) {
 				this._widget.restoreViewState(widgetViewState);
 			}
@@ -1044,7 +1046,7 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private _saveCurrentViewState(): void {
-		if (this._preparationModel.value) {
+		if (this._inputOnly || this._preparationModel.value) {
 			return;
 		}
 		const resource = this._widget.viewModel?.sessionResource;

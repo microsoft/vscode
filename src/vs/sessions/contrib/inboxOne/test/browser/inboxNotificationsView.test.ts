@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { spy, stub } from 'sinon';
+import { match, spy, stub } from 'sinon';
 import { timeout } from '../../../../../base/common/async.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -15,6 +15,7 @@ import { IObservable, constObservable, observableValue } from '../../../../../ba
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -31,7 +32,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IChatQuestionAnswerValue, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatSendResult, IChatQuestionAnswerValue, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatViewModel, IChatViewModelChangeEvent } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatListWidget.js';
@@ -45,7 +46,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
 import { AbstractChatView, IChatViewOptions } from '../../../../browser/parts/chatView.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChat, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, SessionArtifactKind, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionArtifactKind, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../services/sessions/common/session.js';
 import { InboxNotificationsView } from '../../browser/inboxNotificationsView.js';
 import { InboxEvidenceWidget } from '../../browser/inboxEvidenceWidget.js';
 import { InboxCanvases } from '../../browser/inboxCanvases.js';
@@ -70,6 +71,8 @@ suite('InboxNotificationsView', () => {
 		readonly layouts: { width: number; height: number }[] = [];
 		readonly submitted = this._register(new Emitter<URI>());
 		override readonly onDidSubmitRequest = this.submitted.event;
+		override readonly isLoadingTranscript = observableValue(this, false);
+		override readonly historyStatus = observableValue<IChatSessionHistoryStatus | undefined>(this, undefined);
 
 		constructor() {
 			super();
@@ -141,24 +144,28 @@ suite('InboxNotificationsView', () => {
 		const chatOptions: (IChatViewOptions | undefined)[] = [];
 		const newChatViews: TestChatView[] = [];
 		const newChatOptions: IChatViewOptions[] = [];
-		instantiationService.stub(IChatViewFactory, { createNewChatView: (nested, options) => {
-			assert.strictEqual(nested, false);
-			newChatOptions.push(options);
-			const view = new TestChatView();
-			newChatViews.push(view);
-			return view;
-		}, createChatView: (_instantiationService, options) => {
-			chatOptions.push(options);
-			const view = new TestChatView();
-			chatViews.push(view);
-			return view;
-		} });
+		instantiationService.stub(IChatViewFactory, {
+			createNewChatView: (nested, options) => {
+				assert.strictEqual(nested, false);
+				newChatOptions.push(options);
+				const view = new TestChatView();
+				newChatViews.push(view);
+				return view;
+			}, createChatView: (_instantiationService, options) => {
+				chatOptions.push(options);
+				const view = new TestChatView();
+				chatViews.push(view);
+				return view;
+			}
+		});
 		const hovers: { target: HTMLElement; options: Parameters<IHoverService['setupDelayedHover']>[1]; disposed: boolean }[] = [];
-		instantiationService.stub(IHoverService, { setupDelayedHover: (target, options) => {
-			const hover = { target, options, disposed: false };
-			hovers.push(hover);
-			return { dispose: () => { hover.disposed = true; } };
-		} });
+		instantiationService.stub(IHoverService, {
+			setupDelayedHover: (target, options) => {
+				const hover = { target, options, disposed: false };
+				hovers.push(hover);
+				return { dispose: () => { hover.disposed = true; } };
+			}
+		});
 		instantiationService.stub(ILabelService, {});
 		instantiationService.stub(ISessionsProvidersService, {});
 		instantiationService.stub(IContextKeyService, options.contextKeyService ?? new MockContextKeyService());
@@ -350,6 +357,34 @@ suite('InboxNotificationsView', () => {
 		assert.ok(hovers.every(hover => hover.disposed));
 	});
 
+	test('shows actual conversation loading and failure status without opening the transcript', () => {
+		const chat = upcastPartial<IChat>({ resource: URI.parse('test:///chat') });
+		const session = upcastPartial<ISession>({ sessionId: 'session', mainChat: constObservable(chat), chats: constObservable([chat]) });
+		const { view, container, instantiationService, chatViews } = createView(constObservable([{
+			id: 'item', kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
+			title: 'Finished', description: 'Summary', timestamp: 1, actions: [], sessionResource: URI.parse('test:///session'),
+		}]));
+		instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
+		view.render(container);
+		container.querySelector<HTMLElement>('.inbox-notifications-item')!.click();
+		const message = container.querySelector<HTMLElement>('.inbox-notifications-detail-body > [role="status"]')!;
+		const details = container.querySelector<HTMLDetailsElement>('.inbox-notifications-latest-exchange')!;
+		const snapshot = () => ({ text: message.textContent, hidden: message.hidden, expanded: details.open });
+		chatViews[0].isLoadingTranscript.set(true, undefined);
+		const loading = snapshot();
+		const accessible = view.getDetailAccessibleContent()?.includes('Loading conversation...');
+		chatViews[0].isLoadingTranscript.set(false, undefined);
+		chatViews[0].historyStatus.set({ kind: 'history', message: 'History unavailable' }, undefined);
+		const failed = snapshot();
+		chatViews[0].historyStatus.set(undefined, undefined);
+		assert.deepStrictEqual({ loading, accessible, failed, ready: snapshot() }, {
+			loading: { text: 'Loading conversation...', hidden: false, expanded: false },
+			accessible: true,
+			failed: { text: 'History unavailable', hidden: false, expanded: false },
+			ready: { text: '', hidden: true, expanded: false },
+		});
+	});
+
 	test('latest exchange starts collapsed, follows the exact chat live, and releases its preview on collapse or selection', async () => {
 		const main = upcastPartial<IChat>({ resource: URI.parse('test:///main') });
 		const secondary = upcastPartial<IChat>({ resource: URI.parse('test:///secondary') });
@@ -527,8 +562,9 @@ suite('InboxNotificationsView', () => {
 			id: `item${index}`, kind: InboxNotificationKind.Completed, priority: InboxNotificationPriority.Later,
 			title: 'Finished', description: 'Summary', timestamp: 1, actions: [], sessionResource: session.resource,
 		}));
-		const { view, container, instantiationService, chatViews } = createView(constObservable(items));
-		const markRead = stub().resolves();
+		const active = observableValue<readonly IInboxNotificationItem[]>('active', items);
+		const { view, container, instantiationService, chatViews } = createView(active);
+		const markRead = stub().callsFake(async () => active.set(items.slice(1), undefined));
 		const dismiss = spy();
 		const openSession = spy();
 		const archiveSession = spy();
@@ -546,9 +582,9 @@ suite('InboxNotificationsView', () => {
 		assert.deepStrictEqual({
 			read: markRead.args, dismiss: dismiss.args, opened: openSession.callCount, archived: archiveSession.callCount,
 			inputStillOpen: chatViews[0].input.isConnected,
-		}, { read: [[sessions[0], true]], dismiss: [['item0']], opened: 0, archived: 0, inputStillOpen: true });
+		}, { read: [[sessions[0], true]], dismiss: [['item0', items[0]]], opened: 0, archived: 0, inputStillOpen: true });
 		view.dispose();
-		assert.deepStrictEqual(dismiss.args, [['item0']]);
+		assert.deepStrictEqual(dismiss.args, [['item0', items[0]]]);
 	});
 
 	test('waits for the exact secondary chat instead of falling back to main, and observes chat replacements', () => {
@@ -556,11 +592,12 @@ suite('InboxNotificationsView', () => {
 		const secondary = upcastPartial<IChat>({ resource: URI.parse('test:///secondary') });
 		const chats = observableValue<readonly IChat[]>('chats', [main]);
 		const session = upcastPartial<ISession>({ sessionId: 'session', mainChat: constObservable(main), chats });
-		const { view, container, instantiationService, chatViews } = createView(constObservable([{
+		const items = observableValue<readonly IInboxNotificationItem[]>('items', [{
 			id: 'item', kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now,
 			title: 'Question', description: 'Summary', timestamp: 1, actions: [], sessionResource: URI.parse('test:///session'),
 			needsInputPart: { kind: 'questionCarousel', chatResource: secondary.resource, requestId: 'request', resolveId: 'resolve', questions: [], allowSkip: true },
-		}]));
+		}]);
+		const { view, container, instantiationService, chatViews } = createView(items);
 		instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
 		instantiationService.stubInstance(ChatQuestionCarouselPart, { domNode: document.createElement('div'), onDidChangeHeight: Event.None, dispose: () => { } });
 		view.render(container);
@@ -580,6 +617,13 @@ suite('InboxNotificationsView', () => {
 		const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
 		button.dispatchEvent(escape);
 		assert.deepStrictEqual({ focused: document.activeElement === button, prevented: escape.defaultPrevented }, { focused: true, prevented: false });
+		items.set([{ ...items.get()[0], chatResource: secondary.resource, needsInputPart: undefined }], undefined);
+		assert.strictEqual(chatViews.at(-1)?.bindings.at(-1)?.chat, replacement);
+		chats.set([main], undefined);
+		assert.deepStrictEqual({
+			unavailable: !!container.querySelector('.inbox-notifications-detail-chat-unavailable'),
+			boundMain: chatViews.some(view => view.bindings.some(binding => binding.chat === main)),
+		}, { unavailable: true, boundMain: false });
 	});
 
 	test('records impressions for intersecting cards without generating previews until selection', () => {
@@ -718,18 +762,22 @@ suite('InboxNotificationsView', () => {
 		instantiationService.stubInstance(ChatQuestionCarouselPart, {
 			domNode: document.createElement('div'), onDidChangeHeight: Event.None, dispose: () => { },
 		});
+		const createInstance = spy(TestInstantiationService.prototype, 'createInstance');
+		disposables.add({ dispose: () => createInstance.restore() });
 		view.render(container);
 		const [first, second] = scopes.slice(-2);
 		ChatContextKeys.inChatQuestionCarousel.bindTo(first).set(true);
 		ChatContextKeys.chatQuestionCarouselHasTerminal.bindTo(first).set(true);
 		ChatContextKeys.inChatQuestionCarousel.bindTo(second).reset();
 		assert.deepStrictEqual({
+			scopedDeduplication: createInstance.getCalls().some(call => call.args[0] === ChatQuestionCarouselPart && match({ hideDuplicateDetailedMessage: true }).test(call.args[3])),
 			windowQuestion: contextKeyService.getContextKeyValue(ChatContextKeys.inChatQuestionCarousel.key),
 			windowTerminal: contextKeyService.getContextKeyValue(ChatContextKeys.chatQuestionCarouselHasTerminal.key),
 			firstQuestion: first.getContextKeyValue(ChatContextKeys.inChatQuestionCarousel.key),
 			firstTerminal: first.getContextKeyValue(ChatContextKeys.chatQuestionCarouselHasTerminal.key),
 			secondQuestion: second.getContextKeyValue(ChatContextKeys.inChatQuestionCarousel.key),
 		}, {
+			scopedDeduplication: true,
 			windowQuestion: undefined, windowTerminal: undefined,
 			firstQuestion: true, firstTerminal: true, secondQuestion: false,
 		});
@@ -888,7 +936,11 @@ suite('InboxNotificationsView', () => {
 		const { view, instantiationService } = createView(constObservable([]));
 		const confirm = stub(IChatToolInvocation, 'confirmWith').returns(true);
 		disposables.add({ dispose: () => confirm.restore() });
-		const invocation = upcastPartial<IChatToolInvocation>({ kind: 'toolInvocation', toolCallId: 'tool' });
+		const state = observableValue('approvalState', upcastPartial<IChatToolInvocation.State>({ type: IChatToolInvocation.StateKind.WaitingForConfirmation }));
+		const invocation = upcastPartial<IChatToolInvocation>({
+			kind: 'toolInvocation', toolCallId: 'tool',
+			state,
+		});
 		instantiationService.stub(IChatService, 'getSession', () => upcastPartial<IChatModel>({
 			getRequests: () => [upcastPartial<IChatRequestModel>({
 				response: upcastPartial<IChatResponseModel>({
@@ -900,7 +952,7 @@ suite('InboxNotificationsView', () => {
 		instantiationService.stub(IInboxNotificationsService, 'dismissNotification', () => { });
 		const item: IInboxNotificationItem = { id: 'tool', kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now, title: 'Tool', description: '', timestamp: 1, actions: [] };
 		const part: IInboxNotificationToolConfirmationPart = {
-			kind: 'toolConfirmation', chatResource: URI.parse('test:///chat'), requestId: 'request', toolCallId: 'tool', title: 'Tool', message: '',
+			kind: 'toolConfirmation', chatResource: URI.parse('test:///chat'), requestId: 'request', toolCallId: 'tool', confirmationKind: 'execution', title: 'Tool', message: '',
 			buttons: [
 				{ label: 'Allow Once', kind: 'approve', useUserActionReason: true },
 				{ label: 'Cancel', id: 'cancel', kind: 'deny', useUserActionReason: true },
@@ -910,11 +962,18 @@ suite('InboxNotificationsView', () => {
 		for (let index = 0; index < part.buttons.length; index++) {
 			await accessView(view).submitToolConfirmationPart(item, part, index);
 		}
+		const notifyError = spy();
+		instantiationService.stub(INotificationService, 'error', notifyError);
+		state.set(upcastPartial<IChatToolInvocation.State>({ type: IChatToolInvocation.StateKind.WaitingForPostApproval }), undefined);
+		await accessView(view).submitToolConfirmationPart(item, part, 0);
+		await accessView(view).submitToolConfirmationPart(item, { ...part, confirmationKind: 'result' }, 0);
 		assert.deepStrictEqual(confirm.getCalls().map(call => call.args[1]), [
 			{ type: ToolConfirmKind.UserAction },
 			{ type: ToolConfirmKind.UserAction, selectedButton: 'cancel', selectedButtonKind: ConfirmationOptionKind.Deny },
 			{ type: ToolConfirmKind.Skipped, source: 'user' },
+			{ type: ToolConfirmKind.UserAction },
 		]);
+		assert.strictEqual(notifyError.callCount, 1);
 	});
 
 	test('counts custom select answers as free text without logging their content', () => {
@@ -1058,7 +1117,7 @@ suite('InboxNotificationsView', () => {
 				title: 'Pending request', description: '', timestamp: 1, actions: [], previewSignature: 'preview',
 				needsInputPart: kind === 'questionCarousel'
 					? { kind, chatResource, requestId: 'request', allowSkip: true, questions: [{ id: 'choice', type: 'text', title: 'Choose a direction' }] }
-					: { kind, chatResource, requestId: 'request', toolCallId: 'tool', title: 'Allow check?', message: 'Inspect the workspace.', buttons: [{ label: 'Allow', kind: 'approve', useUserActionReason: true }] },
+					: { kind, chatResource, requestId: 'request', toolCallId: 'tool', confirmationKind: 'execution', title: 'Allow check?', message: 'Inspect the workspace.', buttons: [{ label: 'Allow', kind: 'approve', useUserActionReason: true }] },
 			};
 			const summaries = observableValue<ReadonlyMap<string, IInboxDetailSummary>>('summaries', new Map());
 			const previews = observableValue<ReadonlyMap<string, string>>('previews', new Map());
@@ -1089,78 +1148,117 @@ suite('InboxNotificationsView', () => {
 		});
 	}
 
-	test('conversation fallback resolves the chat containing the pending input', () => {
-		const { view, instantiationService } = createView(constObservable([]));
-		const mainResource = URI.parse('test:///main');
-		const pendingResource = URI.parse('test:///secondary');
-		const getSession = spy((_resource: URI) => undefined);
-		instantiationService.stub(IChatService, 'getSession', getSession);
-		instantiationService.stub(ISessionsManagementService, 'getSession', () => upcastPartial<ISession>({
-			mainChat: constObservable(upcastPartial<IChat>({ resource: mainResource })),
-		}));
-		accessView(view).getSessionChatModel({
-			id: 'pending', kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now,
-			title: 'Question', description: '', timestamp: 1, actions: [], sessionResource: URI.parse('test:///session'),
-			needsInputPart: { kind: 'questionCarousel', chatResource: pendingResource, requestId: 'request', allowSkip: true, questions: [] },
+	for (const dismissed of [false, true]) {
+		test(`conversation fallback retains the originating chat after dismissal: ${dismissed}`, () => {
+			const { view, instantiationService } = createView(constObservable([]));
+			const mainResource = URI.parse('test:///main');
+			const pendingResource = URI.parse('test:///secondary');
+			const getSession = spy((_resource: URI) => undefined);
+			instantiationService.stub(IChatService, 'getSession', getSession);
+			instantiationService.stub(ISessionsManagementService, 'getSession', () => upcastPartial<ISession>({
+				mainChat: constObservable(upcastPartial<IChat>({ resource: mainResource })),
+			}));
+			accessView(view).getSessionChatModel({
+				id: 'pending', kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now,
+				title: 'Question', description: '', timestamp: 1, actions: [], sessionResource: URI.parse('test:///session'),
+				chatResource: dismissed ? pendingResource : undefined,
+				needsInputPart: dismissed ? undefined : { kind: 'questionCarousel', chatResource: pendingResource, requestId: 'request', allowSkip: true, questions: [] },
+			});
+			assert.strictEqual(getSession.firstCall.args[0], pendingResource);
 		});
-		assert.strictEqual(getSession.firstCall.args[0], pendingResource);
-	});
+	}
 
-	test('CI and reviews submit check details and accepted feedback in one PR-scoped request', async () => {
-		const resource = URI.parse('test:///session');
-		const chatResource = URI.parse('test:///chat');
-		const item: IInboxNotificationItem = {
-			id: 'item', kind: InboxNotificationKind.FailingCI, priority: InboxNotificationPriority.Now,
-			title: 'CI', description: '', timestamp: 1, actions: [], sessionResource: resource,
-		};
-		const { view, instantiationService } = createView(constObservable([item]));
-		const session = upcastPartial<ISession>({
-			resource,
-			mainChat: constObservable(upcastPartial<IChat>({ resource: chatResource })),
-			workspace: constObservable(undefined),
-			artifacts: constObservable([1, 2].map(number => upcastPartial<ISessionArtifact>({
-				id: `pr-${number}`, kind: SessionArtifactKind.PullRequest, isArtifact: true, isGitHub: true,
-				link: URI.parse(`https://github.com/owner/repo/pull/${number}`),
-			}))),
+	for (const workspaceLinked of [false, true]) {
+		test(`CI and reviews submit check details and accepted feedback for workspace-linked PRs: ${workspaceLinked}`, async () => {
+			const resource = URI.parse('test:///session');
+			const chatResource = URI.parse('test:///chat');
+			const item: IInboxNotificationItem = {
+				id: 'item', kind: InboxNotificationKind.FailingCI, priority: InboxNotificationPriority.Now,
+				title: 'CI', description: '', timestamp: 1, actions: [], sessionResource: resource,
+			};
+			const { view, instantiationService } = createView(constObservable([item]));
+			const session = upcastPartial<ISession>({
+				resource,
+				mainChat: constObservable(upcastPartial<IChat>({ resource: chatResource })),
+				workspace: constObservable(workspaceLinked ? upcastPartial<ISessionWorkspace>({
+					folders: [upcastPartial<ISessionFolder>({
+						gitRepository: upcastPartial<ISessionGitRepository>({
+							gitHubInfo: constObservable({
+								owner: 'owner', repo: 'repo',
+								pullRequests: [1, 2].map(number => ({ owner: 'owner', repo: 'repo', number, uri: URI.parse(`https://github.com/owner/repo/pull/${number}`), createdByThisSession: false })),
+							}),
+						}),
+					})],
+				}) : undefined),
+				artifacts: constObservable((workspaceLinked ? [] : [1, 2]).map(number => upcastPartial<ISessionArtifact>({
+					id: `pr-${number}`, kind: SessionArtifactKind.PullRequest, isArtifact: true, isGitHub: true,
+					link: URI.parse(`https://github.com/owner/repo/pull/${number}`),
+				}))),
+			});
+			const markFixRequested = spy();
+			const check = upcastPartial<PullRequestCheck>({ type: 'checkRun', id: '42', name: 'Unit Tests', status: 'completed', conclusion: 'failure' });
+			const ciModel = upcastPartial<GitHubPullRequestCIModel>({
+				owner: 'owner', repo: 'repo', prNumber: 1,
+				requiredChecks: constObservable({ everyCheck: true, checks: [check], failed: [check], missing: [], pending: false }),
+				getCheckRunAnnotations: async () => 'Failure details',
+				markFixRequested,
+			});
+			instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
+			instantiationService.stub(ISessionsService, 'openSession', async () => { });
+			instantiationService.stub(IGitHubService, 'createPullRequestModelReference', () => ({
+				object: upcastPartial<GitHubPullRequestModel>({ pullRequest: constObservable(upcastPartial<NonNullable<ReturnType<GitHubPullRequestModel['pullRequest']['get']>>>({ headSha: 'head' })) }),
+				dispose: () => { },
+			}));
+			const createCI = spy((_owner: string, _repo: string, _number: number, _sha: string) => ({ object: ciModel, dispose: () => { } }));
+			instantiationService.stub(IGitHubService, 'createPullRequestCIModelReference', createCI);
+			instantiationService.stub(IAgentFeedbackService, 'getFeedback', () => [upcastPartial<IAgentFeedback>({
+				id: 'review', kind: AgentFeedbackKind.PRReview, state: AgentFeedbackState.Created,
+				sourcePullRequest: { owner: 'owner', repo: 'repo', number: 1 },
+			})]);
+			const accept = spy();
+			instantiationService.stub(IAgentFeedbackService, 'acceptFeedback', accept);
+			const submit = spy(async (_resource: URI, options?: ISubmitFeedbackOptions) => {
+				options?.onRequestAccepted?.();
+				return true;
+			});
+			instantiationService.stub(IAgentFeedbackService, 'submitFeedback', submit);
+			const result = await accessView(view).runInboxPullRequestAction(item, InboxNotificationActionKind.AgentMergeAddressReviews);
+			const options = submit.firstCall.args[1]!;
+			assert.deepStrictEqual({
+				result, accepted: accept.firstCall.args, submitted: submit.callCount, feedbackIds: options.feedbackIds,
+				chat: options.targetChat, hasCheck: options.query?.includes('Unit Tests'), hasAnnotations: options.query?.includes('Failure details'),
+				scopedPRs: options.query?.includes('/fix-ci for #1') && options.query.includes('/fix-ci for #2'),
+				reviews: options.query?.includes('/act-on-feedback'), marked: markFixRequested.callCount,
+			}, {
+				result: 'success', accepted: [resource, 'review'], submitted: 1, feedbackIds: ['review'],
+				chat: chatResource, hasCheck: true, hasAnnotations: true, scopedPRs: true, reviews: true, marked: 2,
+			});
+			instantiationService.stub(IChatService, 'acquireOrLoadSession', async () => ({
+				object: upcastPartial<IChatModel>({ sessionResource: chatResource }), dispose: () => { },
+			}));
+			const send = spy(async (_resource: URI, _query: string) => upcastPartial<ChatSendResult>({ kind: 'sent' }));
+			instantiationService.stub(IChatService, 'sendRequest', send);
+			const backgroundResult = await accessView(view).runInboxPullRequestAction(item, InboxNotificationActionKind.AgentMergeFixCI);
+			assert.deepStrictEqual({
+				result: backgroundResult, chat: send.firstCall?.args[0],
+				query: send.firstCall?.args[1], feedbackRequests: submit.callCount, marked: markFixRequested.callCount,
+			}, {
+				result: 'success', chat: chatResource, query: options.query?.replace('\n\n/act-on-feedback', ''),
+				feedbackRequests: 1, marked: 4,
+			});
+			const scopedItem: IInboxNotificationItem = {
+				...item,
+				pullRequestStates: [{
+					label: '#2', repositoryLabel: 'owner/repo',
+					pullRequestUri: URI.parse('https://github.com/owner/repo/pull/2'), icon: { id: 'git-pull-request' }, statusLabel: 'CI failed',
+				}],
+			};
+			const scopedResult = await accessView(view).runInboxPullRequestAction(scopedItem, InboxNotificationActionKind.AgentMergeFixCI);
+			assert.deepStrictEqual({
+				result: scopedResult, requests: createCI.callCount, lastTarget: createCI.lastCall.args, marked: markFixRequested.callCount,
+			}, { result: 'success', requests: 5, lastTarget: ['owner', 'repo', 2, 'head'], marked: 5 });
 		});
-		const markFixRequested = spy();
-		const check = upcastPartial<PullRequestCheck>({ type: 'checkRun', id: '42', name: 'Unit Tests', status: 'completed', conclusion: 'failure' });
-		const ciModel = upcastPartial<GitHubPullRequestCIModel>({
-			owner: 'owner', repo: 'repo', prNumber: 1,
-			requiredChecks: constObservable({ everyCheck: true, checks: [check], failed: [check], missing: [], pending: false }),
-			getCheckRunAnnotations: async () => 'Failure details',
-			markFixRequested,
-		});
-		instantiationService.stub(ISessionsManagementService, 'getSession', () => session);
-		instantiationService.stub(ISessionsService, 'openSession', async () => { });
-		instantiationService.stub(IGitHubService, 'createPullRequestModelReference', () => ({
-			object: upcastPartial<GitHubPullRequestModel>({ pullRequest: constObservable(upcastPartial<NonNullable<ReturnType<GitHubPullRequestModel['pullRequest']['get']>>>({ headSha: 'head' })) }),
-			dispose: () => { },
-		}));
-		instantiationService.stub(IGitHubService, 'createPullRequestCIModelReference', () => ({ object: ciModel, dispose: () => { } }));
-		instantiationService.stub(IAgentFeedbackService, 'getFeedback', () => [upcastPartial<IAgentFeedback>({
-			id: 'review', kind: AgentFeedbackKind.PRReview, state: AgentFeedbackState.Created,
-			sourcePullRequest: { owner: 'owner', repo: 'repo', number: 1 },
-		})]);
-		const accept = spy();
-		instantiationService.stub(IAgentFeedbackService, 'acceptFeedback', accept);
-		const submit = spy(async (_resource: URI, options?: ISubmitFeedbackOptions) => {
-			options?.onRequestAccepted?.();
-			return true;
-		});
-		instantiationService.stub(IAgentFeedbackService, 'submitFeedback', submit);
-		const result = await accessView(view).runInboxPullRequestAction(item, InboxNotificationActionKind.AgentMergeAddressReviews);
-		const options = submit.firstCall.args[1]!;
-		assert.deepStrictEqual({
-			result, accepted: accept.firstCall.args, submitted: submit.callCount, feedbackIds: options.feedbackIds,
-			chat: options.targetChat, hasCheck: options.query?.includes('Unit Tests'), hasAnnotations: options.query?.includes('Failure details'),
-			scopedPRs: options.query?.includes('/fix-ci for #1') && options.query.includes('/fix-ci for #2'),
-			reviews: options.query?.includes('/act-on-feedback'), marked: markFixRequested.callCount,
-		}, {
-			result: 'success', accepted: [resource, 'review'], submitted: 1, feedbackIds: ['review'],
-			chat: chatResource, hasCheck: true, hasAnnotations: true, scopedPRs: true, reviews: true, marked: 2,
-		});
-	});
+	}
 
 	test('never submits the local merge skill for pull request merge actions', async () => {
 		const { view, instantiationService } = createView(constObservable([]));

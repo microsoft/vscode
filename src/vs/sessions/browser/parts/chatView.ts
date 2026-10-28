@@ -35,7 +35,7 @@ export interface IChatViewOptions {
 	/** Keep the custom view hosting this composer visible while preparing its draft. */
 	readonly preserveCustomView?: boolean;
 	readonly renderChatPet?: boolean;
-	/** Host only the composer, without rendering transcript content or its input interactions. */
+	/** Host only the composer, without transcript content, input interactions, or transcript view-state persistence. */
 	readonly inputOnly?: boolean;
 }
 

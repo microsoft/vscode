@@ -65,6 +65,8 @@ export interface IChatQuestionCarouselOptions {
 	};
 	shouldAutoFocus?: boolean;
 	shouldAutoSelectFirstOption?: boolean;
+	/** Opt-in suppression of details identical to the displayed question heading. */
+	hideDuplicateDetailedMessage?: boolean;
 }
 
 class ChatQuestionAnswerCollapsiblePart extends ChatCollapsibleContentPart {
@@ -871,7 +873,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		// Render detailed markdown message inside the scrollable input area
 		const detailedValue = isMarkdownString(question.detailedMessage) ? question.detailedMessage.value : question.detailedMessage;
-		if (question.detailedMessage && detailedValue?.trim() !== rawValue.trim()) {
+		if (question.detailedMessage && (!this._options.hideDuplicateDetailedMessage || detailedValue?.trim() !== rawValue.trim())) {
 			const detailedMd = isMarkdownString(question.detailedMessage)
 				? MarkdownString.lift(question.detailedMessage)
 				: new MarkdownString(question.detailedMessage);

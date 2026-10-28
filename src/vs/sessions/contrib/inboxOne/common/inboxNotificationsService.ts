@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatQuestion } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { AgentHostPullRequestOperationId } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
-import { getGitHubPullRequestRefs, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../services/sessions/common/session.js';
+import { getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, IGitHubPullRequestRef, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../services/sessions/common/session.js';
 import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
 
 export const IInboxNotificationsService = createDecorator<IInboxNotificationsService>('sessionsInboxNotificationsService');
@@ -99,6 +99,7 @@ export interface IInboxNotificationToolConfirmationPart {
 	readonly chatResource: URI;
 	readonly requestId: string;
 	readonly toolCallId: string;
+	readonly confirmationKind: 'execution' | 'result';
 	readonly title: string | IMarkdownString;
 	readonly message: string | IMarkdownString;
 	readonly buttons: readonly IInboxNotificationToolConfirmationButton[];
@@ -117,6 +118,8 @@ export interface IInboxNotificationItem {
 	readonly needsInputPart?: IInboxNotificationNeedsInputPart;
 	readonly timestamp: number;
 	readonly sessionResource?: URI;
+	/** The originating conversation, retained after pending input controls are removed. */
+	readonly chatResource?: URI;
 	readonly actions: readonly IInboxNotificationAction[];
 	/**
 	 * Signature under which a model-generated preview for this item is cached and
@@ -164,7 +167,7 @@ export interface IInboxNotificationsService {
 
 	publishExternalNotification(notification: IExternalInboxNotification): void;
 	removeExternalNotification(id: string): void;
-	dismissNotification(id: string): void;
+	dismissNotification(id: string, snapshot?: IInboxNotificationItem): void;
 	setSortMode(sortMode: InboxNotificationsSortMode): void;
 
 	/**
@@ -214,6 +217,26 @@ export interface IInboxDetailSummary {
 	readonly status: string;
 	readonly decisions: readonly string[];
 	readonly evidence: readonly IInboxDetailEvidence[];
+}
+
+/** Shared PR eligibility for Inbox cards and their repair actions; merge and cleanup remain ownership-gated. */
+export function getInboxPullRequestRefs(session: ISession, reader?: IReader, includeReferences = false): readonly IGitHubPullRequestRef[] {
+	const references = [
+		...getSessionGitHubReferences(session, reader).pullRequests.filter(ref => ref.createdByThisSession),
+		...(session.workspace.read(reader)?.folders ?? []).flatMap(folder => {
+			const gitHubInfo = folder.gitRepository?.gitHubInfo.read(reader);
+			return includeReferences ? getGitHubPullRequestRefs(gitHubInfo) : getSessionOwnedGitHubPullRequestRefs(gitHubInfo);
+		}),
+	];
+	const seen = new Set<string>();
+	return references.filter(ref => {
+		const key = `${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}#${ref.number}`;
+		if (seen.has(key)) {
+			return false;
+		}
+		seen.add(key);
+		return true;
+	});
 }
 
 /** Returns the unambiguous, provider-advertised PR merge operation; never a local branch merge. */

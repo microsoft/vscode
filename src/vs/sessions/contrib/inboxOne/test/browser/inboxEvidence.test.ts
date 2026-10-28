@@ -133,11 +133,13 @@ suite('Inbox evidence collection', () => {
 		const response = upcastPartial<IChatResponseModel>({
 			onDidChange: changed.event,
 			get response() {
-				return upcastPartial<IChatResponseModel['response']>({ value: [tool('setup', {
-					toolSpecificData: { kind: 'terminal', language: 'shell', commandLine: { original: 'ls' }, terminalCommandState: { exitCode: 0 } },
-				}), tool('test', {
-					toolSpecificData: { kind: 'terminal', language: 'shell', commandLine: { original: 'npm test' }, terminalCommandState: { exitCode: 1 }, terminalCommandOutput: { text: output, truncated: true } },
-				})] });
+				return upcastPartial<IChatResponseModel['response']>({
+					value: [tool('setup', {
+						toolSpecificData: { kind: 'terminal', language: 'shell', commandLine: { original: 'ls' }, terminalCommandState: { exitCode: 0 } },
+					}), tool('test', {
+						toolSpecificData: { kind: 'terminal', language: 'shell', commandLine: { original: 'npm test' }, terminalCommandState: { exitCode: 1 }, terminalCommandOutput: { text: output, truncated: true } },
+					})]
+				});
 			},
 		});
 		const chatModel = upcastPartial<IChatModel>({ onDidChange: Event.None, getRequests: () => [upcastPartial<IChatRequestModel>({ id: 'request', response })] });
@@ -183,10 +185,12 @@ suite('Inbox evidence collection', () => {
 			const reads: object[] = [];
 			const inspected: { uri: URI; options: Parameters<IChatImageCarouselService['openCarouselAtResource']>[2] }[] = [];
 			instantiation.stub(IChatService, { onDidCreateModel: Event.None, getSession: () => chatModel });
-			instantiation.stub(IFileService, { readFile: async (uri, options) => {
-				reads.push({ path: uri.path, limits: options?.limits });
-				return upcastPartial<IFileContent>({ value: VSBuffer.fromString(bytes.get(uri.path)!) });
-			} });
+			instantiation.stub(IFileService, {
+				readFile: async (uri, options) => {
+					reads.push({ path: uri.path, limits: options?.limits });
+					return upcastPartial<IFileContent>({ value: VSBuffer.fromString(bytes.get(uri.path)!) });
+				}
+			});
 			instantiation.stub(IChatImageCarouselService, { openCarouselAtResource: async (uri, _data, options) => { inspected.push({ uri, options }); } });
 			instantiation.stub(IOpenerService, {});
 			instantiation.stub(ILogService, new NullLogService());
@@ -254,13 +258,15 @@ suite('Inbox evidence collection', () => {
 		const warnings: string[] = [];
 		const inspected: string[] = [];
 		instantiation.stub(IChatService, { onDidCreateModel: Event.None, getSession: () => undefined });
-		instantiation.stub(IFileService, { readFile: async (uri, _options, token) => {
-			if (uri.path === '/old.png') {
-				oldReadCanceled = () => token?.isCancellationRequested === true;
-				return oldRead.p;
+		instantiation.stub(IFileService, {
+			readFile: async (uri, _options, token) => {
+				if (uri.path === '/old.png') {
+					oldReadCanceled = () => token?.isCancellationRequested === true;
+					return oldRead.p;
+				}
+				throw new Error('Image exceeds the preview limit');
 			}
-			throw new Error('Image exceeds the preview limit');
-		} });
+		});
 		instantiation.stub(IChatImageCarouselService, { openCarouselAtResource: async uri => { inspected.push(uri.path); } });
 		instantiation.stub(IOpenerService, {});
 		instantiation.stub(ILogService, { warn: message => { warnings.push(message); } });

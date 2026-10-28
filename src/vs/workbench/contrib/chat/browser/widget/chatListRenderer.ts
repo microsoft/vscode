@@ -5354,10 +5354,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderQuestionCarousel(context: IChatContentPartRenderContext, carousel: IChatQuestionCarousel, templateData: IChatListItemTemplate): IChatContentPart {
 		this.finalizeCurrentThinkingPart(context, templateData);
-		if (context.readOnly && !carousel.isUsed) {
-			const content = new MarkdownString().appendText(carousel.questions.map(question => question.message ? `${question.title}\n${question.message}` : question.title).join('\n\n'));
-			return this.renderMarkdown({ kind: 'markdownContent', content }, templateData, context);
-		}
 		this._notifyOnQuestionCarousel(context, carousel);
 
 		// Backfill terminal correlation on the carousel from the originating request.
@@ -5375,7 +5371,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		const widget = !context.readOnly && isResponseVM(context.element) ? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource) : undefined;
+		const widget = isResponseVM(context.element) ? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource) : undefined;
 		// Only auto-focus if the chat input is empty AND focus is already within the chat widget
 		// This prevents stealing focus from other VS Code UI (editor, terminal, etc.)
 		const shouldAutoFocus = !!widget && dom.isAncestorOfActiveElement(widget.domNode) && widget.getInput() === '';

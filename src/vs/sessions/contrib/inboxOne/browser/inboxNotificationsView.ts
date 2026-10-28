@@ -67,7 +67,6 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { InboxCustomViewFocusContext } from '../../../common/contextkeys.js';
 import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../../github/common/sessionLifecycleSettings.js';
-import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { buildFixCIPrompt } from '../../changes/browser/checksActions.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
@@ -85,6 +84,7 @@ import {
 	InboxNotificationsSortMode,
 	compareInboxNotificationsByRecency,
 	getInboxPullRequestMergeOperation,
+	getInboxPullRequestRefs,
 } from '../common/inboxNotificationsService.js';
 import { getInboxNotificationKindLabel, getInboxNotificationPriorityLabel } from './inboxNotificationsLabels.js';
 import { InboxEvidenceWidget } from './inboxEvidenceWidget.js';
@@ -1218,8 +1218,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 		if (session?.artifacts) {
 			const teaser = card.appendChild($('.inbox-evidence-note.inbox-evidence-teaser'));
 			store.add(autorun(reader => {
-				const chat = item.needsInputPart
-					? session.chats.read(reader).find(chat => isEqual(chat.resource, item.needsInputPart?.chatResource))
+				const chatResource = item.chatResource ?? item.needsInputPart?.chatResource;
+				const chat = chatResource
+					? session.chats.read(reader).find(chat => isEqual(chat.resource, chatResource))
 					: session.mainChat.read(reader);
 				const artifacts = chat ? getChatSessionArtifacts(session, chat, reader).filter(artifact => artifact.isArtifact) : [];
 				teaser.hidden = artifacts.length === 0;
@@ -1321,6 +1322,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			this.createChatContentPartRenderContext(),
 			{
 				shouldAutoFocus: false,
+				hideDuplicateDetailedMessage: true,
 				onSubmit: answers => {
 					this.logInboxInteraction('submitQuestionCarousel', 'inlineQuestionCarousel', item);
 					void this.submitQuestionCarouselPart(item, part, answers);
@@ -1414,7 +1416,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 				} : {}),
 			}
 			: { type: ToolConfirmKind.Skipped as const, source: 'user' as const };
-		const didConfirm = IChatToolInvocation.confirmWith(toolInvocation, reason);
+		const expectedState = part.confirmationKind === 'result' ? IChatToolInvocation.StateKind.WaitingForPostApproval : IChatToolInvocation.StateKind.WaitingForConfirmation;
+		const didConfirm = toolInvocation.state.get().type === expectedState && IChatToolInvocation.confirmWith(toolInvocation, reason);
 		if (!didConfirm) {
 			this.logInboxInteraction('submitToolConfirmation.result', 'inlineToolConfirmation', item, 'none', { result: 'failure', durationMs: Date.now() - startTime });
 			this.notificationService.error(localize('inboxNotifications.toolConfirmation.staleState', "This confirmation changed before your action was applied. Open the session and try again."));
@@ -1529,7 +1532,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			}
 		}
 
-		this.inboxNotificationsService.dismissNotification(item.id);
+		this.inboxNotificationsService.dismissNotification(item.id, item);
 	}
 
 	private onListFocusIn(event: FocusEvent): void {
@@ -2097,7 +2100,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 		if (includeReviews) {
 			await this.sessionsService.openSession(session.resource, { source: 'notification' });
 		}
-		const pullRequests = getSessionGitHubReferences(session, undefined).pullRequests.filter(pullRequest => pullRequest.createdByThisSession);
+		const notifiedPullRequests = [...notifications, item].flatMap(notification => notification.pullRequestStates ?? []);
+		const pullRequests = getInboxPullRequestRefs(session, undefined, true).filter(ref =>
+			notifiedPullRequests.length === 0 || notifiedPullRequests.some(state => isEqual(state.pullRequestUri, ref.uri)));
 		const chatResource = session.mainChat.get().resource;
 		const store = new DisposableStore();
 		try {
@@ -2187,7 +2192,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			}
 		}
 
-		this.inboxNotificationsService.dismissNotification(item.id);
+		this.inboxNotificationsService.dismissNotification(item.id, item);
 	}
 
 	private maybeTriggerConfetti(sourceElement: HTMLElement | undefined): void {
@@ -2391,8 +2396,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 	private updateDetailChat(item: IInboxNotificationItem | undefined, reader?: IReader): void {
 		const session = item?.sessionResource ? this.sessionsManagementService.getSession(item.sessionResource) : undefined;
-		const chat = item?.needsInputPart
-			? session?.chats.read(reader).find(candidate => isEqual(candidate.resource, item.needsInputPart?.chatResource))
+		const chatResource = item?.chatResource ?? item?.needsInputPart?.chatResource;
+		const chat = chatResource
+			? session?.chats.read(reader).find(candidate => isEqual(candidate.resource, chatResource))
 			: session?.mainChat.read(reader);
 		if (!session || !chat) {
 			this.detailChatSubmissionListener.clear();
@@ -2517,9 +2523,23 @@ export class InboxNotificationsView extends AbstractCustomView {
 		}
 
 		if (item.sessionResource) {
+			const chatStatus = body.appendChild($('p.inbox-evidence-note', { role: 'status' }));
+			this.detailDisposables.add(autorun(reader => {
+				const message = this.getDetailChatStatus(reader);
+				chatStatus.hidden = !message;
+				chatStatus.textContent = message ?? '';
+				this.detailScrollableElement.scanDomNode();
+			}));
 			this.renderLatestExchange(body, item);
 		}
 		this.detailScrollableElement.scanDomNode();
+	}
+
+	private getDetailChatStatus(reader?: IReader): string | undefined {
+		const chat = this.detailChat.value;
+		return chat?.isLoadingTranscript.read(reader)
+			? localize('inboxNotifications.detail.chatLoading', "Loading conversation...")
+			: chat?.historyStatus.read(reader)?.message;
 	}
 
 	private renderLatestExchange(body: HTMLElement, item: IInboxNotificationItem): void {
@@ -2705,7 +2725,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 			return undefined;
 		}
 		const session = this.sessionsManagementService.getSession(item.sessionResource);
-		const chatResource = item.needsInputPart?.chatResource ?? session?.mainChat.get().resource;
+		const chatResource = item.chatResource ?? item.needsInputPart?.chatResource ?? session?.mainChat.get().resource;
 		return chatResource ? this.chatService.getSession(chatResource) : undefined;
 	}
 
@@ -2761,6 +2781,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 				...interpretation.evidence.map(evidence => `${evidence.text}\n${evidence.artifact.label}${evidence.artifact.uri ? `: ${evidence.artifact.uri.toString(true)}` : ''}`),
 			] : []),
 			this.evidenceWidget?.getAccessibleContent(),
+			this.getDetailChatStatus(),
 		].filter(Boolean).join('\n\n');
 		return content ? localize('inbox.evidence.accessible', "Evidence for {0}\n\n{1}", this.selectedItem()?.title ?? '', content) : undefined;
 	}

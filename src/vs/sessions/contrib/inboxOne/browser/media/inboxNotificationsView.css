@@ -278,6 +278,14 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.inbox-notifications-interpretation-content .inbox-notifications-detail-section-label {
+	margin-block: var(--vscode-spacing-size160) var(--vscode-spacing-size60);
+}
+
+.inbox-notifications-interpretation-content .inbox-notifications-detail-section-label:first-child {
+	margin-block-start: 0;
+}
+
 .inbox-notifications-interpretation-content,
 .inbox-evidence,
 .inbox-evidence-section {

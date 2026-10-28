@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { type IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -32,6 +33,8 @@ import { GitHubPullRequestModel } from '../../../github/browser/models/githubPul
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
 import { IChatQuestionCarousel, IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatUtilityModelRequest, IChatUtilityModelService } from '../../../../../workbench/contrib/chat/common/chatUtilityModelService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -146,6 +149,8 @@ suite('InboxNotificationsService', () => {
 		options: {
 			readonly utilityRequest?: (request: IChatUtilityModelRequest) => Promise<string | undefined>;
 			readonly selectModels?: () => Promise<string[]>;
+			readonly onDidChangeLanguageModels?: Event<string>;
+			readonly onDidChangeContentProviderSchemes?: IChatSessionsService['onDidChangeContentProviderSchemes'];
 			readonly telemetryLevel?: TelemetryLevel;
 		} = {},
 	): {
@@ -205,12 +210,13 @@ suite('InboxNotificationsService', () => {
 			effectiveStorageService,
 			upcastPartial<ILanguageModelsService>({
 				selectLanguageModels: options.selectModels ?? (async () => options.utilityRequest ? ['utility-model'] : []),
-				onDidChangeLanguageModels: Event.None,
+				onDidChangeLanguageModels: options.onDidChangeLanguageModels ?? Event.None,
 			}),
 			upcastPartial<IChatUtilityModelService>({ sendRequest: async request => options.utilityRequest?.(request) }),
 			upcastPartial<ITelemetryService>({ telemetryLevel: options.telemetryLevel ?? TelemetryLevel.USAGE, publicLog2: ((eventName: string, data?: Record<string, unknown>) => { telemetryEvents.push({ eventName, data: data ?? {} }); }) as ITelemetryService['publicLog2'] }),
 			configurationService,
 			upcastPartial<IChatEntitlementService>({ sentimentObs: sentiment }),
+			upcastPartial<IChatSessionsService>({ onDidChangeContentProviderSchemes: options.onDidChangeContentProviderSchemes ?? Event.None }),
 		));
 		return {
 			service,
@@ -636,6 +642,122 @@ suite('InboxNotificationsService', () => {
 		assert.ok(!JSON.stringify(event!.data).includes('waiting for user answer'));
 	});
 
+	for (const generated of [true, false]) {
+		test(`bounds published previews to 200 LRU entries, including fallbacks: generated=${generated}`, async () => {
+			let requests = 0;
+			const fixture = createFixture([createSession({ id: 'preview-cache', status: SessionStatus.Completed, updatedAt: 200 })],
+				undefined, undefined, undefined, undefined, true, [], true, {
+				utilityRequest: async () => { requests++; return generated ? 'Generated preview' : undefined; },
+			});
+			const base = fixture.service.notifications.get()[0];
+			const items = Array.from({ length: 201 }, (_, index) => ({
+				...base, previewSignature: `preview-${index}`, previewInputText: 'Recorded context',
+			}));
+			const request = async (item: IInboxNotificationItem) => {
+				fixture.service.requestPreview(item);
+				await waitForState(fixture.service.isLoading, loading => !loading);
+			};
+			for (const item of items.slice(0, 200)) {
+				await request(item);
+			}
+			const initial = fixture.service.previews.get();
+			await request(items[0]);
+			await request(items[200]);
+			const afterEviction = [...fixture.service.previews.get().keys()];
+			await request(items[1]);
+			assert.deepStrictEqual({
+				initial: [...initial.keys()],
+				afterEviction,
+				retained: fixture.service.previews.get().size,
+				regenerated: fixture.service.previews.get().has(items[1].previewSignature),
+				requests,
+			}, {
+				initial: items.slice(0, 200).map(item => item.previewSignature),
+				afterEviction: [...items.slice(2, 200), items[0], items[200]].map(item => item.previewSignature),
+				retained: 200, regenerated: true, requests: 202,
+			});
+		});
+
+		test(`bounds published summaries to 50 LRU entries, including retryable empty results: generated=${generated}`, async () => {
+			let requests = 0;
+			const session = createSession({ id: 'summary-cache', status: SessionStatus.Completed, updatedAt: 200 });
+			const chatService = new TestChatService();
+			chatService.setCompletedResponse(session.mainChat.get().resource, { requestId: 'recorded', markdown: 'Recorded result' });
+			const fixture = createFixture([session], undefined, undefined, chatService, undefined, true, [], true, {
+				telemetryLevel: TelemetryLevel.NONE,
+				utilityRequest: async () => {
+					requests++;
+					return generated ? '{"status":"Generated summary","decisions":[],"evidence":[]}' : undefined;
+				},
+			});
+			const base = fixture.service.notifications.get()[0];
+			const items = Array.from({ length: 51 }, (_, index) => ({ ...base, id: `summary-${index}` }));
+			const request = async (item: IInboxNotificationItem) => {
+				fixture.service.requestDetailSummary(item);
+				await waitForState(fixture.service.isLoading, loading => !loading);
+			};
+			for (const item of items.slice(0, 50)) {
+				await request(item);
+			}
+			const initial = fixture.service.detailSummaries.get();
+			await request(items[0]);
+			await request(items[50]);
+			const afterEviction = [...fixture.service.detailSummaries.get().keys()];
+			await request(items[1]);
+			assert.deepStrictEqual({
+				initial: [...initial.keys()],
+				afterEviction,
+				retained: fixture.service.detailSummaries.get().size,
+				regenerated: fixture.service.detailSummaries.get().has(items[1].id),
+				requests,
+			}, {
+				initial: items.slice(0, 50).map(item => item.id),
+				afterEviction: [...items.slice(2, 50), items[0], items[50]].map(item => item.id),
+				retained: 50, regenerated: true, requests: generated ? 52 : 53,
+			});
+		});
+	}
+
+	test('invalidates cached fallbacks and empty summaries without resurrecting them on later publication', async () => {
+		const modelsChanged = disposables.add(new Emitter<string>());
+		const session = createSession({ id: 'retry-cache', status: SessionStatus.Completed, updatedAt: 200 });
+		const chatService = new TestChatService();
+		chatService.setCompletedResponse(session.mainChat.get().resource, { requestId: 'recorded', markdown: 'Recorded result' });
+		let generated = false;
+		const fixture = createFixture([session], undefined, undefined, chatService, undefined, true, [], true, {
+			telemetryLevel: TelemetryLevel.NONE,
+			onDidChangeLanguageModels: modelsChanged.event,
+			utilityRequest: async request => !generated ? undefined : request.purpose === 'inboxPreview'
+				? 'Generated preview' : '{"status":"Generated summary","decisions":[],"evidence":[]}',
+		});
+		const first = fixture.service.notifications.get()[0];
+		const request = async (item: IInboxNotificationItem) => {
+			fixture.service.requestPreview(item);
+			fixture.service.requestDetailSummary(item);
+			await waitForState(fixture.service.isLoading, loading => !loading);
+		};
+		await request(first);
+		generated = true;
+		modelsChanged.fire('utility-model');
+		const invalidated = { previews: fixture.service.previews.get().size, summaries: fixture.service.detailSummaries.get().size };
+		const second = { ...first, id: 'second', previewSignature: 'second-preview' };
+		await request(second);
+		const published = {
+			previews: [...fixture.service.previews.get().keys()],
+			summaries: [...fixture.service.detailSummaries.get().keys()],
+		};
+		await request(first);
+		assert.deepStrictEqual({
+			invalidated, published,
+			preview: fixture.service.previews.get().get(first.previewSignature!),
+			summary: fixture.service.detailSummaries.get().get(first.id)?.status,
+		}, {
+			invalidated: { previews: 0, summaries: 0 },
+			published: { previews: [second.previewSignature], summaries: [second.id] },
+			preview: 'Generated preview', summary: 'Generated summary',
+		});
+	});
+
 	for (const stalledStage of ['discovery', 'request'] as const) {
 		test(`settles previews after 10 seconds of stalled ${stalledStage} and ignores late results`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const discovery = new DeferredPromise<string[]>();
@@ -647,9 +769,9 @@ suite('InboxNotificationsService', () => {
 				let requests = 0;
 				const fixture = createFixture([createSession({ id: 'timeout', status: SessionStatus.Completed, updatedAt: 200, description: 'Existing task context' })],
 					undefined, undefined, undefined, undefined, true, [], true, {
-						selectModels: () => stalledStage === 'discovery' ? discovery.p : Promise.resolve(['utility']),
-						utilityRequest: () => { requests++; return response.p; },
-					});
+					selectModels: () => stalledStage === 'discovery' ? discovery.p : Promise.resolve(['utility']),
+					utilityRequest: () => { requests++; return response.p; },
+				});
 				const item = fixture.service.notifications.get()[0];
 				const started = Date.now();
 				fixture.service.requestPreview(item);
@@ -679,9 +801,9 @@ suite('InboxNotificationsService', () => {
 		let requests = 0;
 		const fixture = createFixture([createSession({ id: 'dispose-preview', status: SessionStatus.Completed, updatedAt: 200 })],
 			undefined, undefined, undefined, undefined, true, [], true, {
-				selectModels: () => discovery.p,
-				utilityRequest: async () => { requests++; return 'Must not run'; },
-			});
+			selectModels: () => discovery.p,
+			utilityRequest: async () => { requests++; return 'Must not run'; },
+		});
 		fixture.service.requestPreview(fixture.service.notifications.get()[0]);
 		fixture.service.dispose();
 		await waitForState(fixture.service.isLoading, loading => !loading);
@@ -695,15 +817,17 @@ suite('InboxNotificationsService', () => {
 		const chatService = new TestChatService();
 		const output = `Focus restoration failed. ${'stack trace '.repeat(200)}`;
 		const uri = URI.parse('test:///terminal-output');
-		chatService.setCompletedResponse(session.mainChat.get().resource, { requestId: 'command-only', markdown: '', parts: [{
-			kind: 'toolInvocationSerialized', toolCallId: 'test', toolId: 'terminal', invocationMessage: 'Run tests',
-			originMessage: undefined, pastTenseMessage: undefined, presentation: undefined, source: undefined,
-			isConfirmed: true, isComplete: true,
-			toolSpecificData: {
-				kind: 'terminal', language: 'shell', commandLine: { original: 'npm test' },
-				terminalCommandState: { exitCode: 1 }, terminalCommandOutput: { text: output }, terminalCommandUri: uri,
-			},
-		}] });
+		chatService.setCompletedResponse(session.mainChat.get().resource, {
+			requestId: 'command-only', markdown: '', parts: [{
+				kind: 'toolInvocationSerialized', toolCallId: 'test', toolId: 'terminal', invocationMessage: 'Run tests',
+				originMessage: undefined, pastTenseMessage: undefined, presentation: undefined, source: undefined,
+				isConfirmed: true, isComplete: true,
+				toolSpecificData: {
+					kind: 'terminal', language: 'shell', commandLine: { original: 'npm test' },
+					terminalCommandState: { exitCode: 1 }, terminalCommandOutput: { text: output }, terminalCommandUri: uri,
+				},
+			}]
+		});
 		const fixture = createFixture([session], undefined, undefined, chatService, undefined, true, [], true, {
 			telemetryLevel: TelemetryLevel.NONE,
 			utilityRequest: async request => {
@@ -911,7 +1035,78 @@ suite('InboxNotificationsService', () => {
 		}
 	});
 
+	test('releases Inbox references on provider removal and waits for old model eviction before reacquiring', async () => {
+		const changed = disposables.add(new Emitter<{ added: string[]; removed: string[] }>());
+		const provider = 'agent-host-copilotcli';
+		const resource = URI.parse(`${provider}:/reconnect`);
+		const chatService = new TestChatService();
+		let loads = 0;
+		let releases = 0;
+		chatService.setAcquireOrLoadHandler(async () => {
+			loads++;
+			chatService.setCompletedResponse(resource, { requestId: `request-${loads}`, markdown: 'Ready' });
+			return { object: chatService.getSession(resource)!, dispose: () => { releases++; } };
+		});
+		const fixture = createFixture([createSession({ id: 'reconnect', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource: resource })],
+			undefined, undefined, chatService, undefined, true, [], true, { onDidChangeContentProviderSchemes: changed.event });
+		await waitForState(fixture.service.isLoading, loading => !loading);
+		changed.fire({ removed: ['other-provider'], added: [] });
+		const unrelated = { loads, releases };
+		changed.fire({ removed: [provider], added: [] });
+		changed.fire({ removed: [], added: [provider] });
+		const awaitingOtherOwners = { loads, releases };
+		chatService.removeSession(resource);
+		await waitForState(fixture.service.isLoading, loading => !loading);
+		const replaced = { loads, releases };
+		fixture.service.dispose();
+		assert.deepStrictEqual({ unrelated, awaitingOtherOwners, replaced, releasedOnDispose: releases }, {
+			unrelated: { loads: 1, releases: 0 },
+			awaitingOtherOwners: { loads: 1, releases: 1 },
+			replaced: { loads: 2, releases: 1 },
+			releasedOnDispose: 2,
+		});
+	});
+
+	for (const registeredBeforeRelease of [true, false]) {
+		test(`discards in-flight models from a removed provider and retries its replacement: ${registeredBeforeRelease}`, async () => {
+			const changed = disposables.add(new Emitter<{ added: string[]; removed: string[] }>());
+			const provider = 'agent-host-copilotcli';
+			const resource = URI.parse(`${provider}:/late-provider`);
+			const pending = new DeferredPromise<IReference<IChatModel>>();
+			const chatService = new TestChatService();
+			let loads = 0;
+			let staleReleases = 0;
+			let loadToken = CancellationToken.None;
+			chatService.setAcquireOrLoadHandler(async (_resource, token) => {
+				if (++loads === 1) {
+					loadToken = token;
+					return pending.p;
+				}
+				chatService.setCompletedResponse(resource, { requestId: 'fresh', markdown: 'Fresh provider' });
+				return { object: chatService.getSession(resource)!, dispose: () => { } };
+			});
+			const fixture = createFixture([createSession({ id: 'late-provider', status: SessionStatus.NeedsInput, updatedAt: 200, chatResource: resource })],
+				undefined, undefined, chatService, undefined, true, [], true, { onDidChangeContentProviderSchemes: changed.event });
+			changed.fire({ removed: [provider], added: [] });
+			if (registeredBeforeRelease) {
+				changed.fire({ removed: [], added: [provider] });
+			}
+			await pending.complete({
+				object: upcastPartial<IChatModel>({ sessionResource: resource }),
+				dispose: () => { staleReleases++; },
+			});
+			await waitForState(fixture.service.isLoading, loading => !loading);
+			changed.fire({ removed: [], added: [provider] });
+			await waitForState(fixture.service.isLoading, loading => !loading);
+			assert.deepStrictEqual({ cancelled: loadToken.isCancellationRequested, loads, staleReleases }, {
+				cancelled: true, loads: 2, staleReleases: 1,
+			});
+		});
+	}
+
 	test('does no background work while disabled and responds to enablement and AI visibility changes', async () => {
+		const changed = disposables.add(new Emitter<{ added: string[]; removed: string[] }>());
+		const provider = 'agent-host-copilotcli';
 		const gitHubService = new TestGitHubService();
 		const chatService = new TestChatService();
 		let chatLoads = 0;
@@ -921,14 +1116,16 @@ suite('InboxNotificationsService', () => {
 		});
 		gitHubService.setPullRequest('owner', 'repo', 42, openPullRequest(42, 'sha42'));
 		const fixture = createFixture([
-			createSession({ id: 'disabled', status: SessionStatus.NeedsInput, updatedAt: 100, pullRequest: { owner: 'owner', repo: 'repo', number: 42 } }),
-		], undefined, gitHubService, chatService, undefined, true, [], false);
+			createSession({ id: 'disabled', status: SessionStatus.NeedsInput, updatedAt: 100, chatResource: URI.parse(`${provider}:/disabled`), pullRequest: { owner: 'owner', repo: 'repo', number: 42 } }),
+		], undefined, gitHubService, chatService, undefined, true, [], false, { onDidChangeContentProviderSchemes: changed.event });
 		const state = () => ({
 			notifications: fixture.service.notifications.get().length,
 			polling: gitHubService.pollingCount,
 			chatLoads,
 			events: fixture.telemetryEvents.length,
 		});
+		changed.fire({ removed: [provider], added: [] });
+		changed.fire({ removed: [], added: [provider] });
 		assert.deepStrictEqual(state(), { notifications: 0, polling: 0, chatLoads: 0, events: 0 });
 		await fixture.configurationService.setUserConfiguration(CHAT_INBOX_ENABLED_SETTING, true);
 		fixture.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
@@ -936,6 +1133,8 @@ suite('InboxNotificationsService', () => {
 		}));
 		assert.deepStrictEqual({ notifications: state().notifications, polling: state().polling, chatLoads }, { notifications: 1, polling: 3, chatLoads: 1 });
 		fixture.sentiment.set({ hidden: true }, undefined);
+		changed.fire({ removed: [provider], added: [] });
+		changed.fire({ removed: [], added: [provider] });
 		assert.deepStrictEqual({ notifications: state().notifications, polling: state().polling, chatLoads }, { notifications: 0, polling: 0, chatLoads: 1 });
 		fixture.sentiment.set({}, undefined);
 		assert.deepStrictEqual({ notifications: state().notifications, polling: state().polling }, { notifications: 1, polling: 3 });
@@ -1031,6 +1230,32 @@ suite('InboxNotificationsService', () => {
 				buttonLabels: ['Allow Once', 'Skip'],
 			},
 		}]);
+	});
+
+	test('result approval has a distinct identity after execution approval is dismissed', () => {
+		const chatResource = URI.parse('test:///chat/review-results');
+		const chatService = new TestChatService();
+		const fixture = createFixture([createSession({ id: 'review-results', status: SessionStatus.NeedsInput, updatedAt: 100, chatResource })],
+			undefined, undefined, chatService);
+		const setApproval = (type: IChatToolInvocation.StateKind.WaitingForConfirmation | IChatToolInvocation.StateKind.WaitingForPostApproval) => {
+			chatService.setPendingParts(chatResource, {
+				requestId: 'same-request', startedWaitingAt: 10,
+				parts: [upcastPartial<IChatToolInvocation>({
+					kind: 'toolInvocation', toolCallId: 'same-tool',
+					state: observableValue('approval', upcastPartial<IChatToolInvocation.State>({ type })),
+				})],
+			});
+		};
+		setApproval(IChatToolInvocation.StateKind.WaitingForConfirmation);
+		const execution = fixture.service.notifications.get()[0];
+		fixture.service.dismissNotification(execution.id);
+		setApproval(IChatToolInvocation.StateKind.WaitingForPostApproval);
+		const result = fixture.service.notifications.get()[0];
+		assert.deepStrictEqual({
+			distinct: result.id !== execution.id,
+			stage: result.needsInputPart?.kind === 'toolConfirmation' ? result.needsInputPart.confirmationKind : undefined,
+			dismissed: fixture.service.dismissedNotifications.get().map(item => item.id),
+		}, { distinct: true, stage: 'result', dismissed: [execution.id] });
 	});
 
 	test('surfaces failing and passing CI notifications for session pull requests', () => {
@@ -1199,6 +1424,95 @@ suite('InboxNotificationsService', () => {
 
 		gitHubService.setPullRequest('owner', 'repo', 77, openPullRequest(77, 'sha77', { state: GitHubPullRequestState.Merged }));
 		assert.deepStrictEqual(fixture.service.notifications.get().map(item => item.kind), [InboxNotificationKind.Completed]);
+	});
+
+	test('deduplicates overlapping PR alerts, preferring the owning session and retaining distinct PRs', () => {
+		const gitHubService = new TestGitHubService();
+		const owner = createSession({
+			id: 'owner-session', status: SessionStatus.Completed, updatedAt: 100,
+			pullRequest: { owner: 'owner', repo: 'repo', number: 77 },
+		});
+		const reference = createSession({
+			id: 'reference-session', status: SessionStatus.Completed, updatedAt: 200,
+			pullRequests: [
+				{ owner: 'owner', repo: 'repo', number: 77, createdByThisSession: false },
+				{ owner: 'owner', repo: 'repo', number: 78 },
+			],
+		});
+		const fixture = createFixture([reference, owner], undefined, gitHubService);
+		for (const number of [77, 78]) {
+			gitHubService.setPullRequest('owner', 'repo', number, openPullRequest(number, `sha${number}`));
+			gitHubService.setCIStatus('owner', 'repo', number, `sha${number}`, GitHubCIOverallStatus.Failure, []);
+		}
+		gitHubService.setReviewThreads('owner', 'repo', 77, [{
+			id: 'thread', isResolved: false, path: 'src/test.ts', startLine: 1, line: 1, comments: [{
+				id: 1, body: 'Fix this', author: { login: 'copilot-pull-request-reviewer[bot]', avatarUrl: '' },
+				createdAt: '2026-09-21T16:01:00Z', updatedAt: '2026-09-21T16:01:00Z',
+				path: 'src/test.ts', line: 1, threadId: 'thread', inReplyToId: undefined,
+			}],
+		}]);
+		const snapshot = () => fixture.service.notifications.get().filter(item => item.pullRequestStates).map(item => ({
+			kind: item.kind, session: item.sessionResource?.path, prs: item.pullRequestStates?.map(pr => pr.label),
+		})).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+		const before = snapshot();
+		fixture.setSessions([owner, reference]);
+		const reordered = snapshot();
+		fixture.setSessions([reference]);
+		const removed = snapshot();
+		const expected = [
+			{ kind: InboxNotificationKind.FailingCI, session: '/session/owner-session', prs: ['#77'] },
+			{ kind: InboxNotificationKind.FailingCI, session: '/session/reference-session', prs: ['#78'] },
+			{ kind: InboxNotificationKind.ReviewComments, session: '/session/owner-session', prs: ['#77'] },
+		];
+		assert.deepStrictEqual({ before, reordered, removed }, {
+			before: expected, reordered: expected,
+			removed: [
+				{ kind: InboxNotificationKind.FailingCI, session: '/session/reference-session', prs: ['#77', '#78'] },
+				{ kind: InboxNotificationKind.ReviewComments, session: '/session/reference-session', prs: ['#77'] },
+			],
+		});
+	});
+
+	test('deduplicates PR identities case-insensitively and ignores archived or busy owners', () => {
+		const gitHubService = new TestGitHubService();
+		const ownerOptions = {
+			id: 'owner', status: SessionStatus.Completed, updatedAt: 100,
+			pullRequest: { owner: 'Owner', repo: 'Repo', number: 77 },
+		};
+		const reference = createSession({
+			id: 'reference', status: SessionStatus.Completed, updatedAt: 200,
+			pullRequests: [{ owner: 'owner', repo: 'repo', number: 77, createdByThisSession: false }],
+		});
+		const fixture = createFixture([reference, createSession(ownerOptions)], undefined, gitHubService);
+		for (const [owner, repo] of [['Owner', 'Repo'], ['owner', 'repo']]) {
+			gitHubService.setPullRequest(owner, repo, 77, openPullRequest(77, 'sha77'));
+			gitHubService.setCIStatus(owner, repo, 77, 'sha77', GitHubCIOverallStatus.Failure, []);
+		}
+		const targets = () => fixture.service.notifications.get().filter(item => item.kind === InboxNotificationKind.FailingCI).map(item => item.sessionResource?.path);
+		const active = targets();
+		fixture.setSessions([reference, createSession({ ...ownerOptions, isArchived: true })]);
+		const archived = targets();
+		fixture.setSessions([reference, createSession({ ...ownerOptions, status: SessionStatus.InProgress })]);
+		assert.deepStrictEqual({ active, archived, busy: targets() }, {
+			active: ['/session/owner'], archived: ['/session/reference'], busy: ['/session/reference'],
+		});
+	});
+
+	test('deduplicates merge-ready PRs deterministically but retains per-session cleanup after merging', () => {
+		const gitHubService = new TestGitHubService();
+		const sessions = ['second', 'first'].map(id => createSession({
+			id, status: SessionStatus.Completed, updatedAt: 100,
+			pullRequest: { owner: 'owner', repo: 'repo', number: 77 },
+		}));
+		const fixture = createFixture(sessions, undefined, gitHubService);
+		gitHubService.setPullRequest('owner', 'repo', 77, openPullRequest(77, 'sha77'));
+		gitHubService.setCIStatus('owner', 'repo', 77, 'sha77', GitHubCIOverallStatus.Success, []);
+		const passing = fixture.service.notifications.get().filter(item => item.kind === InboxNotificationKind.PassingCI).map(item => item.sessionResource?.path);
+		gitHubService.setPullRequest('owner', 'repo', 77, openPullRequest(77, 'sha77', { state: GitHubPullRequestState.Merged }));
+		const merged = fixture.service.notifications.get().filter(item => item.kind === InboxNotificationKind.PullRequestMerged).map(item => item.sessionResource?.path).sort();
+		assert.deepStrictEqual({ passing, merged }, {
+			passing: ['/session/first'], merged: ['/session/first', '/session/second'],
+		});
 	});
 
 	test('surfaces unresolved Copilot review comments only', () => {
@@ -1586,6 +1900,18 @@ suite('InboxNotificationsService', () => {
 		assert.deepStrictEqual(fixture.service.dismissedNotifications.get().map(item => item.id), [dismissedId]);
 	});
 
+	test('retains the supplied completed snapshot after marking read removes its source', () => {
+		const options = { id: 'read-before-dismiss', status: SessionStatus.Completed, updatedAt: 100 };
+		const fixture = createFixture([createSession(options)]);
+		const item = fixture.service.notifications.get()[0];
+		fixture.setSessions([createSession({ ...options, isRead: true })]);
+		const active = fixture.service.notifications.get().length;
+		fixture.service.dismissNotification(item.id, item);
+		assert.deepStrictEqual({ active, completed: fixture.service.dismissedNotifications.get().map(snapshot => snapshot.id) }, {
+			active: 0, completed: [item.id],
+		});
+	});
+
 	test('dismissed questions have no interactive input or stale actions, including snapshots', () => {
 		const chatResource = URI.parse('test:///chat/dismissed-question');
 		const chatService = new TestChatService();
@@ -1599,13 +1925,13 @@ suite('InboxNotificationsService', () => {
 		});
 		fixture.service.dismissNotification(fixture.service.notifications.get()[0].id);
 		const snapshot = () => fixture.service.dismissedNotifications.get().map(item => ({
-			needsInputPart: item.needsInputPart, actions: item.actions.map(action => action.kind),
+			needsInputPart: item.needsInputPart, chatResource: item.chatResource, actions: item.actions.map(action => action.kind),
 		}));
 		const live = snapshot();
 		fixture.setSessions([]);
 		assert.deepStrictEqual({ live, stored: snapshot() }, {
-			live: [{ needsInputPart: undefined, actions: [InboxNotificationActionKind.OpenSession] }],
-			stored: [{ needsInputPart: undefined, actions: [InboxNotificationActionKind.OpenSession] }],
+			live: [{ needsInputPart: undefined, chatResource, actions: [InboxNotificationActionKind.OpenSession] }],
+			stored: [{ needsInputPart: undefined, chatResource, actions: [InboxNotificationActionKind.OpenSession] }],
 		});
 	});
 
@@ -1892,7 +2218,7 @@ class TestAgentHostProvider {
 class TestChatService {
 	private readonly _chatModels = new Map<string, IChatModel>();
 	private readonly _chatModelsObservable = observableValue<readonly IChatModel[]>('test.chatModels', []);
-	private _acquireOrLoadHandler: ((chatResource: URI) => Promise<{ object: IChatModel; dispose(): void } | undefined>) | undefined;
+	private _acquireOrLoadHandler: ((chatResource: URI, token: CancellationToken) => Promise<{ object: IChatModel; dispose(): void } | undefined>) | undefined;
 	readonly chatModels = this._chatModelsObservable;
 
 	getSession(chatResource: URI): IChatModel | undefined {
@@ -1904,15 +2230,15 @@ class TestChatService {
 		this._chatModelsObservable.set([...this._chatModels.values()], undefined);
 	}
 
-	async acquireOrLoadSession(chatResource: URI): Promise<{ object: IChatModel; dispose(): void } | undefined> {
+	async acquireOrLoadSession(chatResource: URI, _location: ChatAgentLocation, token: CancellationToken): Promise<{ object: IChatModel; dispose(): void } | undefined> {
 		if (this._acquireOrLoadHandler) {
-			return this._acquireOrLoadHandler(chatResource);
+			return this._acquireOrLoadHandler(chatResource, token);
 		}
 		const model = this.getSession(chatResource);
 		return model ? { object: model, dispose: () => { } } : undefined;
 	}
 
-	setAcquireOrLoadHandler(handler: ((chatResource: URI) => Promise<{ object: IChatModel; dispose(): void } | undefined>) | undefined): void {
+	setAcquireOrLoadHandler(handler: ((chatResource: URI, token: CancellationToken) => Promise<{ object: IChatModel; dispose(): void } | undefined>) | undefined): void {
 		this._acquireOrLoadHandler = handler;
 	}
 

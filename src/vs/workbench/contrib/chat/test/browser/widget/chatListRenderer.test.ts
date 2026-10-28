@@ -6166,21 +6166,27 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
-	test('read-only question previews render text without creating controls or answering the question', async () => {
-		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ rendererOptions: { readOnly: true } });
-		const question = new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction', message: 'Keep this question in the preview.' }], true);
-		model.acceptResponseProgress(request, question);
-		renderer.renderElement(node, 0, template);
-		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
-		await timeout(0);
-		const text = template.value.textContent?.replace(/\u00a0/g, ' ');
-		assert.deepStrictEqual({
-			hasTitle: text?.includes('Choose a direction'),
-			hasMessage: text?.includes('Keep this question in the preview.'),
-			controls: template.value.querySelectorAll('.chat-question-carousel-container').length,
-			answered: !!question.isUsed,
-		}, { hasTitle: true, hasMessage: true, controls: 0, answered: false });
-	});
+	for (const renderInputRequests of [undefined, true, false]) {
+		test(`read-only questions preserve shared rendering unless input requests are suppressed: ${renderInputRequests}`, async () => {
+			const { model, request, renderer, template, node } = createPersistentProgressRenderer({ rendererOptions: { readOnly: true, renderInputRequests } });
+			const question = new ChatQuestionCarouselData([{
+				id: 'q1', type: 'text', title: 'Choose a direction',
+				message: new MarkdownString('Keep **this question** in the preview.'),
+				detailedMessage: 'Additional context',
+			}], true);
+			model.acceptResponseProgress(request, question);
+			renderer.renderElement(node, 0, template);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			await timeout(0);
+			const suppressed = renderInputRequests === false;
+			assert.deepStrictEqual({
+				markdown: template.value.querySelector('.chat-question-title strong')?.textContent,
+				details: template.value.querySelector('.chat-question-detailed-message')?.textContent?.trim(),
+				controls: template.value.querySelectorAll('.chat-question-carousel-container').length,
+				answered: !!question.isUsed,
+			}, { markdown: suppressed ? undefined : 'this question', details: suppressed ? undefined : 'Additional context', controls: suppressed ? 0 : 1, answered: false });
+		});
+	}
 
 	test('persistent progress keeps question controls and the answered summary without a tool row', async () => {
 		const { model, request, renderer, template, node } = createPersistentProgressRenderer();

@@ -129,14 +129,17 @@ suite('ChatQuestionCarouselPart', () => {
 			{ name: 'title different from displayed message', question: { title: 'Accent color', message: 'Choose a color', detailedMessage: 'Accent color' }, expectedDetail: 'Accent color' },
 			{ name: 'distinct links with identical labels', question: { title: 'Docs', message: new MarkdownString('[Docs](https://example.com/question)'), detailedMessage: new MarkdownString('[Docs](https://example.com/details)') }, expectedDetail: 'Docs' },
 		]) {
-			test(`renders question details without repeating the heading: ${name}`, () => {
-				createWidget(createMockCarousel([{ id: 'q1', type: 'text', ...question }]));
-				assert.deepStrictEqual({
-					headings: widget.domNode.querySelectorAll('.chat-question-title').length,
-					detail: widget.domNode.querySelector('.chat-question-detailed-message')?.textContent?.trim(),
-					inputs: widget.domNode.querySelectorAll('.chat-question-input-container input').length,
-				}, { headings: 1, detail: expectedDetail, inputs: 1 });
-			});
+			for (const hideDuplicateDetailedMessage of [undefined, false, true]) {
+				test(`question details with hideDuplicateDetailedMessage=${hideDuplicateDetailedMessage}: ${name}`, () => {
+					createWidget(createMockCarousel([{ id: 'q1', type: 'text', ...question }]), undefined, mainWindow.document.body, undefined, { hideDuplicateDetailedMessage });
+					const originalDetail = expectedDetail ?? (typeof question.detailedMessage === 'string' ? question.detailedMessage : question.detailedMessage.value).trim();
+					assert.deepStrictEqual({
+						headings: widget.domNode.querySelectorAll('.chat-question-title').length,
+						detail: widget.domNode.querySelector('.chat-question-detailed-message')?.textContent?.trim(),
+						inputs: widget.domNode.querySelectorAll('.chat-question-input-container input').length,
+					}, { headings: 1, detail: hideDuplicateDetailedMessage ? expectedDetail : originalDetail, inputs: 1 });
+				});
+			}
 		}
 
 		test('uses workbench hovers for markdown links', () => {
