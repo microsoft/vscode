@@ -2180,7 +2180,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			'Copilot customization rows did not finish rendering.',
 		);
 	}
-	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
+	assert(!ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title, 'Home button must not duplicate its managed hover with a native tooltip.');
 	if (options.selectedSection === AICustomizationManagementSection.McpServers && options.marketplaceVisibilityEnabled === false) {
 		editor.revealLastItem();
 		await timeout(50);
