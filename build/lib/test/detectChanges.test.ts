@@ -149,6 +149,10 @@ suite('Detect Changes', () => {
 			['build/azure-pipelines/win32/steps/product-build-win32-test.yml', ['false', 'false', 'false']],
 			['build/azure-pipelines/linux/setup-env.sh', ['true', 'true', 'true']],
 			['build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts', ['true', 'true', 'true']],
+			['.vscode/settings.json', ['false', 'false', 'false']],
+			['.vscode/extensions/vscode-selfhost-test-provider/src/extension.ts', ['false', 'false', 'false']],
+			['.vscode/extensions/vscode-extras/package.json', ['false', 'false', 'false']],
+			['extensions/vscode-api-tests/testWorkspace/.vscode/settings.json', ['false', 'true', 'true']],
 			['package.json', ['true', 'true', 'true']],
 		];
 		const results: [string, string[]][] = [];
@@ -199,6 +203,25 @@ suite('Detect Changes', () => {
 				'telemetry': 'false',
 			},
 			unskippableJobs: ['changes', 'compile', 'pr-gate'],
+		});
+	});
+
+	test('a change to the workspace configuration in .vscode/ runs only Compile & Hygiene, which lints and installs the self-hosting extensions', async () => {
+		assert.deepStrictEqual(await detect([
+			{ filename: '.vscode/settings.json' },
+			{ filename: '.vscode/launch.json' },
+			{ filename: '.vscode/tasks.json' },
+			{ filename: '.vscode/extensions/vscode-selfhost-test-provider/src/extension.ts' },
+			{ filename: '.vscode/extensions/vscode-extras/package-lock.json' },
+		]), {
+			'cli': 'false',
+			'copilot-shim': 'false',
+			'copilot': 'false',
+			'unit-tests': 'false',
+			'browser-integration': 'false',
+			'product-tests': 'false',
+			'monaco-editor': 'false',
+			'telemetry': 'false',
 		});
 	});
 

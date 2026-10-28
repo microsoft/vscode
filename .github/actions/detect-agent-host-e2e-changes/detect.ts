@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isAzurePipelinesDefinition } from '../detect-changes/detect.ts';
+import { shouldSkipTestJobs } from '../detect-changes/detect.ts';
 
 interface IChangedFile {
 	readonly filename: string;
@@ -72,8 +72,9 @@ const fullProfilePrefixes = [
 ];
 
 function requiresFullProfile(path: string): boolean {
-	// Only the product builds run the Azure Pipelines definitions under build/.
-	if (isAzurePipelinesDefinition(path)) {
+	// Only Compile & Hygiene reads the Azure Pipelines definitions under build/ and the workspace configuration in
+	// .vscode/, including the package.json files of its self-hosting extensions (see shouldSkipTestJobs).
+	if (shouldSkipTestJobs(path)) {
 		return false;
 	}
 	return fullProfilePaths.has(path)
@@ -82,7 +83,7 @@ function requiresFullProfile(path: string): boolean {
 }
 
 function affectsAgentHostE2E(path: string): boolean {
-	if (path.endsWith('.md') || isAzurePipelinesDefinition(path)) {
+	if (path.endsWith('.md') || shouldSkipTestJobs(path)) {
 		return false;
 	}
 	return exactPaths.has(path) || pathPrefixes.some(prefix => path.startsWith(prefix));
