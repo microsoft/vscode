@@ -218,7 +218,8 @@ suite('Detect Changes', () => {
 				'monaco-editor': 'false',
 				'telemetry': 'false',
 			},
-			unskippableJobs: ['changes', 'compile', 'pr-gate'],
+			// Cancel Run only runs when Compile & Hygiene fails.
+			unskippableJobs: ['changes', 'compile', 'cancel-run', 'pr-gate'],
 		});
 	});
 
