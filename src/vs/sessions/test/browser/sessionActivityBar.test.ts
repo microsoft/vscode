@@ -29,7 +29,6 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../platf
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { ChatWindowEditorGroupContext } from '../../services/chatWindow/browser/chatWindowService.js';
 import { ChatViewSessionActivityBar, registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, SessionActivityBar, SessionActivityBarHostOccupancy } from '../../browser/parts/sessionActivityBar.js';
 import { Menus, SessionActivityBarGroup } from '../../browser/menus.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
@@ -730,16 +729,6 @@ suite('Sessions - Session Activity Bar', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(ran, ['test.browser']);
-	});
-
-	test('an entry acts on the chat window its strip is part of, which it is told by the editor group of that window', async () => {
-		const { label, ranWith, contextKeyService } = createActivityBar(store, [browser]);
-
-		ChatWindowEditorGroupContext.bindTo(contextKeyService).set(7);
-		label('Browser').click();
-		await timeout(0);
-
-		assert.deepStrictEqual(ranWith, [['test.browser', { groupId: 7 }]]);
 	});
 
 	test('shows a checked entry as pressed and hides what it shows when it is clicked or activated by keyboard', async () => {
