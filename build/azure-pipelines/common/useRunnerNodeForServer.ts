@@ -62,5 +62,10 @@ function main(): void {
 }
 
 if (import.meta.main) {
-	main();
+	try {
+		main();
+	} catch (error) {
+		// Reusing the runner's Node.js only saves a download, so a failure must not keep the tests from running.
+		console.log(`::warning::Cannot use the runner's Node.js for the server, so \`npm run gulp node\` downloads it: ${error instanceof Error ? error.message : String(error)}`);
+	}
 }
