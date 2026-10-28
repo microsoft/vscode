@@ -18,6 +18,8 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { EditorInputCapabilities } from '../../../../../workbench/common/editor.js';
 import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
+import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
+import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
@@ -303,6 +305,11 @@ suite('SessionChangesEditorInput', () => {
 		assert.strictEqual(input.viewModelRequests, 0);
 	});
 
+	const noEditorGroupsService = new class extends mock<IEditorGroupsService>() {
+		override readonly mainPart = new class extends mock<IEditorPart>() { };
+		override readonly parts = [];
+	};
+
 	test('updates managed Changes editor capabilities with editor area visibility', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		let editorVisible = false;
@@ -318,6 +325,7 @@ suite('SessionChangesEditorInput', () => {
 			instantiationService,
 			emptySessionChangesService,
 			layoutService,
+			noEditorGroupsService,
 		));
 		let capabilitiesChanges = 0;
 		disposables.add(input.onDidChangeCapabilities(() => capabilitiesChanges++));
@@ -342,6 +350,40 @@ suite('SessionChangesEditorInput', () => {
 		});
 	});
 
+	test('is closable in the editor part of an auxiliary window although the editor area of the main window is hidden', () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+			override readonly onDidChangePartVisibility = Event.None;
+			override isVisible(): boolean {
+				return false;
+			}
+		};
+		const mainPart = new class extends mock<IEditorPart>() {
+			override readonly groups: IEditorGroup[] = [];
+		};
+		const opened = new Set<EditorInput>();
+		const auxiliaryPart = new class extends mock<IEditorPart>() {
+			override readonly groups = [new class extends mock<IEditorGroup>() {
+				override contains(candidate: EditorInput): boolean {
+					return opened.has(candidate);
+				}
+			}];
+		};
+		const parts = [mainPart, auxiliaryPart];
+		const editorGroupsService = new class extends mock<IEditorGroupsService>() {
+			override readonly mainPart = mainPart;
+			override get parts() {
+				return parts;
+			}
+		};
+		const input = disposables.add(new SessionChangesEditorInput(URI.parse('test-changes:session'), instantiationService, emptySessionChangesService, layoutService, editorGroupsService));
+		opened.add(input);
+		const inAuxiliaryPart = input.hasCapability(EditorInputCapabilities.CannotClose);
+		parts.pop();
+
+		assert.deepStrictEqual({ cannotCloseInAuxiliaryPart: inAuxiliaryPart, cannotCloseElsewhere: input.hasCapability(EditorInputCapabilities.CannotClose) }, { cannotCloseInAuxiliaryPart: false, cannotCloseElsewhere: true });
+	});
+
 	test('updates the tab badge class and accessible label with the changed file count', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const changes = observableValue<readonly ISessionFileChange[]>('changes', []);
@@ -360,6 +402,7 @@ suite('SessionChangesEditorInput', () => {
 			instantiationService,
 			sessionChangesService,
 			layoutService,
+			noEditorGroupsService,
 		));
 		let labelChanges = 0;
 		disposables.add(input.onDidChangeLabel(() => labelChanges++));
