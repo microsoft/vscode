@@ -77,20 +77,14 @@ interface Cluster {
 }
 
 /**
- * Applies {@link placeSubgraphTitles} to the SVG markup returned by `mermaid.render`.
+ * Applies {@link placeSubgraphTitles} to the Mermaid diagram rendered into `container`, if any. Call it
+ * right after writing the diagram, before anything measures it.
  */
-export function placeSubgraphTitlesInSvgMarkup(svgMarkup: string): string {
-	if (!svgMarkup.includes('cluster-label')) {
-		return svgMarkup;
+export function placeSubgraphTitlesIn(container: ParentNode): void {
+	const svg = container.querySelector('svg');
+	if (svg) {
+		placeSubgraphTitles(svg);
 	}
-
-	const template = document.createElement('template');
-	template.innerHTML = svgMarkup;
-	const svg = template.content.querySelector('svg');
-	if (!svg || !placeSubgraphTitles(svg)) {
-		return svgMarkup;
-	}
-	return template.innerHTML;
 }
 
 /**

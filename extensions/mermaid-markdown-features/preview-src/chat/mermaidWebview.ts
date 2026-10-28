@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import mermaid, { MermaidConfig } from 'mermaid';
 import { buildMermaidConfig, createMermaidErrorElement, loadExtensionConfig, markVsCodeContextAsError } from '../shared';
-import { placeSubgraphTitles } from '../shared/subgraphTitles';
+import { placeSubgraphTitlesIn } from '../shared/subgraphTitles';
 import { VsCodeMermaidThemeTracker } from '../shared/vsCodeTheme';
 import { VsCodeApi } from './vscodeApi';
 
@@ -410,15 +410,12 @@ async function rerenderMermaidDiagram(
 }
 
 /**
- * Renders the diagram in place. `mermaid.run` bypasses the shared render path, so subgraph titles are
- * placed here.
+ * Renders the diagram in place and places its subgraph titles before the pan and zoom handler
+ * measures it.
  */
 async function runMermaid(diagramElement: HTMLElement): Promise<void> {
 	await mermaid.run({ nodes: [diagramElement] });
-	const svg = diagramElement.querySelector('svg');
-	if (svg) {
-		placeSubgraphTitles(svg);
-	}
+	placeSubgraphTitlesIn(diagramElement);
 }
 
 export async function initializeMermaidWebview(vscode: VsCodeApi, options?: PanZoomOptions): Promise<PanZoomHandler | undefined> {

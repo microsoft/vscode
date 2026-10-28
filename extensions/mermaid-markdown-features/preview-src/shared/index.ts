@@ -8,7 +8,7 @@ import zenuml from '@mermaid-js/mermaid-zenuml';
 import mermaid, { MermaidConfig } from 'mermaid';
 import { iconPacks } from './iconPackConfig';
 import { ClickDragMode, MermaidExtensionConfig, ShowControlsMode } from './config';
-import { placeSubgraphTitlesInSvgMarkup, subgraphTitleMargin } from './subgraphTitles';
+import { subgraphTitleMargin } from './subgraphTitles';
 import { vsCodeMermaidTheme, VsCodeMermaidThemeTracker } from './vsCodeTheme';
 
 /**
@@ -105,7 +105,7 @@ function renderMermaidElement(
 					throw new DOMException('Aborted', 'AbortError');
 				}
 
-				writeOut(mermaidContainer, placeSubgraphTitlesInSvgMarkup(renderResult.svg), false);
+				writeOut(mermaidContainer, renderResult.svg, false);
 				renderResult.bindFunctions?.(mermaidContainer);
 			} catch (error) {
 				if (error instanceof Error && error.name !== 'AbortError') {
