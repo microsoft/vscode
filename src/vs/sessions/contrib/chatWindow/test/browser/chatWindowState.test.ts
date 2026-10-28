@@ -9,21 +9,38 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { SessionLayoutMode, SessionTerminalPosition } from '../../../../common/sessionGridLayout/sessionGridLayout.js';
 import { IChatWindowKind } from '../../../../services/chatWindow/browser/chatWindowService.js';
-import { ChatWindowChatLayouts, ChatWindowDefaults, ChatWindowState, IRememberedChatLayout } from '../../browser/chatWindowState.js';
+import { ChatWindowDefaults, ChatWindowState, createChatWindowRememberedMode, IChatWindowRememberedMode } from '../../browser/chatWindowState.js';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { Event } from '../../../../../base/common/event.js';
+import { SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../../common/chatLayout.js';
+import { SessionLayoutModeService } from '../../../../services/layoutMode/browser/sessionLayoutModeService.js';
+import { IRememberedLayoutMode, LayoutModeOwnerKind } from '../../../../services/layoutMode/common/sessionLayoutModeService.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { makeSession } from '../../../layout/test/browser/layoutControllerTestUtils.js';
 
 suite('ChatWindowState', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const kind: IChatWindowKind = { id: 'test', title: 'Test', defaultLayout: SessionLayoutMode.SideBySide };
-	const chat = URI.parse('test:/session/chat');
 
-	function createState(storage: IStorageService, hasEditorArea = true, chatLayouts?: ChatWindowChatLayouts): ChatWindowState {
-		const layouts = chatLayouts ?? new ChatWindowChatLayouts(storage);
-		return new ChatWindowState(kind, hasEditorArea, new ChatWindowDefaults(kind, storage), {
-			initial: layouts.get(chat),
-			set: layout => layouts.set(chat, layout),
-		});
+	/** What chat windows remember for the chat, in memory, one memory per storage as the layout mode service keeps it. */
+	const memories = new WeakMap<IStorageService, { value: IRememberedLayoutMode | undefined }>();
+	function createRememberedMode(storage: IStorageService, initial?: IRememberedLayoutMode): IChatWindowRememberedMode & { readonly remembered: IRememberedLayoutMode | undefined } {
+		let memory = memories.get(storage);
+		if (!memory) {
+			memory = { value: initial };
+			memories.set(storage, memory);
+		}
+		const kept = memory;
+		return { initial: kept.value, get remembered() { return kept.value; }, set: layout => { kept.value = layout; } };
+	}
+
+	function createState(storage: IStorageService, hasEditorArea = true, rememberedMode: IChatWindowRememberedMode = createRememberedMode(storage)): ChatWindowState {
+		return new ChatWindowState(kind, hasEditorArea, new ChatWindowDefaults(kind, storage), rememberedMode);
 	}
 
 	function snapshot(state: ChatWindowState) {
@@ -75,11 +92,11 @@ suite('ChatWindowState', () => {
 
 	test('with only the chat or only the editor area shown, flips how both show next, which the chat remembers and showing both uses', () => {
 		const storage = disposables.add(new InMemoryStorageService());
-		const layouts = new ChatWindowChatLayouts(storage);
-		const state = createState(storage, true, layouts);
+		const rememberedMode = createRememberedMode(storage);
+		const state = createState(storage, true, rememberedMode);
 		state.setLayout(SessionLayoutMode.ChatOnly);
 		state.setSplitLayout(SessionLayoutMode.Stacked);
-		const whileChatOnly = { layout: state.layout.get(), splitLayout: state.splitLayout.get(), remembered: layouts.get(chat) };
+		const whileChatOnly = { layout: state.layout.get(), splitLayout: state.splitLayout.get(), remembered: rememberedMode.remembered };
 		state.showBoth();
 		assert.deepStrictEqual({ whileChatOnly, afterShowBoth: state.layout.get() }, {
 			whileChatOnly: { layout: SessionLayoutMode.ChatOnly, splitLayout: SessionLayoutMode.Stacked, remembered: { mode: SessionLayoutMode.ChatOnly, splitLayout: SessionLayoutMode.Stacked, inputOnly: true } },
@@ -89,27 +106,46 @@ suite('ChatWindowState', () => {
 
 	test('never remembers a layout without an editor area, and shows a remembered layout it cannot show as the chat only', () => {
 		const storage = disposables.add(new InMemoryStorageService());
-		const layouts = new ChatWindowChatLayouts(storage);
-		layouts.set(chat, { mode: SessionLayoutMode.EditorOnly, splitLayout: SessionLayoutMode.SideBySide, inputOnly: true });
-		const state = createState(storage, false, layouts);
+		const rememberedMode = createRememberedMode(storage, { mode: SessionLayoutMode.EditorOnly, splitLayout: SessionLayoutMode.SideBySide, inputOnly: true });
+		const state = createState(storage, false, rememberedMode);
 		state.setLayout(SessionLayoutMode.Stacked);
 		state.setInputOnly(false);
-		assert.deepStrictEqual({ layout: state.layout.get(), remembered: layouts.get(chat), kindLayout: new ChatWindowDefaults(kind, storage).getLayout() }, {
+		assert.deepStrictEqual({ layout: state.layout.get(), remembered: rememberedMode.remembered, kindLayout: new ChatWindowDefaults(kind, storage).getLayout() }, {
 			layout: SessionLayoutMode.ChatOnly,
 			remembered: { mode: SessionLayoutMode.EditorOnly, splitLayout: SessionLayoutMode.SideBySide, inputOnly: true },
 			kindLayout: undefined,
 		});
 	});
 
-	test('remembers the layouts of the chats changed last, and ignores what it cannot read', () => {
+	test('a chat opens in a chat window as it last showed in one, else as the main window shows it, and what the user chooses there is remembered for the chat the window shows', () => {
 		const storage = disposables.add(new InMemoryStorageService());
-		const layouts = new ChatWindowChatLayouts(storage);
-		const layout: IRememberedChatLayout = { mode: SessionLayoutMode.Stacked, splitLayout: SessionLayoutMode.Stacked, inputOnly: false };
-		for (let i = 0; i < 205; i++) {
-			layouts.set(URI.parse(`test:/chat/${i}`), layout);
-		}
-		const kept = [0, 4, 5, 204].map(i => !!layouts.get(URI.parse(`test:/chat/${i}`)));
-		storage.store(ChatWindowChatLayouts.STORAGE_KEY, JSON.stringify([['test:/chat/x', { mode: 'unknown' }], 'invalid']), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		assert.deepStrictEqual({ kept, invalid: layouts.get(URI.parse('test:/chat/x')) }, { kept: [false, false, true, true], invalid: undefined });
+		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+			override readonly onDidDeleteChat = Event.None;
+			override readonly onDidDeleteSession = Event.None;
+			override readonly onDidArchiveSession = Event.None;
+			override readonly onDidReplaceSession = Event.None;
+		};
+		const layoutModeService = disposables.add(new SessionLayoutModeService(storage, new TestConfigurationService({ [SESSIONS_LAYOUT_SCOPE_SETTING]: 'chat' }), new NullLogService(), sessionsManagementService));
+		const session = makeSession(URI.parse('test:/session'));
+		// The chat the window shows: the session's active chat.
+		const shownChat = session.activeChat.get().resource;
+		const owner = { sessionResource: session.resource, chatResource: shownChat };
+		const stacked: IRememberedLayoutMode = { mode: SessionLayoutMode.Stacked, splitLayout: SessionLayoutMode.Stacked, inputOnly: false };
+		const editorOnly: IRememberedLayoutMode = { mode: SessionLayoutMode.EditorOnly, splitLayout: SessionLayoutMode.SideBySide, inputOnly: true };
+		// The main window shows the chat stacked.
+		layoutModeService.setMainWindowMode(owner, LayoutModeOwnerKind.Existing, stacked);
+
+		const first = createChatWindowRememberedMode(layoutModeService, session, shownChat, constObservable(session));
+		const openedAsMainWindow = createState(storage, true, first).layout.get();
+		first.set(editorOnly);
+		const reopened = createChatWindowRememberedMode(layoutModeService, session, shownChat, constObservable(session)).initial;
+
+		assert.deepStrictEqual({ openedAsMainWindow, chatWindowMode: layoutModeService.getChatWindowMode(owner), reopened, mainWindowAfterReturn: layoutModeService.returnToMainWindow(owner, LayoutModeOwnerKind.Existing) }, {
+			openedAsMainWindow: SessionLayoutMode.Stacked,
+			chatWindowMode: editorOnly,
+			reopened: editorOnly,
+			// Where the main window remembers modes per chat, it adopts the chat window's back.
+			mainWindowAfterReturn: editorOnly,
+		});
 	});
 });
