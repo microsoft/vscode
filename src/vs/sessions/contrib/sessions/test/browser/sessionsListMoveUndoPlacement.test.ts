@@ -11,6 +11,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
@@ -75,7 +76,7 @@ suite('Sessions List - Undoing a move restores placement', () => {
 		}();
 		const storage = store.add(new InMemoryStorageService());
 		const groupsService = store.add(new SessionGroupsService(storage, management, store.add(new SessionSectionOrderService(storage))));
-		const listModelService = store.add(new SessionsListModelService(storage, management));
+		const listModelService = store.add(new SessionsListModelService(storage, management, new TestConfigurationService()));
 		const placementOf = (session: ISession) => ({ pinned: listModelService.isSessionPinned(session), group: groupsService.getGroupOfSession(session.sessionId) });
 
 		let undo: (() => Promise<void>) | undefined;

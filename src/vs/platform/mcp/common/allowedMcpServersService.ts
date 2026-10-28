@@ -112,7 +112,7 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 			: checkMcpServerAllowed(allowlist, denylist, identity);
 		switch (result) {
 			case McpServerAllowResult.Denied:
-				return new MarkdownString(nls.localize('mcp server is denied', "This Model Context Protocol server is blocked by your organization's policy. Please contact your administrator for more information."));
+				return new MarkdownString(nls.localize('mcp server is denied', "This Model Context Protocol server is blocked by your organization. Contact your administrator for more information."));
 			case McpServerAllowResult.NotAllowed:
 				if (allowlist?.some(matcher => matcher.serverName === identity.name)) {
 					if (identity.url !== undefined) {

@@ -12,10 +12,9 @@ import { URI } from '../../../../base/common/uri.js';
 import * as languages from '../../../../editor/common/languages.js';
 import * as nls from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ViewColumn } from '../../../../platform/editor/common/editor.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IExternalOpener, IOpenerService, OpenInternalOptions } from '../../../../platform/opener/common/opener.js';
+import { IExternalOpener, IExternalUriOpenContext, IOpenerService, OpenInternalOptions } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { defaultExternalUriOpenerId, ExternalUriOpenersConfiguration, externalUriOpenersSettingId } from './configuration.js';
 import { testUrlMatchesGlob } from '../../../../platform/url/common/urlGlob.js';
@@ -39,7 +38,7 @@ export interface IExternalUriOpener {
 	 * @param href The link to open, after port forwarding, as written. Openers that pass it on as a
 	 * string should use it as is, because parsing it into a URI loses its encoding.
 	 */
-	openExternalUri(href: string, ctx: { sourceUri: URI; viewColumn?: ViewColumn }, token: CancellationToken): Promise<boolean>;
+	openExternalUri(href: string, ctx: IExternalUriOpenContext, token: CancellationToken): Promise<boolean>;
 }
 
 export interface IExternalUriOpenerService {
@@ -133,7 +132,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		return { dispose: remove };
 	}
 
-	async openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string; viewColumn?: ViewColumn }, token: CancellationToken): Promise<boolean> {
+	async openExternal(href: string, ctx: IExternalUriOpenContext & { preferredOpenerId?: string }, token: CancellationToken): Promise<boolean> {
 		const targetUri = URI.parse(href);
 		const allOpeners = await this.getAllOpenersForUri(targetUri);
 		if (allOpeners.size === 0) {
@@ -245,7 +244,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 	private async showOpenerPrompt(
 		openers: ReadonlyArray<IExternalUriOpener>,
 		href: string,
-		ctx: { sourceUri: URI; viewColumn?: ViewColumn },
+		ctx: IExternalUriOpenContext,
 		token: CancellationToken
 	): Promise<boolean> {
 		type PickItem = IQuickPickItem & { opener?: IExternalUriOpener | 'configureDefault' };

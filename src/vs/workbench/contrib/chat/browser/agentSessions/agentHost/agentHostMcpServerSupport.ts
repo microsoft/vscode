@@ -327,7 +327,7 @@ async function resolveMcpServerForAgentHostDelivery(
 		definition,
 		source,
 		applicability,
-		delivery: unsupportedReasons.length > 0 && collection && McpCollectionDefinition.isVscodeMcpJson(collection)
+		delivery: unsupportedReasons.length > 0
 			? AgentHostMcpServerDelivery.NotDelivered
 			: delivery,
 		compatibility: getCompatibility(unsupportedReasons, partialReasons, unknownReasons),

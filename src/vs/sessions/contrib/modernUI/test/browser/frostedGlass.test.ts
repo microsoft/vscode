@@ -87,7 +87,7 @@ suite('Agents frosted glass styles', () => {
 		assert.deepStrictEqual(state(), before);
 	});
 
-	test('uses the Agents panel color for the automation dialog and its glass tint', () => {
+	test('uses the solid Agents panel color for the automation dialog with glass enabled', () => {
 		const { root, quickInput, dialog } = createOverlays();
 		dialog.classList.add('automation-dialog');
 		const titlebar = append(dialog, 'automation-titlebar');
@@ -111,7 +111,7 @@ suite('Agents frosted glass styles', () => {
 			titlebar: new RGBA(0, 0, 0, 0),
 			sticky: originalSticky,
 			dialog: supported ? new RGBA(0, 0, 0, 0) : panel,
-			dialogTint: supported ? new RGBA(32, 48, 64, 128 / 255) : new RGBA(0, 0, 0, 0),
+			dialogTint: supported ? panel : new RGBA(0, 0, 0, 0),
 		});
 	});
 

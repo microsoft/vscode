@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificatesProvider } from '../../common/clientCertificatesProtocol.js';
 import sinon from 'sinon';
 import { CancelablePromise, DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -30,6 +31,8 @@ import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSa
 import { getAgentHostArtifactIntegrationsCapability } from '../../common/meta/agentHostArtifactIntegrationMeta.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
+import { ChatProvidersConfigKey, ChatProvidersSettingId } from '../../common/agentHostChatProviders.js';
+import { negotiateAgentHostProtocolVersion } from '../../common/agentHostProtocolCompatibility.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { CODEX_SESSION_MODEL_META_KEY, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
@@ -535,7 +538,165 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
+	suite('client certificates', () => {
+		function createCertificateClient(provider?: IAgentHostClientCertificatesProvider) {
+			const transports: TestProtocolTransport[] = [];
+			const transportFactory = () => {
+				const transport = disposables.add(new class extends TestProtocolTransport implements IClientTransport {
+					readonly responses = new Map<number, DeferredPromise<ProtocolTransportMessage>>();
+					async connect(): Promise<void> { }
+					override send(message: ProtocolTransportMessage): void {
+						super.send(message);
+						if (hasKey(message, { id: true }) && typeof message.id === 'number') {
+							this.responses.get(message.id)?.complete(message);
+						}
+						if (hasKey(message, { id: true, method: true }) && typeof message.id === 'number') {
+							const result = message.method === 'initialize'
+								? { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] }
+								: message.method === 'reconnect'
+									? { type: ReconnectResultType.Replay, actions: [], missing: [] }
+									: message.method === 'authenticate' ? { authenticated: true } : {};
+							queueMicrotask(() => this.fireMessage({ jsonrpc: '2.0', id: message.id, result }));
+						}
+					}
+					requestCertificates(id: number): Promise<ProtocolTransportMessage> {
+						const response = new DeferredPromise<ProtocolTransportMessage>();
+						this.responses.set(id, response);
+						this.fireExtensionRequest(id, LoadClientCertificatesExtensionMethod, {});
+						return response.p;
+					}
+				}());
+				transports.push(transport);
+				return transport;
+			};
+			const connections: ReturnType<typeof transportFactory>[] = [];
+			const trust = createWorkspaceTrustServices();
+			const client = disposables.add(new AgentHostProtocolClient(
+				'test.example:1234', () => {
+					const transport = transportFactory();
+					connections.push(transport);
+					return transport;
+				},
+				{
+					clientCertificates: provider,
+					resolveInitialAuthentication: async () => ({ resource: 'https://api.github.com', token: 'test-token' }),
+					reconnectPolicy: { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 1 },
+				},
+				new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService,
+				workspaceTrustEnablementService, trust.management, trust.request,
+			));
+			return { client, connections };
+		}
+
+		for (const enabled of [false, true]) {
+			test(`advertises eligible certificate serving without loading on connect or reconnect (enabled=${enabled})`, async () => {
+				let loads = 0;
+				const { client, connections } = createCertificateClient({
+					isEnabled: () => enabled,
+					loadCertificates: async () => { loads++; return ['CLIENT CA']; },
+				});
+				await client.connect();
+				const reconnected = Event.toPromise(client.onDidReconnect);
+				connections[0].fireClose();
+				await reconnected;
+				assert.strictEqual(loads, 0);
+				const handshakes = connections.map(connection => connection.sentMessages[0]);
+				const response = await connections[1].requestCertificates(1000);
+				assert.deepStrictEqual({
+					loads,
+					capabilities: handshakes.map(message => hasKey(message, { params: true }) ? (message.params as { _meta: Record<string, unknown> })._meta['vscode.clientCertificates'] : undefined),
+					result: hasKey(response, { result: true }) ? response.result : undefined,
+				}, {
+					loads: enabled ? 1 : 0,
+					capabilities: [enabled ? true : undefined, enabled ? true : undefined],
+					result: { certificates: enabled ? ['CLIENT CA'] : [] },
+				});
+			});
+		}
+
+		test('does not serve certificates after forwarding is disabled', async () => {
+			let enabled = true;
+			const { client, connections } = createCertificateClient({
+				isEnabled: () => enabled,
+				loadCertificates: async () => { assert.fail('Disabled provider must not run'); },
+			});
+			await client.connect();
+			enabled = false;
+			const response = await connections[0].requestCertificates(1000);
+			assert.deepStrictEqual(hasKey(response, { result: true }) ? response.result : undefined, { certificates: [] });
+		});
+
+		test('a failed certificate request does not close the connection', async () => {
+			const { client, connections } = createCertificateClient({
+				isEnabled: () => true,
+				loadCertificates: async () => { throw new Error('Certificate loading failed'); },
+			});
+			await client.connect();
+			const response = await connections[0].requestCertificates(1000);
+			assert.deepStrictEqual({
+				state: client.connectionState,
+				message: hasKey(response, { error: true }) ? response.error.message : undefined,
+			}, { state: AgentHostClientState.Connected, message: 'Certificate loading failed' });
+		});
+
+		test('a delayed certificate response is not sent on a replacement transport', async () => {
+			const result = new DeferredPromise<readonly string[]>();
+			const started = new DeferredPromise<void>();
+			const { client, connections } = createCertificateClient({
+				isEnabled: () => true,
+				loadCertificates: async () => { started.complete(); return result.p; },
+			});
+			await client.connect();
+			connections[0].fireExtensionRequest(1000, LoadClientCertificatesExtensionMethod, {});
+			await started.p;
+			const reconnected = Event.toPromise(client.onDidReconnect);
+			connections[0].fireClose();
+			await reconnected;
+			result.complete(['STALE CA']);
+			await timeout(0);
+			assert.deepStrictEqual(connections.map(connection => connection.sentMessages.some(message => hasKey(message, { id: true }) && message.id === 1000)), [true, false]);
+		});
+	});
+
 	suite('worktree cleanup', () => {
+		test('does not send managed cleanup requests without the capability', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const before = transport.sentMessages.length;
+			const worktrees = await client.listManagedWorktrees([URI.file('/repo')]);
+			await assert.rejects(client.cleanupManagedWorktree(URI.file('/repo'), URI.file('/repo.worktrees/session'), 'agents/session'), /does not support/);
+			assert.deepStrictEqual({ worktrees, requests: transport.sentMessages.slice(before) }, { worktrees: [], requests: [] });
+		});
+
+		test('validates managed inventory and forwards an explicit branch-bound cleanup', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.managedWorktrees': true });
+			const inventory = client.listManagedWorktrees([URI.file('/repo')]);
+			const listRequest = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: listRequest.id, result: [{ repository: 'file:///repo', worktree: 'file:///repo.worktrees/recovered', branch: 'agents/recovered', cleanupStatus: { state: 'unknown' } }] });
+			const worktrees = await inventory;
+			const cleanup = client.cleanupManagedWorktree(URI.parse(worktrees[0].repository), URI.parse(worktrees[0].worktree), worktrees[0].branch);
+			const cleanupRequest = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: cleanupRequest.id, result: null });
+			await cleanup;
+			assert.deepStrictEqual({
+				list: { method: listRequest.method, params: listRequest.params },
+				cleanup: { method: cleanupRequest.method, params: cleanupRequest.params },
+			}, {
+				list: { method: 'vscode/listManagedWorktrees', params: { repositories: ['file:///repo'] } },
+				cleanup: { method: 'vscode/cleanupManagedWorktree', params: { repository: 'file:///repo', worktree: 'file:///repo.worktrees/recovered', branch: 'agents/recovered' } },
+			});
+		});
+
+		test('rejects malformed managed inventory', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.managedWorktrees': true });
+			const inventory = client.listManagedWorktrees([URI.file('/repo')]);
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: [{ worktree: 'file:///repo.worktrees/recovered' }] });
+			await assert.rejects(inventory, /invalid worktree inventory/);
+		});
+
 		for (const capability of [undefined, false, 'true', {}]) {
 			test(`does not offer retry without a valid capability (${JSON.stringify(capability)})`, async () => {
 				const { client, transport } = createClient();
@@ -2890,6 +3051,27 @@ suite('AgentHostProtocolClient', () => {
 		}));
 	}
 
+	test('initialize offers the current protocol version first only while chats may use their own agents', async () => {
+		const offer = async (enabled: boolean) => {
+			const transport = disposables.add(new TestClientProtocolTransport());
+			const { client } = createClientForIdentity('test.example:1234', transport, createPermissionService(), undefined, new NullLogService(), new TestConfigurationService({ [ChatProvidersSettingId.Enabled]: enabled }));
+			const connectPromise = client.connect();
+			transport.connectDeferred.complete();
+			while (transport.sentMessages.length === 0) {
+				await Promise.resolve();
+			}
+			const sent = transport.sentMessages[0] as JsonRpcRequest;
+			const offered = (sent.params as { protocolVersions: string[] }).protocolVersions;
+			transport.fireMessage({ jsonrpc: '2.0', id: sent.id, result: { protocolVersion: negotiateAgentHostProtocolVersion(offered)!, serverSeq: 0, snapshots: [] } });
+			await connectPromise;
+			return { offered, negotiated: negotiateAgentHostProtocolVersion(offered) };
+		};
+		assert.deepStrictEqual({ off: await offer(false), on: await offer(true) }, {
+			off: { offered: ['1.0.0', '0.10.0', '0.9.0'], negotiated: '1.0.0' },
+			on: { offered: [PROTOCOL_VERSION, '1.0.0', '0.10.0', '0.9.0'], negotiated: PROTOCOL_VERSION },
+		});
+	});
+
 	test('initialize handshake includes protocol version and client info', async () => {
 		const transport = disposables.add(new TestClientProtocolTransport(AgentHostClientConnectionKind.DevTunnel));
 		const clientInfo = agentsWindowAgentHostClientInfo;
@@ -3651,6 +3833,37 @@ suite('AgentHostProtocolClient', () => {
 		const error = { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found' };
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, error });
 		await assertRemoteProtocolError(result, error);
+	});
+
+	test('deleteAutomation sends exact session identities through the supported extension', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, false, true));
+		const before = transport.sentMessages.length;
+		const result = client.deleteAutomation('ahp-automation:/a', true, [URI.parse('ahp-session://tenant/opaque')], 'delete-request');
+		const sent = transport.sentMessages.at(-1) as JsonRpcRequest;
+		transport.fireMessage({ jsonrpc: '2.0', id: sent.id, result: ['ahp-session://tenant/opaque'] });
+		assert.deepStrictEqual(await result, ['ahp-session://tenant/opaque']);
+		assert.deepStrictEqual({ count: transport.sentMessages.length - before, method: sent.method, params: sent.params }, {
+			count: 1, method: 'vscode/deleteAutomation',
+			params: { automation: 'ahp-automation:/a', deleteHistory: true, legacySessions: ['ahp-session://tenant/opaque'], requestId: 'delete-request' },
+		});
+
+		const acknowledgement = client.acknowledgeAutomationDeletion('delete-request');
+		const acknowledgementSent = transport.sentMessages.at(-1) as JsonRpcRequest;
+		transport.fireMessage({ jsonrpc: '2.0', id: acknowledgementSent.id, result: null });
+		await acknowledgement;
+		assert.deepStrictEqual({ method: acknowledgementSent.method, params: acknowledgementSent.params }, {
+			method: 'vscode/acknowledgeAutomationDeletion',
+			params: { requestId: 'delete-request' },
+		});
+	});
+
+	test('deleteAutomation sends nothing without the history capability', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport);
+		const before = transport.sentMessages.length;
+		await assert.rejects(() => client.deleteAutomation('ahp-automation:/a', true));
+		assert.strictEqual(transport.sentMessages.length, before);
 	});
 
 	test('manages Copilot extensions through advertised extension methods', async () => {
@@ -4993,6 +5206,200 @@ suite('AgentHostProtocolClient', () => {
 			});
 			await connectPromise;
 		}
+
+		/**
+		 * Connects a client whose host's `multipleChatProviders` gate is off at the handshake (no capability), then turns
+		 * the gate on through a root config action, as this client's own mirror does. Returns the requests each transport sent.
+		 */
+		async function connectWithHostGateTurningOn(clientSetting: boolean) {
+			const { client, transports, configurationService } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 });
+			configurationService.setUserConfiguration(ChatProvidersSettingId.Enabled, clientSetting);
+			const connecting = client.connect();
+			transports[0].connectDeferred.complete();
+			const initialize = await waitForRequest(transports[0], 'initialize');
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 1, state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: false } } } }] },
+			});
+			await connecting;
+			transports[0].fireMessage({
+				jsonrpc: '2.0', method: 'action', params: {
+					channel: ROOT_STATE_URI, serverSeq: 2, origin: undefined, action: { type: ActionType.RootConfigChanged, config: { [ChatProvidersConfigKey.Enabled]: true } },
+				},
+			});
+			await flushMicrotasks();
+			return { client, transports };
+		}
+
+		test('re-initializes once when the host enables chats with their own agents after the handshake', async () => {
+			const { client, transports } = await connectWithHostGateTurningOn(true);
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const initialize = await waitForRequest(replacement, 'initialize');
+			replacement.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 3, multipleChatProviders: {}, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 3, state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: true } } } }] },
+			});
+			await waitForConnectedWithin(client);
+			// Another config change on the re-initialized connection does not re-initialize again.
+			replacement.fireMessage({
+				jsonrpc: '2.0', method: 'action', params: {
+					channel: ROOT_STATE_URI, serverSeq: 4, origin: undefined, action: { type: ActionType.RootConfigChanged, config: { other: 1 } },
+				},
+			});
+			await timeout(10);
+
+			assert.deepStrictEqual({
+				transports: transports.length,
+				replacementMethods: replacement.sentMessages.filter((message): message is JsonRpcRequest => 'id' in message && 'method' in message).map(message => message.method).filter(method => method === 'initialize' || method === 'reconnect'),
+				capability: client.initializeResult.get()?.multipleChatProviders,
+			}, { transports: 2, replacementMethods: ['initialize'], capability: {} });
+		});
+
+		test('a subscribe in flight when the host enables chats with their own agents succeeds after the re-initialize', async () => {
+			const { client, transports, configurationService } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 });
+			configurationService.setUserConfiguration(ChatProvidersSettingId.Enabled, true);
+			const connecting = client.connect();
+			transports[0].connectDeferred.complete();
+			const initialize = await waitForRequest(transports[0], 'initialize');
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 1, state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: false } } } }] },
+			});
+			await connecting;
+			const session = URI.parse('copilot:/in-flight');
+			const subscribed = client.subscribe(session);
+			await waitForRequest(transports[0], 'subscribe');
+			// The re-initialize drops the transport before the host answers the subscribe.
+			transports[0].fireMessage({
+				jsonrpc: '2.0', method: 'action', params: {
+					channel: ROOT_STATE_URI, serverSeq: 2, origin: undefined, action: { type: ActionType.RootConfigChanged, config: { [ChatProvidersConfigKey.Enabled]: true } },
+				},
+			});
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const reinitialize = await waitForRequest(replacement, 'initialize');
+			replacement.fireMessage({
+				jsonrpc: '2.0', id: reinitialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 3, multipleChatProviders: {}, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 3, state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: true } } } }] },
+			});
+			const retried = await waitForRequest(replacement, 'subscribe');
+			replacement.fireMessage({ jsonrpc: '2.0', id: retried.id, result: { snapshot: { resource: session.toString(), fromSeq: 3, state: { title: 'restored' } } } });
+
+			const snapshot = await subscribed;
+			assert.deepStrictEqual({ resource: snapshot.resource, title: (snapshot.state as { title?: string }).title, retriedChannel: (retried.params as { channel: string }).channel }, { resource: session.toString(), title: 'restored', retriedChannel: session.toString() });
+		});
+
+		test('does not re-initialize when the first handshake already advertises chats with their own agents (a local host seeded by its starter)', async () => {
+			const { client, transports, configurationService } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 });
+			configurationService.setUserConfiguration(ChatProvidersSettingId.Enabled, true);
+			const connecting = client.connect();
+			transports[0].connectDeferred.complete();
+			const initialize = await waitForRequest(transports[0], 'initialize');
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, multipleChatProviders: {}, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 1, state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: true } } } }] },
+			});
+			await connecting;
+			// The client's own mirror of the setting confirms the host's gate.
+			transports[0].fireMessage({
+				jsonrpc: '2.0', method: 'action', params: {
+					channel: ROOT_STATE_URI, serverSeq: 2, origin: undefined, action: { type: ActionType.RootConfigChanged, config: { [ChatProvidersConfigKey.Enabled]: true } },
+				},
+			});
+			await timeout(10);
+
+			assert.deepStrictEqual({ transports: transports.length, capability: client.initializeResult.get()?.multipleChatProviders }, { transports: 1, capability: {} });
+		});
+
+		test('does not re-initialize for chats with their own agents with the setting off', async () => {
+			const { transports } = await connectWithHostGateTurningOn(false);
+			await timeout(10);
+			assert.strictEqual(transports.length, 1);
+		});
+
+		/**
+		 * Connects a client with the `multipleChatProviders` setting off, so the handshake negotiates `1.0.0`, then turns
+		 * the setting on and lets the host echo the mirrored gate (unless it was already on). Returns the offered versions.
+		 */
+		async function connectBelowChatProvidersVersionThenEnable(hostGateAlreadyOn = false) {
+			const { client, transports, configurationService } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 });
+			configurationService.setUserConfiguration(ChatProvidersSettingId.Enabled, false);
+			const connecting = client.connect();
+			transports[0].connectDeferred.complete();
+			const initialize = await waitForRequest(transports[0], 'initialize');
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: '1.0.0', serverSeq: 1, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 1, state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: hostGateAlreadyOn } } } }] },
+			});
+			await connecting;
+			configurationService.setUserConfiguration(ChatProvidersSettingId.Enabled, true);
+			fireConfigurationChange(configurationService, ChatProvidersSettingId.Enabled);
+			if (!hostGateAlreadyOn) {
+				transports[0].fireMessage({
+					jsonrpc: '2.0', method: 'action', params: {
+						channel: ROOT_STATE_URI, serverSeq: 2, origin: undefined, action: { type: ActionType.RootConfigChanged, config: { [ChatProvidersConfigKey.Enabled]: true } },
+					},
+				});
+			}
+			await flushMicrotasks();
+			return { client, transports, configurationService, firstOffered: (initialize.params as { protocolVersions: string[] }).protocolVersions };
+		}
+
+		async function completeChatProvidersReinitialize(transports: TestClientProtocolTransport[], client: AgentHostProtocolClient, advertise: boolean) {
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const initialize = await waitForRequest(replacement, 'initialize');
+			replacement.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 3, ...(advertise ? { multipleChatProviders: {} } : {}), snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 3, state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: true } } } }] },
+			});
+			await waitForConnectedWithin(client);
+			return { replacement, offered: (initialize.params as { protocolVersions: string[] }).protocolVersions };
+		}
+
+		for (const hostGateAlreadyOn of [false, true]) {
+			test(`re-initializes once offering ${PROTOCOL_VERSION} when the setting turns on after an older handshake (host gate already on: ${hostGateAlreadyOn})`, async () => {
+				const { client, transports, firstOffered } = await connectBelowChatProvidersVersionThenEnable(hostGateAlreadyOn);
+				const { offered } = await completeChatProvidersReinitialize(transports, client, true);
+
+				assert.deepStrictEqual({
+					transports: transports.length,
+					firstOffered: firstOffered.includes(PROTOCOL_VERSION),
+					offered: offered.includes(PROTOCOL_VERSION),
+					capability: client.initializeResult.get()?.multipleChatProviders,
+				}, { transports: 2, firstOffered: false, offered: true, capability: {} });
+			});
+		}
+
+		test('re-initializes at most once when the host still does not advertise chats with their own agents', async () => {
+			const { client, transports, configurationService } = await connectBelowChatProvidersVersionThenEnable();
+			const { replacement } = await completeChatProvidersReinitialize(transports, client, false);
+			replacement.fireMessage({
+				jsonrpc: '2.0', method: 'action', params: {
+					channel: ROOT_STATE_URI, serverSeq: 4, origin: undefined, action: { type: ActionType.RootConfigChanged, config: { other: 1 } },
+				},
+			});
+			fireConfigurationChange(configurationService, ChatProvidersSettingId.Enabled);
+			await timeout(10);
+
+			assert.deepStrictEqual({ transports: transports.length, capability: client.initializeResult.get()?.multipleChatProviders }, { transports: 2, capability: undefined });
+		});
+
+		test('does not reconnect when the setting turns off', async () => {
+			const { client, transports, configurationService } = await connectBelowChatProvidersVersionThenEnable();
+			await completeChatProvidersReinitialize(transports, client, true);
+			configurationService.setUserConfiguration(ChatProvidersSettingId.Enabled, false);
+			fireConfigurationChange(configurationService, ChatProvidersSettingId.Enabled);
+			transports[1].fireMessage({
+				jsonrpc: '2.0', method: 'action', params: {
+					channel: ROOT_STATE_URI, serverSeq: 4, origin: undefined, action: { type: ActionType.RootConfigChanged, config: { [ChatProvidersConfigKey.Enabled]: false } },
+				},
+			});
+			await timeout(10);
+
+			assert.deepStrictEqual({ transports: transports.length, state: client.connectionState }, { transports: 2, state: AgentHostClientState.Connected });
+		});
 
 		const advertisedAgent = {
 			provider: 'copilot' as const, displayName: 'Test', description: 'test', models: [],

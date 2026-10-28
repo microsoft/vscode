@@ -20,6 +20,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentSession, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService, type IAgentHostSessionResolutionPolicy, type IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostWorktreeDiskUsageMeta.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -29,9 +30,10 @@ import { IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostCon
 import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
+import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ResourceType, type ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatOriginKind, ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, SessionOriginKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, createActiveTurn, createChatState, isAhpAutomationCatalogChannel, readSessionWorkspaceless, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionExternal, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -53,7 +55,7 @@ import { ISessionChangeEvent, ISessionsProvider, ISessionsProviderCreateSessionO
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ChatInteractivity, ChatModelSource, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type ISession, type ISessionFileChange } from '../../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, getChatCapabilities, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type ISession, type ISessionFileChange } from '../../../../../services/sessions/common/session.js';
 import { SessionPullRequestPresentationModel } from '../../../../github/browser/pullRequestIconStatus.js';
 import { buildSessionPullRequestSections } from '../../../../chat/browser/sessionChatInputToolbar.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -72,6 +74,7 @@ import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { IAgentHostMcpAppToolsService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { AgentHostSessionAdapter, CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
@@ -395,6 +398,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
+		override acquireSessionTools = () => new ImmortalReference(constObservable([]));
 		override acquireScope = (_sessionType: string, _roots: readonly URI[]) => ({
 			customizations: constObservable([]),
 			customAgents: constObservable([]),
@@ -405,6 +409,10 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 			activeClient: (clientId: string) => constObservable({ clientId, tools: [], customizations: [] }),
 			dispose: () => { },
 		});
+	}());
+
+	instantiationService.stub(IAgentHostMcpAppToolsService, new class extends mock<IAgentHostMcpAppToolsService>() {
+		override getToolDefinitions = () => constObservable([]);
 	}());
 
 	const config: IRemoteAgentHostSessionsProviderConfig = {
@@ -690,6 +698,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	for (const status of [ProtocolSessionStatus.Idle, ProtocolSessionStatus.InProgress, ProtocolSessionStatus.InputNeeded]) {
 		test(`forwards the advertised identity so the host decides whether all worktree owners are idle (${status})`, async () => {
+			connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } }, undefined);
 			const sessions: (string | undefined)[] = [];
 			connection.measureWorktreeDiskUsage = async (_root, _token, session) => {
 				sessions.push(session?.toString());
@@ -708,8 +717,31 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	}
 
+	for (const availability of ['available', 'disconnected', 'unsupported', 'missing-method']) {
+		test(`distinguishes removed storage from unavailable worktree measurement (${availability})`, async () => {
+			let measurements = 0;
+			if (availability !== 'unsupported') {
+				connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } }, undefined);
+			}
+			if (availability !== 'missing-method') {
+				connection.measureWorktreeDiskUsage = async () => { measurements++; return undefined; };
+			}
+			const provider = createProvider(disposables, connection, { noConnection: availability === 'disconnected' });
+			provider.seedSessions([createSession('removed-worktree', {
+				session: URI.parse('other-host:/opaque/session'),
+				project: { uri: URI.file('/repo'), displayName: 'repo' },
+				workingDirectory: URI.file('/repo.worktrees/removed-worktree'),
+			})]);
+			assert.deepStrictEqual({
+				size: await provider.getSessionWorktreeDiskUsage(provider.getSessions()[0].sessionId),
+				measurements,
+			}, { size: availability === 'available' ? 0 : undefined, measurements: availability === 'available' ? 1 : 0 });
+		});
+	}
+
 	for (const sandbox of [false, true]) {
 		test(sandbox ? 'does not measure cloud sandbox worktrees' : 'continues measuring ordinary remote worktrees', async () => {
+			connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } }, undefined);
 			let resourceRequests = 0;
 			const aggregateRequests: URI[] = [];
 			connection.measureWorktreeDiskUsage = async root => {
@@ -724,6 +756,10 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				resourceRequests++;
 				return { entries: [] };
 			};
+			connection.addSession(createSession('worktree-session', {
+				project: { uri: URI.file('/repo'), displayName: 'repo' },
+				workingDirectory: URI.file('/repo.worktrees/worktree-session'),
+			}));
 			const provider = createProvider(disposables, connection, {
 				ctor: sandbox ? CloudSandboxSessionsProvider : RemoteAgentHostSessionsProvider,
 			});
@@ -734,18 +770,111 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			const session = provider.getSessions()[0];
 
 			const sizeBytes = await provider.getSessionWorktreeDiskUsage(session.sessionId);
+			const exists = await provider.sessionWorktreeExists(session.sessionId);
 
 			assert.deepStrictEqual({
 				hasWorktree: session.workspace.get()?.folders.some(folder => !!folder.gitRepository?.workTreeUri),
 				sizeBytes,
+				exists,
 				aggregateRequests: aggregateRequests.map(root => root.toString()),
 				resourceRequests,
 			}, {
 				hasWorktree: true,
 				sizeBytes: sandbox ? undefined : 0,
+				exists: sandbox ? undefined : true,
 				aggregateRequests: sandbox ? [] : [URI.file('/repo.worktrees/worktree-session').toString()],
-				resourceRequests: 0,
+				resourceRequests: sandbox ? 0 : 1,
 			});
+		});
+	}
+
+	suite('Automation session origin', () => {
+		const backend = URI.parse('ahp-session://tenant/opaque-automation');
+		const plainBackend = URI.parse('ahp-session://tenant/opaque-plain');
+		const origin = { kind: SessionOriginKind.Automation, automation: 'automation://tenant/a%2Fb?rev=1', run: 'automation-run://tenant/r%2F1' } as const;
+		const marks = (provider: RemoteAgentHostSessionsProvider) => Object.fromEntries(provider.getSessions().map(session => [session.title.get(), session.isAutomation?.get()]));
+
+		function addSessions(): void {
+			connection.addSession({ ...createSession('opaque-automation', { session: backend, summary: 'Automation run' }), origin });
+			connection.addSession(createSession('opaque-plain', { session: plainBackend, summary: 'Plain' }));
+		}
+
+		test('derives isAutomation from opaque host session origin and preserves it in partial updates', async () => {
+			addSessions();
+			const provider = createProvider(disposables, connection);
+			await timeout(0);
+			const initial = marks(provider);
+			connection.fireNotification({
+				type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://', session: plainBackend.toString(),
+				changes: { origin },
+			});
+			connection.fireNotification({
+				type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://', session: backend.toString(),
+				changes: { title: 'Renamed run' },
+			});
+			assert.deepStrictEqual([initial, marks(provider)], [
+				{ 'Automation run': true, 'Plain': false },
+				{ 'Renamed run': true, 'Plain': true },
+			]);
+		});
+
+		test('restores automation provenance from a fresh offline provider cache', async () => {
+			addSessions();
+			const storageService = disposables.add(new InMemoryStorageService());
+			const provider = createProvider(disposables, connection, { storageService });
+			await timeout(0);
+			await storageService.flush();
+			provider.dispose();
+			const restored = createProvider(disposables, connection, { storageService, noConnection: true });
+			assert.deepStrictEqual(marks(restored), { 'Automation run': true, 'Plain': false });
+		});
+	});
+
+	for (const result of ['exists', 'absent', 'permission', 'unavailable', 'unsupported', 'disconnected'] as const) {
+		test(`checks worktree existence through its owning host without a measurement extension (${result})`, async () => {
+			const requests: { uri: string; followSymlinks: boolean | undefined }[] = [];
+			connection.resourceResolve = async params => {
+				requests.push({ uri: params.uri, followSymlinks: params.followSymlinks });
+				if (result !== 'exists') {
+					throw new ProtocolError(result === 'absent' ? AhpErrorCodes.NotFound : result === 'permission' ? AhpErrorCodes.PermissionDenied : result === 'unavailable' ? JsonRpcErrorCodes.InternalError : JsonRpcErrorCodes.MethodNotFound, result);
+				}
+				return { uri: params.uri, type: ResourceType.Directory };
+			};
+			const provider = createProvider(disposables, connection, { noConnection: result === 'disconnected' });
+			provider.seedSessions([createSession('existence', {
+				session: URI.parse('other-host:/opaque/session'),
+				project: { uri: toAgentHostUri(URI.file('/repo'), 'test-host'), displayName: 'repo' },
+				workingDirectory: toAgentHostUri(URI.file('/repo.worktrees/existence'), 'test-host'),
+			})]);
+			const check = provider.sessionWorktreeExists(provider.getSessions()[0].sessionId);
+			if (result === 'permission' || result === 'unavailable' || result === 'unsupported') {
+				await assert.rejects(check, { code: result === 'permission' ? AhpErrorCodes.PermissionDenied : result === 'unavailable' ? JsonRpcErrorCodes.InternalError : JsonRpcErrorCodes.MethodNotFound });
+			} else {
+				assert.strictEqual(await check, result === 'disconnected' ? undefined : result === 'exists');
+			}
+			assert.deepStrictEqual(requests, result === 'disconnected' ? [] : [{ uri: 'file:///repo.worktrees/existence', followSymlinks: false }]);
+		});
+	}
+
+	for (const lastExists of [false, true]) {
+		test(`requires all worktree roots to be absent without listing contents (last root exists: ${lastExists})`, async () => {
+			const requests: string[] = [];
+			connection.resourceResolve = async params => {
+				requests.push(params.uri);
+				if (!lastExists || !params.uri.endsWith('/second')) {
+					throw new ProtocolError(AhpErrorCodes.NotFound, 'Missing');
+				}
+				return { uri: params.uri, type: ResourceType.Directory };
+			};
+			const provider = createProvider(disposables, connection);
+			provider.seedSessions([{
+				...createSession('multiple', { session: URI.parse('other-host:/opaque/multiple'), project: { uri: URI.file('/repo'), displayName: 'repo' } }),
+				workingDirectories: [URI.file('/repo.worktrees/first'), URI.file('/repo.worktrees/second'), URI.file('/repo.worktrees/first')],
+			}]);
+			assert.deepStrictEqual({
+				exists: await provider.sessionWorktreeExists(provider.getSessions()[0].sessionId),
+				requests,
+			}, { exists: lastExists, requests: ['file:///repo.worktrees/first', 'file:///repo.worktrees/second'] });
 		});
 	}
 
@@ -2291,7 +2420,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	// ---- Session actions -------
 
-	test('opaque advertised default and peer chat mutations use host resources without native reconstruction', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('opaque advertised default and side chat mutations use host resources without native reconstruction', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const disposed: string[] = [];
 		const created: { session: string; forkSource?: string; sideChatSource?: string; title?: string }[] = [];
 		const backend = URI.parse('session-store://tenant/opaque/session?generation%3D2');
@@ -2300,7 +2429,10 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		let state: SessionState = {
 			provider: 'copilot', title: 'Opaque', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [],
 			defaultChat: defaultChat.toString(),
-			chats: [defaultChat, peer].map(resource => createChatState({ resource: resource.toString(), title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(2000).toISOString() })),
+			chats: [
+				createChatState({ resource: defaultChat.toString(), title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(2000).toISOString() }),
+				createChatState({ resource: peer.toString(), title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(2000).toISOString(), origin: { kind: ChatOriginKind.SideChat, chat: defaultChat.toString(), turnId: 'source-turn' } }),
+			],
 		};
 		const peerConnection = new class extends MockAgentConnection {
 			override readonly initializeResult = constObservable<InitializeResult>({ protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] });
@@ -2315,30 +2447,37 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		peerConnection.setAgents([{ provider: 'copilot', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo]);
 		peerConnection.addSession({
 			session: backend, provider: 'copilot', startTime: 1000, modifiedTime: 2000, summary: 'Opaque',
-			chats: [{ chat: defaultChat, kind: 'default', summary: 'Default' }, { chat: peer, kind: 'peer', summary: 'Peer' }],
+			chats: [
+				{ chat: defaultChat, kind: 'default', summary: 'Default' },
+				{ chat: peer, kind: 'peer', summary: 'Peer', origin: { kind: ChatOriginKind.SideChat, chat: defaultChat.toString(), turnId: 'source-turn' } },
+			],
 		});
 		peerConnection.setChannelState(backend, state);
 		const provider = createProvider(disposables, peerConnection);
 		await timeout(0);
 		const session = provider.getSessions()[0];
 		const peerResource = session.resource.with({ fragment: peer.toString() });
+		const canArchive = getChatCapabilities(session.chats.get().find(chat => chat.resource.fragment === peer.toString())!, session, undefined).canArchive;
 		await provider.forkChat(session.sessionId, session.resource, 'source-turn', { title: 'Optional fork title' });
 		await provider.createSideChat(session.sessionId, peerResource, 'source-turn');
 		await provider.renameChat(session.sessionId, session.resource, 'Renamed default');
 		await provider.renameChat(session.sessionId, peerResource, 'Renamed peer');
 		await provider.archiveChat(session.sessionId, peerResource);
+		await provider.unarchiveChat(session.sessionId, peerResource);
 		await assert.rejects(provider.forkChat(session.sessionId, session.resource.with({ fragment: 'unknown-peer' }), 'source-turn'), /The chat could not be found/);
 		await assert.rejects(provider.createSideChat(session.sessionId, session.resource.with({ fragment: 'unknown-peer' }), 'source-turn'), /The chat could not be found/);
 		await provider.deleteChat(session.sessionId, peerResource, { skipConfirmation: true });
 		assert.deepStrictEqual({
+			canArchive,
 			titles: peerConnection.dispatchedActions.filter(entry => entry.action.type === ActionType.SessionTitleChanged).map(entry => entry.channel),
 			archives: peerConnection.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatIsArchivedChanged).map(entry => entry.channel),
 			disposed,
 			created,
 			resource: session.resource.toString(),
 		}, {
+			canArchive: true,
 			titles: [backend.toString(), peer.toString()],
-			archives: [peer.toString()],
+			archives: [peer.toString(), peer.toString()],
 			disposed: [peer.toString()],
 			created: [
 				{ session: backend.toString(), forkSource: defaultChat.toString(), sideChatSource: undefined, title: 'Optional fork title' },
