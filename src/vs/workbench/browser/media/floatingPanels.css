@@ -93,7 +93,7 @@
 	margin-bottom: var(--modern-ui-floating-card-inner-margin);
 }
 
-.monaco-workbench.floating-panels:not(.modern-ui-compact) .part.panel.top.floating-part-outer-bottom {
+.monaco-workbench.floating-panels.nostatusbar:not(.modern-ui-compact) .part.panel.top.floating-part-outer-bottom {
 	margin-bottom: var(--modern-ui-floating-card-outer-margin);
 }
 
@@ -226,9 +226,9 @@
 	 * keep their inset whatever the gutter is. The card width and the item centering below
 	 * both derive from it, and `ActivitybarPart.floatingHorizontalGutter` reserves it. */
 	--modern-ui-activitybar-lane: var(--vscode-spacing-size80);
-	margin: var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-margin);
+	margin: var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-statusbar-margin);
 	width: calc(var(--activity-bar-width, 48px) + var(--modern-ui-activitybar-lane));
-	height: calc(100% - var(--modern-ui-floating-card-margin));
+	height: calc(100% - var(--modern-ui-floating-card-statusbar-margin));
 	padding-left: var(--vscode-spacing-sizeNone);
 	padding-right: var(--vscode-spacing-sizeNone);
 	border: 1px solid var(--modern-ui-floating-card-border-color, var(--vscode-modernActivityBar-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent))));
@@ -285,21 +285,13 @@
 
 .monaco-workbench.floating-panels.top-window-edge .part.activitybar {
 	margin-top: var(--modern-ui-floating-card-outer-margin);
-	height: calc(100% - var(--modern-ui-floating-card-outer-margin) - var(--modern-ui-floating-card-margin));
+	height: calc(100% - var(--modern-ui-floating-card-outer-margin) - var(--modern-ui-floating-card-statusbar-margin));
 }
 
-/* Compact density treats the status bar as chrome outside the cluster, so the rail's
- * bottom edge is a cluster perimeter rather than an inter-card gap. */
 /* Compact density keeps the tighter icon inset that matches its denser rhythm. */
 .monaco-workbench.floating-panels.modern-ui-compact .part.activitybar {
 	--modern-ui-activitybar-lane: var(--vscode-spacing-size40);
-	margin-bottom: var(--modern-ui-floating-card-outer-margin);
-	height: calc(100% - var(--modern-ui-floating-card-outer-margin));
 	border-radius: 0;
-}
-
-.monaco-workbench.floating-panels.modern-ui-compact.top-window-edge .part.activitybar {
-	height: calc(100% - (var(--modern-ui-floating-card-outer-margin) * 2));
 }
 
 .monaco-workbench.floating-panels .activitybar.compact > .content > .composite-bar {
@@ -409,8 +401,7 @@
 	padding-right: var(--vscode-spacing-size40);
 }
 
-/* The status bar and bottommost floating card share an edge so the full rail and
- * the status bar's painted background have the same vertical centerline. */
+/* Remove the upper cards' gutter at a visible status bar without changing the bar's padding. */
 .monaco-workbench.floating-panels .part.floating-part-outer-bottom,
 .monaco-workbench.floating-panels > .monaco-grid-view .part.editor.floating-editor-outer-bottom {
 	margin-bottom: var(--modern-ui-floating-card-statusbar-margin);

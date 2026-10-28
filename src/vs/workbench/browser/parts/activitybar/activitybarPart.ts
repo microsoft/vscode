@@ -404,14 +404,11 @@ export class ActivitybarPart extends Part {
 			return { top: 0, bottom: 0 };
 		}
 
-		const margin = getFloatingPanelMargin(this.layoutService);
 		const outerMargin = getFloatingPanelOuterMargin(this.layoutService);
 		const border = ActivitybarPart.FLOATING_BORDER;
 		return {
 			top: border + (isFloatingTopEdgeExposed(this.layoutService, mainWindow) ? outerMargin : FLOATING_PANEL_INNER_MARGIN),
-			bottom: border + (this.layoutService.isModernUICompact()
-				? outerMargin
-				: this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) ? margin : outerMargin)
+			bottom: border + (this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) ? FLOATING_PANEL_INNER_MARGIN : outerMargin)
 		};
 	}
 

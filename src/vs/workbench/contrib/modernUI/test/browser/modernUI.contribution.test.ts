@@ -1294,7 +1294,7 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('centers left and right status bar items within the floating rail', () => {
+	test('preserves left and right status bar padding and control geometry', () => {
 		const measure = (className: string, statusbarHeight: number) => {
 			const root = document.createElement('div');
 			root.className = className;
@@ -1365,6 +1365,41 @@ suite('ModernUIContribution', () => {
 		assert.deepStrictEqual({ statusBarVisible, statusBarHidden }, {
 			statusBarVisible: { editor: '0px', panel: '0px' },
 			statusBarHidden: { editor: '4px', panel: '4px' },
+		});
+	});
+
+	test('upper editor edge meets the status bar without moving either status item group', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui floating-panels');
+		root.style.cssText = 'position: relative; display: flex; flex-direction: column; width: 240px; --vscode-spacing-sizeNone: 0px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px;';
+		store.add(toDisposable(() => root.remove()));
+		const grid = appendElement(root, 'monaco-grid-view');
+		grid.style.cssText = 'display: flex; flex-direction: column;';
+		const editor = appendElement(grid, 'part editor floating-editor-outer-bottom');
+		editor.style.cssText = 'height: 100px; flex: none;';
+		const statusbar = appendElement(root, 'part statusbar');
+		statusbar.style.cssText = 'height: 28px; flex: none;';
+		const groups = ['left', 'right'].map(side => {
+			const container = appendElement(statusbar, `${side}-items items-container`);
+			const item = appendElement(container, `statusbar-item ${side}`);
+			appendElement(item, 'statusbar-item-label');
+			return item;
+		});
+		const bounds = statusbar.getBoundingClientRect();
+		const style = getWindow(statusbar).getComputedStyle(statusbar);
+
+		assert.deepStrictEqual({
+			externalGap: bounds.top - editor.getBoundingClientRect().bottom,
+			statusbarHeight: bounds.height,
+			padding: [style.paddingTop, style.paddingBottom],
+			items: groups.map(item => {
+				const itemBounds = item.getBoundingClientRect();
+				return { top: itemBounds.top - bounds.top, bottom: bounds.bottom - itemBounds.bottom, height: itemBounds.height };
+			}),
+		}, {
+			externalGap: 0,
+			statusbarHeight: 28,
+			padding: ['2px', '2px'],
+			items: [{ top: 2, bottom: 2, height: 24 }, { top: 2, bottom: 2, height: 24 }],
 		});
 	});
 
@@ -2186,7 +2221,7 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('default density top panel keeps the outer bottom gutter when maximized', () => {
+	test('maximized top panel keeps an outer bottom gutter only without the status bar', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui floating-panels';
 		root.style.setProperty('--vscode-spacing-size40', '4px');
@@ -2198,13 +2233,61 @@ suite('ModernUIContribution', () => {
 		const maximizedPanel = appendElement(root, 'part panel top floating-part-outer-bottom');
 		const targetWindow = getWindow(root);
 
-		assert.deepStrictEqual({
+		const margins = () => ({
 			panelBottomMargin: targetWindow.getComputedStyle(panel).marginBottom,
 			maximizedPanelBottomMargin: targetWindow.getComputedStyle(maximizedPanel).marginBottom,
-		}, {
-			panelBottomMargin: '0px',
-			maximizedPanelBottomMargin: '4px',
 		});
+		const visible = margins();
+		root.classList.add('nostatusbar');
+		const hidden = margins();
+		root.classList.add('modern-ui-compact');
+		const compactHidden = margins();
+		root.classList.remove('nostatusbar');
+
+		assert.deepStrictEqual({ visible, hidden, compactHidden, compactVisible: margins() }, {
+			visible: { panelBottomMargin: '0px', maximizedPanelBottomMargin: '0px' },
+			hidden: { panelBottomMargin: '0px', maximizedPanelBottomMargin: '4px' },
+			compactHidden: { panelBottomMargin: '0px', maximizedPanelBottomMargin: '0px' },
+			compactVisible: { panelBottomMargin: '0px', maximizedPanelBottomMargin: '0px' },
+		});
+	});
+
+	test('activity bar geometry meets the status bar and preserves exposed window gutters', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui floating-panels');
+		root.style.height = '200px';
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-sizeNone', '0px');
+		store.add(toDisposable(() => root.remove()));
+
+		const bars = ['left', 'right'].map(position => {
+			const bar = appendElement(root, `part activitybar ${position}`);
+			bar.style.boxSizing = 'border-box';
+			return bar;
+		});
+		const measure = () => bars.map(bar => {
+			const style = getWindow(bar).getComputedStyle(bar);
+			return { top: style.marginTop, bottom: style.marginBottom, height: bar.getBoundingClientRect().height };
+		});
+		const results = [measure()];
+		root.classList.add('top-window-edge');
+		results.push(measure());
+		root.classList.add('nostatusbar');
+		results.push(measure());
+		root.classList.remove('top-window-edge');
+		results.push(measure());
+		root.classList.add('modern-ui-compact');
+		results.push(measure());
+		root.classList.remove('nostatusbar');
+		results.push(measure());
+
+		assert.deepStrictEqual(results, [
+			[{ top: '0px', bottom: '0px', height: 200 }, { top: '0px', bottom: '0px', height: 200 }],
+			[{ top: '4px', bottom: '0px', height: 196 }, { top: '4px', bottom: '0px', height: 196 }],
+			[{ top: '4px', bottom: '4px', height: 192 }, { top: '4px', bottom: '4px', height: 192 }],
+			[{ top: '0px', bottom: '4px', height: 196 }, { top: '0px', bottom: '4px', height: 196 }],
+			[{ top: '0px', bottom: '0px', height: 200 }, { top: '0px', bottom: '0px', height: 200 }],
+			[{ top: '0px', bottom: '0px', height: 200 }, { top: '0px', bottom: '0px', height: 200 }],
+		]);
 	});
 
 	test('compact auxiliary window editors keep their outer radius', () => {

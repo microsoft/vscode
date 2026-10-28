@@ -515,7 +515,6 @@ suite('ActivitybarPart', () => {
 	}
 
 	test('reserves the perimeter gutter on each window edge the activity bar faces', () => {
-		const margin = ActivitybarPart.FLOATING_MARGIN;
 		// At the default density the window-edge perimeter matches the inter-card gap.
 		const outerMargin = ActivitybarPart.FLOATING_MARGIN;
 		const borders = ActivitybarPart.FLOATING_BORDER * 2;
@@ -540,9 +539,9 @@ suite('ActivitybarPart', () => {
 		};
 
 		assert.deepStrictEqual(actual, {
-			titleAndStatusBarVisible: 300 - margin - borders,
-			titleBarHidden: 300 - outerMargin - margin - borders,
-			bannerInsteadOfTitleBar: 300 - margin - borders,
+			titleAndStatusBarVisible: 300 - borders,
+			titleBarHidden: 300 - outerMargin - borders,
+			bannerInsteadOfTitleBar: 300 - borders,
 			statusBarHidden: 300 - outerMargin - borders,
 			bothEdgesExposed: 300 - outerMargin * 2 - borders,
 			floatingPanelsDisabled: 300,
@@ -647,7 +646,6 @@ suite('ActivitybarPart', () => {
 	}
 
 	test('composite bar is given back the leading item gap it does not render', () => {
-		const margin = ActivitybarPart.FLOATING_MARGIN;
 		const borders = ActivitybarPart.FLOATING_BORDER * 2;
 
 		assert.deepStrictEqual(
@@ -661,9 +659,9 @@ suite('ActivitybarPart', () => {
 				// No floating gutters and no gap between items.
 				classicDefault: 300,
 				classicCompact: 300,
-				// Floating reserves a bottom gutter and the card border; the 8px gap is then handed back.
-				modernDefault: 300 - margin - borders + ActivitybarPart.FLOATING_ACTION_GAP,
-				modernCompact: 300 - margin - borders,
+				// Floating reserves the card border; the leading item gap is then handed back.
+				modernDefault: 300 - borders + ActivitybarPart.FLOATING_ACTION_GAP,
+				modernCompact: 300 - borders,
 			}
 		);
 	});

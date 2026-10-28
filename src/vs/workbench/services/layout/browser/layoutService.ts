@@ -331,7 +331,7 @@ export function getFloatingSidebarSiblingToEditorStatus(
  * Vertical margins (in pixels) a floating pane composite (primary side bar, secondary side
  * bar or panel) reserves, mirroring the margins in `floatingPanels.css`. Compact density
  * uses the perimeter gutter whenever the edge faces window chrome rather than another card.
- * A bottommost card meets a visible status bar directly so both share a centerline.
+ * A bottommost card meets a visible status bar directly, without an external gutter.
  */
 export function getFloatingPaneCompositeVerticalMargins(
 	layoutService: IWorkbenchLayoutService,
