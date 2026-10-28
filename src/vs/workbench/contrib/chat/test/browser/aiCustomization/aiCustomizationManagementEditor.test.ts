@@ -772,6 +772,7 @@ suite('aiCustomizationManagementEditor', () => {
 		refreshCustomizationMigrationInfoFromPromptChange(): void;
 		refreshCustomizationMigrationInfoFromMcpChange(): void;
 		refreshCustomizationMigrationInfo(): Promise<void>;
+		restoreDetailOrigin(origin: { readonly kind: 'section'; readonly section: AICustomizationManagementSection }, preserveFocus?: boolean): Promise<void>;
 		refreshAgentMigrationRecoveries(): Promise<void>;
 		cancelCustomizationMigrationRefresh(): void;
 		registerCustomizationMigrationSessionRefresh(): void;
@@ -1491,6 +1492,28 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.showWelcomePage({ preserveFocus: true });
 
 		assert.deepStrictEqual({ resetFocus, focusCount }, { resetFocus: [true], focusCount: 0 });
+	});
+
+	test('restoring an MCP section origin can preserve focus', async () => {
+		const { editor } = createContributedSectionEditor();
+		const selections: { section: AICustomizationManagementSection; preserveFocus?: boolean }[] = [];
+		let focusCount = 0;
+		Object.assign(editor, {
+			selectSection(section: AICustomizationManagementSection, options?: { preserveFocus?: boolean }) {
+				selections.push({ section, preserveFocus: options?.preserveFocus });
+			},
+			mcpListWidget: {
+				setVisible() { },
+				focusSearch() { focusCount++; },
+			},
+		});
+
+		await editor.restoreDetailOrigin({ kind: 'section', section: AICustomizationManagementSection.McpServers }, true);
+
+		assert.deepStrictEqual({ selections, focusCount }, {
+			selections: [{ section: AICustomizationManagementSection.McpServers, preserveFocus: true }],
+			focusCount: 0,
+		});
 	});
 
 	test('a contributed section with no source settings remains hidden', () => {

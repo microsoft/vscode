@@ -3505,18 +3505,20 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		this.viewMode = 'list';
 		this.updateContentVisibility();
-		this.selectSection(origin.section);
+		this.selectSection(origin.section, { preserveFocus });
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
-		if (this.isPromptsSection(origin.section)) {
-			this.listWidget?.focusSearch();
-		} else if (origin.section === AICustomizationManagementSection.McpServers) {
-			this.mcpListWidget?.focusSearch();
-		} else if (origin.section === AICustomizationManagementSection.Plugins) {
-			this.pluginListWidget?.focusSearch();
-		} else if (origin.section === AICustomizationManagementSection.Tools) {
-			this.toolsListWidget?.focusSearch();
+		if (!preserveFocus) {
+			if (this.isPromptsSection(origin.section)) {
+				this.listWidget?.focusSearch();
+			} else if (origin.section === AICustomizationManagementSection.McpServers) {
+				this.mcpListWidget?.focusSearch();
+			} else if (origin.section === AICustomizationManagementSection.Plugins) {
+				this.pluginListWidget?.focusSearch();
+			} else if (origin.section === AICustomizationManagementSection.Tools) {
+				this.toolsListWidget?.focusSearch();
+			}
 		}
 	}
 
@@ -3658,22 +3660,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 
 		if (this.viewMode === 'marketplaceDetail') {
-			this.goBackFromMarketplaceDetail();
+			this.goBackFromMarketplaceDetail(options?.preserveFocus);
 		}
 		if (this.viewMode === 'editor') {
-			this.goBackToList();
+			this.goBackToList(options?.preserveFocus);
 		}
 		if (this.viewMode === 'migration') {
 			this.viewMode = 'list';
 		}
 		if (this.viewMode === 'mcpDetail') {
-			this.goBackFromMcpDetail();
+			this.goBackFromMcpDetail(options?.preserveFocus);
 		}
 		if (this.viewMode === 'connectorDetail') {
-			this.goBackFromConnectorDetail();
+			this.goBackFromConnectorDetail(options?.preserveFocus);
 		}
 		if (this.viewMode === 'pluginDetail') {
-			this.goBackFromPluginDetail();
+			this.goBackFromPluginDetail(options?.preserveFocus);
 		}
 		this.selectedSection = section;
 		this.sectionContextKey.set(section);
@@ -3709,18 +3711,20 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Move focus to the search input so keyboard users can immediately
 		// filter without extra Tab traversal (parity with mouse-click flow).
-		if (section === AICustomizationManagementSection.McpServers) {
-			this.mcpListWidget?.focusSearch();
-		} else if (section === AICustomizationManagementSection.Plugins) {
-			this.pluginListWidget?.focusSearch();
-		} else if (section === AICustomizationManagementSection.Models) {
-			this.modelsWidget?.focusSearch();
-		} else if (section === AICustomizationManagementSection.Tools) {
-			this.toolsListWidget?.focusSearch();
-		} else if (this.contributedSectionContainers.has(section)) {
-			this.ensureContributedSectionWidget(section)?.focus?.();
-		} else {
-			this.listWidget?.focusSearch();
+		if (!options?.preserveFocus) {
+			if (section === AICustomizationManagementSection.McpServers) {
+				this.mcpListWidget?.focusSearch();
+			} else if (section === AICustomizationManagementSection.Plugins) {
+				this.pluginListWidget?.focusSearch();
+			} else if (section === AICustomizationManagementSection.Models) {
+				this.modelsWidget?.focusSearch();
+			} else if (section === AICustomizationManagementSection.Tools) {
+				this.toolsListWidget?.focusSearch();
+			} else if (this.contributedSectionContainers.has(section)) {
+				this.ensureContributedSectionWidget(section)?.focus?.();
+			} else {
+				this.listWidget?.focusSearch();
+			}
 		}
 	}
 
