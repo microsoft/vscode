@@ -57,10 +57,11 @@ class FakeWorkspaceTrustManagementService extends TestWorkspaceTrustManagementSe
 	}
 
 	override async getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
-		const canonical = this.getCanonicalUri(uri);
-		if (this.autoTrusted?.(canonical)) {
-			return { trusted: true, uri: canonical };
+		// Like the real service, resources trusted by their remote resolve to themselves, before canonicalization.
+		if (this.autoTrusted?.(uri)) {
+			return { trusted: true, uri };
 		}
+		const canonical = this.getCanonicalUri(uri);
 		const match = this.entries
 			.filter(entry => canonical.path === entry.path || canonical.path.startsWith(`${entry.path}/`))
 			.sort((a, b) => b.path.length - a.path.length)[0];
@@ -643,6 +644,21 @@ suite('WorkspaceTrustedUrisTable', () => {
 		test('deletes the saved form of an edited folder that the service normalizes', async () => {
 			createTableWithUris([hostA, hostB]);
 			normalizeTrailingSeparator();
+			const gate = new DeferredPromise<void>();
+			trustService.completionGate = gate.p;
+
+			table.acceptEdit({ uri: hostB, parentOfWorkspaceItem: false }, hostB.with({ path: '/home/b2/' }));
+			const deletion = table.delete({ uri: hostB, parentOfWorkspaceItem: false });
+			gate.complete();
+			await deletion;
+
+			assert.deepStrictEqual(trustService.getTrustedUris().map(uri => uri.path), ['/home/a']);
+		});
+
+		test('deletes the saved form of an edited folder on a remote that trusts it automatically', async () => {
+			createTableWithUris([hostA, hostB]);
+			normalizeTrailingSeparator();
+			trustService.autoTrusted = uri => uri.authority === hostB.authority;
 			const gate = new DeferredPromise<void>();
 			trustService.completionGate = gate.p;
 

@@ -392,7 +392,8 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 	acceptEdit(item: ITrustedUriItem, uri: URI) {
 		this.editedUris.set(item.uri, uri);
 		this.updateTrust(async () => {
-			const trustedFolders = this.workspaceTrustManagementService.getTrustedUris();
+			const previousFolders = this.workspaceTrustManagementService.getTrustedUris();
+			const trustedFolders = previousFolders.slice();
 			const index = trustedFolders.findIndex(u => this.uriService.extUri.isEqual(u, item.uri));
 
 			if (index >= trustedFolders.length || index === -1) {
@@ -403,11 +404,11 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 
 			await this.workspaceTrustManagementService.setTrustedUris(trustedFolders);
 
-			// The service stores a canonical form of the URI; once saved, that is the longest
-			// trusted match, so actions queued for this row can find the entry that is shown.
-			const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(uri);
-			if (trustInfo.trusted) {
-				this.editedUris.set(item.uri, trustInfo.uri);
+			// The service stores a canonical form of the URI, so find the entry it added for this
+			// edit, letting actions queued for this row act on the entry that is shown.
+			const added = this.workspaceTrustManagementService.getTrustedUris().filter(saved => !previousFolders.some(previous => this.uriService.extUri.isEqual(previous, saved)));
+			if (added.length === 1) {
+				this.editedUris.set(item.uri, added[0]);
 			}
 		}).catch(onUnexpectedError);
 		this._onDidAcceptEdit.fire(item);
