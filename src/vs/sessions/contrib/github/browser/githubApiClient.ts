@@ -33,14 +33,7 @@ export class GitHubApiClient extends Disposable {
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 	) {
 		super();
-		let accountKey = this.accountKey();
-		this._register(_defaultAccountService.onDidChangeDefaultAccount(() => {
-			const next = this.accountKey();
-			if (next !== accountKey) {
-				accountKey = next;
-				this.reset();
-			}
-		}));
+		this._register(_gitHubService.onDidChangeDefaultClient(() => this.reset()));
 	}
 
 	get enterpriseHost(): string | undefined {
@@ -121,9 +114,4 @@ export class GitHubApiClient extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	private accountKey(): string {
-		const account = this._defaultAccountService.currentDefaultAccount;
-		const provider = account?.authenticationProvider ?? this._defaultAccountService.getDefaultAccountAuthenticationProvider();
-		return JSON.stringify([provider.id, account?.sessionId, provider.enterprise ? this._defaultAccountService.resolveGitHubUrl('') : undefined]);
-	}
 }

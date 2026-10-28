@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { changedPaths, shouldSkipTestJobs } from '../detect-changes/detect.ts';
+
 interface IChangedFile {
 	readonly filename: string;
 	readonly previous_filename?: string;
+	readonly status?: string;
+	readonly patch?: string;
 }
 
 interface IListFilesParameters {
@@ -70,13 +74,18 @@ const fullProfilePrefixes = [
 ];
 
 function requiresFullProfile(path: string): boolean {
+	// Only Compile & Hygiene reads these paths, including the package.json files in them, such as those of the
+	// self-hosting extensions in .vscode/extensions/ and of test/sanity/ (see shouldSkipTestJobs).
+	if (shouldSkipTestJobs(path)) {
+		return false;
+	}
 	return fullProfilePaths.has(path)
 		|| fullProfilePrefixes.some(prefix => path.startsWith(prefix))
 		|| /(^|\/)(package(-lock)?\.json|npm-shrinkwrap\.json)$/.test(path);
 }
 
 function affectsAgentHostE2E(path: string): boolean {
-	if (path.endsWith('.md')) {
+	if (path.endsWith('.md') || shouldSkipTestJobs(path)) {
 		return false;
 	}
 	return exactPaths.has(path) || pathPrefixes.some(prefix => path.startsWith(prefix));
@@ -101,8 +110,7 @@ export async function detectAgentHostE2EChanges(github: IGitHub, context: IConte
 		return;
 	}
 
-	const paths = files.flatMap(file =>
-		file.previous_filename ? [file.filename, file.previous_filename] : [file.filename]);
+	const paths = changedPaths(files);
 	const expectedFileCount = context.payload.pull_request?.changed_files;
 	const incomplete = typeof expectedFileCount === 'number' && files.length < expectedFileCount;
 	const fullProfilePath = paths.find(requiresFullProfile);

@@ -116,10 +116,12 @@ class TestGitService implements IAgentHostGitService {
 	hasGitRoot() { return constObservable(undefined); }
 	async getRepositoryRoot(): Promise<URI | undefined> { return URI.file('/repo'); }
 	async getWorktreeRoots(): Promise<URI[]> { return []; }
+	async getWorktrees() { return []; }
 	async addWorktree(): Promise<void> { }
 	async copyWorktreeIncludeFiles(): Promise<void> { }
 	async symlinkWorktreeFolders(): Promise<readonly string[]> { return []; }
 	async addExistingWorktree(): Promise<void> { }
+	async isWorktreeRegistered(): Promise<boolean> { return true; }
 	async removeWorktree(): Promise<void> { }
 	async branchExists(_repositoryRoot: URI, branchName: string): Promise<boolean> {
 		this.calls.push(`branchExists:${branchName}`);
@@ -248,7 +250,7 @@ class TestGitHubClient {
 			}();
 			override readonly repositories = new class extends mock<IRepositoriesClient>() {
 				override async get(repository: RepositoryRef, signal: AbortSignal, options?: ApiRequestOptions): Promise<Repository> {
-					client.calls.push(`repositories.get:${repository.owner}/${repository.name}`);
+					client.calls.push(`repositories.get:${repository.owner}/${repository.repo}`);
 					client.repositoryRequests.push({ repository, signal, options });
 					if (client.capabilitiesError) {
 						throw client.capabilitiesError;
@@ -371,6 +373,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 	}() : gitHubClient;
 	const providerService = new class extends mock<IAgentHostProviderService>() {
 		override getProviderForSession() { return undefined; }
+		override getProviderForChat() { return undefined; }
 	}();
 	const utilityModelService = new AgentHostUtilityModelService(true, configurationService, copilotApiService, new NullByokLmBridgeRegistry(), providerService, stateManager, authenticationService, gitHubEndpointService, logService, createTestChatOwnershipService(stateManager), new class extends mock<IAgentHostSessionStateStore>() { override peek() { return undefined; } }());
 	return {
@@ -927,7 +930,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			}, {
 				autoMergeAllowed: settings.auto,
 				mergeMethods: settings.methods,
-				requests: [{ repository: { owner: 'microsoft', name: 'vscode' }, options: { caller: 'agentHost.pullRequest' }, aborted: false }],
+				requests: [{ repository: { owner: 'microsoft', repo: 'vscode' }, options: { caller: 'agentHost.pullRequest' }, aborted: false }],
 				leases: { acquired: 1, disposed: 1 },
 			});
 		});
@@ -1840,7 +1843,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 					if (scenario.cancelled) {
 						source.cancel();
 					}
-					await client.pullRequests.list({ owner: 'microsoft', name: 'vscode' }, new AbortController().signal, { query: { page: 2 } });
+					await client.pullRequests.list({ owner: 'microsoft', repo: 'vscode' }, new AbortController().signal, { query: { page: 2 } });
 					await createResponse.complete(new Response(JSON.stringify(pullRequest), { status: 201 }));
 				})(),
 			]);

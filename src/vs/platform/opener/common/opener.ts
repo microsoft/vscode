@@ -64,8 +64,15 @@ export interface IOpener {
 	open(resource: URI | string, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean>;
 }
 
+export interface IExternalUriOpenContext {
+	readonly sourceUri: URI;
+	/** The URL before resolution or port forwarding, preserving its original encoding when opened as a string. */
+	readonly sourceHref: string;
+	readonly viewColumn?: ViewColumn;
+}
+
 export interface IExternalOpener {
-	openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string; viewColumn?: ViewColumn }, token: CancellationToken): Promise<boolean>;
+	openExternal(href: string, ctx: IExternalUriOpenContext & { preferredOpenerId?: string }, token: CancellationToken): Promise<boolean>;
 	dispose?(): void;
 }
 

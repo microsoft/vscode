@@ -809,7 +809,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			const client = store.add(gitHubService.acquireRepositoryApiClient(signal, context.credentialSource, context.chat ?? context.session));
 			const contexts = await Promise.all(references.map(async reference => {
 				try {
-					const issue = await client.issues.get({ owner: reference.owner, name: reference.repo }, reference.number, signal, {
+					const issue = await client.issues.get(reference, reference.number, signal, {
 						caller: 'agentHost.sessionTitle',
 						priority: 'background',
 					});

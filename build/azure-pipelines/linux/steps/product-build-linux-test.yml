@@ -19,6 +19,8 @@ steps:
       displayName: Compile test suites (non-OSS)
       condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
+  - template: ../../common/restore-playwright-browsers.yml@self
+
   - script: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
@@ -44,6 +46,15 @@ steps:
       stat $APP_ROOT/chrome-sandbox
       stat $ELECTRON_ROOT/chrome-sandbox
     displayName: Change setuid helper binary permission
+
+  # Flush what the build, the artifact extraction and the downloads above wrote,
+  # so that its writeback doesn't stall the fsync-heavy tests for seconds
+  - script: |
+      set -e
+      grep -E '^(Dirty|Writeback):' /proc/meminfo
+      time sync
+      grep -E '^(Dirty|Writeback):' /proc/meminfo
+    displayName: Flush pending disk writes
 
   - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'unit-electron') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
@@ -88,6 +99,7 @@ steps:
         compile-extension:css-language-features-server \
         compile-extension:emmet \
         compile-extension:git \
+        compile-extension:git-base \
         compile-extension:github-authentication \
         compile-extension:html-language-features-server \
         compile-extension:ipynb \

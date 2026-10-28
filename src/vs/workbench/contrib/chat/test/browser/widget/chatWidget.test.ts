@@ -10,14 +10,18 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { autorun, constObservable, IObservable, IReader, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -65,7 +69,8 @@ import { ChatRequestParser } from '../../../common/requestParser/chatRequestPars
 import { ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
 import { ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
-import { ChatReadOnlyBanner } from '../../../browser/widget/chatReadOnlyBanner.js';
+import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from '../../../browser/widget/chatReadOnlyBanner.js';
+import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { IChatViewWelcomeContent } from '../../../browser/viewsWelcome/chatViewWelcomeController.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { createChatUserInteractionTestHarness } from '../chatUserInteractionTestUtils.js';
@@ -137,6 +142,115 @@ suite('ChatWidget', () => {
 			whenVisible: messages.filter(message => message.includes(`traceId=${trace.id} event=firstRender`)).length,
 			privateData: messages.some(message => message.includes('private-session')),
 		}, { whileHidden: 0, whenVisible: 1, privateData: false });
+	});
+
+	function createRespondentWidget(lockedAgent: boolean) {
+		const resource = URI.parse('agent-host-copilotcli:/session#peer');
+		let placeholder: string | undefined;
+		const viewModel = upcastPartial<ChatViewModel>({
+			sessionResource: resource,
+			get inputPlaceholder() { return placeholder; },
+			setInputPlaceholder: (text: string) => { placeholder = text; },
+			resetInputPlaceholder: () => { placeholder = undefined; },
+		});
+		const editorPlaceholders: (string | undefined)[] = [];
+		const rendererOptions: (IChatListItemRendererOptions['responseIdentity'])[] = [];
+		const modelPools: ({ pool: string | undefined; resource: string | undefined; revalidate?: boolean } | { cleared: true; revalidate?: boolean } | undefined)[] = [];
+		const inputPart = upcastPartial<ChatInputPart>({
+			inputEditor: upcastPartial<CodeEditorWidget>({ updateOptions: (options: { placeholder?: string }) => { editorPlaceholders.push(options.placeholder); } }),
+			setModelSessionTypeOverride: (override: { readonly sessionType: string | undefined } | undefined, target?: URI, options?: { readonly revalidate?: boolean }) => {
+				modelPools.push(override ? { pool: override.sessionType, resource: target?.fragment, ...(options?.revalidate === false ? { revalidate: false } : {}) } : (options?.revalidate === false ? { cleared: true, revalidate: false } : undefined));
+			},
+			flushInputStateToModel: () => { },
+		});
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			_viewModel: viewModel,
+			...(lockedAgent ? { _lockedAgent: { id: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', prefix: '@copilot ' } } : {}),
+			_appliedInputPlaceholder: false,
+			inputPartDisposable: { value: inputPart },
+			configurationService: new TestConfigurationService(),
+			chatSessionsService: upcastPartial<IChatSessionsService>({ getChatSessionContribution: () => undefined }),
+			listWidget: { updateRendererOptions: (options: IChatListItemRendererOptions) => { rendererOptions.push(options.responseIdentity); } },
+			rerenderListIfConnected: () => { },
+			container: dom.$('div'),
+			viewModelDisposables: store.add(new DisposableStore()),
+			logService: new NullLogService(),
+			_onDidChangeViewModel: store.add(new Emitter<IChatWidgetViewModelChangeEvent>()),
+			updateSessionStateIndicator: () => { },
+			clearGettingStartedTip: () => { },
+			updateWorkingProgressBorder: () => { },
+			onDidChangeItems: () => { },
+			_hasPendingRequestsContextKey: { set: () => { } },
+			_chatSessionSupportsRenameContextKey: { set: () => { } },
+			viewOptions: { isSessionsWindow: true },
+		});
+		return { widget, resource, get placeholder() { return placeholder; }, editorPlaceholders, rendererOptions, modelPools };
+	}
+
+	test('presents a chat answered by another agent with that agent, and restores its session type\'s presentation', () => {
+		const harness = createRespondentWidget(true);
+		harness.widget.setRespondent({ label: 'Claude', icon: Codicon.claude, modelSessionType: 'agent-host-claude' });
+		const answeredByClaude = harness.placeholder;
+		harness.widget.setRespondent({ label: 'Claude', icon: Codicon.claude, modelSessionType: 'agent-host-claude' });
+		harness.widget.setRespondent(undefined);
+
+		assert.deepStrictEqual({ answeredByClaude, restored: harness.placeholder, editorPlaceholders: harness.editorPlaceholders, rendererOptions: harness.rendererOptions, modelPools: harness.modelPools }, {
+			answeredByClaude: 'Chat with Claude',
+			restored: 'Chat with Copilot',
+			editorPlaceholders: ['Chat with Claude', 'Chat with Copilot'],
+			rendererOptions: [{ label: 'Claude', icon: Codicon.claude }, undefined],
+			modelPools: [{ pool: 'agent-host-claude', resource: 'peer' }, undefined],
+		});
+	});
+
+	test('clears its own placeholder when a respondent chat gives way to a plain chat, and never touches one it did not set', () => {
+		const untouched = createRespondentWidget(false);
+		untouched.widget.setRespondent(undefined);
+		const harness = createRespondentWidget(false);
+		harness.widget.setRespondent({ label: 'Claude', icon: Codicon.claude, modelSessionType: undefined });
+		harness.widget.setRespondent(undefined);
+
+		assert.deepStrictEqual({ untouched: untouched.editorPlaceholders, editorPlaceholders: harness.editorPlaceholders, placeholder: harness.placeholder, modelPools: harness.modelPools }, {
+			untouched: [],
+			editorPlaceholders: ['Chat with Claude', undefined],
+			placeholder: undefined,
+			modelPools: [{ pool: undefined, resource: 'peer' }, undefined],
+		});
+	});
+
+	test('switching from a respondent chat never revalidates its model against another pool, and unbinding drops the respondent', () => {
+		const harness = createRespondentWidget(true);
+		harness.widget.setRespondent({ label: 'Claude', icon: Codicon.claude, modelSessionType: 'agent-host-claude' });
+		const incoming = harness.resource.with({ fragment: 'incoming' });
+		// The incoming chat has none: the bound chat's pool stays until the incoming chat binds.
+		harness.widget.setRespondent(undefined, incoming);
+		const afterNoneAhead = [...harness.modelPools];
+		// The incoming chat has its own: it replaces the bound chat's pool without revalidating it.
+		harness.widget.setRespondent({ label: 'Codex', icon: Codicon.openai, modelSessionType: 'agent-host-codex' }, incoming);
+		harness.widget.setModel(undefined);
+		// A stale respondent never survives an unbind, e.g. when the incoming chat then fails to load.
+		harness.widget.setRespondent(undefined, incoming);
+
+		assert.deepStrictEqual({ afterNoneAhead, modelPools: harness.modelPools, rendererOptions: harness.rendererOptions }, {
+			afterNoneAhead: [{ pool: 'agent-host-claude', resource: 'peer' }],
+			modelPools: [
+				{ pool: 'agent-host-claude', resource: 'peer' },
+				{ pool: 'agent-host-codex', resource: 'incoming', revalidate: false },
+				{ cleared: true, revalidate: false },
+			],
+			rendererOptions: [{ label: 'Claude', icon: Codicon.claude }, undefined],
+		});
+	});
+
+	test('a respondent set ahead for an incoming chat leaves the bound chat\'s presentation alone', () => {
+		const harness = createRespondentWidget(true);
+		harness.widget.setRespondent({ label: 'Claude', icon: Codicon.claude, modelSessionType: 'agent-host-claude' }, harness.resource.with({ fragment: 'incoming' }));
+
+		assert.deepStrictEqual({ editorPlaceholders: harness.editorPlaceholders, rendererOptions: harness.rendererOptions, modelPools: harness.modelPools }, {
+			editorPlaceholders: [],
+			rendererOptions: [],
+			modelPools: [{ pool: 'agent-host-claude', resource: 'incoming', revalidate: false }],
+		});
 	});
 
 	function createRequestToolsWidget() {
@@ -883,6 +997,7 @@ suite('ChatWidget', () => {
 				value: {
 					getTemplateDataForRequestId: () => ({ currentElement: request, rowContainer, requestTimestampContainer }),
 					acquireAutoScrollHold: () => Disposable.None,
+					setStickyProgressContainer: () => { },
 				},
 			},
 		});
@@ -1363,6 +1478,7 @@ suite('ChatWidget', () => {
 	function createRerenderWidget() {
 		const domNode = mainWindow.document.createElement('div');
 		let rerenders = 0;
+		const layoutHeights: number[] = [];
 		const discardingSlot = { set value(disposable: IDisposable | undefined) { disposable?.dispose(); } };
 		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
 			_readOnly: false,
@@ -1392,11 +1508,11 @@ suite('ChatWidget', () => {
 				lastItem: undefined,
 				updateRendererOptions: () => { },
 				setVisible: () => { },
-				layout: () => { },
+				layout: (height: number) => layoutHeights.push(height),
 				rerender: () => rerenders++,
 			},
 		});
-		return { widget, domNode, rerenders: () => rerenders };
+		return { widget, domNode, layoutHeights, rerenders: () => rerenders };
 	}
 
 	test('passes read-only transitions to the renderer independently of request editing', () => {
@@ -1427,6 +1543,166 @@ suite('ChatWidget', () => {
 			rendererOptions: [{ editable: false, readOnly: true }, { editable: false, readOnly: true }, { editable: true, readOnly: false }],
 			rerenders: 3,
 			inputVisibility: [false, true, true],
+		});
+	});
+
+	test('keeps the sandbox composer visible while live content is unavailable', () => {
+		const container = dom.append(mainWindow.document.body, dom.$('.interactive-session'));
+		store.add(toDisposable(() => container.remove()));
+		const inputContainer = dom.append(container, dom.$('.interactive-input-part'));
+		const input = dom.append(inputContainer, dom.$<HTMLTextAreaElement>('textarea'));
+		const transcript = dom.append(container, dom.$('div'));
+		transcript.tabIndex = 0;
+		const readOnly = observableValue('readOnly', true);
+		const blocked = observableValue('blocked', true);
+		let archived = false;
+		const sessionChanges = store.add(new Emitter<void>());
+		const model = upcastPartial<IChatModel>({
+			sessionResource: URI.parse('remote-agent-host-test:/session'),
+			isReadOnly: readOnly,
+			isInputBlocked: blocked,
+		});
+		const draftOnly = observableValue('draftOnly', false);
+		const widget: {
+			observeSessionArchived(model: IChatModel): IObservable<boolean>;
+			updateReadOnlyState(model: IChatModel, archived: boolean, reader: IReader): void;
+		} = Object.assign(Object.create(ChatWidget.prototype), {
+			_readOnly: false,
+			_draftOnly: draftOnly,
+			_visible: constObservable(false),
+			_readOnlyContextKey: { set: () => { } },
+			policyRequiresAgentHost: constObservable(false),
+			agentSessionsService: {
+				model: { onDidChangeSessions: sessionChanges.event },
+				getSession: () => ({ isArchived: () => archived }),
+			},
+			chatSuggestNextWidget: { hide: () => { } },
+			hasInputFocus: () => mainWindow.document.activeElement === input,
+			inputPartDisposable: { value: { element: inputContainer } },
+			renderChatSuggestNextWidget: () => { },
+			listWidget: {
+				focusLastItem: () => -1,
+				focus: () => transcript.focus(),
+				updateRendererOptions: () => { },
+			},
+		});
+		const sessionArchived = widget.observeSessionArchived(model);
+		store.add(autorun(reader => widget.updateReadOnlyState(model, sessionArchived.read(reader), reader)));
+		input.value = 'Keep this draft';
+		input.focus();
+		input.setSelectionRange(2, 6);
+		const snapshot = () => ({
+			visible: !inputContainer.classList.contains('chat-input-hidden'),
+			focused: mainWindow.document.activeElement === input,
+			draftOnly: draftOnly.get(),
+			text: input.value,
+			selection: [input.selectionStart, input.selectionEnd],
+		});
+		const recorded = snapshot();
+		archived = true;
+		sessionChanges.fire();
+		const archivedWhileBlocked = snapshot();
+		archived = false;
+		sessionChanges.fire();
+		input.focus();
+		const unarchived = snapshot();
+		readOnly.set(false, undefined);
+		blocked.set(false, undefined);
+		const live = snapshot();
+		readOnly.set(true, undefined);
+
+		const draft = { visible: true, focused: true, draftOnly: true, text: 'Keep this draft', selection: [2, 6] };
+		const restricted = { ...draft, visible: false, focused: false, draftOnly: false };
+		assert.deepStrictEqual({ recorded, archivedWhileBlocked, unarchived, live, restricted: snapshot() }, {
+			recorded: draft,
+			archivedWhileBlocked: restricted,
+			unarchived: draft,
+			live: { ...draft, draftOnly: false },
+			restricted,
+		});
+	});
+
+	test('offline subagent composers inherit parent archive state without losing child restrictions', () => {
+		const parentResource = URI.parse('remote-agent-host-test:/session?owner=one');
+		const childResource = getSubagentEditorResource({
+			parentSessionResource: parentResource.toString(), chatResource: 'custom-chat:/opaque-worker',
+		});
+		assert.ok(childResource);
+		let parentArchived = true;
+		let childArchived = true;
+		const sessions = new ResourceMap<{ isArchived(): boolean }>();
+		sessions.set(parentResource, { isArchived: () => parentArchived });
+		const sessionChanges = store.add(new Emitter<void>());
+		const model = upcastPartial<IChatModel>({
+			sessionResource: childResource, isReadOnly: constObservable(true), isInputBlocked: constObservable(true),
+		});
+		let inputState = { readOnly: false, keepInputVisible: false };
+		const widget: {
+			observeSessionArchived(model: IChatModel): IObservable<boolean>;
+			updateReadOnlyState(model: IChatModel, archived: boolean, reader: IReader): void;
+		} = Object.assign(Object.create(ChatWidget.prototype), {
+			policyRequiresAgentHost: constObservable(false),
+			agentSessionsService: {
+				model: { onDidChangeSessions: sessionChanges.event },
+				getSession: (resource: URI) => sessions.get(resource),
+			},
+			setReadOnly: (readOnly: boolean, keepInputVisible: boolean) => inputState = { readOnly, keepInputVisible },
+		});
+		const archived = widget.observeSessionArchived(model);
+		store.add(autorun(reader => widget.updateReadOnlyState(model, archived.read(reader), reader)));
+		const states = [inputState];
+		parentArchived = false;
+		sessionChanges.fire();
+		states.push(inputState);
+		sessions.set(childResource, { isArchived: () => childArchived });
+		sessionChanges.fire();
+		states.push(inputState);
+		parentArchived = true;
+		childArchived = false;
+		sessionChanges.fire();
+		states.push(inputState);
+
+		assert.deepStrictEqual(states, [
+			{ readOnly: true, keepInputVisible: false },
+			{ readOnly: true, keepInputVisible: true },
+			{ readOnly: true, keepInputVisible: false },
+			{ readOnly: true, keepInputVisible: false },
+		]);
+	});
+
+	test('history recovery remains visible beside a blocked composer', async () => {
+		const { widget, layoutHeights } = createRerenderWidget();
+		const inputElement = dom.$('div');
+		let bannerVisible = false;
+		let message: string | undefined;
+		let action: { label: string; run: () => Promise<void> } | undefined;
+		let retries = 0;
+		Object.assign(widget, {
+			setInputVisible: ChatWidget.prototype.setInputVisible,
+			inputPartDisposable: { value: { height: constObservable(10), element: inputElement } },
+			readOnlyBanner: {
+				get visible() { return bannerVisible; },
+				setVisible: (visible: boolean) => bannerVisible = visible,
+				setMessage: (value: string | undefined) => message = value,
+				setAction: (value: typeof action) => action = value,
+			},
+		});
+		widget.setReadOnly(true, true, {
+			kind: 'live', message: 'Live history unavailable',
+			action: { label: 'Retry', run: async () => { retries++; } },
+		});
+		const failed = { inputVisible: !inputElement.classList.contains('chat-input-hidden'), bannerVisible, message, action: action?.label };
+		await action?.run();
+		widget.setReadOnly(true, true, { kind: 'live', isLoading: true, message: 'Reopening conversation...' });
+		const reopening = { inputVisible: !inputElement.classList.contains('chat-input-hidden'), bannerVisible, message, action: action?.label };
+		widget.setReadOnly(true, true, undefined);
+		widget.setReadOnly(true, true, undefined);
+
+		assert.deepStrictEqual({ failed, reopening, inputVisible: !inputElement.classList.contains('chat-input-hidden'), bannerVisible, retries, layoutHeights }, {
+			failed: { inputVisible: true, bannerVisible: true, message: 'Live history unavailable', action: 'Retry' },
+			reopening: { inputVisible: true, bannerVisible: true, message: 'Reopening conversation...', action: undefined },
+			inputVisible: true, bannerVisible: false, retries: 1,
+			layoutHeights: [90 - CHAT_READ_ONLY_BANNER_HEIGHT, 90],
 		});
 	});
 
@@ -1469,8 +1745,10 @@ suite('ChatWidget', () => {
 		}
 	});
 
-	for (const canMove of [true, false]) {
-		test(`policy read-only banner follows history switches and does not relabel other read-only states${canMove ? '' : ' when the host cannot import history'}`, () => {
+	for (const mode of ['local', 'remote', 'unsupported'] as const) {
+		const canMove = mode !== 'unsupported';
+		const isRemote = mode === 'remote';
+		test(`policy read-only banner follows history switches and does not relabel other read-only states (${mode})`, () => {
 			const instantiation = store.add(new TestInstantiationService());
 			instantiation.stub(IHoverService, NullHoverService);
 			instantiation.stub(IOpenerService, { open: async () => true });
@@ -1508,13 +1786,16 @@ suite('ChatWidget', () => {
 				_readOnlyContextKey: { set: () => { } }, policyRequiresAgentHost: policy, readOnlyBanner: banner,
 				agentSessionsService: {
 					model: { onDidChangeSessions: sessionChanges.event },
-					getSession: () => ({ isArchived: () => archivedState }),
+					getSession: () => ({ isArchived: () => selected.get() === local && archivedState }),
 				},
 				chatSuggestNextWidget: { hide: () => { } }, hasInputFocus: () => false,
 				setInputVisible: () => { }, renderChatSuggestNextWidget: () => { },
 				listWidget: { updateRendererOptions: () => { readOnlyUpdates++; } },
 				inputPartDisposable: { value: { inputUri: URI.parse('vscode-chat-input:policy-banner') } },
-				_agentHostService: { supportsConversationImport: canMove },
+				_agentHostService: {
+					supportsConversationImport: canMove,
+					clientConnectionKind: isRemote ? AgentHostClientConnectionKind.RemoteExtensionHost : AgentHostClientConnectionKind.Local,
+				},
 			});
 			store.add(autorun(reader => {
 				const model = selected.read(reader);
@@ -1555,7 +1836,8 @@ suite('ChatWidget', () => {
 				away: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
 				inlineUnderPolicy: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
 				returned: original,
-				archivedUnderPolicy: { visible: true, text: 'This chat is read-only', action: '', atTop: true },
+				// Without import support or on a remote host, an archived chat still offers the manual banner action.
+				archivedUnderPolicy: canMove && !isRemote ? { visible: true, text: 'This chat is read-only', action: '', atTop: true } : original,
 				otherProviderWhileArchived: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
 				archivedAfterRemoval: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
 				removed: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
@@ -1599,6 +1881,8 @@ suite('ChatWidget', () => {
 		const archived = observableValue('archived', false);
 		const requestInProgress = observableValue('requestInProgress', false);
 		const readOnly = observableValue('readOnly', true);
+		const initializeResult = observableValue('initializeResult', 0);
+		let supportsConversationImport = options.supportsConversationImport ?? true;
 		const modelChanges = store.add(new Emitter<IChatChangeEvent>());
 		let providerDisabled = options.providerDisabled ?? true;
 		const configurationService = new class extends TestConfigurationService {
@@ -1624,7 +1908,7 @@ suite('ChatWidget', () => {
 			_visible: visible, policyRequiresAgentHost: policy, readOnlyBanner: options.isSessionsWindow ? undefined : banner,
 			_viewModel: { model },
 			viewOptions: { isSessionsWindow: options.isSessionsWindow },
-			_agentHostService: { supportsConversationImport: options.supportsConversationImport ?? true },
+			_agentHostService: { get supportsConversationImport() { return supportsConversationImport; }, initializeResult },
 			configurationService,
 			policyContinuationService: { continueInCopilot: async (resource: URI, trigger: string) => { automaticCalls.push({ resource: resource.toString(), trigger }); await automaticRun(); } },
 			logService: { error: (message: string) => errors.push(message) },
@@ -1636,6 +1920,7 @@ suite('ChatWidget', () => {
 			setHasRequests: (value: boolean) => { hasRequests = value; modelChanges.fire({ kind: 'initialize' }); },
 			setAutomaticRun: (run: () => Promise<void>) => { automaticRun = run; },
 			setProviderDisabled: (value: boolean) => { providerDisabled = value; configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: () => true })); },
+			setSupportsConversationImport: (value: boolean) => { supportsConversationImport = value; initializeResult.set(initializeResult.get() + 1, undefined); },
 			moveAway: () => Object.assign(widget, { _viewModel: undefined }),
 		};
 	}
@@ -1768,14 +2053,17 @@ suite('ChatWidget', () => {
 		});
 	});
 
-	test('does not automatically continue Local history when the host cannot import it', async () => {
+	test('does not automatically continue Local history when the host cannot import it, and migrates once import support arrives', async () => {
 		const fixture = createAutomaticMigrationFixture({ supportsConversationImport: false });
 		let calls = 0;
-		fixture.banner.setAction({ label: 'Continue in Copilot', run: async () => { calls++; } });
+		fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
 		fixture.policy.set(true, undefined);
 		fixture.visible.set(true, undefined);
 		await timeout(0);
-		assert.strictEqual(calls, 0);
+		const beforeImportSupport = calls;
+		fixture.setSupportsConversationImport(true);
+		await timeout(0);
+		assert.deepStrictEqual({ beforeImportSupport, afterImportSupport: calls }, { beforeImportSupport: 0, afterImportSupport: 1 });
 	});
 
 	for (const trigger of ['deny rules', 'explicit Local prohibition'] as const) {
@@ -2189,6 +2477,7 @@ suite('ChatWidget - acceptInput submission', () => {
 			_chatAgentHostProviderIdContextKey: { value: ChatContextKeys.chatAgentHostProviderId.bindTo(fixture.contextKeyService) },
 			_agentSupportsAttachmentsContextKey: { value: fixture.contextKeyService.createKey('test.agentSupportsAttachments', false) },
 			_chatSessionSupportsForkContextKey: { value: fixture.contextKeyService.createKey('test.sessionSupportsFork', false) },
+			_chatSessionSupportsSideChatContextKey: { value: ChatContextKeys.chatSessionSupportsSideChat.bindTo(fixture.contextKeyService) },
 			_chatSessionSupportsRenameContextKey: { value: fixture.contextKeyService.createKey('test.sessionSupportsRename', false) },
 			chatAgentService: { value: mockObject<IChatAgentService>()() },
 			_updateAgentHostWorkingDirectoryContextKeys: { value: () => { } },
@@ -2207,6 +2496,36 @@ suite('ChatWidget - acceptInput submission', () => {
 		};
 		return { ...fixture, availabilityChanged, contributions, registerContribution, bindSession };
 	}
+
+	test('updates side-chat visibility from the loaded session capability', () => {
+		const fixture = createSessionBindingFixture();
+		fixture.chatSessionsService.sessionSupportsSideChat.returns(true);
+		fixture.bindSession(fixture.original.model);
+		const supported = fixture.contextKeyService.getContextKeyValue(ChatContextKeys.chatSessionSupportsSideChat.key);
+		fixture.chatSessionsService.sessionSupportsSideChat.returns(false);
+		fixture.availabilityChanged.fire();
+		assert.deepStrictEqual({
+			supported,
+			unsupported: fixture.contextKeyService.getContextKeyValue(ChatContextKeys.chatSessionSupportsSideChat.key),
+		}, { supported: true, unsupported: false });
+	});
+
+	test('uses the host side-chat capability and disposes its observation when unbound', () => {
+		const fixture = createSessionBindingFixture();
+		const supportsSideChat = observableValue('supportsSideChat', true);
+		fixture.viewOptions.supportsSideChat = supportsSideChat;
+		const binding = fixture.bindSession(fixture.original.model);
+		const values = [fixture.contextKeyService.getContextKeyValue(ChatContextKeys.chatSessionSupportsSideChat.key)];
+		supportsSideChat.set(false, undefined);
+		values.push(fixture.contextKeyService.getContextKeyValue(ChatContextKeys.chatSessionSupportsSideChat.key));
+		fixture.chatSessionsService.sessionSupportsSideChat.returns(true);
+		fixture.availabilityChanged.fire();
+		values.push(fixture.contextKeyService.getContextKeyValue(ChatContextKeys.chatSessionSupportsSideChat.key));
+		binding.dispose();
+		supportsSideChat.set(true, undefined);
+		values.push(fixture.contextKeyService.getContextKeyValue(ChatContextKeys.chatSessionSupportsSideChat.key));
+		assert.deepStrictEqual(values, [true, false, false, false]);
+	});
 
 	for (const pickerMatchesSession of [true, false]) {
 		test(`binds a history session to its late live contribution with ${pickerMatchesSession ? 'matching' : 'stale'} model selection`, async () => {

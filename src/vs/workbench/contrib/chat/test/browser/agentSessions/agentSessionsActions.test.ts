@@ -19,6 +19,7 @@ import { ContextKeyValue, IContext } from '../../../../../../platform/contextkey
 import { InputFocusedContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { RawWorkbenchListFocusContextKey } from '../../../../../../platform/list/browser/listService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeybindingResolver } from '../../../../../../platform/keybinding/common/keybindingResolver.js';
 import { ResolvedKeybindingItem } from '../../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
@@ -28,7 +29,7 @@ import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
-import { ArchiveAgentSessionAction, MarkAgentSessionReadAction, MarkAgentSessionUnreadAction, RenameAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
+import { ArchiveAgentSessionAction, MarkAgentSessionDoneAction, MarkAgentSessionReadAction, MarkAgentSessionUnreadAction, RenameAgentSessionAction, RestoreAgentSessionAction, UnarchiveAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
 import { AgentSessionsControl } from '../../../browser/agentSessions/agentSessionsControl.js';
 import { ChatViewPane } from '../../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
@@ -145,6 +146,40 @@ suite('AgentSessionsActions', () => {
 		}
 		assert.deepStrictEqual(calls, [true, false].flatMap(read =>
 			['first', 'second', 'second'].map(session => ({ session, read }))));
+	});
+
+	test('completes and restores focused or selected side chats without changing their parent', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const calls: { session: string; archived: boolean }[] = [];
+		const parent = upcastPartial<IAgentSession>({
+			resource: URI.parse('test:/parent'),
+			setArchived: archived => calls.push({ session: 'parent', archived }),
+		});
+		const createChild = (name: string, canArchive: boolean) => upcastPartial<IAgentSession>({
+			resource: parent.resource.with({ fragment: name }),
+			parentSession: { resource: parent.resource, label: 'Parent' },
+			canArchive,
+			setArchived: archived => calls.push({ session: name, archived }),
+		});
+		const first = createChild('first', true);
+		const second = createChild('second', true);
+		const unsupported = createChild('unsupported', false);
+		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({}));
+		instantiationService.stub(IChatService, upcastPartial<IChatService>({ getSession: () => undefined }));
+		instantiationService.stub(IDialogService, upcastPartial<IDialogService>({}));
+		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() { }(), 'getActiveViewWithId', () => upcastPartial<ChatViewPane>({
+			getFocusedSessions: () => [first],
+			agentSessionsControl: upcastPartial<AgentSessionsControl>({
+				getSelectedSessions: () => [parent, first, second, unsupported],
+			}),
+		}));
+		for (const action of [new MarkAgentSessionDoneAction(), new RestoreAgentSessionAction(), new ArchiveAgentSessionAction(), new UnarchiveAgentSessionAction()]) {
+			await instantiationService.invokeFunction(accessor => action.run(accessor));
+			await instantiationService.invokeFunction(accessor => action.run(accessor, second));
+			await instantiationService.invokeFunction(accessor => action.run(accessor, unsupported));
+		}
+		assert.deepStrictEqual(calls, [true, false, true, false].flatMap(archived =>
+			['first', 'second', 'second'].map(session => ({ session, archived }))));
 	});
 
 	function buildResolver(operatingSystem = OS): KeybindingResolver {

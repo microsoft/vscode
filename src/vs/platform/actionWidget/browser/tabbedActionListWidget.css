@@ -97,10 +97,22 @@
 	margin-left: var(--vscode-spacing-size40);
 }
 
-.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action:hover,
+.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action:hover:not(.disabled),
 .action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action.checked {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
+}
+
+/* Follows the checked rule at equal specificity, so a disabled action never looks pressed or interactive. */
+.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action.disabled {
+	background-color: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: default;
+}
+
+/* Dims only the icon, matching disabled buttons and toggles, so the focus outline stays fully visible. */
+.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action.disabled > .codicon {
+	opacity: 0.4;
 }
 
 .action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action:focus-visible {

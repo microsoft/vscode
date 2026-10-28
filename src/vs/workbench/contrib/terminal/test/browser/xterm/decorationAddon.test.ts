@@ -6,6 +6,7 @@
 import type { IDecoration, IDecorationOptions, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { deepStrictEqual, notEqual, strictEqual, throws } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -13,8 +14,28 @@ import { ITerminalCommand, TerminalCapability } from '../../../../../../platform
 import { CommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { DecorationAddon } from '../../../browser/xterm/decorationAddon.js';
+import { getTerminalDecorationHoverContent } from '../../../browser/xterm/decorationStyles.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
+
+suite('Terminal decoration hover content', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('formats successful commands without a duration', () => {
+		const command = new class extends mock<ITerminalCommand>() {
+			override exitCode = 0;
+			override timestamp = Date.now();
+		};
+
+		deepStrictEqual([
+			getTerminalDecorationHoverContent(command),
+			getTerminalDecorationHoverContent(command, undefined, true),
+		], [
+			'Command executed now',
+			'Show Command Actions\n\n---\n\nCommand executed now',
+		]);
+	});
+});
 
 suite('DecorationAddon', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

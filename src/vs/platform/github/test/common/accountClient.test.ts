@@ -27,8 +27,8 @@ suite('GitHub account client', () => {
 		};
 		const client = store.add(new AccountClient(authorization, { rest: provider, graphql: provider }, toDisposable(() => { disposed = true; })));
 		const options = { caller: 'test.account', deadline: Date.now() + 10_000 };
-		const runs = await client.actions.listRuns({ owner: 'o', name: 'r' }, signal(), { ...options, query: { per_page: 10, event: 'push' } });
-		const cancelled = await client.actions.cancel({ owner: 'o', name: 'r' }, 42, signal(), options);
+		const runs = await client.actions.listRuns({ owner: 'o', repo: 'r' }, signal(), { ...options, query: { per_page: 10, event: 'push' } });
+		const cancelled = await client.actions.cancel({ owner: 'o', repo: 'r' }, 42, signal(), options);
 		client.dispose();
 		assert.deepStrictEqual({
 			authorization: client.authorization,
@@ -37,7 +37,7 @@ suite('GitHub account client', () => {
 		}, {
 			authorization,
 			domains: [
-				'actions', 'authorization', 'automations', 'checks', 'content', 'environments', 'gist', 'issues', 'notifications',
+				'actions', 'authorization', 'automations', 'checks', 'connectors', 'content', 'environments', 'gist', 'issues', 'notifications',
 				'onDidChangeCredentials', 'onDidInvalidate', 'organizations', 'pullRequests', 'repositories', 'reviews', 'search', 'tasks', 'users',
 			],
 			runs: { total_count: 0, workflow_runs: [] },
@@ -60,14 +60,15 @@ suite('GitHub account client', () => {
 			},
 		};
 		const client = store.add(new AccountClient(authorization, {
-			rest: provider, graphql: provider, rawContent: provider, missionControl: provider,
+			rest: provider, graphql: provider, rawContent: provider, missionControl: provider, connectors: provider,
 		}, toDisposable(() => { })));
-		const repository = { owner: 'o', name: 'r' };
+		const repository = { owner: 'o', repo: 'r' };
 		const options: ApiRequestOptions = { caller: 'same.caller', priority: 'background' };
 		const operations = [
 			{ domain: 'actions', run: () => client.actions.listRuns(repository, signal(), options) },
 			{ domain: 'checks', run: () => client.checks.listRuns(repository, 'main', signal(), options) },
-			{ domain: 'content', run: () => client.content.resolveRef('o', 'r', 'main', signal(), options) },
+			{ domain: 'connectors', run: () => client.connectors.getCatalog(signal(), options) },
+			{ domain: 'content', run: () => client.content.resolveRef(repository, 'main', signal(), options) },
 			{ domain: 'gists', run: () => client.gist.get('gist', signal(), options) },
 			{ domain: 'issues', run: () => client.issues.get(repository, 1, signal(), options) },
 			{ domain: 'notifications', run: () => client.notifications.list(signal(), options) },
@@ -81,7 +82,7 @@ suite('GitHub account client', () => {
 			{ domain: 'environments', run: () => client.environments.list(signal(), options) },
 			{ domain: 'tasks', run: () => client.tasks.list(signal(), options) },
 			{ domain: 'reviews', run: () => client.reviews.listThreadSummaries('PR_1', signal(), options) },
-			{ domain: 'content', run: () => client.content.getRawFile('o', 'r', 'a'.repeat(40), 'README.md', signal(), options) },
+			{ domain: 'content', run: () => client.content.getRawFile(repository, 'a'.repeat(40), 'README.md', signal(), options) },
 		];
 		for (const operation of operations) {
 			await assert.rejects(operation.run, dispatched);
@@ -100,11 +101,14 @@ suite('GitHub account client', () => {
 				throw dispatched;
 			},
 		};
-		const client = store.add(new AccountClient(authorization, { rest: provider, graphql: provider, missionControl: provider }, toDisposable(() => { })));
-		const repository = { owner: 'o', name: 'r' };
+		const client = store.add(new AccountClient(authorization, { rest: provider, graphql: provider, rawContent: provider, missionControl: provider }, toDisposable(() => { })));
+		const repository = { owner: 'o', repo: 'r' };
 		const options: ApiRequestOptions = { caller: 'test.options', deadline: Date.now() + 10_000, priority: 'background' };
-		await assert.rejects(client.content.getContent('o', 'r', 'folder/file name.json', signal(), { ...options, query: { ref: 'feature/branch' } }), dispatched);
-		await assert.rejects(client.content.getTree('o', 'r', 'main', signal(), { ...options, query: { recursive: true } }), dispatched);
+		await assert.rejects(client.content.getContent(repository, 'folder/file name.json', signal(), { ...options, query: { ref: 'feature/branch' } }), dispatched);
+		await assert.rejects(client.content.getTree(repository, 'main', signal(), { ...options, query: { recursive: true } }), dispatched);
+		await assert.rejects(client.content.getBlob(repository, 'blob-sha', signal(), options), dispatched);
+		await assert.rejects(client.content.resolveRef(repository, 'feature/branch', signal(), options), dispatched);
+		await assert.rejects(client.content.getRawFile(repository, 'a'.repeat(40), 'folder/file name.json', signal(), options), dispatched);
 		await assert.rejects(client.actions.getRun(repository, 42, signal(), { ...options, attempt: 2 }), dispatched);
 		await assert.rejects(client.actions.rerunFailedJobs(repository, 42, signal(), { ...options, enableDebugLogging: true }), dispatched);
 		await assert.rejects(client.pullRequests.updateBranch(repository, 1, signal(), { ...options, expectedHeadSha: 'head-sha' }), dispatched);
@@ -123,13 +127,16 @@ suite('GitHub account client', () => {
 		})), [
 			{ path: '/repos/o/r/contents/folder/file%20name.json?ref=feature%2Fbranch', body: undefined, options },
 			{ path: '/repos/o/r/git/trees/main?recursive=1', body: undefined, options },
+			{ path: '/repos/o/r/git/blobs/blob-sha', body: undefined, options },
+			{ path: '/repos/o/r/commits/feature%2Fbranch', body: undefined, options },
+			{ path: `/o/r/${'a'.repeat(40)}/folder/file%20name.json`, body: undefined, options },
 			{ path: '/repos/o/r/actions/runs/42/attempts/2', body: undefined, options },
 			{ path: '/repos/o/r/actions/runs/42/rerun-failed-jobs', body: { enable_debug_logging: true }, options },
 			{ path: '/repos/o/r/pulls/1/update-branch', body: { expected_head_sha: 'head-sha' }, options },
 			{ path: '/', body: { input: { pullRequestReviewThreadId: 'thread', body: 'reply', pullRequestReviewId: 'review' } }, options },
 			{ path: '/', body: { pullRequestId: 'PR_1', first: 2, commentsFirst: 1 }, options },
 			{ path: '/', body: { first: 2, after: 'next', query: 'is:pr repo:o/r assignee:@me' }, options },
-			{ path: '/', body: { owner: 'o', name: 'r' }, options },
+			{ path: '/', body: { owner: 'o', repo: 'r' }, options },
 			{ path: '/tasks?page=2&q=work&artifact_state=open&artifact_state=draft', body: undefined, options },
 			{ path: '/environments/environment/reconnect?session_id=session&client_id=client', body: undefined, options },
 			{ path: '/repos/o/r/labels', body: { name: 'label' }, options },

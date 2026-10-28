@@ -105,9 +105,9 @@ suite('LimitIndicatorContribution', () => {
 
 		assert.deepStrictEqual(details, [
 			[],
-			['Only 5000 diagnostics are highlighted in the editor for performance reasons.'],
-			['Some diagnostics are not shown for performance reasons.'],
-			['Some diagnostics are not shown, and only 5000 diagnostics are highlighted in the editor for performance reasons.'],
+			['Only 5000 problems are rendered in the editor for performance reasons.'],
+			['Some problems are not shown in the problems view for performance reasons.'],
+			['Some problems are not shown in the problems view, and only 5000 problems are rendered in the editor for performance reasons.'],
 			[]
 		]);
 	});
@@ -263,7 +263,7 @@ suite('LimitIndicatorContribution', () => {
 				detail: 'only 5 shown for performance reasons',
 				command: { id: 'workbench.action.openSettings', arguments: ['editor.foldingMaximumRegions'], title: 'Configure' }
 			},
-			{ id: 'diagnosticsLimitInfo', detail: 'Only 5000 diagnostics are highlighted in the editor for performance reasons.', command: undefined }
+			{ id: 'diagnosticsLimitInfo', detail: 'Only 5000 problems are rendered in the editor for performance reasons.', command: undefined }
 		]);
 	});
 

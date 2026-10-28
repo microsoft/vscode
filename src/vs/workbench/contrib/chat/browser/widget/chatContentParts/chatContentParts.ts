@@ -13,6 +13,7 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { ILanguageSelection } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { IChatThinkingTitleRequest } from '../../../common/chatThinkingTitleService.js';
 
 export interface IChatContentPart extends IDisposable {
 	domNode: HTMLElement | undefined;
@@ -72,15 +73,20 @@ export interface IChatContentPartRenderContext {
 	readonly readOnly?: boolean;
 	readonly elementIndex: number;
 	readonly container: HTMLElement;
+	/** Lazily provides an anchor that clips content overlays below floating list UI such as the sticky header. */
+	readonly getOverlayClippingContainer?: () => HTMLElement;
 	readonly content: ReadonlyArray<IChatRendererContent>;
 	readonly contentIndex: number;
 	/** Whether the response-level progress indicator owns progress animation for this render. */
 	readonly suppressProgressShimmer?: boolean;
 	readonly progressMessageAction?: IChatListItemRendererOptions['progressMessageAction'];
+	readonly backgroundActivityPillSections?: IChatListItemRendererOptions['backgroundActivityPillSections'];
 	/** Reserves scroll space before an automatic collapse, not a user toggle. */
 	readonly onWillCollapse?: (target: HTMLElement) => void;
 	/** A tool group, separate from reasoning, in the persistent progress layout. */
 	readonly isToolChain?: boolean;
+	/** Reasoning and tool calls share one collapsed section in the Conversation persistent progress layout. */
+	readonly isConversation?: boolean;
 	/**
 	 * The part is hosted by the tool confirmation carousel above the chat input rather than by a
 	 * transcript row, so it renders the confirmation that transcript copies defer to it.
@@ -94,6 +100,8 @@ export interface IChatContentPartRenderContext {
 	readonly diffEditorPool: DiffEditorPool;
 	readonly currentWidth: IObservable<number>;
 	readonly onDidChangeVisibility: Event<boolean>;
+	/** Only a newly completed, visible header may generate a title; historical headers may reuse cached titles. */
+	readonly registerThinkingTitle?: (header: HTMLElement, getRequest: () => IChatThinkingTitleRequest, acceptTitle: (title: string) => void, newlyCompleted: boolean) => IDisposable;
 	readonly inlineTextModels: InlineTextModelCollection;
 }
 

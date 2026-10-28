@@ -20,6 +20,7 @@ import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxP
 import { basename, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { getStreamingCreateMessage, getStreamingInsertMessage, getStreamingPatchMessage, getStreamingReplaceMessage, streamingToolTextLineCount, type ToolPathResolver } from '../../common/streamingToolCallDisplay.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
+import { COMPUTER_USE_ACTIVATION_TOOL_NAME } from './copilotComputerUseActivationTool.js';
 
 // =============================================================================
 // Copilot CLI built-in tool interfaces
@@ -433,10 +434,13 @@ const SEARCH_TOOL_NAMES: ReadonlySet<string> = new Set([
  * synthesizes a tool-start/complete pair from that event so the UI can
  * render a clickable file link instead of just the skill name. See
  * {@link synthesizeSkillToolCall}.
+ *
+ * The Computer Use activation tool is hidden because its card is what the user sees.
  */
 const HIDDEN_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CopilotToolName.ReportIntent,
 	CopilotToolName.Skill,
+	COMPUTER_USE_ACTIVATION_TOOL_NAME,
 ]);
 
 /**
@@ -1165,6 +1169,7 @@ function readConfirmationTitle(request: PermissionRequest, path: string | undefi
  *
  * `additionalDirectories` carries the peer roots of a multi-root session, so a
  * read under any root is recognized as inside the workspace.
+ * Hook requests show the hook's reason and gated tool input while retaining their permission kind.
  */
 export function getPermissionDisplay(request: PermissionRequest, workingDirectory?: URI, isNewFile?: boolean, additionalDirectories?: readonly URI[], shellToolParameters?: Record<string, unknown>): {
 	confirmationTitle: string;
@@ -1241,6 +1246,23 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 				toolInput: serverDisplay?.hideConfirmationInput ? undefined : args ? tryStringify(args) : tryStringify(request),
 				permissionKind: request.kind,
 				permissionPath: path,
+			};
+		}
+		case 'hook': {
+			const args = typeof request.toolArgs === 'object' && request.toolArgs !== null && !Array.isArray(request.toolArgs)
+				? { ...request.toolArgs } : undefined;
+			const shellToolName = toolName && isShellTool(toolName) ? toolName : undefined;
+			if (shellToolName) {
+				stripRedundantCdPrefix(shellToolName, args, workingDirectory);
+			}
+			return {
+				confirmationTitle: shellToolName ? shellConfirmationTitle : localize('copilot.permission.hook.title', "Allow tool call: {0}?", toolName ?? request.kind),
+				invocationMessage: str(request.hookMessage)?.trim() || (shellToolName
+					? getInvocationMessage(shellToolName, getToolDisplayName(shellToolName), typeof args?.command === 'string' ? args : undefined)
+					: md(localize('copilot.permission.default.message', "Allow the model to call {0}?", appendEscapedMarkdownInlineCode(toolName ?? request.kind)))),
+				toolInput: tryStringify(args ?? request.toolArgs, 2),
+				permissionKind: 'hook',
+				shellCommand: shellToolName ? str(args?.command) : undefined,
 			};
 		}
 		case 'write': {

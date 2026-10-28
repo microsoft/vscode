@@ -13,9 +13,10 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableMap, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { clamp } from '../../../../../base/common/numbers.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -28,7 +29,9 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { asCssVariable, asCssVariableWithDefault, buttonSecondaryBackground, buttonSecondaryForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariable, asCssVariableWithDefault, editorWidgetBackground, editorWidgetBorder, iconForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { katexContainerClassName } from '../../../markdown/common/markedKatexExtension.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -39,6 +42,7 @@ import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isReques
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatContextMenuActionContext, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
+import { resolveResponseSelection } from '../responseSelectionResolver.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
@@ -48,6 +52,7 @@ import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 
 const CHAT_STICKY_SCROLL_TOP_PADDING = 8;
 const CHAT_COLLAPSE_ANCHOR_PADDING = 16;
+const chatScrollToLatestIcon = registerIcon('chat-scroll-to-bottom', Codicon.arrowDown, localize('chat.scrollToBottomIcon', "Icon for scrolling to the latest chat content."));
 
 export interface IChatListWidgetStyles {
 	listForeground?: string;
@@ -236,6 +241,9 @@ export interface IChatListWidgetOptions {
 	 */
 	readonly rendererOptions?: IChatListItemRendererOptions;
 
+	/** Keeps persistent working progress visible when its inline position leaves the transcript viewport. */
+	readonly stickyProgress?: boolean;
+
 	/**
 	 * Default height for list elements.
 	 */
@@ -386,7 +394,10 @@ export class ChatListWidget extends Disposable {
 	private readonly _userToggleResizeTrackers = this._register(new DisposableMap<ChatTreeItem, UserToggleResizeTracker>());
 
 	private readonly _container: HTMLElement;
+	private _overlayClippingContainer: HTMLElement | undefined;
 	private readonly _scrollDownButton: Button;
+	private readonly _workingProgressContainer: HTMLElement | undefined;
+	private readonly _stickyProgressLayout = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _lastItemIdContextKey: IContextKey<string[]>;
 
 	private readonly _location: ChatAgentLocation | undefined;
@@ -405,6 +416,10 @@ export class ChatListWidget extends Disposable {
 
 	get domNode(): HTMLElement {
 		return this._container;
+	}
+
+	get scrollDownButtonDomNode(): HTMLElement {
+		return this._scrollDownButton.element;
 	}
 
 	get stickyScrollDomNode(): HTMLElement | undefined {
@@ -543,6 +558,7 @@ export class ChatListWidget extends Disposable {
 			getListLength: () => this._tree.getListRenderCount(null),
 			onDidScroll: this.onDidScroll,
 			container: this._container,
+			getOverlayClippingContainer: () => this.getOverlayClippingContainer(),
 			currentChatMode: options.currentChatMode ?? (() => ChatModeKind.Ask),
 			isStickyScrollEnabled: () => this.isTreeStickyScrollEnabled(),
 			isScrolledToBottom: () => this.isScrolledToBottom,
@@ -619,7 +635,7 @@ export class ChatListWidget extends Disposable {
 				allowNonCollapsibleParents: true,
 				renderIndentGuides: RenderIndentGuides.None,
 				findWidgetEnabled: false,
-				accessibilityProvider: this.instantiationService.createInstance(ChatAccessibilityProvider),
+				accessibilityProvider: this.instantiationService.createInstance(ChatAccessibilityProvider, () => this._renderer.responseIdentity),
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: (e: ChatTreeItem) =>
 						isRequestVM(e) ? e.message : isResponseVM(e) ? e.response.value : ''
@@ -649,27 +665,56 @@ export class ChatListWidget extends Disposable {
 				}
 			}
 		));
+		if (options.stickyProgress) {
+			const progress = this._workingProgressContainer = dom.append(this._container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress.hidden'));
+			this._register(toDisposable(() => progress.remove()));
+			this._renderer.setWorkingProgressContainer(progress, (response, anchor) => {
+				if (!this._visible || this._tree.renderHeight <= 0 || !progress.isConnected || !this._tree.hasElement(response)) {
+					return false;
+				}
+				const viewport = this._tree.getHTMLElement().getBoundingClientRect();
+				const stickyHeader = this._tree.stickyScrollDomNode?.getBoundingClientRect();
+				const top = stickyHeader?.height ? Math.max(viewport.top, stickyHeader.bottom) : viewport.top;
+				const bottom = Math.min(viewport.bottom, progress.getBoundingClientRect().bottom);
+				if (bottom <= viewport.top) {
+					return false;
+				}
+				if (anchor) {
+					const bounds = anchor.getBoundingClientRect();
+					return bounds.bottom > bottom || bounds.top < top;
+				}
+				const responseTop = this._tree.getElementTop(response);
+				if (responseTop === undefined) {
+					return false;
+				}
+				const responseBottom = responseTop + (response.currentRenderedHeight ?? this._delegate.getHeight(response)) - this._tree.scrollTop + viewport.top;
+				return responseBottom > bottom || responseBottom <= top;
+			});
+		}
 		if (options.tabIndex !== undefined) {
 			this._tree.getHTMLElement().tabIndex = options.tabIndex;
 		}
 
 		// Create scroll-down button
-		const scrollToBottomLabel = localize('chat.scrollToBottom', "Scroll to Bottom");
-		const scrollToBottomBackground = asCssVariableWithDefault('chat.list.background', asCssVariable(buttonSecondaryBackground));
+		const scrollToBottomLabel = localize('chat.scrollToLatest', "Scroll to Latest");
+		const scrollToBottomBackground = asCssVariable(editorWidgetBackground);
 		this._scrollDownButton = this._register(new Button(this._container, {
+			...defaultButtonStyles,
 			title: scrollToBottomLabel,
 			ariaLabel: scrollToBottomLabel,
 			buttonBackground: scrollToBottomBackground,
-			buttonForeground: asCssVariable(buttonSecondaryForeground),
+			buttonForeground: asCssVariable(iconForeground),
 			buttonHoverBackground: scrollToBottomBackground,
-			buttonSecondaryBackground: undefined,
-			buttonSecondaryForeground: undefined,
-			buttonSecondaryHoverBackground: undefined,
-			buttonSeparator: undefined,
+			buttonBorder: asCssVariableWithDefault(editorWidgetBorder, 'transparent'),
 			supportIcons: true,
 		}));
 		this._scrollDownButton.element.classList.add('chat-scroll-down');
-		this._scrollDownButton.label = `$(${Codicon.chevronDown.id})`;
+		this._scrollDownButton.label = `$(${chatScrollToLatestIcon.id})`;
+		for (const child of this._scrollDownButton.element.children) {
+			if (child.classList.contains('codicon')) {
+				child.setAttribute('aria-hidden', 'true');
+			}
+		}
 		this._scrollDownButton.element.style.display = 'none'; // Hidden by default
 
 		this._register(this._scrollDownButton.onDidClick(() => {
@@ -682,6 +727,7 @@ export class ChatListWidget extends Disposable {
 
 		// Handle content height changes (fires high-level event, internal scroll handling)
 		this._register(this._tree.onDidChangeContentHeight(() => {
+			this.updateStickyProgress();
 			this._onDidChangeContentHeight.fire();
 		}));
 
@@ -704,6 +750,7 @@ export class ChatListWidget extends Disposable {
 
 		// Handle scroll events (fire public event and manage scroll-down button)
 		this._register(this._tree.onDidScroll((e) => {
+			this._renderer.updateStickyProgress();
 			this._onDidScroll.fire(e);
 			this.updateScrollDownButtonVisibility();
 		}));
@@ -750,6 +797,7 @@ export class ChatListWidget extends Disposable {
 			if (e.affectsConfiguration(ChatConfiguration.EditRequests)
 				|| e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)
 				|| e.affectsConfiguration(ChatConfiguration.RichLinks)
+				|| e.affectsConfiguration(ChatConfiguration.ProgressBorder)
 				|| e.affectsConfiguration(ChatConfiguration.PersistentProgress)
 				|| e.affectsConfiguration(ChatConfiguration.PersistentProgressVerbosity)) {
 				this._settingChangeCounter++;
@@ -759,6 +807,25 @@ export class ChatListWidget extends Disposable {
 	}
 
 	//#region Internal event handlers
+
+	protected getOverlayClippingContainer(): HTMLElement {
+		if (!this._overlayClippingContainer) {
+			// Even an empty positioned anchor changes text compositing, so only attach it for overlays.
+			const container = this._overlayClippingContainer = dom.append(this._tree.getHTMLElement(), dom.$('.chat-list-overlay-clip'));
+			const updateOverlayClip = () => {
+				container.style.top = `${this._tree.stickyScrollDomNode?.offsetHeight ?? 0}px`;
+			};
+			const overlayClipObserver = this._register(new dom.DisposableResizeObserver('ChatListWidget.overlayClip', updateOverlayClip, dom.getWindow(this._container)));
+			const stickyScrollObservation = this._register(new MutableDisposable<IDisposable>());
+			const observeStickyScroll = (node: HTMLElement | undefined) => {
+				stickyScrollObservation.value = node ? overlayClipObserver.observe(node) : undefined;
+				updateOverlayClip();
+			};
+			this._register(this._tree.onDidChangeStickyScrollDomNode(observeStickyScroll));
+			observeStickyScroll(this._tree.stickyScrollDomNode);
+		}
+		return this._overlayClippingContainer;
+	}
 
 	/**
 	 * Rewrites the rich-text flavor of a copied selection so links that only resolve here
@@ -855,6 +922,30 @@ export class ChatListWidget extends Disposable {
 		this._scrollDownButton.element.style.display = showButton ? 'flex' : 'none';
 		this._container.classList.toggle('chat-list-at-bottom', atBottom);
 		this._container.classList.toggle('chat-list-scrolled-to-bottom', isScrolledToBottom);
+		this.updateScrollDownButtonPosition();
+	}
+
+	private updateStickyProgress(): void {
+		this._renderer.updateStickyProgress();
+		this.updateScrollDownButtonPosition();
+	}
+
+	private updateScrollDownButtonPosition(): void {
+		const button = this._scrollDownButton.element;
+		const progress = this._workingProgressContainer;
+		let bottom = '';
+		if (this._visible && progress?.isConnected && progress.childElementCount > 0 && button.style.display !== 'none') {
+			const bounds = progress.getBoundingClientRect();
+			if (bounds.height > 0) {
+				const viewport = this._container.getBoundingClientRect();
+				const buttonHeight = button.offsetHeight;
+				const centeredBottom = viewport.bottom - (bounds.top + bounds.bottom) / 2 - buttonHeight / 2;
+				bottom = `${clamp(centeredBottom, 0, Math.max(0, viewport.height - buttonHeight))}px`;
+			}
+		}
+		if (button.style.bottom !== bottom) {
+			button.style.bottom = bottom;
+		}
 	}
 
 	/**
@@ -869,6 +960,8 @@ export class ChatListWidget extends Disposable {
 		const targetContext = getChatContextMenuTargetContext(e.browserEvent.target);
 		const linkTarget = targetContext.linkTarget;
 		const hasAvailableEditors = linkTarget ? shouldShowChatLinkOpenWith(URI.parse(linkTarget), this.fileService, this.editorResolverService) : false;
+		const selection = resolveResponseSelection({ domNode: this._container, getElementFromNode: node => this.getElementFromNode(node) });
+		const responseSelection = selection?.response === selected ? selection : undefined;
 
 		const scopedContextKeyService = this.contextKeyService.createOverlay([
 			[ChatContextKeys.isResponse.key, isResponseVM(selected)],
@@ -877,11 +970,13 @@ export class ChatListWidget extends Disposable {
 			[ChatContextKeys.contextMenuIsBackground.key, targetContext.isBackground],
 			[ChatContextKeys.contextMenuHasLink.key, !!linkTarget],
 			[ChatContextKeys.contextMenuHasAvailableEditors.key, hasAvailableEditors],
+			[ChatContextKeys.contextMenuHasResponseSelection.key, !!responseSelection],
 		]);
 		const actionContext: IChatContextMenuActionContext = {
 			$chatContextMenu: true,
 			item: selected,
 			linkTarget,
+			responseSelection,
 		};
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.ChatContext,
@@ -1272,12 +1367,8 @@ export class ChatListWidget extends Disposable {
 		if (lastElement) {
 			const offset = Math.max(lastElement.currentRenderedHeight ?? 0, 1e6);
 			this._tree.reveal(lastElement, offset);
-			if (this._effectivePaddingBottom) {
-				// `reveal` stops at the last item's edge, leaving the padding
-				// unscrolled - which would keep the list from ever reporting that
-				// it is at the bottom. Overshoot is clamped.
-				this._tree.scrollTop += this._effectivePaddingBottom;
-			}
+			// Revealing can remeasure offscreen rows; include their updated heights and bottom padding.
+			this._tree.scrollTop = this._tree.scrollHeight;
 		}
 	}
 
@@ -1299,7 +1390,11 @@ export class ChatListWidget extends Disposable {
 	private _withPersistedAutoScroll(fn: () => void): void {
 		const wasScrolledToBottom = !this.isAutoScrollHeld && this.isScrolledToBottom;
 		const scrollTop = this._tree.scrollTop;
-		fn();
+		if (wasScrolledToBottom) {
+			this._tree.withScrollAnchorAtBottom(fn);
+		} else {
+			fn();
+		}
 		this.updateBottomPadding(scrollTop);
 		if (wasScrolledToBottom) {
 			this.revealLastItem();
@@ -1391,6 +1486,25 @@ export class ChatListWidget extends Disposable {
 		}
 	}
 
+	setStickyProgressContainer(container: HTMLElement): void {
+		const progress = this._workingProgressContainer;
+		if (!progress || progress.parentElement === container) {
+			return;
+		}
+		const activeElement = dom.getActiveElement();
+		const focusedElement = dom.isHTMLElement(activeElement) && progress.contains(activeElement) ? activeElement : undefined;
+		container.prepend(progress);
+		if (focusedElement) {
+			focusedElement.focus({ preventScroll: true });
+		}
+		const store = new DisposableStore();
+		this._stickyProgressLayout.value = store;
+		const observer = store.add(new dom.DisposableResizeObserver('ChatListWidget.stickyProgress', () => this.updateStickyProgress(), dom.getWindow(container)));
+		store.add(observer.observe(container));
+		store.add(observer.observe(progress));
+		this.updateStickyProgress();
+	}
+
 	setPaddingBottom(paddingBottom: number): void {
 		const value = Math.max(0, paddingBottom);
 		if (value === this._paddingBottom) {
@@ -1399,6 +1513,7 @@ export class ChatListWidget extends Disposable {
 		const wasScrolledToBottom = this.isScrolledToBottom;
 		this._paddingBottom = value;
 		this.updateBottomPadding();
+		this.updateStickyProgress();
 		if (wasScrolledToBottom) {
 			this.revealLastItem();
 		}
@@ -1438,6 +1553,7 @@ export class ChatListWidget extends Disposable {
 	setVisible(visible: boolean): void {
 		this._visible = visible;
 		this._renderer.setVisible(visible);
+		this.updateStickyProgress();
 	}
 
 	/**
@@ -1447,6 +1563,7 @@ export class ChatListWidget extends Disposable {
 		this._tree.layout(height, width);
 		this._renderer.layout(width ?? this._container.clientWidth);
 		this.updateBottomPadding();
+		this.updateStickyProgress();
 		this._tree.refreshStickyScroll();
 	}
 

@@ -1734,7 +1734,7 @@ suite('EditorService', () => {
 				{},
 				{ createEditorInput: input => ({ editor: createTestFileEditorInput(input.resource, 'test.alternativeEditor') }) }
 			));
-			const available = getAvailableEditorTypes(source, accessor.editorResolverService)!;
+			const available = getAvailableEditorTypes(source, accessor.editorResolverService, accessor.modelService)!;
 			const actions = createEditorTypeActions(available, sourceGroup, accessor.editorResolverService, NullCommandService, service);
 			const alternative = actions.find(action => action.id === 'test.alternativeEditor')!.alt!;
 			for (let i = 0; i < 2; i++) {

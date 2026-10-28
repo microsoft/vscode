@@ -9,8 +9,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { stableStringify } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import type { AutomationTriggerDefinition } from '../../../../../platform/github/common/missionControl/automations.js';
 import { ChatPermissionLevel } from '../constants.js';
-import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, AutomationTarget } from './automation.js';
+import { IAutomationCloudTrigger, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, AutomationTarget } from './automation.js';
 
 export const IAutomationService = createDecorator<IAutomationService>('automationService');
 export const ConfigureAutomationToolReferenceName = 'configureAutomation';
@@ -25,6 +26,8 @@ export interface IAutomationProviderConfiguration {
 	readonly tools: IObservable<AutomationToolCatalog>;
 	/** Starts loading the tool catalog if it is not loaded or loading, retrying after a failure. */
 	loadTools(): void;
+	readonly triggers?: IObservable<AutomationTriggerCatalog>;
+	loadTriggers?(): void;
 	pickWorkspace(token: CancellationToken): Promise<URI | undefined>;
 	getWorkspaceTarget(workspace: URI | undefined): IObservable<IAutomationWorkspaceTarget>;
 }
@@ -47,12 +50,20 @@ export type AutomationToolCatalog =
 	| { readonly kind: 'ready'; readonly groups: readonly IAutomationToolGroup[] }
 	| { readonly kind: 'error'; readonly message: string };
 
+export type AutomationTriggerCatalog =
+	| { readonly kind: 'loading' }
+	| { readonly kind: 'ready'; readonly definitions: readonly AutomationTriggerDefinition[] }
+	| { readonly kind: 'error'; readonly message: string };
+
 /** A checked canonical workspace, or an explanation while checking or unavailable. */
 export interface IAutomationWorkspaceTarget {
 	readonly workspace?: URI;
+	readonly repositoryLabel?: string;
 	readonly disabledReason?: string;
 	readonly pending?: boolean;
-	readonly isPublicRepository?: boolean;
+	readonly isRepository?: boolean;
+	readonly isPrivateRepository?: boolean;
+	readonly allowReadAccessTriggers?: boolean;
 }
 
 /** Catalogue completeness; only `ready` makes an empty snapshot authoritative. */
@@ -79,6 +90,9 @@ export type AutomationMutationGuard = () => void;
 
 /** The selected Automation authority cannot currently accept the operation. */
 export class AutomationUnavailableError extends Error { }
+
+/** Repository ownership is unavailable for the selected Automation target. */
+export class AutomationRepositoryOwnershipUnavailableError extends Error { }
 
 /** The provider may have accepted a mutation; reconcile its outcome before retrying. */
 export class AutomationMutationUncertainError extends Error { }
@@ -111,9 +125,11 @@ export function assertAutomationSessionTemplateAuthority(current: IAutomationDes
  * `nextRunAt`.
  */
 export interface ICreateAutomationOptions {
+	readonly ownership?: 'user' | 'repository';
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
+	readonly cloudTrigger?: IAutomationCloudTrigger;
 	readonly target: AutomationTarget;
 	readonly sessionTemplate?: IAutomationSessionTemplate;
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
@@ -152,6 +168,7 @@ export interface IUpdateAutomationOptions {
 	readonly name?: string;
 	readonly prompt?: string;
 	readonly schedule?: IAutomationSchedule;
+	readonly cloudTrigger?: IAutomationCloudTrigger;
 	readonly target?: AutomationTarget;
 	readonly sessionTemplate?: IAutomationSessionTemplate | null;
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
@@ -213,6 +230,7 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 		mode: automation.mode,
 		permissionLevel: automation.permissionLevel ?? ChatPermissionLevel.Default,
 		enabled: automation.enabled,
+		cloudTrigger: automation.cloudTrigger,
 	});
 }
 
@@ -236,6 +254,12 @@ export interface IAutomationRefreshOptions {
 	/** Reload catalogue data without invalidating workspace eligibility used by open drafts. */
 	readonly background?: boolean;
 }
+
+export interface IDeleteAutomationOptions {
+	readonly deleteHistory: boolean;
+}
+
+export type AutomationHistoryState = 'retained' | 'deleting';
 
 /**
  * Provider-neutral catalogue and command contract shared by individual providers and the aggregate service.
@@ -270,8 +294,17 @@ export interface IAutomationStore {
 	 * Runtime timestamps may change without conflicting, so reviewed edits preserve scheduler progress.
 	 */
 	updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult>;
-	/** Deletes an automation and its retained run history; missing IDs are ignored. */
-	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void>;
+	/** Deletes an automation and, by default, its retained history. Explicit history options require provider support; missing IDs are ignored. */
+	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard, options?: IDeleteAutomationOptions): Promise<void>;
+	/** Whether this provider supports an explicit keep/delete history policy. */
+	supportsDeleteHistoryChoice?(id: string): boolean;
+	/** Includes removed definitions whose run history is retained. */
+	getAutomationHistoryName?(id: string): string | undefined;
+	/** State of a removed definition's retained history. */
+	getAutomationHistoryState?(id: string): AutomationHistoryState | undefined;
+	/** Permanently deletes retained history or retries an interrupted deletion. */
+	deleteAutomationHistory?(id: string): Promise<void>;
+	canDeleteAutomationHistory?(id: string): boolean;
 	/**
 	 * Lists the customizations an automation targeting `target` can sync, including
 	 * those saved in automation `existingId`. Resolves `undefined` when the provider

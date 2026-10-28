@@ -17,7 +17,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { firstParallel, Limiter, SequencerByKey, timeout } from '../../../base/common/async.js';
 import { derived, observableValueOpts, type IObservable } from '../../../base/common/observable.js';
@@ -234,6 +234,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 				}
 			}
 
+			if (await this._isMissingDirectory(workingDirectory.fsPath)) {
+				this._logService.trace(`[agentHostGitService] Skipping repository root lookup for missing directory ${workingDirectory.fsPath}`);
+				return undefined;
+			}
+
 			try {
 				const repositoryRootPath = (await this._runGit(workingDirectory, ['rev-parse', '--show-toplevel'], { throwOnError: true, env: { LC_ALL: 'C' } }))?.trim();
 				if (repositoryRootPath) {
@@ -252,7 +257,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 						roots.delete(workingDirectoryKey);
 						this._repositoryRoots.set(roots, undefined);
 					}
-					this._logService.warn(`[agentHostGitService] Failed to resolve repository root for ${workingDirectory.fsPath}`, error);
+					if (isSpawnEnoentError(error) && await this._isMissingDirectory(workingDirectory.fsPath)) {
+						this._logService.trace(`[agentHostGitService] Directory ${workingDirectory.fsPath} disappeared during repository root lookup`);
+					} else {
+						this._logService.warn(`[agentHostGitService] Failed to resolve repository root for ${workingDirectory.fsPath}`, error);
+					}
 				}
 			}
 
@@ -261,16 +270,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getWorktreeRoots(workingDirectory: URI): Promise<URI[]> {
-		return this._parseWorktreeRoots(await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain']));
+		return parseGitWorktrees(await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain', '-z']) ?? '').map(worktree => worktree.path);
 	}
 
-	private _parseWorktreeRoots(porcelainOutput: string | undefined): URI[] {
-		if (!porcelainOutput) {
-			return [];
-		}
-		return porcelainOutput.split(/\r?\n/g)
-			.filter(line => line.startsWith('worktree '))
-			.map(line => URI.file(line.substring('worktree '.length)));
+	async getWorktrees(workingDirectory: URI): Promise<IAgentHostGitWorktree[]> {
+		return parseGitWorktrees(await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain', '-z'], { throwOnError: true }) ?? '');
 	}
 
 	async addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void> {
@@ -288,7 +292,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 			args.push('-b', options.newBranchName);
 		}
 
-		args.push(options.path.fsPath, options.commitish);
+		// `--` ends the options: neither the path nor the commit-ish can be read as one.
+		args.push('--', options.path.fsPath, options.commitish);
 
 		// `git worktree add` forces progress reporting on its internal checkout
 		// even when stderr is a pipe, so `Updating files: N% (x/y)` can be
@@ -386,7 +391,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// deleted out-of-band but git still has it registered ("missing but
 		// already registered worktree"). This is our own managed per-session
 		// worktree/branch, so overriding git's safeguards here is safe.
-		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '-f', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
+		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '-f', '--', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
 	}
 
 	/**
@@ -417,6 +422,26 @@ export class AgentHostGitService implements IAgentHostGitService {
 	 * returning, so a silent `prune` no-op cannot mask a leaked entry.
 	 */
 	async removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean }): Promise<void> {
+		if (options?.force && await this._pathExists(worktree.fsPath) && await this.isWorktreeRegistered(repositoryRoot, worktree)) {
+			if (!await this._pathExists(path.join(worktree.fsPath, '.git'))) {
+				throw new Error(`Cannot preserve registered worktree '${worktree.fsPath}': its .git file is missing`);
+			}
+			// Preserve non-ignored work in the shared object store without changing the checkout's index or branch.
+			const tree = await this.captureWorkingTreeAsTree(worktree);
+			if (!tree) {
+				throw new Error(`Cannot preserve worktree '${worktree.fsPath}' before removal`);
+			}
+			if (tree !== await this.revParse(worktree, 'HEAD^{tree}')) {
+				const parent = await this.revParse(worktree, 'HEAD');
+				const commit = await this.commitTree(worktree, tree, parent, `Preserving worktree before removal: ${worktree.fsPath}`);
+				if (!commit) {
+					throw new Error(`Cannot create preservation commit for '${worktree.fsPath}'`);
+				}
+				const ref = `refs/vscode-preserved-worktrees/${generateUuid()}`;
+				await this.updateRef(repositoryRoot, ref, commit);
+				this._logService.warn(`[agentHostGitService] Preserved worktree '${worktree.fsPath}' at '${ref}'. Recover with: git branch recovered-worktree ${ref}`);
+			}
+		}
 		const removeArgs = ['worktree', 'remove'];
 		if (options?.force) {
 			removeArgs.push('--force');
@@ -430,26 +455,26 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 			let gitCommandSucceeded = false;
 			try {
-				if (await this._pathExists(worktree.fsPath)) {
+				if (await this._pathExists(worktree.fsPath) && !(options?.force && !await this._pathExists(path.join(worktree.fsPath, '.git')))) {
 					await this._runGit(repositoryRoot, removeArgs, { timeout: 60_000, throwOnError: true });
 				} else {
-					// Working tree already gone (a prior attempt removed it): prune clears the stale admin entry.
+					// The checkout or its .git file is gone: prune, then verify Git released the exact path before removing residue.
 					await this._runGit(repositoryRoot, ['worktree', 'prune'], { timeout: 60_000, throwOnError: true });
 				}
 				gitCommandSucceeded = true;
 			} catch (error) {
 				lastError = error;
 				if (!isRetryableWorktreeRemovalError(error)) {
-					if (!await this._isWorktreeRegistered(repositoryRoot, worktree)) {
-						await this._removeResidualWorktreeDirectory(worktree, options?.force === true);
+					if (!await this.isWorktreeRegistered(repositoryRoot, worktree)) {
+						await this._removeResidualWorktreeDirectory(repositoryRoot, worktree, options?.force === true);
 						return;
 					}
 					throw error;
 				}
 			}
 			// A zero exit is not proof of success (see the doc above), so confirm de-registration.
-			if (!await this._isWorktreeRegistered(repositoryRoot, worktree)) {
-				await this._removeResidualWorktreeDirectory(worktree, options?.force === true);
+			if (!await this.isWorktreeRegistered(repositoryRoot, worktree)) {
+				await this._removeResidualWorktreeDirectory(repositoryRoot, worktree, options?.force === true);
 				return;
 			}
 			if (gitCommandSucceeded) {
@@ -462,19 +487,39 @@ export class AgentHostGitService implements IAgentHostGitService {
 		throw lastError;
 	}
 
-	private async _removeResidualWorktreeDirectory(worktree: URI, force: boolean): Promise<void> {
+	private async _removeResidualWorktreeDirectory(repositoryRoot: URI, worktree: URI, force: boolean): Promise<void> {
 		if (!await this._pathExists(worktree.fsPath)) {
 			return;
 		}
 		if (!force) {
 			throw new Error(`Worktree '${worktree.fsPath}' is de-registered, but its directory remains and cannot be removed without force`);
 		}
+		const stat = await fsPromises.lstat(worktree.fsPath);
+		const root = await this._canonicalizeWorktreePath(repositoryRoot);
+		const target = await this._canonicalizeWorktreePath(worktree);
+		if (!stat.isDirectory() || stat.isSymbolicLink() || extUriBiasedIgnorePathCase.isEqualOrParent(root, target)) {
+			throw new Error(`Refusing to remove unsafe worktree residue '${worktree.fsPath}'`);
+		}
+
 		await fsPromises.rm(worktree.fsPath, {
 			recursive: true,
 			force: true,
 			maxRetries: WORKTREE_REMOVAL_MAX_ATTEMPTS,
 			retryDelay: WORKTREE_REMOVAL_RETRY_BASE_DELAY_MS,
 		});
+	}
+
+	/**
+	 * Whether `fsPath` is definitely not a directory: it does not exist, a parent is not a directory, or it is a file.
+	 * Other `stat` failures (e.g. `EACCES`) are not treated as missing, so git still runs and reports them.
+	 */
+	private async _isMissingDirectory(fsPath: string): Promise<boolean> {
+		try {
+			return !(await fsPromises.stat(fsPath)).isDirectory();
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException)?.code;
+			return code === 'ENOENT' || code === 'ENOTDIR';
+		}
 	}
 
 	private async _pathExists(fsPath: string): Promise<boolean> {
@@ -494,10 +539,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 	 * Fails closed (returns `true`) if the registry cannot be read, so an unrelated
 	 * `git worktree list` failure is never mistaken for a completed removal.
 	 */
-	private async _isWorktreeRegistered(repositoryRoot: URI, worktree: URI): Promise<boolean> {
+	async isWorktreeRegistered(repositoryRoot: URI, worktree: URI): Promise<boolean> {
 		let registered: URI[];
 		try {
-			registered = this._parseWorktreeRoots(await this._runGit(repositoryRoot, ['worktree', 'list', '--porcelain'], { throwOnError: true }));
+			registered = (await this.getWorktrees(repositoryRoot)).map(worktree => worktree.path);
 		} catch {
 			return true;
 		}
@@ -1069,13 +1114,19 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 	}
 
-	async commitTree(repositoryRoot: URI, treeOid: string, parentOid: string | undefined, message: string): Promise<string | undefined> {
+	async commitTree(repositoryRoot: URI, treeOid: string, parentOid: string | undefined, message: string, options?: { readonly useInternalIdentity?: boolean }): Promise<string | undefined> {
 		const args = ['commit-tree', treeOid];
 		if (parentOid) {
 			args.push('-p', parentOid);
 		}
 		args.push('-m', message);
-		const out = await this._runGit(repositoryRoot, args, { throwOnError: true });
+		const env = options?.useInternalIdentity ? {
+			GIT_AUTHOR_NAME: 'VS Code',
+			GIT_AUTHOR_EMAIL: 'vscode@localhost',
+			GIT_COMMITTER_NAME: 'VS Code',
+			GIT_COMMITTER_EMAIL: 'vscode@localhost',
+		} : undefined;
+		const out = await this._runGit(repositoryRoot, args, { throwOnError: true, ...(env ? { env } : {}) });
 		return out?.trim() || undefined;
 	}
 
@@ -1368,7 +1419,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 		return new Promise((resolve, reject) => {
 			const env = options?.env ? { ...process.env, ...options.env } : undefined;
-			const timeoutMs = options?.timeout ?? 5000;
+			const timeoutMs = options?.timeout ?? 30_000;
 			// Use our own timer rather than execFile's `timeout` option so
 			// we can definitively flag the timeout case in the error
 			// message — execFile only surfaces signal/killed, which can
@@ -1419,7 +1470,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 					child.kill();
 					return;
 				}
-				void killTree(child.pid, true).catch(() => child.kill('SIGKILL'));
+				void killTree(child.pid, true, message => this._logService.debug(`[agentHostGitService] ${message}`)).catch(() => child.kill('SIGKILL'));
 			}, timeoutMs);
 			child.on('exit', () => clearTimeout(timer));
 		});
@@ -1430,6 +1481,11 @@ class GitCommandError extends Error {
 	constructor(message: string, readonly stderr: string, cause: cp.ExecFileException) {
 		super(message, { cause });
 	}
+}
+
+/** Whether spawning git failed with `ENOENT`, raised both for a missing git executable and for a missing working directory. */
+function isSpawnEnoentError(error: unknown): boolean {
+	return error instanceof GitCommandError && (error.cause as NodeJS.ErrnoException | undefined)?.code === 'ENOENT';
 }
 
 function isCheckoutBlockedByLocalChanges(stderr: string): boolean {
@@ -1772,7 +1828,7 @@ export function formatGitError(args: readonly string[], timeoutMs: number, didTi
  * Squashes multi-line / carriage-return-heavy stderr (e.g. git progress
  * meters that emit `Updating files:   0% (149/14834)\r...` repeatedly)
  * into a single short line suitable for a one-liner error message.
- * Keeps the most recent non-empty line and caps total length.
+ * Prefers actionable diagnostics over trailing advice and caps total length.
  *
  * Exported for tests.
  */
@@ -1789,8 +1845,17 @@ export function summarizeStderrForError(stderr: string): string {
 		/\bgit-lfs\b/i.test(line) &&
 		/(command not found|not recognized|no such file)/i.test(line)
 	);
-	const summary = gitLfsMissing ?? lines[lines.length - 1];
+	const summary = gitLfsMissing ?? lines.find(line => /^fatal:/i.test(line)) ?? lines[lines.length - 1];
 	return summary.length > MAX ? `${summary.slice(0, MAX - 1)}…` : summary;
+}
+
+export function parseGitWorktrees(output: string): IAgentHostGitWorktree[] {
+	const branchPrefix = 'branch refs/heads/';
+	return output.split('\0\0').filter(record => record.startsWith('worktree ')).map(record => {
+		const fields = record.split('\0');
+		const branch = fields.find(field => field.startsWith(branchPrefix));
+		return { path: URI.file(fields[0].slice('worktree '.length)), branchName: branch?.slice(branchPrefix.length) };
+	});
 }
 
 /**
@@ -2100,9 +2165,10 @@ function parseFetchRemotes(remotesOutput: string | undefined): { name: string; u
 	}
 	const candidates: { name: string; url: string }[] = [];
 	for (const rawLine of remotesOutput.split(/\r?\n/)) {
-		const match = /^(\S+)\s+(\S+)\s+\(fetch\)$/.exec(rawLine.trim());
-		if (match) {
-			candidates.push({ name: match[1], url: match[2] });
+		// Partial clones append the object filter, e.g. `origin <url> (fetch) [blob:none]`.
+		const match = /^(?<name>\S+)\s+(?<url>\S+)\s+\(fetch\)(?:\s+\[[^\]]*\])?$/.exec(rawLine.trim());
+		if (match?.groups) {
+			candidates.push({ name: match.groups.name, url: match.groups.url });
 		}
 	}
 	return candidates;
