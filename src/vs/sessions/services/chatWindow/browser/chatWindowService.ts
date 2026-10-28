@@ -14,12 +14,14 @@ import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextke
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 import { IEditorGroup, IEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { SessionLayoutMode, SessionTerminalPosition } from '../../../common/sessionGridLayout/sessionGridLayout.js';
+import { SessionLayoutModeContext, SessionSplitLayout, SessionSplitLayoutContext } from '../../../common/sessionLayoutMode.js';
 import { IActiveSession } from '../../sessions/common/sessionsManagement.js';
 
 export const IChatWindowService = createDecorator<IChatWindowService>('chatWindowService');
 
-/** The layout modes in which a window shows its chat and its editor together. */
-export type SessionSplitLayout = SessionLayoutMode.Stacked | SessionLayoutMode.SideBySide;
+// One definition for both windows: see `common/sessionLayoutMode.ts`.
+export { SessionLayoutModeContext, SessionSplitLayoutContext };
+export type { SessionSplitLayout };
 
 /**
  * A kind of chat window. Chat windows of a kind share their title and their defaults: the layout and terminal position a
@@ -254,12 +256,6 @@ export const ChatWindowEditorAreaTitleContext = ContextKeyExpr.and(ChatWindowHas
  * window and in the editor area of a chat window; not in its terminals, nor in the Agents window's editor windows.
  */
 export const SessionEditorTitleWindowContext = ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), ChatWindowEditorAreaTitleContext)!;
-
-/** The {@link SessionLayoutMode} of the chat window. Set in chat windows only. */
-export const SessionLayoutModeContext = new RawContextKey<string>('sessions.layoutMode', SessionLayoutMode.ChatOnly, localize('sessionLayoutMode', "How the window shows its chat and its editor: stacked, sideBySide, editorOnly or chatOnly."));
-
-/** The {@link SessionSplitLayout} of the chat window: how its chat and its editor show together, or last showed. Set in chat windows only. */
-export const SessionSplitLayoutContext = new RawContextKey<string>('sessions.splitLayout', SessionLayoutMode.Stacked, localize('sessionSplitLayout', "How the window arranges its chat and its editor while both show, or as they last showed together: stacked or sideBySide."));
 
 /** Shows or hides the editor area of the chat window. */
 export const CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID = 'sessions.chatWindow.toggleEditor';
