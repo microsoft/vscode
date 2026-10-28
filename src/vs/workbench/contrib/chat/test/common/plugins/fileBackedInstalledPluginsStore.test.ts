@@ -22,6 +22,7 @@ import { FileBackedInstalledPluginsStore } from '../../../common/plugins/fileBac
 import { AgentPluginEnablementService } from '../../../common/plugins/agentPluginEnablement.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { MarketplaceType, PluginSourceKind, parseMarketplaceReference } from '../../../common/plugins/pluginMarketplaceService.js';
+import { TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
 
 const LEGACY_INSTALLED_PLUGINS_STORAGE_KEY = 'chat.plugins.installed.v1';
 const LEGACY_MARKETPLACE_INDEX_STORAGE_KEY = 'chat.plugins.marketplaces.index.v1';
@@ -128,7 +129,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 			fileService as unknown as IFileService,
 			new NullLogService(),
 			storageService,
-			store.add(new AgentPluginEnablementService(storageService)),
+			store.add(new AgentPluginEnablementService(storageService, new TestUserDataProfileService())),
 		));
 	}
 
@@ -153,7 +154,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 			fileService as unknown as IFileService,
 			new NullLogService(),
 			storageService as unknown as IStorageService,
-			store.add(new AgentPluginEnablementService(storageService)),
+			store.add(new AgentPluginEnablementService(storageService, new TestUserDataProfileService())),
 		));
 
 		await fileService.watching.p;
@@ -205,7 +206,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 			fileService as unknown as IFileService,
 			new NullLogService(),
 			storageService as unknown as IStorageService,
-			store.add(new AgentPluginEnablementService(storageService)),
+			store.add(new AgentPluginEnablementService(storageService, new TestUserDataProfileService())),
 		));
 
 		await timeout(30);
@@ -236,7 +237,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 			fileService as unknown as IFileService,
 			new NullLogService(),
 			storageService as unknown as IStorageService,
-			store.add(new AgentPluginEnablementService(storageService)),
+			store.add(new AgentPluginEnablementService(storageService, new TestUserDataProfileService())),
 		));
 
 		await fileService.watching.p;
@@ -661,7 +662,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 				fileService,
 				new NullLogService(),
 				storageService,
-				store.add(new AgentPluginEnablementService(storageService)),
+				store.add(new AgentPluginEnablementService(storageService, new TestUserDataProfileService())),
 			));
 			await fileService.watching.p;
 			if (!onStartup) {
@@ -773,7 +774,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 			const relativePath = 'github.com/org/repo/plugins/disabled';
 			const originalUri = URI.joinPath(originalHome, relativePath);
 			const relocatedUri = URI.joinPath(relocatedHome, relativePath);
-			const enablementService = store.add(new AgentPluginEnablementService(storageService));
+			const enablementService = store.add(new AgentPluginEnablementService(storageService, new TestUserDataProfileService()));
 			enablementService.setEnabled(originalUri.toString(), state);
 
 			const fileService = new TestFileService();
@@ -787,7 +788,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 			}));
 			const pluginsStore = createPluginsStore(relocatedHome, fileService, storageService);
 			await waitForState(pluginsStore.value, plugins => plugins.length === 1);
-			const reopenedEnablementService = store.add(new AgentPluginEnablementService(storageService));
+			const reopenedEnablementService = store.add(new AgentPluginEnablementService(storageService, new TestUserDataProfileService()));
 			assert.strictEqual(reopenedEnablementService.readEnabled(relocatedUri.toString()), state);
 		});
 
@@ -799,7 +800,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 				const originalUri = URI.joinPath(originalHome, relativePath);
 				const relocatedUri = URI.joinPath(relocatedHome, relativePath);
 				const profiles = [store.add(new InMemoryStorageService()), store.add(new InMemoryStorageService())];
-				const enablementServices = profiles.map(storageService => store.add(new AgentPluginEnablementService(storageService)));
+				const enablementServices = profiles.map(storageService => store.add(new AgentPluginEnablementService(storageService, new TestUserDataProfileService())));
 				for (const service of enablementServices) {
 					service.setEnabled(originalUri.toString(), state);
 				}
@@ -824,7 +825,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 				await waitForState(secondProfile.value, plugins => plugins.length === 1);
 				assert.deepStrictEqual({
 					identity: JSON.parse(fileService.getFile(installedJson)!).installed[0].enablementUri,
-					states: profiles.map(storageService => store.add(new AgentPluginEnablementService(storageService)).readEnabled(relocatedUri.toString())),
+					states: profiles.map(storageService => store.add(new AgentPluginEnablementService(storageService, new TestUserDataProfileService())).readEnabled(relocatedUri.toString())),
 				}, {
 					identity: originalUri.toString(),
 					states: [state, state],

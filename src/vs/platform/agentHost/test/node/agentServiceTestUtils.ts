@@ -51,6 +51,7 @@ import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostL
 import { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { IAgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { AgentHostUtilityModelService, IAgentHostUtilityModelService } from '../../node/agentHostUtilityModelService.js';
 
@@ -59,6 +60,7 @@ const chatPersistenceServices = new WeakMap<AgentService, IAgentHostPeerChatPers
 const catalogDatabases = new WeakMap<AgentService, IAgentHostDatabase>();
 const sessionStateStores = new WeakMap<AgentService, IAgentHostSessionStateStore>();
 const worktreeCleanupServices = new WeakMap<AgentService, IAgentHostWorktreeCleanupService>();
+const gitStateServices = new WeakMap<AgentService, IAgentHostGitStateService>();
 const worktreeIsolations = new WeakMap<AgentService, MutableTestAgentHostWorktreeIsolation>();
 
 class MutableTestAgentHostWorktreeIsolation extends Disposable {
@@ -135,6 +137,14 @@ export function getTestWorktreeCleanupService(agentService: AgentService): IAgen
 	return cleanup;
 }
 
+export function getTestGitStateService(agentService: AgentService): IAgentHostGitStateService {
+	const gitStateService = gitStateServices.get(agentService);
+	if (!gitStateService) {
+		throw new Error('AgentService was not created by createTestAgentService');
+	}
+	return gitStateService;
+}
+
 /**
  * Resolves once the session workspace updates that archiving or unarchiving
  * chats queued so far, including their persistence, have completed. They run
@@ -182,12 +192,18 @@ export function createTestAgentHostWorktreeIsolation(overrides: Partial<IAgentHo
 export function createTestAgentHostProxyResolver(fetchFn: typeof globalThis.fetch = globalThis.fetch): IAgentHostProxyResolver {
 	return {
 		_serviceBrand: undefined,
+		clientCertificates: [],
+		registerCertificateProvider: () => Disposable.None,
+		loadClientCertificates: async () => [],
+		setClientCertificates: () => { },
+		loadCertificates: async () => [],
 		onDidRegisterConnection: Event.None,
 		onDidChangeConfiguration: Event.None,
 		register: () => Disposable.None,
 		getConfigurationValue: () => undefined,
 		resolveProxy: async () => undefined,
 		fetch: fetchFn,
+		createWebSocket: (url, protocol) => new globalThis.WebSocket(url, protocol),
 	};
 }
 
@@ -226,7 +242,7 @@ export function createTestAgentService(
 		[IAgentHostGitService, gitService],
 		[ITelemetryService, telemetryService],
 		[IAgentHostClientConnectionService, clientConnectionService],
-		[IAgentHostSystemWakeService, new AgentHostSystemWakeService()],
+		[IAgentHostSystemWakeService, foundationDisposables.add(new AgentHostSystemWakeService(logService))],
 		[IAgentHostMacAccessibilityTrustService, new AgentHostMacAccessibilityTrustService()],
 	);
 	const options = {
@@ -319,6 +335,7 @@ export function createTestAgentService(
 		catalogDatabases.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostDatabase)));
 		sessionStateStores.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostSessionStateStore)));
 		worktreeCleanupServices.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostWorktreeCleanupService)));
+		gitStateServices.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostGitStateService)));
 		worktreeIsolations.set(composition.agentService, worktreeIsolation);
 		return composition.agentService;
 	} catch (error) {

@@ -11,7 +11,7 @@ import { scheduleAtNextAnimationFrame } from '../../../../../../../base/browser/
 import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { toAction, type IAction } from '../../../../../../../base/common/actions.js';
-import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, retry, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { hash } from '../../../../../../../base/common/hash.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
@@ -86,6 +86,7 @@ class TestTerminalChatService extends mock<ITerminalChatService>() {
 	constructor(
 		private readonly continueInBackgroundEmitter: Emitter<string>,
 		private readonly terminalInstance: ITerminalInstance,
+		private readonly outputSource?: IChatTerminalOutputSource,
 	) {
 		super();
 		this.onDidContinueInBackground = continueInBackgroundEmitter.event;
@@ -114,7 +115,7 @@ class TestTerminalChatService extends mock<ITerminalChatService>() {
 	}
 
 	override getOutputSource() {
-		return undefined;
+		return this.outputSource;
 	}
 
 	override getAhpCommandSource() {
@@ -273,9 +274,12 @@ interface ITerminalFullOutputPartOptions {
 	readonly truncated?: boolean;
 	readonly artifactAvailable?: boolean;
 	readonly availability?: Promise<void>;
+	readonly invocation?: IChatToolInvocationSerialized;
+	readonly exitCode?: number;
+	readonly runningInBackground?: boolean;
 }
 
-async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add'>) {
+async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add'>, outputSource?: IChatTerminalOutputSource) {
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const configurationService = instantiationService.get(IConfigurationService);
 	if (!(configurationService instanceof TestConfigurationService)) {
@@ -286,10 +290,12 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 	const XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 	const terminalFont: ITerminalFont = { fontFamily: 'monospace', fontSize: 12, letterSpacing: 0, lineHeight: 1, charWidth: 8, charHeight: 16 };
 	let terminalActivationCount = 0;
+	let terminalCreationCount = 0;
 	const outputTerminals = new Map<HTMLElement, ReturnType<typeof createFakeDetachedTerminal>>();
 	const terminalService = new class extends mock<ITerminalService>() {
 		override readonly whenConnected = Promise.resolve();
 		override async createDetachedTerminal(options: IDetachedXTermOptions) {
+			terminalCreationCount++;
 			const fake = createFakeDetachedTerminal(XTermBaseCtor, options, terminalFont);
 			return { ...fake.instance, attachToElement: (container: HTMLElement) => { outputTerminals.set(container, fake); } };
 		}
@@ -310,7 +316,7 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 		override readonly capabilities = capabilities;
 	}();
 	const continueInBackgroundEmitter = store.add(new Emitter<string>());
-	instantiationService.stub(ITerminalChatService, new TestTerminalChatService(continueInBackgroundEmitter, terminalInstance));
+	instantiationService.stub(ITerminalChatService, new TestTerminalChatService(continueInBackgroundEmitter, terminalInstance, outputSource));
 	instantiationService.stub(IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
 		override getOpenAriaHint(): null {
 			return null;
@@ -386,20 +392,23 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 		const sessionResource = options.sessionResource ?? URI.parse('chat-session://test/full-output');
 		const toolCallId = options.toolCallId ?? 'terminal-tool-call';
 		const terminal = options.hasReference === false ? undefined : options.terminalUri ?? URI.parse('agenthost-terminal://shell/session/full-output');
-		const data: IChatTerminalToolInvocationData = {
+		const data: IChatTerminalToolInvocationData = options.invocation?.toolSpecificData?.kind === 'terminal' ? options.invocation.toolSpecificData : {
 			kind: 'terminal',
 			commandLine: { original: options.command ?? 'printf output' },
 			intention: options.intention,
 			language: 'shellscript',
 			isPty: false,
+			terminalToolSessionId: outputSource ? `full-output-${toolCallId}` : undefined,
 			terminalCommandUri: terminal,
+			terminalCommandState: options.exitCode === undefined ? undefined : { exitCode: options.exitCode },
+			didContinueInBackground: options.runningInBackground,
 			terminalCommandOutput: {
 				text: options.fallback ?? 'Saved to: /artifact/terminal-output.txt',
 				truncated: options.truncated ?? !!terminal,
 				...(options.hasPreview === false ? {} : { fullOutputPreview: options.preview ?? 'preview output' }),
 			},
 		};
-		const invocation: IChatToolInvocationSerialized = {
+		const invocation: IChatToolInvocationSerialized = options.invocation ?? {
 			presentation: undefined,
 			toolSpecificData: data,
 			invocationMessage: 'Running command',
@@ -415,6 +424,7 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 		const element = Object.assign(Object.create(null) as IChatResponseViewModel, {
 			id: `response-${toolCallId}`,
 			isComplete: true,
+			isTerminalCommand: false,
 			sessionResource,
 			setVote() { },
 			get model() { return {} as IChatResponseViewModel['model']; },
@@ -514,6 +524,8 @@ async function createTerminalFullOutputHarness(store: Pick<DisposableStore, 'add
 		},
 		probes,
 		get terminalActivationCount() { return terminalActivationCount; },
+		get terminalCreationCount() { return terminalCreationCount; },
+		configurationService: testConfigurationService,
 	};
 }
 
@@ -547,6 +559,172 @@ function viewFullOutputLink(part: { readonly domNode: HTMLElement }): HTMLElemen
 
 suite('ChatTerminalToolProgressPart full output', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function observeIntersection(element: HTMLElement): Promise<boolean> {
+		return new Promise(resolve => {
+			const observer = new mainWindow.IntersectionObserver(entries => {
+				observer.disconnect();
+				resolve(entries.at(-1)!.isIntersecting);
+			});
+			store.add(toDisposable(() => observer.disconnect()));
+			observer.observe(element);
+		});
+	}
+
+	test('restored collapsed terminals create no mirrors until expanded', async () => {
+		const harness = await createTerminalFullOutputHarness(store);
+		const entries = Array.from({ length: 100 }, (_, index) => harness.createPart({
+			mode: 'thinking', toolCallId: `restored-${index}`, hasReference: false, fallback: 'Recorded command output',
+		}));
+		await timeout(0);
+		const before = harness.terminalCreationCount;
+		await harness.expand(entries[0].part, 'thinking');
+		assert.deepStrictEqual({
+			before,
+			after: harness.terminalCreationCount,
+			output: snapshotText(harness.raw(entries[0].part)),
+			remainingCollapsed: entries.slice(1).every(entry => entry.part.domNode.classList.contains('chat-used-context-collapsed')),
+		}, { before: 0, after: 1, output: 'Recorded command output', remainingCollapsed: true });
+	});
+
+	test('restored collapsed output preserves an explicit collapse across row recycling', async () => {
+		const harness = await createTerminalFullOutputHarness(store);
+		const original = harness.createPart({ mode: 'thinking', hasReference: false });
+		await harness.expand(original.part, 'thinking');
+		await harness.collapse(original.part, 'thinking');
+		original.part.domNode.remove();
+		original.part.dispose();
+		const restored = harness.createPart({ mode: 'thinking', hasReference: false, invocation: original.invocation });
+		await timeout(0);
+		const before = harness.terminalCreationCount;
+		const expanded = restored.part.domNode.querySelector('.monaco-button')?.getAttribute('aria-expanded');
+		await harness.expand(restored.part, 'thinking');
+		assert.deepStrictEqual({ before, expanded, after: harness.terminalCreationCount }, { before: 1, expanded: 'false', after: 2 });
+	});
+
+	test('restored expanded output waits until its row enters the viewport', async () => {
+		const harness = await createTerminalFullOutputHarness(store);
+		harness.container.style.cssText = 'position: fixed; top: 0; left: 0; width: 800px;';
+		const original = harness.createPart({ mode: 'thinking', hasReference: false, fallback: 'Saved expanded output' });
+		await original.part.toggleOutputFromAction();
+		original.part.expandCollapsibleWrapper();
+		original.part.domNode.remove();
+		original.part.dispose();
+		harness.container.style.top = '20000px';
+		const restored = harness.createPart({ mode: 'thinking', hasReference: false, invocation: original.invocation });
+		const offscreen = await observeIntersection(restored.part.domNode);
+		const before = harness.terminalCreationCount;
+		const expanded = restored.part.domNode.querySelector('.monaco-button')?.getAttribute('aria-expanded');
+		harness.container.style.top = '0px';
+		await retry(async () => {
+			assert.ok(restored.part.domNode.querySelector('.chat-terminal-output-container.expanded'));
+		}, 10, 100);
+		assert.deepStrictEqual({ offscreen, before, expanded, after: harness.terminalCreationCount, output: snapshotText(harness.raw(restored.part)) }, {
+			offscreen: false, before: 1, expanded: 'true', after: 2, output: 'Saved expanded output',
+		});
+	});
+
+	for (const disposed of [false, true]) {
+		test(`restored offscreen failure output preserves its header and accessible text (disposed=${disposed})`, async () => {
+			const harness = await createTerminalFullOutputHarness(store);
+			harness.configurationService.setUserConfiguration(ChatConfiguration.AutoExpandToolFailures, true);
+			harness.container.style.cssText = 'position: fixed; top: 20000px; left: 0; width: 800px;';
+			const { part } = harness.createPart({ mode: 'thinking', hasReference: false, exitCode: 1, fallback: 'Command failed with diagnostic output' });
+			assert.strictEqual(await observeIntersection(part.domNode), false);
+			const before = harness.terminalCreationCount;
+			const expanded = part.domNode.querySelector('.monaco-button')?.getAttribute('aria-expanded');
+			const accessibleText = part.getCommandAndOutputAsText()?.includes('Command failed with diagnostic output');
+			if (disposed) {
+				part.dispose();
+				part.domNode.remove();
+			}
+			harness.container.style.top = '0px';
+			if (disposed) {
+				await observeIntersection(harness.container);
+			} else {
+				await retry(async () => assert.strictEqual(harness.terminalCreationCount, 1), 10, 100);
+			}
+			assert.deepStrictEqual({ before, expanded, accessibleText, after: harness.terminalCreationCount }, {
+				before: 0, expanded: 'true', accessibleText: true, after: disposed ? 0 : 1,
+			});
+		});
+	}
+
+	test('offscreen running output is not deferred', async () => {
+		const harness = await createTerminalFullOutputHarness(store);
+		harness.container.style.cssText = 'position: fixed; top: 20000px; left: 0; width: 800px;';
+		const { part } = harness.createPart({ mode: 'thinking', hasReference: false, runningInBackground: true, fallback: 'Live command output' });
+		await retry(async () => assert.ok(part.domNode.querySelector('.chat-terminal-output-container.expanded')), 10, 100);
+		assert.deepStrictEqual({ mirrors: harness.terminalCreationCount, output: snapshotText(harness.raw(part)) }, { mirrors: 1, output: 'Live command output' });
+	});
+
+	for (const exitCode of [0, undefined]) {
+		test(`retained exited background output starts completed without creating an offscreen mirror (exitCode=${exitCode})`, async () => {
+			const source: IChatTerminalOutputSource = {
+				onDidChange: Event.None,
+				output: 'Finished command output',
+				outputPosition: { generation: 1, start: 0 },
+				hasExited: true,
+				exitCode,
+			};
+			const harness = await createTerminalFullOutputHarness(store, source);
+			harness.container.style.cssText = 'position: fixed; top: 20000px; left: 0; width: 800px;';
+			const { part } = harness.createPart({ mode: 'thinking', hasReference: false, runningInBackground: true });
+			await observeIntersection(part.domNode);
+			const button = part.domNode.querySelector<HTMLElement>('.chat-terminal-thinking-collapsible > .chat-used-context-label .monaco-button');
+			assert.deepStrictEqual({
+				completed: button?.textContent?.startsWith('Ran '),
+				expanded: button?.ariaExpanded,
+				mirrors: harness.terminalCreationCount,
+			}, { completed: true, expanded: 'false', mirrors: 0 });
+		});
+	}
+
+	for (const [key, keyCode] of [['Enter', 13], [' ', 32]] as const) {
+		test(`keyboard expansion loads restored terminal output immediately (${keyCode})`, async () => {
+			const harness = await createTerminalFullOutputHarness(store);
+			harness.container.style.cssText = 'position: fixed; top: 20000px; left: 0; width: 800px;';
+			const { part } = harness.createPart({ mode: 'thinking', hasReference: false, fallback: 'Keyboard output' });
+			const button = part.domNode.querySelector<HTMLElement>('.chat-used-context-label .monaco-button');
+			assert.ok(button);
+			button.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+			await retry(async () => assert.ok(part.domNode.querySelector('.chat-terminal-output-container.expanded')), 10, 100);
+			assert.deepStrictEqual({ mirrors: harness.terminalCreationCount, expanded: button.ariaExpanded, output: snapshotText(harness.raw(part)) }, {
+				mirrors: 1, expanded: 'true', output: 'Keyboard output',
+			});
+		});
+	}
+
+	test('collapsing deferred output cancels restoration and preserves the choice on recycling', async () => {
+		const harness = await createTerminalFullOutputHarness(store);
+		harness.configurationService.setUserConfiguration(ChatConfiguration.AutoExpandToolFailures, true);
+		harness.container.style.cssText = 'position: fixed; top: 20000px; left: 0; width: 800px;';
+		const original = harness.createPart({ mode: 'thinking', hasReference: false, exitCode: 1 });
+		await observeIntersection(original.part.domNode);
+		await harness.collapse(original.part, 'thinking');
+		original.part.domNode.remove();
+		original.part.dispose();
+		const restored = harness.createPart({ mode: 'thinking', hasReference: false, invocation: original.invocation });
+		harness.container.style.top = '0px';
+		await observeIntersection(restored.part.domNode);
+		assert.deepStrictEqual({ mirrors: harness.terminalCreationCount, collapsed: restored.part.domNode.classList.contains('chat-used-context-collapsed') }, {
+			mirrors: 0, collapsed: true,
+		});
+	});
+
+	test('offscreen plain failure output is deferred without hiding its error state', async () => {
+		const harness = await createTerminalFullOutputHarness(store);
+		harness.configurationService.setUserConfiguration(ChatConfiguration.AutoExpandToolFailures, true);
+		harness.container.style.cssText = 'position: fixed; top: 20000px; left: 0; width: 800px;';
+		const { part } = harness.createPart({ mode: 'plain', hasReference: false, exitCode: 1, fallback: 'Plain failure output' });
+		assert.strictEqual(await observeIntersection(part.domNode), false);
+		const before = harness.terminalCreationCount;
+		harness.container.style.top = '0px';
+		await retry(async () => assert.ok(part.domNode.querySelector('.chat-terminal-output-container.expanded')), 10, 100);
+		assert.deepStrictEqual({ before, after: harness.terminalCreationCount, output: snapshotText(harness.raw(part)) }, {
+			before: 0, after: 1, output: 'Plain failure output',
+		});
+	});
 
 	for (const mode of ['thinking', 'simple', 'plain'] as const) {
 		test(`renders a View Full Output link below the preview in ${mode} mode`, async () => {

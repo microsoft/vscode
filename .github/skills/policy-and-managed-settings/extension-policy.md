@@ -1,40 +1,19 @@
 # Extension-Provided Setting Policy
 
-Use this path when the setting is contributed by an extension rather than VS Code core. Extensions cannot declare core `policy:` metadata in their `package.json`.
-
-The source of truth is `extensionConfigurationPolicy` in `vscode-distro` `mixin/{quality}/product.json`. At runtime, VS Code attaches that metadata to matching extension configuration properties.
+Extensions cannot declare `policy:` in `package.json`. The source of truth is `extensionConfigurationPolicy` in vscode-distro `mixin/{quality}/product.json`; VS Code attaches it to the matching extension setting at runtime.
 
 ```json
 "publisher.extension.settingName": {
 	"name": "PolicyName",
 	"category": "InteractiveSession",
-	"minimumVersion": "1.133",
+	"minimumVersion": "<first shipping major.minor>",
 	"description": "Human-readable description."
 }
 ```
 
-## Procedure
+1. Add the entry to every quality's `product.json` (`stable`, `insider`, `exploration`) with a unique PascalCase `name`, valid `PolicyCategory`, first shipping `minimumVersion`, and description.
+2. Update VS Code's pinned distro commit and `src/vs/workbench/contrib/policyExport/test/node/extensionPolicyFixture.json` (must match the pinned distro or the export test fails).
+3. Add the policy to `agentHostPolicySupport` (`src/vs/platform/agentHost/common/agentHostPolicySupport.ts`).
+4. Run `npm run export-policy-data` and commit `build/lib/policies/policyData.jsonc`.
 
-1. Add the setting to `extensionConfigurationPolicy` in every `vscode-distro` product-quality `product.json` (`stable`, `insider`, and `exploration`).
-2. Include:
-   - unique PascalCase `name`;
-   - valid `PolicyCategory`;
-   - first shipping `minimumVersion`;
-   - human-readable `description`.
-3. Update VS Code's pinned distro commit.
-4. Update `src/vs/workbench/contrib/policyExport/test/node/extensionPolicyFixture.json`.
-5. Add the policy's Agent Host enforcement status to `agentHostPolicySupport` in `src/vs/platform/agentHost/common/agentHostPolicySupport.ts`. The export fails without it.
-6. Run `npm run export-policy-data`.
-7. Verify and include `build/lib/policies/policyData.jsonc`.
-
-The fixture must match the pinned distro policy data or the policy-export integration test fails.
-
-The canonical export launches both Workbench and the Agents window with isolated profiles and merges their policy catalogs. Do not invoke a single entrypoint directly.
-
-Downstream consumers:
-
-| Consumer | Output |
-|---|---|
-| `build/lib/policies/policyGenerator.ts` | Windows ADMX/ADML, macOS mobileconfig, Linux policy JSON |
-| `vscode-website` policy build | Enterprise policy reference |
-| `vscode-docs` | Generated enterprise policy documentation |
+The export feeds the ADMX/ADML, mobileconfig, and Linux JSON generators (`build/lib/policies/policyGenerator.ts`) and the published enterprise policy docs.

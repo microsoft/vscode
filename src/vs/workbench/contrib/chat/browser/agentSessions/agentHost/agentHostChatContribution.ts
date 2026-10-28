@@ -343,6 +343,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			supportsDelegation: false,
 			capabilities: {
 				supportsCheckpoints: true,
+				supportsFileAttachments: true,
 				supportsPromptAttachments: true,
 				supportsImageAttachments: true,
 				get terminalCommandPrefix() {
@@ -399,6 +400,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				? store.add(this._instantiationService.createInstance(AgentHostMcpServerMigrationProvider))
 				: undefined,
 			mcpConfigurationProvider: marketplaceInstallProvider && this._agentHostService.addMcpServerConfiguration
+				? marketplaceInstallProvider
+				: undefined,
+			pluginInstallProvider: marketplaceInstallProvider && this._agentHostService.installPlugin
 				? marketplaceInstallProvider
 				: undefined,
 			marketplaceInstallProvider,

@@ -199,6 +199,7 @@ class MockSessionStore implements ISessionsManagementService {
 	getSessionTypesForFolder(_folderUri: URI): IProviderSessionType[] { return []; }
 	getQuickChatSessionTypes(): IProviderSessionType[] { return []; }
 	isNewSessionTargetAvailable(_folderUri: URI, _options?: ICreateNewSessionOptions): boolean { return false; }
+	getNewSessionTarget() { return undefined; }
 	isQuickChatTargetAvailable(_options?: ICreateNewSessionOptions): boolean { return false; }
 	resolveWorkspace(_folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined { return undefined; }
 
@@ -287,6 +288,7 @@ class MockSessionStore implements ISessionsManagementService {
 	canMoveSessionUnder(_session: ISession): boolean { return false; }
 	moveSessionUnder(): Promise<void> { throw new Error('not implemented'); }
 	removeSessionArtifact(_session: ISession, _artifactId: string): Promise<void> { throw new Error('not implemented'); }
+	async acquireArtifactIntegration() { return undefined; }
 	listCanvases(_session: ISession, _chat: IChat): Promise<readonly ISessionCanvasDefinition[]> { throw new Error('not implemented'); }
 	openCanvas(_session: ISession, _chat: IChat, _canvas: ISessionCanvasDefinition, _instanceId: string): Promise<void> { throw new Error('not implemented'); }
 	closeCanvas(_session: ISession, _chat: IChat, _canvas: ISessionCanvas): Promise<void> { throw new Error('not implemented'); }

@@ -165,7 +165,11 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		private readonly _connection: IAgentConnection,
 		private readonly _connectionAuthority: string,
 		private readonly _resolveBackendSession: (sessionResource: URI) => URI | undefined,
-		private readonly _resolveBackendChat: ((sessionResource: URI) => URI | undefined) | undefined,
+		/**
+		 * Resolves the backend chat of a chat resource, from `sessionState` when given. Without a resolver, a request
+		 * is looked up across every chat of the session.
+		 */
+		private readonly _resolveBackendChat: ((sessionResource: URI, sessionState?: SessionState) => URI | undefined) | undefined,
 		private readonly _logService: ILogService,
 	) {
 		super();
@@ -181,7 +185,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		const key = `${backendSession.toString()}\0${backendChat?.toString() ?? ''}\0${requestId}`;
 		let obs = this._perRequest.get(key);
 		if (!obs) {
-			obs = this._createDiffsObservable(backendSession, backendChat, requestId);
+			obs = this._createDiffsObservable(sessionResource, backendSession, backendChat, requestId);
 			this._perRequest.set(key, obs);
 		}
 		return obs;
@@ -198,7 +202,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		let obs = this._perRequestFileEdits.get(key);
 		if (!obs) {
 			const source = this._getSessionSource(backendSession);
-			const turnSource = this._createTurnSourceObservable(source, backendChat, requestId);
+			const turnSource = this._createTurnSourceObservable(sessionResource, source, backendChat, requestId);
 			const turn = turnSource.map(source => source.turn);
 			const workspaceRoots = this._createWorkspaceRootsObservable(source, turnSource);
 			const fileEdits = this._createFileEditDiffsObservable(workspaceRoots, turn);
@@ -208,9 +212,9 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		return obs;
 	}
 
-	private _createDiffsObservable(backendSession: URI, backendChat: URI | undefined, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> {
+	private _createDiffsObservable(sessionResource: URI, backendSession: URI, backendChat: URI | undefined, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> {
 		const source = this._getSessionSource(backendSession);
-		const turnSource = this._createTurnSourceObservable(source, backendChat, requestId);
+		const turnSource = this._createTurnSourceObservable(sessionResource, source, backendChat, requestId);
 		const turn = turnSource.map(source => source.turn);
 		const workspaceRoots = this._createWorkspaceRootsObservable(source, turnSource);
 		const hasChatWorkingDirectoriesObs = turnSource.map(source => source.workingDirectories !== undefined);
@@ -412,10 +416,22 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		};
 	}
 
-	private _createTurnSourceObservable(source: IObservable<ISessionFileChangesSource>, backendChat: URI | undefined, requestId: string): IObservable<IResolvedTurnSource> {
+	private _createTurnSourceObservable(sessionResource: URI, source: IObservable<ISessionFileChangesSource>, backendChat: URI | undefined, requestId: string): IObservable<IResolvedTurnSource> {
+		const resolveBackendChat = this._resolveBackendChat;
+		// A chat resource whose chat can't be resolved yet (e.g. its session state isn't loaded) resolves it from this
+		// provider's session state rather than looking the request up in every chat of the session, which would
+		// subscribe every chat in the catalog, archived ones included.
+		const exactChat = !!backendChat || !!resolveBackendChat;
 		const chats = backendChat
 			? constObservable([{ uri: backendChat, source: this._getChatSource(backendChat) }])
-			: mapObservableArrayCached(this, derived(reader => source.read(reader).chatUris.read(reader)), uri => {
+			: mapObservableArrayCached(this, derivedOpts<readonly string[]>({ equalsFn: arrayEquals }, reader => {
+				if (!resolveBackendChat) {
+					return source.read(reader).chatUris.read(reader);
+				}
+				const state = source.read(reader).state.read(reader);
+				const chat = state && !(state instanceof Error) ? resolveBackendChat(sessionResource, state) : undefined;
+				return chat ? [chat.toString()] : [];
+			}), uri => {
 				const chatUri = URI.parse(uri);
 				return { uri: chatUri, source: this._getChatSource(chatUri) };
 			});
@@ -432,7 +448,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 				if (turn) {
 					return { turn, chatUri: uri, changesets: chat.changesets.read(reader), workingDirectories };
 				}
-				if (backendChat) {
+				if (exactChat) {
 					return fallback;
 				}
 			}

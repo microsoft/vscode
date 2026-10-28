@@ -33,13 +33,28 @@ import { IConfigurationResolverService } from '../../../../../services/configura
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
 import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveLocalCustomAgents } from './agentHostLocalCustomizations.js';
-import { toolDataToDefinition } from './agentHostToolUtils.js';
+import { getAgentFileToolReferenceName, toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostToolSetEnablementService, isCopilotCliSessionType, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
 import { AgentHostMcpServerSupportScope, IAgentHostMcpServerSupportScope } from './agentHostMcpServerSupportScope.js';
 import { type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 
 export const IAgentHostActiveClientService = createDecorator<IAgentHostActiveClientService>('agentHostActiveClientService');
+
+/** Appends session tool lists to an active client, preserving earlier definitions on name collisions. */
+export function composeSessionActiveClient(activeClient: SessionActiveClient, ...toolLists: readonly (readonly ToolDefinition[])[]): SessionActiveClient {
+	const tools = [...activeClient.tools];
+	const toolNames = new Set(tools.map(tool => tool.name));
+	for (const toolList of toolLists) {
+		for (const tool of toolList) {
+			if (!toolNames.has(tool.name)) {
+				tools.push(tool);
+				toolNames.add(tool.name);
+			}
+		}
+	}
+	return { ...activeClient, tools };
+}
 
 /** Identity a published customization set is resolved against. Refcounted; disposed by each holder. */
 export interface IAgentCustomizationScope extends IDisposable {
@@ -383,7 +398,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 			if (!tool) {
 				throw new Error(`Cannot expose unregistered tool ${toolId} to session ${sessionResource.toString()}.`);
 			}
-			return toolDataToDefinition(tool);
+			return toolDataToDefinition(tool, getAgentFileToolReferenceName(tool, this._toolsService));
 		}));
 		for (const resource of this._sessionToolAliases.get(sessionResource) ?? [sessionResource]) {
 			this._getSessionTools(resource).set(tools, undefined);
@@ -477,18 +492,18 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 				}
 				return coalesce(tools.filter(tool => tool.source.type !== 'mcp' && tool.id !== RenameToolId && (enabledToolIds.has(tool.id) || tool === semanticSearchTool)).map(tool => {
 					if (!isCopilotSession) {
-						return toolDataToDefinition(tool);
+						return toolDataToDefinition(tool, getAgentFileToolReferenceName(tool, this._toolsService));
 					}
 					// Published under the SDK's built-in name so the session can override it.
 					if (tool === semanticSearchTool) {
-						return { ...toolDataToDefinition(tool), name: SEMANTIC_SEARCH_TOOL_NAME };
+						return { ...toolDataToDefinition(tool, getAgentFileToolReferenceName(tool, this._toolsService)), name: SEMANTIC_SEARCH_TOOL_NAME };
 					}
 					// Nothing else may claim the published name: two client tools cannot
 					// share one SDK registration.
 					if (tool.toolReferenceName === CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME || tool.toolReferenceName === SEMANTIC_SEARCH_TOOL_NAME) {
 						return undefined;
 					}
-					return toolDataToDefinition(tool);
+					return toolDataToDefinition(tool, getAgentFileToolReferenceName(tool, this._toolsService));
 				}));
 			});
 			this._clientToolsByType.set(sessionType, obs);

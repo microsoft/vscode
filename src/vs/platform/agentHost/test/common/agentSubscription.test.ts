@@ -1321,6 +1321,49 @@ suite('AgentSubscriptionManager', () => {
 		assert.ok(unsubscribedResources.includes(sessionUri));
 	});
 
+	test('a subscribe that resolves after its last ref was released is unsubscribed again, unless the resource is held again', async () => {
+		const hostSubscribed = new Set<string>();
+		const pending: { resource: string; resolve: () => void }[] = [];
+		const mgr = disposables.add(new AgentSubscriptionManager('c1', () => ++seq, noop, resource => new Promise<IStateSnapshot>(resolve => {
+			const key = resource.toString();
+			// The host subscribes when it answers, after any unsubscribe that overtook this subscribe on the wire.
+			pending.push({ resource: key, resolve: () => { hostSubscribed.add(key); resolve({ resource: key, state: makeSessionState(key), fromSeq: 0 }); } });
+		}), resource => { hostSubscribed.delete(resource.toString()); }));
+		const released = URI.parse('copilot:/released');
+		const reacquired = URI.parse('copilot:/reacquired');
+
+		mgr.getSubscription<SessionState>(StateComponents.Session, released, 'test').dispose();
+		mgr.getSubscription<SessionState>(StateComponents.Session, reacquired, 'test').dispose();
+		const held = mgr.getSubscription<SessionState>(StateComponents.Session, reacquired, 'test');
+		for (const request of pending) {
+			request.resolve();
+		}
+		await new Promise(r => setTimeout(r, 0));
+
+		assert.deepStrictEqual({ hostSubscribed: [...hostSubscribed].sort(), heldTitle: held.object.value instanceof Error ? undefined : held.object.value?.title !== undefined }, { hostSubscribed: [reacquired.toString()], heldTitle: true });
+		held.dispose();
+	});
+
+	test('a refresh that resolves after its last ref was released is unsubscribed again', async () => {
+		const hostSubscribed = new Set<string>();
+		const pending: (() => void)[] = [];
+		const mgr = disposables.add(new AgentSubscriptionManager('c1', () => ++seq, noop, resource => new Promise<IStateSnapshot>(resolve => {
+			const key = resource.toString();
+			pending.push(() => { hostSubscribed.add(key); resolve({ resource: key, state: makeSessionState(key), fromSeq: 0 }); });
+		}), resource => { hostSubscribed.delete(resource.toString()); }));
+		const resource = URI.parse('copilot:/refreshed');
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, resource, 'test');
+		pending.shift()!();
+		await new Promise(r => setTimeout(r, 0));
+
+		const refresh = mgr.refreshSubscription(resource);
+		ref.dispose();
+		pending.shift()!();
+		await refresh;
+
+		assert.deepStrictEqual([...hostSubscribed], []);
+	});
+
 	test('receiveEnvelope routes to root and all active subscriptions', async () => {
 		const mgr = createManager();
 		mgr.handleRootSnapshot(makeRootState(), 0);

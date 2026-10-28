@@ -300,6 +300,38 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 			]),
 		})
 	}),
+	WithNotificationAndSessionWorkingSet: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, {
+			notification: sampleNotification,
+			sessionWorkingSet: true,
+			editingSession: createMockEditingSession([{ uri: 'file:///workspace/src/math.ts', added: 8, removed: 0 }]),
+		}),
+	}),
+	FocusedWithNotificationAndSessionWorkingSet: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, {
+			notification: sampleNotification,
+			sessionWorkingSet: true,
+			focusInput: true,
+			editingSession: createMockEditingSession([{ uri: 'file:///workspace/src/math.ts', added: 8, removed: 0 }]),
+		}),
+	}),
+	FocusedWithSessionWorkingSet: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, {
+			sessionWorkingSet: true,
+			focusInput: true,
+			editingSession: createMockEditingSession([{ uri: 'file:///workspace/src/math.ts', added: 8, removed: 0 }]),
+		}),
+	}),
+	WithSessionWorkingSetReviewDisabled: defineComponentFixture({
+		render: context => renderChatInput(context, {
+			sessionWorkingSet: true,
+			sessionWorkingSetReviewEnabled: false,
+			editingSession: createMockEditingSession([{ uri: 'file:///workspace/src/math.ts', added: 8, removed: 0 }]),
+		}),
+	}),
 	WithSessionWorkingSetOverflow: defineComponentFixture({
 		render: context => renderChatInput(context, {
 			sessionWorkingSet: true,

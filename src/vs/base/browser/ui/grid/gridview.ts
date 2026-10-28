@@ -504,8 +504,8 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 
 	setVisible(visible: boolean): void {
-		for (const child of this.children) {
-			child.setVisible(visible);
+		for (let index = 0; index < this.children.length; index++) {
+			this.children[index].setVisible(visible && this.isChildVisible(index));
 		}
 	}
 

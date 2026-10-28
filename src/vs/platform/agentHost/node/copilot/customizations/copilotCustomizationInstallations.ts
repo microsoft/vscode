@@ -37,29 +37,6 @@ const policySessionIdleTimeoutMs = 10 * 60_000;
 const copilotPluginMediaType = 'application/vnd.github.copilot-plugin';
 const mcpServerMediaType = 'application/mcp-server+json';
 const configuredMcpInstallationPrefix = 'mcp-config:';
-const featuredPlugins = [
-	{
-		marketplace: 'awesome-copilot',
-		name: 'azure',
-		displayName: 'Azure',
-		description: localize('copilot.featuredPlugin.azure.description', "Plan, deploy, troubleshoot, and manage Azure resources with skills and MCP tools."),
-		publisher: 'microsoft',
-	},
-	{
-		marketplace: 'copilot-plugins',
-		name: 'workiq',
-		displayName: 'WorkIQ',
-		description: localize('copilot.featuredPlugin.workiq.description', "Find answers across Microsoft 365 emails, meetings, documents, and Teams messages."),
-		publisher: 'microsoft',
-	},
-	{
-		marketplace: 'awesome-copilot',
-		name: 'security-best-practices',
-		displayName: 'Security Best Practices',
-		description: localize('copilot.featuredPlugin.securityBestPractices.description', "Build secure, accessible, reliable software."),
-		publisher: 'github',
-	},
-] as const;
 
 const skillInstallationContract = {
 	...catalogContract,
@@ -75,6 +52,13 @@ const pluginInstallationContract = {
 	...catalogContract,
 	requiredCapabilities: [...catalogContract.requiredCapabilities, 'agent-plugin-discovery', 'agent-plugin-confirmed-installation'],
 };
+
+function getCanvasCompatibilityTags(candidate: CatalogCandidate): readonly string[] {
+	if (candidate.kind !== 'plugin') {
+		return [];
+	}
+	return candidate.compatibilityTags?.filter(tag => tag === 'canvas' || tag === 'canvas-only') ?? [];
+}
 
 interface ISdkResult {
 	readonly kind: string;
@@ -234,10 +218,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			return this.getSavedFeed(request.feedId);
 		}
 		if (!request.query.trim()) {
-			if (request.mediaType && request.mediaType !== copilotPluginMediaType) {
-				return { kind: 'page', items: [] };
-			}
-			return this.browseFeaturedPlugins(await this.getClient(), request);
+			return { kind: 'page', items: [] };
 		}
 		const client = await this.getClient();
 		const policySessionId = await this.getOrCreatePolicySessionId(client);
@@ -332,6 +313,10 @@ export class CopilotCustomizationInstallations extends Disposable {
 						displayName: candidate.displayName,
 						description: candidate.description,
 						publisher: candidate.publisher,
+						...(candidate.kind === 'plugin' ? {
+							compatibilityTags: getCanvasCompatibilityTags(candidate),
+							installCount: candidate.installCount,
+						} : {}),
 						installable: false,
 						unavailableMessage: localize('copilot.customizationFeed.installUnavailable', "The SDK cannot install this customization in the selected session."),
 					};
@@ -342,35 +327,6 @@ export class CopilotCustomizationInstallations extends Disposable {
 					categories: candidate.categories,
 				}];
 			}),
-		};
-	}
-
-	private async browseFeaturedPlugins(client: ICopilotCustomizationInstallationClient, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
-		const marketplacesApi = client.rpc.plugins?.marketplaces;
-		if (!marketplacesApi) {
-			return { kind: 'unavailable', reason: 'unsupported' };
-		}
-		const availableMarketplaces = new Map((await marketplacesApi.list()).marketplaces
-			.filter(marketplace => marketplace.available !== false)
-			.map(marketplace => [marketplace.name, marketplace.source] as const));
-		return {
-			kind: 'page',
-			items: featuredPlugins
-				.flatMap(featured => {
-					const marketplaceSource = availableMarketplaces.get(featured.marketplace);
-					return marketplaceSource ? [{
-						selectionId: `featured-plugin:${featured.marketplace}:${featured.name}`,
-						kind: 'plugin' as const,
-						displayName: featured.displayName,
-						description: featured.description,
-						publisher: featured.publisher,
-						pluginName: featured.name,
-						marketplace: featured.marketplace,
-						marketplaceSource,
-						installable: true,
-					}] : [];
-				})
-				.slice(0, request.limit),
 		};
 	}
 
@@ -930,6 +886,10 @@ export class CopilotCustomizationInstallations extends Disposable {
 			path: candidate.kind === 'plugin' ? candidate.source?.path : undefined,
 			itemUrl: candidate.kind !== 'plugin' && candidate.source.kind === 'url' ? candidate.source.url : undefined,
 			connectorIds: candidate.connectorIds,
+			...(candidate.kind === 'plugin' ? {
+				compatibilityTags: getCanvasCompatibilityTags(candidate),
+				installCount: candidate.installCount,
+			} : {}),
 			installable: true,
 		};
 	}

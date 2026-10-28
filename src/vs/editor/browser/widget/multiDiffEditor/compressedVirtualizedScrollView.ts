@@ -283,7 +283,8 @@ export class CompressedVirtualizedScrollView<TItem extends ICompressedVirtualize
 				const fromRevision = this._revision;
 				const toRevision = geometryChanged ? asLayoutRevision(fromRevision + 1) : fromRevision;
 				const edit = createAnchoredSizeEditBatch(fromRevision, toRevision, previousItemHeights, itemHeights, this._previousItemGap, itemGap, anchorOffset);
-				let mappedAnchor = mapLogicalPosition(edit.anchor, edit);
+				// Mapping a removed bottom anchor to the item start would place the whole item below the viewport.
+				let mappedAnchor = mapLogicalPosition(edit.anchor, edit, anchorKind === 'viewportBottom' ? 'itemEnd' : 'itemStart');
 				if (pendingAnchor?.item && pendingAnchor.getItemOffset) {
 					const itemIndex = items.findIndex(item => item === pendingAnchor.item);
 					if (itemIndex === -1) {

@@ -20,6 +20,10 @@ All AHP JSONL writers in one process that use the same log directory share a cum
 
 When the next complete entry would exceed the budget, the process emits one `[AHPLog]` warning and stops capture for that log directory until the window or host process restarts. Already queued entries still flush. Subsequent messages are skipped before serialization; accounting uses memory only, without extra filesystem scans or metadata calls. Protocol traffic and other diagnostic logs are unaffected.
 
+## Mission Control authentication
+
+Mission Control hosts advertise public credential-encryption keys in root-state metadata. Every root snapshot, including subscriptions refreshed after authentication and reconnect snapshots, must retain these keys so clients can encrypt subsequent provider and MCP credentials. Listener-owned metadata stays scoped to that listener rather than modifying shared host state.
+
 ## Metadata location
 
 The registry is a **directory of per-instance entry files**:

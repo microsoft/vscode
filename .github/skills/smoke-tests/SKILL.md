@@ -43,11 +43,11 @@ The runner exits non-zero if any test fails, so a `0` exit code means every sele
 
 ### Sharding in PR CI
 
-The GitHub PR workflows split the Electron smoke tests with a matrix (`shard: [1, 2]`) on the `<os>-electron-smoke-test-shards` jobs in `.github/workflows/pr.yml`, which pass `--shard` to the runner. They report as `<OS> (shard 1/2) / Electron-Smoke` and `<OS> (shard 2/2) / Electron-Smoke`. A gate job, `required-checks`, reports the required `<OS> / Electron-Smoke` checks and fails a platform's check if any of its shards did not succeed. The shards are skipped, and the check passes, when the pull request only changes paths the smoke tests cannot read (see `.github/actions/detect-changes/detect.ts`). To change the shard count, edit the matrix list. Near the top of each shard's `smoke-test-runner.log`, a `Running smoke test shard <index>/<total>` line lists the suites that shard ran.
+The GitHub PR workflows split the Electron smoke tests into shards: the `electron-smoke-1` and `electron-smoke-2` jobs of `.github/workflows/pr-linux-test.yml` and `pr-darwin-test.yml`, and `electron-smoke-1` through `electron-smoke-3` of `pr-win32-test.yml`, whose first shard also sets up WSL, pass their `SMOKE_SHARD_INDEX`/`SMOKE_SHARD_TOTAL` env to the runner as `--shard`. They report as `<OS> / Electron-Smoke (shard 1/2)` and `<OS> / Electron-Smoke (shard 2/2)`, or `Windows / Electron-Smoke (shard 1/3)` through `Windows / Electron-Smoke (shard 3/3)`. On Windows, the remote smoke tests also run in their own `Windows / Remote (smoke)` job, next to `Windows / Remote (integration)`. The `PR Gate` job (`pr-gate`) reports a single check for every job of the workflow and fails if any shard did not succeed. The shards are skipped, and the gate passes, when the pull request only changes paths the smoke tests cannot read (see `.github/actions/detect-changes/detect.ts`). To change the shard count of a platform, add or remove `electron-smoke-<index>` jobs in its workflow, and update the shard numbers in the names and env of all of them. Near the top of each shard's `smoke-test-runner.log`, a `Running smoke test shard <index>/<total>` line lists the suites that shard ran.
 
 Some placement is coupled to the workflows, and `test/smoke/src/shard.ts` encodes it:
 
-- **WSL:** The WSL Dev Container suite is pinned to shard 1, and `pr-win32-test.yml` provisions WSL only in shard 1. Keep `VSCODE_SMOKE_TEST_WSL_REQUIRED` set in every shard, so that all shards register the same suites and compute the same split.
+- **WSL:** The WSL Dev Container suite is pinned to shard 1, and `pr-win32-test.yml` provisions WSL only in shard 1. Keep `VSCODE_SMOKE_TEST_WSL_REQUIRED` set in every shard, so that all shards register the same suites and compute the same split. On Windows, shard 1 runs on the 1ES pool instead of the `vscode-large-runners-windows-8-core` larger runners: GitHub-hosted Windows runners intermittently freeze while WSL2 provisions a distribution ([actions/runner-images#14938](https://github.com/actions/runner-images/issues/14938)), which leaves the check pending for about 45 minutes until GitHub reports that it lost communication with the runner.
 - **WSL version:** the agents' Windows Server 2022 image only has the inbox WSL, so provisioning installs the WSL release pinned in `build/checksums/wsl.txt` (see `build/azure-pipelines/common/wsl.psm1`). To update it, put the SHA256 and file name of a newer `wsl.<version>.x64.msi` from the [microsoft/WSL releases](https://github.com/microsoft/WSL/releases) there. The installer caches key on that file; `pr-node-modules.yml` fills the GitHub cache on `main`.
 - **macOS proxy runs:** On macOS, the PAC proxy Agents Window runs happen only in the last shard, so the balancer reserves their time there.
 
@@ -89,7 +89,7 @@ Bash (Linux/macOS):
 # TEMPORARY: loop the suite to reproduce a flaky failure. Remove before merge.
 # Replace <suite name> with the suite you're investigating (e.g. "Agents Window").
 - name: 🧪 Smoke test flakiness probe (TEMPORARY)
-  if: ${{ inputs.electron_tests && inputs.smoke_tests && inputs.smoke_shard_index == 1 }}
+  if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == '1' }}
   timeout-minutes: 60
   run: |
     for i in $(seq 1 20); do

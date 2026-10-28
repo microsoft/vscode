@@ -948,8 +948,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async getFreeDiskSpace(_windowId: number | undefined, path: string): Promise<number> {
-		const { bavail, bsize } = await fs.promises.statfs(path);
-		return bavail * bsize;
+		return Promises.getFreeDiskSpace(path);
 	}
 
 	async getOSProperties(): Promise<IOSProperties> {

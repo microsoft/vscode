@@ -41,6 +41,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { affectsAgentHostProviderPreference, IAgentHostService, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../platform/agentHost/common/agentService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 
@@ -90,7 +91,7 @@ import { ILanguageModelToolsService, isToolSet } from '../../common/tools/langua
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, handleModeSwitch } from '../actions/chatActions.js';
-import { ChatTreeItem, ChatViewPaneTarget, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatFindController, IChatListItemRendererOptions, IChatPasteTargetService, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, IChatWidgetViewState, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
+import { ChatTreeItem, ChatViewPaneTarget, IChatAcceptInputOptions, IChatAccessibilityService, IChatBackgroundActivityPillSections, IChatCodeBlockInfo, IChatFileTreeInfo, IChatFindController, IChatListItemRendererOptions, IChatPasteTargetService, IChatRespondent, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, IChatWidgetViewState, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
 import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js';
@@ -117,7 +118,7 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnlyBanner.js';
 import { IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
-import { getChatPetListPadding } from './chatPetWidget.js';
+import { getChatPetListPadding, IChatPetPlatformOccupation } from './chatPetWidget.js';
 import { IChatPetWidgetService } from './chatPetWidgetService.js';
 import { IChatPetService } from '../chatPetService.js';
 import { ChatPetAchievementIds, hasChatPetImageAttachment } from '../chatPetAchievements.js';
@@ -404,6 +405,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	} | undefined;
 	private readonly transcriptProgressPart = this._register(new MutableDisposable<DisposableStore>());
 	private readonly transcriptProgressAction = observableValue<{ readonly label: string; readonly run: () => void } | undefined>(this, undefined);
+	private readonly backgroundActivityPillSections = observableValue<IChatBackgroundActivityPillSections | undefined>(this, undefined);
 	private transcriptProgressActive = false;
 	private readonly transcriptProgressActiveContext: IContextKey<boolean>;
 	private transcriptContext: HTMLElement | undefined;
@@ -488,6 +490,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _pendingFirstRenderSessionResource: URI | undefined;
 
 	// Coding agent locking state
+	private _respondent: { readonly resource: URI; readonly respondent: IChatRespondent } | undefined;
+	private _appliedInputPlaceholder = false;
+	private _hasResponseIdentity = false;
 	private _lockedAgent?: {
 		id: string;
 		name: string;
@@ -505,6 +510,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	/** The session resource the {@link _chatAgentHostFolderPickerVisibleContextKey} value currently reflects, so a transient `undefined` decision during provisional recreation retains the value instead of flashing the chip. */
 	private _folderPickerDecisionSessionResource: URI | undefined;
 	private readonly _chatSessionSupportsForkContextKey: IContextKey<boolean>;
+	private readonly _chatSessionSupportsSideChatContextKey: IContextKey<boolean>;
 	private readonly _chatSessionSupportsRenameContextKey: IContextKey<boolean>;
 	private readonly _agentSupportsAttachmentsContextKey: IContextKey<boolean>;
 	private readonly _sessionIsEmptyContextKey: IContextKey<boolean>;
@@ -670,6 +676,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._chatAgentHostHasImmutablePrimaryWorkingDirectoryContextKey = ChatContextKeys.chatAgentHostHasImmutablePrimaryWorkingDirectory.bindTo(this.contextKeyService);
 		this._chatAgentHostFolderPickerVisibleContextKey = ChatContextKeys.chatAgentHostFolderPickerVisible.bindTo(this.contextKeyService);
 		this._chatSessionSupportsForkContextKey = ChatContextKeys.chatSessionSupportsFork.bindTo(this.contextKeyService);
+		this._chatSessionSupportsSideChatContextKey = ChatContextKeys.chatSessionSupportsSideChat.bindTo(this.contextKeyService);
 		this._chatSessionSupportsRenameContextKey = ChatContextKeys.chatSessionSupportsRename.bindTo(this.contextKeyService);
 		this._agentSupportsAttachmentsContextKey = ChatContextKeys.agentSupportsAttachments.bindTo(this.contextKeyService);
 		this._sessionIsEmptyContextKey = ChatContextKeys.chatSessionIsEmpty.bindTo(this.contextKeyService);
@@ -1140,7 +1147,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.input.attachmentModel;
 	}
 
-	render(parent: HTMLElement, petMovementBounds?: HTMLElement, preferredPetHost?: IObservable<boolean>): void {
+	render(parent: HTMLElement, petMovementBounds?: HTMLElement, preferredPetHost?: IObservable<boolean>, setPetPlatformOccupation?: (occupation: IChatPetPlatformOccupation | undefined) => void): void {
 		const viewId = isIChatViewViewContext(this.viewContext) ? this.viewContext.viewId : undefined;
 		this.editorOptions = this._register(this.instantiationService.createInstance(ChatEditorOptions, viewId, this.styles.listForeground, this.styles.inputEditorBackground, this.styles.resultEditorBackground));
 		const renderInputOnTop = this.viewOptions.renderInputOnTop ?? false;
@@ -1208,7 +1215,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				hasInput: inputHasContent,
 				inputChanged: this.inputEditor.onDidChangeModelContent,
 				getPlatformTop: petCenterX => this.inputPart.getChatPetPlatformTop(petCenterX),
+				getPlatforms: () => this.inputPart.getChatPetPlatforms(),
 				onDidChangePlatform: this.inputPart.onDidChangeChatPetHorizontalPlatforms,
+				setPlatformOccupation: setPetPlatformOccupation,
 			}, preferredPetHost));
 			const chatPetListPadding = derived(this, reader => getChatPetListPadding(this.chatPetService.enabled.read(reader), this._visible.read(reader), this.chatPetService.scale.read(reader)));
 			this._register(autorun(reader => {
@@ -2208,7 +2217,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private updateReadOnlyState(model: IChatModel, archived: boolean, reader: IReader): void {
 		const policyRequired = isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation) && this.policyRequiresAgentHost.read(reader);
-		this.policyReadOnly = policyRequired && !archived;
+		if (policyRequired) {
+			this._agentHostService.initializeResult?.read(reader);
+		}
+		// An archived chat was already moved, unless the host cannot import history or
+		// runs on a remote (where earlier moves archived the source before remote import
+		// was supported); keep offering the manual action there without auto-moving.
+		this.policyReadOnly = policyRequired && (!archived || !this._agentHostService.supportsConversationImport || this._agentHostService.clientConnectionKind === AgentHostClientConnectionKind.RemoteExtensionHost);
 		const readOnly = model.isReadOnly.read(reader) || policyRequired || (archived && isAgentHostTarget(getChatSessionType(model.sessionResource)));
 		this.setReadOnly(readOnly, !policyRequired && !archived && model.isInputBlocked.read(reader), model.historyStatus?.read(reader));
 	}
@@ -2217,14 +2232,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const provider = model.sessionResource.scheme === 'agent-host-claude' ? 'claude' : model.sessionResource.scheme === 'agent-host-codex' ? 'codex' : undefined;
 		// Without import support the action only attaches a transcript and keeps this
 		// chat, so running it automatically would start another Copilot chat on every open.
-		if (model.initialLocation !== ChatAgentLocation.Chat || (!provider && (this.viewOptions.isSessionsWindow || !isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation) || !this._agentHostService.supportsConversationImport))) {
+		if (model.initialLocation !== ChatAgentLocation.Chat || (!provider && (this.viewOptions.isSessionsWindow || !isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation)))) {
 			return Disposable.None;
 		}
 		const providerDisabled = provider ? observableFromEvent(Event.filter(this.configurationService.onDidChangeConfiguration, event => affectsAgentHostProviderPreference(event, true)), () => isLocalAgentHostProviderDisabledByPolicy(provider, this.configurationService)) : constObservable(true);
 		const hasRequests = observableFromEvent(model.onDidChange, () => model.hasRequests);
 		let attempted = false;
 		return autorun(reader => {
-			if (attempted || !this._visible.read(reader) || !this.policyRequiresAgentHost.read(reader) || !providerDisabled.read(reader) || archived.read(reader) || model.requestInProgress.read(reader) || !hasRequests.read(reader) || (provider && !model.isReadOnly.read(reader))) {
+			this._agentHostService.initializeResult?.read(reader);
+			if (attempted || !this._visible.read(reader) || !this.policyRequiresAgentHost.read(reader) || !providerDisabled.read(reader) || archived.read(reader) || model.requestInProgress.read(reader) || !hasRequests.read(reader) || (!provider && !this._agentHostService.supportsConversationImport) || (provider && !model.isReadOnly.read(reader))) {
 				return;
 			}
 			// Let the widget finish binding the transcript and restoring the draft first.
@@ -2342,6 +2358,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	registerBackgroundActivityPillSections(sections: IChatBackgroundActivityPillSections): IDisposable {
+		this.backgroundActivityPillSections.set(sections, undefined);
+		return toDisposable(() => {
+			if (this.backgroundActivityPillSections.get() === sections) {
+				this.backgroundActivityPillSections.set(undefined, undefined);
+			}
+		});
+	}
+
 	private createList(listContainer: HTMLElement, options: IChatListItemRendererOptions): void {
 		// Create a dom element to hold UI from editor widgets embedded in chat messages
 		const overflowWidgetsContainer = document.createElement('div');
@@ -2353,7 +2378,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			ChatListWidget,
 			listContainer,
 			{
-				rendererOptions: { ...options, readOnly: this._readOnly, progressMessageAction: this.transcriptProgressAction },
+				rendererOptions: {
+					...options,
+					readOnly: this._readOnly,
+					progressMessageAction: this.transcriptProgressAction,
+					backgroundActivityPillSections: {
+						subagents: derived(reader => this.backgroundActivityPillSections.read(reader)?.subagents?.read(reader) ?? []),
+						backgroundShells: derived(reader => this.backgroundActivityPillSections.read(reader)?.backgroundShells?.read(reader) ?? []),
+					},
+				},
 				defaultElementHeight: this.viewOptions.defaultElementHeight ?? 200,
 				overflowWidgetsDomNode: overflowWidgetsContainer,
 				styles: {
@@ -3050,6 +3083,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			this.clearGettingStartedTip();
 			this.viewModel = undefined;
+			// No chat is bound, so nothing is revalidated: the outgoing chat keeps its own model.
+			this._respondent = undefined;
+			this.inputPart.setModelSessionTypeOverride(undefined, undefined, { revalidate: false });
+			this._setResponseIdentity(undefined);
 			this.updateWorkingProgressBorder();
 			this.onDidChangeItems();
 			this._hasPendingRequestsContextKey.set(false);
@@ -3066,6 +3103,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		logChangesToStateModel(model.inputModel, `ChatWidget.setModel new ${model.sessionResource.toString()}, old ${this.viewModel?.sessionResource.toString()}`, model.inputModel.state.get(), currentInputModel, this.logService);
+		// A respondent belongs to the chat it was set for: one set ahead for the incoming chat applies,
+		// any other is dropped (the host sets one again for the next chat).
+		const respondent = this._respondent && isEqual(this._respondent.resource, model.sessionResource) ? this._respondent.respondent : undefined;
+		if (!respondent && this._respondent) {
+			// The outgoing chat is still bound here: dropping its pool must not revalidate it against another.
+			this._respondent = undefined;
+			this.inputPart.setModelSessionTypeOverride(undefined, undefined, { revalidate: false });
+		}
+		this._setResponseIdentity(respondent);
 
 		if (this.viewModel?.editing) {
 			this.finishedEditing();
@@ -3098,16 +3144,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// outgoing model was torn down cannot consume it.
 		this._pendingFirstRenderSessionResource = model.sessionResource;
 
-		if (this._lockedAgent) {
-			let placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder;
-			if (!placeholder) {
-				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);
-			}
-			this.viewModel.setInputPlaceholder(placeholder);
-			this._updateInputPlaceholder(placeholder);
-		} else if (this.viewModel.inputPlaceholder) {
-			this._updateInputPlaceholder(this.viewModel.inputPlaceholder);
-		}
+		this._applyInputPlaceholder();
 
 		this.viewModelDisposables.add(Event.runAndSubscribe(Event.accumulate(this.viewModel.onDidChange), (events => {
 			if (!this.viewModel || this._store.isDisposed) {
@@ -3210,7 +3247,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private bindSessionCapabilities(model: IChatModel): IDisposable {
 		const sessionType = getChatSessionType(model.sessionResource);
-		return Event.runAndSubscribe(this.chatSessionsService.onDidChangeAvailability, () => {
+		const store = new DisposableStore();
+		store.add(Event.runAndSubscribe(this.chatSessionsService.onDidChangeAvailability, () => {
 			// Saved history can bind before its live session contribution registers.
 			if (sessionType !== localChatSessionType && !this._lockedAgent) {
 				const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
@@ -3220,11 +3258,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			const supportsFork = this.chatSessionsService.sessionSupportsFork(model.sessionResource);
 			this._chatSessionSupportsForkContextKey.set(supportsFork);
+			if (!this.viewOptions.supportsSideChat) {
+				this._chatSessionSupportsSideChatContextKey.set(this.chatSessionsService.sessionSupportsSideChat(model.sessionResource));
+			}
 			const supportsRename = sessionType === localChatSessionType
 				|| this.chatSessionsService.sessionSupportsRename(model.sessionResource);
 			this._chatSessionSupportsRenameContextKey.set(supportsRename);
 			this.listWidget?.updateRendererOptions({ supportsFork });
-		});
+		}));
+		const supportsSideChat = this.viewOptions.supportsSideChat;
+		if (supportsSideChat) {
+			store.add(autorun(reader => this._chatSessionSupportsSideChatContextKey.set(supportsSideChat.read(reader))));
+		}
+		return store;
 	}
 
 	setLoading(isLoading: boolean): void {
@@ -3259,6 +3305,75 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	setInputPlaceholder(placeholder: string): void {
 		this.viewModel?.setInputPlaceholder(placeholder);
+	}
+
+	/**
+	 * Presents the bound chat as answered by `respondent`, an agent other than the one its session
+	 * type serves, or restores that agent's presentation. The input placeholder, response identity
+	 * and selectable models follow the respondent; requests still go to the session type's agent.
+	 */
+	setRespondent(respondent: IChatRespondent | undefined, resource: URI | undefined = this.viewModel?.sessionResource): void {
+		const next = respondent && resource ? { resource, respondent } : undefined;
+		const previous = this._respondent;
+		if (!next && previous && resource && !isEqual(previous.resource, resource)) {
+			// Another chat having none says nothing about this one's; binding that chat drops it.
+			return;
+		}
+		if (!!previous === !!next && isEqual(previous?.resource, next?.resource) && previous?.respondent.label === next?.respondent.label
+			&& previous?.respondent.modelSessionType === next?.respondent.modelSessionType && previous?.respondent.icon.id === next?.respondent.icon.id) {
+			return;
+		}
+		this._respondent = next;
+		const bound = this.viewModel?.sessionResource;
+		// Set ahead of binding (`resource` not yet bound), the pool applies from the chat's first model validation;
+		// only a change for the bound chat revalidates it, so replacing the outgoing chat's pool never does.
+		const forBound = !!bound && isEqual(next?.resource ?? previous?.resource, bound);
+		this.inputPart.setModelSessionTypeOverride(next ? { sessionType: next.respondent.modelSessionType } : undefined, next?.resource ?? previous?.resource, { revalidate: forBound });
+		if (!isEqual(next?.resource, bound) && !isEqual(previous?.resource, bound)) {
+			return;
+		}
+		const boundRespondent = next && isEqual(next.resource, bound) ? next.respondent : undefined;
+		this._setResponseIdentity(boundRespondent);
+		if (previous && !boundRespondent) {
+			this.viewModel?.resetInputPlaceholder();
+		}
+		this._applyInputPlaceholder();
+		this.rerenderListIfConnected();
+	}
+
+	private _setResponseIdentity(respondent: IChatRespondent | undefined): void {
+		// Only a change reaches the list, so chats that never have a respondent never touch its options.
+		if (!respondent && !this._hasResponseIdentity) {
+			return;
+		}
+		this._hasResponseIdentity = !!respondent;
+		this.listWidget.updateRendererOptions({ responseIdentity: respondent ? { label: respondent.label, icon: respondent.icon } : undefined });
+	}
+
+	private _applyInputPlaceholder(): void {
+		if (!this.viewModel) {
+			return;
+		}
+		let placeholder: string | undefined;
+		if (this._respondent && isEqual(this._respondent.resource, this.viewModel.sessionResource)) {
+			placeholder = localize('chat.input.placeholder.respondent', "Chat with {0}", this._respondent.respondent.label);
+		} else if (this._lockedAgent) {
+			placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder
+				|| localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);
+		}
+		// Routed through `_updateInputPlaceholder`, so a host-supplied placeholder still wins.
+		if (placeholder) {
+			this.viewModel.setInputPlaceholder(placeholder);
+			this._updateInputPlaceholder(placeholder);
+			this._appliedInputPlaceholder = true;
+		} else if (this.viewModel.inputPlaceholder) {
+			this._updateInputPlaceholder(this.viewModel.inputPlaceholder);
+			this._appliedInputPlaceholder = true;
+		} else if (this._appliedInputPlaceholder) {
+			// Clear only a placeholder this widget set, so a widget that never had one stays untouched.
+			this._updateInputPlaceholder(undefined);
+			this._appliedInputPlaceholder = false;
+		}
 	}
 
 	resetInputPlaceholder(): void {
@@ -3326,6 +3441,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._chatAgentHostFolderPickerVisibleContextKey.set(false);
 		this._folderPickerDecisionSessionResource = undefined;
 		this._chatSessionSupportsForkContextKey.set(false);
+		this._chatSessionSupportsSideChatContextKey.set(false);
 		this._chatSessionSupportsRenameContextKey.set(false);
 		this._updateAgentCapabilitiesContextKeys(undefined);
 

@@ -8,7 +8,7 @@ import { isWindows } from '../../../../base/common/platform.js';
 import { DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_SKILL_CHAR_BUDGET } from '../../common/copilotCliConfig.js';
 import { DynamicAutoTiersFeatureFlag } from '../../common/autoModeTiers.js';
 
-const HYDRAFUSION_ENV_KEYS = new Set(['HYDRAFUSION', 'HYDRAFUSION_ROLLOUT', 'HYDRAFUSION_PLAN_V2', 'HYDRAFUSION_STICKY_ROOT']);
+const HYDRAFUSION_ENV_KEYS = new Set(['HYDRAFUSION', 'HYDRAFUSION_ROLLOUT', 'HYDRAFUSION_PLAN_V2', 'HYDRAFUSION_STICKY_ROOT', 'HYDRAFUSION_INTERRUPTED_COMMIT']);
 /** Copilot CLI runtime flags that would make it declare on-device models to Auto and start its own `llama-server`; VS Code serves them itself, so they are forced off. */
 const RUNTIME_LOCAL_MODEL_FLAG_KEYS = ['AUTO_LOCAL_ROUTING', 'WINML_LOCAL_MODELS'] as const;
 /** An environment declaration of on-device Auto models the Copilot CLI runtime reads; never inherited. */
@@ -78,6 +78,23 @@ export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = pro
 		env[flag] = 'false';
 	}
 	return env;
+}
+
+/** Temporary host-tool lookup workaround pending the planned upstream fix in https://github.com/microsoft/mxc/issues/1545; remove once the bundled runtime includes it.
+ * Applies to the CLI subprocess and its children, not the agent host's environment.
+ */
+export function addCopilotSandboxPath(env: Record<string, string | undefined>, platform: NodeJS.Platform = process.platform): void {
+	if (platform !== 'linux') {
+		return;
+	}
+
+	const directories = env['PATH'] ? env['PATH'].split(':') : [];
+	for (const directory of ['/usr/local/sbin', '/usr/local/bin', '/usr/sbin', '/usr/bin', '/sbin', '/bin']) {
+		if (!directories.includes(directory)) {
+			directories.push(directory);
+		}
+	}
+	env['PATH'] = directories.join(':');
 }
 
 /** The SDK's default WebSocket forwarder drops `Authorization`, so while the on-device handler is installed the runtime uses HTTP Responses for CAPI; otherwise nothing changes. */

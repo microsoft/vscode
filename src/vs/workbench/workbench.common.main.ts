@@ -145,6 +145,7 @@ import '../platform/agentHost/browser/agentHostConnectionsService.js';
 import './services/log/common/defaultLogLevels.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
+import { ArtifactIntegrationRegistry, IArtifactIntegrationRegistry } from '../platform/artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { GlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionEnablementService.js';
 import { IAllowedExtensionsService, IGlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionManagement.js';
 import { ContextViewService } from '../platform/contextview/browser/contextViewService.js';
@@ -175,6 +176,7 @@ import { WebWorkerService } from '../platform/webWorker/browser/webWorkerService
 import { AgentHostMcpOAuthMetadataService, IAgentHostMcpOAuthMetadataService } from '../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
+registerSingleton(IArtifactIntegrationRegistry, ArtifactIntegrationRegistry, InstantiationType.Delayed);
 registerSingleton(IAllowedExtensionsService, AllowedExtensionsService, InstantiationType.Delayed);
 registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService, InstantiationType.Delayed);
 registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService, InstantiationType.Delayed);

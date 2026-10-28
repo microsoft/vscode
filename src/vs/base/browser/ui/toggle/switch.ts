@@ -14,8 +14,11 @@ export interface ISwitchOptions {
 	readonly checked?: boolean;
 	/** Accessible name. Also used as the hover title unless {@link title} is given. */
 	readonly ariaLabel: string;
-	/** Hover title. Defaults to {@link ariaLabel}. */
-	readonly title?: string;
+	/**
+	 * Hover title. Defaults to {@link ariaLabel}. Pass `false` for no hover, for example when
+	 * the surrounding element already shows one that explains the switch.
+	 */
+	readonly title?: string | false;
 	readonly disabled?: boolean;
 }
 
@@ -40,19 +43,22 @@ export class Switch extends Disposable {
 	constructor(options: ISwitchOptions) {
 		super();
 		this._checked = !!options.checked;
-		this._title = options.title ?? options.ariaLabel;
+		const title = options.title === false ? undefined : options.title;
+		this._title = title ?? options.ariaLabel;
 
 		this.domNode = dom.$('button.monaco-switch');
 		this.domNode.type = 'button';
 		this.domNode.setAttribute('role', 'switch');
 		dom.append(this.domNode, dom.$('.monaco-switch-thumb'));
 
-		this._register(getBaseLayerHoverDelegate().setupDelayedHover(this.domNode, () => ({
-			content: this._title,
-			style: HoverStyle.Pointer,
-		})));
+		if (options.title !== false) {
+			this._register(getBaseLayerHoverDelegate().setupDelayedHover(this.domNode, () => ({
+				content: this._title,
+				style: HoverStyle.Pointer,
+			})));
+		}
 
-		this.setAriaLabel(options.ariaLabel, options.title);
+		this.setAriaLabel(options.ariaLabel, title);
 		this.disabled = !!options.disabled;
 		this._applyState();
 

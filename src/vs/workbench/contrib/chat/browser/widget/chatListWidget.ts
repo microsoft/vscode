@@ -41,6 +41,7 @@ import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isReques
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatContextMenuActionContext, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
+import { resolveResponseSelection } from '../responseSelectionResolver.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
@@ -389,6 +390,7 @@ export class ChatListWidget extends Disposable {
 	private readonly _userToggleResizeTrackers = this._register(new DisposableMap<ChatTreeItem, UserToggleResizeTracker>());
 
 	private readonly _container: HTMLElement;
+	private _overlayClippingContainer: HTMLElement | undefined;
 	private readonly _scrollDownButton: Button;
 	private readonly _lastItemIdContextKey: IContextKey<string[]>;
 
@@ -550,6 +552,7 @@ export class ChatListWidget extends Disposable {
 			getListLength: () => this._tree.getListRenderCount(null),
 			onDidScroll: this.onDidScroll,
 			container: this._container,
+			getOverlayClippingContainer: () => this.getOverlayClippingContainer(),
 			currentChatMode: options.currentChatMode ?? (() => ChatModeKind.Ask),
 			isStickyScrollEnabled: () => this.isTreeStickyScrollEnabled(),
 			isScrolledToBottom: () => this.isScrolledToBottom,
@@ -626,7 +629,7 @@ export class ChatListWidget extends Disposable {
 				allowNonCollapsibleParents: true,
 				renderIndentGuides: RenderIndentGuides.None,
 				findWidgetEnabled: false,
-				accessibilityProvider: this.instantiationService.createInstance(ChatAccessibilityProvider),
+				accessibilityProvider: this.instantiationService.createInstance(ChatAccessibilityProvider, () => this._renderer.responseIdentity),
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: (e: ChatTreeItem) =>
 						isRequestVM(e) ? e.message : isResponseVM(e) ? e.response.value : ''
@@ -770,6 +773,25 @@ export class ChatListWidget extends Disposable {
 
 	//#region Internal event handlers
 
+	protected getOverlayClippingContainer(): HTMLElement {
+		if (!this._overlayClippingContainer) {
+			// Even an empty positioned anchor changes text compositing, so only attach it for overlays.
+			const container = this._overlayClippingContainer = dom.append(this._tree.getHTMLElement(), dom.$('.chat-list-overlay-clip'));
+			const updateOverlayClip = () => {
+				container.style.top = `${this._tree.stickyScrollDomNode?.offsetHeight ?? 0}px`;
+			};
+			const overlayClipObserver = this._register(new dom.DisposableResizeObserver('ChatListWidget.overlayClip', updateOverlayClip, dom.getWindow(this._container)));
+			const stickyScrollObservation = this._register(new MutableDisposable<IDisposable>());
+			const observeStickyScroll = (node: HTMLElement | undefined) => {
+				stickyScrollObservation.value = node ? overlayClipObserver.observe(node) : undefined;
+				updateOverlayClip();
+			};
+			this._register(this._tree.onDidChangeStickyScrollDomNode(observeStickyScroll));
+			observeStickyScroll(this._tree.stickyScrollDomNode);
+		}
+		return this._overlayClippingContainer;
+	}
+
 	/**
 	 * Rewrites the rich-text flavor of a copied selection so links that only resolve here
 	 * don't paste as `vscode-file:` targets or local paths. Selections whose links all resolve
@@ -879,6 +901,8 @@ export class ChatListWidget extends Disposable {
 		const targetContext = getChatContextMenuTargetContext(e.browserEvent.target);
 		const linkTarget = targetContext.linkTarget;
 		const hasAvailableEditors = linkTarget ? shouldShowChatLinkOpenWith(URI.parse(linkTarget), this.fileService, this.editorResolverService) : false;
+		const selection = resolveResponseSelection({ domNode: this._container, getElementFromNode: node => this.getElementFromNode(node) });
+		const responseSelection = selection?.response === selected ? selection : undefined;
 
 		const scopedContextKeyService = this.contextKeyService.createOverlay([
 			[ChatContextKeys.isResponse.key, isResponseVM(selected)],
@@ -887,11 +911,13 @@ export class ChatListWidget extends Disposable {
 			[ChatContextKeys.contextMenuIsBackground.key, targetContext.isBackground],
 			[ChatContextKeys.contextMenuHasLink.key, !!linkTarget],
 			[ChatContextKeys.contextMenuHasAvailableEditors.key, hasAvailableEditors],
+			[ChatContextKeys.contextMenuHasResponseSelection.key, !!responseSelection],
 		]);
 		const actionContext: IChatContextMenuActionContext = {
 			$chatContextMenu: true,
 			item: selected,
 			linkTarget,
+			responseSelection,
 		};
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.ChatContext,
@@ -1309,7 +1335,11 @@ export class ChatListWidget extends Disposable {
 	private _withPersistedAutoScroll(fn: () => void): void {
 		const wasScrolledToBottom = !this.isAutoScrollHeld && this.isScrolledToBottom;
 		const scrollTop = this._tree.scrollTop;
-		fn();
+		if (wasScrolledToBottom) {
+			this._tree.withScrollAnchorAtBottom(fn);
+		} else {
+			fn();
+		}
 		this.updateBottomPadding(scrollTop);
 		if (wasScrolledToBottom) {
 			this.revealLastItem();

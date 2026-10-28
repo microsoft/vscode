@@ -102,7 +102,7 @@ suite('CopilotCustomizationInstallations', () => {
 				identity: 'azure-devops-copilot-plugin',
 				displayName: 'Azure DevOps Copilot Plugin',
 				source: { repository: 'microsoft/azure-devops-copilot-plugin', path: '.claude-plugin/plugin.json' },
-				compatibilityTags: ['github-copilot'],
+				compatibilityTags: ['github-copilot', 'canvas', 'canvas-only'],
 				provenance: { authority: 'agentfinder.github.com', observedAt: new Date().toISOString(), mediaType: 'application/vnd.anthropic.claude-plugin+json' },
 				iconUrl: 'https://raw.githubusercontent.com/example/icons/main/azure-devops.png',
 				categories: ['build'],
@@ -132,7 +132,7 @@ suite('CopilotCustomizationInstallations', () => {
 			}), /Reached SDK installation planning/);
 			await fixture.service.search({ query: '', feedId: 'feed_another', limit: 1 });
 			assert.deepStrictEqual({
-				items: result.items.map(item => [item.identifier, item.displayName, item.iconUrl, item.categories]),
+				items: result.items.map(item => [item.identifier, item.displayName, item.iconUrl, item.categories, item.compatibilityTags]),
 				feedIds: requests.map(request => request.feedId),
 				bound: requests.every(request => request.policySessionId === fixture.policySessions[0]),
 				capabilities: requests[0].contract.requiredCapabilities,
@@ -140,7 +140,12 @@ suite('CopilotCustomizationInstallations', () => {
 				planSource: fixture.plans[0].source,
 				installability: result.items.map(item => [item.installable, !!item.unavailableMessage]),
 			}, {
-				items: [['figma', 'Figma', candidate.iconUrl, ['build']], ['azure-devops', 'Azure DevOps Copilot Plugin', pluginCandidate.iconUrl, ['build']], ['second', 'Second', candidate.iconUrl, ['build']], ['blocked', 'Blocked', candidate.iconUrl, ['build']]],
+				items: [
+					['figma', 'Figma', candidate.iconUrl, ['build'], undefined],
+					['azure-devops', 'Azure DevOps Copilot Plugin', pluginCandidate.iconUrl, ['build'], ['canvas', 'canvas-only']],
+					['second', 'Second', candidate.iconUrl, ['build'], undefined],
+					['blocked', 'Blocked', candidate.iconUrl, ['build'], undefined],
+				],
 				feedIds: ['feed_editorial', 'feed_another'],
 				bound: true,
 				capabilities: ['catalog-search-credential-required', 'catalog-search-session-bound', 'catalog-selection', 'catalog-search-pagination', 'trust-snapshot', 'ai-skill-discovery', 'skill-confirmed-installation', 'agent-plugin-discovery', 'agent-plugin-formats', 'agent-plugin-confirmed-installation', 'catalog-feeds'],
@@ -457,7 +462,7 @@ suite('CopilotCustomizationInstallations', () => {
 		});
 	});
 
-	test('answers a non-plugin queryless browse without starting the SDK', async () => {
+	test('answers queryless catalog browse without starting the SDK', async () => {
 		let clientRequests = 0;
 		const policySessions = new TestPolicySessions();
 		const service = store.add(new CopilotCustomizationInstallations(async () => {
@@ -465,100 +470,26 @@ suite('CopilotCustomizationInstallations', () => {
 			throw new Error('Unexpected client request');
 		}, policySessions.create));
 
+		const unfilteredBrowse = await service.search({
+			query: '',
+			limit: 10,
+		});
 		const mcpBrowse = await service.search({
 			query: '',
 			mediaType: 'application/mcp-server+json',
 			limit: 10,
 		});
-		assert.deepStrictEqual({ clientRequests, created: policySessions.created, mcpBrowse }, {
+		const pluginBrowse = await service.search({
+			query: '',
+			mediaType: 'application/vnd.github.copilot-plugin',
+			limit: 10,
+		});
+		assert.deepStrictEqual({ clientRequests, created: policySessions.created, unfilteredBrowse, mcpBrowse, pluginBrowse }, {
 			clientRequests: 0,
 			created: [],
+			unfilteredBrowse: { kind: 'page', items: [] },
 			mcpBrowse: { kind: 'page', items: [] },
-		});
-	});
-
-	test('uses SDK marketplace browse for an empty featured-plugin query', async () => {
-		const calls: string[] = [];
-		const marketplaces = new class extends mock<CopilotClient['rpc']['plugins']['marketplaces']>() {
-			override readonly list: CopilotClient['rpc']['plugins']['marketplaces']['list'] = async () => {
-				calls.push('list');
-				return {
-					marketplaces: [
-						{ name: 'awesome-copilot', source: 'GitHub: github/awesome-copilot', isDefault: true },
-						{ name: 'copilot-plugins', source: 'GitHub: github/copilot-plugins', isDefault: true },
-						{ name: 'other', source: 'GitHub: example/other' },
-					],
-				};
-			};
-			override readonly browse: CopilotClient['rpc']['plugins']['marketplaces']['browse'] = async request => {
-				calls.push(`browse:${request.name}`);
-				throw new Error('Unexpected marketplace browse');
-			};
-		}();
-		const catalog = new class extends mock<CopilotClient['rpc']['catalog']>() {
-			override readonly search: CopilotClient['rpc']['catalog']['search'] = async () => {
-				throw new Error('Unexpected catalog search');
-			};
-		}();
-		const client = {
-			rpc: {
-				catalog,
-				plugins: new class extends mock<CopilotClient['rpc']['plugins']>() {
-					override readonly marketplaces = marketplaces;
-				}(),
-				skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
-				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() { }(),
-			},
-		};
-		const policySessions = new TestPolicySessions();
-		const service = store.add(new CopilotCustomizationInstallations(
-			async () => client,
-			policySessions.create,
-		));
-
-		const result = await service.search({ query: '', limit: 10 });
-
-		assert.deepStrictEqual({ calls, createdPolicySessions: policySessions.created, result }, {
-			calls: ['list'],
-			createdPolicySessions: [],
-			result: {
-				kind: 'page',
-				items: [
-					{
-						selectionId: 'featured-plugin:awesome-copilot:azure',
-						kind: 'plugin',
-						displayName: 'Azure',
-						description: 'Plan, deploy, troubleshoot, and manage Azure resources with skills and MCP tools.',
-						publisher: 'microsoft',
-						pluginName: 'azure',
-						marketplace: 'awesome-copilot',
-						marketplaceSource: 'GitHub: github/awesome-copilot',
-						installable: true,
-					},
-					{
-						selectionId: 'featured-plugin:copilot-plugins:workiq',
-						kind: 'plugin',
-						displayName: 'WorkIQ',
-						description: 'Find answers across Microsoft 365 emails, meetings, documents, and Teams messages.',
-						publisher: 'microsoft',
-						pluginName: 'workiq',
-						marketplace: 'copilot-plugins',
-						marketplaceSource: 'GitHub: github/copilot-plugins',
-						installable: true,
-					},
-					{
-						selectionId: 'featured-plugin:awesome-copilot:security-best-practices',
-						kind: 'plugin',
-						displayName: 'Security Best Practices',
-						description: 'Build secure, accessible, reliable software.',
-						publisher: 'github',
-						pluginName: 'security-best-practices',
-						marketplace: 'awesome-copilot',
-						marketplaceSource: 'GitHub: github/awesome-copilot',
-						installable: true,
-					},
-				],
-			},
+			pluginBrowse: { kind: 'page', items: [] },
 		});
 	});
 
@@ -864,12 +795,16 @@ suite('CopilotCustomizationInstallations', () => {
 						provenance: { authority: 'agentfinder.github.com', observedAt, mediaType: 'application/mcp-server+json' as const },
 					},
 					{
+						handle: 'installable-plugin',
+						handleExpiresAt: expiresAt,
 						kind: 'plugin' as const,
 						mediaType: 'application/vnd.github.copilot-plugin' as const,
+						installability: 'installable' as const,
 						identity: 'plugin',
 						displayName: 'Pinned Plugin',
 						source: { repository: 'owner/repository', path: '.github/plugin/plugin.json' },
-						compatibilityTags: ['github-copilot' as const],
+						compatibilityTags: ['github-copilot' as const, 'canvas' as const, 'canvas-only' as const],
+						installCount: 42,
 						provenance: { authority: 'agentfinder.github.com', observedAt, mediaType: 'application/vnd.github.copilot-plugin' as const },
 					},
 				],
@@ -904,12 +839,20 @@ suite('CopilotCustomizationInstallations', () => {
 		const result = await service.search({ query: 'demo', limit: 10 });
 
 		assert.deepStrictEqual(result.kind === 'page' ? {
-			items: result.items.map(item => ({ kind: item.kind, displayName: item.displayName, itemUrl: item.itemUrl, connectorIds: item.connectorIds, installable: item.installable })),
+			items: result.items.map(item => ({
+				kind: item.kind,
+				displayName: item.displayName,
+				itemUrl: item.itemUrl,
+				connectorIds: item.connectorIds,
+				...(item.kind === 'plugin' ? { compatibilityTags: item.compatibilityTags, installCount: item.installCount } : {}),
+				installable: item.installable,
+			})),
 			hasNextCursor: typeof result.nextCursor === 'string',
 		} : result, {
 			items: [
 				{ kind: 'skill', displayName: 'Installable Skill', itemUrl: 'https://example.test/installable-skill', connectorIds: undefined, installable: true },
 				{ kind: 'mcp', displayName: 'Installable MCP', itemUrl: 'https://example.test/installable-mcp', connectorIds: ['githubcopilotfigmamcp'], installable: true },
+				{ kind: 'plugin', displayName: 'Pinned Plugin', itemUrl: undefined, connectorIds: undefined, compatibilityTags: ['canvas', 'canvas-only'], installCount: 42, installable: true },
 			],
 			hasNextCursor: true,
 		});

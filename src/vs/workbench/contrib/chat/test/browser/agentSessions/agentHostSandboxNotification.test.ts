@@ -26,7 +26,7 @@ import { SessionConfigKey } from '../../../../../../platform/agentHost/common/se
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
-import { createSessionState, SessionState, SessionStatus, StateComponents, type ChatState, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { createSessionState, SessionState, SessionStatus, StateComponents, type ChatState, type ComponentToState, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -46,6 +46,7 @@ import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ChatInputNotificationWidget } from '../../../browser/widget/input/chatInputNotificationWidget.js';
+import { ChatProvidersConfigKey } from '../../../../../../platform/agentHost/common/agentHostChatProviders.js';
 
 suite('AgentHostSandboxNotification', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -100,6 +101,7 @@ suite('AgentHostSandboxNotification', () => {
 		});
 		dispatched = [];
 		localHost = new class extends mock<IAgentHostService>() {
+			override readonly initializeResult = constObservable(undefined);
 			override dispatch(...args: Parameters<IAgentConnection['dispatch']>): void {
 				dispatched.push(args);
 			}
@@ -111,6 +113,7 @@ suite('AgentHostSandboxNotification', () => {
 			connectionAuthority: 'custom-host',
 			backendSession: URI.parse('custom-host://opaque/session'),
 			connection: new class extends mock<IAgentConnection>() {
+				override readonly initializeResult = constObservable(undefined);
 				override dispatch(...args: Parameters<IAgentConnection['dispatch']>): void {
 					dispatched.push(args);
 				}
@@ -263,6 +266,7 @@ suite('AgentHostSandboxNotification', () => {
 			resolution = {
 				...resolution,
 				connection: new class extends mock<IAgentConnection>() {
+					override readonly initializeResult = constObservable(undefined);
 					override readonly sandboxCertificateRemovalSupported = constObservable(supported);
 					override readonly sandboxCertificateInstallationSupported = constObservable(true);
 					override removeSandboxCertificate = remove;
@@ -282,6 +286,7 @@ suite('AgentHostSandboxNotification', () => {
 			resolution = {
 				...resolution,
 				connection: new class extends mock<IAgentConnection>() {
+					override readonly initializeResult = constObservable(undefined);
 					override readonly sandboxCertificateRotationSupported = constObservable(supported);
 					override readonly sandboxCertificateInstallationSupported = constObservable(true);
 					override rotateSandboxCertificate = rotate;
@@ -783,25 +788,41 @@ suite('AgentHostSandboxNotification', () => {
 					modelTargetChatSessionType: constObservable('agent-host-copilot'),
 					sessionResource: constObservable(resource),
 				}));
+				const descriptionElement = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-description');
+				assert.ok(descriptionElement);
 				const button = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-actions .monaco-button');
 				assert.ok(button);
 				const renderedButton = { label: button.textContent, role: button.getAttribute('role'), tabIndex: button.tabIndex, ariaLabel: button.ariaLabel };
-				const descriptionElement = store.add(renderMarkdown(notification.description)).element;
-				button.click();
+				const actions = widget.domNode.querySelectorAll('.chat-input-notification-actions .monaco-button').length;
+				if (outcome === 'installed') {
+					const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true });
+					// StandardKeyboardEvent reads keyCode; define it explicitly rather than relying on the legacy constructor option.
+					Object.defineProperty(enterEvent, 'keyCode', { get: () => 13 });
+					button.dispatchEvent(enterEvent);
+				} else {
+					button.click();
+				}
 				assert.ok(installing);
+				const pending = service.getActiveNotification()?.id;
 				await installing;
 				await Promise.resolve();
 				assert.deepStrictEqual({
 					renderedButton, calls, confirmations: confirmations.length,
-					descriptionLinks: descriptionElement.querySelectorAll('a').length,
+					description: descriptionElement.textContent,
+					descriptionLinks: Array.from(descriptionElement.querySelectorAll('a'), link => link.textContent),
+					descriptionEnding: descriptionElement.textContent?.trimEnd().endsWith('Learn more.'),
 					untrustedContent: descriptionElement.textContent?.includes('untrusted'),
 					keepOpen: notification.actions[0].keepOpen,
+					actions, pending,
 					remaining: service.getActiveNotification()?.id,
 					errors: installationErrors,
 				}, {
-					renderedButton: { label: 'Install', role: 'button', tabIndex: 0, ariaLabel: 'Sandbox trusted CA is not installed Install' },
+					renderedButton: { label: 'Install', role: 'button', tabIndex: 0, ariaLabel: 'Sandbox trusted CA is not installed (optional) Install' },
 					calls: outcome === 'cancelled' ? 0 : 1, confirmations: 1,
-					descriptionLinks: 0, untrustedContent: false, keepOpen: true,
+					description: 'Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. Learn more.',
+					descriptionLinks: ['Learn more'], descriptionEnding: true, untrustedContent: false,
+					keepOpen: true,
+					actions: 1, pending: id,
 					remaining: outcome === 'installed' ? undefined : id,
 					errors: outcome === 'failed' ? ['Could not install the sandbox certificate: OS authorization denied'] : [],
 				});
@@ -1029,7 +1050,7 @@ suite('AgentHostSandboxNotification', () => {
 			assert.deepStrictEqual({ calls, remaining: service.notifications.size, errors: installationErrors }, { calls: 0, remaining: 0, errors: [] });
 		});
 
-		test('shows a nonblocking informational notice when the asynchronous status arrives', () => {
+		test('explains the certificate purpose and links to trust guidance when the asynchronous status arrives', () => {
 			const subscription = store.add(new TestSubscription());
 			subscription.setValue();
 			const service = new NotificationService();
@@ -1041,16 +1062,21 @@ suite('AgentHostSandboxNotification', () => {
 			assert.ok(notice);
 			const { onDismiss, description, ...body } = notice;
 			assert.ok(isMarkdownString(description));
-			const rendered = store.add(renderMarkdown(description));
-			assert.deepStrictEqual({ before, body: { ...body, description: rendered.element.textContent?.replace(/\u00a0/g, ' ') }, dismissible: typeof onDismiss, dispatched }, {
+			const openedLinks: string[] = [];
+			const rendered = store.add(renderMarkdown(description, { actionHandler: url => openedLinks.push(url) }));
+			const links = [...rendered.element.querySelectorAll('a')];
+			links[0]?.click();
+			assert.deepStrictEqual({ before, body: { ...body, description: rendered.element.textContent }, links: links.map(link => link.textContent), openedLinks, dismissible: typeof onDismiss, dispatched }, {
 				before: 0,
 				body: {
 					id, inputUri,
 					severity: ChatInputNotificationSeverity.Info,
-					message: 'Sandbox trusted CA is not installed',
-					description: 'Some tools in this session\'s sandbox might require the sandbox certificate authority (CA) to be trusted by the agent host\'s operating system. Install it in the OS trust store to enable those tools to connect securely.',
+					message: 'Sandbox trusted CA is not installed (optional)',
+					description: 'Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. Learn more.',
 					actions: [], dismissible: true, autoDismissOnMessage: false, sessionResources: [resource],
 				},
+				links: ['Learn more'],
+				openedLinks: ['https://aka.ms/vscode-sandboxing-certtrust'],
 				dismissible: 'function',
 				dispatched: [],
 			});
@@ -1150,7 +1176,7 @@ suite('AgentHostSandboxNotification', () => {
 			service.dismissNotification(warning.id);
 			const info = service.getActiveNotification();
 			assert.ok(info);
-			const certificateRendered = widget.domNode.textContent?.includes('Sandbox trusted CA is not installed');
+			const certificateRendered = widget.domNode.textContent?.includes('Sandbox trusted CA is not installed (optional)');
 			const installButton = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-actions .monaco-button');
 			const renderedButton = { label: installButton?.textContent, tabIndex: installButton?.tabIndex };
 			service.dismissNotification(info.id);
@@ -1344,17 +1370,78 @@ suite('AgentHostSandboxNotification', () => {
 		const service = new NotificationService();
 		createNotification(resource, subscription, service);
 		const notification = [...service.notifications.values()][0];
-		assert.ok(isMarkdownString(notification.description));
-		const rendered = store.add(renderMarkdown(notification.description));
-
 		assert.deepStrictEqual({
 			severity: notification.severity,
-			links: [...rendered.element.querySelectorAll('a')].map(link => link.textContent),
+			description: notification.description,
+			actions: notification.actions.map(action => action.label),
 		}, {
 			severity: ChatInputNotificationSeverity.Warning,
-			links: ['Troubleshooting Guide', 'Disable Sandboxing'],
+			description: 'Missing dependencies.',
+			actions: ['Troubleshooting Guide', 'Disable Sandboxing'],
 		});
 	});
+
+	function renderWarning(service: NotificationService, commands: Parameters<ICommandService['executeCommand']>[] = []): ChatInputNotificationWidget {
+		const widgetInstantiationService = store.add(workbenchInstantiationService(undefined, store));
+		widgetInstantiationService.stub(IChatInputNotificationService, {
+			onDidChange: Event.None,
+			getActiveNotification: filter => [...service.notifications.values()].find(notification => !filter || filter(notification)),
+			announceRendered: () => { },
+			dismissNotification: id => service.dismissNotification(id),
+		});
+		widgetInstantiationService.stub(ICommandService, {
+			executeCommand: async (...args) => {
+				commands.push(args);
+				return undefined;
+			},
+		});
+		return store.add(widgetInstantiationService.createInstance(ChatInputNotificationWidget, {
+			hostVisible: constObservable(true),
+			modelTargetChatSessionType: constObservable('agent-host-copilot'),
+			sessionResource: constObservable(resource),
+		}));
+	}
+
+	for (const [name, reason] of [
+		['bare URL', 'Bubblewrap cannot start sandboxed commands. See https://docs.github.com/en/copilot/concepts/about-cloud-and-local-sandboxes'],
+		['host markup', '[not a command](command:evil) <b>literal</b>\nSecond line &nbsp; stays literal.'],
+		['oversized reason', `${'Missing sandbox dependencies. '.repeat(4_000)}See https://example.com/help`],
+	]) {
+		test(`keeps diagnostic text and guidance actions independent for ${name}`, async () => {
+			const subscription = store.add(new TestSubscription());
+			subscription.setValue([reason, 'Second capability must not be shown.']);
+			const service = new NotificationService();
+			createNotification(resource, subscription, service);
+			const commands: Parameters<ICommandService['executeCommand']>[] = [];
+			const widget = renderWarning(service, commands);
+			const description = widget.domNode.querySelector('.chat-input-notification-description');
+			const buttons = [...widget.domNode.querySelectorAll<HTMLElement>('.chat-input-notification-actions .monaco-button')];
+			for (const button of buttons) {
+				button.click();
+			}
+			await Promise.resolve();
+			await Promise.resolve();
+			assert.deepStrictEqual({
+				text: description?.textContent,
+				markup: description?.querySelectorAll('a, b').length,
+				buttons: buttons.map(button => ({ label: button.textContent, role: button.getAttribute('role'), tabIndex: button.tabIndex, filled: button.classList.contains('filled') })),
+				commands,
+				remaining: service.notifications.size,
+			}, {
+				text: reason,
+				markup: 0,
+				buttons: [
+					{ label: 'Troubleshooting Guide', role: 'button', tabIndex: 0, filled: true },
+					{ label: 'Disable Sandboxing', role: 'button', tabIndex: 0, filled: true },
+				],
+				commands: [
+					['vscode.open', 'https://aka.ms/vscode-sandboxing-troubleshoot'],
+					[getDisableCommand(service)],
+				],
+				remaining: 1,
+			});
+		});
+	}
 
 	test('shows only the first diagnostic in a dismissible session-scoped warning', () => {
 		const subscription = store.add(new TestSubscription());
@@ -1362,14 +1449,17 @@ suite('AgentHostSandboxNotification', () => {
 		const service = new NotificationService();
 		createNotification(resource, subscription, service);
 
-		assert.deepStrictEqual([...service.notifications.values()].map(({ onDismiss, description, ...notification }) => ({
+		assert.deepStrictEqual([...service.notifications.values()].map(({ onDismiss, description, actions, ...notification }) => ({
 			...notification,
+			description,
+			actions: actions.map(action => action.label),
 			hasDismissHandler: typeof onDismiss === 'function',
 		})), [{
 			id: `agentHost.sandboxUnsupported.${resource.toString()}`,
 			severity: ChatInputNotificationSeverity.Warning,
 			message: 'Sandboxing might not work as expected',
-			actions: [],
+			description: 'Install bubblewrap.',
+			actions: ['Troubleshooting Guide', 'Disable Sandboxing'],
 			dismissible: true,
 			hasDismissHandler: true,
 			autoDismissOnMessage: false,
@@ -1377,37 +1467,78 @@ suite('AgentHostSandboxNotification', () => {
 		}]);
 	});
 
-	test('adds only trusted guidance links without interpreting host diagnostic markup', () => {
+	function snapshotWarning(service: NotificationService) {
+		return [...service.notifications.values()].map(notification => ({
+			message: notification.message,
+			description: notification.description,
+			actions: notification.actions.map(action => action.label),
+		}));
+	}
+
+	const unavailableReason = 'The sandbox failed to start because its required Linux namespaces are unavailable.';
+	const mayNotWork = {
+		message: 'Sandboxing might not work as expected',
+		description: unavailableReason,
+		actions: ['Troubleshooting Guide', 'Disable Sandboxing'],
+	};
+	const requiredUnavailable = {
+		message: 'Sandboxing is required by your organization but isn\'t available on this machine',
+		description: `Terminal commands can't run until this machine meets the sandbox requirements or your admin changes the policy. ${unavailableReason}`,
+		actions: ['Troubleshooting Guide'],
+	};
+
+	for (const scenario of [
+		{ name: 'is not managed', managed: undefined, allowBypass: undefined, failClosed: undefined, expected: mayNotWork },
+		{ name: 'is managed with bypass allowed', managed: true, allowBypass: true, failClosed: undefined, expected: mayNotWork },
+		{ name: 'has an undetermined fail-closed policy', managed: true, allowBypass: false, failClosed: true, expected: mayNotWork },
+		{ name: 'is required by the organization without bypass', managed: true, allowBypass: false, failClosed: undefined, expected: requiredUnavailable },
+	]) {
+		test(`explains unavailable sandboxing when it ${scenario.name}`, () => {
+			const subscription = store.add(new TestSubscription());
+			subscription.setValue([unavailableReason], scenario.managed, scenario.allowBypass, scenario.failClosed);
+			const service = new NotificationService();
+			createNotification(resource, subscription, service);
+			assert.deepStrictEqual(snapshotWarning(service), [scenario.expected]);
+		});
+	}
+
+	test('updates the required-by-organization explanation when the policy changes', () => {
 		const subscription = store.add(new TestSubscription());
-		subscription.setValue([
-			'[not a command](command:evil) <b>literal</b>',
-			'Second capability must not be shown.',
-		]);
+		subscription.setValue([unavailableReason]);
 		const service = new NotificationService();
 		createNotification(resource, subscription, service);
-		const description = [...service.notifications.values()][0].description;
-		assert.ok(isMarkdownString(description));
-		const opened: string[] = [];
-		const rendered = store.add(renderMarkdown(description, {
-			actionHandler: url => { opened.push(url); },
-		}));
-		const links = [...rendered.element.querySelectorAll('a')];
-		links[0].click();
-		assert.deepStrictEqual({
-			links: links.map(link => link.textContent),
-			opened,
-			breaks: rendered.element.querySelectorAll('br').length,
-			boldElements: rendered.element.querySelectorAll('b').length,
-			showsSecondCapability: rendered.element.textContent?.includes('Second capability'),
-			trustedCommandCount: typeof description.isTrusted === 'object' ? description.isTrusted.enabledCommands.length : 0,
-		}, {
-			links: ['Troubleshooting Guide', 'Disable Sandboxing'],
-			opened: ['https://aka.ms/vscode-sandboxing-troubleshoot'],
-			breaks: 0,
-			boldElements: 0,
-			showsSecondCapability: false,
-			trustedCommandCount: 1,
+		const snapshots = [snapshotWarning(service)];
+		subscription.setValue([unavailableReason], true);
+		snapshots.push(snapshotWarning(service));
+		subscription.setValue([unavailableReason], true, true);
+		snapshots.push(snapshotWarning(service));
+		assert.deepStrictEqual(snapshots, [[mayNotWork], [requiredUnavailable], [mayNotWork]]);
+	});
+
+	test('uses local renderer policy to explain required sandboxing on the local desktop host', () => {
+		assert.ok(resolution);
+		resolution = { ...resolution, connection: localHost };
+		const subscription = store.add(new TestSubscription());
+		subscription.setValue([unavailableReason]);
+		const service = new NotificationService();
+		createNotification(resource, subscription, service);
+		const snapshots = [snapshotWarning(service)];
+		managedSandboxEnforced.set(true, undefined);
+		snapshots.push(snapshotWarning(service));
+		managedSandboxAllowsBypass.set(true, undefined);
+		snapshots.push(snapshotWarning(service));
+		assert.deepStrictEqual(snapshots, [[mayNotWork], [isWeb ? mayNotWork : requiredUnavailable], [mayNotWork]]);
+	});
+
+	test('does not treat the legacy setting policy as an organization requirement', () => {
+		const subscription = store.add(new TestSubscription());
+		subscription.setValue([unavailableReason]);
+		const service = new NotificationService();
+		stub(configurationService, 'inspect').returns({
+			policyValue: AgentSandboxEnabledValue.On,
 		});
+		createNotification(resource, subscription, service);
+		assert.deepStrictEqual(snapshotWarning(service), [{ ...mayNotWork, actions: ['Troubleshooting Guide'] }]);
 	});
 
 	test('updates and removes the notice as host diagnostics change', () => {
@@ -1433,47 +1564,31 @@ suite('AgentHostSandboxNotification', () => {
 	});
 
 	function getDisableCommand(service: NotificationService): string {
-		const description = [...service.notifications.values()][0].description;
-		assert.ok(isMarkdownString(description) && typeof description.isTrusted === 'object');
-		return description.isTrusted.enabledCommands[0];
+		return [...service.notifications.values()][0].actions
+			.filter(action => action.kind === ChatInputNotificationActionKind.Command)
+			.filter(action => action.label === 'Disable Sandboxing')
+			.map(action => action.commandId)[0];
 	}
 
-	test('disable link updates the sandbox setting to off and is removed on disposal', async () => {
+	test('disable action updates the sandbox setting to off and is removed on disposal', async () => {
 		const subscription = store.add(new TestSubscription());
 		subscription.setValue(['Missing dependencies.']);
 		const service = new NotificationService();
 		const update = stub(configurationService, 'updateValue').resolves();
 		const notification = createNotification(resource, subscription, service);
 		const commandId = getDisableCommand(service);
-		const description = [...service.notifications.values()][0].description;
-		assert.ok(isMarkdownString(description));
-		const invoked: string[] = [];
-		let pending: Promise<void> | undefined;
-		const rendered = store.add(renderMarkdown(description, {
-			actionHandler: async url => {
-				const uri = URI.parse(url);
-				invoked.push(uri.scheme, uri.path);
-				const command = CommandsRegistry.getCommand(uri.path)!;
-				pending = Promise.resolve(instantiationService.invokeFunction(command.handler));
-				await pending;
-			}
-		}));
-		const links = [...rendered.element.querySelectorAll('a')];
-		links.find(link => link.textContent === 'Disable Sandboxing')!.click();
-		await pending;
+		await instantiationService.invokeFunction(CommandsRegistry.getCommand(commandId)!.handler);
 		notification.dispose();
 		assert.deepStrictEqual({
-			invoked,
 			writes: update.args,
 			command: CommandsRegistry.getCommand(commandId),
 		}, {
-			invoked: ['command', commandId],
 			writes: [[AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off]],
 			command: undefined,
 		});
 	});
 
-	test('updates links when host policy changes and rechecks policy before changing settings', async () => {
+	test('updates actions when host policy changes and rechecks policy before changing settings', async () => {
 		const subscription = store.add(new TestSubscription());
 		subscription.setValue(['Missing dependencies.'], false);
 		const service = new NotificationService();
@@ -1513,7 +1628,7 @@ suite('AgentHostSandboxNotification', () => {
 		});
 	}
 
-	test('turns off the sandboxing of its chat, which the chat set for itself', async () => {
+	test('turns off the sandboxing of the default chat through its session, never writing the default chat itself', async () => {
 		await configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
 		const chat = 'ahp-chat://default/opaque';
 		const subscription = store.add(new TestSubscription());
@@ -1531,6 +1646,13 @@ suite('AgentHostSandboxNotification', () => {
 		resolution = {
 			...resolution!,
 			connection: new class extends mock<IAgentConnection>() {
+				override readonly initializeResult = constObservable(undefined);
+				// A host that applies session writes to its default chat.
+				override readonly rootState = (() => {
+					// A host whose chats may use their own agents applies session writes to its default chat.
+					const value: RootState = { agents: [], config: { schema: { type: 'object', properties: { [ChatProvidersConfigKey.Enabled]: { type: 'boolean', title: 'Multiple Chat Providers' } } }, values: { [ChatProvidersConfigKey.Enabled]: true } } };
+					return { value, verifiedValue: value, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
+				})();
 				override dispatch(...args: Parameters<IAgentConnection['dispatch']>): void {
 					dispatched.push(args);
 				}
@@ -1545,7 +1667,8 @@ suite('AgentHostSandboxNotification', () => {
 		createNotification(resource, subscription, service);
 		await instantiationService.invokeFunction(CommandsRegistry.getCommand(getDisableCommand(service))!.handler);
 
-		assert.deepStrictEqual(dispatched, [[chat, { type: ActionType.ChatConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.Off } }]]);
+		// The session's config is its default chat's: the host applies the session write to that chat.
+		assert.deepStrictEqual(dispatched, [[resolution!.backendSession.toString(), { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.Off } }]]);
 	});
 
 	test('does not send a redundant session update when sandboxing is already off', async () => {

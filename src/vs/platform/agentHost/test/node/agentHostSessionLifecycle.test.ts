@@ -196,6 +196,14 @@ suite('AgentHostSessionLifecycle', () => {
 		});
 	});
 
+	for (const [age, shouldArchive] of [[DAY_MS - 1, false], [DAY_MS, true]] as const) {
+		test(`one-day automatic marking requires 24 hours of inactivity (age=${age})`, async () => {
+			const { lifecycle, archivedSessions } = createHarness({ status: mergedPullRequestStatus(), modifiedTime: NOW - age, archiveAfterDays: 1, deleteAfterDays: 0 });
+			await lifecycle.run();
+			assert.strictEqual(archivedSessions.length, shouldArchive ? 1 : 0);
+		});
+	}
+
 	test('does not archive when GitHub still reports the pull request open', async () => {
 		const { lifecycle, stateManager, session, restored, resolved } = createHarness({
 			status: { ...mergedPullRequestStatus(), state: 'open' },
@@ -375,6 +383,14 @@ suite('AgentHostSessionLifecycle', () => {
 			summary: undefined,
 		});
 	});
+
+	for (const [age, shouldDelete] of [[DAY_MS - 1, false], [DAY_MS, true]] as const) {
+		test(`one-day permanent deletion requires an additional 24 hours after automatic marking (age=${age})`, async () => {
+			const { lifecycle, deleted } = createHarness({ status: mergedPullRequestStatus(), sessionStatus: SessionStatus.Idle | SessionStatus.IsArchived, autoArchivedAt: NOW - age, archiveAfterDays: 0, deleteAfterDays: 1 });
+			await lifecycle.run();
+			assert.strictEqual(deleted.length, shouldDelete ? 1 : 0);
+		});
+	}
 
 	test('keeps archived sessions during the permanent deletion grace period', async () => {
 		const { lifecycle, stateManager, session, restored, resolved, deleted } = createHarness({
