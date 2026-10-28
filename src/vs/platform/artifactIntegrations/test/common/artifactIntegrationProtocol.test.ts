@@ -252,6 +252,7 @@ suite('Artifact Integration Protocol', () => {
 	test('validates authentication requests, challenges, and capability state', () => {
 		const f = model(true);
 		const current = f.snapshot.get();
+		const withAvailability = (availability: object) => ({ ...current, contributions: [{ ...current.contributions[0], view: { ...current.contributions[0].view, availability } }] });
 		assert.deepStrictEqual([
 			isArtifactIntegrationRequest({ kind: 'authenticate', subscription: 'sub', integrationId: 'integration' }),
 			isArtifactIntegrationRequest({ kind: 'authenticate', subscription: 'sub', integrationId: '' }),
@@ -267,7 +268,10 @@ suite('Artifact Integration Protocol', () => {
 			isArtifactSnapshot({ ...current, contributions: [{ ...current.contributions[0], authentication: { enabled: 'true' } }] }),
 			isArtifactSnapshot({ ...current, contributions: [{ ...current.contributions[0], authority: { id: 'extension', targetHost: 'host', location: 'client' } }] }),
 			isArtifactSnapshot({ ...current, contributions: [{ ...current.contributions[0], authority: { id: 'extension', location: 'invalid' } }] }),
-		], [true, false, true, false, false, false, false, false, true, false, true, false, true, false]);
+			isArtifactSnapshot(withAvailability({ kind: 'authenticationRequired', reason: 'Authorize', authorizationUrl: 'https://example.test/orgs/octo/sso' })),
+			isArtifactSnapshot(withAvailability({ kind: 'authenticationRequired', reason: 'Authorize', authorizationUrl: 'command:run' })),
+			isArtifactSnapshot(withAvailability({ kind: 'error', reason: 'Failed', authorizationUrl: 'https://example.test/orgs/octo/sso' })),
+		], [true, false, true, false, false, false, false, false, true, false, true, false, true, false, true, false, false]);
 	});
 
 	test('disposing an endpoint releases all of its leases', async () => {

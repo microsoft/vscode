@@ -460,6 +460,27 @@ suite('GitHub pull request artifact integration', () => {
 		}));
 	}
 
+	for (const source of ['snapshot', 'action'] as const) {
+		test(`links the page GitHub names for authorizing a credential single sign-on refused (${source})`, () => run(async store => {
+			const base = createPullRequestArtifactSnapshot();
+			const ssoAuthorizationUrl = 'https://github.com/orgs/octo/sso?authorization_request=example';
+			const message = 'Resource protected by organization SAML enforcement.';
+			const f = source === 'snapshot'
+				? await fixture(store, { ...base, core: { ...base.core, status: 'error' as const, complete: false, error: { kind: 'authorization' as const, statusCode: 403, message, ssoAuthorizationUrl } } })
+				: await fixture(store, { ...base, core: { ...base.core, value: { ...base.core.value!, draft: true } } });
+			if (source === 'action') {
+				f.onRefresh(() => { throw new GitHubRequestError(message, 'authorization', 403, undefined, undefined, undefined, { ssoAuthorizationUrl }); });
+				await f.invoke('markReady');
+			}
+
+			assert.deepStrictEqual(f.model.snapshot.get().contributions[0].view.availability, {
+				kind: 'authenticationRequired',
+				reason: 'Authorize your GitHub account for octo\'s single sign-on to see the state of this pull request.',
+				authorizationUrl: ssoAuthorizationUrl,
+			});
+		}));
+	}
+
 	test('recovers missing credentials through the repository challenge and rematches after sign-in', () => run(async store => {
 		const f = await fixture(store, undefined, { credentialError: new GitHubRequestError('GitHub authentication is required', 'authentication') });
 		const before = f.model.snapshot.get().contributions[0].view.availability;

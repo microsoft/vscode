@@ -260,6 +260,8 @@ export type InstallOptions = {
 
 export type UninstallOptions = {
 	mcpResource?: URI;
+	/** Input definitions still referenced by other configuration scopes in the current workspace. */
+	preserveInputIds?: readonly string[];
 };
 
 export interface IInstallableMcpServer {

@@ -42,6 +42,7 @@ import { AuthenticateTargetKind } from '../common/state/sessionProtocol.js';
 import { getMcpServerCustomizations } from './shared/mcpCustomizationController.js';
 import { McpServerStatus, type McpAuthRequirement } from '../common/state/protocol/channels-session/state.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
+import { readMcpServerConnectorName } from '../common/meta/mcpCustomizationMeta.js';
 
 const STORAGE_KEY = 'automations';
 const SCHEDULE_CURSORS_META_KEY = 'vscode.scheduleCursors';
@@ -978,7 +979,8 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			}
 		}
 		for (const server of servers) {
-			if (server.state?.kind !== McpServerStatus.AuthRequired) {
+			// Connector-owned servers use the session credential; an MCP token can never satisfy their challenge.
+			if (server.state?.kind !== McpServerStatus.AuthRequired || readMcpServerConnectorName(server) !== undefined) {
 				continue;
 			}
 			const { resource, requiredScopes, reason, oauthClient, description } = server.state;

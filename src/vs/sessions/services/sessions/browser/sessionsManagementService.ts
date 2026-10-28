@@ -1318,6 +1318,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this._getProvider(session)?.getSessionWorktreeDiskUsage?.(session.sessionId, token) ?? Promise.resolve(undefined);
 	}
 
+	sessionWorktreeExists(session: ISession, token?: CancellationToken): Promise<boolean | undefined> {
+		return this._getProvider(session)?.sessionWorktreeExists?.(session.sessionId, token) ?? Promise.resolve(undefined);
+	}
+
 	async sessionWorktreeCleanup(session: ISession, retry: boolean) {
 		const provider = this._getProvider(session);
 		if (retry && !provider?.sessionWorktreeCleanup) {
