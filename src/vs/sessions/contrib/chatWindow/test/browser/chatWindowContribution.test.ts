@@ -45,7 +45,7 @@ suite('Chat window contribution', () => {
 		});
 	});
 
-	test('the setting is off by default, and opening a chat in a window is offered only with it on and AI features enabled', () => {
+	test('the setting is on by default, and opening a chat in a window is offered only with it on and AI features enabled', () => {
 		const setting = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[CHAT_WINDOWS_ENABLED_SETTING];
 		const item = MenuRegistry.getMenuItems(Menus.SessionChatItemContext).filter(isIMenuItem).find(candidate => candidate.command.id === OPEN_CHAT_IN_WINDOW_COMMAND_ID);
 		const offered = (values: Record<string, ContextKeyValue>) => evaluate(item?.when, { [IsSessionsWindowContext.key]: true, ...values });
@@ -55,6 +55,6 @@ suite('Chat window contribution', () => {
 			off: offered({ [ChatContextKeys.enabled.key]: true, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: false }),
 			on: offered({ [ChatContextKeys.enabled.key]: true, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true }),
 			aiDisabled: offered({ [ChatContextKeys.enabled.key]: false, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true }),
-		}, { default: false, scope: ConfigurationScope.APPLICATION, off: false, on: true, aiDisabled: false });
+		}, { default: true, scope: ConfigurationScope.APPLICATION, off: false, on: true, aiDisabled: false });
 	});
 });
