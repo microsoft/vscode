@@ -1151,7 +1151,8 @@ export class MigrateDeprecatedExtensionAction extends ExtensionAction {
 
 	constructor(
 		private readonly small: boolean,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super('extensionsAction.migrateDeprecatedExtension', localize('migrateExtension', "Migrate"), MigrateDeprecatedExtensionAction.DisabledClass, false);
 		this.update();
@@ -1186,7 +1187,14 @@ export class MigrateDeprecatedExtensionAction extends ExtensionAction {
 		const local = this.extension.local;
 		await this.extensionsWorkbenchService.uninstall(this.extension);
 		const [extension] = await this.extensionsWorkbenchService.getExtensions([{ id: this.extension.deprecationInfo.extension.id, preRelease: this.extension.deprecationInfo?.extension?.preRelease }], CancellationToken.None);
-		await this.extensionsWorkbenchService.install(extension, { isMachineScoped: local?.isMachineScoped });
+		if (!extension) {
+			return;
+		}
+		try {
+			await this.extensionsWorkbenchService.install(extension, { isMachineScoped: local?.isMachineScoped });
+		} catch (error) {
+			await this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, { isMachineScoped: local?.isMachineScoped }, extension.latestVersion, InstallOperation.Install, error).run();
+		}
 	}
 }
 

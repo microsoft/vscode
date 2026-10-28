@@ -1655,22 +1655,9 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		}
 
 		catch (error) {
-			let galleryErrorCode: ExtensionGalleryErrorCode;
-			if (isCancellationError(error)) {
-				galleryErrorCode = ExtensionGalleryErrorCode.Cancelled;
-			} else if (isOfflineError(error)) {
-				galleryErrorCode = ExtensionGalleryErrorCode.Offline;
-			} else if (getErrorMessage(error).startsWith('XHR timeout')) {
-				galleryErrorCode = ExtensionGalleryErrorCode.Timeout;
-			} else if (context && isClientError(context)) {
-				galleryErrorCode = ExtensionGalleryErrorCode.ClientError;
-			} else if (context && isServerError(context)) {
-				galleryErrorCode = ExtensionGalleryErrorCode.ServerError;
-			} else {
-				galleryErrorCode = ExtensionGalleryErrorCode.Failed;
-			}
-			errorCode = galleryErrorCode;
-			throw new ExtensionGalleryError(error, galleryErrorCode);
+			const galleryError = this.toExtensionGalleryError(error, context);
+			errorCode = galleryError.code;
+			throw galleryError;
 		}
 
 		finally {
@@ -1810,9 +1797,16 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 	async getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest | null> {
 		if (extension.assets.manifest) {
-			const context = await this.getAsset(extension.identifier.id, extension.assets.manifest, AssetType.Manifest, extension.version, 'extensionGalleryService.manifest', {}, token);
-			const text = await asTextOrError(context);
-			return text ? JSON.parse(text) : null;
+			try {
+				const context = await this.getAsset(extension.identifier.id, extension.assets.manifest, AssetType.Manifest, extension.version, 'extensionGalleryService.manifest', {}, token);
+				const text = await asTextOrError(context);
+				return text ? JSON.parse(text) : null;
+			} catch (error) {
+				if (isCancellationError(error)) {
+					throw error;
+				}
+				throw this.toExtensionGalleryError(error);
+			}
 		}
 		return null;
 	}
@@ -1820,18 +1814,32 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	async getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation | null> {
 		const asset = extension.assets.coreTranslations.filter(t => t[0] === languageId.toUpperCase())[0];
 		if (asset) {
-			const context = await this.getAsset(extension.identifier.id, asset[1], asset[0], extension.version, 'extensionGalleryService.coreTranslation');
-			const text = await asTextOrError(context);
-			return text ? JSON.parse(text) : null;
+			try {
+				const context = await this.getAsset(extension.identifier.id, asset[1], asset[0], extension.version, 'extensionGalleryService.coreTranslation');
+				const text = await asTextOrError(context);
+				return text ? JSON.parse(text) : null;
+			} catch (error) {
+				if (isCancellationError(error)) {
+					throw error;
+				}
+				throw this.toExtensionGalleryError(error);
+			}
 		}
 		return null;
 	}
 
 	async getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string> {
 		if (extension.assets.changelog) {
-			const context = await this.getAsset(extension.identifier.id, extension.assets.changelog, AssetType.Changelog, extension.version, 'extensionGalleryService.changelog', {}, token);
-			const content = await asTextOrError(context);
-			return content || '';
+			try {
+				const context = await this.getAsset(extension.identifier.id, extension.assets.changelog, AssetType.Changelog, extension.version, 'extensionGalleryService.changelog', {}, token);
+				const content = await asTextOrError(context);
+				return content || '';
+			} catch (error) {
+				if (isCancellationError(error)) {
+					throw error;
+				}
+				throw this.toExtensionGalleryError(error);
+			}
 		}
 		return '';
 	}
@@ -1973,9 +1981,47 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				endToEndId: this.getHeaderValue(context?.res.headers, END_END_ID_HEADER_NAME),
 			});
 
+			if (!fallbackUrl || fallbackUrl === url) {
+				throw this.toExtensionGalleryError(err, context);
+			}
+
 			const fallbackOptions = { ...options, headers: await this.getRequestHeaders(fallbackUrl, options.headers), url: fallbackUrl, timeout: this.getRequestTimeout(), callSite: `${callSite}.fallback` };
-			return this.requestService.request(fallbackOptions, token);
+			let fallbackContext: IRequestContext | undefined;
+			try {
+				fallbackContext = await this.requestService.request(fallbackOptions, token);
+				if (fallbackContext.res.statusCode === 200) {
+					return fallbackContext;
+				}
+				const fallbackMessage = await asTextOrError(fallbackContext);
+				throw new Error(`Expected 200, got back ${fallbackContext.res.statusCode} instead.\n\n${fallbackMessage}`);
+			} catch (fallbackErr) {
+				if (isCancellationError(fallbackErr)) {
+					throw fallbackErr;
+				}
+				throw this.toExtensionGalleryError(fallbackErr, fallbackContext);
+			}
 		}
+	}
+
+	private toExtensionGalleryError(error: unknown, context?: IRequestContext): ExtensionGalleryError {
+		if (error instanceof ExtensionGalleryError) {
+			return error;
+		}
+		let galleryErrorCode: ExtensionGalleryErrorCode;
+		if (isCancellationError(error)) {
+			galleryErrorCode = ExtensionGalleryErrorCode.Cancelled;
+		} else if (isOfflineError(error)) {
+			galleryErrorCode = ExtensionGalleryErrorCode.Offline;
+		} else if (getErrorMessage(error).startsWith('XHR timeout') || getErrorMessage(error).startsWith('Fetch timeout')) {
+			galleryErrorCode = ExtensionGalleryErrorCode.Timeout;
+		} else if (context && isClientError(context)) {
+			galleryErrorCode = ExtensionGalleryErrorCode.ClientError;
+		} else if (context && isServerError(context)) {
+			galleryErrorCode = ExtensionGalleryErrorCode.ServerError;
+		} else {
+			galleryErrorCode = ExtensionGalleryErrorCode.Failed;
+		}
+		return new ExtensionGalleryError(getErrorMessage(error), galleryErrorCode);
 	}
 
 	async getExtensionsControlManifest(): Promise<IExtensionsControlManifest> {
