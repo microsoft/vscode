@@ -7,7 +7,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -270,6 +270,8 @@ export interface IListHarnessOptions {
 	readonly sectionMemberships?: ReadonlyMap<string, string>;
 	readonly sectionAppearances?: ReadonlyMap<string, ISessionGroupAppearance>;
 	readonly pinnedSessionIds?: ReadonlySet<string>;
+	/** Automation sessions shown in the Sessions list. The harness updates the set as the real service does. */
+	readonly shownAutomationSessionIds?: ReadonlySet<string>;
 	/** Apply sort changes and fire change events, as the real service does. */
 	readonly liveListModel?: boolean;
 	readonly liveGroups?: boolean;
@@ -291,6 +293,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const memberships = options.memberships ?? new Map();
 	const sectionMemberships = options.sectionMemberships ?? new Map();
 	const pinnedSessionIds = options.pinnedSessionIds ?? new Set();
+	const shownAutomationSessionIds = new Set(options.shownAutomationSessionIds);
 	const comparisons = options.comparisons ?? [];
 	const deletedGroupIds: string[] = [];
 	const cancelledComparisonIds: string[] = [];
@@ -327,6 +330,25 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 			}
 		}
 		override migrateLegacyReadState(): void { }
+		override isSessionListed(session: ISession, reader?: IReader): boolean {
+			return !session.isAutomation?.read(reader) || shownAutomationSessionIds.has(session.sessionId);
+		}
+		override showAutomationSessions(sessions: readonly ISession[]): void {
+			this.setAutomationSessionsShown(sessions, true);
+		}
+		override hideAutomationSessions(sessions: readonly ISession[]): void {
+			this.setAutomationSessionsShown(sessions, false);
+		}
+		private setAutomationSessionsShown(sessions: readonly ISession[], shown: boolean): void {
+			for (const session of sessions) {
+				if (shown) {
+					shownAutomationSessionIds.add(session.sessionId);
+				} else {
+					shownAutomationSessionIds.delete(session.sessionId);
+				}
+			}
+			onDidChangeListModel.fire({ changes: sessions.map(session => ({ sessionId: session.sessionId, kind: SessionListModelChangeKind.AutomationListing })) });
+		}
 		override getSortKey(session: SessionSortEntry, mode: SessionSortMode): number {
 			return sortOverrides.get(mode)?.get(session.sessionId) ?? getNaturalSortKey(session, mode);
 		}

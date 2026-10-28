@@ -787,7 +787,7 @@ suite('CopilotConnectorsService', () => {
 		});
 	});
 
-	test('a connector session that covers a narrow default session but not the Copilot credential scopes does not satisfy authorization', async () => {
+	test('a connector session that covers a narrow default session but not the forwarded Copilot credential scopes does not satisfy authorization', async () => {
 		const fixture = createFixture([]);
 		fixture.setSessions([
 			{ ...fixture.initialSession, scopes: ['user:email'] },
@@ -796,8 +796,40 @@ suite('CopilotConnectorsService', () => {
 		]);
 		const authorized = await fixture.service.authorize(CancellationToken.None);
 		assert.deepStrictEqual({ consent: fixture.consentCalls, authorized: authorized.id }, {
-			consent: [['github', ['user:email', 'read:user', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
+			consent: [['github', ['user:email', 'read:user', 'repo', 'workflow', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
 			authorized: 'authorized-session',
+		});
+	});
+
+	test('a connector session that grants the Copilot scopes but drops scopes of the forwarded credential does not satisfy authorization', async () => {
+		// A narrow default session once produced a Connector session without `repo`. The Agent Host never forwards it
+		// in place of the account's Copilot credential, so it must not count as authorized. Equally narrow credentials
+		// may each be forwarded, so the new session keeps the scopes of all of them.
+		const fixture = createFixture([]);
+		fixture.setSessions([
+			{ ...fixture.initialSession, scopes: ['user:email'] },
+			{ ...fixture.initialSession, id: 'copilot-session', accessToken: 'copilot-token', scopes: ['read:user', 'user:email', 'repo', 'workflow'] },
+			{ ...fixture.initialSession, id: 'codespace-session', accessToken: 'codespace-token', scopes: ['codespace', 'read:user', 'repo', 'user:email'] },
+			{ ...fixture.initialSession, id: 'narrow-connector-session', accessToken: 'narrow-connector-token', scopes: ['user:email', 'read:user', 'write:plugin_gateway_connections'] },
+		]);
+		const authorized = await fixture.service.authorize(CancellationToken.None);
+		assert.deepStrictEqual({ consent: fixture.consentCalls, authorized: authorized.id }, {
+			consent: [['github', ['user:email', 'read:user', 'repo', 'workflow', 'codespace', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
+			authorized: 'authorized-session',
+		});
+	});
+
+	test('a connector session that keeps the forwarded Copilot credential scopes satisfies authorization without consent', async () => {
+		const fixture = createFixture([]);
+		fixture.setSessions([
+			{ ...fixture.initialSession, scopes: ['user:email'] },
+			{ ...fixture.initialSession, id: 'copilot-session', accessToken: 'copilot-token', scopes: ['read:user', 'user:email', 'repo', 'workflow'] },
+			{ ...fixture.initialSession, id: 'full-connector-session', accessToken: 'full-connector-token', scopes: ['read:user', 'user:email', 'repo', 'workflow', 'write:plugin_gateway_connections'] },
+		]);
+		const authorized = await fixture.service.authorize(CancellationToken.None);
+		assert.deepStrictEqual({ consent: fixture.consentCalls, authorized: authorized.id }, {
+			consent: [],
+			authorized: 'full-connector-session',
 		});
 	});
 

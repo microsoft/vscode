@@ -42,6 +42,7 @@ export class IconPicker extends Disposable {
 			picker.title = title;
 			picker.ariaLabel = localize('iconPicker', "Icon picker");
 			picker.hideInput = true;
+			picker.useNeutralSelection = true;
 			picker.itemActivation = ItemActivation.NONE;
 			picker.widget = grid.domNode;
 			picker.items = [{ type: 'separator' }, { label: localize('resetIcon', "Reset to default") }];

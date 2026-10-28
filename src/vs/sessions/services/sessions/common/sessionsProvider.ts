@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import type { IAgentHostWorktreeCleanupStatus } from '../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
+import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from '../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -294,6 +295,31 @@ export interface ISessionsProviderAutomations extends IAutomationStore {
 	readonly unavailableReasonCode?: IObservable<AutomationUnavailableReasonCode | undefined>;
 	/** A complete sentence describing this provider's unavailability, used instead of naming the provider. */
 	readonly unavailableMessage?: string;
+}
+
+/** How a harness is shown to the user. */
+export interface IHarnessPresentation {
+	readonly label: string;
+	readonly icon: ThemeIcon;
+}
+
+/**
+ * Presents `harness` through `provider`, falling back to a generic presentation
+ * while the provider does not know it yet; a raw harness id is never shown.
+ */
+export function getHarnessPresentationOrDefault(provider: Pick<ISessionsProvider, 'getHarnessPresentation'> | undefined, harness: string, reader: IReader | undefined): IHarnessPresentation {
+	return provider?.getHarnessPresentation?.(harness, reader) ?? { label: localize('otherHarness', "Other Harness"), icon: Codicon.agent };
+}
+
+/**
+ * Options for {@link ISessionsProvider.createNewChat}.
+ */
+export interface ICreateNewChatOptions {
+	/**
+	 * The harness the new peer chat should use, chosen among the session's
+	 * `ISessionCapabilities.supportsChatHarnesses`. Absent means the session's harness.
+	 */
+	readonly harness?: string;
 }
 
 /**
@@ -593,8 +619,9 @@ export interface ISessionsProvider {
 	/**
 	 * Get selectable models and the current resolution of `desiredModelId`.
 	 * Callers wait for {@link onDidChangeModels} while the requested model is pending.
+	 * @param chat The chat whose models to resolve, when its harness may differ from the session's ({@link IChat.harness}).
 	 */
-	getModelsSnapshot(sessionId: string, desiredModelId?: string): ISessionModelsSnapshot;
+	getModelsSnapshot(sessionId: string, desiredModelId?: string, chat?: URI): ISessionModelsSnapshot;
 
 	/**
 	 * Get selectable models before creating a session, with no workspace URI for a quick chat.
@@ -608,8 +635,9 @@ export interface ISessionsProvider {
 	 * are presented (grouping, featured models, whether the manage-models action
 	 * is offered), so provider-specific behavior is not hardcoded in core.
 	 * @param sessionId The ID of the session.
+	 * @param chat The chat the picker selects for, when its harness may differ from the session's.
 	 */
-	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions;
+	getModelPickerOptions(sessionId: string, chat?: URI): ISessionModelPickerOptions;
 
 	/**
 	 * Event that fires when the snapshot returned by {@link getModelsSnapshot}
@@ -680,13 +708,19 @@ export interface ISessionsProvider {
 	importSession?(sessionId: string): Promise<void>;
 
 	/**
-	 * Returns the current on-disk size of the session's isolated worktree.
+	 * Returns the current on-disk size, zero for confirmed absent storage, or undefined when measurement is unavailable.
 	 * Providers without host-owned worktrees leave this capability undefined.
 	 */
 	getSessionWorktreeDiskUsage?(sessionId: string, token?: CancellationToken): Promise<number | undefined>;
 
+	/** Cheaply checks the owning host's worktrees. False confirms all roots are absent; undefined means unavailable. */
+	sessionWorktreeExists?(sessionId: string, token?: CancellationToken): Promise<boolean | undefined>;
+
 	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
 	sessionWorktreeCleanup?(sessionId: string, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	listManagedWorktrees?(repositories?: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
+	cleanupManagedWorktree?(worktree: IAgentHostManagedWorktree): Promise<void>;
+	managedWorktreeExists?(worktree: IAgentHostManagedWorktree): Promise<boolean | undefined>;
 
 	/**
 	 * Unarchive a session.
@@ -748,12 +782,28 @@ export interface ISessionsProvider {
 	deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean>;
 
 	/**
+	 * Presentation of a harness this provider serves, in the identity space of
+	 * {@link ISession.harness}, for surfaces that show or pick a chat's harness.
+	 * Pass a `reader` to re-evaluate when the provider learns about its harnesses
+	 * (e.g. once a restored session's host advertises its agents).
+	 */
+	getHarnessPresentation?(harness: string, reader?: IReader): IHarnessPresentation | undefined;
+
+	/**
+	 * The session type of the agent behind a harness this provider serves, in the identity space of
+	 * {@link ISession.harness}, so a peer chat's harness can be picked like a new session's type.
+	 * Not reactive: providers must fire {@link onDidChangeSessionTypes} when its result may change.
+	 */
+	getHarnessSessionType?(harness: string): ISessionType | undefined;
+
+	/**
 	 * Create a new chat in the given session and return it.
 	 *
 	 * @param sessionId The ID of the session to create the new chat in.
 	 * @param prompt Optional prompt to initialize the new chat with.
+	 * @param options Optional creation options, e.g. the harness to use.
 	 */
-	createNewChat(sessionId: string, prompt?: string): Promise<IChat>;
+	createNewChat(sessionId: string, prompt?: string, options?: ICreateNewChatOptions): Promise<IChat>;
 
 	/**
 	 * What the composer may offer for a new nested chat in the session. Cheap and synchronous; tracked by `reader`,
@@ -761,14 +811,16 @@ export interface ISessionsProvider {
 	 * `undefined` when the composer must not offer workspace choices (a host without nested chat workspaces, a
 	 * provider or session without multiple chats, an archived or unknown session, or a provider that is not an
 	 * agent host).
+	 * `chat` is the new chat: what it may choose follows its own agent, which differs from the session's for a
+	 * chat using another harness.
 	 */
-	getNestedChatWorkspaceSupport(sessionId: string, reader: IReader | undefined): INestedChatWorkspaceSupport | undefined;
+	getNestedChatWorkspaceSupport(sessionId: string, chat: URI, reader: IReader | undefined): INestedChatWorkspaceSupport | undefined;
 
-	/** Resolves the isolation and branch facts of `folder` for a new nested chat in the session. */
-	resolveNestedChatFolder(sessionId: string, folder: URI, token: CancellationToken): Promise<INestedChatFolderInfo>;
+	/** Resolves the isolation and branch facts of `folder` for `chat`, a new nested chat in the session, with its own agent. */
+	resolveNestedChatFolder(sessionId: string, chat: URI, folder: URI, token: CancellationToken): Promise<INestedChatFolderInfo>;
 
-	/** Branch names of the repository of `folder` matching `query` (may be empty). */
-	getNestedChatBranches(sessionId: string, folder: URI, query: string, token: CancellationToken): Promise<readonly string[]>;
+	/** Branch names of the repository of `folder` matching `query` (may be empty), as `chat`'s own agent lists them. */
+	getNestedChatBranches(sessionId: string, chat: URI, folder: URI, query: string, token: CancellationToken): Promise<readonly string[]>;
 
 	/**
 	 * Gives `chat`, an untitled peer chat of the session that has not sent a request, the chosen workspace;

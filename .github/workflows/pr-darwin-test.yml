@@ -265,6 +265,12 @@ jobs:
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
+      # The web and remote tests start the server out of sources, which downloads its Node.js from nodejs.org unless
+      # the runner already has that version.
+      - name: Use the runner's Node.js for the server
+        if: ${{ (env.BROWSER_TESTS == 'true' || env.REMOTE_TESTS == 'true') && (env.INTEGRATION_TESTS == 'true' || env.SMOKE_TESTS == 'true') }}
+        run: node build/azure-pipelines/common/useRunnerNodeForServer.ts
+
       - name: 🧪 Run integration tests (Browser, Webkit)
         if: ${{ env.BROWSER_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' }}
         timeout-minutes: 20

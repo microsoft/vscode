@@ -657,3 +657,45 @@ suite('WorkspaceTrustedUrisTable', () => {
 		]);
 	});
 });
+
+suite('WorkspaceTrustEditor', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let container: HTMLElement;
+
+	setup(() => {
+		container = mainWindow.document.createElement('div');
+		container.style.width = '800px';
+		container.style.height = '300px';
+		mainWindow.document.body.appendChild(container);
+	});
+
+	teardown(() => {
+		container.remove();
+	});
+
+	test('header shadow tracks native scrolling of the body (#131746)', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IWorkspaceTrustManagementService, store.add(new TestWorkspaceTrustManagementService()));
+		instantiationService.stub(IExtensionsWorkbenchService, {});
+		instantiationService.stub(IExtensionManifestPropertiesService, {});
+		instantiationService.stub(IWorkbenchExtensionEnablementService, {});
+		const editor = store.add(instantiationService.createInstance(WorkspaceTrustEditor, new TestEditorGroupView(0)));
+		editor.create(container);
+
+		const scrollableNode = container.querySelector<HTMLElement>('.workspace-trust-editor > .monaco-scrollable-element')!;
+		const body = scrollableNode.querySelector<HTMLElement>('.workspace-trust-editor-body')!;
+		// The editor's stylesheet is not loaded in unit tests, so constrain the body directly.
+		body.style.height = '100px';
+		body.appendChild(mainWindow.document.createElement('div')).style.height = '1000px';
+
+		// Native scrolling, e.g. the browser revealing a control focused with Tab.
+		const scrollNatively = (scrollTop: number) => {
+			body.scrollTop = scrollTop;
+			body.dispatchEvent(new mainWindow.Event('scroll'));
+			return !!scrollableNode.querySelector(':scope > .shadow.top');
+		};
+
+		assert.deepStrictEqual([scrollNatively(200), scrollNatively(0)], [true, false]);
+	});
+});

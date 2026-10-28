@@ -70,6 +70,7 @@ import { ICopilotHomeService } from '../../../environment/common/copilotHome.js'
 import { CopilotCustomizationInstallations } from './customizations/copilotCustomizationInstallations.js';
 import { ISessionDataService, SESSION_DB_FILENAME, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
+import { writeUserDataCertificatesFile } from '../../../request/node/certificates.js';
 import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
@@ -186,7 +187,7 @@ function isPickerAutoTierKind(tier: CopilotAutoTierDescriptor, hydraFusionV2: bo
  * Fusion is only enabled for some accounts; the others get the Fusion tiers back as unavailable.
  */
 export function offersFusionAutoTier(metadata: CopilotAutoTierMetadata, hydraFusionV2: boolean): boolean {
-	return metadata.tiers.some(tier => tier.type === 'fusion' && isRunnableAutoTier(tier, hydraFusionV2) && isInAutoTierPicker(tier));
+	return metadata.tiers.some(tier => tier.type === 'fusion' && isPickerAutoTierKind(tier, hydraFusionV2) && isInAutoTierPicker(tier));
 }
 
 /**
@@ -470,6 +471,7 @@ interface ICopilotClientProxyState {
 	readonly proxy: string | undefined;
 	readonly noProxy: string | undefined;
 	readonly kerberosSpn: string | undefined;
+	readonly certificates: readonly string[];
 }
 
 /** What a configuration check runs for, and how it may wait. */
@@ -1122,9 +1124,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _resolvedProxy: string | undefined;
 	private _proxyRefresh: Promise<void> | undefined;
 	private _proxyResolutionGeneration = 0;
-	private _appliedProxy: string | undefined;
-	private _appliedNoProxy: string | undefined;
-	private _appliedProxyKerberosSpn: string | undefined;
+	private _appliedProxyState: ICopilotClientProxyState = { proxy: undefined, noProxy: undefined, kerberosSpn: undefined, certificates: [] };
 	/**
 	 * Reasons for a client restart that is parked until every chat is idle. See
 	 * {@link _requestClientRestart}; drained by {@link _applyPendingClientRestart}.
@@ -2878,8 +2878,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 				directSourceId: request.directSourceId,
 			}));
 		}
-		await Promises.settled(this._allLiveSessions().map(candidate =>
-			this._queueChat(candidate.sessionId, candidate.sessionId, 'reloadPluginUninstall', () => candidate.reloadPlugins('uninstall'))));
+		await Promises.settled([
+			...this._allLiveSessions().map(candidate =>
+				this._queueChat(candidate.sessionId, candidate.sessionId, 'reloadPluginUninstall', () => candidate.reloadPlugins('uninstall'))),
+			this._refreshDiscoveredCustomizations(),
+		]);
 	}
 
 	async listPluginInstallations() {
@@ -3066,9 +3069,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const liveSession = this._findPluginOperationSession(session, chat);
 		if (liveSession) {
 			await liveSession.installPlugin(request.source);
-			return;
+		} else {
+			await this._retryAfterClosedConnection('installPlugin', client => client.rpc.plugins.install({ source: request.source }));
 		}
-		await this._retryAfterClosedConnection('installPlugin', client => client.rpc.plugins.install({ source: request.source }));
+		await this._refreshDiscoveredCustomizations();
 	}
 
 	async retryManagedPlugins(session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]> {
@@ -3124,6 +3128,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const result = liveSession
 			? await liveSession.removePluginMarketplace(name, force)
 			: await this._retryAfterClosedConnection('removePluginMarketplace', client => client.rpc.plugins.marketplaces.remove({ name, force }));
+		if (result.removed) {
+			await this._refreshDiscoveredCustomizations();
+		}
 		return {
 			removed: result.removed,
 			dependentPlugins: result.dependentPlugins,
@@ -3156,8 +3163,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._customizationInstallations.prepare(request);
 	}
 
-	applyCustomizationInstallation(operationId: string): Promise<IAgentCustomizationInstallationApplyResult | undefined> {
-		return this._customizationInstallations.apply(operationId);
+	async applyCustomizationInstallation(operationId: string): Promise<IAgentCustomizationInstallationApplyResult | undefined> {
+		const result = await this._customizationInstallations.apply(operationId);
+		await this._refreshDiscoveredCustomizations();
+		return result;
+	}
+
+	private async _refreshDiscoveredCustomizations(): Promise<void> {
+		await Promise.all([...this._activeClients.values()].map(client => client.pluginController.refreshDiscovery()));
 	}
 
 	recoverCustomizationInstallations(_session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
@@ -4126,11 +4139,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const startupStopWatch = StopWatch.create();
 		const startClient = async (computerUseRestarted = false): Promise<CopilotClient> => {
 			this._logService.info('[Copilot] Starting CopilotClient...');
+			await this._proxyResolver.loadClientCertificates();
 
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
 			const appliedProxy = this._readCopilotProxyState();
 			const env = this._createCopilotCliEnvironment(startupConfig.skillCharBudget, scoped !== undefined, appliedProxy, startupConfig.executionSubagent, startupConfig.executionSubagentModel);
+			if (appliedProxy.certificates.length) {
+				try {
+					const path = await writeUserDataCertificatesFile(await this._proxyResolver.loadCertificates(), this._environmentService.userDataPath, this._logService);
+					if (path) {
+						env['NODE_EXTRA_CA_CERTS'] = path;
+					}
+				} catch {
+					this._logService.warn('[Copilot] Failed to configure client CA certificates; starting without them.');
+				}
+			}
 			env['COPILOT_HOME'] = this._copilotHomeService.home.fsPath;
 			// Family aliases are host-side (prompt and tool-profile routing) and
 			// deliberately never reach the runtime; an ambient value here would
@@ -4302,9 +4326,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._scopedClientStartup.set(client, { config: startupConfig, proxy: appliedProxy });
 				return client;
 			}
-			this._appliedProxy = appliedProxy.proxy;
-			this._appliedNoProxy = appliedProxy.noProxy;
-			this._appliedProxyKerberosSpn = appliedProxy.kerberosSpn;
+			this._appliedProxyState = appliedProxy;
 			this._client = client;
 			this._clientGeneration++;
 			this._managedSettingsResolver.invalidate();
@@ -4456,9 +4478,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const metadata = this._hasProviderAutoTiers() ? this._autoTierMetadata : undefined;
 		const fusionTiers = metadata?.tiers.filter(tier => tier.type === 'fusion').map(tier => `${tier.id}=${tier.status.enabled ? 'enabled' : `disabled${tier.status.message ? ` (${tier.status.message})` : ''}`}`).join(', ') || 'none';
 		const presentation = fusion
-			? `Fusion: CAPI offers a Fusion tier this account can run [${fusionTiers}]`
+			? `Fusion: CAPI offers a Fusion tier [${fusionTiers}]`
 			: metadata
-				? `Auto with CAPI's tiers, no Fusion: CAPI offers no Fusion tier this account can run, so they are shown as unavailable [${fusionTiers}]`
+				? `Auto with CAPI's tiers, no Fusion: CAPI offers no Fusion tier [${fusionTiers}]`
 				: `Auto beside HydraFusion (fallback): ${this._lastStartupConfig.dynamicAutoTiers ? 'CAPI provided no Auto tiers' : 'dynamic Auto tiers are off'}; HydraFusion setting adds [${unlistedHydraFusionModels.map(model => model.id).join(', ') || 'none'}]`;
 		if (presentation !== this._loggedAutoPresentation) {
 			this._loggedAutoPresentation = presentation;
@@ -8631,7 +8653,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const autoTier = isAutoModel(model.id)
 			? resolveCopilotAutoTier(requestedModel, this._configurationService, this._logService, context.ownerSessionId, context.surface?.isInlineChatSurface === true) ?? (hasCopilotManagedAutoPreference(policy) ? undefined : null)
 			: undefined;
-		await entry.setModel(model.id, resolveCopilotReasoningEffort(requestedModel, this._configurationService, this._logService, context.ownerSessionId), omittedContextDefault ? undefined : getCopilotContextTier(requestedModel, longContextWindow, freeLongContext), autoTier, model);
+		const contextTier = omittedContextDefault ? undefined : getCopilotContextTier(requestedModel, longContextWindow, freeLongContext);
+		await entry.setModel(model.id, resolveCopilotReasoningEffort(requestedModel, this._configurationService, this._logService, context.ownerSessionId), contextTier ?? (isAutoModel(model.id) ? 'default' : undefined), autoTier, model);
 		this._pendingModelSelections.delete(context.chatKey);
 	}
 
@@ -8777,6 +8800,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			proxy,
 			noProxy: getCopilotNoProxy(proxy, this._readNoProxy(process.env)),
 			kerberosSpn: this._readKerberosSpn(process.env),
+			certificates: this._proxyResolver.clientCertificates,
 		};
 	}
 
@@ -8846,14 +8870,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _refreshProxy(): void {
 		const generation = ++this._proxyResolutionGeneration;
 		const refresh = this._resolveProxyForSdk().then(async proxy => {
+			if (this._client || this._clientStarting || this._scopedClients.size > 0) {
+				await this._proxyResolver.loadClientCertificates();
+			}
 			if (generation !== this._proxyResolutionGeneration) {
 				return;
 			}
 			this._resolvedProxy = proxy;
-			const effectiveProxy = this._readConfiguredProxy() ?? (this._isSystemProxyEnabled() ? proxy : undefined);
-			const effectiveNoProxy = getCopilotNoProxy(effectiveProxy, this._readNoProxy(process.env));
-			const effectiveKerberosSpn = this._readKerberosSpn(process.env);
-			if (effectiveProxy === this._appliedProxy && effectiveNoProxy === this._appliedNoProxy && effectiveKerberosSpn === this._appliedProxyKerberosSpn) {
+			const effectiveProxy = this._readCopilotProxyState();
+			if (equals(effectiveProxy, this._appliedProxyState)) {
 				return;
 			}
 			if (this._clientStarting) {
@@ -8865,19 +8890,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// A newer proxy resolution (or the client start we just awaited)
 				// may have already superseded this one; re-check both so we don't
 				// restart based on a stale comparison.
-				if (generation !== this._proxyResolutionGeneration || (effectiveProxy === this._appliedProxy && effectiveNoProxy === this._appliedNoProxy && effectiveKerberosSpn === this._appliedProxyKerberosSpn)) {
+				if (generation !== this._proxyResolutionGeneration || equals(effectiveProxy, this._appliedProxyState)) {
 					return;
 				}
 			}
 			const changes: string[] = [];
-			if (effectiveProxy !== this._appliedProxy) {
-				changes.push(`proxy ${this._appliedProxy ?? '(none)'} -> ${effectiveProxy ?? '(none)'}`);
+			if (effectiveProxy.proxy !== this._appliedProxyState.proxy) {
+				changes.push(`proxy ${this._appliedProxyState.proxy ?? '(none)'} -> ${effectiveProxy.proxy ?? '(none)'}`);
 			}
-			if (effectiveNoProxy !== this._appliedNoProxy) {
+			if (effectiveProxy.noProxy !== this._appliedProxyState.noProxy) {
 				changes.push('NO_PROXY changed');
 			}
-			if (effectiveKerberosSpn !== this._appliedProxyKerberosSpn) {
+			if (effectiveProxy.kerberosSpn !== this._appliedProxyState.kerberosSpn) {
 				changes.push('Kerberos SPN changed');
+			}
+			if (!equals(effectiveProxy.certificates, this._appliedProxyState.certificates)) {
+				changes.push('client certificates changed');
 			}
 			await this._requestClientRestart(`CAPI proxy configuration changed (${changes.join(', ')})`);
 		}).catch(error => this._logService.error('[Copilot] Failed to refresh CAPI proxy', error));
@@ -9052,7 +9080,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 		}, () => {
 			this._slashCommandProvider.clearCache();
-			activeClient.pluginController.refreshDiscovery();
+			void activeClient.pluginController.refreshDiscovery();
 		});
 	}
 
@@ -9798,13 +9826,19 @@ class SessionDiscoveredEntry extends Disposable {
 		super.dispose();
 	}
 
-	whenSettled(): Promise<void> {
-		return this._settled;
+	/** Waits for discovery to finish, including scans that supersede the current one. */
+	async whenSettled(): Promise<void> {
+		let settled: Promise<void>;
+		do {
+			settled = this._settled;
+			await settled;
+		} while (settled !== this._settled);
 	}
 
 	/** Re-runs discovery for changes no watched file reports, such as plugins the runtime installed. */
-	refresh(): void {
-		this._settled = this._queueRefresh(true);
+	refresh(): Promise<void> {
+		this._settled = this._queueRefresh(true, 0);
+		return this.whenSettled();
 	}
 
 	/** Whether no discovery refresh is queued or running. */
@@ -10182,10 +10216,11 @@ class CustomizationAnchor extends Disposable {
 	}
 
 	/** Re-runs on-disk discovery if it has started; an anchor that has not discovered yet will see current state when it does. */
-	refreshDiscovery(): void {
+	refreshDiscovery(): Promise<void> | undefined {
 		if (!this._store.isDisposed) {
-			this._discovered.value?.refresh();
+			return this._discovered.value?.refresh();
 		}
+		return undefined;
 	}
 }
 
@@ -10345,10 +10380,8 @@ class SessionPluginController extends Disposable {
 	}
 
 	/** Re-runs discovery for every live anchor set; a changed published set republishes the session's customizations. */
-	public refreshDiscovery(): void {
-		for (const { anchor } of this._anchors.values()) {
-			anchor.refreshDiscovery();
-		}
+	public async refreshDiscovery(): Promise<void> {
+		await Promise.all([...this._anchors.values()].map(({ anchor }) => anchor.refreshDiscovery()));
 	}
 
 	private _onDidChangeAnchor(anchor: CustomizationAnchor): void {

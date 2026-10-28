@@ -40,7 +40,7 @@ import { CloseEditorTabAction } from '../../../../../workbench/browser/parts/edi
 import { NAVIGATE_VIEW_COMMANDS } from '../../../../../workbench/browser/actions/navigationActions.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus, SessionHeaderMenus } from '../../../../browser/menus.js';
 import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../browser/sessionConversationGroups.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { createSessionsPartTestHarness, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
@@ -357,6 +357,50 @@ suite('Sessions - Actions', () => {
 		]);
 	});
 
+	test('marking a side chat as done archives and closes only that chat', async () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const { session } = createTestSession('side-chat-done');
+		const main = session.mainChat.get();
+		const side: IChat = {
+			...main,
+			resource: session.resource.with({ fragment: 'side' }),
+			origin: { kind: ChatOriginKind.SideChat, parentChat: main.resource, turnId: 'turn-1' },
+			isArchived: constObservable(false),
+			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
+		};
+		const peer: IChat = { ...side, resource: session.resource.with({ fragment: 'peer' }), origin: { kind: ChatOriginKind.User } };
+		const activeSession = upcastPartial<IActiveSession>({
+			...session,
+			chats: constObservable([main, peer, side]),
+			openChats: constObservable([main, peer, side]),
+			activeChat: constObservable(side),
+		});
+		const operations: string[] = [];
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override async archiveChat(target: ISession, chat: IChat): Promise<void> {
+				assert.strictEqual(target, activeSession);
+				operations.push(`archive:${chat.resource.toString()}`);
+			}
+		});
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(activeSession);
+			override async closeChat(target: ISession, chat: IChat): Promise<void> {
+				assert.strictEqual(target, activeSession);
+				operations.push(`close:${chat.resource.toString()}`);
+			}
+		});
+
+		await instantiationService.invokeFunction(accessor => new ArchiveChatAction().run(accessor, { session: activeSession, chat: side }));
+
+		assert.deepStrictEqual({
+			operations,
+			sessionArchived: session.isArchived.get(),
+		}, {
+			operations: [`archive:${side.resource.toString()}`, `close:${side.resource.toString()}`],
+			sessionArchived: false,
+		});
+	});
+
 	test('session row read actions target each selected main chat', async () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const sessions = [createTestSession('First').session, createTestSession('Second').session];
@@ -480,7 +524,7 @@ suite('Sessions - Actions', () => {
 			[CLOSE_SESSION_COMMAND_ID, 'sessions.chatCompositeBar.toggleMaximize', Menus.SessionGridLayout.id],
 			[MARK_SESSION_UNREAD_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID],
 			[TOGGLE_PIN_SESSION_COMMAND_ID],
-			['sessions.sessionHeader.rename'],
+			[MenuId.ChatViewMode.id, 'sessions.sessionHeader.rename'],
 		];
 
 		assert.deepStrictEqual({
@@ -664,6 +708,23 @@ suite('Sessions - Actions', () => {
 			chatsWhen: 'sessionActiveChatHasSideChats && sessionIsCreated && !sessionIsArchived',
 			hasNewNestedSession: false,
 		});
+	});
+
+	test('shares View Mode between session header menus with AI hiding', () => {
+		assert.deepStrictEqual(SessionHeaderMenus.map(menu => {
+			const item = MenuRegistry.getMenuItems(menu).filter(isISubmenuItem).find(item => item.submenu === MenuId.ChatViewMode);
+			return {
+				title: item && (typeof item.title === 'string' ? item.title : item.title.value),
+				group: item?.group,
+				order: item?.order,
+				when: item?.when?.serialize(),
+			};
+		}), SessionHeaderMenus.map(() => ({
+			title: 'View Mode',
+			group: 'secondary/4_manage',
+			order: 10,
+			when: ChatContextKeys.enabled.serialize(),
+		})));
 	});
 
 	test('contributes chat tab presentation to the session header overflow', async () => {

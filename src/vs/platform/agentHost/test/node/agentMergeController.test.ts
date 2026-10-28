@@ -10,7 +10,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
-import { AgentMergeConfigKey, agentMergeDisableReasons, agentMergeEnabledNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeChatInjectedConfigurations, readAgentMergeFolderState, readAgentMergeSessionState, agentMergeGateFragments } from '../../common/agentMerge.js';
+import { AgentMergeConfigKey, agentMergeDisableReasons, agentMergeEnabledNotice, agentMergeMissingPullRequestNotice, agentMergeSingleSignOnNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeChatInjectedConfigurations, readAgentMergeFolderState, readAgentMergeSessionState, agentMergeGateFragments } from '../../common/agentMerge.js';
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import type { IAgent } from '../../common/agent.js';
 import { AgentHostArtifactIntegrationsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
@@ -2470,6 +2470,64 @@ suite('AgentMergeController', () => {
 			kind: AgentSystemNotificationKind.AgentMergeEnabled,
 			content: agentMergeEnabledNotice({ branchName: 'feature' }, defaultAgentMergeConfiguration),
 		}]);
+	});
+
+	suite('notices when it cannot monitor a pull request', () => {
+		const saml = 'GitHub API request failed: GET repos/octo/repo/pulls - 403 Forbidden - {"message":"Resource protected by organization SAML enforcement. You must grant your OAuth token access to this organization."}';
+
+		function enable(h: ReturnType<typeof createControllerHarness>, gitHubState: Parameters<typeof withSessionGitHubState>[2]): void {
+			h.stateManager.setSessionMeta(h.session, withSessionGitHubState(withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'main' }), REPOSITORY, gitHubState));
+			h.configurationService.updateSessionConfig(h.session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+			h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+		}
+
+		function blocked(h: ReturnType<typeof createControllerHarness>): string[] {
+			return h.notices.filter(notice => notice.kind === AgentSystemNotificationKind.AgentMergeBlocked).map(notice => notice.content);
+		}
+
+		test('asks to authorize single sign-on when GitHub refuses finding the pull request, with a fresh page only once the previous one expired', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1_000 }, async () => {
+			const h = createControllerHarness(disposables);
+			let page = 'https://github.com/orgs/octo/sso?authorization_request=first';
+			h.gitStateService.attachSessionGitHubPullRequest = async () => ({ kind: 'authorization', message: saml, ssoAuthorizationUrl: page });
+			enable(h, { owner: 'octo', repo: 'repo' });
+			await timeout(30 * 60_000);
+			page = 'https://github.com/orgs/octo/sso?authorization_request=second';
+			await timeout(29 * 60_000);
+			const withinTheHour = blocked(h);
+			await timeout(2 * 60_000);
+
+			assert.deepStrictEqual({ withinTheHour, afterItExpired: blocked(h), errors: h.errors }, {
+				withinTheHour: [agentMergeSingleSignOnNotice('octo', 'https://github.com/orgs/octo/sso?authorization_request=first')],
+				afterItExpired: [
+					agentMergeSingleSignOnNotice('octo', 'https://github.com/orgs/octo/sso?authorization_request=first'),
+					agentMergeSingleSignOnNotice('octo', 'https://github.com/orgs/octo/sso?authorization_request=second'),
+				],
+				errors: [],
+			});
+		}));
+
+		test('asks to authorize single sign-on when GitHub refuses reading the bound pull request', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1_000 }, async () => {
+			const ssoAuthorizationUrl = 'https://github.com/orgs/octo/sso?authorization_request=bound';
+			const h = createControllerHarness(disposables, { ...repairSnapshot(), core: { status: 'error', complete: false, error: { kind: 'authorization', statusCode: 403, message: saml, ssoAuthorizationUrl } } });
+			enable(h, { owner: 'octo', repo: 'repo', pullRequestUrls: ['https://github.com/octo/repo/pull/1'], pullRequestBranchName: 'feature' });
+			await timeout(5 * 60_000);
+
+			assert.deepStrictEqual({ blocked: blocked(h), errors: h.errors }, { blocked: [agentMergeSingleSignOnNotice('octo', ssoAuthorizationUrl)], errors: [] });
+		}));
+
+		test('tells the user once when no pull request turns up for the branch', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1_000 }, async () => {
+			const h = createControllerHarness(disposables);
+			enable(h, { owner: 'octo', repo: 'repo' });
+			await timeout(4 * 60_000);
+			const beforeTheDelay = blocked(h);
+			await timeout(20 * 60_000);
+
+			assert.deepStrictEqual({ beforeTheDelay, after: blocked(h), errors: h.errors }, {
+				beforeTheDelay: [],
+				after: [agentMergeMissingPullRequestNotice('feature')],
+				errors: [],
+			});
+		}));
 	});
 
 	test('detects a refused gate fragment so a credential can be requested from the snapshot', () => {

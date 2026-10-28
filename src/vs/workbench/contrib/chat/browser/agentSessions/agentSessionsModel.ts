@@ -531,7 +531,10 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	get resolved(): boolean { return this._resolved; }
 
 	private _sessions: ResourceMap<IInternalAgentSession>;
-	get sessions(): IAgentSession[] { return this._dedupeMigratedCopilotCliSessions(Array.from(this._sessions.values())); }
+	get sessions(): IAgentSession[] {
+		return this._dedupeMigratedCopilotCliSessions(Array.from(this._sessions.values()))
+			.filter(session => session.metadata?.isAutomation !== true);
+	}
 
 	private readonly resolvers = this._register(new DisposableMap<string, ThrottledDelayer<readonly unknown[]>>());
 
@@ -792,6 +795,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 						status: item.status ?? AgentSessionStatus.Completed,
 						statusKnown: item.status !== undefined,
 						archived: item.archived,
+						canArchive: item.canArchive,
 						providerIsRead: shouldKeepOpenSessionRead ? true : item.isRead,
 						timing: item.timing,
 						changes: normalizedChanges,
