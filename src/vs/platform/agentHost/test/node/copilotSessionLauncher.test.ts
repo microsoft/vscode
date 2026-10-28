@@ -2233,48 +2233,77 @@ suite('CopilotSessionLauncher local index', () => {
 suite('CopilotSessionLauncher ExP assignment context', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	async function launchCreateAndResume(assignmentContext: string | undefined, expAssignments?: CopilotSessionLaunchPlan['expAssignments'], token?: string): Promise<unknown[]> {
+		const configs: ResumeSessionConfig[] = [];
+		const session = {
+			sessionId: 'session-1',
+			on: () => () => { },
+			disconnect: async () => { },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
+		} as unknown as CopilotSession;
+		const client = new class extends mock<CopilotSessionLaunchPlan['client']>() {
+			override readonly rpc = { ...new class extends mock<CopilotSessionLaunchPlan['client']['rpc']>() { }(), managedSettings: createUnmanagedCopilotSettings() };
+			override createSession = async (config: SessionConfig): Promise<CopilotSession> => {
+				reportManagedSettings(config);
+				configs.push(config);
+				return session;
+			};
+			override resumeSession = async (_id: string, config: ResumeSessionConfig): Promise<CopilotSession> => {
+				reportManagedSettings(config);
+				configs.push(config);
+				return session;
+			};
+		};
+		const launcher = createTestLauncher(undefined, { [CopilotCliVSCodeAssignmentContextKey]: assignmentContext });
+		const basePlan = {
+			client,
+			extensionSdkPath: '/copilot-sdk',
+			sessionId: 'session-1',
+			workingDirectory: testWorkingDirectory,
+			resolvedAgentName: undefined,
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken(token),
+			expAssignments,
+		};
+
+		store.add(await launcher.launch({ ...basePlan, kind: 'create', model: undefined }, testRuntime));
+		store.add(await launcher.launch({ ...basePlan, kind: 'resume', fallback: { model: undefined } }, testRuntime));
+		return configs.map(config => (config as { expAssignments?: unknown }).expAssignments);
+	}
+
 	for (const assignmentContext of [undefined, '', 'vscode-flight-a:1;vscode-flight-b:2;']) {
 		test(`forwards the VS Code assignment context on create and resume (${JSON.stringify(assignmentContext)})`, async () => {
-			const configs: ResumeSessionConfig[] = [];
-			const session = {
-				sessionId: 'session-1',
-				on: () => () => { },
-				disconnect: async () => { },
-				rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
-			} as unknown as CopilotSession;
-			const client = new class extends mock<CopilotSessionLaunchPlan['client']>() {
-				override readonly rpc = { ...new class extends mock<CopilotSessionLaunchPlan['client']['rpc']>() { }(), managedSettings: createUnmanagedCopilotSettings() };
-				override createSession = async (config: SessionConfig): Promise<CopilotSession> => {
-					reportManagedSettings(config);
-					configs.push(config);
-					return session;
-				};
-				override resumeSession = async (_id: string, config: ResumeSessionConfig): Promise<CopilotSession> => {
-					reportManagedSettings(config);
-					configs.push(config);
-					return session;
-				};
-			};
-			const launcher = createTestLauncher(undefined, { [CopilotCliVSCodeAssignmentContextKey]: assignmentContext });
-			const basePlan = {
-				client,
-				extensionSdkPath: '/copilot-sdk',
-				sessionId: 'session-1',
-				workingDirectory: testWorkingDirectory,
-				resolvedAgentName: undefined,
-				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
-				activeClientToolSet: new ActiveClientToolSet(),
-				shellManager: undefined,
-				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
-			};
-
-			store.add(await launcher.launch({ ...basePlan, kind: 'create', model: undefined }, testRuntime));
-			store.add(await launcher.launch({ ...basePlan, kind: 'resume', fallback: { model: undefined } }, testRuntime));
-
 			const expected = assignmentContext ? { Features: [], Flights: {}, Configs: [], AssignmentContext: assignmentContext } : undefined;
-			assert.deepStrictEqual(configs.map(config => (config as { expAssignments?: unknown }).expAssignments), [expected, expected]);
+			assert.deepStrictEqual(await launchCreateAndResume(assignmentContext), [expected, expected]);
 		});
 	}
+
+	test('forwards the Copilot runtime assignments with both assignment contexts', async () => {
+		const tokens: (string | undefined)[] = [];
+		const expected = {
+			Features: ['copilot-treatment'],
+			Flights: { 'copilot-numberline': 'copilot-treatment' },
+			Configs: [{ Id: 'default', Parameters: { copilot_flag: true } }],
+			FlightingVersion: 7,
+			AssignmentContext: 'vscode-flight-a:1;copilot-flight:2',
+		};
+		const configs = await launchCreateAndResume('vscode-flight-a:1', {
+			resolve: async token => {
+				tokens.push(token);
+				return { ...expected, AssignmentContext: 'copilot-flight:2;' };
+			},
+		}, 'gh-token');
+
+		assert.deepStrictEqual({ configs, tokens }, { configs: [expected, expected], tokens: ['gh-token', 'gh-token'] });
+	});
+
+	test('keeps the VS Code assignment context when the Copilot runtime assignments are unavailable', async () => {
+		const configs = await launchCreateAndResume('vscode-flight-a:1', { resolve: async () => undefined }, 'gh-token');
+		const expected = { Features: [], Flights: {}, Configs: [], AssignmentContext: 'vscode-flight-a:1' };
+		assert.deepStrictEqual(configs, [expected, expected]);
+	});
 });
 
 suite('CopilotSessionLauncher canvas config', () => {

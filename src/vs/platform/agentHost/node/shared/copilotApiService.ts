@@ -88,13 +88,28 @@ interface ICopilotUserResponse {
 	readonly analytics_tracking_id?: string;
 	readonly is_staff?: boolean;
 	readonly organization_login_list?: readonly string[];
+	readonly copilot_plan?: string;
 	readonly endpoints?: {
 		readonly api?: string;
 		readonly telemetry?: string;
 		readonly proxy?: string;
 		readonly 'origin-tracker'?: string;
+		readonly exp?: string;
 	};
 	readonly access_type_sku?: string;
+}
+
+/**
+ * The account data the Copilot runtime uses to request its ExP assignments, from `/copilot_internal/user`.
+ */
+export interface ICopilotExpAccount {
+	/** The `endpoints.exp` base URL of the Copilot experimentation service. */
+	readonly endpoint: string;
+	/** The Copilot analytics tracking ID, ExP's assignment unit. */
+	readonly trackingId: string;
+	readonly isStaff: boolean;
+	readonly organizations: readonly string[];
+	readonly copilotPlan?: string;
 }
 
 interface ICachedClient {
@@ -114,6 +129,7 @@ interface ICachedClient {
 	readonly trackingId?: string;
 	readonly isInternal: boolean;
 	readonly isVscodeTeamMember: boolean;
+	readonly expAccount?: ICopilotExpAccount;
 }
 
 interface ICopilotSkuCacheCell {
@@ -568,6 +584,12 @@ export interface ICopilotApiService {
 	/** Resolve the raw Copilot entitlement SKU cached from `/copilot_internal/user`. */
 	resolveCopilotSku?(githubToken: string): Promise<string | undefined>;
 
+	/**
+	 * Resolve the account data for requesting Copilot ExP assignments, cached from `/copilot_internal/user`;
+	 * `undefined` when the response has no `endpoints.exp` or analytics tracking ID.
+	 */
+	resolveExpAccount?(githubToken: string): Promise<ICopilotExpAccount | undefined>;
+
 	/** Revalidates discovery when a client observes a different SKU for the same analytics account. */
 	refreshCopilotUser?(githubToken: string, trackingId: string, sku: string): Promise<void>;
 
@@ -933,6 +955,10 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 		return (await this._getEntryForToken(githubToken)).copilotSku;
 	}
 
+	async resolveExpAccount(githubToken: string): Promise<ICopilotExpAccount | undefined> {
+		return (await this._getEntryForToken(githubToken)).expAccount;
+	}
+
 	async refreshCopilotUser(githubToken: string, trackingId: string, sku: string): Promise<void> {
 		const request = this._clientsByToken.get(githubToken);
 		const entry = this._readCachedClient(request?.skuCell);
@@ -1189,6 +1215,20 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 
 		this._logService.debug('[CopilotApiService] CAPI endpoint discovered, api=', envelope.endpoints?.api);
 
+		const expEndpoint = envelope.endpoints?.exp;
+		const organizations = Array.isArray(envelope.organization_login_list)
+			? envelope.organization_login_list.filter((organization): organization is string => typeof organization === 'string')
+			: [];
+		const expAccount: ICopilotExpAccount | undefined = typeof expEndpoint === 'string' && expEndpoint.length > 0 && attempt.copilotTrackingId
+			? {
+				endpoint: expEndpoint,
+				trackingId: attempt.copilotTrackingId,
+				isStaff: envelope.is_staff === true,
+				organizations,
+				...(typeof envelope.copilot_plan === 'string' && envelope.copilot_plan.length > 0 ? { copilotPlan: envelope.copilot_plan } : {}),
+			}
+			: undefined;
+
 		return {
 			capiClient,
 			expiresAt: Date.now() / 1000 + CAPI_CONTEXT_TTL_SECONDS,
@@ -1202,6 +1242,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 			trackingId: attempt.copilotTrackingId,
 			isInternal: isInternalAccount(envelope.is_staff, envelope.organization_login_list),
 			isVscodeTeamMember: internalOrganization === 'vscode',
+			expAccount,
 		};
 	}
 

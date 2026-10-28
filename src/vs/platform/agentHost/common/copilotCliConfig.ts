@@ -100,6 +100,12 @@ export const enum CopilotCliConfigKey {
 
 export const CopilotCliVSCodeAssignmentContextKey = 'copilotCliVSCodeAssignmentContext';
 
+/**
+ * Whether the workbench's own ExP is enabled (telemetry at usage level, `workbench.enableExperiments`, and not a
+ * test run). The agent host requests the Copilot runtime's ExP assignments for VS Code only when this is `true`.
+ */
+export const CopilotCliVSCodeExperimentsEnabledKey = 'copilotCliVSCodeExperimentsEnabled';
+
 // Client setting IDs forwarded into the matching provider-owned root-config keys.
 
 export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';

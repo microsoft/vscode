@@ -18,7 +18,7 @@ import { IAgentHostOTelPolicyReadiness, IAgentHostService } from '../../../../pl
 import { LocalAgentHostServiceClient } from '../../../../platform/agentHost/electron-browser/localAgentHostService.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../../../platform/agentHost/common/agentHostClientInfo.js';
-import { CopilotCliVSCodeAssignmentContextKey } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { CopilotCliVSCodeAssignmentContextKey, CopilotCliVSCodeExperimentsEnabledKey } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -110,13 +110,16 @@ class AgentHostPrewarmer extends Disposable {
 
 	private async doUpdateAssignmentContext(): Promise<void> {
 		const request = ++this._assignmentContextRequest;
-		const context = (await this.assignmentService.getCurrentExperiments())?.join(';') ?? '';
+		const experiments = await this.assignmentService.getCurrentExperiments();
 		if (request !== this._assignmentContextRequest) {
 			return;
 		}
 		this.agentHostService.dispatch(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
-			config: { [CopilotCliVSCodeAssignmentContextKey]: context },
+			config: {
+				[CopilotCliVSCodeAssignmentContextKey]: experiments?.join(';') ?? '',
+				[CopilotCliVSCodeExperimentsEnabledKey]: experiments !== undefined,
+			},
 		});
 	}
 }

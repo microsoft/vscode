@@ -13,7 +13,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { NullAgentHostService } from '../../../../../platform/agentHost/browser/nullAgentHostService.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { CopilotCliVSCodeAssignmentContextKey } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { CopilotCliVSCodeAssignmentContextKey, CopilotCliVSCodeExperimentsEnabledKey } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -217,7 +217,7 @@ suite('AgentHostPrewarmContribution', () => {
 		assert.strictEqual(agentHostService.startCount, 1);
 	});
 
-	test('forwards assignment context and clears it when unavailable', async () => {
+	test('forwards assignment context and experiment enablement, and clears them when unavailable', async () => {
 		const { agentHostService, assignmentService } = createContribution(true);
 		await Promise.resolve();
 
@@ -227,11 +227,11 @@ suite('AgentHostPrewarmContribution', () => {
 		assert.deepStrictEqual(agentHostService.dispatches, [
 			[ROOT_STATE_URI, {
 				type: ActionType.RootConfigChanged,
-				config: { [CopilotCliVSCodeAssignmentContextKey]: 'experiment:1' },
+				config: { [CopilotCliVSCodeAssignmentContextKey]: 'experiment:1', [CopilotCliVSCodeExperimentsEnabledKey]: true },
 			}],
 			[ROOT_STATE_URI, {
 				type: ActionType.RootConfigChanged,
-				config: { [CopilotCliVSCodeAssignmentContextKey]: '' },
+				config: { [CopilotCliVSCodeAssignmentContextKey]: '', [CopilotCliVSCodeExperimentsEnabledKey]: false },
 			}],
 		]);
 	});
@@ -247,11 +247,11 @@ suite('AgentHostPrewarmContribution', () => {
 		assert.deepStrictEqual(agentHostService.dispatches, [
 			[ROOT_STATE_URI, {
 				type: ActionType.RootConfigChanged,
-				config: { [CopilotCliVSCodeAssignmentContextKey]: 'experiment:1' },
+				config: { [CopilotCliVSCodeAssignmentContextKey]: 'experiment:1', [CopilotCliVSCodeExperimentsEnabledKey]: true },
 			}],
 			[ROOT_STATE_URI, {
 				type: ActionType.RootConfigChanged,
-				config: { [CopilotCliVSCodeAssignmentContextKey]: 'experiment:2' },
+				config: { [CopilotCliVSCodeAssignmentContextKey]: 'experiment:2', [CopilotCliVSCodeExperimentsEnabledKey]: true },
 			}],
 		]);
 	});
