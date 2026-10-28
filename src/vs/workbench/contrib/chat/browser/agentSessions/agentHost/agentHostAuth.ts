@@ -26,7 +26,7 @@ import type { AuthenticateTarget, McpServerAuthenticateTarget } from '../../../.
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { copilotConnectorsScope } from '../../../../../../platform/github/common/connectors/connectors.js';
+import { copilotConnectorsScope, copilotCredentialBaselineScopes } from '../../../../../../platform/github/common/connectors/connectors.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -911,8 +911,8 @@ async function resolveSessionForProtectedResource(
 		options.preferredSessionId,
 		defaultAccountService.currentDefaultAccount,
 	);
-	if (!options.preferConnectorScopedSession || resource.resource !== deriveGitHubEndpoints(undefined).apiBaseUri ||
-		resolution.kind !== 'resolved' || resolution.session.scopes.includes(copilotConnectorsScope)) {
+	if (resource.resource !== deriveGitHubEndpoints(undefined).apiBaseUri || resolution.kind !== 'resolved' ||
+		!options.preferConnectorScopedSession && !resolution.session.scopes.includes(copilotConnectorsScope)) {
 		return resolution;
 	}
 
@@ -923,20 +923,35 @@ async function resolveSessionForProtectedResource(
 		logService.trace(`${options.logPrefix} Unable to resolve an already-authorized connector session; retaining Copilot authentication`, error);
 		return resolution;
 	}
-	let preferred = resolution.session;
-	for (const session of sessions) {
-		if (session.account.id === resolution.session.account.id &&
-			isAuthenticationSessionCandidate(session, rejectedSession) &&
-			session.scopes.includes(copilotConnectorsScope) &&
-			(resource.scopes_supported ?? []).every(scope => session.scopes.includes(scope)) &&
-			(!preferred.scopes.includes(copilotConnectorsScope) || session.scopes.length < preferred.scopes.length)) {
-			preferred = session;
-		}
+	const requiredScopes = resource.scopes_supported ?? [];
+	const candidates = sessions.filter(session => session.account.id === resolution.session.account.id &&
+		isAuthenticationSessionCandidate(session, rejectedSession) &&
+		requiredScopes.every(scope => session.scopes.includes(scope)));
+	// The forwarded credential is also used for GitHub requests beyond Copilot (for example, the GitHub MCP server),
+	// so a Connector-scoped session must never replace it with fewer scopes. The baseline is the credential the
+	// account would use without Connector authorization; Connector authorization keeps the same baseline's scopes.
+	const isConnectorScoped = (session: AuthenticationSession) => session.scopes.includes(copilotConnectorsScope);
+	const baselineScopes = copilotCredentialBaselineScopes(candidates, requiredScopes) ?? resolution.session.scopes;
+	const fallback = isConnectorScoped(resolution.session)
+		? selectFewestScopes(candidates.filter(session => !isConnectorScoped(session))) ?? resolution.session
+		: resolution.session;
+	const retainsBaseline = (session: AuthenticationSession) => baselineScopes.every(scope => session.scopes.includes(scope));
+	const preferred = isConnectorScoped(resolution.session) && retainsBaseline(resolution.session)
+		? resolution.session
+		: options.preferConnectorScopedSession
+			? selectFewestScopes(candidates.filter(session => isConnectorScoped(session) && retainsBaseline(session))) ?? fallback
+			: fallback;
+	if (preferred === fallback && fallback !== resolution.session) {
+		logService.info(`${options.logPrefix} Forwarding the account's GitHub credential instead of a Copilot Connector session that lacks some of its scopes`);
 	}
 	return preferred === resolution.session ? resolution : {
 		kind: 'resolved', providerId: resolution.providerId, session: preferred, match: 'superset',
 		...(isEqual(preferred.authorizationServer, resolution.session.authorizationServer) && resolution.entitlement ? { entitlement: resolution.entitlement } : {}),
 	};
+}
+
+function selectFewestScopes(sessions: readonly AuthenticationSession[]): AuthenticationSession | undefined {
+	return findFirstMin(sessions, compareBy(session => new Set(session.scopes).size, numberComparator));
 }
 
 function logAuthenticationSessionResolution(
@@ -1080,15 +1095,6 @@ async function forceAuthenticationInteractively(
 }
 
 /**
- * Whether an MCP authentication requirement belongs to a Copilot Connector. Connector-owned servers authenticate
- * with the session's GitHub credential, so their challenge asks for the Connector authorization scope and a
- * per-server MCP token never satisfies it.
- */
-export function isCopilotConnectorMcpAuthentication(requiredScopes: readonly string[] | undefined): boolean {
-	return requiredScopes?.includes(copilotConnectorsScope) === true;
-}
-
-/**
  * Forwards the GitHub Copilot credential of the account that authorized Copilot Connectors, without prompting and
  * preferring that account's session that also grants the Connector scope. Connector-owned servers use this
  * credential, so this is how an authorization of the account reaches them. Never falls back to another account.
@@ -1140,11 +1146,6 @@ export async function resolveMcpServerAuthentication(
 	const authenticationMcpUsageService = accessor.get(IAuthenticationMcpUsageService);
 	const dynamicAuthenticationProviderStorageService = accessor.get(IDynamicAuthenticationProviderStorageService);
 	const logService = accessor.get(ILogService);
-	if (isCopilotConnectorMcpAuthentication(options.scopes)) {
-		// A narrow token would be ignored for the Connector and retried indefinitely; Connector authorization owns this.
-		logService.info(`${options.logPrefix} Not forwarding an MCP token for Connector-owned server ${options.mcpServerName}; it requires Copilot Connector authorization`);
-		return false;
-	}
 	let authorizationServerMetadataFetcher = options.authorizationServerMetadataFetcher;
 	if (!authorizationServerMetadataFetcher) {
 		const metadataService = accessor.get(IAgentHostMcpOAuthMetadataService);
