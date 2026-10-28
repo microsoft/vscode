@@ -522,8 +522,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				restrictedChoices: [
 					{ label: 'Manual permissions', disabled: false, badge: undefined, description: undefined, ariaDescription: undefined },
 					...['Assisted permissions', 'Allow all'].map(label => ({
-						label, disabled: true, badge: undefined, description: '$(briefcase) Disabled by policy',
-						ariaDescription: 'Disabled by policy. Your organization\'s policy doesn\'t allow this permission level.',
+						label, disabled: true, badge: undefined, description: '$(briefcase) Disabled by your organization',
+						ariaDescription: 'Disabled by your organization. Contact your administrator.',
 					})),
 				],
 				restoredChoices: permissionPresentations.map(permission => ({ label: permission.label, disabled: false })),
@@ -1517,9 +1517,9 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				description: 'Unavailable',
 				hover: 'The agent host doesn\'t allow this permission level for this session.',
 			} : {
-				ariaDescription: 'Disabled by policy. Your organization\'s policy doesn\'t allow this permission level.',
-				description: '$(briefcase) Disabled by policy',
-				hover: 'Your organization\'s policy doesn\'t allow this permission level.',
+				ariaDescription: 'Disabled by your organization. Contact your administrator.',
+				description: '$(briefcase) Disabled by your organization',
+				hover: 'Your organization doesn\'t allow this permission level. Contact your administrator.',
 			};
 
 			assert.deepStrictEqual({ unattributed, levels, dispatches }, {
@@ -2112,7 +2112,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 						disabled,
 						title: managed
 							? disabled ? 'Sandboxing is required by your organization' : 'Your organization allows you to turn sandboxing off for this session. Changes are subject to runtime approval.'
-							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.',
+							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against your organization\'s current requirements when restored.',
 						writes: disabled ? [] : (managed || configured === AgentSandboxEnabledValue.On ? ['off', 'on'] : ['on']).map(value => ({
 							channel: 'copilotcli:/test-session', action: { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: value } },
 						})),
@@ -2159,7 +2159,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		assert.deepStrictEqual(visibleStates, [
 			{ disabled: true, title: 'Sandboxing is required by your organization' },
 			{ disabled: false, title: 'Your organization allows you to turn sandboxing off for this session. Changes are subject to runtime approval.' },
-			{ disabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.' },
+			{ disabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against your organization\'s current requirements when restored.' },
 			{ disabled: false, title: 'Your organization allows you to turn sandboxing off for this session. Changes are subject to runtime approval.' },
 			{ disabled: true, title: 'Sandboxing is required by your organization' },
 		]);
@@ -2388,7 +2388,7 @@ suite('AgentHostChatInputPicker - resolveConfigChipValue', () => {
 				policy: text(getConfigPickerItemHover(SessionConfigKey.AutoApprove, { value: 'assisted', label: 'Assisted permissions', disabledByPolicy: true }, true)),
 				unattributed: text(getConfigPickerItemHover(SessionConfigKey.AutoApprove, { value: 'assisted', label: 'Assisted permissions' }, true)),
 			}, {
-				policy: 'Your organization\'s policy doesn\'t allow this permission level.',
+				policy: 'Your organization doesn\'t allow this permission level. Contact your administrator.',
 				unattributed: 'The agent host doesn\'t allow this permission level for this session.',
 			});
 		});

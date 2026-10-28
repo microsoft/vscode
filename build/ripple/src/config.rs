@@ -36,6 +36,15 @@ impl Role {
 	}
 }
 
+/// The tests that a change to a file outside the module graph runs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Scope {
+	/// Every unit and integration test (`runEverything`).
+	All,
+	/// Every integration test (`runEveryIntegrationTest`).
+	Integration,
+}
+
 /// The configuration file, see `vscode.jsonc` for the meaning of each field.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -47,6 +56,8 @@ struct File {
 	tests: Tests,
 	#[serde(default)]
 	run_everything: BTreeMap<String, Vec<String>>,
+	#[serde(default)]
+	run_every_integration_test: BTreeMap<String, Vec<String>>,
 	#[serde(default)]
 	packages: Packages,
 	#[serde(default)]
@@ -122,6 +133,14 @@ impl Patterns {
 	}
 }
 
+/// The reason of the first group whose patterns match `path`.
+fn group_of<'a>(groups: &'a [(String, Patterns)], path: &str) -> Option<&'a str> {
+	groups
+		.iter()
+		.find(|(_, patterns)| patterns.matches(path))
+		.map(|(reason, _)| reason.as_str())
+}
+
 pub struct Config {
 	modules: Patterns,
 	unit_tests: Patterns,
@@ -131,6 +150,7 @@ pub struct Config {
 	/// Path aliases as (prefix, replacement), longest prefix first.
 	aliases: Vec<(String, String)>,
 	run_everything: Vec<(String, Patterns)>,
+	run_every_integration_test: Vec<(String, Patterns)>,
 	/// npm packages that build or run every test.
 	pub toolchain: HashSet<String>,
 	/// npm scripts that install, build or run the tests.
@@ -157,17 +177,20 @@ impl Config {
 		let file: File = serde_json::from_str(&strip_jsonc(text))?;
 		let mut aliases: Vec<(String, String)> = file.path_aliases.into_iter().collect();
 		aliases.sort_by_key(|(prefix, _)| std::cmp::Reverse(prefix.len()));
+		let groups = |groups: BTreeMap<String, Vec<String>>| -> Result<Vec<(String, Patterns)>> {
+			groups
+				.into_iter()
+				.map(|(reason, patterns)| Ok((reason, Patterns::new(&patterns)?)))
+				.collect()
+		};
 		Ok(Self {
 			modules: Patterns::new(&file.modules)?,
 			unit_tests: Patterns::new(&file.tests.unit)?,
 			integration_tests: Patterns::new(&file.tests.integration)?,
 			test_runners: Patterns::new(&file.tests.runners)?,
 			aliases,
-			run_everything: file
-				.run_everything
-				.into_iter()
-				.map(|(reason, patterns)| Ok((reason, Patterns::new(&patterns)?)))
-				.collect::<Result<_>>()?,
+			run_everything: groups(file.run_everything)?,
+			run_every_integration_test: groups(file.run_every_integration_test)?,
 			toolchain: file.packages.toolchain.into_iter().collect(),
 			test_scripts: file.packages.test_scripts.into_iter().collect(),
 			ignored_fields: file.packages.ignored_fields.into_iter().collect(),
@@ -192,18 +215,33 @@ impl Config {
 		}
 	}
 
-	/// Why changing `path` affects every unit test, if it does.
+	/// Why changing `path` affects every unit and integration test, if it does.
 	pub fn run_everything(&self, path: &str) -> Option<&str> {
-		self.run_everything
-			.iter()
-			.find(|(_, patterns)| patterns.matches(path))
-			.map(|(reason, _)| reason.as_str())
+		group_of(&self.run_everything, path)
 	}
 
-	/// Whether a `!` pattern of `runEverything` excludes the path from its group.
+	/// Why changing `path` affects every integration test, if it does.
+	pub fn run_every_integration_test(&self, path: &str) -> Option<&str> {
+		group_of(&self.run_every_integration_test, path)
+	}
+
+	/// The group of `runEverything` or else of `runEveryIntegrationTest` that `path` belongs to,
+	/// with the tests that changing it runs.
+	pub fn trigger(&self, path: &str) -> Option<(&str, Scope)> {
+		self.run_everything(path)
+			.map(|reason| (reason, Scope::All))
+			.or_else(|| {
+				self.run_every_integration_test(path)
+					.map(|reason| (reason, Scope::Integration))
+			})
+	}
+
+	/// Whether a `!` pattern of `runEverything` or `runEveryIntegrationTest` excludes the path
+	/// from its group.
 	pub fn excluded_from_run_everything(&self, path: &str) -> bool {
 		self.run_everything
 			.iter()
+			.chain(&self.run_every_integration_test)
 			.any(|(_, patterns)| patterns.exclude.is_match(path))
 	}
 
@@ -316,6 +354,7 @@ pub fn for_tests() -> &'static Config {
 				"pathAliases": { "lib/": "src/lib/" },
 				"tests": { "unit": ["src/**/test/**/*.test.ts"], "integration": ["src/**/*.integrationTest.ts"], "runners": ["test/**/*.js"] },
 				"runEverything": { "test runner": ["test/**", "!test/**/*.md"] },
+				"runEveryIntegrationTest": { "integration test runner": ["scripts/integration.*", "test/**/*.integration.js"] },
 				"packages": { "toolchain": ["mocha"], "testScripts": ["install", "test"], "ignoredFields": ["build"] },
 				"injectedGlobals": { "_PACKAGE": "package.json", "_PRODUCT": "product.json" },
 				"pure": { "functions": ["localize"], "objects": ["URI"] },
@@ -381,6 +420,30 @@ mod tests {
 		assert_eq!(
 			config.resolve_alias("lib/a.js").as_deref(),
 			Some("src/lib/a.js")
+		);
+	}
+
+	#[test]
+	fn run_everything_groups_take_precedence_over_integration_groups() {
+		let config = for_tests();
+		assert_eq!(
+			[
+				"scripts/integration.sh",
+				"test/unit/index.js",
+				"test/a.integration.js",
+				"scripts/unit.sh",
+			]
+			.map(|p| config.trigger(p)),
+			[
+				Some(("integration test runner", Scope::Integration)),
+				Some(("test runner", Scope::All)),
+				Some(("test runner", Scope::All)),
+				None,
+			]
+		);
+		assert_eq!(
+			config.run_every_integration_test("test/a.integration.js"),
+			Some("integration test runner")
 		);
 	}
 

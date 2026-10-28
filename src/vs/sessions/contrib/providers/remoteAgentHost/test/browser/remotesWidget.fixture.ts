@@ -13,6 +13,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { promptRemoteAgentHostLocationPreference } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreferenceDialog.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../../platform/hover/browser/hoverService.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
@@ -24,23 +27,24 @@ import { IProgress } from '../../../../../../platform/progress/common/progress.j
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ICustomizationRemote, IRemoteRefreshProgress, IRemotesModel, RemoteKind } from '../../browser/remotesModel.js';
 import { RemotesWidget } from '../../browser/remotesWidget.js';
+import { confirmTunnelDeletion } from '../../browser/remoteHostOptions.js';
 
 const remotes: ICustomizationRemote[] = [
 	{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
-	{ id: 'ssh:staging', kind: 'ssh', name: 'Staging', detail: 'staging.example.com', canRemove: false, hidden: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+	{ id: 'ssh:staging', kind: 'ssh', name: 'Staging', detail: 'staging.example.com', canRemove: true, canDelete: true, hidden: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 	{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu-24.04', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connecting },
 	{ id: 'wsl:Debian', kind: 'wsl', name: 'Debian', detail: 'Debian', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected, pickerUnavailableReason: 'Connect once to add this remote to the picker.' },
-	{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Work laptop', detail: 'work-laptop-europe', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.reconnecting },
-	{ id: 'tunnel:home', kind: 'tunnel', name: 'Home workstation', detail: 'home-workstation', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.incompatible('The remote host needs an update.', ['1']) },
+	{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Work laptop', detail: 'work-laptop-europe', canRemove: true, canDelete: true, connectionStatus: RemoteAgentHostConnectionStatus.reconnecting },
+	{ id: 'tunnel:home', kind: 'tunnel', name: 'Home workstation', detail: 'home-workstation', canRemove: true, canDelete: true, connectionStatus: RemoteAgentHostConnectionStatus.incompatible('The remote host needs an update.', ['1'], undefined, 'vscode/upgrade') },
 	{ id: 'environment:desktop', kind: 'environment', name: 'Shared desktop', detail: 'env-desktop', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 	{ id: 'environment:laptop', kind: 'environment', name: 'Shared laptop', detail: 'env-laptop', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'This environment is not online. Start its owning application before connecting.', pickerUnavailableReason: 'Available in the picker when the owning application is online.' },
 	{ id: 'container:project', kind: 'devContainer', name: 'Project development container', detail: '/Users/developer/projects/example-project-with-a-long-source-folder-name', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 	{ id: 'container:api', kind: 'devContainer', name: 'API service', detail: '/Users/developer/projects/api', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 ];
 
-async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false): Promise<void> {
+async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string; readonly retrying?: boolean } = {}): Promise<void> {
 	container.style.width = `${width}px`;
-	container.style.height = '640px';
+	container.style.height = `${options.height ?? 640}px`;
 	container.classList.add('remotes-editor');
 	const content = dom.append(container, dom.$('.remotes-editor-content'));
 	const instantiationService = createEditorServices(disposableStore, {
@@ -77,7 +81,13 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 			await pendingSignIn?.p;
 			this.tunnelAuthenticationRequired.set(undefined, undefined);
 		}
-		readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, empty ? [] : remotes);
+		readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, empty ? [] : remotes.map(remote =>
+			remote.id === 'ssh:build' && options.connectionError
+				? {
+					...remote, lastConnectionError: options.connectionError,
+					connectionStatus: options.retrying ? RemoteAgentHostConnectionStatus.connecting : RemoteAgentHostConnectionStatus.disconnected,
+				}
+				: remote));
 		async refresh(_token: CancellationToken, progress?: IProgress<IRemoteRefreshProgress>) {
 			if (pendingRefresh && refreshing) {
 				progress?.report({ kind: refreshing, refreshing: true });
@@ -94,12 +104,31 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		async rename(id: string) {
 			this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, name: `${remote.name} (renamed)` } : remote), undefined);
 		}
+		async copyAddress(id: string) {
+			await instantiationService.get(IClipboardService).writeText(id);
+		}
+		async changePreferredAgentLocation(id: string) {
+			await promptRemoteAgentHostLocationPreference(instantiationService.get(IDialogService), id, 'Code - OSS');
+		}
+		async updateServer(id: string) {
+			await this.setConnected(id, true);
+		}
+		async deleteTunnel(id: string) {
+			const remote = this.remotes.get().find(remote => remote.id === id);
+			if (remote && await confirmTunnelDeletion(instantiationService.get(IDialogService), remote.name)) {
+				await this.remove(id);
+			}
+		}
+		async deleteSSHHost(id: string) {
+			await this.remove(id);
+		}
 		async remove(id: string) {
 			this.remotes.set(this.remotes.get().filter(remote => remote.id !== id), undefined);
 		}
 		async setConnected(id: string, connected: boolean) {
 			this.remotes.set(this.remotes.get().map(remote => remote.id === id ? {
-				...remote, canRemove: remote.kind === 'environment' || connected, connectionStatus: connected ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.disconnected,
+				...remote, canRemove: remote.kind === 'environment' || connected, lastConnectionError: undefined,
+				connectionStatus: connected ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.disconnected,
 			} : remote), undefined);
 		}
 	}());
@@ -116,6 +145,31 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
+	InlineActions: defineComponentFixture({
+		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: async context => {
+			await render(context, 1000, OS, false, [], true);
+			for (const row of context.container.querySelectorAll('[data-remote-id]')) {
+				row.closest('.monaco-list-row')?.classList.add('hovered');
+			}
+		},
+	}),
+	ConnectionError: defineComponentFixture({
+		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => render(context, 1000, OperatingSystem.Linux, false, [], false, undefined, false, { connectionError: 'connect ECONNREFUSED 127.0.0.1:43192' }),
+	}),
+	ConnectionRetry: defineComponentFixture({
+		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => render(context, 1000, OperatingSystem.Linux, false, [], false, undefined, false, { connectionError: 'connect ECONNREFUSED 127.0.0.1:43192', retrying: true }),
+	}),
+	ShortEmpty: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => render(context, 700, OperatingSystem.Linux, true, ['tunnel'], false, undefined, false, { height: 220 }),
+	}),
+	ShortEmptyNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => render(context, 360, OperatingSystem.Linux, true, ['tunnel'], false, undefined, false, { height: 220 }),
+	}),
 	Environments: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, false, [], true) }),
 	EnvironmentActions: defineComponentFixture({
 		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],

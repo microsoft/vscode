@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { disposableTimeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
@@ -106,8 +106,9 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					return {
 						kind: 'page' as const,
 						items: [{
-							selectionId: 'selection', identifier: 'feed-resource', kind: 'mcp' as const, displayName: 'Figma',
-							installable: true, iconUrl: 'https://raw.githubusercontent.com/example/icons/main/figma.png', categories: ['build'],
+							selectionId: 'selection', identifier: 'feed-resource', kind: 'plugin' as const, displayName: 'Canvas Plugin',
+							installable: true, iconUrl: 'https://raw.githubusercontent.com/example/icons/main/canvas.png',
+							categories: ['build'], compatibilityTags: ['canvas', 'canvas-only'], installCount: 42,
 						}],
 					};
 				}
@@ -130,7 +131,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const item = page.items[0];
 		assert.deepStrictEqual({
 			requests,
-			item: { identifier: item.identifier, tags: item.tags, icon: URI.isUri(item.icon) ? item.icon.toString() : undefined, installation: item.installation },
+			item: { identifier: item.identifier, tags: item.tags, compatibilityTags: item.compatibilityTags, installCount: item.installCount, icon: URI.isUri(item.icon) ? item.icon.toString() : undefined, installation: item.installation },
 			recovery: provider.getRecoveryAction()?.kind,
 		}, {
 			requests: ['feed_auth', 'feed_editorial'].map(feedId => ({
@@ -138,8 +139,8 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				request: { query: '', mediaType: undefined, limit: 30, cursor: undefined, feedId },
 			})),
 			item: {
-				identifier: 'feed-resource', tags: ['build'], icon: 'https://raw.githubusercontent.com/example/icons/main/figma.png',
-				installation: { kind: 'providerCatalog', resourceKind: 'mcp', selectionId: 'selection', itemUrl: undefined, installable: true },
+				identifier: 'feed-resource', tags: ['build'], compatibilityTags: ['canvas', 'canvas-only'], installCount: 42, icon: 'https://raw.githubusercontent.com/example/icons/main/canvas.png',
+				installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'selection', itemUrl: undefined, installable: true },
 			},
 			recovery: 'signIn',
 		});
@@ -147,6 +148,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 
 	test('routes marketplace management through the Agent Host provider', async () => {
 		const calls: { readonly operation: string; readonly args: readonly unknown[] }[] = [];
+		const customizationChanges = store.add(new Emitter<void>());
 		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
 		const backendSession = URI.parse('agent-host-copilotcli:/backend-session');
 		const backendChat = URI.parse('vendor-chat://opaque-host/peer-chat');
@@ -201,7 +203,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				}
 			}(),
 			new class extends mock<IAgentHostCustomizationService>() {
-				override readonly onDidChangeCustomizations = Event.None;
+				override readonly onDidChangeCustomizations = customizationChanges.event;
 				override getBackendChatResource() { return backendChat; }
 			}(),
 			new class extends mock<IDialogService>() { }(),
@@ -209,7 +211,9 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			pluginService,
 		));
 		let changeCount = 0;
+		let marketplaceChangeCount = 0;
 		store.add(provider.onDidChange(() => changeCount++));
+		store.add(provider.onDidChangeMarketplaces(() => marketplaceChangeCount++));
 
 		const listed = await provider.list(frontendSession);
 		const added = await provider.add(frontendSession, 'owner/repository');
@@ -219,6 +223,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const removed = await provider.remove(frontendSession, 'marketplace', true);
 		const refreshed = await provider.refresh(frontendSession, 'marketplace');
 		await provider.addGlobal('demo', { type: McpServerType.REMOTE, url: 'https://example.com/mcp' });
+		customizationChanges.fire();
 
 		assert.deepStrictEqual({
 			listed,
@@ -229,6 +234,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			removed,
 			refreshed,
 			changeCount,
+			marketplaceChangeCount,
 			calls,
 		}, {
 			listed: [{
@@ -288,7 +294,8 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			refused: { removed: false, dependentPlugins: ['plugin'] },
 			removed: { removed: true, dependentPlugins: undefined },
 			refreshed: [{ name: 'marketplace', success: true }],
-			changeCount: 3,
+			changeCount: 4,
+			marketplaceChangeCount: 3,
 			calls: [
 				{ operation: 'list', args: ['copilotcli', backendSession.toString(), backendChat.toString()] },
 				{ operation: 'add', args: ['copilotcli', backendSession.toString(), 'owner/repository', backendChat.toString()] },

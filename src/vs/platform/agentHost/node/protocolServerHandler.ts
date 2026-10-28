@@ -6,6 +6,9 @@
 import { createChatUriError } from '../common/agentHostChatMinting.js';
 import { sandboxCertificateInstallationCapability, sandboxCertificateRemovalCapability, sandboxCertificateRotationCapability } from '../common/meta/agentSandboxCertificate.js';
 import { InstallSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from '../common/sandboxCertificateProtocol.js';
+import { LoadClientCertificatesExtensionMethod, loadClientCertificatesResultValidator } from '../common/clientCertificatesProtocol.js';
+import { supportsAgentHostClientCertificates } from '../common/meta/agentHostClientCertificatesMeta.js';
+import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { disposableTimeout, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
 import { cancelOnDispose, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { lstat, realpath, stat } from 'fs/promises';
@@ -719,6 +722,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		@IDevContainerAgentHostMainService private readonly _devContainerService: IDevContainerAgentHostMainService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostProxyResolver private readonly _proxyResolver: IAgentHostProxyResolver,
 	) {
 		super();
 		let tcpBudget = ProtocolServerHandler._tcpBudgets.get(_agentService);
@@ -1048,6 +1052,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		this._attachConnection(params.clientId, client);
 		try {
 			this._initializeClientExtensions(client);
+			this._registerClientCertificates(client, params);
 			this._registerClientFileSystemAuthority(params.clientId, initializationDisposables);
 
 			const snapshots: IStateSnapshot[] = [];
@@ -1337,6 +1342,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		this._attachConnection(params.clientId, client);
 		try {
 			this._initializeClientExtensions(client);
+			this._registerClientCertificates(client, params);
 			// Re-establish the reverse-RPC filesystem authority for this client.
 			// The prior transport's `onClose` disposed the previous registration,
 			// so without this step any subsequent `resourceRead` / `resourceWrite`
@@ -1382,6 +1388,17 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			this._rollbackFailedInitialization(client, existingRecord);
 			throw error;
 		}
+	}
+
+	private _registerClientCertificates(client: IConnectedClient, params: InitializeParams | ReconnectParams): void {
+		if (this._config.relayRoots || this._config.relayRootMeta || client.transport.relayClientId !== undefined || client.transport.relayPassive) {
+			return;
+		}
+		const id = this._managedSettingsContributionId(client.clientId);
+		client.initializationDisposables.add(this._proxyResolver.registerCertificateProvider(id, supportsAgentHostClientCertificates(params) ? async () => {
+			const response = await this._sendReverseRequestToConnection<unknown>(client, LoadClientCertificatesExtensionMethod, {}, 30_000);
+			return loadClientCertificatesResultValidator.validateOrThrow(response).certificates;
+		} : undefined));
 	}
 
 	/**
@@ -1997,6 +2014,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				&& record.lastSeenAt < cutoff) {
 				record.disconnectTimeouts.dispose();
 				this._clients.delete(clientId);
+				this._proxyResolver.setClientCertificates(this._managedSettingsContributionId(clientId), []);
 				this._baselineDebt.delete(clientId);
 			}
 		}
@@ -3585,7 +3603,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (validated.error) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message);
 		}
-		const { uri, requestId } = validated.content;
+		const { uri, requestId, session } = validated.content;
 		let root: URI;
 		try {
 			root = URI.parse(uri, true);
@@ -3609,7 +3627,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const cancelOnDisconnect = client.disposables.add(toDisposable(() => cancellation.cancel()));
 		try {
 			const sizeBytes = await raceCancellationError(
-				this._agentService.measureWorktreeDiskUsage(root, cancellation.token),
+				this._agentService.measureWorktreeDiskUsage(root, cancellation.token, session ? URI.parse(session) : undefined),
 				cancellation.token,
 			);
 			return { sizeBytes };
@@ -4437,6 +4455,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	override dispose(): void {
 		for (const [clientId, record] of this._clients) {
 			this._managedSettingsService.removeClient(this._managedSettingsContributionId(clientId));
+			this._proxyResolver.setClientCertificates(this._managedSettingsContributionId(clientId), []);
 			if (record.state === 'active') {
 				for (const connection of [...record.connections]) {
 					const subscriptionCount = connection.subscriptions.size;

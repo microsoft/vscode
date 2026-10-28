@@ -1407,38 +1407,91 @@ suite('ChangesetSessionCoordinator', () => {
 		].sort());
 	});
 
-	test('archiving a chat releases its branch summary and unarchiving it subscribes again', async () => {
-		const session = AgentSession.uri('mock', 'summary-archive-toggle').toString();
+	for (const sideChat of [false, true]) {
+		test(`archiving a ${sideChat ? 'side' : 'peer'} chat releases its branch summary and unarchiving it subscribes again`, async () => {
+			const session = AgentSession.uri('mock', 'summary-archive-toggle').toString();
+			const defaultChat = buildDefaultChatUri(session);
+			const peer = buildChatUri(session, 'peer');
+			const defaultRoot = URI.file('/projects/default');
+			const peerRoot = URI.file('/projects/peer');
+			const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+				[defaultRoot.toString(), defaultRoot],
+				[peerRoot.toString(), peerRoot],
+			])));
+			createSession(environment.stateManager, session, defaultRoot.toString());
+			environment.stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, defaultChat), {
+				workingDirectories: [peerRoot.toString()],
+				origin: sideChat ? { kind: ChatOriginKind.SideChat, chat: defaultChat, turnId: 'turn' } : undefined,
+			});
+			environment.stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+			environment.coordinator.onFirstSubscriber(URI.parse(session));
+			await environment.monitor.waitForAcquisitions(2);
+			const peerOwner = buildBranchChangesetOwner(session, [peerRoot.toString()]);
+
+			environment.stateManager.dispatchServerAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+			await environment.monitor.waitForDisposals(1);
+			const archived = { removedOwners: [...environment.changesets.removedOwners], disposals: [...environment.monitor.disposals] };
+			environment.changesets.clearRefreshes();
+			environment.stateManager.dispatchServerAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: false });
+			await environment.monitor.waitForAcquisitions(3);
+
+			assert.deepStrictEqual({
+				archived,
+				restoredRefreshes: [...new Set(environment.changesets.branchRefreshes)],
+				acquisitions: environment.monitor.acquisitions.filter(root => root === peerRoot.toString()),
+			}, {
+				archived: { removedOwners: [peerOwner], disposals: [peerRoot.toString()] },
+				restoredRefreshes: [buildBranchChangesetOwner(session, [defaultRoot.toString()]), peerOwner],
+				acquisitions: [peerRoot.toString(), peerRoot.toString()],
+			});
+		});
+	}
+
+	test('detaching an archived summary-only side chat folder does not recreate its branch watcher', async () => {
+		const session = AgentSession.uri('mock', 'summary-only-archive').toString();
 		const defaultChat = buildDefaultChatUri(session);
-		const peer = buildChatUri(session, 'peer');
+		const side = buildChatUri(session, 'side');
 		const defaultRoot = URI.file('/projects/default');
-		const peerRoot = URI.file('/projects/peer');
+		const sideRoot = URI.file('/projects/side');
 		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
 			[defaultRoot.toString(), defaultRoot],
-			[peerRoot.toString(), peerRoot],
+			[sideRoot.toString(), sideRoot],
 		])));
 		createSession(environment.stateManager, session, defaultRoot.toString());
-		environment.stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, defaultChat), { workingDirectories: [peerRoot.toString()] });
+		environment.stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatWorkingDirectorySet, directory: defaultRoot.toString() });
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: sideRoot.toString() });
+		environment.stateManager.registerRestoredChatSummary(session, side, {
+			storageResource: creationTimeChatStorageResource(session, side, defaultChat),
+			workingDirectories: [sideRoot.toString()],
+			origin: { kind: ChatOriginKind.SideChat, chat: defaultChat, turnId: 'turn' },
+		});
 		environment.stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
 		environment.coordinator.onFirstSubscriber(URI.parse(session));
 		await environment.monitor.waitForAcquisitions(2);
-		const peerOwner = buildBranchChangesetOwner(session, [peerRoot.toString()]);
+		const sideOwner = buildBranchChangesetOwner(session, [sideRoot.toString()]);
 
-		environment.stateManager.dispatchServerAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+		environment.stateManager.dispatchServerAction(side, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
 		await environment.monitor.waitForDisposals(1);
-		const archived = { removedOwners: [...environment.changesets.removedOwners], disposals: [...environment.monitor.disposals] };
 		environment.changesets.clearRefreshes();
-		environment.stateManager.dispatchServerAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: false });
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectoryRemoved, directory: sideRoot.toString() });
+		await tick();
+		const afterDetach = {
+			refreshed: [...new Set(environment.changesets.branchRefreshes)],
+			acquisitions: [...environment.monitor.acquisitions],
+			disposals: [...environment.monitor.disposals],
+			sideHydrated: environment.stateManager.getChatState(side) !== undefined,
+		};
+		environment.stateManager.dispatchServerAction(side, { type: ActionType.ChatIsArchivedChanged, isArchived: false });
 		await environment.monitor.waitForAcquisitions(3);
 
-		assert.deepStrictEqual({
-			archived,
-			restoredRefreshes: [...new Set(environment.changesets.branchRefreshes)],
-			acquisitions: environment.monitor.acquisitions.filter(root => root === peerRoot.toString()),
-		}, {
-			archived: { removedOwners: [peerOwner], disposals: [peerRoot.toString()] },
-			restoredRefreshes: [buildBranchChangesetOwner(session, [defaultRoot.toString()]), peerOwner],
-			acquisitions: [peerRoot.toString(), peerRoot.toString()],
+		assert.deepStrictEqual({ afterDetach, removedOwners: environment.changesets.removedOwners }, {
+			afterDetach: {
+				refreshed: [buildBranchChangesetOwner(session, [defaultRoot.toString()])],
+				acquisitions: [defaultRoot.toString(), sideRoot.toString()],
+				disposals: [sideRoot.toString()],
+				sideHydrated: false,
+			},
+			removedOwners: [sideOwner],
 		});
 	});
 

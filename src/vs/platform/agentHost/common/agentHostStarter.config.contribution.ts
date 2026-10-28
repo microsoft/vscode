@@ -228,6 +228,18 @@ configurationRegistry.registerConfiguration({
 			tags: ['preview'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostCanvasesEnabledConfigKey },
+			policy: {
+				name: 'ChatCanvases',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.144',
+				value: policyData => policyData.chat_preview_features_enabled === false ? false : undefined,
+				localization: {
+					description: {
+						key: 'chat.canvases.enabled.policy',
+						value: nls.localize('chat.canvases.enabled.policy', "Controls whether Copilot sessions can use Canvases to present interactive content."),
+					},
+				},
+			},
 		},
 		[AgentHostAutoAttachPullRequestsSettingId]: {
 			type: 'boolean',
@@ -313,7 +325,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostMcpToolRoutingEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.experimental.mcpToolRouting', "When enabled and tool search is available, agent-host sessions use cached MCP tool metadata to route requests and only prompt for MCP authentication when a server is relevant. Routing tools wait for the selected server's tools to become available. Servers without routing tools retain proactive sign-in hints. Newly created sessions pick up changes to this setting."),
+			description: nls.localize('chat.agentHost.experimental.mcpToolRouting', "When enabled and tool search is available, agent-host sessions offer routing tools for configured MCP servers and Connectors, using server names and cached MCP tool metadata to discover relevant servers. Selecting a routing tool can request authentication and waits for the server's current tools. Connector-owned servers do not show proactive sign-in hints when this setting is enabled. Other servers without routing tools retain proactive sign-in hints. Newly created sessions pick up changes to this setting."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },

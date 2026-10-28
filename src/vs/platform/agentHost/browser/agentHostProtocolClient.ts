@@ -30,11 +30,12 @@ import { AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS, serializeCreateSessionImp
 import { vArray, vEnum, vObj, vOptionalProp, vString, vUndefined, vUnknown } from '../../../base/common/validation.js';
 import { AgentHostChannelScheduler, readChannelFlowControl } from '../common/agentHostChannelDelivery.js';
 import { AgentHostTcpBudget, AgentHostTcpConnection, agentHostTcpReceiveLimits, type IAgentHostTcpConnection } from '../common/agentHostTcpConnection.js';
+import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificatesProvider } from '../common/clientCertificatesProtocol.js';
+import { AgentHostClientCertificatesCapabilityMetaKey } from '../common/meta/agentHostClientCertificatesMeta.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
-import { IDefaultAccountService } from '../../defaultAccount/common/defaultAccount.js';
 import { AgentPolicyError, type AgentExtensionMode, type AgentExtensionSource, type AgentExtensionStatus, IAgentCreateChatRequestOptions, IAgentCreateChatWorkspace, IAgentCreateSessionConfig, type IAgentExtensionInventory, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { isPolicyResolutionErrorData } from '../common/meta/errorMeta.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IMissionControlCredentialSealingRequest } from '../common/agentService.js';
@@ -264,6 +265,8 @@ export interface IAgentHostProtocolClientOptions {
 	readonly resolveInitialAuthentication?: () => Promise<AuthenticateParams | undefined>;
 	/** Resolves existing credentials for advertised resources before protected requests are released. */
 	readonly resolveAdvertisedAuthentication?: (agents: readonly AgentInfo[]) => Promise<readonly AuthenticateParams[]>;
+	/** Serves client trust roots on demand only for remotes sharing the client's network. */
+	readonly clientCertificates?: IAgentHostClientCertificatesProvider;
 	/** Releases resources owned by the logical protocol client after its final disposal. */
 	readonly onDispose?: () => void;
 }
@@ -524,6 +527,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _connectionOperation: 'connect' | 'recover' = 'connect';
 	private readonly _resolveInitialAuthentication: (() => Promise<AuthenticateParams | undefined>) | undefined;
 	private readonly _resolveAdvertisedAuthentication: IAgentHostProtocolClientOptions['resolveAdvertisedAuthentication'];
+	private readonly _clientCertificates: IAgentHostProtocolClientOptions['clientCertificates'];
 	private readonly _onDispose: (() => void) | undefined;
 	private _didDispose = false;
 
@@ -578,7 +582,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		@IWorkspaceTrustEnablementService private readonly _workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 		this._resourceIdentity = identity;
@@ -600,6 +603,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._resolveInitialAuthentication = options?.resolveInitialAuthentication;
 		this._trustedAuthenticationTokenSealer = options?.sealAuthenticationToken;
 		this._resolveAdvertisedAuthentication = options?.resolveAdvertisedAuthentication;
+		this._clientCertificates = options?.clientCertificates;
 		this._onDispose = options?.onDispose;
 
 		if (typeof transportOrFactory === 'function') {
@@ -621,12 +625,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		// Forward action envelopes from the transport to the subscription manager
 		this._register(this.onDidAction(envelope => {
 			this._subscriptionManager.receiveEnvelope(envelope);
-		}));
-
-		this._register(this._defaultAccountService.onDidChangePolicyData(() => {
-			if (this._state.kind === AgentHostClientState.Connected) {
-				this._updateDynamicAutoTiers();
-			}
 		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
@@ -869,7 +867,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}, { bypassInitializeQueue: true }));
 			this._logService.info(`[RemoteAgentHostProtocol] Initialized: address=${this._address} clientId=${this._clientId} durationMs=${watch.elapsed()}`);
 			this._applyInitializeResult(result);
-			// Keep the snapshot even if authentication must finish on a later replay reconnect.
+			// Keep the snapshot even if connection setup must finish on a later replay reconnect.
 			this._hydrateInitializedRootState(result);
 			if (this._resolveInitialAuthentication || this._resolveAdvertisedAuthentication || this._authentication.size > 0) {
 				stage = 'authentication';
@@ -1478,6 +1476,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		const telemetryLevel = this._effectiveTelemetryLevel();
 		const sendIdentity = telemetryLevel >= TelemetryLevel.USAGE;
 		return {
+			...(this._clientCertificates?.isEnabled() ? { [AgentHostClientCertificatesCapabilityMetaKey]: true } : {}),
 			...toAgentHostClientMeta(
 				this._transport.clientConnectionKind,
 				telemetryLevel,
@@ -1539,10 +1538,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 	}
 
-	/** Gated on preview features: server-driven tiers can offer HydraFusion, a preview feature. */
 	private _updateDynamicAutoTiers(): void {
-		const enabled = this._defaultAccountService.policyData?.chat_preview_features_enabled !== false
-			&& getGlobalConfigurationValue<boolean>(this._configurationService, AgentHostDynamicAutoTiersEnabledSettingId) === true;
+		const enabled = getGlobalConfigurationValue<boolean>(this._configurationService, AgentHostDynamicAutoTiersEnabledSettingId) === true;
 		this._dispatchRootConfig({ [CopilotCliConfigKey.DynamicAutoTiers]: enabled });
 	}
 
@@ -1968,7 +1965,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return result.stopped;
 	}
 
-	async measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined> {
+	async measureWorktreeDiskUsage(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -1977,7 +1974,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			return undefined;
 		}
 		const requestId = generateUuid();
-		const measurement = this._sendExtensionRequest(MeasureWorktreeDiskUsageExtensionMethod, { uri: fromAgentHostUri(root).toString(), requestId });
+		const measurement = this._sendExtensionRequest(MeasureWorktreeDiskUsageExtensionMethod, { uri: fromAgentHostUri(root).toString(), requestId, ...(session ? { session: session.toString() } : {}) });
 		const cancellation = token.onCancellationRequested(() => {
 			void this._sendExtensionRequest(CancelWorktreeDiskUsageExtensionMethod, { requestId })
 				.catch(error => this._logService.warn('[WorktreeDiskUsage] Failed to cancel measurement', error));
@@ -3040,6 +3037,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		void (async () => {
 			try {
 				switch (method) {
+					case LoadClientCertificatesExtensionMethod: {
+						const certificates = this._clientCertificates?.isEnabled() ? await this._clientCertificates.loadCertificates() : [];
+						sendResult({ certificates: [...certificates] } satisfies IAgentHostExtensionServerCommandMap[typeof LoadClientCertificatesExtensionMethod]['result']);
+						return;
+					}
 					case ClientArtifactIntegrationExtensionMethod: {
 						const server = this._servedArtifactIntegrations;
 						if (!server || !isArtifactIntegrationRequest(params)) {

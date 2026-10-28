@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageSystemInitiatedLabel, withMessageHiddenFromTranscript, readAgentMessageRoundTripMetadata } from '../../../../../../platform/agentHost/common/meta/agentMessageMeta.js';
+import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageReplacedTurn, readMessageSystemInitiatedLabel, withMessageHiddenFromTranscript, readAgentMessageRoundTripMetadata } from '../../../../../../platform/agentHost/common/meta/agentMessageMeta.js';
 import { withoutAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { readUsageInfoMeta, readAgentContextUsage, readChatUsage } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
@@ -41,7 +41,7 @@ import { isLocation, type Location } from '../../../../../../editor/common/langu
 import type { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAllowSignedOutWhenUsableSettingId, AgentHostMcpToolRoutingEnabledSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCanvasCollection, getAgentHostCanvasDefinitionsChangedEvent } from '../../../../canvases/common/agentHostCanvas.js';
 import { ICanvasContext, ICanvasOwner, isCanvasOwner } from '../../../../canvases/common/canvas.js';
 import { CanvasReference } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
@@ -54,7 +54,7 @@ import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationI
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readToolCallMeta, readAgentToolOutputDelta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
-import { readMcpRoutingServers } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import { readMcpRoutingServers, readMcpServerConnectorName } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { filterSessionConfigValues } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { readAttachmentDetail, withAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
 import { AgentPermissionDecisionSource, readAgentPermissionResponseMeta, toAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
@@ -354,7 +354,11 @@ interface IOutputTerminalAttachment {
 	readonly disposable: MutableDisposable<IDisposable>;
 }
 
-function getMcpAuthenticationRequiredServers(sessionResource: URI, backendSession: URI, state: ISessionWithDefaultChat | undefined): IChatMcpAuthenticationRequiredServer[] {
+interface IAgentHostMcpAuthenticationRequiredServer extends IChatMcpAuthenticationRequiredServer {
+	readonly connectorName?: string;
+}
+
+function getMcpAuthenticationRequiredServers(sessionResource: URI, backendSession: URI, state: ISessionWithDefaultChat | undefined): IAgentHostMcpAuthenticationRequiredServer[] {
 	const servers = state?.customizations?.flatMap(c => c.type === CustomizationType.McpServer
 		? [c]
 		: c.children?.filter(c => c.type === CustomizationType.McpServer) ?? []) ?? [];
@@ -366,12 +370,13 @@ function getMcpAuthenticationRequiredServers(sessionResource: URI, backendSessio
 		.filter(id => id !== undefined));
 	return servers
 		.filter(server => isCustomizationEnabled(server) && server.state.kind === McpServerStatus.AuthRequired && !toolAuthServerIds.has(server.id))
-		.map((server): IChatMcpAuthenticationRequiredServer => {
+		.map((server): IAgentHostMcpAuthenticationRequiredServer => {
 			const state = server.state as McpServerAuthRequiredState;
 			return {
 				id: sessionResource.authority + '/' + server.id,
 				target: { kind: AuthenticateTargetKind.McpServer, session: backendSession.toString(), customizationId: server.id },
 				name: server.name,
+				connectorName: readMcpServerConnectorName(server),
 				resource: state.resource.resource,
 				oauthClient: state.oauthClient,
 				authorizationServers: state.resource.authorization_servers,
@@ -395,6 +400,7 @@ interface IStartServerRequestOptions {
 	readonly timestamp?: number;
 	readonly isTerminalRequest?: boolean;
 	readonly resume?: boolean;
+	readonly replacesRequestId?: string;
 	readonly origin?: IChatSessionServerRequest['origin'];
 }
 
@@ -988,6 +994,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			timestamp: options?.timestamp,
 			isTerminalRequest: options?.isTerminalRequest,
 			resume: options?.resume,
+			...(options?.replacesRequestId ? { replacesRequestId: options.replacesRequestId } : {}),
 			origin: options?.origin,
 		});
 	}
@@ -2967,6 +2974,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			previousQueuedIds = currentQueuedIds;
 			previousTurnIds = currentTurnIds;
 
+			// The host updates a notice by removing its turn and starting a replacement.
+			const replacedTurnId = readMessageReplacedTurn(activeTurn.message);
+
 			// Signal the session to create a new request+response pair
 			chatSession.startServerRequest(
 				activeTurn.id,
@@ -2985,6 +2995,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					timestamp: parseTimestamp(activeTurn.startedAt),
 					isTerminalRequest: isTerminalCommandPrompt(activeTurn.message.text, this._config.connection.initializeResult.get()?.terminalCommandPrefix),
 					resume: resumedTurn,
+					replacesRequestId: replacedTurnId !== undefined && !currentTurnIds.has(replacedTurnId) ? replacedTurnId : undefined,
 					origin: messageToRequestOrigin(backendSession, activeTurn.message, this._config.agentId, this._config.connectionAuthority),
 				},
 			);
@@ -3484,15 +3495,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			cancellationToken: cts.token,
 			suppressErrorMarkdown: true,
 			onTurnEnded: lastTurn => {
+				const details = lastTurn
+					? turnToResponseDetails(lastTurn, this._createTurnModelLookup(chatSession.sessionResource, lastTurn.message.model?.id))
+					: undefined;
 				const errorDetails = this._getTurnErrorDetails(lastTurn, !this._isChatReadOnly(backendSession.toString(), chatURI));
 				const metadata = turnToResultMetadata(lastTurn);
-				if (errorDetails || metadata) {
+				if (details || errorDetails || metadata) {
 					const response = this._chatService.getSession(chatSession.sessionResource)
 						?.getRequests()
 						.find(request => request.id === turnId)
 						?.response;
 					response?.setResult({
 						...response.result,
+						...(details ? { details } : {}),
 						...(errorDetails ? { errorDetails } : {}),
 						...(metadata ? { metadata: { ...response.result?.metadata, ...metadata } } : {}),
 					});
@@ -4410,7 +4425,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _setupMcpAuthPrompt(
-		mcpAuthRequired$: IObservable<readonly IChatMcpAuthenticationRequiredServer[]>,
+		mcpAuthRequired$: IObservable<readonly IAgentHostMcpAuthenticationRequiredServer[]>,
 		mcpRoutingServers$: IObservable<readonly string[]>,
 		store: DisposableStore,
 		opts: IObserveTurnOptions,
@@ -4422,16 +4437,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store.add(autorun(reader => {
 			const pendingAuth = mcpAuthRequired$.read(reader);
 			const routingServers = mcpRoutingServers$.read(reader);
+			const routingEnabled = this._configurationService.getValue<boolean>(AgentHostMcpToolRoutingEnabledSettingId) === true;
+			const deferredServers = new Set(pendingAuth
+				.filter(server => routingServers.includes(server.name) || (routingEnabled && server.connectorName !== undefined))
+				.map(server => server.id));
 			const surfaced = this._getSurfacedMcpAuthServers(opts.sessionResource);
 			for (const server of pendingAuth) {
-				if (routingServers.includes(server.name)) {
+				if (deferredServers.has(server.id)) {
 					surfaced.delete(server.id);
 					ownedIds.delete(server.id);
 					this._mcpAuthNotifications.get(opts.sessionResource)?.deleteAndDispose(server.id);
 				}
 			}
 			const currentRunId = ++runId;
-			this._filterAutoGrantedMcpAuthentication(opts.sessionResource, pendingAuth.filter(server => !routingServers.includes(server.name))).then(servers => {
+			this._filterAutoGrantedMcpAuthentication(opts.sessionResource, pendingAuth.filter(server => !deferredServers.has(server.id))).then(servers => {
 				if (currentRunId !== runId || store.isDisposed) {
 					return;
 				}
@@ -6516,7 +6535,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Start the editing session if not already started — this will use
 		// our registered provider to create an AgentHostSnapshotController.
 		if (!chatModel.editingSession) {
-			chatModel.startEditingSession();
+			chatModel.startEditingSession(chatModel.initialLocation === ChatAgentLocation.Chat);
 		}
 
 		const editingSession = chatModel.editingSession;

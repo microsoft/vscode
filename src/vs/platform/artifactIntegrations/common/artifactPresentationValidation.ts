@@ -16,7 +16,20 @@ function strings(value: Record<string, unknown>, ...keys: string[]): boolean {
 export function isArtifactAvailability(value: unknown): value is ArtifactAvailability {
 	return isRecord(value) && (value.kind === 'loading' || value.kind === 'available'
 		|| (['stale', 'authenticationRequired', 'unavailable', 'error'].includes(String(value.kind)) && typeof value.reason === 'string'))
-		&& (value.observedAt === undefined || (typeof value.observedAt === 'number' && Number.isFinite(value.observedAt)));
+		&& (value.observedAt === undefined || (typeof value.observedAt === 'number' && Number.isFinite(value.observedAt)))
+		&& (value.authorizationUrl === undefined || (value.kind === 'authenticationRequired' && isSecureUrl(value.authorizationUrl)));
+}
+
+function isSecureUrl(value: unknown): boolean {
+	if (typeof value !== 'string') {
+		return false;
+	}
+	try {
+		const url = new URL(value);
+		return url.protocol === 'https:' && !url.username && !url.password;
+	} catch {
+		return false;
+	}
 }
 
 export function isArtifactIcon(value: unknown): value is ArtifactIcon {
@@ -36,6 +49,7 @@ export function isArtifactActionAvailability(value: unknown): boolean {
 export function isArtifactContributionView(value: unknown): value is ArtifactContributionView {
 	return isRecord(value) && isArtifactAvailability(value.availability)
 		&& (value.main === undefined || isPart(value.main))
+		&& (value.group === undefined || (isRecord(value.group) && isArtifactIcon(value.group.icon) && typeof value.group.priority === 'number' && Number.isFinite(value.group.priority)))
 		&& Array.isArray(value.sections) && value.sections.every(section => isRecord(section) && strings(section, 'id') && isPart(section))
 		&& new Set(value.sections.map(section => section.id)).size === value.sections.length
 		&& (value.lists === undefined || (Array.isArray(value.lists)

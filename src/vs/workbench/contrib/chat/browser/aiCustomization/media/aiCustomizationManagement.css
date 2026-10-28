@@ -183,6 +183,17 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
+.ai-customization-management-editor .section-list-item.section-separator-before::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: var(--vscode-spacing-size80);
+	right: var(--vscode-spacing-size80);
+	height: var(--vscode-strokeThickness);
+	background-color: var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+	pointer-events: none;
+}
+
 .ai-customization-management-editor .monaco-list .monaco-list-row.section-list-item.selected .section-count {
 	color: inherit;
 }

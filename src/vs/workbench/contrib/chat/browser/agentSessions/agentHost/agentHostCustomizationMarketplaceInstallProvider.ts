@@ -36,12 +36,14 @@ type AppliedPluginIdentity = Extract<IAgentCustomizationInstallationApplyResult,
 
 export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable implements ICustomizationMarketplaceInstallProvider, ICustomizationMarketplaceSearchProvider, ICustomizationMarketplaceManagementProvider, ICustomizationMcpConfigurationProvider, ICustomizationPluginInstallProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
+	private readonly _onDidChangeMarketplaces = this._register(new Emitter<void>());
 	private readonly receiptInstallations = new ResourceMap<readonly IRecordedCustomizationMarketplaceResource[]>();
 	private readonly unavailableCatalogItems = new Map<string, string>();
 	private readonly catalogAssociations = new Map<string, ICustomizationMarketplaceResource>();
 	private readonly pendingCatalogAssociations: { readonly identity: AppliedPluginIdentity; readonly resource: ICustomizationMarketplaceResource }[] = [];
 	private readonly catalogAuthenticationRequired = new Set<string>();
 	readonly onDidChange: Event<void>;
+	readonly onDidChangeMarketplaces: Event<void>;
 
 	constructor(
 		private readonly providerId: string,
@@ -61,6 +63,16 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			Event.map(this.agentHostService.onAgentHostExit, () => undefined),
 			Event.fromObservableLight(this.agentPluginService.plugins),
 		);
+		this.onDidChangeMarketplaces = Event.any(
+			this._onDidChangeMarketplaces.event,
+			this.agentHostService.onAgentHostStart,
+			Event.map(this.agentHostService.onAgentHostExit, () => undefined),
+		);
+	}
+
+	private fireMarketplacesChanged(): void {
+		this._onDidChangeMarketplaces.fire();
+		this._onDidChange.fire();
 	}
 
 	getInstallUnavailableMessage(resource: ICustomizationMarketplaceResource): string | undefined {
@@ -114,7 +126,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			throw new Error(localize('agentHost.marketplaceManagement.addUnavailable', "The selected agent does not support adding marketplaces."));
 		}
 		const result = await this.agentHostService.addPluginMarketplace(this.providerId, this.getBackendSession(sessionResource), source, this.agentHostCustomizationService.getBackendChatResource?.(sessionResource));
-		this._onDidChange.fire();
+		this.fireMarketplacesChanged();
 		return result;
 	}
 
@@ -164,7 +176,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		}
 		const result = await this.agentHostService.removePluginMarketplace(this.providerId, this.getBackendSession(sessionResource), name, force, this.agentHostCustomizationService.getBackendChatResource?.(sessionResource));
 		if (result.removed) {
-			this._onDidChange.fire();
+			this.fireMarketplacesChanged();
 		}
 		return result;
 	}
@@ -174,7 +186,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			throw new Error(localize('agentHost.marketplaceManagement.refreshUnavailable', "The selected agent does not support refreshing marketplaces."));
 		}
 		const result = await this.agentHostService.refreshPluginMarketplaces(this.providerId, this.getBackendSession(sessionResource), name, this.agentHostCustomizationService.getBackendChatResource?.(sessionResource));
-		this._onDidChange.fire();
+		this.fireMarketplacesChanged();
 		return result;
 	}
 
@@ -267,9 +279,11 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 					description: item.description ?? '',
 					mediaType: getCatalogMediaType(item.kind),
 					tags: item.categories ?? [],
+					...(item.compatibilityTags?.length ? { compatibilityTags: item.compatibilityTags } : {}),
 					capabilities: [],
 					representativeQueries: [],
 					connectorIds: item.connectorIds,
+					...(item.installCount !== undefined ? { installCount: item.installCount } : {}),
 					version: item.version,
 					repository: item.repository ? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${item.repository}` }) : undefined,
 					publisher: item.publisher,

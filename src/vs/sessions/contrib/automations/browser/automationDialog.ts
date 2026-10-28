@@ -1127,6 +1127,10 @@ export function renderForm(
 		}
 	}));
 	DOM.append(cloudRow, cloudSwitch.domNode);
+	if (!isEdit) {
+		DOM.append(cloudRow, $('span.automation-cloud-preview', { id: 'automation-cloud-preview' }, localize('automation.form.cloudPreview', "Preview")));
+		cloudSwitch.domNode.setAttribute('aria-describedby', 'automation-cloud-preview');
+	}
 	const loadingHoverLifecycleOptions = { groupId: generateUuid() };
 	const cloudLoading = DOM.append(cloudRow, $('.automation-loading-spinner', {
 		role: 'status',
@@ -1294,14 +1298,6 @@ export function renderForm(
 			updateIntervalOptions(runInCloud.get());
 			revalidate();
 		}, () => cloudConfiguration.get()?.loadTriggers?.()));
-	disposables.add(autorun(reader => {
-		const configuration = cloudConfiguration.read(reader);
-		const catalog = configuration?.triggers?.read(reader);
-		if (catalog?.kind === 'loading') {
-			configuration?.loadTriggers?.();
-		}
-		triggerEditor.update(catalog, configuration !== undefined && configuration.triggers !== undefined);
-	}));
 	// Shown whenever cloud automations are enabled, decided once so the switch never appears or disappears
 	// while the dialog is open. Turning it on connects to the provider when it cannot create yet.
 	const showCloudSwitch = isEdit ? initialProviderConfiguration !== undefined : cloudProvider.get() !== undefined;
@@ -1316,6 +1312,15 @@ export function renderForm(
 	// A cloud draft (for example a duplicated cloud automation) has no local target to restore.
 	let localTarget = initialProviderConfiguration ? { ...state, folderUri: undefined, providerId: undefined, sessionTypeId: undefined } : { ...state };
 	const isolationModel = new AutomationIsolationModel(state);
+	disposables.add(autorun(reader => {
+		const configuration = cloudConfiguration.read(reader);
+		const catalog = configuration?.triggers?.read(reader);
+		const target = configuration?.getWorkspaceTarget(isolationModel.folderUriObs.read(reader)).read(reader);
+		if (catalog?.kind === 'loading') {
+			configuration?.loadTriggers?.();
+		}
+		triggerEditor.update(catalog, configuration !== undefined && configuration.triggers !== undefined, target?.allowReadAccessTriggers);
+	}));
 	const workspaceControlsVisible = derived(reader => !runInCloud.read(reader) && !isolationModel.isQuickChatObs.read(reader) && isolationModel.folderUriObs.read(reader)?.scheme !== GITHUB_REMOTE_FILE_SCHEME && isolationModel.folderUriObs.read(reader) !== undefined);
 	const sessionTypesChanged = observableSignalFromEvent(form, sessionsManagementService.onDidChangeSessionTypes);
 	const sessionTypes = derived(reader => {

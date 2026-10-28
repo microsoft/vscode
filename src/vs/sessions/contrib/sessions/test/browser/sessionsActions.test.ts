@@ -52,7 +52,7 @@ import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } 
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
 import { Action } from '../../../../../base/common/actions.js';
-import { NewSessionActionViewItem, type NewSessionButtonStyle, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
+import { NewSessionActionViewItem, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
 import '../../../chat/browser/chat.contribution.js';
 import { NEW_SESSION_ACTION_ID, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { ArchiveChatAction, ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
@@ -113,8 +113,8 @@ suite('Sessions - Actions', () => {
 			},
 			contextMenu: {
 				title: 'New Nested Session',
-				group: '1_newChat',
-				order: 0,
+				group: 'navigation',
+				order: 2,
 				when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection',
 			},
 		});
@@ -176,10 +176,10 @@ suite('Sessions - Actions', () => {
 					{ id: 'sessionsViewPane.unpinSession', group: 'navigation', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived && !sessionsListPromoteNewChatAction' },
 				],
 				contextMenu: [
-					{ id: 'sessions.chatCompositeBar.addChat', group: '1_newChat', order: 0, when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection' },
-					{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_edit', order: 2, when: '!sessionIsArchived' },
-					{ id: 'sessionsViewPane.pinSession', group: '0_pin', order: 0, when: '!sessionIsArchived && !sessionItem.isPinned' },
-					{ id: 'sessionsViewPane.unpinSession', group: '0_pin', order: 0, when: 'sessionItem.isPinned && !sessionIsArchived' },
+					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 2, when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection' },
+					{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_state', order: 3, when: '!sessionIsArchived' },
+					{ id: 'sessionsViewPane.pinSession', group: '2_organize', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned' },
+					{ id: 'sessionsViewPane.unpinSession', group: '2_organize', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived' },
 				],
 			});
 		} finally {
@@ -286,35 +286,119 @@ suite('Sessions - Actions', () => {
 		});
 	});
 
-	test('groups related session list context menu actions', () => {
+	test('orders nested chat context menu actions by open, state, organize, and manage groups', () => {
+		disposables.add(registerAction2(ArchiveChatAction));
 		const actionIds = new Set([
-			'sessionsViewPane.pinSession',
-			'sessionsViewPane.unpinSession',
+			'sessions.list.openParentSession',
+			'sessions.list.openChatToSide',
+			MARK_SESSION_READ_COMMAND_ID,
+			ARCHIVE_CHAT_COMMAND_ID,
+			'sessionsViewPane.moveChatUp',
+			'sessionsViewPane.moveChatDown',
+			PROMOTE_CHAT_TO_SESSION_ACTION_ID,
+			RENAME_CHAT_COMMAND_ID,
+			'sessions.list.deleteChat',
+		]);
+		const groupRank = (group: string | undefined) => group === 'navigation' ? '' : group ?? '';
+		const actions = MenuRegistry.getMenuItems(Menus.SessionChatItemContext)
+			.filter(isIMenuItem)
+			.filter(item => actionIds.has(item.command.id))
+			.sort((a, b) => groupRank(a.group).localeCompare(groupRank(b.group)) || (a.order ?? 0) - (b.order ?? 0))
+			.map(item => ({ id: item.command.id, group: item.group, order: item.order }));
+
+		assert.deepStrictEqual(actions, [
+			{ id: 'sessions.list.openParentSession', group: 'navigation', order: 1 },
+			{ id: 'sessions.list.openChatToSide', group: 'navigation', order: 2 },
+			{ id: MARK_SESSION_READ_COMMAND_ID, group: '1_state', order: 1 },
+			{ id: ARCHIVE_CHAT_COMMAND_ID, group: '1_state', order: 2 },
+			{ id: 'sessionsViewPane.moveChatUp', group: '2_organize', order: 1 },
+			{ id: 'sessionsViewPane.moveChatDown', group: '2_organize', order: 2 },
+			{ id: PROMOTE_CHAT_TO_SESSION_ACTION_ID, group: '2_organize', order: 3 },
+			{ id: RENAME_CHAT_COMMAND_ID, group: '4_manage', order: 1 },
+			{ id: 'sessions.list.deleteChat', group: '4_manage', order: 2 },
+		]);
+	});
+
+	test('orders session list context menu actions by open, triage, organize, and manage groups', () => {
+		const actionIds = new Set([
+			'sessions.chatCompositeBar.addChat',
+			'sessionsViewPane.importSession',
 			'sessionsViewPane.openToTheSide',
 			MARK_SESSION_READ_COMMAND_ID,
 			MARK_SESSION_UNREAD_COMMAND_ID,
 			'sessionsViewPane.markAllNestedRead',
-			'sessionsViewPane.markAllRead',
+			'sessionsViewPane.pinSession',
+			'sessionsViewPane.unpinSession',
+			RENAME_SESSION_COMMAND_ID,
+			'sessionsViewPane.deleteSession',
 		]);
+		const groupRank = (group: string | undefined) => group === 'navigation' ? '' : group ?? '';
 		const actions = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
 			.filter(isIMenuItem)
 			.filter(item => actionIds.has(item.command.id))
+			.sort((a, b) => groupRank(a.group).localeCompare(groupRank(b.group)) || (a.order ?? 0) - (b.order ?? 0) || a.command.id.localeCompare(b.command.id))
 			.map(item => ({
 				id: item.command.id,
 				group: item.group,
 				order: item.order,
-				when: item.when?.serialize(),
 			}));
 
 		assert.deepStrictEqual(actions, [
-			{ id: 'sessionsViewPane.pinSession', group: '0_pin', order: 0, when: '!sessionIsArchived && !sessionItem.isPinned' },
-			{ id: 'sessionsViewPane.unpinSession', group: '0_pin', order: 0, when: 'sessionItem.isPinned && !sessionIsArchived' },
-			{ id: MARK_SESSION_READ_COMMAND_ID, group: '1_edit', order: 1.5, when: '!sessionIsArchived && !sessionIsRead' },
-			{ id: MARK_SESSION_UNREAD_COMMAND_ID, group: '1_edit', order: 1.5, when: 'sessionIsRead && !sessionIsArchived' },
-			{ id: 'sessionsViewPane.markAllNestedRead', group: '1_edit', order: 1.6, when: 'sessionItem.hasUnreadNestedSessions' },
-			{ id: 'sessionsViewPane.openToTheSide', group: '0_pin', order: 1, when: 'isSessionsWindow' },
-			{ id: 'sessionsViewPane.markAllRead', group: '0_read', order: 1, when: 'sessionsViewPane.grouping == \'date\'' },
+			{ id: 'sessionsViewPane.openToTheSide', group: 'navigation', order: 1 },
+			{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 2 },
+			{ id: 'sessionsViewPane.importSession', group: 'navigation', order: 3 },
+			{ id: MARK_SESSION_READ_COMMAND_ID, group: '1_state', order: 1 },
+			{ id: MARK_SESSION_UNREAD_COMMAND_ID, group: '1_state', order: 1 },
+			{ id: 'sessionsViewPane.markAllNestedRead', group: '1_state', order: 2 },
+			{ id: 'sessionsViewPane.pinSession', group: '2_organize', order: 1 },
+			{ id: 'sessionsViewPane.unpinSession', group: '2_organize', order: 1 },
+			{ id: RENAME_SESSION_COMMAND_ID, group: '4_manage', order: 2 },
+			{ id: 'sessionsViewPane.deleteSession', group: '4_manage', order: 3 },
 		]);
+	});
+
+	test('marking a side chat as done archives and closes only that chat', async () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const { session } = createTestSession('side-chat-done');
+		const main = session.mainChat.get();
+		const side: IChat = {
+			...main,
+			resource: session.resource.with({ fragment: 'side' }),
+			origin: { kind: ChatOriginKind.SideChat, parentChat: main.resource, turnId: 'turn-1' },
+			isArchived: constObservable(false),
+			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
+		};
+		const peer: IChat = { ...side, resource: session.resource.with({ fragment: 'peer' }), origin: { kind: ChatOriginKind.User } };
+		const activeSession = upcastPartial<IActiveSession>({
+			...session,
+			chats: constObservable([main, peer, side]),
+			openChats: constObservable([main, peer, side]),
+			activeChat: constObservable(side),
+		});
+		const operations: string[] = [];
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override async archiveChat(target: ISession, chat: IChat): Promise<void> {
+				assert.strictEqual(target, activeSession);
+				operations.push(`archive:${chat.resource.toString()}`);
+			}
+		});
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(activeSession);
+			override async closeChat(target: ISession, chat: IChat): Promise<void> {
+				assert.strictEqual(target, activeSession);
+				operations.push(`close:${chat.resource.toString()}`);
+			}
+		});
+
+		await instantiationService.invokeFunction(accessor => new ArchiveChatAction().run(accessor, { session: activeSession, chat: side }));
+
+		assert.deepStrictEqual({
+			operations,
+			sessionArchived: session.isArchived.get(),
+		}, {
+			operations: [`archive:${side.resource.toString()}`, `close:${side.resource.toString()}`],
+			sessionArchived: false,
+		});
 	});
 
 	test('session row read actions target each selected main chat', async () => {
@@ -385,13 +469,13 @@ suite('Sessions - Actions', () => {
 		assert.deepStrictEqual(snapshots, [
 			{
 				read: false, archived: false,
-				contextMenu: [{ id: MARK_SESSION_READ_COMMAND_ID, group: 'secondary/5_read', order: 0 }],
-				overflow: [{ id: MARK_SESSION_READ_COMMAND_ID, group: 'secondary/5_read', order: 0 }],
+				contextMenu: [{ id: MARK_SESSION_READ_COMMAND_ID, group: 'secondary/1_state', order: 10 }],
+				overflow: [{ id: MARK_SESSION_READ_COMMAND_ID, group: 'secondary/1_state', order: 10 }],
 			},
 			{
 				read: true, archived: false,
-				contextMenu: [{ id: MARK_SESSION_UNREAD_COMMAND_ID, group: 'secondary/5_read', order: 0 }],
-				overflow: [{ id: MARK_SESSION_UNREAD_COMMAND_ID, group: 'secondary/5_read', order: 0 }],
+				contextMenu: [{ id: MARK_SESSION_UNREAD_COMMAND_ID, group: 'secondary/1_state', order: 10 }],
+				overflow: [{ id: MARK_SESSION_UNREAD_COMMAND_ID, group: 'secondary/1_state', order: 10 }],
 			},
 			{ read: false, archived: true, contextMenu: [], overflow: [] },
 			{ read: true, archived: true, contextMenu: [], overflow: [] },
@@ -437,9 +521,10 @@ suite('Sessions - Actions', () => {
 			return [...groups.values()];
 		};
 		const expected = [
-			['sessions.sessionHeader.rename', ARCHIVE_SESSION_COMMAND_ID],
-			[TOGGLE_PIN_SESSION_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, 'sessions.chatCompositeBar.toggleMaximize', Menus.SessionGridLayout.id],
-			[MARK_SESSION_UNREAD_COMMAND_ID],
+			[CLOSE_SESSION_COMMAND_ID, 'sessions.chatCompositeBar.toggleMaximize', Menus.SessionGridLayout.id],
+			[MARK_SESSION_UNREAD_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID],
+			[TOGGLE_PIN_SESSION_COMMAND_ID],
+			['sessions.sessionHeader.rename'],
 		];
 
 		assert.deepStrictEqual({
@@ -586,7 +671,7 @@ suite('Sessions - Actions', () => {
 		}]);
 	});
 
-	test('groups session management actions before close', () => {
+	test('groups the session pane actions before the session management actions', () => {
 		const actions = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === 'sessions.chatCompositeBar.togglePin' || item.command.id === 'sessions.sessionHeader.rename' || item.command.id === 'sessions.chatCompositeBar.close')
@@ -596,13 +681,13 @@ suite('Sessions - Actions', () => {
 		assert.deepStrictEqual(actions, [
 			{ id: 'sessions.chatCompositeBar.togglePin', group: 'navigation' },
 			{ id: 'sessions.chatCompositeBar.close', group: 'navigation' },
-			{ id: 'sessions.sessionHeader.rename', group: 'secondary/1_session' },
-			{ id: 'sessions.chatCompositeBar.togglePin', group: 'secondary/4_pin' },
-			{ id: 'sessions.chatCompositeBar.close', group: 'secondary/4_pin' },
+			{ id: 'sessions.chatCompositeBar.close', group: 'secondary/0_pane' },
+			{ id: 'sessions.chatCompositeBar.togglePin', group: 'secondary/2_organize' },
+			{ id: 'sessions.sessionHeader.rename', group: 'secondary/4_manage' },
 		]);
 	});
 
-	test('keeps only the Side Chats submenu in the chat overflow group', () => {
+	test('contributes the Side Chats submenu to the pane group of the session overflow', () => {
 		const chats = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
 			.filter(isISubmenuItem)
 			.find(item => item.submenu === Menus.SessionConversations);
@@ -618,8 +703,8 @@ suite('Sessions - Actions', () => {
 			hasNewNestedSession: !!addChat,
 		}, {
 			chatsTitle: 'Side Chats',
-			chatsGroup: 'secondary/2_chats',
-			chatsOrder: 10,
+			chatsGroup: 'secondary/0_pane',
+			chatsOrder: 40,
 			chatsWhen: 'sessionActiveChatHasSideChats && sessionIsCreated && !sessionIsArchived',
 			hasNewNestedSession: false,
 		});
@@ -662,8 +747,8 @@ suite('Sessions - Actions', () => {
 		}, {
 			submenu: {
 				title: 'Show Chat Tabs',
-				group: 'secondary/3_tabs',
-				order: 10,
+				group: 'secondary/0_pane',
+				order: 50,
 				when: 'sessionIsCreated && sessionSupportsMultipleChats',
 			},
 			items: [{
@@ -712,7 +797,7 @@ suite('Sessions - Actions', () => {
 		}, {
 			id: TOGGLE_PIN_SESSION_COMMAND_ID,
 			title: 'Pin',
-			group: 'secondary/4_pin',
+			group: 'secondary/2_organize',
 			order: 10,
 			when: 'sessionIsCreated && !sessionHeaderShowsChat && !sessionIsArchived',
 			toggled: 'sessionIsSticky',
@@ -726,7 +811,7 @@ suite('Sessions - Actions', () => {
 		}, {
 			id: TOGGLE_PIN_CHAT_COMMAND_ID,
 			title: 'Pin',
-			group: 'secondary/4_pin',
+			group: 'secondary/2_organize',
 			order: 10,
 			when: 'sessionHeaderShowsChat && sessionIsCreated && !sessionIsArchived',
 			toggled: 'sessionHeaderActiveChatIsPinned',
@@ -790,20 +875,20 @@ suite('Sessions - Actions', () => {
 			}, {
 				archiveSession: [{
 					title: 'Archive',
-					group: 'secondary/1_session',
-					order: 30,
+					group: 'secondary/1_state',
+					order: 20,
 					when: 'sessionIsCreated && !sessionHeaderTargetsChat && !sessionIsArchived',
 				}],
 				archiveNestedSession: [{
 					title: 'Archive',
-					group: 'secondary/1_session',
-					order: 30,
+					group: 'secondary/1_state',
+					order: 20,
 					when: 'sessionActiveChatCanArchive && sessionHeaderTargetsChat && !sessionActiveChatIsUntitled',
 				}],
 				deleteChat: [{
 					title: 'Delete Chat',
-					group: 'secondary/1_session',
-					order: 30,
+					group: 'secondary/4_manage',
+					order: 20,
 					when: 'sessionActiveChatIsDeletable && sessionActiveChatIsUntitled && sessionHeaderTargetsChat',
 				}],
 			});
@@ -891,13 +976,13 @@ suite('Sessions - Actions', () => {
 			}));
 
 		assert.deepStrictEqual(actions, [
+			{ id: CLOSE_SESSION_COMMAND_ID, title: 'Close', group: 'secondary/0_pane' },
+			{ id: CLOSE_CHAT_COMMAND_ID, title: 'Close', group: 'secondary/0_pane' },
 			{ id: TOGGLE_PIN_SESSION_COMMAND_ID, title: 'Pin', group: 'navigation' },
-			{ id: TOGGLE_PIN_SESSION_COMMAND_ID, title: 'Pin', group: 'secondary/4_pin' },
+			{ id: TOGGLE_PIN_SESSION_COMMAND_ID, title: 'Pin', group: 'secondary/2_organize' },
 			{ id: TOGGLE_PIN_CHAT_COMMAND_ID, title: 'Pin', group: 'navigation' },
-			{ id: TOGGLE_PIN_CHAT_COMMAND_ID, title: 'Pin', group: 'secondary/4_pin' },
-			{ id: CLOSE_SESSION_COMMAND_ID, title: 'Close', group: 'secondary/4_pin' },
-			{ id: CLOSE_CHAT_COMMAND_ID, title: 'Close', group: 'secondary/4_pin' },
-			{ id: 'sessions.chatCompositeBar.toggleMaximize', title: 'Maximize', group: 'secondary/4_pin' },
+			{ id: TOGGLE_PIN_CHAT_COMMAND_ID, title: 'Pin', group: 'secondary/2_organize' },
+			{ id: 'sessions.chatCompositeBar.toggleMaximize', title: 'Maximize', group: 'secondary/0_pane' },
 			{ id: CLOSE_SESSION_COMMAND_ID, title: 'Close', group: 'navigation' },
 			{ id: CLOSE_CHAT_COMMAND_ID, title: 'Close', group: 'navigation' },
 		]);
@@ -1078,19 +1163,19 @@ suite('Sessions - Actions', () => {
 			toolbar: {
 				chat: [
 					{ group: 'navigation', when: 'sessionActiveChatIsClosable && sessionHeaderShowsChat' },
-					{ group: 'secondary/4_pin', when: 'sessionActiveChatIsClosable && sessionHeaderShowsChat' },
+					{ group: 'secondary/0_pane', when: 'sessionActiveChatIsClosable && sessionHeaderShowsChat' },
 				],
 				session: [
 					{ group: 'navigation', when: 'multipleSessionsVisible && sessionToolbarShowsSession' },
-					{ group: 'secondary/4_pin', when: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat' },
+					{ group: 'secondary/0_pane', when: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat' },
 				],
 			},
 			contextMenu: {
 				chat: [
-					{ group: 'secondary/4_pin', when: 'sessionActiveChatIsClosable && sessionHeaderShowsChat' },
+					{ group: 'secondary/0_pane', when: 'sessionActiveChatIsClosable && sessionHeaderShowsChat' },
 				],
 				session: [
-					{ group: 'secondary/4_pin', when: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat' },
+					{ group: 'secondary/0_pane', when: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat' },
 				],
 			},
 		});
@@ -1692,6 +1777,7 @@ suite('Sessions - Actions', () => {
 					}
 				});
 				instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+					override getNewSessionTarget(): undefined { return undefined; }
 					override isNewSessionTargetAvailable(): boolean { return scenario.targetAvailable; }
 				});
 
@@ -1786,6 +1872,7 @@ suite('Sessions - Actions', () => {
 					}
 				});
 				instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+					override getNewSessionTarget(): undefined { return undefined; }
 					override isNewSessionTargetAvailable(folderUri: URI, options?: ICreateNewSessionOptions): boolean {
 						return isEqual(folderUri, sourceFolder)
 							&& options?.providerId === `agenthost-${agentHostAuthority(sourceAddress)}`
@@ -1896,6 +1983,10 @@ suite('Sessions - Actions', () => {
 		workspace.folders.push({ root: folder, workingDirectory: folder, name: 'workspace-section', description: undefined });
 		const selections: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
 		instantiationService.stub(INewSessionComposerService, composerService);
+		instantiationService.stub(ISessionsManagementService, {
+			getNewSessionTarget: () => undefined,
+			isNewSessionTargetAvailable: () => true,
+		});
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
 			activeSession: constObservable(undefined),
 			openNewSession: () => opening.p,
@@ -1929,6 +2020,7 @@ suite('Sessions - Actions', () => {
 		const providers = [
 			{ id: 'local-provider', environment: { id: 'local', label: 'This Computer' } },
 			{ id: 'cloud-provider', environment: { id: 'cloud', label: 'Cloud' } },
+			{ id: 'sandbox-provider', environment: { id: 'cloud', label: 'Cloud' } },
 			{ id: 'host-provider', environment: { id: 'host', label: 'My Host', isConnected: constObservable(false) } },
 		].map(provider => upcastPartial<ISessionsProvider>(provider));
 		const session = (title: string, environment: string, minutesAgo: number) => createTestSession(title, {
@@ -1939,13 +2031,23 @@ suite('Sessions - Actions', () => {
 			createdAt: new Date(Date.now() - minutesAgo * 60_000),
 		}).session;
 		// The newest session runs on a host that is disconnected, so it can't start new sessions.
+		// A cloud sandbox session names only its repository URL, which has no checkout to start in.
+		const sandbox = createTestSession('sandbox', { providerId: 'sandbox-provider', environment: 'cloud', createdAt: new Date() }).session;
+		const sandboxRoot = URI.parse('https://github.com/microsoft/vscode');
 		const section = upcastPartial<ISessionSection>({
 			repository: { owner: 'microsoft', name: 'vscode' },
-			sessions: [session('host', 'host', 1), session('older-local', 'local', 4), session('cloud', 'cloud', 3), session('local', 'local', 2)],
+			sessions: [
+				session('host', 'host', 1), session('older-local', 'local', 4), session('cloud', 'cloud', 3), session('local', 'local', 2),
+				{ ...sandbox, workspace: constObservable({ uri: sandboxRoot, label: 'microsoft/vscode', icon: Codicon.repo, folders: [{ root: sandboxRoot, workingDirectory: sandboxRoot, name: 'microsoft/vscode', description: undefined }], requiresWorkspaceTrust: true, isVirtualWorkspace: false }) },
+			],
 		});
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const selections: string[] = [];
 		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
+		instantiationService.stub(ISessionsManagementService, {
+			getNewSessionTarget: () => undefined,
+			isNewSessionTargetAvailable: () => true,
+		});
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
 			getProvider: <T extends ISessionsProvider>(providerId: string) => providers.find(provider => provider.id === providerId) as T | undefined,
 		}));
@@ -1970,6 +2072,121 @@ suite('Sessions - Actions', () => {
 		await run(NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, section, 'host');
 
 		assert.deepStrictEqual(selections, ['local-provider /local', 'cloud-provider /cloud']);
+	});
+
+	for (const grouping of ['workspace', 'repository', 'environment']) {
+		for (const available of [true, false]) {
+			test(`${grouping} section only inherits an available creation target (${available})`, async () => {
+				const instantiationService = disposables.add(new TestInstantiationService());
+				const composerService = disposables.add(new NewSessionComposerService());
+				const backendFolder = URI.parse('vscode-agent-host://sandbox/workspaces/repo');
+				const { session } = createTestSession('Cloud session', {
+					providerId: 'sandbox-backend',
+					environment: 'cloud',
+					repository: 'owner/repo',
+					workspaceResource: backendFolder,
+				});
+				const creationTarget = { providerId: 'cloud-creator', folderUri: URI.parse('github-remote-file://github/owner/repo/HEAD') };
+				const environment = { id: 'cloud', label: 'Cloud' };
+				const provider = upcastPartial<ISessionsProvider>({ id: session.providerId, environment });
+				const section = upcastPartial<ISessionSection>({
+					sessions: [session],
+					repository: grouping === 'repository' ? { owner: 'owner', name: 'repo' } : undefined,
+					environment: grouping === 'environment' ? environment : undefined,
+				});
+				const draft = upcastPartial<IActiveSession>({ sessionId: 'new-draft' });
+				const selections: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
+				const sources: { providerId: string; resource: URI }[] = [];
+				const focused: (ISession | undefined)[] = [];
+				instantiationService.stub(INewSessionComposerService, composerService);
+				instantiationService.stub(ISessionsProvidersService, {
+					getProvider: <T extends ISessionsProvider>(providerId: string) => providerId === provider.id ? provider as T : undefined,
+				});
+				instantiationService.stub(ISessionsManagementService, {
+					getNewSessionTarget: (providerId, resource) => {
+						sources.push({ providerId, resource });
+						return providerId === session.providerId && isEqual(resource, session.resource) ? creationTarget : undefined;
+					},
+					isNewSessionTargetAvailable: (folder, target) => available && isEqual(folder, creationTarget.folderUri) && target?.providerId === creationTarget.providerId,
+				});
+				instantiationService.stub(ISessionsService, {
+					activeSession: constObservable(draft),
+					openNewSession: async () => ({ session: draft, trustDeclined: false }),
+				});
+				instantiationService.stub(ISessionsPartService, {
+					getSessionView: () => upcastPartial<SessionView>({
+						selectWorkspace: (folder, options) => {
+							selections.push({ folder, options });
+							return 'applied';
+						},
+					}),
+					focusSession: session => { focused.push(session); },
+				});
+				instantiationService.stub(ICommandService, new TestCommandService());
+
+				const commands = grouping === 'repository'
+					? [NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID]
+					: [NEW_SESSION_FOR_WORKSPACE_ACTION_ID];
+				for (const commandId of commands) {
+					await CommandsRegistry.getCommand(commandId)!.handler(instantiationService, section, 'cloud');
+				}
+
+				assert.deepStrictEqual({ selections, sources, focused, userSelections: composerService.userWorkspaceSelectionVersion.get() }, {
+					selections: commands.map(() => ({
+						folder: available ? creationTarget.folderUri : backendFolder,
+						options: { providerId: available ? creationTarget.providerId : undefined, selectionOrigin: WorkspaceSelectionOrigin.User },
+					})),
+					sources: commands.map(() => ({ providerId: session.providerId, resource: session.resource })),
+					focused: commands.map(() => draft),
+					userSelections: commands.length,
+				});
+			});
+		}
+	}
+
+	test('New Session never starts like a session that only names its repository by URL', async () => {
+		const sandboxRoot = URI.parse('https://github.com/microsoft/vscode');
+		const sandbox = (title: string) => {
+			const { session } = createTestSession(title, { providerId: 'sandbox-provider', environment: 'cloud' });
+			return { ...session, workspace: constObservable({ uri: sandboxRoot, label: 'microsoft/vscode', icon: Codicon.repo, folders: [{ root: sandboxRoot, workingDirectory: sandboxRoot, name: 'microsoft/vscode', description: undefined }], requiresWorkspaceTrust: true, isVirtualWorkspace: false }) };
+		};
+		const local = createTestSession('local', { providerId: 'local-provider', repository: 'microsoft/vscode', workspaceResource: URI.file('/local') }).session;
+		const instantiationService = disposables.add(new TestInstantiationService());
+		let opened = 0;
+		const selections: string[] = [];
+		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
+		instantiationService.stub(ISessionsManagementService, {
+			getNewSessionTarget: () => undefined,
+			isNewSessionTargetAvailable: () => true,
+		});
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
+			getProvider: <T extends ISessionsProvider>(providerId: string) => upcastPartial<ISessionsProvider>({ id: providerId, environment: { id: providerId === 'local-provider' ? 'local' : 'cloud', label: providerId } }) as T,
+		}));
+		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+			activeSession: constObservable(undefined),
+			openNewSession: async () => {
+				opened++;
+				return { session: undefined, trustDeclined: false };
+			},
+		}));
+		instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
+			getSessionView: () => upcastPartial<SessionView>({
+				selectWorkspace: (folder, options) => {
+					selections.push(`${options?.providerId} ${folder.toString()}`);
+					return 'applied';
+				},
+			}),
+			focusSession: () => { },
+		}));
+		instantiationService.stub(ICommandService, new TestCommandService());
+		const run = (section: Partial<ISessionSection>) => CommandsRegistry.getCommand(NEW_SESSION_FOR_WORKSPACE_ACTION_ID)!.handler(instantiationService, upcastPartial<ISessionSection>(section));
+
+		// A repository section of only cloud sandbox sessions opens a new session in the composer's own workspace.
+		await run({ repository: { owner: 'microsoft', name: 'vscode' }, sessions: [sandbox('sandbox-1'), sandbox('sandbox-2')] });
+		// A workspace section starts like its first session that it can start like.
+		await run({ sessions: [sandbox('sandbox'), local] });
+
+		assert.deepStrictEqual({ opened, selections }, { opened: 2, selections: ['local-provider file:///local'] });
 	});
 
 	test('New Session propagates opening failures', async () => {

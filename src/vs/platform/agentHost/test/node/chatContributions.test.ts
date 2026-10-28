@@ -3233,6 +3233,55 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	for (const [name, addChat] of [
+		['a tool-origin chat', (titles: ReturnType<typeof createSessionTitleContributions>, chat: string) => titles.stateManager.addChat(titles.session, chat, creationTimeChatStorageResource(titles.session, chat, titles.defaultChat), { title: 'Subagent', origin: { kind: ChatOriginKind.Tool, chat: titles.defaultChat, toolCallId: 'tool-call' } })],
+		['a hidden chat', (titles: ReturnType<typeof createSessionTitleContributions>, chat: string) => titles.stateManager.addChat(titles.session, chat, creationTimeChatStorageResource(titles.session, chat, titles.defaultChat), { title: 'Hidden', interactivity: ChatInteractivity.Hidden })],
+	] as const) {
+		test(`carries a session rename to the default chat when the only other chat is ${name}`, async () => {
+			const titles = createSessionTitleContributions(disposables);
+			titles.stateManager.removeChat(titles.session, titles.peerChat);
+			titles.stateManager.updateChatTitle(titles.session, titles.defaultChat, 'List folder files');
+			addChat(titles, buildChatUri(titles.session, 'other'));
+			const action = { type: ActionType.SessionTitleChanged, title: 'S4' } as const;
+			titles.stateManager.dispatchServerAction(titles.session, action);
+			titles.service.didApplyClientAction(appliedClientAction(titles.session, titles.session, action));
+
+			assert.deepStrictEqual({
+				sessionTitle: titles.stateManager.getSessionState(titles.session)?.title,
+				chatTitle: titles.stateManager.getChatState(titles.defaultChat)?.title,
+				catalogTitle: titles.stateManager.getSessionState(titles.session)?.chats.find(chat => chat.resource === titles.defaultChat)?.title,
+				persistedChatTitle: await titles.database.getMetadata(customChatTitleMetadataKey(titles.defaultChat)),
+				persistedChatSource: await titles.database.getMetadata(customChatTitleSourceMetadataKey(titles.defaultChat)),
+			}, {
+				sessionTitle: 'S4',
+				chatTitle: 'S4',
+				catalogTitle: 'S4',
+				persistedChatTitle: 'S4',
+				persistedChatSource: AGENT_HOST_TITLE_SOURCE_USER,
+			});
+		});
+	}
+
+	test('keeps the default chat title on a session rename when the session has a peer chat', async () => {
+		const titles = createSessionTitleContributions(disposables);
+		titles.stateManager.updateChatTitle(titles.session, titles.defaultChat, 'List folder files');
+		const action = { type: ActionType.SessionTitleChanged, title: 'S4' } as const;
+		titles.stateManager.dispatchServerAction(titles.session, action);
+		titles.service.didApplyClientAction(appliedClientAction(titles.session, titles.session, action));
+
+		assert.deepStrictEqual({
+			sessionTitle: titles.stateManager.getSessionState(titles.session)?.title,
+			defaultChatTitle: titles.stateManager.getChatState(titles.defaultChat)?.title,
+			peerChatTitle: titles.stateManager.getChatState(titles.peerChat)?.title,
+			persistedChatTitle: await titles.database.getMetadata(customChatTitleMetadataKey(titles.defaultChat)),
+		}, {
+			sessionTitle: 'S4',
+			defaultChatTitle: 'List folder files',
+			peerChatTitle: 'Peer',
+			persistedChatTitle: undefined,
+		});
+	});
+
 	test('persists a session channel title', async () => {
 		const titles = createSessionTitleContributions(disposables);
 		const action = { type: ActionType.SessionTitleChanged, title: 'Renamed session' } as const;
@@ -3340,6 +3389,80 @@ suite('AgentHostChatContributions', () => {
 				chat: ownerChat,
 			}]),
 		});
+	});
+
+	async function seedOwnedWorktreeChat(contributions: ReturnType<typeof createBuiltInContributions>, branchName: string) {
+		const chat = buildChatUri(contributions.session, 'worktree-owner');
+		const worktreeDirectory = URI.file('/workspace/repository.worktrees/feature');
+		const handle = generateUuid();
+		contributions.stateManager.addChat(contributions.session, chat, creationTimeChatStorageResource(contributions.session, chat, buildDefaultChatUri(contributions.session)), {
+			title: 'Peer Chat',
+			origin: { kind: ChatOriginKind.User },
+			workingDirectories: [worktreeDirectory.toString()],
+		});
+		const ownWorktree = async () => {
+			await seedSessionAdditionalWorktrees(contributions.sessionDataService, URI.parse(contributions.session), [{
+				handle,
+				workingDirectory: worktreeDirectory.toString(),
+				repositoryRoot: URI.file('/workspace/repository').toString(),
+				chat,
+			}]);
+			contributions.worktree.metadata.set(detachedWorktreeRecordUri(handle).toString(), { branchName });
+		};
+		const liveParts: string[] = [];
+		disposables.add(contributions.stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.ChatResponsePart && envelope.action.part.kind === ResponsePartKind.Markdown) {
+				liveParts.push(envelope.action.part.content);
+			}
+		}));
+		const sendTurn = async (turnId: string) => {
+			contributions.stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId,
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'Fix it', origin: { kind: MessageKind.User } },
+			});
+			await contributions.service.outgoingTurn({ session: contributions.session, chat, message: { text: 'Fix it', origin: { kind: MessageKind.User } }, turnId });
+		};
+		return { chat, liveParts, sendTurn, ownWorktree };
+	}
+
+	test('does not announce a worktree again for a chat it was handed over to', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const { chat, liveParts, sendTurn, ownWorktree } = await seedOwnedWorktreeChat(contributions, 'agents/feature');
+		await ownWorktree();
+		contributions.service.didHandOverWorktree(contributions.session, chat);
+
+		await sendTurn('after-hand-over');
+
+		assert.deepStrictEqual(liveParts, []);
+	});
+
+	test('restores the original worktree notice once for a chat it was handed over to', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const { chat, ownWorktree } = await seedOwnedWorktreeChat(contributions, 'agents/feature');
+		await ownWorktree();
+		contributions.service.didHandOverWorktree(contributions.session, chat);
+
+		const restored = await contributions.service.hydrateTurns(
+			{ session: contributions.session, chat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(contributions.session, chat, buildDefaultChatUri(contributions.session)) },
+			[hydrationTurn('first'), hydrationTurn('second')],
+		);
+
+		assert.deepStrictEqual(restored.map(turn => turn.responseParts.filter(part => part.kind === ResponsePartKind.Markdown).map(part => part.content)), [[buildWorktreeAnnouncementText('agents/feature')], []]);
+	});
+
+	test('announces a new worktree once for a chat that already has turns', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const { chat, liveParts, sendTurn, ownWorktree } = await seedOwnedWorktreeChat(contributions, 'agents/isolated');
+		await sendTurn('turn-before-worktree');
+		contributions.stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'turn-before-worktree', duration: 1 });
+		await ownWorktree();
+
+		await sendTurn('first-turn-in-worktree');
+		await sendTurn('second-turn-in-worktree');
+
+		assert.deepStrictEqual(liveParts, [buildWorktreeAnnouncementText('agents/isolated')]);
 	});
 
 	test('persists and restores agent-authored turn delegation through a provider turn id', async () => {

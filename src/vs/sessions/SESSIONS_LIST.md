@@ -13,7 +13,7 @@ This specification defines stable placement and state-ownership rules. Row styli
 | Concern | Owner |
 |---------|-------|
 | Session catalog and lifecycle | `ISessionsManagementService` |
-| Pin and per-sort ordering state | `ISessionsListModelService` |
+| Pin, per-sort ordering, and automation-session listing state | `ISessionsListModelService` |
 | Order of a session's nested chats | The session's provider |
 | Custom groups, group and grouping-section appearance, nesting, automatic-section parents, mixed child order, and session membership | `ISessionGroupsService` |
 | Top-level custom group and grouping-section order | `ISessionSectionOrderService` |
@@ -27,7 +27,7 @@ Grouping-section appearance is persisted by the section's stable identity, indep
 
 The list consumes sessions from `ISessionsManagementService`. Providers decide whether a model represents a workspace session, quick chat, automation, or archived session through provider-neutral fields.
 
-Automation runs are excluded from the primary Sessions list. Surfaces that need session-row presentation without sectioning use `SessionsFlatList`.
+Automation runs are excluded from the primary Sessions list unless they are shown there: explicitly from the run's context menu, or automatically according to a setting (always, once the user sends a message in the run's session, or never). An explicit hide from the run's context menu overrides the setting. This listing, including an explicit hide, is client-side list state keyed by session, so it works for the automation runs of every provider. A shown session stays in Automations and otherwise follows the placement precedence below. Surfaces that need session-row presentation without sectioning use `SessionsFlatList`.
 
 ## Placement precedence
 
@@ -53,7 +53,7 @@ Archived
   nor an explicit ungrouped preference, it inherits the creator's custom group
   when one becomes available. Subsequent user grouping, ungrouping, and
   reordering are ordinary persisted list state.
-- A session a nested chat was promoted to joins the custom group of the session it was promoted from, whatever started the promotion, unless it already has a placement of its own. It keeps ordinary placement when that session has no group.
+- A session a nested chat was moved to joins the custom group of the session it was moved from, whatever started the move, unless it already has a placement of its own. It keeps ordinary placement when that session has no group.
 
 The active session remains visible even when a filter would otherwise exclude it.
 
@@ -81,7 +81,9 @@ Environment grouping uses the provider-neutral environment identity, combining s
 
 ### Nested custom groups
 
-User-created groups form a tree without a depth limit. In every grouping mode, only top-level groups take part in the order above; a group lists its child groups and active automatic sections in a shared user-managed order above its own sessions. Actions on a group's sessions, such as marking them done, include its subgroups and currently nested sections. Deleting a group deletes its subgroups, ungroups their explicit session members, and returns their automatic sections to the top level; undo restores section placements unless they have since moved to another group. Comparison groups cannot be manually nested or hold children; they retain their automatic placement within grouping sections.
+User-created groups form a tree without a depth limit. In every grouping mode, only top-level groups take part in the order above; a group lists its child groups and active automatic sections in a shared user-managed order above its own sessions. Actions on a group's sessions, such as marking them done, include its subgroups and currently nested sections. Deleting a group deletes its subgroups, ungroups their explicit session members, and returns their automatic sections to the top level; undo restores section placements unless they have since moved to another group.
+
+A comparison is one sortable entry alongside ordinary sessions, in its automatic section or an explicitly chosen custom group. Its creation time is the comparison's creation time; its updated time is the latest participant update. Manual sort keys are stored under the comparison group's section identity, independently for each ordering mode. Comparison membership and participant display order remain comparison-owned: moving the parent never regroups or reorders individual participants. A comparison cannot hold subgroups.
 
 A workspace, repository, or environment section can belong to one custom group at any depth. This places the section, not its sessions, in that group: future matching sessions follow it, and higher-precedence placements remain unchanged. Section placement is remembered independently for each grouping mode, including the workspace fallback in Repository mode, and only applies in that mode. Nested sections do not consume the top-level Recent section limit, while their own session limits still apply. Temporarily empty sections retain their parents and child order without rendering an empty automatic header.
 
@@ -99,7 +101,7 @@ Archiving removes custom-group membership. Restoring a session does not restore 
 
 ## Durable user intent
 
-Pin, group, and ordering state survives temporary provider-catalog removal. Providers may transiently publish incomplete catalogs while reconnecting or hydrating, so `onDidChangeSessions.removed` is not proof of deletion.
+Pin, group, ordering, and automation listing state survives temporary provider-catalog removal. Providers may transiently publish incomplete catalogs while reconnecting or hydrating, so `onDidChangeSessions.removed` is not proof of deletion.
 
 List-owned state is removed only when:
 
@@ -127,11 +129,11 @@ A session drop resolves to a destination placement: Pinned, a custom group, an u
 - dropping sessions on the archived section archives them with an undo affordance; dropping archived sessions elsewhere restores them;
 - date sections derive from the sort key, so dropping on a date section header places sessions at the top of that section, and dropping below the last row places non-archived sessions at the end of the date sections; because date grouping also promotes recently updated sessions and caps Recent, a drop into a date section is offered only when the sessions will render in that section;
 - dropping a session on a nested chat row places it after that chat's session;
-- nested chats render in their provider's order (by update time under updated-time sorting); the list never stores an order of its own for them. When moving chats by drag and drop is on and the provider can move a chat, the chat may reorder within its session, by dragging or with Move Up and Move Down, or move to another or a new session, and the provider reorders or moves it. No move asks for confirmation first. A nested chat the provider can't move, or several nested chats together, can't be dropped, and Move Up and Move Down are unavailable for it;
+- nested chats render in their provider's order (by update time under updated-time sorting); the list never stores an order of its own for them. When moving chats by drag and drop is on and the provider can move a chat, the chat may move to another or a new session, and the provider moves it. Only under Ordering: Created, which shows the provider's order, may it also reorder within its session, by dragging or with Move Up and Move Down, and a drop on a nested row of another session is placed before or after that row. Under Ordering: Updated the rows are not in that order, so these are not offered (no reorder drop feedback, no Move Up and Move Down menu items, and the shortcut does nothing), and a drop on a nested row of another session appends to that session, as a drop on its row does. No move asks for confirmation first. A nested chat the provider can't move, or several nested chats together, can't be dropped, and Move Up and Move Down are unavailable for it;
 - user groups and workspace, repository, or environment sections may reorder where the grouping mode allows, move into custom groups, and return to the top level; a user group never moves into itself or one of its subgroups;
 - dropping sessions on the Sessions grid opens them through `ISessionsService`.
 
-Archived sections and comparison groups keep a fixed order, and comparison group membership cannot change by dragging. Multi-selection preserves relative order.
+Archived sections keep a fixed order. Comparison parents can reorder alongside sessions and move into or out of custom groups; comparison participant membership cannot change by dragging. Multi-selection preserves relative order.
 
 ## Agent tools
 
@@ -149,7 +151,7 @@ A collapsed session row uses the provider's aggregate status without inspecting 
 
 ## Persistence
 
-List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace, repository, or environment section, the Chats section, and custom group, pins, custom groups with their nesting, automatic-section parents and mixed child order, manual sort keys, and top-level section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
+List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace, repository, or environment section, the Chats section, and custom group, pins, automation sessions shown in the list, custom groups with their nesting, automatic-section parents and mixed child order, manual sort keys, and top-level section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
 
 ## Change policy
 

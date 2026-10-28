@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ValidatorBase, vBoolean, vEnum, vObj, vOptionalProp, vString, type ValidationError, type ValidatorType } from '../../../base/common/validation.js';
+import { LoadClientCertificatesExtensionMethod, loadClientCertificatesResultValidator } from './clientCertificatesProtocol.js';
 import type { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
 import type { AgentExtensionMode, AgentExtensionSource, AgentExtensionStatus } from './agent.js';
@@ -80,7 +81,7 @@ export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifac
 export const StopBackgroundWorkExtensionMethod = 'vscode/stopBackgroundWork';
 export const MeasureWorktreeDiskUsageExtensionMethod = 'vscode/measureWorktreeDiskUsage';
 export const CancelWorktreeDiskUsageExtensionMethod = 'vscode/cancelWorktreeDiskUsage';
-export const measureWorktreeDiskUsageParamsValidator = vObj({ uri: vString(), requestId: vString() });
+export const measureWorktreeDiskUsageParamsValidator = vObj({ uri: vString(), requestId: vString(), session: vOptionalProp(vString()) });
 export const cancelWorktreeDiskUsageParamsValidator = vObj({ requestId: vString() });
 export const ImportSessionExtensionMethod = 'vscode/importSession';
 /**
@@ -372,6 +373,7 @@ export interface IAgentHostMcpAuthenticationRequest {
 }
 
 export interface IAgentHostExtensionServerCommandMap {
+	[LoadClientCertificatesExtensionMethod]: { params: Record<string, never>; result: ValidatorType<typeof loadClientCertificatesResultValidator> };
 	[RequestAgentHostWorkspaceTrustExtensionMethod]: {
 		params: IAgentHostWorkspaceTrustRequest;
 		result: { trusted: boolean };

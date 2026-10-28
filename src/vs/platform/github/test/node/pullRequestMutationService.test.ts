@@ -975,6 +975,31 @@ suite('PullRequestMutationService', () => {
 		});
 	});
 
+	for (const operation of ['merge', 'enqueue'] as const) {
+		test(`keeps an ambiguous ${operation} uncertain when its reconciliation read is refused`, async () => {
+			await withServers(async server => {
+				server.enqueue(operation === 'merge'
+					? gitHubRestStep({ method: 'PUT', path: '/repos/octo/repo/pulls/7/merge', response: gitHubDisconnectResponse() })
+					: gitHubGraphQLStep({ queryIncludes: 'AgentHostEnqueuePullRequest', response: gitHubDisconnectResponse() }));
+				const { ref, resources, service } = setup(server, completeSnapshot(server, operation === 'enqueue'));
+				const preparation = await service.prepareMerge(ref, 'head-1', signal());
+				const refreshes: (PullRequestFragment | undefined)[] = [];
+				resources.refreshHandler = fragment => {
+					refreshes.push(fragment);
+					throw new GitHubRequestError('Rate limit exceeded', 'rateLimit', 429);
+				};
+				const authorization = { confirmed: true as const, authorizationId: 'approval-1' };
+				const mutation = operation === 'merge'
+					? service.merge(preparation, { method: 'SQUASH', authorization }, signal())
+					: service.enqueue(preparation, authorization, signal());
+
+				await assert.rejects(mutation, { kind: 'network', statusCode: undefined });
+				assert.deepStrictEqual(refreshes, [operation === 'merge' ? 'core' : 'mergeability']);
+				server.assertSatisfied();
+			});
+		});
+	}
+
 	test('does not enqueue a pull request already in the merge queue', async () => {
 		await withServers(async server => {
 			const snapshot = completeSnapshot(server, true, 'MQE1');

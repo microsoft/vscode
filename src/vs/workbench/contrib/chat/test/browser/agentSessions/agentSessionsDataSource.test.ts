@@ -169,13 +169,14 @@ suite('AgentSessionsDataSource', () => {
 		groupBy?: AgentSessionsGrouping;
 		exclude?: (session: IAgentSession) => boolean;
 		excludeRead?: boolean;
+		excludeArchived?: boolean;
 		repositoryGroupCapped?: boolean;
 	}): IAgentSessionsFilter {
 		return {
 			onDidChange: Event.None,
 			groupResults: () => options.groupBy,
 			exclude: options.exclude ?? (() => false),
-			getExcludes: () => ({ providers: [], states: [], archived: false, read: options.excludeRead ?? false, repositoryGroupCapped: options.repositoryGroupCapped ?? true }),
+			getExcludes: () => ({ providers: [], states: [], archived: options.excludeArchived ?? false, read: options.excludeRead ?? false, repositoryGroupCapped: options.repositoryGroupCapped ?? true }),
 			isDefault: () => true,
 			reset: () => { },
 		};
@@ -224,6 +225,7 @@ suite('AgentSessionsDataSource', () => {
 				resource: resource.with({ fragment: 'peer' }),
 				parentSession: { resource, label: 'Parent session' },
 			});
+
 			const parent = createMockSession({ label: 'Parent session', resource, children: [child] });
 			const identityProvider = new AgentSessionsIdentityProvider();
 
@@ -237,6 +239,26 @@ suite('AgentSessionsDataSource', () => {
 				childId: `chat-${resource.with({ fragment: 'peer' }).toString()}`,
 				parentGroup: 1,
 				childGroup: 2,
+			});
+		});
+
+		test('hides completed side chats and their empty twistie until archived chats are included', () => {
+			const side = createMockSession({ id: 'side', isArchived: true });
+			const sibling = createMockSession({ id: 'sibling' });
+			const parent = createMockSession({ id: 'parent', children: [side, sibling] });
+			const onlySide = createMockSession({ id: 'only-side', children: [side] });
+			const active = disposables.add(new AgentSessionsDataSource(createMockFilter({ excludeArchived: true }), createMockSorter()));
+			const archived = disposables.add(new AgentSessionsDataSource(createMockFilter({ excludeArchived: false }), createMockSorter()));
+			assert.deepStrictEqual({
+				active: [...active.getChildren(parent)].filter(isAgentSession).map(chat => chat.label),
+				onlyCompletedHasChildren: active.hasChildren(onlySide),
+				included: [...archived.getChildren(parent)].filter(isAgentSession).map(chat => chat.label),
+				archivedParent: [...active.getChildren(createMockSession({ children: [side], isArchived: true }))].filter(isAgentSession).map(chat => chat.label),
+			}, {
+				active: ['Session sibling'],
+				onlyCompletedHasChildren: false,
+				included: ['Session side', 'Session sibling'],
+				archivedParent: ['Session side'],
 			});
 		});
 
