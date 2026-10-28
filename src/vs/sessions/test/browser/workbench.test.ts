@@ -267,6 +267,7 @@ suite('Sessions - Workbench', () => {
 		};
 		mainContainer: { classList: { toggle(name: string, force: boolean): void } };
 		getMaximumEditorDimensions(container: object): IViewSize;
+		isEditorPaneVisible?(): boolean;
 		storageService: { store(key: string, value: string, scope: StorageScope, target: StorageTarget): void };
 		_onDidChangePanelAlignment: { fire(alignment: PanelAlignment): void };
 		_runWithEditorResizeSyncSuspended(fn: () => void): void;
@@ -3675,6 +3676,7 @@ suite('Sessions - Workbench', () => {
 			},
 			mainContainer: { classList: { toggle: (name, force) => classToggles.push({ name, force }) } },
 			getMaximumEditorDimensions: () => ({ width: 1200, height: 500 }),
+			isEditorPaneVisible: () => true,
 			storageService: { store: (key, value, scope, target) => stores.push({ key, value, scope, target }) },
 			_onDidChangePanelAlignment: { fire: alignment => events.push(alignment) },
 			_runWithEditorResizeSyncSuspended: fn => {
@@ -3900,6 +3902,7 @@ suite('Sessions - Workbench', () => {
 				},
 				mainContainer: root,
 				getMaximumEditorDimensions: () => ({ width: 1200, height: 500 }),
+				isEditorPaneVisible: () => true,
 				storageService: { store: () => { } },
 				_onDidChangePanelAlignment: { fire: () => { } },
 				_runWithEditorResizeSyncSuspended: fn => fn(),
@@ -3955,6 +3958,7 @@ suite('Sessions - Workbench', () => {
 			},
 			mainContainer: root,
 			getMaximumEditorDimensions: () => ({ width: 1200, height: 500 }),
+			isEditorPaneVisible: () => true,
 			storageService: { store: () => { } },
 			_onDidChangePanelAlignment: { fire: () => { } },
 			_runWithEditorResizeSyncSuspended: fn => fn(),
@@ -4123,6 +4127,7 @@ suite('Sessions - Workbench', () => {
 				},
 				mainContainer: { classList: { toggle: () => { } } },
 				getMaximumEditorDimensions: () => ({ width: 1200, height: 500 }),
+				isEditorPaneVisible: () => true,
 				storageService: { store: () => { } },
 				_onDidChangePanelAlignment: { fire: () => { } },
 				_runWithEditorResizeSyncSuspended: fn => fn(),
@@ -4392,6 +4397,19 @@ suite('Sessions - Workbench', () => {
 					changesWhileMoving++;
 				}
 			}));
+			// The grid change in progress, of any view: the side pane stacking or unstacking, the panel aligning, the column.
+			let gridChange: string | undefined;
+			const changing = <T>(name: string, fn: () => T): T => {
+				if (gridChange) {
+					return fn();
+				}
+				gridChange = name;
+				try {
+					return fn();
+				} finally {
+					gridChange = undefined;
+				}
+			};
 			const moveColumn = <T>(view: object, fn: () => T): T => {
 				if (view !== columnView) {
 					return fn();
@@ -4435,12 +4453,12 @@ suite('Sessions - Workbench', () => {
 					getViewSize: (view: object) => grid.getViewSize(getView(view)),
 					getViewCachedVisibleSize: (view: object) => grid.getViewCachedVisibleSize(getView(view)),
 					setViewVisible: (view: object, visible: boolean) => grid.setViewVisible(getView(view), visible),
-					addView: (view: object, size: number | Sizing, referenceView: object, direction: Direction) => moveColumn(view, () => grid.addView(getView(view), size, getView(referenceView), direction)),
-					removeView: (view: object) => moveColumn(view, () => grid.removeView(getView(view))),
-					moveView: (view: object, size: number | Sizing, referenceView: object, direction: Direction) => grid.moveView(getView(view), size, getView(referenceView), direction),
+					addView: (view: object, size: number | Sizing, referenceView: object, direction: Direction) => changing('addView', () => moveColumn(view, () => grid.addView(getView(view), size, getView(referenceView), direction))),
+					removeView: (view: object) => changing('removeView', () => moveColumn(view, () => grid.removeView(getView(view)))),
+					moveView: (view: object, size: number | Sizing, referenceView: object, direction: Direction) => changing(`moveView ${view === views.get(Parts.PANEL_PART) ? 'panel' : view === views.get(Parts.EDITOR_PART) ? 'editor' : 'other'}`, () => grid.moveView(getView(view), size, getView(referenceView), direction)),
 					resizeView: (view: object, size: IViewSize) => grid.resizeView(getView(view), size),
 					getViews: () => grid.getViews(),
-					moveViewTo: (view: object, location: number[]) => moveColumn(view, () => grid.moveViewTo(getView(view), location)),
+					moveViewTo: (view: object, location: number[]) => changing('moveViewTo', () => moveColumn(view, () => grid.moveViewTo(getView(view), location))),
 					exitMaximizedView: () => grid.exitMaximizedView(),
 				},
 				mainContainer: { classList: { toggle: () => { } } },
@@ -4462,24 +4480,24 @@ suite('Sessions - Workbench', () => {
 				focusPart: () => { },
 			};
 			Object.setPrototypeOf(arrangementHost, DesktopWorkbench.prototype);
-			// As the parts do as the grid lays them out while the column moves: the Sessions Part, while it shows, reads whether
-			// the side pane shows, and the editor part its maximum size.
+			// As the parts do as the grid lays them out, also halfway through a change: the Sessions Part, while it shows, reads
+			// whether the side pane shows, and the editor part its maximum size. Each read the grid cannot answer, by the change.
 			const getMaximumEditorDimensions = Workbench.prototype.getMaximumEditorDimensions as (this: object, container: HTMLElement) => IViewSize;
-			let unansweredWhileMoving = 0;
+			const unansweredDuringGridChanges: string[] = [];
 			const read = (fn: () => void) => {
 				try {
 					fn();
 				} catch {
-					unansweredWhileMoving++;
+					unansweredDuringGridChanges.push(gridChange ?? 'none');
 				}
 			};
 			store.add(views.get(Parts.SESSIONS_PART)!.onDidLayout(() => {
-				if (movingColumn && arrangementHost.partVisibility.sessions) {
+				if (gridChange && arrangementHost.partVisibility.sessions) {
 					read(() => isDesktopEditorPaneVisible.call(arrangementHost as never));
 				}
 			}));
 			store.add(views.get(Parts.EDITOR_PART)!.onDidLayout(() => {
-				if (movingColumn) {
+				if (gridChange) {
 					read(() => getMaximumEditorDimensions.call({ ...arrangementHost, _mainContainerDimension: { width: 1200, height: 800 }, titleBarPartView: views.get(Parts.TITLEBAR_PART)! }, mainWindow.document.body));
 				}
 			}));
@@ -4584,7 +4602,7 @@ suite('Sessions - Workbench', () => {
 
 			const column34 = () => ({ width: 34, besideAll: true, top: true, bottom: true });
 			const besideEditor34 = () => ({ width: 34, besideEditor: true, top: true, bottom: true });
-			assert.deepStrictEqual({ beforeStacked, stackedEmpty, shown, stackedJustify, stackedCenter, sideBySide, editorOnlyEmpty, editorOnlyShown, editorOnlyCenter, editorOnlyJustify, editorOnlyStacked, editorOnlyStackedCenter, editorOnlyStackedJustify, stackedChatShownCenter, stackedChatShownJustify, editorOnlyBack, restored, maximizedShown, maximized, unmaximized, changesWhileMoving, unansweredWhileMoving }, {
+			assert.deepStrictEqual({ beforeStacked, stackedEmpty, shown, stackedJustify, stackedCenter, sideBySide, editorOnlyEmpty, editorOnlyShown, editorOnlyCenter, editorOnlyJustify, editorOnlyStacked, editorOnlyStackedCenter, editorOnlyStackedJustify, stackedChatShownCenter, stackedChatShownJustify, editorOnlyBack, restored, maximizedShown, maximized, unmaximized, changesWhileMoving, unansweredDuringGridChanges }, {
 				// Side by side, there is no column.
 				beforeStacked: false,
 				// Stacked, a view of its own in the row of the sidebar, at the right of the side pane, the Sessions Part and the
@@ -4619,8 +4637,9 @@ suite('Sessions - Workbench', () => {
 				unmaximized: { topology: [Parts.TITLEBAR_PART, [Parts.SIDEBAR_PART, [[Parts.SESSIONS_PART, Parts.EDITOR_PART, Parts.CUSTOM_VIEW_GRID_PART], Parts.PANEL_PART]]], shown: false, stripInColumn: false, column: undefined, released: 15, stripBack: true },
 				// What reacts to the grid changing, such as the editor's width-based visibility, never sees it halfway.
 				changesWhileMoving: 0,
-				// The grid cannot answer whether the side pane shows halfway: what reads it gets how it was.
-				unansweredWhileMoving: 0,
+				// The grid cannot answer halfway through a change, whether the side pane stacks or unstacks (also as a chat returns
+				// to the main window stacked), the panel aligns or the column moves: what reads it gets how it was.
+				unansweredDuringGridChanges: [],
 			});
 		} finally {
 			store.dispose();

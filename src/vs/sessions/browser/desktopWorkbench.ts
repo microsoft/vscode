@@ -43,8 +43,8 @@ export class DesktopWorkbench extends Workbench {
 	private readonly _memento = new DockedEditorSizeMemento();
 
 	override isEditorPaneVisible(): boolean {
-		if (this._editorPaneVisibleWhileColumnMoves !== undefined) {
-			return this._editorPaneVisibleWhileColumnMoves;
+		if (this._editorPaneVisibleWhileGridMoves !== undefined) {
+			return this._editorPaneVisibleWhileGridMoves;
 		}
 		return this.workbenchGrid
 			? this.workbenchGrid.isViewVisible(this.editorPartView)

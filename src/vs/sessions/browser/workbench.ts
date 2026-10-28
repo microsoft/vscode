@@ -2977,15 +2977,17 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 				}
 				if (alignment === 'center') {
 					const panelSize = this._viewMoveSizing(this.panelPartView, 'height');
-					this.workbenchGrid.moveView(this.panelPartView, panelSize, this.sessionsPartView, Direction.Down);
+					this._moveGridViews(() => this.workbenchGrid.moveView(this.panelPartView, panelSize, this.sessionsPartView, Direction.Down));
 				} else {
 					const sessionsWidth = this.workbenchGrid.isViewVisible(this.sessionsPartView)
 						? this.workbenchGrid.getViewSize(this.sessionsPartView).width
 						: undefined;
 					const editorSize = maximizedEditorWidth ?? this._viewMoveSizing(this.editorPartView, 'width');
 					const customViewGridSize = this._viewMoveSizing(this.customViewGridPartView, 'width');
-					this.workbenchGrid.moveView(this.editorPartView, editorSize, this.sessionsPartView, Direction.Right);
-					this.workbenchGrid.moveView(this.customViewGridPartView, customViewGridSize, this.editorPartView, Direction.Right);
+					this._moveGridViews(() => {
+						this.workbenchGrid.moveView(this.editorPartView, editorSize, this.sessionsPartView, Direction.Right);
+						this.workbenchGrid.moveView(this.customViewGridPartView, customViewGridSize, this.editorPartView, Direction.Right);
+					});
 					if (typeof sessionsWidth === 'number') {
 						this.workbenchGrid.resizeView(this.sessionsPartView, {
 							width: sessionsWidth,
@@ -3133,7 +3135,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		if (wanted === this._sidePaneColumnPlacement) {
 			return;
 		}
-		this._moveSidePaneColumn(() => {
+		this._moveGridViews(() => {
 			this._removeSidePaneColumn();
 			if (wanted === SidePaneColumnPlacement.Stacked) {
 				// Into the row of the sidebar, where nothing gets a branch of its own, not even a hidden Sessions Part, then a
@@ -3174,32 +3176,33 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		if (view && this._sidePaneColumnPlacement) {
 			view.column?.release();
 			view.setColumn(undefined);
-			this._moveSidePaneColumn(() => this.workbenchGrid.removeView(view));
+			this._moveGridViews(() => this.workbenchGrid.removeView(view));
 			this._sidePaneColumnPlacement = undefined;
 		}
 	}
 
 	/**
-	 * Whether the side pane showed as the column started to move, while it moves. The grid changes in steps meanwhile, and
-	 * lays out its views between them, which read from it, such as the Sessions Part whether the side pane shows and the
-	 * editor part its maximum size: the grid cannot answer until it is done, so they read what was before.
+	 * Whether the side pane showed as views started to move in the grid (the column, the side pane stacking or unstacking, the
+	 * panel aligning), while they move. The grid changes in steps meanwhile, and lays out its views between them, which read
+	 * from it, such as the Sessions Part whether the side pane shows and the editor part its maximum size: the grid cannot
+	 * answer until it is done, so they read what was before.
 	 */
-	protected _editorPaneVisibleWhileColumnMoves: boolean | undefined;
+	protected _editorPaneVisibleWhileGridMoves: boolean | undefined;
 
-	private _moveSidePaneColumn(move: () => void): void {
-		if (this._editorPaneVisibleWhileColumnMoves !== undefined) {
+	private _moveGridViews(move: () => void): void {
+		if (this._editorPaneVisibleWhileGridMoves !== undefined) {
 			move();
 			return;
 		}
 		const previousMaximumEditorDimensionsOverride = this._maximumEditorDimensionsOverride;
-		this._editorPaneVisibleWhileColumnMoves = this.isEditorPaneVisible();
+		this._editorPaneVisibleWhileGridMoves = this.isEditorPaneVisible();
 		try {
 			this._maximumEditorDimensionsOverride ??= this.getMaximumEditorDimensions(this.mainContainer);
 			// What reacts to the grid changing waits until it is done.
 			this._runWithEditorResizeSyncSuspended(move);
 		} finally {
 			this._maximumEditorDimensionsOverride = previousMaximumEditorDimensionsOverride;
-			this._editorPaneVisibleWhileColumnMoves = undefined;
+			this._editorPaneVisibleWhileGridMoves = undefined;
 		}
 	}
 
@@ -3254,7 +3257,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	 */
 	private _moveViewKeepingSideBarWidth(move: () => void): void {
 		const sideBarSize = this.workbenchGrid.isViewVisible(this.sideBarPartView) ? this.workbenchGrid.getViewSize(this.sideBarPartView) : undefined;
-		move();
+		this._moveGridViews(move);
 		if (sideBarSize && this.workbenchGrid.getViewSize(this.sideBarPartView).width !== sideBarSize.width) {
 			this.workbenchGrid.resizeView(this.sideBarPartView, { width: sideBarSize.width, height: this.workbenchGrid.getViewSize(this.sideBarPartView).height });
 		}
