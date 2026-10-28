@@ -45,6 +45,7 @@ import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
+import { combineAssignmentContexts, type ICopilotExpAssignmentsResolver } from './copilotExpAssignments.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
 import { mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
@@ -144,14 +145,20 @@ export function toSdkReasoningEffort(effort: AgentHostReasoningEffort | undefine
 }
 
 /**
- * Builds the SDK `expAssignments` that carries only VS Code's ExP assignment context, since VS Code resolves its own treatments.
+ * Builds the SDK `expAssignments`. Without the Copilot runtime's own assignments for VS Code, it carries only VS Code's
+ * ExP assignment context, since VS Code resolves its own treatments. With them, it carries their flights and configs
+ * and both assignment contexts (see {@link combineAssignmentContexts}).
  * `expAssignments` is `@internal` in the SDK, so it is absent from the published config types.
  */
-function toSdkExpAssignments(assignmentContext: unknown): { expAssignments?: CopilotExpAssignmentResponse } {
-	if (typeof assignmentContext !== 'string' || !assignmentContext) {
+function toSdkExpAssignments(assignmentContext: unknown, copilotAssignments: CopilotExpAssignmentResponse | undefined): { expAssignments?: CopilotExpAssignmentResponse } {
+	const vscodeContext = typeof assignmentContext === 'string' ? assignmentContext : '';
+	if (copilotAssignments) {
+		return { expAssignments: { ...copilotAssignments, AssignmentContext: combineAssignmentContexts(vscodeContext, copilotAssignments.AssignmentContext) } };
+	}
+	if (!vscodeContext) {
 		return {};
 	}
-	return { expAssignments: { Features: [], Flights: {}, Configs: [], AssignmentContext: assignmentContext } };
+	return { expAssignments: { Features: [], Flights: {}, Configs: [], AssignmentContext: vscodeContext } };
 }
 
 const ContextTiers = ['default', 'long_context'] as const;
@@ -386,6 +393,8 @@ interface ICopilotSessionLaunchBase {
 	readonly availableModels?: () => readonly IAgentModelInfo[];
 	readonly modelPolicyModels?: () => readonly IAgentModelInfo[];
 	readonly managedSettingsResolver?: CopilotManagedSettingsResolver;
+	/** Resolves the Copilot runtime's own ExP assignments for VS Code; absent when not requested. */
+	readonly expAssignments?: ICopilotExpAssignmentsResolver;
 
 	/**
 	 * Whether this is a workspace-less session. Threaded into the
@@ -1414,8 +1423,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const customAgentsPromise = plan.isEphemeral ? Promise.resolve([]) : toSdkCustomAgents(getCopilotCustomAgents(plan.snapshot), this._fileService, availableModelIds);
 		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
 		const computerUseToolsPromise = plan.isEphemeral ? Promise.resolve([]) : runtime.createComputerUseActivationTools?.() ?? Promise.resolve([]);
+		const copilotExpAssignmentsPromise = plan.expAssignments?.resolve(plan.githubCredentials.token) ?? Promise.resolve(undefined);
 		// These are independent, so resolve them concurrently rather than paying each in turn.
-		const [externalByok, shellTools, pluginCustomAgents, computerUseTools] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise, computerUseToolsPromise]);
+		const [externalByok, shellTools, pluginCustomAgents, computerUseTools, copilotExpAssignments] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise, computerUseToolsPromise, copilotExpAssignmentsPromise]);
 		if (externalByok.models?.length) {
 			// The provider base URL carries the proxy's host:port, which correlates a
 			// session with its `ByokLmProxyService` bind when reading logs.
@@ -1595,7 +1605,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(hydraFusionEnabled ? { enableExperimentalMode: true } : {}),
 			interactiveUser: true,
 			featureFlags,
-			...toSdkExpAssignments(this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey]),
+			...toSdkExpAssignments(this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey], copilotExpAssignments),
 			streaming: true,
 			// Resume only: `_createSession` re-resolves the full effort for a create,
 			// while a resumed session keeps the effort the runtime journaled unless

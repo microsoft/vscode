@@ -552,6 +552,34 @@ suite('CopilotApiService', () => {
 		});
 	});
 
+	test('resolves the ExP account only when discovery returns an exp endpoint and tracking ID', async () => {
+		const resolveFor = (overrides: Record<string, unknown>) => createService(async input => {
+			const url = getUrl(input);
+			if (url.endsWith('/copilot_internal/user')) {
+				return userResponse(overrides);
+			}
+			throw new Error(`Unexpected request: ${url}`);
+		}).resolveExpAccount('gh-token');
+
+		assert.deepStrictEqual(await Promise.all([
+			resolveFor({
+				endpoints: { api: 'https://api.githubcopilot.com', exp: 'https://exp.example.com' },
+				analytics_tracking_id: 'tracking-id',
+				is_staff: true,
+				organization_login_list: ['github', 42],
+				copilot_plan: 'enterprise',
+			}),
+			resolveFor({ endpoints: { exp: 'https://exp.example.com' }, analytics_tracking_id: 'tracking-id' }),
+			resolveFor({ endpoints: { exp: 'https://exp.example.com' } }),
+			resolveFor({ endpoints: { exp: '' }, analytics_tracking_id: 'tracking-id' }),
+		]), [
+			{ endpoint: 'https://exp.example.com', trackingId: 'tracking-id', isStaff: true, organizations: ['github'], copilotPlan: 'enterprise' },
+			{ endpoint: 'https://exp.example.com', trackingId: 'tracking-id', isStaff: false, organizations: [] },
+			undefined,
+			undefined,
+		]);
+	});
+
 	// #region Endpoint Discovery
 
 	suite('Endpoint Discovery', () => {
