@@ -319,7 +319,7 @@ export class BreadcrumbsControl {
 		this._cfShowIcons = BreadcrumbsConfig.Icons.bindTo(_configurationService);
 		this._cfShowEditorType = BreadcrumbsConfig.ShowEditorType.bindTo(_configurationService);
 		this._cfShowInUntitledFiles = BreadcrumbsConfig.ShowInUntitledFiles.bindTo(_configurationService);
-		this._cfTitleScrollbarSizing =  BreadcrumbsConfig.TitleScrollbarSizing.bindTo(_configurationService);
+		this._cfTitleScrollbarSizing = BreadcrumbsConfig.TitleScrollbarSizing.bindTo(_configurationService);
 		this._cfTitleScrollbarVisibility = BreadcrumbsConfig.TitleScrollbarVisibility.bindTo(_configurationService);
 
 		this._labels = this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER);
