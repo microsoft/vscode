@@ -32,6 +32,21 @@ suite('AllowedMcpServersService', () => {
 		assert.strictEqual(service.isServerAllowed({ name: 'github' }), true);
 	});
 
+	test('only enterprise allowlist policies replace registry authorization, including an explicit empty list', () => {
+		const configurations: [Record<string, unknown>, Record<string, unknown>][] = [
+			[{}, {}],
+			[{ [mcpAllowedServersConfig]: [] }, {}],
+			[{ [mcpAllowedServersConfig]: [{ serverName: 'user' }] }, {}],
+			[{}, { [mcpAllowedServersConfig]: null }],
+			[{}, { [mcpAllowedServersConfig]: [] }],
+			[{}, { [mcpAllowedServersConfig]: [{ serverName: 'managed' }] }],
+			[{ [COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG]: true }, {}],
+			[{}, { [COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG]: true }],
+		];
+		assert.deepStrictEqual(configurations.map(([config, policy]) => createService(config, policy).hasManagedAllowlist),
+			[false, false, false, false, true, true, false, true]);
+	});
+
 	suite('gallery command admission', () => {
 		function gallery(configuration: IGalleryMcpServerConfiguration): IGalleryMcpServer {
 			return {

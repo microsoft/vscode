@@ -25,6 +25,11 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 	private _onDidChangeAllowedMcpServers = this._register(new Emitter<void>());
 	readonly onDidChangeAllowedMcpServers = this._onDidChangeAllowedMcpServers.event;
 
+	get hasManagedAllowlist(): boolean {
+		return Array.isArray(this.configurationService.inspect(mcpAllowedServersConfig).policyValue)
+			|| this.configurationService.inspect<boolean>(COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG).policyValue === true;
+	}
+
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {

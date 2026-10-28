@@ -15,7 +15,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -25,7 +25,9 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILoggerService, ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { GalleryMcpServerStatus, IAllowedMcpServersService, IGalleryMcpServer, IMcpGalleryServerResolveResult, IMcpGalleryService, IMcpServerInput, IInstallableMcpServer, InstallOptions, McpAccessValue, McpGalleryResolveStatus, mcpAccessConfig, TransportType } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { GalleryMcpServerStatus, IAllowedMcpServersService, IGalleryMcpServer, IMcpGalleryServerResolveResult, IMcpGalleryService, IMcpServerInput, IInstallableMcpServer, InstallOptions, McpAccessValue, McpGalleryResolveStatus, mcpAccessConfig, mcpAllowedServersConfig, mcpDeniedServersConfig, TransportType } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { AllowedMcpServersService } from '../../../../../platform/mcp/common/allowedMcpServersService.js';
+import { COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { McpGalleryServerUrlError } from '../../../../../platform/mcp/common/mcpGalleryService.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -58,6 +60,25 @@ import { McpService } from '../../common/mcpService.js';
 interface IResolveRequest {
 	readonly infos: readonly { name: string; id?: string }[];
 	readonly result: DeferredPromise<Map<string, IMcpGalleryServerResolveResult>>;
+}
+
+class McpPolicyTestConfigurationService extends TestConfigurationService {
+	private readonly policyValues = new Map<string, unknown>();
+
+	override inspect<T>(key: string): IConfigurationValue<T> {
+		return { ...super.inspect<T>(key), policyValue: this.policyValues.get(key) as T | undefined };
+	}
+
+	async setPolicy(key: string, value: unknown): Promise<void> {
+		this.policyValues.set(key, value);
+		await this.setUserConfiguration(key, value);
+		this.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.DEFAULT,
+			affectedKeys: new Set([key]),
+			change: { keys: [key], overrides: [] },
+			affectsConfiguration: candidate => candidate === key,
+		});
+	}
 }
 
 class TestMcpGalleryService extends mock<IMcpGalleryService>() {
@@ -319,8 +340,9 @@ suite('McpWorkbenchService', () => {
 		if (initialInstalledError) {
 			managementService.failNextInstalledQuery(initialInstalledError);
 		}
-		const configurationService = new TestConfigurationService({ [mcpAccessConfig]: accessValue, [CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true });
-		const allowedMcpServersEmitter = store.add(new Emitter<void>());
+		const configurationService = new McpPolicyTestConfigurationService({ [mcpAccessConfig]: accessValue, [CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const allowedMcpServersService = store.add(new AllowedMcpServersService(configurationService));
 		const openedEditors: McpServerEditorInput[] = [];
 		const marketplaceTargets: IAICustomizationMarketplaceOpenTarget[] = [];
 		const extensionSearches: { searchValue: string; preserveFocus?: boolean }[] = [];
@@ -364,14 +386,14 @@ suite('McpWorkbenchService', () => {
 			[IExtensionsWorkbenchService, upcastPartial<IExtensionsWorkbenchService>({
 				openSearch: async (searchValue, preserveFocus) => { extensionSearches.push({ searchValue, preserveFocus }); },
 			})],
-			[IAllowedMcpServersService, upcastPartial<IAllowedMcpServersService>({ onDidChangeAllowedMcpServers: allowedMcpServersEmitter.event })],
+			[IAllowedMcpServersService, allowedMcpServersService],
 			[IMcpService, upcastPartial<IMcpService>({ servers: runtimeServers })],
 			[IURLService, upcastPartial<IURLService>({ registerHandler: () => Disposable.None })],
 			[IFileService, upcastPartial<IFileService>({})],
 		);
 		const instantiationService = store.add(new TestInstantiationService(services));
 		const service = store.add(instantiationService.createInstance(McpWorkbenchService));
-		return { service, galleryService, manifestService, managementService, allowedMcpServersEmitter, openedEditors, marketplaceTargets, extensionSearches, warnings, errors, logService, workspaceService, configurationService };
+		return { service, galleryService, manifestService, managementService, openedEditors, marketplaceTargets, extensionSearches, warnings, errors, logService, workspaceService, configurationService };
 	}
 
 	async function complete(request: IResolveRequest, result: Map<string, IMcpGalleryServerResolveResult>): Promise<void> {
@@ -501,6 +523,47 @@ suite('McpWorkbenchService', () => {
 			enabled: ['found'],
 			verified: [['failed', false], ['found', true], ['missing', false]],
 		});
+	});
+
+	test('managed rules replace registry authorization and refresh installed status without weakening denies or disablement', async () => {
+		const approved = createLocal('approved', LocalMcpServerScope.User, { type: McpServerType.LOCAL, command: 'node', args: ['approved.js'] });
+		const remote = { ...createLocal('remote'), config: { type: McpServerType.REMOTE, url: 'https://managed.example/mcp' } as const };
+		const denied = createLocal('denied', LocalMcpServerScope.User, approved.config);
+		const unlisted = createLocal('unlisted');
+		const { service, galleryService, configurationService } = await createFixture([approved, remote, denied, unlisted]);
+		await complete(await galleryService.nextRequest(), new Map([
+			[approved.name, notFound()], [remote.name, found(createGallery(remote.name, ['https://registry.example/mcp']))],
+			[denied.name, found(createGallery(denied.name))], [unlisted.name, found(createGallery(unlisted.name))],
+		]));
+		const enabled = () => service.getEnabledLocalMcpServers().map(server => server.name);
+		const legacy = enabled();
+		await configurationService.setPolicy(mcpDeniedServersConfig, [{ serverName: denied.name }]);
+		const command = approved.config.type === McpServerType.LOCAL ? [approved.config.command, ...(approved.config.args ?? [])] : [];
+		await configurationService.setPolicy(mcpAllowedServersConfig, [
+			{ serverCommand: command }, { serverUrl: remote.config.url },
+		]);
+		const managed = enabled();
+		const deniedStatus = service.local.find(server => server.name === denied.name)?.runtimeStatus;
+		await configurationService.setPolicy(mcpAllowedServersConfig, []);
+		const empty = enabled();
+		await configurationService.setPolicy(mcpAllowedServersConfig, undefined);
+		const removed = enabled();
+		await configurationService.setPolicy(COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG, true);
+		const managedOnly = enabled();
+		await configurationService.setPolicy(mcpAccessConfig, McpAccessValue.None);
+		const disabled = enabled();
+		assert.deepStrictEqual({ legacy, managed, denied: deniedStatus?.state, empty, removed, managedOnly, disabled }, {
+			legacy: ['denied', 'unlisted'], managed: ['approved', 'remote'],
+			denied: McpServerEnablementState.DisabledByAccess, empty: [], removed: ['unlisted'], managedOnly: [], disabled: [],
+		});
+	});
+
+	test('user allowlist values cannot override registry-only access', async () => {
+		const local = createLocal('user-approved');
+		const { service, galleryService, configurationService } = await createFixture([local]);
+		await complete(await galleryService.nextRequest(), new Map([[local.name, notFound()]]));
+		await configurationService.setUserConfiguration(mcpAllowedServersConfig, [{ serverName: local.name }]);
+		assert.deepStrictEqual(service.getEnabledLocalMcpServers(), []);
 	});
 
 	for (const initialQueryFinishesFirst of [true, false]) {
@@ -991,7 +1054,7 @@ suite('McpWorkbenchService', () => {
 		const user = createLocal('duplicate', LocalMcpServerScope.User);
 		const workspaceA = { ...createLocal('duplicate', LocalMcpServerScope.Workspace), id: 'workspace/a/duplicate' };
 		const workspaceB = { ...createLocal('duplicate', LocalMcpServerScope.Workspace), id: 'workspace/b/duplicate' };
-		const { service, galleryService, allowedMcpServersEmitter } = await createFixture([user, workspaceA, workspaceB], McpAccessValue.All);
+		const { service, galleryService, configurationService } = await createFixture([user, workspaceA, workspaceB], McpAccessValue.All);
 		await complete(await galleryService.nextRequest(), new Map([
 			[user.name, notFound()],
 		]));
@@ -999,7 +1062,7 @@ suite('McpWorkbenchService', () => {
 		const orderBefore = service.local.map(server => server.id);
 		const winnerBefore = service.getEnabledLocalMcpServers().map(server => server.id);
 		for (let i = 0; i < 10; i++) {
-			allowedMcpServersEmitter.fire();
+			await configurationService.setPolicy(mcpAllowedServersConfig, undefined);
 			assert.deepStrictEqual(service.local.map(server => server.id), orderBefore);
 			assert.deepStrictEqual(service.getEnabledLocalMcpServers().map(server => server.id), winnerBefore);
 		}
