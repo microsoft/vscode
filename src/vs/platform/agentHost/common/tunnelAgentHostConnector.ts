@@ -27,6 +27,7 @@ import {
 	type ITunnelRelayMessage,
 } from './tunnelAgentHost.js';
 import type { ITunnelDuplexStream, ITunnelMessageSocket, ITunnelSocketCloseEvent } from './tunnelMessageSocket.js';
+import { RelayActivityReporter } from './relayActivity.js';
 
 const LOG_PREFIX = '[TunnelAgentHost]';
 const BASE64_URL_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
@@ -219,10 +220,18 @@ class TunnelConnection extends Disposable {
 		private readonly _socket: ITunnelMessageSocket,
 		private readonly _relayClient: ITunnelRelayClient,
 		onMessage: (message: string) => void,
+		onActivity: () => void,
 		onSocketClose: (event: ITunnelSocketCloseEvent) => void,
 	) {
 		super();
-		this._register(this._socket.onDidReceiveMessage(onMessage));
+		const activity = new RelayActivityReporter(onActivity);
+		this._register(this._socket.onDidReceiveMessage(message => {
+			activity.messageReceived();
+			onMessage(message);
+		}));
+		if (this._socket.onDidReceiveData) {
+			this._register(this._socket.onDidReceiveData(() => activity.dataReceived()));
+		}
 		this._register(this._socket.onDidClose(event => {
 			onSocketClose(event);
 			this.dispose();
@@ -251,6 +260,10 @@ class TunnelConnection extends Disposable {
 export class TunnelAgentHostConnector extends Disposable {
 	private readonly _onDidRelayMessage = this._register(new Emitter<ITunnelRelayMessage>());
 	readonly onDidRelayMessage: Event<ITunnelRelayMessage> = this._onDidRelayMessage.event;
+
+	private readonly _onDidRelayActivity = this._register(new Emitter<string>());
+	/** Fires with a connection ID while that relay receives part of a message. */
+	readonly onDidRelayActivity: Event<string> = this._onDidRelayActivity.event;
 
 	private readonly _onDidRelayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose: Event<string> = this._onDidRelayClose.event;
@@ -447,6 +460,7 @@ export class TunnelAgentHostConnector extends Disposable {
 			socket,
 			relayClient,
 			data => this._onDidRelayMessage.fire({ connectionId, data }),
+			() => this._onDidRelayActivity.fire(connectionId),
 			event => {
 				emitConnectionDiagnostic(onDiagnostic, {
 					operationId: connectionId, phase: 'relay.closed', timestamp: Date.now(), outcome: 'info',

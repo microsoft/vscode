@@ -8,7 +8,8 @@ import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import type { IAgentTelemetryContext } from '../common/agent.js';
+import type { AgentSubagentKind, IAgentTelemetryContext } from '../common/agent.js';
+import type { McpServerSource } from '../common/meta/mcpCustomizationMeta.js';
 import { SessionInputRequestKind, type SessionToolAuthenticationRequest, type SessionToolClientExecutionRequest, type SessionToolConfirmationRequest } from '../common/state/protocol/state.js';
 import { type ToolCallContributor, type ToolCallResult } from '../common/state/sessionState.js';
 import { IAgentHostTelemetryReporter, type AgentHostExecutorClientConnectionState, type AgentHostModelTelemetryKind, type AgentHostTelemetryReporter, type IAgentHostToolInvokedReport } from './agentHostTelemetryReporter.js';
@@ -45,15 +46,19 @@ interface IToolCallTiming {
 	invocationStopWatch?: StopWatch;
 	readonly provider: string;
 	readonly session: string;
+	/** Owning session of the chat, recorded when the tool call started. */
+	readonly owner: string;
 	readonly turnId: string;
 	readonly toolId: string;
 	contributor: ToolCallContributor | undefined;
 	toolSourceKind: string;
+	mcpSourceKind: McpServerSource | undefined;
 	model: string | undefined;
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 	modelResolvedFromUsage: boolean;
 	readonly clientContext: IAgentHostClientTelemetryContext | undefined;
 	readonly telemetryContext: IAgentTelemetryContext | undefined;
+	readonly subagentKind: AgentSubagentKind | undefined;
 }
 
 interface IStalledToolCall {
@@ -96,21 +101,24 @@ export class AgentHostToolCallTracker extends Disposable {
 		super();
 	}
 
-	toolCallStarted(provider: string, session: string, turnId: string, toolCallId: string, toolName: string, contributor: ToolCallContributor | undefined, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined): void {
+	toolCallStarted(provider: string, session: string, owner: string, turnId: string, toolCallId: string, toolName: string, contributor: ToolCallContributor | undefined, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, mcpSourceKind?: McpServerSource): void {
 		const resolvedModel = this._turnModels.get(this._turnKey(session, turnId));
 		this._toolCalls.set(this._key(session, toolCallId), {
 			lifecycleStopWatch: StopWatch.create(true),
 			provider,
 			session,
+			owner,
 			turnId,
 			toolId: toolName,
 			contributor,
 			toolSourceKind: toolSourceKindFromContributor(contributor),
+			mcpSourceKind,
 			model: resolvedModel?.model ?? model,
 			modelTelemetryKind: resolvedModel?.modelTelemetryKind ?? modelTelemetryKind,
 			modelResolvedFromUsage: resolvedModel !== undefined,
 			clientContext: this._turnTracker.getClientTelemetryContext(session, turnId),
 			telemetryContext: this._turnTracker.getTelemetryContext(session, turnId),
+			subagentKind: this._turnTracker.getSubagentKind(session, turnId),
 		});
 	}
 
@@ -133,7 +141,7 @@ export class AgentHostToolCallTracker extends Disposable {
 		}
 	}
 
-	toolCallMetadataUpdated(session: string, toolCallId: string, contributor: ToolCallContributor | undefined): void {
+	toolCallMetadataUpdated(session: string, toolCallId: string, contributor: ToolCallContributor | undefined, mcpSourceKind?: McpServerSource): void {
 		const timing = this._toolCalls.get(this._key(session, toolCallId));
 		if (!timing) {
 			return;
@@ -141,6 +149,7 @@ export class AgentHostToolCallTracker extends Disposable {
 		if (contributor && canRefineContributor(timing.contributor, contributor)) {
 			timing.contributor = contributor;
 			timing.toolSourceKind = toolSourceKindFromContributor(contributor);
+			timing.mcpSourceKind = mcpSourceKind ?? timing.mcpSourceKind;
 		}
 	}
 
@@ -170,9 +179,12 @@ export class AgentHostToolCallTracker extends Disposable {
 			telemetryContext: timing.telemetryContext,
 			provider: timing.provider,
 			session: timing.session,
+			owner: timing.owner,
+			subagentKind: timing.subagentKind,
 			turnId: timing.turnId,
 			toolId: timing.toolId,
 			toolSourceKind: timing.toolSourceKind,
+			mcpSourceKind: timing.mcpSourceKind,
 			toolCallId,
 			result: resultBucket,
 			invocationTimeMs: timing.invocationStopWatch?.elapsed(),
@@ -180,7 +192,6 @@ export class AgentHostToolCallTracker extends Disposable {
 			model: timing.model,
 			modelTelemetryKind: timing.modelTelemetryKind,
 			errorCode: result.error?.code,
-			errorMessage: result.error?.message,
 		};
 		if (timing.modelResolvedFromUsage) {
 			this._reporter.toolInvoked(report);
@@ -198,6 +209,8 @@ export class AgentHostToolCallTracker extends Disposable {
 				telemetryContext: timing.telemetryContext,
 				provider: timing.provider,
 				session: timing.session,
+				owner: timing.owner,
+				subagentKind: timing.subagentKind,
 				blockerKind: stalled.blockerKind,
 				toolCallId,
 				toolId: timing.toolId,
@@ -210,7 +223,7 @@ export class AgentHostToolCallTracker extends Disposable {
 		}
 	}
 
-	toolCallBlocked(provider: string, session: string, request: ToolCallBlockerRequest): void {
+	toolCallBlocked(provider: string, session: string, owner: string, request: ToolCallBlockerRequest): void {
 		const key = this._key(session, request.id);
 		const toolCallKey = this._key(session, request.toolCall.toolCallId);
 		if (this._toolCallStallTimers.has(key) || this._stalledToolCalls.has(toolCallKey)) {
@@ -228,6 +241,8 @@ export class AgentHostToolCallTracker extends Disposable {
 				telemetryContext: this._toolCalls.get(toolCallKey)?.telemetryContext,
 				provider,
 				session,
+				owner,
+				subagentKind: this._toolCalls.get(toolCallKey)?.subagentKind,
 				blockerKind: request.kind,
 				toolCallId: request.toolCall.toolCallId,
 				toolId: request.toolCall.toolName,

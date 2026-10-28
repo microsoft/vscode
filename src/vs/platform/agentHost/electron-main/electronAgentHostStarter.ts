@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter } from '../../../base/common/event.js';
-import { IpcMainEvent, WebContents } from 'electron';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { isMacintosh } from '../../../base/common/platform.js';
+import { app, IpcMainEvent, net, systemPreferences, WebContents } from 'electron';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/electron-main/ipc.mp.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
@@ -21,15 +24,29 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { AgentHostStartError, IAgentHostConnection, IAgentHostShutdownRequest, IAgentHostStarter, IAgentHostStartRequest, isFatalAgentHostStartError, toFatalAgentHostStartError } from '../common/agent.js';
+import { AgentHostExitMarker, AgentHostProcessExitDiagnosticsCollector, IAgentHostProcessMemorySample } from '../common/agentHostProcessExit.js';
 import { buildAgentHostTelemetryIdEnv, IAgentHostForwardedTelemetryIds } from '../common/agentHostTelemetryEnv.js';
 import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar, telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
-import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostIpcChannels, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, AgentHostOTelPolicyIpcChannel, AgentHostOTelPolicyState, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostManagementService, IAgentHostOTelSettings } from '../common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostIpcChannels, AgentHostOTelCaptureContentSettingId, AgentHostOTelCaptureIdentitySettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelPolicyIpcChannel, AgentHostOTelPolicyState, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostManagementService, IAgentHostOTelSettings, readAgentHostOTelPolicySettings } from '../common/agentService.js';
+import { ChatProvidersSettingId } from '../common/agentHostChatProviders.js';
 import { deepClone } from '../../../base/common/objects.js';
 import '../common/agentHostStarter.config.contribution.js';
+import { AgentHostAhpJsonlLoggingEnvVar } from '../common/ahpJsonlLogger.js';
+import { AgentHostWakeNetworkMonitor } from '../common/agentHostWakeNetworkMonitor.js';
+
+/** The distributed notification macOS posts when it changes which apps it trusts for Accessibility. */
+const MacAccessibilityTrustChangedNotification = 'com.apple.accessibility.api';
 
 export class ElectronAgentHostStarter extends Disposable implements IAgentHostStarter {
 
 	private utilityProcess: UtilityProcess | undefined = undefined;
+	private _exitSettled: Promise<void> | undefined;
+	private _managementService: IAgentHostManagementService | undefined;
+	private _systemFullyAwake = true;
+	private readonly _wakeNetwork = this._register(new AgentHostWakeNetworkMonitor(() => net.isOnline(), online => {
+		this._logService.info(`AgentHostStarter: network is ${online ? 'online' : 'offline'} after wake`);
+		this._reportSystemNetworkOnline();
+	}));
 	private readonly _windowSenders = new Map<number, WebContents>();
 	private readonly _windowSenderCleanup = this._register(new DisposableMap<number>());
 
@@ -97,6 +114,24 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		this._register(toDisposable(() => {
 			validatedIpcMain.removeListener(AgentHostRestartIpcChannel, onRestart);
 		}));
+
+		if (isMacintosh) {
+			// Unlike Electron's `resume` event, macOS posts the did-wake notification
+			// only when the machine fully wakes, not for background (dark) wakes.
+			const subscriptions = [
+				systemPreferences.subscribeWorkspaceNotification('NSWorkspaceWillSleepNotification', () => this._setSystemFullyAwake(false)),
+				systemPreferences.subscribeWorkspaceNotification('NSWorkspaceDidWakeNotification', () => this._setSystemFullyAwake(true)),
+			];
+			// macOS posts this distributed notification whenever it changes which apps it trusts for Accessibility,
+			// e.g. when the user turns on Copilot Computer Use in System Settings. The Agent Host can't observe it.
+			const accessibilityTrustSubscription = systemPreferences.subscribeNotification(MacAccessibilityTrustChangedNotification, () => this._reportAccessibilityTrustChange());
+			this._register(toDisposable(() => {
+				for (const subscription of subscriptions) {
+					systemPreferences.unsubscribeWorkspaceNotification(subscription);
+				}
+				systemPreferences.unsubscribeNotification(accessibilityTrustSubscription);
+			}));
+		}
 	}
 
 	async start(): Promise<IAgentHostConnection> {
@@ -128,6 +163,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			codexHome: this._configurationService.getValue<string>(AgentHostCodexAgentCodexHomeSettingId),
 			codexBinaryArgs: this._configurationService.getValue<readonly string[]>(AgentHostCodexAgentBinaryArgsSettingId),
 			claudeAgentEnabled: this._configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId),
+			multipleChatProvidersEnabled: this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) === true,
 			codexAgentEnabled: this._configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId),
 		}, process.env);
 
@@ -140,26 +176,17 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		// includes the managed-settings `AccountPolicyService` layer that the main
 		// process cannot see); fall back to the main-process policy for the keys it
 		// can resolve (e.g. native MDM via the policy channel).
-		const policyValue = <T>(key: string): T | undefined => this._configurationService.inspect<T>(key).policyValue;
-		const policySettings: IAgentHostOTelSettings = this._otelPolicyState.policy ?? {
-			enabled: policyValue<boolean>(AgentHostOTelEnabledSettingId),
-			exporterType: policyValue<string>(AgentHostOTelExporterTypeSettingId),
-			otlpProtocol: policyValue<string>(AgentHostOTelOtlpProtocolSettingId),
-			otlpEndpoint: policyValue<string>(AgentHostOTelOtlpEndpointSettingId),
-			captureContent: policyValue<boolean>(AgentHostOTelCaptureContentSettingId),
-			outfile: policyValue<string>(AgentHostOTelOutfileSettingId),
-			serviceName: policyValue<string>(AgentHostOTelServiceNameSettingId),
-			resourceAttributes: policyValue<Record<string, string>>(AgentHostOTelResourceAttributesSettingId),
-		};
+		const policySettings: IAgentHostOTelSettings = this._otelPolicyState.policy ?? readAgentHostOTelPolicySettings(this._configurationService);
 		this._otelPolicyState.didStart();
 		const otelEnv = buildAgentHostOTelEnv({
 			enabled: this._configurationService.getValue<boolean>(AgentHostOTelEnabledSettingId),
 			exporterType: this._configurationService.getValue<string>(AgentHostOTelExporterTypeSettingId),
 			otlpEndpoint: this._configurationService.getValue<string>(AgentHostOTelOtlpEndpointSettingId),
 			captureContent: this._configurationService.getValue<boolean>(AgentHostOTelCaptureContentSettingId),
+			captureIdentity: this._configurationService.getValue<boolean>(AgentHostOTelCaptureIdentitySettingId),
 			outfile: this._configurationService.getValue<string>(AgentHostOTelOutfileSettingId),
 			dbSpanExporterEnabled: this._configurationService.getValue<boolean>(AgentHostOTelDbSpanExporterEnabledSettingId),
-		}, process.env, policySettings);
+		}, process.env, policySettings, shellEnv);
 
 		const args = [
 			'--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
@@ -173,6 +200,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		const telemetryIdEnv = buildAgentHostTelemetryIdEnv(this._telemetryIds);
 		const utilityProcess = new UtilityProcess(this._logService, NullTelemetryService, this._lifecycleMainService);
 		this.utilityProcess = utilityProcess;
+		const exitDiagnostics = new AgentHostProcessExitDiagnosticsCollector(utilityProcess, pid => this._sampleProcessMemory(pid));
 
 		try {
 			if (!utilityProcess.start({
@@ -192,6 +220,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 					VSCODE_PIPE_LOGGING: 'true',
 					VSCODE_VERBOSE_LOGGING: 'true',
 					[AgentHostLaunchKindEnvVar]: AgentHostLaunchKind.VSCodeMainProcess,
+					[AgentHostAhpJsonlLoggingEnvVar]: String(this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)),
 					...sdkEnv,
 					...otelEnv,
 					...telemetryIdEnv,
@@ -205,29 +234,64 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			const managementService = ProxyChannel.toService<IAgentHostManagementService>(client.getChannel(AgentHostIpcChannels.Management));
 
 			const store = new DisposableStore();
+			store.add(exitDiagnostics);
+			this._managementService = managementService;
+			store.add(toDisposable(() => {
+				if (this._managementService === managementService) {
+					this._managementService = undefined;
+				}
+			}));
 			store.add(client);
+			if (!this._systemFullyAwake) {
+				this._reportSystemFullyAwake();
+			}
+			if (!this._wakeNetwork.isOnline) {
+				this._reportSystemNetworkOnline();
+			}
 			store.add(utilityProcess.onStderr(data => {
-				if (this._isExpectedStderr(data)) {
+				const loggable = data.split('\n').filter(line => !line.includes(AgentHostExitMarker)).join('\n');
+				if (!loggable.trim() || this._isExpectedStderr(loggable)) {
 					return;
 				}
-				this._logService.error(`[AgentHost:stderr] ${data}`);
+				this._logService.error(`[AgentHost:stderr] ${loggable}`);
 			}));
-			store.add(utilityProcess.onExit(() => this._notifyWindowsWillRestart()));
+
+			// The exit is reported after a grace period that collects diagnostics.
+			// Hold new window connections until then, so they reach the restarted
+			// process rather than the exited one.
+			const exitSettled = new DeferredPromise<void>();
+			store.add(toDisposable(() => exitSettled.complete()));
+			store.add(exitDiagnostics.onDidExit(() => exitSettled.complete()));
+			void exitSettled.p.then(() => {
+				if (this._exitSettled === exitSettled.p) {
+					this._exitSettled = undefined;
+				}
+			});
+			store.add(utilityProcess.onExit(() => {
+				this._exitSettled = exitSettled.p;
+				this._notifyWindowsWillRestart();
+			}));
 			store.add(toDisposable(() => this._disposeUtilityProcess(utilityProcess)));
 
 			return {
 				client,
 				store,
-				onDidProcessExit: utilityProcess.onExit,
+				onDidProcessExit: exitDiagnostics.onDidExit,
 				shutdown: () => managementService.shutdown(),
 			};
 		} catch (error) {
+			exitDiagnostics.dispose();
 			this._disposeUtilityProcess(utilityProcess);
 			if (isFatalAgentHostStartError(error)) {
 				throw toFatalAgentHostStartError(error);
 			}
 			throw error;
 		}
+	}
+
+	private _sampleProcessMemory(pid: number): IAgentHostProcessMemorySample | undefined {
+		const metric = app.getAppMetrics().find(metric => metric.pid === pid);
+		return metric ? { workingSetKb: metric.memory.workingSetSize, peakWorkingSetKb: metric.memory.peakWorkingSetSize } : undefined;
 	}
 
 	private async _resolveShellEnv(): Promise<typeof process.env> {
@@ -239,12 +303,52 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		}
 	}
 
+	private _setSystemFullyAwake(fullyAwake: boolean): void {
+		if (this._systemFullyAwake === fullyAwake) {
+			return;
+		}
+		this._systemFullyAwake = fullyAwake;
+		this._logService.info(`AgentHostStarter: system is ${fullyAwake ? 'fully awake' : 'going to sleep'}`);
+		this._reportSystemFullyAwake();
+		if (fullyAwake) {
+			this._wakeNetwork.handleWake();
+		} else {
+			this._wakeNetwork.handleSleep();
+		}
+	}
+
+	private _reportSystemFullyAwake(): void {
+		void this._managementService?.setSystemFullyAwake(this._systemFullyAwake).catch(error => {
+			this._logService.warn(`AgentHostStarter: failed to report system wake state: ${toErrorMessage(error)}`);
+		});
+	}
+
+	private _reportSystemNetworkOnline(): void {
+		void this._managementService?.setSystemNetworkOnline(this._wakeNetwork.isOnline).catch(error => {
+			this._logService.warn(`AgentHostStarter: failed to report network state: ${toErrorMessage(error)}`);
+		});
+	}
+
+	private _reportAccessibilityTrustChange(): void {
+		// A host that isn't running has no setup waiting for the change.
+		void this._managementService?.reportMacAccessibilityTrustChange().catch(error => {
+			this._logService.warn(`AgentHostStarter: failed to report an Accessibility permission change: ${toErrorMessage(error)}`);
+		});
+	}
+
 	private async _onWindowConnection(e: IpcMainEvent, nonce: string): Promise<void> {
 		if (e.sender.isDestroyed()) {
 			return;
 		}
 
 		this._trackWindowSender(e.sender);
+
+		if (this._exitSettled) {
+			await this._exitSettled;
+			if (e.sender.isDestroyed()) {
+				return;
+			}
+		}
 
 		let startPromise: Promise<void> | undefined;
 		try {

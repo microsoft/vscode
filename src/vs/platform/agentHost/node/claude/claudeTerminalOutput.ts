@@ -12,7 +12,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES, type ISessionDatabase } from '../../common/sessionDataService.js';
-import { parseChatUri, ResponsePartKind, ToolCallStatus, ToolResultContentType, type ToolResultTerminalContent, type Turn } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallStatus, ToolResultContentType, type ToolResultTerminalContent, type Turn } from '../../common/state/sessionState.js';
 import type { ClaudeMapperState } from './claudeMapSessionEvents.js';
 import { getClaudeToolDisplayName } from './claudeToolDisplay.js';
 
@@ -44,7 +44,7 @@ export class ClaudeTerminalOutputs {
 	 * Stages retained output before mapping the completion. Returns the tool ID
 	 * on success or cancellation so the caller can discard even a failed capture.
 	 */
-	async capture(storage: URI, chat: URI, turnId: string, message: Extract<SDKMessage, { type: 'user' }>, state: ClaudeMapperState, signal?: AbortSignal): Promise<string | undefined> {
+	async capture(storage: URI, session: URI, chat: URI, turnId: string, message: Extract<SDKMessage, { type: 'user' }>, state: ClaudeMapperState, signal?: AbortSignal): Promise<string | undefined> {
 		const outputPath = getPersistedOutputPath(message.tool_use_result);
 		const blocks = message.message.content;
 		if (!outputPath || message.parent_tool_use_id !== null || !Array.isArray(blocks)) {
@@ -58,10 +58,7 @@ export class ClaudeTerminalOutputs {
 			return;
 		}
 		const title = toolCall.info?.displayName ?? getClaudeToolDisplayName(toolCall.toolName);
-		const terminal = buildTerminalContent(storage, chat, result.tool_use_id, title, getText(result.content), result.is_error !== true, this._logService);
-		if (!terminal) {
-			return;
-		}
+		const terminal = buildTerminalContent(storage, session, chat, result.tool_use_id, title, getText(result.content), result.is_error !== true, this._logService);
 		if (signal?.aborted) {
 			return result.tool_use_id;
 		}
@@ -117,7 +114,7 @@ export class ClaudeTerminalOutputs {
 	 * Attaches retained output to completed shell calls restored from Claude's
 	 * transcript, which records only the model-facing result.
 	 */
-	async restore(storage: URI, chat: URI, turns: readonly Turn[]): Promise<void> {
+	async restore(storage: URI, session: URI, chat: URI, turns: readonly Turn[]): Promise<void> {
 		const toolCalls = turns.flatMap(turn => turn.responseParts.flatMap(part =>
 			part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed && part.toolCall.toolName === CLAUDE_SHELL_TOOL_NAME ? [part.toolCall] : []));
 		if (toolCalls.length === 0) {
@@ -133,10 +130,8 @@ export class ClaudeTerminalOutputs {
 					if (await database.object.getTerminalOutputSize(toolCall.toolCallId) === undefined) {
 						continue;
 					}
-					const terminal = buildTerminalContent(storage, chat, toolCall.toolCallId, toolCall.displayName, getText(toolCall.content), toolCall.success, this._logService);
-					if (terminal) {
-						toolCall.content = [...(toolCall.content ?? []), terminal];
-					}
+					const terminal = buildTerminalContent(storage, session, chat, toolCall.toolCallId, toolCall.displayName, getText(toolCall.content), toolCall.success, this._logService);
+					toolCall.content = [...(toolCall.content ?? []), terminal];
 				}
 			} finally {
 				database.dispose();
@@ -168,11 +163,7 @@ function getText(content: ToolResultParts): string | undefined {
 	return typeof text === 'string' ? text : undefined;
 }
 
-function buildTerminalContent(storage: URI, chat: URI, toolCallId: string, title: string, text: string | undefined, success: boolean, logService: ILogService): ToolResultTerminalContent | undefined {
-	const session = parseChatUri(chat)?.session;
-	if (!session) {
-		return undefined;
-	}
+function buildTerminalContent(storage: URI, session: URI, chat: URI, toolCallId: string, title: string, text: string | undefined, success: boolean, logService: ILogService): ToolResultTerminalContent {
 	const preview = text === undefined ? undefined : PERSISTED_OUTPUT_NOTICE.exec(text)?.groups?.preview;
 	if (preview === undefined) {
 		logService.trace(`[Claude] Unrecognized persisted shell output preview for ${toolCallId}`);

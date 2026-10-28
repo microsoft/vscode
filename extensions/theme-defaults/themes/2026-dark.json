@@ -295,7 +295,6 @@
 		"agentsBadge.foreground": "#FFFFFF",
 		"agentsUnreadBadge.background": "#307E9F",
 		"agentsUnreadBadge.foreground": "#FFFFFF",
-		"agentsBottomPanel.border": "#00000000",
 	},
 	"tokenColors": [
 		{

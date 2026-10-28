@@ -25,6 +25,11 @@ export interface ITelemetryServiceConfig {
 	commonProperties?: ICommonProperties;
 	piiPaths?: string[];
 	/**
+	 * Paths that are removed from telemetry data like {@link piiPaths}, but whose
+	 * descendant file paths are fully redacted instead of being kept relative to them.
+	 */
+	userContentPaths?: string[];
+	/**
 	 * A fixed telemetry level for processes that receive the resolved level from their launcher.
 	 * When provided, the service does not read or observe telemetry settings.
 	 */
@@ -77,6 +82,8 @@ export class TelemetryService implements ITelemetryService {
 
 	private readonly _disposables = new DisposableStore();
 	private _cleanupPatterns: RegExp[] = [];
+	private _relativePathRootPatterns: RegExp[] = [];
+	private _userContentRootPatterns: RegExp[] = [];
 
 	static createWithLevel(config: ITelemetryServiceConfig & { telemetryLevel: TelemetryLevel }, productService: IProductService): TelemetryService {
 		return new TelemetryService(config, undefined, productService);
@@ -104,13 +111,22 @@ export class TelemetryService implements ITelemetryService {
 		this._meteredConnectionService = config.meteredConnectionService;
 
 		// static cleanup pattern for: `vscode-file:///DANGEROUS/PATH/resources/app/Useful/Information`
-		this._cleanupPatterns = [/(vscode-)?file:\/\/.*?\/resources\/app\//gi];
+		const appResourcesPattern = /(vscode-)?file:\/\/.*?\/resources\/app\//gi;
+		this._cleanupPatterns = [appResourcesPattern];
+		this._relativePathRootPatterns = [appResourcesPattern];
 
-		for (const piiPath of this._piiPaths) {
-			this._cleanupPatterns.push(new RegExp(escapeRegExpCharacters(piiPath), 'gi'));
-
+		const userContentPaths = new Set(config.userContentPaths);
+		for (const piiPath of new Set([...this._piiPaths, ...userContentPaths])) {
+			const patterns = [new RegExp(escapeRegExpCharacters(piiPath), 'gi')];
 			if (piiPath.indexOf('\\') >= 0) {
-				this._cleanupPatterns.push(new RegExp(escapeRegExpCharacters(piiPath.replace(/\\/g, '/')), 'gi'));
+				patterns.push(new RegExp(escapeRegExpCharacters(piiPath.replace(/\\/g, '/')), 'gi'));
+			}
+
+			this._cleanupPatterns.push(...patterns);
+			if (userContentPaths.has(piiPath)) {
+				this._userContentRootPatterns.push(...patterns);
+			} else {
+				this._relativePathRootPatterns.push(...patterns);
 			}
 		}
 
@@ -237,7 +253,7 @@ export class TelemetryService implements ITelemetryService {
 		data = mixin(data, this._experimentProperties);
 
 		// remove all PII from data
-		data = cleanData(data, this._cleanupPatterns);
+		data = cleanData(data, this._cleanupPatterns, this._relativePathRootPatterns, this._userContentRootPatterns);
 
 		// add common properties
 		data = mixin(data, this._commonProperties);

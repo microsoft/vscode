@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, animate, append, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, animate, append, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -14,6 +15,7 @@ import { AnchorAlignment, AnchorAxisAlignment, AnchorPosition, IRect, layout2d }
 import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { localize } from '../../../../../nls.js';
+import { IOnboardingFocusTarget } from './onboardingTarget.js';
 import { SpotlightPlacement, SpotlightTargetClickBehavior } from './spotlightTypes.js';
 import { OnboardingDismissReason } from '../../common/onboardingScenario.js';
 import '../media/spotlight.css';
@@ -37,6 +39,8 @@ export interface ISpotlightContent {
 	readonly description: string | IMarkdownString;
 	/** Localized primary button label, replacing the default Next or Done. */
 	readonly nextButtonLabel?: string;
+	/** Localized label of the button that ends the tour, replacing End Tour. */
+	readonly endTourLabel?: string;
 	/** Zero-based index of the current step. */
 	readonly stepIndex: number;
 	/** Total number of steps in the tour. Progress is displayed only for multi-step tours. */
@@ -45,6 +49,8 @@ export interface ISpotlightContent {
 	readonly canGoBack: boolean;
 	/** Whether this is the final step (the primary button becomes "Done"). */
 	readonly isLastStep: boolean;
+	/** Keeps cancellation available when the final primary button performs an action. */
+	readonly showEndTour?: boolean;
 }
 
 /** Options controlling how a step is shown. */
@@ -54,8 +60,13 @@ export interface ISpotlightShowOptions {
 	readonly padding?: number;
 	readonly hideNext?: boolean;
 	readonly targetOverlayVisible?: boolean;
+	/** Other elements to highlight with the target. See `IOnboardingTarget.additionalElements`. */
+	readonly additionalElements?: () => readonly HTMLElement[];
 	/** Advances on target activation; `advanceOnly` consumes the activation without running its action. */
 	readonly advanceOnTargetClick?: SpotlightTargetClickBehavior;
+	/** Uses the control's activation event instead of DOM clicks when advancing after its action. */
+	readonly onDidActivateTarget?: Event<void>;
+	readonly focusTarget?: IOnboardingFocusTarget;
 }
 
 /**
@@ -141,8 +152,6 @@ export class SpotlightOverlay extends Disposable {
 		const actions = append(footer, $('.spotlight-callout-actions'));
 
 		this._skipButton = this._register(new Button(actions, { ...defaultButtonStyles, secondary: true }));
-		this._skipButton.label = localize('spotlight.endTour', "End Tour");
-		this._skipButton.setTitle(localize('spotlight.endTour.tooltip', "End Tour (Esc)"));
 		this._register(this._skipButton.onDidClick(() => this._onDidSkip.fire(OnboardingDismissReason.SkipButton)));
 
 		this._backButton = this._register(new Button(actions, { ...defaultButtonStyles, secondary: true }));
@@ -173,6 +182,7 @@ export class SpotlightOverlay extends Disposable {
 
 		this._target = target;
 		this._options = options;
+		this.setPrimaryActionEnabled(true);
 		this._renderContent(content);
 		const externalUiParticipates = !!options.targetOverlayVisible || !!options.allowTargetInteraction || !!options.advanceOnTargetClick || !!options.hideNext;
 		this._root.classList.toggle('target-overlay-visible', externalUiParticipates);
@@ -183,6 +193,7 @@ export class SpotlightOverlay extends Disposable {
 		// Rebuild the per-step re-layout listeners.
 		this._stepListeners.clear();
 		const targetWindow = getWindow(this._container);
+		const focusElement = options.focusTarget?.element ?? target;
 
 		const observer = new this._resizeObserverCtor(() => this.scheduleLayout());
 		observer.observe(target);
@@ -194,21 +205,22 @@ export class SpotlightOverlay extends Disposable {
 		if (externalUiParticipates) {
 			this._stepListeners.add(addDisposableListener(targetWindow, EventType.KEY_DOWN, event => {
 				const eventTarget = event.target;
-				if (!isHTMLElement(eventTarget) || this._root.contains(eventTarget) || target.contains(eventTarget)) {
+				if (!isHTMLElement(eventTarget) || this._root.contains(eventTarget) || target.contains(eventTarget) || focusElement.contains(eventTarget)) {
 					return;
 				}
 				const keyboardEvent = new StandardKeyboardEvent(event);
-				if (keyboardEvent.equals(KeyCode.Escape)) {
+				// Escape inside an additional element, such as a menu, closes that element rather than the tour.
+				if (keyboardEvent.equals(KeyCode.Escape) && !options.additionalElements?.().some(element => element.contains(eventTarget))) {
 					this._onDidSkip.fire(OnboardingDismissReason.EscapeKey);
 				}
 			}, true));
 		}
 
 		// ResizeObserver does not report position-only shifts caused by surrounding content.
-		let previousRect = target.getBoundingClientRect();
+		let previousRect = this._getHighlightRect(target);
 		this._stepListeners.add(animate(targetWindow, () => {
-			const rect = target.getBoundingClientRect();
-			if (rect.x !== previousRect.x || rect.y !== previousRect.y || rect.width !== previousRect.width || rect.height !== previousRect.height) {
+			const rect = this._getHighlightRect(target);
+			if (rect.left !== previousRect.left || rect.top !== previousRect.top || rect.width !== previousRect.width || rect.height !== previousRect.height) {
 				previousRect = rect;
 				this.layout();
 			}
@@ -222,24 +234,43 @@ export class SpotlightOverlay extends Disposable {
 			this._scheduledLayout = undefined;
 		}));
 
+		const additionalElements = options.additionalElements;
+		if (additionalElements) {
+			// Focus can move into the additional elements, so screen readers might not read the callout.
+			status(localize('spotlight.stepAnnouncement', "{0}: {1}", content.title, this._description.textContent ?? ''));
+			this._stepListeners.add(addDisposableGenericMouseDownListener(this._callout, event => {
+				const activeElement = getActiveElement();
+				if (activeElement && additionalElements().some(element => element.contains(activeElement))) {
+					event.preventDefault();
+				}
+			}));
+		}
+
 		const advanceOnTargetClick = !!options.advanceOnTargetClick;
 		const advanceOnly = options.advanceOnTargetClick === 'advanceOnly';
 		const hideNext = options.hideNext ?? advanceOnTargetClick;
 		this._nextButton.element.style.display = hideNext ? 'none' : '';
 		if (advanceOnTargetClick) {
-			this._stepListeners.add(addDisposableListener(target, EventType.CLICK, event => {
-				if (advanceOnly) {
-					event.preventDefault();
-					event.stopImmediatePropagation();
-					this._onDidClickNext.fire('target');
-					return;
-				}
+			const advanceAfterActivation = () => {
 				const handle = targetWindow.setTimeout(() => {
 					this._previousFocus = undefined;
 					this._onDidClickNext.fire('target');
 				});
 				this._stepListeners.add(toDisposable(() => targetWindow.clearTimeout(handle)));
-			}, true));
+			};
+			if (!advanceOnly && options.onDidActivateTarget) {
+				this._stepListeners.add(options.onDidActivateTarget(advanceAfterActivation));
+			} else {
+				this._stepListeners.add(addDisposableListener(target, EventType.CLICK, event => {
+					if (advanceOnly) {
+						event.preventDefault();
+						event.stopImmediatePropagation();
+						this._onDidClickNext.fire('target');
+						return;
+					}
+					advanceAfterActivation();
+				}, true));
+			}
 		}
 		if (advanceOnly) {
 			const onTargetKey = (event: KeyboardEvent) => {
@@ -254,17 +285,22 @@ export class SpotlightOverlay extends Disposable {
 					this._onKeyDown(event);
 				}
 			};
-			this._stepListeners.add(addDisposableListener(target, EventType.KEY_DOWN, onTargetKey, true));
-			this._stepListeners.add(addDisposableListener(target, EventType.KEY_UP, onTargetKey, true));
+			this._stepListeners.add(addDisposableListener(focusElement, EventType.KEY_DOWN, onTargetKey, true));
+			this._stepListeners.add(addDisposableListener(focusElement, EventType.KEY_UP, onTargetKey, true));
 		} else if (options.allowTargetInteraction || advanceOnTargetClick || options.hideNext) {
-			this._stepListeners.add(addDisposableListener(target, EventType.KEY_DOWN, e => this._onKeyDown(e)));
+			this._stepListeners.add(addDisposableListener(focusElement, EventType.KEY_DOWN, e => this._onKeyDown(e)));
 		}
 
 		this.layout();
 
 		// Move focus to the spotlighted control (so keyboard users can activate it
 		// to advance) or, otherwise, into the callout's primary action.
-		(hideNext ? target : this._nextButton.element).focus();
+		this._focus(hideNext ? focusElement : this._nextButton.element);
+	}
+
+	/** Prevents duplicate activation while waiting for an action to be accepted. */
+	setPrimaryActionEnabled(enabled: boolean): void {
+		this._nextButton.enabled = enabled;
 	}
 
 	/** Hide the current step while another target is being resolved. */
@@ -293,11 +329,12 @@ export class SpotlightOverlay extends Disposable {
 			this._onDidLoseTarget.fire();
 			return;
 		}
+		const highlight = this._getHighlightRect(target);
 		const padding = this._options.padding ?? DEFAULT_HOLE_PADDING;
-		const holeLeft = Math.max(0, rect.left - padding);
-		const holeTop = Math.max(0, rect.top - padding);
-		const holeWidth = Math.min(viewportWidth - holeLeft, rect.width + padding * 2);
-		const holeHeight = Math.min(viewportHeight - holeTop, rect.height + padding * 2);
+		const holeLeft = Math.max(0, highlight.left - padding);
+		const holeTop = Math.max(0, highlight.top - padding);
+		const holeWidth = Math.min(viewportWidth - holeLeft, highlight.width + padding * 2);
+		const holeHeight = Math.min(viewportHeight - holeTop, highlight.height + padding * 2);
 
 		this._hole.style.left = `${holeLeft}px`;
 		this._hole.style.top = `${holeTop}px`;
@@ -322,6 +359,22 @@ export class SpotlightOverlay extends Disposable {
 		}
 
 		this._layoutCallout({ top: holeTop, left: holeLeft, width: holeWidth, height: holeHeight }, viewportWidth, viewportHeight);
+	}
+
+	/** The bounds that contain the target and every visible additional element. */
+	private _getHighlightRect(target: HTMLElement): IRect {
+		const rect = target.getBoundingClientRect();
+		let { left, top, right, bottom } = rect;
+		for (const element of this._options.additionalElements?.() ?? []) {
+			const elementRect = element.isConnected ? element.getBoundingClientRect() : undefined;
+			if (elementRect && elementRect.width > 0 && elementRect.height > 0) {
+				left = Math.min(left, elementRect.left);
+				top = Math.min(top, elementRect.top);
+				right = Math.max(right, elementRect.right);
+				bottom = Math.max(bottom, elementRect.bottom);
+			}
+		}
+		return { left, top, width: right - left, height: bottom - top };
 	}
 
 	private _layoutBlocker(blocker: HTMLElement, left: number, top: number, width: number, height: number): void {
@@ -434,7 +487,11 @@ export class SpotlightOverlay extends Disposable {
 			? localize('spotlight.counter', "{0} of {1}", content.stepIndex + 1, content.stepCount)
 			: '';
 
-		this._skipButton.element.style.display = content.isLastStep ? 'none' : '';
+		this._skipButton.element.style.display = content.isLastStep && !content.showEndTour ? 'none' : '';
+		this._skipButton.label = content.endTourLabel ?? localize('spotlight.endTour', "End Tour");
+		this._skipButton.setTitle(content.endTourLabel
+			? localize('spotlight.endTour.customTooltip', "{0} (Esc)", content.endTourLabel)
+			: localize('spotlight.endTour.tooltip', "End Tour (Esc)"));
 		this._backButton.element.style.display = content.canGoBack ? '' : 'none';
 		this._nextButton.label = content.nextButtonLabel ?? (content.isLastStep
 			? localize('spotlight.done', "Done")
@@ -477,7 +534,15 @@ export class SpotlightOverlay extends Disposable {
 
 		event.preventDefault();
 		event.stopPropagation();
-		focusable[nextIndex].focus();
+		this._focus(focusable[nextIndex]);
+	}
+
+	private _focus(element: HTMLElement): void {
+		if (this._options.focusTarget?.element === element) {
+			this._options.focusTarget.focus();
+		} else {
+			element.focus();
+		}
 	}
 
 	/**
@@ -490,8 +555,9 @@ export class SpotlightOverlay extends Disposable {
 	 */
 	private _collectFocusable(): HTMLElement[] {
 		const targetFocusables = (this._options.allowTargetInteraction || this._options.advanceOnTargetClick || this._options.hideNext) && this._target
-			// eslint-disable-next-line no-restricted-syntax -- querying the spotlight target subtree for focusable controls
-			? [this._target, ...this._target.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+			? this._options.focusTarget ? [this._options.focusTarget.element]
+				// eslint-disable-next-line no-restricted-syntax -- querying the spotlight target subtree for focusable controls
+				: [this._target, ...this._target.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])')]
 			: [];
 		const descriptionFocusables = Array.from(
 			// eslint-disable-next-line no-restricted-syntax -- querying our own callout description subtree for focusable markdown content (e.g. links)

@@ -158,13 +158,13 @@ Reuse the existing spotlight presentation. Do not create a release-note-specific
 
 ## 10. Add release-note markup
 
-Use **Developer: Copy Feature Example Link** to produce the encoded link. Markdown contains only the stable ID:
+Use **Developer: Copy Feature Example Link** to produce the backtick-wrapped shorthand. The first argument is a registered tryout ID; the second is literal display text, not executable behavior:
 
 ```md
-<!-- %IF TRYOUTS %
-[Try My Feature](command:workbench.action.onboarding.tryFeature?%5B%22myFeature.guide%22%5D)
-%ENDIF % -->
+`try(myFeature.guide,Try My Feature)`
 ```
+
+Existing encoded links remain supported with their product-generated labels. See the contributor guide for the shorthand grammar and fallback behavior.
 
 The surrounding prose should explain:
 

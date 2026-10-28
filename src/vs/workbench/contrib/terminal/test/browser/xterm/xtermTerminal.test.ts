@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal } from '@xterm/xterm';
+import type { IDecoration, IDecorationOptions, Terminal } from '@xterm/xterm';
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { timeout } from '../../../../../../base/common/async.js';
@@ -17,14 +17,16 @@ import { IEditorOptions } from '../../../../../../editor/common/config/editorOpt
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ITerminalCommand, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { CommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
+import { PartialCommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/partialCommandDetectionCapability.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../../../common/theme.js';
-import { IViewDescriptor, IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { XtermTerminal } from '../../../browser/xterm/xtermTerminal.js';
-import { ITerminalConfiguration, TERMINAL_VIEW_ID } from '../../../common/terminal.js';
+import { ITerminalConfiguration } from '../../../common/terminal.js';
 import { registerColors, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR } from '../../../common/terminalColorRegistry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../../test/common/workbenchTestServices.js';
@@ -32,26 +34,6 @@ import { TestWebglAddon, TestXtermAddonImporter } from './xtermTestUtils.js';
 import { stub } from 'sinon';
 
 registerColors();
-
-export class TestViewDescriptorService implements Partial<IViewDescriptorService> {
-	private _location = ViewContainerLocation.Panel;
-	private _onDidChangeLocation = new Emitter<{ views: IViewDescriptor[]; from: ViewContainerLocation; to: ViewContainerLocation }>();
-	onDidChangeLocation = this._onDidChangeLocation.event;
-	getViewLocationById(id: string) {
-		return this._location;
-	}
-	moveTerminalToLocation(to: ViewContainerLocation) {
-		const oldLocation = this._location;
-		this._location = to;
-		this._onDidChangeLocation.fire({
-			views: [
-				{ id: TERMINAL_VIEW_ID } as unknown as IViewDescriptor
-			],
-			from: oldLocation,
-			to
-		});
-	}
-}
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	enableImages: false,
@@ -63,7 +45,11 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	scrollback: 10,
 	fastScrollSensitivity: 2,
 	mouseWheelScrollSensitivity: 1,
-	unicodeVersion: '6'
+	unicodeVersion: '6',
+	shellIntegration: {
+		enabled: true,
+		decorationsEnabled: 'both'
+	}
 };
 
 function listenerCount<T>(emitter: Emitter<T>): number {
@@ -78,6 +64,7 @@ suite('XtermTerminal', () => {
 	let themeService: TestThemeService;
 	let xterm: XtermTerminal;
 	let XTermBaseCtor: typeof Terminal;
+	let capabilityStore: TerminalCapabilityStore;
 	let onWillShutdown: Emitter<unknown>;
 	let lifecycleListenerCountBeforeXterm: number;
 
@@ -109,7 +96,7 @@ suite('XtermTerminal', () => {
 
 		XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
-		const capabilityStore = store.add(new TerminalCapabilityStore());
+		capabilityStore = store.add(new TerminalCapabilityStore());
 		xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
 			cols: 80,
 			rows: 30,
@@ -128,6 +115,113 @@ suite('XtermTerminal', () => {
 		strictEqual(xterm.raw.cols, 80);
 		strictEqual(xterm.raw.rows, 30);
 	});
+
+	for (const buffer of ['normal', 'alternate'] as const) {
+		test(`clearBuffer should ${buffer === 'normal' ? 'clear rich and partial command history including scrollback' : 'preserve normal-buffer command history and decorations when clearing the alternate buffer'}`, async () => {
+			class TestTerminal extends XTermBaseCtor {
+				override registerDecoration(options: IDecorationOptions): IDecoration | undefined {
+					const disposeListeners = new Set<() => unknown>();
+					let isDisposed = false;
+					return {
+						marker: options.marker,
+						options,
+						get isDisposed() { return isDisposed; },
+						dispose: () => {
+							isDisposed = true;
+							for (const listener of disposeListeners) {
+								listener();
+							}
+							disposeListeners.clear();
+						},
+						onDispose: (listener: () => unknown) => {
+							disposeListeners.add(listener);
+							return { dispose: () => disposeListeners.delete(listener) };
+						},
+						onRender: (listener: (element: HTMLElement) => unknown) => {
+							listener(document.createElement('div'));
+							return { dispose() { } };
+						}
+					} as unknown as IDecoration;
+				}
+			}
+			capabilityStore = store.add(new TerminalCapabilityStore());
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, TestTerminal, {
+				cols: 80,
+				rows: 30,
+				xtermColorProvider: { getBackgroundColor: () => undefined },
+				capabilities: capabilityStore,
+				disableShellIntegrationReporting: true,
+				xtermAddonImporter: new TestXtermAddonImporter(),
+			}, undefined));
+			const commandDetection = store.add(instantiationService.createInstance(CommandDetectionCapability, xterm.raw));
+			const onDidExecuteText = store.add(new Emitter<void>());
+			const partialCommandDetection = store.add(new PartialCommandDetectionCapability(xterm.raw, onDidExecuteText.event));
+			capabilityStore.add(TerminalCapability.CommandDetection, commandDetection);
+			capabilityStore.add(TerminalCapability.PartialCommandDetection, partialCommandDetection);
+
+			xterm.raw.registerMarker(0);
+			commandDetection.handlePromptStart();
+			await write('$ ');
+			commandDetection.handleCommandStart();
+			await write('echo test');
+			commandDetection.handleCommandExecuted();
+			await write('\r\noutput\r\n');
+			commandDetection.handleCommandFinished(0);
+
+			await write('partial');
+			xterm.raw.input('\r');
+			await write('\r\n');
+			await write('line\r\n'.repeat(xterm.raw.rows));
+			commandDetection.handlePromptStart();
+			await write('$ ');
+			commandDetection.handleCommandStart();
+
+			strictEqual(xterm.raw.buffer.active.baseY > 0, true);
+			strictEqual(commandDetection.commands.length, 1);
+			strictEqual(partialCommandDetection.commands.length, 1);
+			const decorations = (xterm.decorationAddon as unknown as { _decorations: Map<number, unknown> })._decorations;
+			const clearedCommandMarkerId = commandDetection.commands[0].marker!.id;
+			strictEqual(decorations.has(clearedCommandMarkerId), true);
+			const invalidatedCommands: ITerminalCommand[] = [];
+			store.add(commandDetection.onCommandInvalidated(commands => invalidatedCommands.push(...commands)));
+
+			const command = commandDetection.commands[0];
+			const partialMarker = partialCommandDetection.commands[0];
+			const decoration = decorations.get(clearedCommandMarkerId);
+			const normalBufferLines = Array.from({ length: xterm.raw.buffer.normal.length }, (_, i) => xterm.raw.buffer.normal.getLine(i)!.translateToString());
+			const currentCommandStartMarker = commandDetection.currentCommand.commandStartMarker;
+			ok(currentCommandStartMarker);
+			if (buffer === 'alternate') {
+				await write('\x1b[?1049h');
+				await write('alternate output\r\n');
+				strictEqual(xterm.raw.buffer.active.type, 'alternate');
+			}
+
+			xterm.clearBuffer();
+
+			if (buffer === 'alternate') {
+				strictEqual(xterm.raw.buffer.active.cursorY, 0);
+				await write('\x1b[?1049l');
+				strictEqual(xterm.raw.buffer.active.type, 'normal');
+				deepStrictEqual(Array.from({ length: xterm.raw.buffer.normal.length }, (_, i) => xterm.raw.buffer.normal.getLine(i)!.translateToString()), normalBufferLines);
+				strictEqual(commandDetection.commands.length, 1);
+				strictEqual(commandDetection.commands[0], command);
+				strictEqual(partialCommandDetection.commands.length, 1);
+				strictEqual(partialCommandDetection.commands[0], partialMarker);
+				deepStrictEqual(invalidatedCommands, []);
+				strictEqual(command.marker!.isDisposed, false);
+				strictEqual(partialMarker.isDisposed, false);
+				strictEqual(decorations.get(clearedCommandMarkerId), decoration);
+				strictEqual(commandDetection.currentCommand.commandStartMarker, currentCommandStartMarker);
+				return;
+			}
+
+			deepStrictEqual(commandDetection.commands, []);
+			deepStrictEqual(partialCommandDetection.commands, []);
+			deepStrictEqual(invalidatedCommands.map(e => e.command), ['echo test']);
+			strictEqual(decorations.has(clearedCommandMarkerId), false);
+		});
+	}
 
 	suite('fontRendering', () => {
 		async function setTerminalConfiguration(configuration: Partial<ITerminalConfiguration>): Promise<void> {
@@ -287,6 +381,39 @@ suite('XtermTerminal', () => {
 		}, {
 			regularXtermListeners: 1,
 			detachedXtermListeners: 0,
+		});
+	});
+
+	test('keeps a scrollback override when the configuration changes', async () => {
+		const detached = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+			cols: 80,
+			rows: 30,
+			xtermColorProvider: { getBackgroundColor: () => undefined },
+			capabilities: store.add(new TerminalCapabilityStore()),
+			disableShellIntegrationReporting: true,
+			xtermAddonImporter: new TestXtermAddonImporter(),
+			detached: true,
+			scrollback: 5000,
+		}, undefined));
+		const initial = { configured: xterm.raw.options.scrollback, overridden: detached.raw.options.scrollback };
+		await configurationService.setUserConfiguration('terminal.integrated', {
+			...defaultTerminalConfig,
+			scrollback: 20,
+		});
+		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean {
+				return section.startsWith('terminal.integrated');
+			}
+		});
+		xterm.updateConfig();
+		detached.updateConfig();
+
+		deepStrictEqual({
+			initial,
+			updated: { configured: xterm.raw.options.scrollback, overridden: detached.raw.options.scrollback },
+		}, {
+			initial: { configured: 10, overridden: 5000 },
+			updated: { configured: 20, overridden: 5000 },
 		});
 	});
 

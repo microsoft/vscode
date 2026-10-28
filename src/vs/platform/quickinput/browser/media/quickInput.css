@@ -13,6 +13,13 @@
 	box-shadow: var(--vscode-shadow-xl);
 }
 
+.quick-input-widget.neutral-selection {
+	--vscode-quickInputList-focusBackground: var(--vscode-list-inactiveSelectionBackground);
+	--vscode-quickInputList-focusForeground: var(--vscode-list-inactiveSelectionForeground);
+	--vscode-quickInputList-focusIconForeground: var(--vscode-list-inactiveSelectionIconForeground);
+	--vscode-quickInputList-focusHighlightForeground: var(--vscode-list-highlightForeground);
+}
+
 .modern-ui.monaco-enable-motion .quick-input-widget:not(.quick-input-widget-overlay) {
 	animation: quick-input-widget-open 250ms cubic-bezier(0.22, 1, 0.36, 1) both;
 	transform-origin: top center;
@@ -52,8 +59,8 @@
 	cursor: grab;
 	display: flex;
 	align-items: center;
-	border-top-right-radius: 5px;
-	border-top-left-radius: 5px;
+	border-top-right-radius: inherit;
+	border-top-left-radius: inherit;
 }
 
 .quick-input-widget.no-drag .quick-input-titlebar,
@@ -244,6 +251,8 @@
 	box-sizing: border-box;
 	overflow: hidden;
 	display: flex;
+	align-items: center;
+	height: 100%;
 	padding: 0 6px;
 }
 
@@ -256,7 +265,7 @@
 	border-radius: 3px;
 }
 
-.quick-input-list .monaco-list-row[data-index="0"] .quick-input-list-entry.quick-input-list-separator-border {
+.quick-input-widget:not(.has-custom-widget) .quick-input-list .monaco-list-row[data-index="0"] .quick-input-list-entry.quick-input-list-separator-border {
 	border-top-style: none;
 }
 
@@ -432,6 +441,22 @@
 .quick-input-list .quick-input-list-separator-as-item {
 	padding: 4px 6px;
 	font-size: 12px;
+}
+
+.quick-input-list .quick-input-list-separator-empty {
+	padding: 0 6px;
+	background-color: var(--vscode-quickInput-background);
+}
+
+.quick-input-list .quick-input-list-separator-empty::before {
+	content: '';
+	width: 100%;
+	border-top: var(--vscode-strokeThickness) solid;
+	border-top-color: inherit;
+}
+
+.quick-input-list .quick-input-list-separator-empty .quick-input-list-label {
+	display: none;
 }
 
 /* Quick input separators as full-row item */

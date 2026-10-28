@@ -10,19 +10,19 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IObservable, constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, ImmortalReference, IReference } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
-import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
+import { SessionHasChangesContext, SessionIsCreatedContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPRFetcher } from '../../../github/browser/fetchers/githubPRFetcher.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
@@ -148,14 +148,15 @@ suite('CodeReviewService', () => {
 		}
 	}
 
-	class MockReviewThreadsFetcher {
+	class MockReviewThreadsFetcher extends mock<GitHubPRFetcher>() {
+		override readonly client = upcastPartial<GitHubPRFetcher['client']>({ onDidChange: Event.None, generation: 0 });
 		nextThreads: IGitHubPullRequestReviewThread[] = [];
 		nextError: Error | undefined;
 		getReviewThreadsGate: DeferredPromise<void> | undefined;
 		getReviewThreadsCalls = 0;
 		resolveThreadCalls: { threadId: string }[] = [];
 
-		async getReviewThreads(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPullRequestReviewThread[]> {
+		override async getReviewThreads(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPullRequestReviewThread[]> {
 			this.getReviewThreadsCalls++;
 			const result = this.nextThreads;
 			await this.getReviewThreadsGate?.p;
@@ -165,11 +166,11 @@ suite('CodeReviewService', () => {
 			return result;
 		}
 
-		async postReviewComment(_owner: string, _repo: string, _prNumber: number, body: string, inReplyTo: number): Promise<IGitHubPRComment> {
+		override async postReviewComment(_owner: string, _repo: string, _prNumber: number, body: string, inReplyTo: number): Promise<IGitHubPRComment> {
 			return makePRComment(inReplyTo, body);
 		}
 
-		async resolveThread(_owner: string, _repo: string, threadId: string): Promise<void> {
+		override async resolveThread(_owner: string, _repo: string, threadId: string): Promise<void> {
 			this.resolveThreadCalls.push({ threadId });
 		}
 	}
@@ -216,7 +217,7 @@ suite('CodeReviewService', () => {
 			const key = this._key(owner, repo, prNumber);
 			let model = this._reviewThreadsModels.get(key);
 			if (!model) {
-				model = store.add(new GitHubPullRequestReviewThreadsModel(owner, repo, prNumber, this.getReviewThreadsFetcher(owner, repo, prNumber) as unknown as GitHubPRFetcher, new NullLogService()));
+				model = store.add(new GitHubPullRequestReviewThreadsModel(owner, repo, prNumber, this.getReviewThreadsFetcher(owner, repo, prNumber), new NullLogService()));
 				this._reviewThreadsModels.set(key, model);
 			}
 			return model;
@@ -470,6 +471,14 @@ suite('CodeReviewService', () => {
 		});
 	});
 
+	test('matches pull request content resources to session pull requests regardless of owner and repository casing', () => {
+		sessionsManagement.addSession(session);
+		sessionsManagement.setGitHubInfo(session, { ...makeGitHubInfo(), owner: 'Owner', repo: 'Repo' });
+		const resource = toPRContentUri('src/a.ts', { owner: 'owner', repo: 'repo', prNumber: 1, commitSha: 'abc123', isBase: false, status: 'modified' });
+
+		assert.deepStrictEqual(service.getPRReviewCommentPullRequests(session, resource).map(pullRequest => `${pullRequest.owner}/${pullRequest.repo}#${pullRequest.number}`), ['Owner/Repo#1']);
+	});
+
 	test('parses right-side commentable lines from a unified patch', () => {
 		assert.deepStrictEqual([...commentableRightLines([
 			'@@ -2,3 +4,4 @@',
@@ -674,12 +683,12 @@ suite('Code Review Contributions', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Run Code Review is contributed to the editor header layout actions', () => {
-		const headerItem = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+	test('Run Code Review is contributed to the tab-level editor actions before layout actions', () => {
+		const headerItem = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'sessions.codeReview.run');
 
-		assert.ok(headerItem, 'expected Run Code Review in the editor header layout actions');
+		assert.ok(headerItem, 'expected Run Code Review in the tab-level editor actions');
 		const when = headerItem.when?.serialize() ?? '';
 		const enablementContext = new Context(1, null);
 		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, false);
@@ -688,44 +697,37 @@ suite('Code Review Contributions', () => {
 		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, true);
 		enablementContext.setValue(SessionHasChangesContext.key, false);
 		assert.deepStrictEqual({
+			oldHeaderActions: MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+				.filter(isIMenuItem)
+				.filter(item => item.command.id === 'sessions.codeReview.run')
+				.map(item => item.command.id),
 			group: headerItem.group,
 			order: headerItem.order,
 			enabledFromSessionChanges,
 			enabledFromChatChanges: headerItem.command.precondition?.evaluate(enablementContext),
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditorInput.EDITOR_ID),
-			hasSinglePaneLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			hasDesktopLayoutGate: when.includes(DesktopLayoutContext.key),
 			hasAuxiliaryWindowGate: when.includes(IsAuxiliaryWindowContext.key),
 			hasTopRightEditorGroupGate: when.includes(IsTopRightEditorGroupContext.key),
 			hasChangesGate: when.includes(SessionHasChangesContext.key),
 			hasCreatedGate: when.includes(SessionIsCreatedContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
+			oldHeaderActions: [],
 			group: 'navigation',
 			order: 10,
 			enabledFromSessionChanges: true,
 			enabledFromChatChanges: true,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
-			hasSinglePaneLayoutGate: true,
+			hasDesktopLayoutGate: true,
 			hasAuxiliaryWindowGate: true,
 			hasTopRightEditorGroupGate: true,
 			hasChangesGate: true,
 			hasCreatedGate: true,
 			hasEditorAreaVisibleGate: false,
 		});
-	});
-
-	test('Run Code Review is shown in the classic Changes toolbar only for created sessions', () => {
-		const item = MenuRegistry.getMenuItems(MenuId.AgentsChangesToolbar)
-			.filter(isIMenuItem)
-			.find(item => item.command.id === 'sessions.codeReview.run');
-
-		assert.ok(item, 'expected Run Code Review action on the classic Changes toolbar');
-		assert.strictEqual(
-			item.when?.serialize().includes(SessionIsCreatedContext.key),
-			true,
-		);
 	});
 
 	test('Run Code Review resolves a Changes editor resource to its owning session', async () => {

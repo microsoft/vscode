@@ -23,6 +23,9 @@ suite('codexMcpServers', () => {
 		runtimeStatus: null,
 		pluginId: null,
 		serverInfo: null,
+		httpOrigin: null,
+		serverCapabilities: null,
+		toolsError: null,
 		tools: Object.fromEntries(tools.map(t => [t.name, t])),
 		resources: [{ name: `${name}-res`, uri: `mem://${name}/r` }],
 		resourceTemplates: [{ name: `${name}-tpl`, uriTemplate: `mem://${name}/{id}` }],
@@ -236,6 +239,21 @@ suite('codexMcpServers', () => {
 				'with-headers': { url: 'https://mcp.eng.ms/', http_headers: { 'X-Test': 'v1', Authorization: 'Bearer tok-123' } },
 				'no-token': { url: 'https://other.example/mcp' },
 				'stdio': { command: 'run' },
+			});
+		});
+
+		test('per-server credentials override shared URL tokens and empty overrides revoke only that server', () => {
+			const url = 'https://mcp.slack.com/';
+			assert.deepStrictEqual(injectCodexMcpAuthTokens({
+				first: { url }, second: { url, http_headers: { authorization: 'Bearer configured', 'X-Test': 'keep' } },
+				legacy: { url }, moved: { url: 'https://different.example.com/' }, stdio: { command: 'run' },
+			}, new Map([[url, 'ambient']]), new Map([
+				['first', { url, token: 'targeted' }], ['second', { url, token: '' }],
+				['moved', { url, token: 'old-endpoint' }], ['stdio', { url, token: 'ignored' }],
+			])), {
+				first: { url, http_headers: { Authorization: 'Bearer targeted' } },
+				second: { url, http_headers: { 'X-Test': 'keep' } },
+				legacy: { url, http_headers: { Authorization: 'Bearer ambient' } }, moved: { url: 'https://different.example.com/' }, stdio: { command: 'run' },
 			});
 		});
 

@@ -17,8 +17,7 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { MarkerService } from '../../../../../platform/markers/common/markerService.js';
 import { AgentHostSubagentProgress } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSubagentProgress.js';
-import { systemNotificationToChatPart, toolCallStateToInvocation } from '../../../../contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
-import { AgentSystemNotificationKind } from '../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { toolCallStateToInvocation } from '../../../../contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { ToolCallConfirmationReason, ToolCallStatus } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { ChatContentMarkdownRenderer } from '../../../../contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
@@ -40,7 +39,7 @@ import '../../../../contrib/chat/browser/widget/media/chat.css';
 
 type FusionFixtureState = 'fusion-routing' | 'fusion-single' | 'fusion-cascade' | 'fusion-critique' | 'fusion-failed' | 'fusion-cancelled' | 'fusion-permission';
 
-async function renderSubagent(context: ComponentFixtureContext, state: 'pending' | 'initializing' | 'running' | 'thinking' | 'parent-complete' | 'inline' | 'inline-expanded' | FusionFixtureState, readOnly = false, thinkingStyle = ThinkingDisplayMode.FixedScrolling): Promise<void> {
+async function renderSubagent(context: ComponentFixtureContext, state: 'pending' | 'initializing' | 'running' | 'thinking' | 'parent-complete' | 'inline' | 'inline-expanded' | 'nested' | 'nested-unavailable' | FusionFixtureState, readOnly = false, thinkingStyle = ThinkingDisplayMode.FixedScrolling): Promise<void> {
 	const { container, disposableStore } = context;
 	const width = 620;
 	const instantiationService = createEditorServices(disposableStore, {
@@ -54,8 +53,9 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 			}());
 			reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 				override getWidgetBySessionResource() { return undefined; }
-				override async openSession(resource: URI) {
+				override async openSession(resource: URI, group: Parameters<IChatWidgetService['openSession']>[1]) {
 					container.dataset.openedChat = resource.toString();
+					container.dataset.openedGroup = String(group);
 					return undefined;
 				}
 			}());
@@ -137,17 +137,6 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 			return;
 		}
 		const pattern = state === 'fusion-cascade' ? 'Cascade' : state === 'fusion-critique' ? 'Critique' : 'Single';
-		const description = pattern === 'Cascade'
-			? 'Using Cascade: a solver will work on your request, then another model will review and fix up the result if needed.'
-			: pattern === 'Critique'
-				? 'Using Critique: a solver will draft a result, another model will critique it, and the original solver will revise it if needed.'
-				: 'Using Single: one solver will work on your request.';
-		const introduction = systemNotificationToChatPart(`Selected ${pattern} workflow\n\n${description}`, 'local', {
-			kind: AgentSystemNotificationKind.FusionProgress, fusionStatus: 'selected',
-		});
-		if (introduction) {
-			publisher.publish([introduction]);
-		}
 		const phases = pattern === 'Cascade' ? ['Main pass', 'Review pass', 'Fix-up pass']
 			: pattern === 'Critique' ? ['First pass', 'Critique pass', 'Revision pass'] : ['Main pass'];
 		for (const [index, label] of phases.entries()) {
@@ -263,6 +252,24 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 		data.isChatAvailable = true;
 		data.isActive = true;
 		invocation.notifyToolSpecificDataChanged();
+		if (state === 'nested' || state === 'nested-unavailable') {
+			publisher.publish([new ChatToolInvocation(
+				{
+					invocationMessage: 'Task',
+					toolSpecificData: {
+						kind: 'subagent',
+						description: invocation === launches[0] ? 'Inspect disposable ownership' : 'Check restored child chats',
+						chatResource: `vendor-chat:/workers/${invocation.toolCallId}`,
+						hasStarted: true,
+						isActive: true,
+						isChatAvailable: state === 'nested',
+					},
+				},
+				{ id: 'task', displayName: 'Task', modelDescription: 'Task', source: ToolDataSource.Internal },
+				`nested-${invocation.toolCallId}`, invocation.toolCallId, {},
+			)]);
+			return;
+		}
 		publisher.publish([new ChatToolInvocation(
 			{ invocationMessage: 'Search for subagent lifecycle handlers' },
 			{ id: 'search', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
@@ -277,11 +284,11 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 			start(invocation);
 			button.enabled = false;
 		}));
-		if (state === 'running' || state === 'parent-complete') {
+		if (state === 'running' || state === 'parent-complete' || state === 'nested' || state === 'nested-unavailable') {
 			button.enabled = false;
 		}
 	}
-	if (state === 'running' || state === 'parent-complete') {
+	if (state === 'running' || state === 'parent-complete' || state === 'nested' || state === 'nested-unavailable') {
 		start(launches[1]);
 		start(launches[0]);
 	}
@@ -319,6 +326,8 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	Pending: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'pending') }),
 	Initializing: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'initializing') }),
 	Running: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'running') }),
+	NestedSubagent: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'nested') }),
+	NestedSubagentUnavailable: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'nested-unavailable') }),
 	Inline: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'inline') }),
 	InlineExpanded: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'inline-expanded') }),
 	StartedAfterParentComplete: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'parent-complete') }),

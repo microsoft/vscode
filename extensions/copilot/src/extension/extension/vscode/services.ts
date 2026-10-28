@@ -62,7 +62,6 @@ import { INotificationService, NullNotificationService } from '../../../platform
 import { NotificationService } from '../../../platform/notification/vscode/notificationServiceImpl';
 import { IUrlOpener, NullUrlOpener } from '../../../platform/open/common/opener';
 import { RealUrlOpener } from '../../../platform/open/vscode/opener';
-import { IProjectTemplatesIndex, ProjectTemplatesIndex } from '../../../platform/projectTemplatesIndex/common/projectTemplatesIndex';
 import { IPromptPathRepresentationService, PromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
 import { IReleaseNotesService } from '../../../platform/releaseNotes/common/releaseNotesService';
 import { ReleaseNotesService } from '../../../platform/releaseNotes/vscode/releaseNotesServiceImpl';
@@ -151,7 +150,6 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IMcpService, new SyncDescriptor(McpService));
 	builder.define(IExtensionsService, new SyncDescriptor(VSCodeExtensionsService));
 	builder.define(ICombinedEmbeddingIndex, new SyncDescriptor(VSCodeCombinedIndexImpl, [/*useRemoteCache*/ true]));
-	builder.define(IProjectTemplatesIndex, new SyncDescriptor(ProjectTemplatesIndex, [/*useRemoteCache*/ true]));
 	builder.define(IBlockedExtensionService, new SyncDescriptor(BlockedExtensionService));
 	builder.define(IEditLogService, new SyncDescriptor(EditLogService));
 	builder.define(IMultiFileEditInternalTelemetryService, new SyncDescriptor(MultiFileEditInternalTelemetryService));

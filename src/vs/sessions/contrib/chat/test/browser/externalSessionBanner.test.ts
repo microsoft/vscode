@@ -33,6 +33,9 @@ suite('Sessions - External Session Banner', () => {
 
 	test('explains continuation and subscriptions without visibility controls when sectioning is enabled', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService({ [SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: true });
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configurationService);
 		const banner = disposables.add(instantiationService.createInstance(ExternalSessionBanner, $('div'), {}));
 		const descriptions = ['codex', 'copilot', 'claude'].map(sessionType => {
 			banner.setSession(externalSession(sessionType));
@@ -61,9 +64,10 @@ suite('Sessions - External Session Banner', () => {
 		]);
 	});
 
-	test('switches between continuation and visibility controls when sectioning changes', async () => {
+	test('shows visibility controls by default and switches to continuation when sectioning is enabled', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		const configurationService = new TestConfigurationService({ [SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false });
+		const configurationService = new TestConfigurationService();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configurationService);
 		const banner = disposables.add(instantiationService.createInstance(ExternalSessionBanner, $('div'), {}));
 		banner.setSession(externalSession('codex'));
@@ -82,6 +86,27 @@ suite('Sessions - External Session Banner', () => {
 		assert.deepStrictEqual({ before, after: snapshot() }, {
 			before: { controlsDisplay: '', label: 'External session visibility' },
 			after: { controlsDisplay: 'none', label: 'External session' },
+		});
+	});
+
+	test('uses the session content inset for its width', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const container = append(mainWindow.document.body, $('div'));
+		container.style.width = '800px';
+		container.style.setProperty('--session-view-content-horizontal-padding', '24px');
+		container.style.setProperty('--vscode-spacing-size320', '32px');
+		disposables.add(toDisposable(() => container.remove()));
+		const banner = disposables.add(instantiationService.createInstance(ExternalSessionBanner, container, {}));
+		banner.setSession(externalSession('codex'));
+
+		const containerBounds = container.getBoundingClientRect();
+		const bannerBounds = banner.domNode.getBoundingClientRect();
+		assert.deepStrictEqual({
+			containerWidth: containerBounds.width,
+			bannerWidth: bannerBounds.width,
+		}, {
+			containerWidth: 800,
+			bannerWidth: 752,
 		});
 	});
 
@@ -139,6 +164,40 @@ suite('Sessions - External Session Banner', () => {
 			before: { visible: true, hidden: false },
 			after: { visible: false, hidden: true },
 			layoutChanges: [true, false],
+		});
+	});
+
+	test('hides external automation sessions reactively', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const layoutChanges: boolean[] = [];
+		const banner = disposables.add(instantiationService.createInstance(ExternalSessionBanner, $('div'), {
+			onDidChangeLayout: visible => layoutChanges.push(visible),
+		}));
+		const isAutomation = observableValue('automation', false);
+		const session = new class extends mock<ISession>() {
+			override readonly resource = URI.parse('test://external-automation');
+			override readonly isAutomation = isAutomation;
+			override readonly isExternal = constObservable(true);
+			override readonly updatedAt = constObservable(new Date());
+		};
+
+		layoutChanges.length = 0;
+		banner.setSession(session);
+		const before = { visible: banner.visible, hidden: banner.domNode.classList.contains('hidden') };
+		isAutomation.set(true, undefined);
+		const automation = { visible: banner.visible, hidden: banner.domNode.classList.contains('hidden') };
+		isAutomation.set(false, undefined);
+
+		assert.deepStrictEqual({
+			before,
+			automation,
+			after: { visible: banner.visible, hidden: banner.domNode.classList.contains('hidden') },
+			layoutChanges,
+		}, {
+			before: { visible: true, hidden: false },
+			automation: { visible: false, hidden: true },
+			after: { visible: true, hidden: false },
+			layoutChanges: [true, false, true],
 		});
 	});
 

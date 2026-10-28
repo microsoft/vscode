@@ -12,6 +12,8 @@ export interface ITunnelMessageSocket extends IDisposable {
 	send(data: string): void;
 	/** Fires for each complete text message received. */
 	readonly onDidReceiveMessage: Event<string>;
+	/** Fires for each chunk received, including part of a message. Omitted by sockets that only see whole messages. */
+	readonly onDidReceiveData?: Event<void>;
 	/** Fires once when the socket closes, for any reason. */
 	readonly onDidClose: Event<ITunnelSocketCloseEvent>;
 	/** Initiate a clean close. */

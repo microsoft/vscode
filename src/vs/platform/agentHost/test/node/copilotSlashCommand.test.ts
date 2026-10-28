@@ -9,7 +9,70 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { renderCopilotSlashCommandOutput, type CopilotSlashCommandOutput, type ICopilotSlashCommandHandler, type RuntimeSlashCommandInfo } from '../../node/copilot/copilotSlashCommand.js';
 import { CopilotSlashCommandProvider } from '../../node/copilot/copilotSlashCommandProvider.js';
-import { getCopilotCustomizationCommandHandler } from '../../node/copilot/copilotCustomizationCommandDisplay.js';
+import { getCopilotCustomizationCommandHandler, invokeCopilotPluginCommand, type ICopilotMcpCommandServer, type ICopilotPluginCommandApi, type ReloadCopilotPlugins } from '../../node/copilot/copilotCustomizationCommandDisplay.js';
+
+function pluginApi(calls: string[]): ICopilotPluginCommandApi {
+	return {
+		list: async () => {
+			calls.push('list');
+			return { plugins: [{ name: 'document-skills', marketplace: 'anthropic', version: '1.2.3', enabled: true }] };
+		},
+		install: async ({ source }) => {
+			calls.push(`install:${source}`);
+			return {
+				plugin: { name: 'document-skills', marketplace: 'anthropic', version: '1.2.3', enabled: true },
+				skillsInstalled: 2,
+				postInstallMessage: 'Use /document-skills to invoke the plugin.',
+			};
+		},
+		uninstall: async ({ name }) => {
+			calls.push(`uninstall:${name}`);
+		},
+		update: async ({ name }) => {
+			calls.push(`update:${name}`);
+			return { previousVersion: '1.2.3', newVersion: '1.2.4', skillsInstalled: 2 };
+		},
+		enable: async ({ names }) => {
+			calls.push(`enable:${names.join(',')}`);
+		},
+		disable: async ({ names }) => {
+			calls.push(`disable:${names.join(',')}`);
+		},
+		marketplaces: {
+			add: async ({ source }) => {
+				calls.push(`marketplace.add:${source}`);
+				return { name: 'anthropic-agent-skills' };
+			},
+			remove: async ({ name, force }) => {
+				calls.push(`marketplace.remove:${name}:${force === true}`);
+				return { removed: true };
+			},
+			list: async () => {
+				calls.push('marketplace.list');
+				return {
+					marketplaces: [
+						{ name: 'copilot-plugins', source: 'GitHub: github/copilot-plugins', isDefault: true },
+						{ name: 'anthropic-agent-skills', source: 'GitHub: anthropics/skills', managed: true, available: false },
+					]
+				};
+			},
+			browse: async ({ name }) => {
+				calls.push(`marketplace.browse:${name}`);
+				return { plugins: [{ name: 'document-skills', description: 'Document [tools](command:unsafe)' }] };
+			},
+			refresh: async params => {
+				calls.push(`marketplace.refresh:${params?.name ?? ''}`);
+				return { results: [{ name: 'anthropic-agent-skills', success: true }] };
+			},
+		},
+	};
+}
+
+function reloadPlugins(calls: string[]): ReloadCopilotPlugins {
+	return async reason => {
+		calls.push(`reload:${reason}`);
+	};
+}
 
 suite('Copilot slash command output', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -163,9 +226,126 @@ suite('Copilot slash command handlers', () => {
 			allowDuringAgentExecution: false,
 		};
 
+		test('shows one server with host-known configuration without exposing environment values', async () => {
+			const lookups: string[] = [];
+			const handler = getCopilotCustomizationCommandHandler(command, undefined, undefined, async name => {
+				lookups.push(name);
+				return {
+					name, enabled: true, source: 'workspace', live: { status: 'connected' },
+					sourceUri: 'file:///workspace/.mcp.json',
+					configuration: { type: 'stdio', command: './start-mcp.bash', args: ['--verbose'], env: { TOKEN: 'secret' }, tools: ['*'] },
+					tools: [{ name: 'query', description: 'Run [query](command:unsafe)' }],
+				};
+			});
+			const result = await handler?.invoke?.('show dbt-mcp');
+			assert.deepStrictEqual({ lookups, result }, {
+				lookups: ['dbt-mcp'],
+				result: {
+					kind: 'text',
+					markdown: true,
+					text: [
+						'# MCP server: `dbt-mcp`', '',
+						'- Status: `connected`', '- Enabled: Yes', '- Source: `workspace`',
+						'- Configuration file: `file:///workspace/.mcp.json`', '',
+						'## Launch configuration', '',
+						'```json',
+						'{',
+						'  "type": "stdio",',
+						'  "command": "./start-mcp.bash",',
+						'  "args": [',
+						'    "--verbose"',
+						'  ],',
+						'  "env": [',
+						'    "TOKEN"',
+						'  ],',
+						'  "tools": [',
+						'    "*"',
+						'  ]',
+						'}',
+						'```', '',
+						'Configuration known to the agent host. Environment variable and header names are shown without their values.', '',
+						'## Available tools', '',
+						'- `query` — Run \\[query\\]\\(command:unsafe\\)',
+					].join('\n'),
+				},
+			});
+		});
+
+		test('shows remote launch details without exposing header values', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command, undefined, undefined, async name => ({
+				name, enabled: true, live: { status: 'connected' },
+				configuration: { type: 'http', url: 'https://example.invalid/mcp', headers: { Authorization: 'secret' } },
+				tools: [],
+			}));
+			const result = await handler?.invoke?.('show remote');
+			assert.deepStrictEqual(result?.kind === 'text' ? result.text : result, [
+				'# MCP server: `remote`', '',
+				'- Status: `connected`', '- Enabled: Yes', '',
+				'## Launch configuration', '',
+				'```json',
+				'{',
+				'  "type": "http",',
+				'  "url": "https://example.invalid/mcp",',
+				'  "headers": [',
+				'    "Authorization"',
+				'  ]',
+				'}',
+				'```', '',
+				'Configuration known to the agent host. Environment variable and header names are shown without their values.', '',
+				'## Available tools', '',
+				'No tools reported by this server.',
+			].join('\n'));
+		});
+
+		test('shows unavailable runtime details and safely formats server errors', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command, undefined, undefined, async name => ({
+				name, enabled: false, source: 'plugin', sourcePlugin: 'tools`plugin',
+				live: { status: 'failed', error: 'Failed\n```\n[help](command:unsafe)' },
+			}));
+			assert.deepStrictEqual(await handler?.invoke?.('show "server name"'), {
+				kind: 'text', markdown: true,
+				text: [
+					'# MCP server: `server name`', '',
+					'- Status: `failed`', '- Enabled: No', '- Source: `plugin`',
+					'- Plugin: ``tools`plugin``', '',
+					'## Error', '',
+					'````text',
+					'Failed', '```', '[help](command:unsafe)',
+					'````', '',
+					'## Launch configuration', '',
+					'The runtime does not expose this server\'s launch configuration to the agent host.', '',
+					'## Available tools', '',
+					'Tools are not loaded for this server.',
+				].join('\n'),
+			});
+		});
+
+		test('delegates list and mutation commands and reports unknown names explicitly', async () => {
+			const lookups: string[] = [];
+			const handler = getCopilotCustomizationCommandHandler(command, undefined, undefined, async name => {
+				lookups.push(name);
+				return undefined;
+			});
+			const inputs = ['', 'list', 'show', 'enable github', 'disable github', 'reload', 'SHOW missing'];
+			const results = await Promise.all(inputs.map(input => handler?.invoke?.(input)));
+			assert.deepStrictEqual({ lookups, results }, {
+				lookups: ['missing'],
+				results: [undefined, undefined, undefined, undefined, undefined, undefined, {
+					kind: 'text', text: 'MCP server "missing" is not configured in this session.',
+				}],
+			});
+		});
+
+		test('surfaces server lookup failures', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command, undefined, undefined, async (): Promise<ICopilotMcpCommandServer> => {
+				throw new Error('Inventory unavailable');
+			});
+			await assert.rejects(() => handler!.invoke!('show github'), /Inventory unavailable/);
+		});
+
 		test('formats the plain runtime list as compact Markdown', async () => {
 			const handler = getCopilotCustomizationCommandHandler(command);
-			const output = await handler?.getOutput?.('show github', {
+			const output = await handler?.getOutput?.('list', {
 				kind: 'text',
 				text: [
 					'MCP Servers',
@@ -296,6 +476,81 @@ suite('Copilot slash command handlers', () => {
 			});
 		});
 
+		test('qualifies runtime list entries using the installed plugin inventory', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command, undefined, async () => [
+				{ name: 'azure', marketplace: 'awesome-copilot', enabled: false },
+			]);
+			const output = await handler?.getOutput?.('list', {
+				kind: 'text',
+				text: [
+					'Installed Plugins:',
+					'',
+					'  • azure v1.2.94',
+				].join('\n'),
+			});
+
+			assert.deepStrictEqual(output, {
+				kind: 'text',
+				text: [
+					'# Installed plugins',
+					'',
+					'- `azure@awesome-copilot` — v1.2.94 (disabled)',
+				].join('\n'),
+				markdown: true,
+			});
+		});
+
+		test('adds disabled plugins omitted from the runtime list', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command, undefined, async () => [
+				{ name: 'azure', marketplace: 'awesome-copilot', version: '1.2.94', enabled: false },
+				{ name: 'VS Code Synced Data', marketplace: '', enabled: true },
+			]);
+			const output = await handler?.getOutput?.('list', {
+				kind: 'text',
+				text: [
+					'Installed Plugins:',
+					'',
+					'  • VS Code Synced Data',
+				].join('\n'),
+			});
+
+			assert.deepStrictEqual(output, {
+				kind: 'text',
+				text: [
+					'# Installed plugins',
+					'',
+					'- `azure@awesome-copilot` — v1.2.94 (disabled)',
+				].join('\n'),
+				markdown: true,
+			});
+		});
+
+		test('keeps disabled plugins with the same name from other marketplaces', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command, undefined, async () => [
+				{ name: 'azure', marketplace: 'marketplace-one', enabled: true },
+				{ name: 'azure', marketplace: 'marketplace-two', version: '2.0.0', enabled: false },
+			]);
+			const output = await handler?.getOutput?.('list', {
+				kind: 'text',
+				text: [
+					'Installed Plugins:',
+					'',
+					'  • azure@marketplace-one v1.0.0',
+				].join('\n'),
+			});
+
+			assert.deepStrictEqual(output, {
+				kind: 'text',
+				text: [
+					'# Installed plugins',
+					'',
+					'- `azure@marketplace-one` — v1.0.0',
+					'- `azure@marketplace-two` — v2.0.0 (disabled)',
+				].join('\n'),
+				markdown: true,
+			});
+		});
+
 		test('defers to the runtime for unsupported and changed responses', async () => {
 			const handler = getCopilotCustomizationCommandHandler(command);
 			assert.deepStrictEqual([
@@ -303,6 +558,255 @@ suite('Copilot slash command handlers', () => {
 				await handler?.getOutput?.('list', { kind: 'text', text: '# Already formatted', markdown: true }),
 				await handler?.getOutput?.('list', { kind: 'text', text: 'A newer runtime format' }),
 			], [undefined, undefined, undefined]);
+		});
+
+		test('formats a missing marketplace error with recovery guidance', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command);
+			assert.deepStrictEqual(
+				await handler?.getErrorOutput?.(
+					'marketplace browse work',
+					new Error('(sendFailed) Request session.plugins.marketplaces.browse failed with message: Marketplace "work" not found'),
+				),
+				{
+					kind: 'text',
+					text: 'Marketplace `work` was not found.\n\nRun `/plugin marketplace list` to see the available marketplaces.',
+					markdown: true,
+				},
+			);
+		});
+
+		test('formats a missing plugin manifest error with repository guidance', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command);
+			assert.deepStrictEqual(
+				await handler?.getErrorOutput?.(
+					'install github/awesome-copilot',
+					new Error('(sendFailed) Request session.plugins.install failed with message: No plugin.json found in repository. Tried: .plugin/plugin.json, ./plugin.json, .github/plugin/plugin.json, .claude-plugin/plugin.json'),
+				),
+				{
+					kind: 'text',
+					text: [
+						'Could not install a plugin from `github/awesome-copilot`.',
+						'',
+						'No `plugin.json` manifest was found in the repository.',
+						'',
+						'Expected one of:',
+						'- `.plugin/plugin.json`',
+						'- `./plugin.json`',
+						'- `.github/plugin/plugin.json`',
+						'- `.claude-plugin/plugin.json`',
+					].join('\n'),
+					markdown: true,
+				},
+			);
+		});
+
+		test('removes transport details from other plugin API errors', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command);
+			assert.deepStrictEqual(
+				await handler?.getErrorOutput?.(
+					'marketplace add github/awesome-copilot',
+					new Error('(sendFailed) Request session.plugins.marketplaces.add failed with message: Marketplace "awesome-copilot" is a default marketplace and is already available'),
+				),
+				{
+					kind: 'text',
+					text: '## Plugin command failed\n\nMarketplace "awesome-copilot" is a default marketplace and is already available',
+					markdown: true,
+				},
+			);
+		});
+
+		test('provides progress messages for plugin mutations', () => {
+			const handler = getCopilotCustomizationCommandHandler(command, { api: pluginApi([]), reload: reloadPlugins([]) });
+
+			assert.deepStrictEqual({
+				install: handler?.getProgressMessage?.('install github/example'),
+				uninstall: handler?.getProgressMessage?.('remove example'),
+				update: handler?.getProgressMessage?.('update example'),
+				enable: handler?.getProgressMessage?.('enable example'),
+				disable: handler?.getProgressMessage?.('disable example'),
+				marketplaceAdd: handler?.getProgressMessage?.('marketplace add github/example'),
+				marketplaceRemove: handler?.getProgressMessage?.('marketplace remove example --force'),
+				marketplaceUpdate: handler?.getProgressMessage?.('marketplace update'),
+				marketplaceBrowse: handler?.getProgressMessage?.('marketplace browse example'),
+				list: handler?.getProgressMessage?.('list'),
+			}, {
+				install: 'Installing plugin…',
+				uninstall: 'Uninstalling plugin…',
+				update: 'Updating plugin…',
+				enable: 'Enabling plugin…',
+				disable: 'Disabling plugin…',
+				marketplaceAdd: 'Adding plugin marketplace…',
+				marketplaceRemove: 'Removing plugin marketplace…',
+				marketplaceUpdate: 'Updating plugin marketplaces…',
+				marketplaceBrowse: undefined,
+				list: undefined,
+			});
+		});
+
+		test('invokes plugin mutations through the session plugin API and reloads contributions', async () => {
+			const calls: string[] = [];
+			const plugins = pluginApi(calls);
+
+			assert.deepStrictEqual({
+				install: await invokeCopilotPluginCommand('install document-skills@anthropic', plugins, reloadPlugins(calls)),
+				update: await invokeCopilotPluginCommand('update document-skills@anthropic', plugins, reloadPlugins(calls)),
+				disable: await invokeCopilotPluginCommand('disable document-skills@anthropic', plugins, reloadPlugins(calls)),
+				uninstall: await invokeCopilotPluginCommand('remove document-skills@anthropic', plugins, reloadPlugins(calls)),
+				calls,
+			}, {
+				install: {
+					kind: 'text',
+					text: 'Installed plugin document-skills@anthropic.\nVersion: 1.2.3\nInstalled 2 skills.\nUse /document-skills to invoke the plugin.',
+					runtimeSettingsChanged: true,
+				},
+				update: {
+					kind: 'text',
+					text: 'Updated plugin document-skills@anthropic. Updated version: 1.2.4.',
+					runtimeSettingsChanged: true,
+				},
+				disable: {
+					kind: 'text',
+					text: 'Disabled plugin document-skills@anthropic.',
+					runtimeSettingsChanged: true,
+				},
+				uninstall: {
+					kind: 'text',
+					text: 'Uninstalled plugin document-skills@anthropic.',
+					runtimeSettingsChanged: true,
+				},
+				calls: [
+					'install:document-skills@anthropic', 'reload:install',
+					'update:document-skills@anthropic', 'reload:update',
+					'list', 'disable:document-skills@anthropic', 'reload:enablement',
+					'uninstall:document-skills@anthropic', 'reload:uninstall',
+				],
+			});
+		});
+
+		test('disables built-in and direct-source plugins and reloads', async () => {
+			const calls: string[] = [];
+			const plugins: ICopilotPluginCommandApi = {
+				...pluginApi(calls),
+				list: async () => ({
+					plugins: [
+						{ name: 'builtin-plugin', marketplace: '', enabled: true, source: 'builtin' },
+						{ name: 'direct-plugin', marketplace: '', enabled: true, directSourceId: 'direct-plugin-source' },
+					],
+				}),
+			};
+
+			assert.deepStrictEqual({
+				builtin: await invokeCopilotPluginCommand('disable builtin-plugin', plugins, reloadPlugins(calls)),
+				direct: await invokeCopilotPluginCommand('disable direct-plugin', plugins, reloadPlugins(calls)),
+				calls,
+			}, {
+				builtin: {
+					kind: 'text',
+					text: 'Disabled plugin builtin-plugin.',
+					runtimeSettingsChanged: true,
+				},
+				direct: {
+					kind: 'text',
+					text: 'Disabled plugin direct-plugin.',
+					runtimeSettingsChanged: true,
+				},
+				calls: ['disable:builtin-plugin', 'reload:enablement', 'disable:direct-plugin-source', 'reload:enablement'],
+			});
+		});
+
+		test('enables a globally installed plugin missing from the session inventory', async () => {
+			const calls: string[] = [];
+			const plugins: ICopilotPluginCommandApi = {
+				...pluginApi(calls),
+				list: async () => ({ plugins: [] }),
+			};
+
+			assert.deepStrictEqual({
+				result: await invokeCopilotPluginCommand('enable azure', plugins, reloadPlugins(calls)),
+				calls,
+			}, {
+				result: {
+					kind: 'text',
+					text: 'Enabled plugin azure.',
+					runtimeSettingsChanged: true,
+				},
+				calls: ['enable:azure', 'reload:enablement'],
+			});
+		});
+
+		test('enables a direct source without affecting a same-name marketplace install', async () => {
+			const calls: string[] = [];
+			const plugins: ICopilotPluginCommandApi = {
+				...pluginApi(calls),
+				list: async () => ({
+					plugins: [
+						{ name: 'canvas', marketplace: '', enabled: false, directSourceId: 'github-source' },
+						{ name: 'canvas', marketplace: 'awesome-copilot', enabled: false },
+					],
+				}),
+			};
+			await invokeCopilotPluginCommand('enable github-source', plugins, reloadPlugins(calls));
+			await invokeCopilotPluginCommand('enable canvas@awesome-copilot', plugins, reloadPlugins(calls));
+			assert.deepStrictEqual(calls, ['enable:github-source', 'reload:enablement', 'enable:canvas@awesome-copilot', 'reload:enablement']);
+		});
+
+		test('invokes plugin marketplace commands', async () => {
+			const calls: string[] = [];
+			const plugins = pluginApi(calls);
+
+			assert.deepStrictEqual({
+				add: await invokeCopilotPluginCommand('marketplace add anthropics/skills', plugins, reloadPlugins(calls)),
+				list: await invokeCopilotPluginCommand('marketplace list', plugins, reloadPlugins(calls)),
+				browse: await invokeCopilotPluginCommand('marketplace browse [anthropic](command:unsafe)', plugins, reloadPlugins(calls)),
+				update: await invokeCopilotPluginCommand('marketplace update anthropic-agent-skills', plugins, reloadPlugins(calls)),
+				remove: await invokeCopilotPluginCommand('marketplace remove anthropic-agent-skills --force', plugins, reloadPlugins(calls)),
+				calls,
+			}, {
+				add: { kind: 'text', text: 'Added plugin marketplace anthropic-agent-skills.', runtimeSettingsChanged: true },
+				list: {
+					kind: 'text',
+					text: [
+						'# Plugin marketplaces',
+						'',
+						'## Included with GitHub Copilot',
+						'- `copilot-plugins` — GitHub: github/copilot-plugins',
+						'',
+						'## Registered marketplaces',
+						'- `anthropic-agent-skills` — GitHub: anthropics/skills *(managed, unavailable)*',
+					].join('\n'),
+					markdown: true,
+				},
+				browse: {
+					kind: 'text',
+					text: '# Plugins in \\[anthropic\\]\\(command:unsafe\\)\n\n- `document-skills` — Document \\[tools\\]\\(command:unsafe\\)',
+					markdown: true,
+				},
+				update: { kind: 'text', text: 'Updated plugin marketplaces.\nUpdated anthropic-agent-skills.' },
+				remove: { kind: 'text', text: 'Removed plugin marketplace anthropic-agent-skills.', runtimeSettingsChanged: true },
+				calls: [
+					'marketplace.add:anthropics/skills',
+					'marketplace.list',
+					'marketplace.browse:[anthropic](command:unsafe)',
+					'marketplace.refresh:anthropic-agent-skills',
+					'marketplace.remove:anthropic-agent-skills:true',
+					'reload:marketplaceRemove',
+				],
+			});
+		});
+
+		test('returns usage without mutating plugins when arguments are missing', async () => {
+			const calls: string[] = [];
+			const plugins = pluginApi(calls);
+
+			assert.deepStrictEqual({
+				install: await invokeCopilotPluginCommand('install', plugins, reloadPlugins(calls)),
+				removeMarketplace: await invokeCopilotPluginCommand('marketplace remove', plugins, reloadPlugins(calls)),
+				calls,
+			}, {
+				install: { kind: 'text', text: 'Usage: /plugin install <source>' },
+				removeMarketplace: { kind: 'text', text: 'Usage: /plugin marketplace remove <name> [--force]' },
+				calls: [],
+			});
 		});
 	});
 
@@ -314,6 +818,7 @@ suite('Copilot slash command handlers', () => {
 
 			assert.deepStrictEqual(await provider.resolveSlashCommand('diagnostic'), command);
 		});
+
 	}
 
 	test('attaches hooks to canonical commands without changing catalog metadata', async () => {
@@ -338,6 +843,7 @@ suite('Copilot slash command handlers', () => {
 			catalogCommand: command,
 			catalogHasHooks: false,
 		});
+
 	});
 
 	test('supports output-only handlers and synchronous link results', async () => {

@@ -8,10 +8,10 @@ import { derivedObservableWithCache, derivedOpts, ValueWithChangeEventFromObserv
 import { equals as arraysEqual } from '../../../../base/common/arrays.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { comparePaths } from '../../../../base/common/comparers.js';
-import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { ISessionChangeset, ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { sortMultiDiffEditorFileListItems } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { ChangesViewMode } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { getChangesEditorFileResource } from './changesEditorLabels.js';
@@ -33,24 +33,6 @@ export const SessionChangesReviewedFilesContext = new RawContextKey<string[]>('s
  */
 export const SessionChangesFileResourceContext = new RawContextKey<string>('sessions.changesFileResource', undefined);
 
-function compareChanges(a: ISessionFileChange, b: ISessionFileChange): number {
-	const aPath = isIChatSessionFileChange2(a) ? a.uri.fsPath : a.modifiedUri.fsPath;
-	const bPath = isIChatSessionFileChange2(b) ? b.uri.fsPath : b.modifiedUri.fsPath;
-	return comparePaths(aPath, bPath);
-}
-
-function changesetsEqual(a: ISessionChangeset | undefined, b: ISessionChangeset | undefined): boolean {
-	if (a === b) {
-		return true;
-	}
-	if (!a || !b || a.id !== b.id) {
-		return false;
-	}
-	return a.resource && b.resource
-		? isEqual(a.resource, b.resource)
-		: a.resource === b.resource;
-}
-
 export class ChangesMultiDiffSourceResolver extends Disposable implements IMultiDiffSourceResolver {
 
 	constructor(
@@ -69,28 +51,15 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
 		const sessionResource = this._sessionChangesService.getSessionResource(uri)!;
 
-		const changesStateObs = derivedObservableWithCache<{
-			readonly changeset: ISessionChangeset | undefined;
-			readonly changes: readonly ISessionFileChange[];
-		}>({
+		const changesObs = derivedObservableWithCache<readonly ISessionFileChange[]>({
 			owner: this,
 		}, (reader, lastValue) => {
 			const activeSessionResource = this.changesViewService.activeSessionResourceObs.read(reader);
 			if (!activeSessionResource || !isEqual(activeSessionResource, sessionResource)) {
-				return lastValue ?? { changeset: undefined, changes: [] };
+				return lastValue ?? [];
 			}
 
-			const changeset = this.changesViewService.activeSessionChangesetObs.read(reader);
-			if (this.changesViewService.activeSessionLoadingObs.read(reader)) {
-				return lastValue && changesetsEqual(lastValue.changeset, changeset)
-					? lastValue
-					: { changeset, changes: [] };
-			}
-
-			return {
-				changeset,
-				changes: this.changesViewService.activeSessionChangesObs.read(reader),
-			};
+			return this.changesViewService.activeSessionChangesObs.read(reader);
 		});
 
 		const resourcesObs = derivedOpts<readonly MultiDiffEditorItem[]>({
@@ -99,8 +68,10 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 				isEqual(x.originalUri, y.originalUri) &&
 				isEqual(x.modifiedUri, y.modifiedUri)),
 		}, reader => {
-			const changes = changesStateObs.read(reader).changes;
-			return [...changes].sort(compareChanges).map(change => {
+			const changes = changesObs.read(reader);
+			// Order the diffs like the Changes view, which sorts its list and tree like the Source Control view.
+			const viewMode = this.changesViewService.viewModeObs.read(reader) === ChangesViewMode.Tree ? 'tree' : 'list';
+			return sortMultiDiffEditorFileListItems(changes, getChangesEditorFileResource, viewMode).map(change => {
 				const resource = getChangesEditorFileResource(change);
 				return new MultiDiffEditorItem(change.originalUri, change.modifiedUri, resource, undefined, {
 					[SessionChangesFileResourceContext.key]: resource.toString(),

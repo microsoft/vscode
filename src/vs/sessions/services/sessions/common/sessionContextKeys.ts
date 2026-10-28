@@ -31,7 +31,9 @@ import {
 	SessionShouldShowChatTabsContext,
 	SessionHasMultipleOpenChatsContext,
 	SessionActiveChatIsClosableContext,
+	SessionActiveChatCanArchiveContext,
 	SessionActiveChatIsDeletableContext,
+	SessionActiveChatIsUntitledContext,
 	SessionActiveChatHasSideChatsContext,
 	SessionActiveChatResourceContext,
 	SessionHasGitRepositoryContext,
@@ -69,7 +71,9 @@ interface ISessionContextKeys {
 	readonly shouldShowChatTabs: IContextKey<boolean>;
 	readonly hasMultipleOpenChats: IContextKey<boolean>;
 	readonly activeChatIsClosable: IContextKey<boolean>;
+	readonly activeChatCanArchive: IContextKey<boolean>;
 	readonly activeChatIsDeletable: IContextKey<boolean>;
+	readonly activeChatIsUntitled: IContextKey<boolean>;
 	readonly activeChatResource: IContextKey<string>;
 	readonly activeChatHasSideChats: IContextKey<boolean>;
 }
@@ -113,7 +117,9 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			shouldShowChatTabs: SessionShouldShowChatTabsContext.bindTo(contextKeyService),
 			hasMultipleOpenChats: SessionHasMultipleOpenChatsContext.bindTo(contextKeyService),
 			activeChatIsClosable: SessionActiveChatIsClosableContext.bindTo(contextKeyService),
+			activeChatCanArchive: SessionActiveChatCanArchiveContext.bindTo(contextKeyService),
 			activeChatIsDeletable: SessionActiveChatIsDeletableContext.bindTo(contextKeyService),
+			activeChatIsUntitled: SessionActiveChatIsUntitledContext.bindTo(contextKeyService),
 			activeChatResource: SessionActiveChatResourceContext.bindTo(contextKeyService),
 			activeChatHasSideChats: SessionActiveChatHasSideChatsContext.bindTo(contextKeyService),
 		};
@@ -152,7 +158,7 @@ function setSessionContextKeysUnbuffered(session: ISession | undefined, contextK
 	keys.type.set(session?.sessionType ?? '');
 	keys.isArchived.set(session?.isArchived.read(reader) ?? false);
 	keys.isActive.set(session ? isActiveSessionStatus(session.status.read(reader)) : false);
-	keys.isRead.set(session?.isRead.read(reader) ?? true);
+	keys.isRead.set(session?.mainChat.read(reader).isRead.read(reader) ?? true);
 	const capabilities = session?.capabilities.read(reader);
 	keys.supportsMultipleChats.set(capabilities?.supportsMultipleChats ?? false);
 	keys.supportsFork.set(capabilities?.supportsFork ?? false);
@@ -237,10 +243,12 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 		keys.activeChatResource.set(activeChat?.resource.toString() ?? '');
 		const isNonMainChat = !!activeChat && !!mainResource && !isEqual(mainResource, activeChat.resource);
 		keys.activeChatIsClosable.set(isNonMainChat);
+		keys.activeChatCanArchive.set(!!activeChat && !(activeChat.isArchived?.read(reader) ?? false) && getChatCapabilities(activeChat, session, reader).canArchive);
 		// It can be permanently deleted only when its effective capabilities allow
 		// it: the main chat and worker (subagent) chats report `canDelete: false`,
 		// so they are closeable but not deletable.
 		keys.activeChatIsDeletable.set(!!activeChat && getChatCapabilities(activeChat, session, reader).canDelete);
+		keys.activeChatIsUntitled.set(activeChat?.status.read(reader) === SessionStatus.Untitled);
 		const workspace = activeChat?.workspace.read(reader);
 		keys.workspaceIsVirtual.set(workspace?.isVirtualWorkspace ?? true);
 		keys.hasWorkspace.set(!!workspace?.label);

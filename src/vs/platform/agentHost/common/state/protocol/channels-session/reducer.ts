@@ -175,10 +175,30 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 			if (idx < 0) {
 				return state;
 			}
-			const { resource: _ignored, ...changes } = action.changes;
+			const { resource: _resource, provider: _provider, ...changes } = action.changes;
 			const updated = list.slice();
 			updated[idx] = { ...list[idx], ...changes };
 			return { ...state, chats: updated };
+		}
+
+		case ActionType.SessionChatsReordered: {
+			const list = state.chats;
+			if (action.chats.length !== list.length || new Set(action.chats).size !== list.length) {
+				return state;
+			}
+			const summaries = new Map(list.map(summary => [summary.resource, summary]));
+			const reordered = [];
+			for (const resource of action.chats) {
+				const summary = summaries.get(resource);
+				if (!summary) {
+					return state;
+				}
+				reordered.push(summary);
+			}
+			if (reordered.every((summary, index) => summary === list[index])) {
+				return state;
+			}
+			return { ...state, chats: reordered };
 		}
 
 		case ActionType.SessionDefaultChatChanged:
@@ -431,8 +451,13 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 			}));
 		}
 
-		case ActionType.SessionMcpServerBackgroundRequested:
-			return state;
+		case ActionType.SessionMcpServerBackgroundRequested: {
+			return updateMcpServerCustomization(state, action.id, entry =>
+				entry.state.kind === McpServerStatus.Starting && entry.state.blocking
+					? { ...entry, state: { ...entry.state, blocking: false } }
+					: entry,
+			);
+		}
 
 		case ActionType.SessionMcpServerStopRequested: {
 			return updateMcpServerCustomization(state, action.id, entry => ({

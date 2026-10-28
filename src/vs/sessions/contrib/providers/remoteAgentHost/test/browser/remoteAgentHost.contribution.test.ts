@@ -13,6 +13,7 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { AgentHostAuthenticationRecovery, AgentHostAuthTokenCache } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { type IAgentHostAdvertisedAuthenticationResolver, type IAgentHostAuthenticationSessionRemoval } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { type IRemoteAgentHostConnectionInfo, type IRemoteAgentHostEntry, getEntryAddress, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AuthRequiredReason, NotificationType, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -20,10 +21,14 @@ import { type ProtectedResourceMetadata } from '../../../../../../platform/agent
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { getSingletonServiceDescriptors } from '../../../../../../platform/instantiation/common/extensions.js';
 import { ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IMissionControlEnvironmentService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IUserDataProfileService } from '../../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -35,8 +40,11 @@ import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationSer
 import { RemoteAgentHostLogForwarder } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostLogForwarder.js';
 import { CloudSandboxApiService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxApiService.js';
 import { CloudSandboxAgentHostService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxAgentHostService.js';
+import { createCloudSandboxConnectionCustomization } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxConnectionCustomization.js';
 import { SSHAgentHostContribution } from '../../browser/sshAgentHost.contribution.js';
 import { WebSocketAgentHostContribution } from '../../browser/webSocketAgentHost.contribution.js';
+import { MissionControlAgentHostContribution } from '../../browser/missionControlAgentHostContribution.js';
+import { IEntryDrivenProviderOptions } from '../../browser/entryDrivenProviderContribution.js';
 import '../../browser/remoteAgentHost.contribution.js';
 
 interface IRemoteAuthenticationState {
@@ -55,17 +63,22 @@ interface IRemoteAuthNotificationHarness {
 }
 
 interface IRemoteAuthenticationHarness extends IRemoteAuthNotificationHarness {
+	_initialAuthentication: Pick<IAgentHostAdvertisedAuthenticationResolver, 'takePendingSessionRemovals'>;
 	_connections: Map<string, IRemoteAuthenticationState & IDisposable>;
 	_remoteAgentHostService: { getConnection(address: string): IAgentConnection | undefined };
 	_agentHostFileSystemService: { registerAuthority(authority: string, connection: IAgentConnection): IDisposable };
 	_getScenarioAutomationToken(): string | undefined;
 	_setupConnection(connection: IRemoteAgentHostConnectionInfo): void;
 	_authenticateWithConnection(address: string, connection: IAgentConnection, agents: readonly AgentInfo[]): Promise<void>;
+	_registerAgent(address: string, connection: IAgentConnection, agent: AgentInfo, name: string | undefined): void;
 }
 
 function createAuthenticationInstantiationService(store: Pick<DisposableStore, 'add'>): TestInstantiationService {
 	const service = store.add(new TestInstantiationService());
 	service.stub(IConfigurationService, new TestConfigurationService());
+	service.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+		override readonly currentDefaultAccount = null;
+	}());
 	return service;
 }
 
@@ -83,12 +96,15 @@ function createAuthenticationHarness(store: Pick<DisposableStore, 'add'>) {
 	});
 	instantiationService.stubInstance(RemoteAgentHostLogForwarder, Disposable.None);
 	const contribution = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAuthenticationHarness;
+	const removedSessions: IAgentHostAuthenticationSessionRemoval[] = [];
+	contribution._initialAuthentication = { takePendingSessionRemovals: () => removedSessions.splice(0) };
 	contribution._connections = new Map();
 	contribution._instantiationService = instantiationService;
 	contribution._connectionCustomizations = { get: () => undefined };
 	contribution._agentHostFileSystemService = { registerAuthority: () => Disposable.None };
 	contribution._logService = new NullLogService();
 	contribution._getScenarioAutomationToken = () => undefined;
+	contribution._registerAgent = () => { };
 	const resource: ProtectedResourceMetadata = {
 		resource: 'https://api.example.com/session',
 		authorization_servers: ['https://auth.example.com'],
@@ -97,11 +113,11 @@ function createAuthenticationHarness(store: Pick<DisposableStore, 'add'>) {
 	const agents: AgentInfo[] = [{ provider: 'copilot', displayName: 'Copilot', description: '', models: [], protectedResources: [resource] }];
 
 	return {
-		address, contribution, pending, resource, agents,
-		connect: (authenticate: IAgentConnection['authenticate'] = async () => ({ authenticated: true })) => {
+		address, contribution, pending, resource, agents, removedSessions, instantiationService,
+		connect: (authenticate: IAgentConnection['authenticate'] = async () => ({ authenticated: true }), rootState?: RootState) => {
 			contribution._connections.get(address)?.dispose();
 			const connection = new class extends mock<IAgentConnection>() {
-				override readonly rootState = upcastPartial<IAgentSubscription<RootState>>({ value: undefined, onDidChange: Event.None });
+				override readonly rootState = upcastPartial<IAgentSubscription<RootState>>({ value: rootState, onDidChange: Event.None });
 				override readonly onDidNotification = Event.None;
 				override authenticate = authenticate;
 			}();
@@ -115,6 +131,24 @@ function createAuthenticationHarness(store: Pick<DisposableStore, 'add'>) {
 
 suite('RemoteAgentHost connection authentication readiness', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reconciles a sign-out during bootstrap when the new client attaches', async () => {
+		const h = createAuthenticationHarness(store);
+		h.instantiationService.stub(IAuthenticationService, {
+			getOrActivateProviderIdForServer: async () => 'test-provider',
+			getSessions: async () => [],
+		});
+		h.removedSessions.push({ providerId: 'test-provider', sessions: [{ id: 'removed', scopes: ['session:read'] }] });
+		const requests: object[] = [];
+		const revoked = new DeferredPromise<void>();
+		h.connect(async request => {
+			requests.push(request);
+			revoked.complete();
+			return { authenticated: true };
+		}, upcastPartial<RootState>({ agents: h.agents }));
+		await revoked.p;
+		assert.deepStrictEqual(requests, [{ resource: h.resource.resource, scopes: ['session:read'], token: '' }]);
+	});
 
 	test('resets a retained session list readiness before authenticating a replacement connection', async () => {
 		const h = createAuthenticationHarness(store);
@@ -180,6 +214,192 @@ suite('RemoteAgentHost connection authentication readiness', () => {
 suite('RemoteAgentHost auth notifications', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('renews repeated sandbox expiry without prompting for an unchanged GitHub session', async () => {
+		const h = createAuthenticationHarness(store);
+		const forwarded: string[] = [];
+		const connection = h.connect(async request => {
+			forwarded.push(request.token);
+			return { authenticated: true };
+		});
+		let prompts = 0;
+		h.contribution._instantiationService.stub(ICommandService, {
+			executeCommand: async <R>() => {
+				prompts++;
+				return { success: undefined } as R;
+			},
+		});
+		let renewals = 0;
+		const sandboxService = new class extends mock<ICloudSandboxAgentHostService>() {
+			override getSealedGitHubToken(): string {
+				return 'copilot-sealed.v1.key.cached';
+			}
+			override async refreshSealedGitHubToken(): Promise<string> {
+				return `copilot-sealed.v1.key.renewed-${++renewals}`;
+			}
+		}();
+		h.contribution._connectionCustomizations = {
+			get: address => createCloudSandboxConnectionCustomization(address, sandboxService),
+		};
+		const notification: INotification = {
+			type: NotificationType.AuthRequired,
+			channel: 'ahp-root://',
+			resource: { ...h.resource, resource: 'https://api.github.com' },
+			reason: AuthRequiredReason.Expired,
+		};
+
+		await h.contribution._authenticateWithConnection(h.address, connection, [{ ...h.agents[0], protectedResources: [notification.resource] }]);
+		for (let i = 0; i < 3; i++) {
+			h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual({ forwarded, prompts, renewals }, {
+			forwarded: ['copilot-sealed.v1.key.cached', 'copilot-sealed.v1.key.renewed-1', 'copilot-sealed.v1.key.renewed-2', 'copilot-sealed.v1.key.renewed-3'],
+			prompts: 0,
+			renewals: 3,
+		});
+	});
+
+	test('shares sandbox renewal through authentication completion without resolving GitHub sessions', async () => {
+		const h = createAuthenticationHarness(store);
+		let sessionLookups = 0;
+		h.contribution._instantiationService.stub(IAuthenticationService, {
+			getOrActivateProviderIdForServer: async () => {
+				sessionLookups++;
+				throw new Error('Sandbox renewal must not resolve a user session');
+			},
+		});
+		const renewed = new DeferredPromise<string>();
+		const authenticated = new DeferredPromise<{ authenticated: true }>();
+		const forwarded: string[] = [];
+		const connection = h.connect(async request => {
+			forwarded.push(request.token);
+			return authenticated.p;
+		});
+		let renewals = 0;
+		const sandboxService = new class extends mock<ICloudSandboxAgentHostService>() {
+			override refreshSealedGitHubToken(): Promise<string> {
+				renewals++;
+				return renewed.p;
+			}
+		}();
+		h.contribution._connectionCustomizations = {
+			get: address => createCloudSandboxConnectionCustomization(address, sandboxService),
+		};
+		const notification: INotification = {
+			type: NotificationType.AuthRequired,
+			channel: 'ahp-root://',
+			resource: { ...h.resource, resource: 'https://api.github.com' },
+			reason: AuthRequiredReason.Expired,
+		};
+
+		h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+		h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+		await renewed.complete('copilot-sealed.v1.key.renewed');
+		await timeout(0);
+		h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+		await authenticated.complete({ authenticated: true });
+		await timeout(0);
+
+		assert.deepStrictEqual({ forwarded, renewals, sessionLookups }, {
+			forwarded: ['copilot-sealed.v1.key.renewed'],
+			renewals: 1,
+			sessionLookups: 0,
+		});
+	});
+
+	test('logs failed sandbox renewal without forwarding stale credentials or prompting and allows a later retry', async () => {
+		const h = createAuthenticationHarness(store);
+		const forwarded: string[] = [];
+		const connection = h.connect(async request => {
+			forwarded.push(request.token);
+			return { authenticated: true };
+		});
+		const errors: string[] = [];
+		h.contribution._logService = new class extends NullLogService {
+			override error(message: string): void {
+				errors.push(message);
+			}
+		}();
+		let prompts = 0;
+		h.contribution._instantiationService.stub(ICommandService, {
+			executeCommand: async <R>() => {
+				prompts++;
+				return { success: undefined } as R;
+			},
+		});
+		let renewals = 0;
+		const sandboxService = new class extends mock<ICloudSandboxAgentHostService>() {
+			override getSealedGitHubToken(): string {
+				throw new Error('Must not fall back to cached credentials');
+			}
+			override async refreshSealedGitHubToken(): Promise<string> {
+				if (++renewals === 1) {
+					throw new Error('renewal unavailable');
+				}
+				return 'copilot-sealed.v1.key.renewed';
+			}
+		}();
+		h.contribution._connectionCustomizations = {
+			get: address => createCloudSandboxConnectionCustomization(address, sandboxService),
+		};
+		const notification: INotification = {
+			type: NotificationType.AuthRequired,
+			channel: 'ahp-root://',
+			resource: { ...h.resource, resource: 'https://api.github.com' },
+			reason: AuthRequiredReason.Expired,
+		};
+
+		h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+		await timeout(0);
+		const forwardedAfterFailure = [...forwarded];
+		h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+		await timeout(0);
+
+		assert.deepStrictEqual({ forwardedAfterFailure, forwarded, prompts, renewals, errors }, {
+			forwardedAfterFailure: [],
+			forwarded: ['copilot-sealed.v1.key.renewed'],
+			prompts: 0,
+			renewals: 2,
+			errors: ['[RemoteAgentHost] Failed to authenticate notified resource https://api.github.com'],
+		});
+	});
+
+	test('does not forward renewed sandbox credentials after the connection is replaced', async () => {
+		const h = createAuthenticationHarness(store);
+		const forwarded: string[] = [];
+		const connection = h.connect(async request => {
+			forwarded.push(request.token);
+			return { authenticated: true };
+		});
+		const renewed = new DeferredPromise<string>();
+		const sandboxService = new class extends mock<ICloudSandboxAgentHostService>() {
+			override refreshSealedGitHubToken(): Promise<string> {
+				return renewed.p;
+			}
+		}();
+		h.contribution._connectionCustomizations = {
+			get: address => ({ ...createCloudSandboxConnectionCustomization(address, sandboxService), createSessionPreparation: undefined }),
+		};
+		const notification: INotification = {
+			type: NotificationType.AuthRequired,
+			channel: 'ahp-root://',
+			resource: { ...h.resource, resource: 'https://api.github.com' },
+			reason: AuthRequiredReason.Expired,
+		};
+
+		h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+		await timeout(0);
+		h.connect(async request => {
+			forwarded.push(request.token);
+			return { authenticated: true };
+		});
+		await renewed.complete('copilot-sealed.v1.key.renewed');
+		await timeout(0);
+
+		assert.deepStrictEqual(forwarded, []);
+	});
+
 	test('resends the current token for an expired notification resource that is not advertised by root agents', async () => {
 		const instantiationService = createAuthenticationInstantiationService(store);
 		instantiationService.stub(IAuthenticationService, {
@@ -193,9 +413,9 @@ suite('RemoteAgentHost auth notifications', () => {
 		});
 		const logService = new NullLogService();
 		instantiationService.stub(ILogService, logService);
-		const authenticateCalls: Array<{ readonly resource: string; readonly scopes?: readonly string[]; readonly token: string }> = [];
+		const authenticateCalls: Parameters<IAgentConnection['authenticate']>[0][] = [];
 		const connection = {
-			authenticate: async (params: { readonly resource: string; readonly scopes?: readonly string[]; readonly token: string }) => {
+			authenticate: async (params: Parameters<IAgentConnection['authenticate']>[0]) => {
 				authenticateCalls.push(params);
 				return { authenticated: true };
 			},
@@ -225,6 +445,12 @@ suite('RemoteAgentHost auth notifications', () => {
 			resource: 'https://api.example.com/session',
 			scopes: ['session:read'],
 			token: 'session-token',
+			_meta: {
+				'vscode.authentication.account': {
+					providerId: 'test-provider',
+					accountId: 'account-id',
+				},
+			},
 		}]);
 	});
 
@@ -361,11 +587,22 @@ interface IProviderOwnerHarness {
 	_reconcileProviders(): void;
 }
 
+interface IMissionControlProviderOwnerHarness extends IProviderOwnerHarness {
+	_inventory: IMissionControlEnvironmentService;
+	_profileService: IUserDataProfileService;
+	_getProviderOptions(entry: IRemoteAgentHostEntry): IEntryDrivenProviderOptions;
+	_remoteAgentHostService: IProviderOwnerHarness['_remoteAgentHostService'] & {
+		getConnection(address: string): Pick<IAgentConnection, 'rootState'> | undefined;
+	};
+	_getProviderEntries(): readonly IRemoteAgentHostEntry[];
+}
+
 interface IRemoteAgentRegistrationHarness {
 	_connections: Map<string, {
 		readonly agents: DisposableMap<string, DisposableStore>;
 		readonly store: DisposableStore;
 	}>;
+	_connectionCustomizations: { get(address: string): IRemoteAgentHostConnectionCustomization | undefined };
 	_chatSessionsService: {
 		registerChatSessionContribution(contribution: IChatSessionsExtensionPoint): never;
 	};
@@ -394,6 +631,39 @@ suite('Remote agent host provider ownership', () => {
 			services.get(ICloudSandboxApiService)?.ctor,
 			services.get(ICloudSandboxAgentHostService)?.ctor,
 		], [CloudSandboxApiService, CloudSandboxAgentHostService]);
+	});
+
+	test('native MC providers use endpoint inventory rather than staged managed sandbox entries and cannot be removed locally', () => {
+		const entries: IRemoteAgentHostEntry[] = [
+			{ name: 'Native', connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloudsandbox:native', environmentId: 'native', environmentKind: 'user-local' } },
+			{ name: 'Sandbox', connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloudsandbox:sandbox', environmentId: 'sandbox' } },
+		];
+		const owner = Object.create(MissionControlAgentHostContribution.prototype) as IMissionControlProviderOwnerHarness;
+		owner._configurationService = { getValue: () => true };
+		owner._entryType = RemoteAgentHostEntryType.CloudSandbox;
+		owner._providerInstances = new Map([['cloudsandbox:native', { label: 'Native', defaultLabel: 'Native' }]]);
+		owner._remoteAgentHostService = { configuredEntries: entries, getConnection: () => undefined };
+		owner._inventory = new class extends mock<IMissionControlEnvironmentService>() {
+			override readonly enabled = true;
+			override readonly accountKey = 'account';
+			override readonly hosts = observableValue(this, [
+				{ id: 'native', name: 'Native', kind: 'user-local', status: 'offline' },
+			]);
+		}();
+		owner._profileService = new class extends mock<IUserDataProfileService>() {
+			override readonly currentProfile = new class extends mock<IUserDataProfile>() {
+				override readonly id = 'profile';
+			}();
+		}();
+		const options = owner._getProviderOptions(entries[0]);
+		assert.deepStrictEqual({
+			entries: owner._getProviderEntries(),
+			connectable: typeof options.connectOnDemand === 'function' && typeof options.disconnectOnDemand === 'function',
+			canRemove: options.canRemove,
+			remove: options.removeOnDemand,
+			retained: options.retainSessionsOnDisconnect,
+			readOnlyOffline: options.readOnlyWhenDisconnected,
+		}, { entries: [entries[0]], connectable: true, canRemove: false, remove: undefined, retained: undefined, readOnlyOffline: true });
 	});
 
 	test('gives WebSocket and SSH entries distinct owners while the shared contribution registers none', () => {
@@ -470,11 +740,11 @@ suite('Remote agent host provider ownership', () => {
 
 suite('Remote Agent Host chat session contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const sandboxService = new class extends mock<ICloudSandboxAgentHostService>() { }();
 
-	test('advertises target-only delegation', () => {
-		const address = 'test-host';
+	function registerAgent(address: string, provider: string): IChatSessionsExtensionPoint | undefined {
 		const agent: AgentInfo = {
-			provider: 'copilot',
+			provider,
 			displayName: 'Copilot',
 			description: 'test',
 			models: [],
@@ -484,6 +754,9 @@ suite('Remote Agent Host chat session contribution', () => {
 		const agents = store.add(new DisposableMap<string, DisposableStore>());
 		const harness = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAgentRegistrationHarness;
 		harness._connections = new Map([[address, { agents, store: connectionStore }]]);
+		harness._connectionCustomizations = {
+			get: address => createCloudSandboxConnectionCustomization(address, sandboxService),
+		};
 
 		let registeredContribution: IChatSessionsExtensionPoint | undefined;
 		harness._chatSessionsService = {
@@ -497,6 +770,11 @@ suite('Remote Agent Host chat session contribution', () => {
 			() => harness._registerAgent(address, connection, agent, 'Test Host'),
 			/Stop after registering the chat session contribution/
 		);
+		return registeredContribution;
+	}
+
+	test('advertises target-only delegation', () => {
+		const registeredContribution = registerAgent('test-host', 'copilot');
 		assert.deepStrictEqual(registeredContribution && {
 			type: registeredContribution.type,
 			displayName: registeredContribution.displayName,
@@ -508,5 +786,14 @@ suite('Remote Agent Host chat session contribution', () => {
 			canDelegate: true,
 			supportsDelegation: false,
 		});
+	});
+
+	test('uses the Copilot input placeholder only for sandbox Copilot sessions', () => {
+		assert.deepStrictEqual([
+			registerAgent('cloudsandbox:test-host', 'copilot')?.inputPlaceholder,
+			registerAgent('cloudsandbox:test-host', 'other-agent')?.inputPlaceholder,
+			registerAgent('test-host', 'copilot')?.inputPlaceholder,
+			registerAgent('test-host', 'other-agent')?.inputPlaceholder,
+		], ['Chat with Copilot Cloud', undefined, undefined, undefined]);
 	});
 });

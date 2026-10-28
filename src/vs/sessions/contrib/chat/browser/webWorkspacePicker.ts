@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from '../../../../base/common/arrays.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
@@ -49,6 +52,7 @@ import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } f
  * surfaced).
  */
 export class WebWorkspacePicker extends WorkspacePicker {
+	private readonly _mobilePicker = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		options: IWorkspacePickerOptions,
@@ -99,6 +103,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			contextMenuService,
 			fileService,
 			dialogService,
+			_agentHostFilterService,
 		);
 
 		// When the scoped host changes, if the current selection no longer
@@ -113,14 +118,9 @@ export class WebWorkspacePicker extends WorkspacePicker {
 				return;
 			}
 			scopedHost = nextHost;
+			this._mobilePicker.clear();
 			this._onScopedHostChanged();
 		}));
-	}
-
-	protected override _showTabs(): boolean {
-		// Scoped picker is already filtered to a single host — the categorical
-		// tab bar would be redundant.
-		return false;
 	}
 
 	override showPicker(force = false, anchor?: HTMLElement, preferredGroup?: string, attachesContext?: boolean): void {
@@ -133,19 +133,34 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		// phone viewports so a single instance handles both desktop
 		// browsers and rotation across the phone breakpoint.
 		if (!shouldUseMobileWorkspacePickerSheet(this._layoutService)) {
+			this._mobilePicker.clear();
 			super.showPicker(force, trigger, preferredGroup, attachesContext);
 			return;
 		}
 		this._setDirectPickerFilter(preferredGroup, attachesContext);
 		const items = this._buildItems();
-		showMobileWorkspacePickerSheet(
+		const resources = new DisposableStore();
+		this._mobilePicker.value = resources;
+		const cancellation = new CancellationTokenSource();
+		resources.add(toDisposable(() => cancellation.dispose(true)));
+		void showMobileWorkspacePickerSheet(
 			this._layoutService,
 			trigger,
 			items,
 			item => this._dispatchPickerItem(item),
 			this._getAllBrowseActions(),
-			this._useConsolidatedRemoteWorkspaces() && attachesContext !== true,
-		);
+			attachesContext !== true,
+			cancellation.token,
+		).finally(() => {
+			if (this._mobilePicker.value === resources) {
+				this._mobilePicker.clear();
+			}
+		}).catch(onUnexpectedError);
+	}
+
+	protected override _refreshPickerItems(): void {
+		this._mobilePicker?.clear();
+		super._refreshPickerItems();
 	}
 
 	private _onScopedHostChanged(): void {
@@ -179,8 +194,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		}
 
 		// 1. Recent workspaces across every provider the entry scopes to.
-		const isConsolidatedWorkspacePicker = this._useConsolidatedRemoteWorkspaces()
-			&& this._directPickerGroup === undefined
+		const isConsolidatedWorkspacePicker = this._directPickerGroup === undefined
 			&& this._directPickerAttachesContext !== true;
 		const includeGitHub = !!scoped.sessionCreationProviderId || this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB || isConsolidatedWorkspacePicker;
 		const gitHubGroupAction = isConsolidatedWorkspacePicker && !scoped.sessionCreationProviderId

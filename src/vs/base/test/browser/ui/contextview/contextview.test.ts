@@ -6,11 +6,11 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { $, getDomNodePagePosition, getWindow } from '../../../../browser/dom.js';
-import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLASS, ContextView, ContextViewDOMPosition, IDelegate } from '../../../../browser/ui/contextview/contextview.js';
+import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLASS, CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS, ContextView, ContextViewDOMPosition, contextViewMenuCloseAnimation, IDelegate } from '../../../../browser/ui/contextview/contextview.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ContextView', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => {
 		sinon.restore();
@@ -133,6 +133,54 @@ suite('ContextView', () => {
 		assert.strictEqual(disposeCount, 1);
 		container.remove();
 	});
+
+	for (const domPosition of [ContextViewDOMPosition.ABSOLUTE, ContextViewDOMPosition.FIXED_SHADOW]) {
+		for (const { name, classes, animate } of [
+			{ name: 'Editor motion', classes: 'modern-ui monaco-enable-motion', animate: true },
+			{ name: 'Agents glass motion', classes: 'agent-sessions-workbench modern-ui-frosted-glass monaco-enable-motion', animate: true },
+			{ name: 'Agents without glass', classes: 'agent-sessions-workbench monaco-enable-motion', animate: false },
+			{ name: 'Agents reduced motion', classes: 'agent-sessions-workbench modern-ui-frosted-glass monaco-reduce-motion', animate: false },
+			{ name: 'Editor reduced motion', classes: 'modern-ui monaco-reduce-motion', animate: false },
+			{ name: 'legacy motion', classes: 'monaco-enable-motion', animate: false },
+		]) {
+			test(`menu closing motion with ${name} in DOM position ${domPosition}`, () => {
+				const clock = sinon.useFakeTimers();
+				const container = $('.container');
+				container.classList.add(...classes.split(' '));
+				const contextView = store.add(new ContextView(container, domPosition));
+				let hides = 0;
+				let disposals = 0;
+				contextView.show({
+					getAnchor: () => ({ x: 0, y: 0 }),
+					render: () => ({ dispose: () => disposals++ }),
+					onHide: () => hides++,
+					closeAnimation: contextViewMenuCloseAnimation,
+				});
+
+				const view = contextView.getViewElement();
+				const read = () => ({
+					hides,
+					disposals,
+					closing: view.classList.contains(CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS),
+					hidden: view.style.display === 'none',
+					inert: view.inert,
+				});
+				contextView.hide();
+				contextView.hide();
+				const initial = read();
+				clock.tick(contextViewMenuCloseAnimation.duration - 1);
+				const beforeEnd = read();
+				clock.tick(1);
+
+				const duringClose = { hides: 1, disposals: animate ? 0 : 1, closing: animate, hidden: !animate, inert: animate };
+				assert.deepStrictEqual({ initial, beforeEnd, finished: read() }, {
+					initial: duringClose,
+					beforeEnd: duringClose,
+					finished: { hides: 1, disposals: 1, closing: false, hidden: true, inert: false },
+				});
+			});
+		}
+	}
 
 	test('positions absolute view when the container is position: static', () => {
 		const host = $('.host');

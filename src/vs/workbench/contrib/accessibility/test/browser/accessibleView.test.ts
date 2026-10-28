@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
+import { toAction } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -19,6 +21,41 @@ import { AccessibleView } from '../../browser/accessibleView.js';
 
 suite('AccessibleView', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const hasLinks of [false, true]) {
+		test(`notification help describes links conditionally (links: ${hasLinks})`, async () => {
+			const contextViewService = new RenderingContextViewService();
+			const instantiationService = workbenchInstantiationService({}, disposables);
+			instantiationService.stub(IContextViewService, contextViewService);
+			instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
+			const accessibleView = disposables.add(instantiationService.createInstance(AccessibleView));
+			const show = spy(accessibleView, 'show');
+			disposables.add(toDisposable(() => show.restore()));
+			const modelService = instantiationService.get(IModelService);
+			disposables.add(toDisposable(() => modelService.getModels().forEach(model => model.dispose())));
+			const provider = disposables.add(new AccessibleContentProvider(
+				AccessibleViewProviderId.Notification,
+				{ type: AccessibleViewType.View },
+				() => 'Synthetic notification',
+				() => { },
+				'test.verbosity',
+				undefined,
+				hasLinks ? [toAction({ id: 'notification.link.0', label: 'Learn More', run: () => { } })] : [],
+			));
+
+			accessibleView.show(provider);
+			accessibleView.showAccessibleViewHelp();
+			await timeout(0);
+
+			assert.ok(accessibleView.editorWidget.getValue().includes('If a notification contains links, they are available in the toolbar.'));
+			const helpProvider = show.lastCall.args[0];
+			assert.ok(helpProvider);
+			disposables.add(helpProvider);
+			helpProvider.onClose();
+			await timeout(0);
+			contextViewService.hideContextView();
+		});
+	}
 
 	test('disposes toolbar menus when they are replaced and when the view is disposed', () => {
 		let disposeCount = 0;

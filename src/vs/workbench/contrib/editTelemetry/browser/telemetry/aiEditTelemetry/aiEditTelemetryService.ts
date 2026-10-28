@@ -71,10 +71,16 @@ export interface IEditTelemetryBaseData {
 }
 
 export interface IEditTelemetryCodeSuggestedData extends IEditTelemetryBaseData {
+	/** The agent implementation that produced the code block. */
+	provider?: string;
 }
 
 export interface IEditTelemetryCodeAcceptedData extends IEditTelemetryBaseData {
-	/** Canonical chat session ID for code-block actions, matching chat request telemetry. */
+	/** Owning Agent Host session ID, omitted for suggestions without an Agent Host owner. */
+	agentSessionId?: string;
+	/** The agent implementation that produced the code block. */
+	provider?: string;
+	/** Canonical workbench chat ID, matching chat request telemetry. */
 	chatSessionId?: string;
 
 	acceptanceMethod:
@@ -91,6 +97,8 @@ export interface IEditTelemetryCodeAcceptedData extends IEditTelemetryBaseData {
 }
 
 export interface IEditTelemetryCodeRejectedData extends IEditTelemetryBaseData {
+	agentSessionId?: string;
+	chatSessionId?: string;
 	rejectionMethod:
 	/** User explicitly rejected/undid the suggestion (when presentation is `highlightedEdit`) or pressed Escape (when feature is `inlineSuggestion`) */
 	| 'reject';

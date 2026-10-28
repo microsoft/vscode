@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableValue, transaction } from '../../../../base/common/observable.js';
+import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CanGoBackContext, CanGoForwardContext } from '../../../common/contextkeys.js';
+import { ICustomViewService } from '../../customView/browser/customViewService.js';
 import { ISession, SessionStatus } from '../common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService, IActiveSession } from '../common/sessionsManagement.js';
-import { IRecencyEntry, SessionsRecencyHistory } from './sessionsRecencyHistory.js';
+import { getRecencyEntryKey, SessionRecencyEntry, SessionsRecencyHistory } from './sessionsRecencyHistory.js';
 
-function entryKey(sessionResource: URI, chatResource: URI | undefined): string {
-	return `${sessionResource.toString()}::${chatResource?.toString() ?? ''}`;
-}
+export type SessionNavigationIntent = 'explicit' | 'history' | 'automatic';
 
 /**
  * The subset of opening behaviour {@link SessionsNavigation} drives. Implemented
@@ -25,60 +26,34 @@ function entryKey(sessionResource: URI, chatResource: URI | undefined): string {
 export interface ISessionOpener {
 	openSession(sessionResource: URI, options?: { preserveFocus?: boolean; source?: 'navigation' }): Promise<void>;
 	openChat(session: ISession, chatResource: URI): Promise<void>;
+	openNewSession(): Promise<void>;
 }
 
 /**
- * Provides Back/Forward navigation over the shared session recency history
- * ({@link SessionsRecencyHistory}). Created and owned by
- * the `SessionsService` (view).
- *
- * The recency history is the single source of truth for ordering. Navigation
- * keeps only a cursor (the currently-navigated entry) and walks the history:
- * - Going Back/Forward moves the cursor over the existing order; it never
- *   re-promotes entries (that would break Forward).
- * - Only explicit opens (recorded by the feeder autorun via
- *   {@link SessionsRecencyHistory.markOpened}) re-promote an entry to the front
- *   and reset the cursor to it.
- *
- * Because the history is MRU-ordered and not truncated, going somewhere new
- * after a Back does not discard the previously-newer entries; they remain
- * reachable as older entries (Alt+Tab-style rather than browser-style).
+ * Walks the shared MRU history without promoting entries during Back/Forward.
+ * Explicit destination changes promote their entry without truncating the history.
  */
 export class SessionsNavigation extends Disposable {
 
 	/** Identity of the entry the cursor currently points at. */
 	private readonly _currentKey = observableValue<string | undefined>(this, undefined);
 
-	/** Guard: true while we are performing a back/forward navigation. */
-	private _navigating = false;
-
-	/**
-	 * True when the user has explicitly navigated to the new-session view after
-	 * having been on a real session. Enables going back to the last real session
-	 * without storing a new-session view entry in the history.
-	 */
-	private readonly _beyondHistory = observableValue<boolean>(this, false);
+	private _pendingOpen: { readonly intent: SessionNavigationIntent; readonly token: CancellationToken } | undefined;
 
 	private readonly _canGoBackCtx: IContextKey<boolean>;
 	private readonly _canGoForwardCtx: IContextKey<boolean>;
 
 	private readonly _canGoBack: IObservable<boolean> = derived(this, reader => {
 		const idx = this._indexOfCurrent(reader);
-		const entries = this._recency.entries;
-		const beyond = this._beyondHistory.read(reader);
-		return (idx >= 0 && idx < entries.length - 1) || (beyond && entries.length > 0);
+		return idx >= 0 && idx < this._recency.entries.length - 1;
 	});
 
-	private readonly _canGoForward: IObservable<boolean> = derived(this, reader => {
-		if (this._beyondHistory.read(reader)) {
-			return false;
-		}
-		return this._indexOfCurrent(reader) > 0;
-	});
+	private readonly _canGoForward: IObservable<boolean> = derived(this, reader => this._indexOfCurrent(reader) > 0);
 
 	constructor(
 		private readonly _opener: ISessionOpener,
 		private readonly _activeSession: IObservable<IActiveSession | undefined>,
+		private readonly _customViewService: ICustomViewService,
 		private readonly _sessionsManagementService: ISessionsManagementService,
 		private readonly _recency: SessionsRecencyHistory,
 		contextKeyService: IContextKeyService,
@@ -89,37 +64,23 @@ export class SessionsNavigation extends Disposable {
 		this._canGoBackCtx = CanGoBackContext.bindTo(contextKeyService);
 		this._canGoForwardCtx = CanGoForwardContext.bindTo(contextKeyService);
 
-		// Track active session/chat changes to record recency entries.
-		// Skip undefined (new-session view) and Untitled sessions — only record
-		// sessions that have been saved/submitted. Also tracks active chat changes
-		// within a session so that switching chats is navigable.
-		// NOTE: all observables must always be read before the _navigating guard to
-		// keep subscriptions alive during navigation.
 		this._register(autorun(reader => {
-			const activeSession = this._activeSession.read(reader);
-			const activeChat = activeSession?.activeChat.read(reader);
-			const sessionStatus = activeSession?.status.read(reader);
-			const chatStatus = activeChat?.status.read(reader);
-			if (this._navigating) {
-				return;
-			}
-			if (!activeSession || sessionStatus === SessionStatus.Untitled) {
-				// User navigated to new-session view: if we have history, remember we're
-				// beyond the stack so Back can return to the last real session.
-				if (this._recency.entries.length > 0) {
-					this._beyondHistory.set(true, undefined);
+			const customViewOpen = this._customViewService.activeCustomViewOpen.read(reader);
+			if (customViewOpen) {
+				if (customViewOpen.source !== 'history') {
+					this.recordOpened({ kind: 'customView', id: customViewOpen.descriptor.id });
 				}
 				return;
 			}
 
-			// Skip untitled chats (new-chat-in-session that hasn't been submitted)
-			const chatResource = activeChat && chatStatus !== SessionStatus.Untitled
-				? activeChat.resource
-				: undefined;
+			// Keep tracking the destination while an asynchronous open is in progress.
+			const entry = this._getActiveEntry(reader);
+			const key = getRecencyEntryKey(entry);
+			if (key === this._currentKey.read(undefined) || (this._pendingOpen && !this._pendingOpen.token.isCancellationRequested)) {
+				return;
+			}
 
-			this._beyondHistory.set(false, undefined);
-			this._recency.markOpened(activeSession.resource, chatResource);
-			this._currentKey.set(entryKey(activeSession.resource, chatResource), undefined);
+			this.recordOpened(entry);
 		}));
 
 		// Reconcile the cursor when entries are removed externally (e.g. a
@@ -132,7 +93,7 @@ export class SessionsNavigation extends Disposable {
 			const key = this._currentKey.read(undefined);
 			if (key !== undefined && this._indexOf(key) < 0) {
 				const front = this._recency.entries[0];
-				this._currentKey.set(front ? entryKey(front.sessionResource, front.chatResource) : undefined, undefined);
+				this._currentKey.set(front ? getRecencyEntryKey(front) : undefined, undefined);
 			}
 		}));
 
@@ -143,35 +104,72 @@ export class SessionsNavigation extends Disposable {
 		}));
 	}
 
+	/** Records an explicit opening even when the displayed destination has not changed. */
+	recordOpened(entry: SessionRecencyEntry): void {
+		this._pendingOpen = undefined;
+		transaction(tx => {
+			this._recency.markOpened(entry, tx);
+			this._currentKey.set(getRecencyEntryKey(entry), tx);
+		});
+	}
+
+	/** Defers recording intermediate session/chat selections until the destination is ready. */
+	beginSessionOpen(intent: SessionNavigationIntent, token: CancellationToken): { complete(): void; cancel(): void } {
+		// Reactive fallbacks retain the initiating operation's history semantics.
+		const navigationIntent = intent === 'automatic' ? this._pendingOpen?.intent ?? intent : intent;
+		const opening = { intent: navigationIntent, token };
+		this._pendingOpen = opening;
+		return {
+			complete: () => {
+				if (this._pendingOpen !== opening) {
+					return;
+				}
+				this._pendingOpen = undefined;
+				if (!token.isCancellationRequested && navigationIntent !== 'history' && !this._customViewService.activeCustomView.get()) {
+					this.recordOpened(this._getActiveEntry());
+				}
+			},
+			cancel: () => {
+				if (this._pendingOpen === opening) {
+					this._pendingOpen = undefined;
+				}
+			},
+		};
+	}
+
 	onDidRemoveSessions(e: ISessionsChangeEvent): void {
 		if (e.removed.length === 0) {
 			return;
 		}
-		const removedUris = new Set(e.removed.map(s => s.resource.toString()));
-		this._recency.remove(entry => removedUris.has(entry.sessionResource.toString()));
+		const removedUris = new Set(e.removed.map(s => getComparisonKey(s.resource)));
+		this._recency.remove(entry => entry.kind === 'session' && removedUris.has(getComparisonKey(entry.sessionResource)));
 	}
 
 	async goBack(): Promise<void> {
-		if (this._beyondHistory.get()) {
-			// User is on new-session view — go back to the last real session
-			this._beyondHistory.set(false, undefined);
-			const idx = this._indexOfCurrent();
-			await this._navigateTo(idx < 0 ? 0 : idx);
-			return;
-		}
-		const idx = this._indexOfCurrent();
-		if (idx < 0 || idx >= this._recency.entries.length - 1) {
-			return;
-		}
-		await this._navigateTo(idx + 1);
+		await this._navigate(1);
 	}
 
 	async goForward(): Promise<void> {
-		const idx = this._indexOfCurrent();
-		if (idx <= 0) {
-			return;
+		await this._navigate(-1);
+	}
+
+	private _getActiveEntry(reader?: IReader): SessionRecencyEntry {
+		const customView = this._customViewService.activeCustomView.read(reader);
+		if (customView) {
+			return { kind: 'customView', id: customView.id };
 		}
-		await this._navigateTo(idx - 1);
+
+		const session = this._activeSession.read(reader);
+		if (!session || session.status.read(reader) === SessionStatus.Untitled) {
+			return { kind: 'newSession' };
+		}
+
+		const chat = session.activeChat.read(reader);
+		return {
+			kind: 'session',
+			sessionResource: session.resource,
+			chatResource: chat && chat.status.read(reader) !== SessionStatus.Untitled ? chat.resource : undefined,
+		};
 	}
 
 	/** Index of the current cursor entry in the recency history, or -1. */
@@ -187,40 +185,50 @@ export class SessionsNavigation extends Disposable {
 	}
 
 	private _indexOf(key: string): number {
-		return this._recency.entries.findIndex(e => entryKey(e.sessionResource, e.chatResource) === key);
+		return this._recency.entries.findIndex(e => getRecencyEntryKey(e) === key);
 	}
 
-	private async _navigateTo(targetIdx: number): Promise<void> {
-		const entry: IRecencyEntry | undefined = this._recency.entries[targetIdx];
-		if (!entry) {
-			return;
-		}
+	private async _navigate(direction: 1 | -1): Promise<void> {
+		while (true) {
+			const idx = this._indexOfCurrent();
+			const entry = idx >= 0 ? this._recency.entries[idx + direction] : undefined;
+			if (!entry) {
+				return;
+			}
 
-		this._logService.trace(`[SessionNavigation] navigating to idx=${targetIdx} session=${entry.sessionResource.toString()} chat=${entry.chatResource?.toString()}`);
-
-		this._navigating = true;
-		try {
-			this._currentKey.set(entryKey(entry.sessionResource, entry.chatResource), undefined);
-
-			const session = this._sessionsManagementService.getSession(entry.sessionResource);
-			if (session) {
-				if (entry.chatResource) {
-					const chatExists = session.chats.get().some(c => c.resource.toString() === entry.chatResource!.toString());
-					if (chatExists) {
+			const key = getRecencyEntryKey(entry);
+			this._logService.trace(`[SessionNavigation] navigating to ${key}`);
+			if (entry.kind === 'customView') {
+				const previousKey = this._currentKey.get();
+				this._currentKey.set(key, undefined);
+				this._customViewService.showCustomView(entry.id, { source: 'history' });
+				if (this._customViewService.activeCustomView.get()?.id !== entry.id) {
+					this._currentKey.set(previousKey, undefined);
+					this._recency.remove(e => getRecencyEntryKey(e) === key);
+					continue;
+				}
+			} else if (entry.kind === 'newSession') {
+				this._currentKey.set(key, undefined);
+				await this._opener.openNewSession();
+			} else {
+				const session = this._sessionsManagementService.getSession(entry.sessionResource);
+				if (!session) {
+					this._recency.remove(e => e.kind === 'session' && isEqual(e.sessionResource, entry.sessionResource));
+					continue;
+				}
+				const navigation = this.beginSessionOpen('history', CancellationToken.None);
+				this._currentKey.set(key, undefined);
+				try {
+					if (entry.chatResource && session.chats.get().some(chat => isEqual(chat.resource, entry.chatResource))) {
 						await this._opener.openChat(session, entry.chatResource);
 					} else {
 						await this._opener.openSession(entry.sessionResource, { source: 'navigation' });
 					}
-				} else {
-					await this._opener.openSession(entry.sessionResource, { source: 'navigation' });
+				} finally {
+					navigation.cancel();
 				}
-			} else {
-				// Session no longer exists, remove its entries from history
-				const sessionUri = entry.sessionResource.toString();
-				this._recency.remove(e => e.sessionResource.toString() === sessionUri);
 			}
-		} finally {
-			this._navigating = false;
+			return;
 		}
 	}
 }

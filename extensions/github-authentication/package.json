@@ -21,7 +21,8 @@
     "authIssuers",
     "authProviderSpecific",
     "authSessionAccountIcon",
-    "authSessionExpiration"
+    "authSessionExpiration",
+    "notificationTelemetry"
   ],
   "activationEvents": [],
   "capabilities": {
@@ -29,7 +30,8 @@
     "untrustedWorkspaces": {
       "supported": "limited",
       "restrictedConfigurations": [
-        "github-enterprise.uri"
+        "github-enterprise.uri",
+        "github-enterprise.uris"
       ]
     }
   },
@@ -57,7 +59,17 @@
           "github-enterprise.uri": {
             "type": "string",
             "markdownDescription": "%config.github-enterprise.uri.description%",
+            "markdownDeprecationMessage": "%config.github-enterprise.uri.deprecation%",
             "pattern": "^(?:$|(https?)://(?!github\\.com).*)"
+          },
+          "github-enterprise.uris": {
+            "type": "array",
+            "markdownDescription": "%config.github-enterprise.uris.description%",
+            "items": {
+              "type": "string",
+              "pattern": "^(https?)://(?!github\\.com).*"
+            },
+            "uniqueItems": true
           },
           "github-authentication.useElectronFetch": {
             "type": "boolean",

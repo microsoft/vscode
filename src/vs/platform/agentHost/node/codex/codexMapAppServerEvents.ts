@@ -117,6 +117,20 @@ export interface ICodexSessionMapState {
 	 * per turn by {@link resetCodexTurnMapState}; see {@link mapItemStartedBody}.
 	 */
 	agentMessagePartCount: number;
+	/**
+	 * Thread-cumulative token usage just before the current turn's first model
+	 * call. Codex reports `tokenUsage.total` for the whole thread, so subtracting
+	 * this baseline yields whole-turn totals that stay stable when a notification
+	 * is repeated. Keyed by turn id, so a new turn records a fresh baseline.
+	 */
+	turnTokenUsageBaseline: ICodexTurnTokenUsageBaseline | undefined;
+}
+
+interface ICodexTurnTokenUsageBaseline {
+	readonly turnId: string;
+	readonly inputTokens: number;
+	readonly cachedTokens: number;
+	readonly outputTokens: number;
 }
 
 /**
@@ -157,6 +171,7 @@ export function createCodexSessionMapState(serverToolNames: ReadonlySet<string> 
 		deferredResponseActions: [],
 		pendingPreflight: undefined,
 		agentMessagePartCount: 0,
+		turnTokenUsageBaseline: undefined,
 	};
 }
 
@@ -321,6 +336,10 @@ export function codexImageGenerationLabels(status?: string): { readonly displayN
 		failedMessage: localize('codex.imageGeneration.failed', "Failed to generate image"),
 		errorMessage: localize('codex.imageGeneration.error', "Image generation {0}", status ?? ''),
 	};
+}
+
+export function codexImageGenerationToolInput(revisedPrompt: string | null): string | undefined {
+	return revisedPrompt ? JSON.stringify({ prompt: revisedPrompt }) : undefined;
 }
 
 function jsonValueToText(value: JsonValue): string {
@@ -492,8 +511,9 @@ export function clearReasoningForItem(state: ICodexSessionMapState, itemId: stri
 	}
 }
 
-export function mapTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification, modelId?: string): (SessionAction | ChatAction)[] {
+export function mapTokenUsageUpdated(state: ICodexSessionMapState, params: ThreadTokenUsageUpdatedNotification, modelId?: string): (SessionAction | ChatAction)[] {
 	const last = params.tokenUsage.last;
+	const turnTotal = getTurnTokenUsage(state, params);
 	return [{
 		type: ActionType.ChatUsage,
 		turnId: params.turnId,
@@ -505,9 +525,37 @@ export function mapTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification
 			_meta: {
 				reasoningOutputTokens: last.reasoningOutputTokens,
 				modelContextWindow: params.tokenUsage.modelContextWindow,
+				...(modelId ? {
+					turnTokenTotals: [{ model: modelId, ...turnTotal }],
+					directTurnTokenTotals: [{ model: modelId, ...turnTotal }],
+				} : {}),
 			},
 		},
 	}];
+}
+
+/**
+ * Whole-turn token totals derived from Codex's thread-cumulative usage. The
+ * first notification seen for a turn records the thread total before that
+ * call, so repeated notifications for the same call are not counted twice.
+ */
+function getTurnTokenUsage(state: ICodexSessionMapState, params: ThreadTokenUsageUpdatedNotification): Omit<ICodexTurnTokenUsageBaseline, 'turnId'> {
+	const { total, last } = params.tokenUsage;
+	let baseline = state.turnTokenUsageBaseline;
+	if (baseline?.turnId !== params.turnId) {
+		baseline = {
+			turnId: params.turnId,
+			inputTokens: total.inputTokens - last.inputTokens,
+			cachedTokens: total.cachedInputTokens - last.cachedInputTokens,
+			outputTokens: total.outputTokens - last.outputTokens,
+		};
+		state.turnTokenUsageBaseline = baseline;
+	}
+	return {
+		inputTokens: Math.max(0, total.inputTokens - baseline.inputTokens),
+		cachedTokens: Math.max(0, total.cachedInputTokens - baseline.cachedTokens),
+		outputTokens: Math.max(0, total.outputTokens - baseline.outputTokens),
+	};
 }
 
 /**
@@ -695,7 +743,7 @@ function mapItemStartedBody(
 				turnId: params.turnId,
 				toolCallId,
 				invocationMessage: labels.invocationMessage,
-				toolInput: JSON.stringify({ prompt: params.item.revisedPrompt ?? labels.displayName }),
+				toolInput: codexImageGenerationToolInput(params.item.revisedPrompt),
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			},
 		];
@@ -1119,7 +1167,19 @@ export function mapItemCompleted(
 	if (params.item.type === 'imageGeneration') {
 		const success = params.item.status === 'completed' && params.item.result.length > 0;
 		const labels = codexImageGenerationLabels(params.item.status);
-		return [{
+		const actions: ChatAction[] = [];
+		const toolInput = codexImageGenerationToolInput(params.item.revisedPrompt);
+		if (toolInput !== undefined) {
+			actions.push({
+				type: ActionType.ChatToolCallReady,
+				turnId: entry.turnId,
+				toolCallId: entry.toolCallId,
+				invocationMessage: labels.invocationMessage,
+				toolInput,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+		}
+		actions.push({
 			type: ActionType.ChatToolCallComplete,
 			turnId: entry.turnId,
 			toolCallId: entry.toolCallId,
@@ -1133,7 +1193,8 @@ export function mapItemCompleted(
 				}] : undefined,
 				...(success ? {} : { error: { message: labels.errorMessage } }),
 			},
-		}];
+		});
+		return actions;
 	}
 	if (params.item.type === 'fileChange') {
 		const output = fileChangeOutput(params.item.changes) || entry.output;

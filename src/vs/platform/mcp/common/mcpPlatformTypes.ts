@@ -58,6 +58,8 @@ export interface IMcpStdioServerConfiguration extends ICommonMcpServerConfigurat
 	readonly envFile?: string;
 	readonly cwd?: string;
 	readonly sandboxEnabled?: boolean;
+	/** Server-specific permissions, combined with root-level sandbox deny rules. */
+	readonly sandbox?: IMcpSandboxConfiguration;
 	readonly dev?: IMcpDevModeConfig;
 }
 

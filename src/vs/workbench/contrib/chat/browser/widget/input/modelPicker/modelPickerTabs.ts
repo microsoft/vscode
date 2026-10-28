@@ -7,8 +7,8 @@ import { IStringDictionary } from '../../../../../../../base/common/collections.
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
-import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
-import { buildModelToProviderGroupMap, getProviderGroupForModel, getProviderGroupKey, isVersionAtLeast } from './modelPickerItemPrimitives.js';
+import { COPILOT_VENDOR_ID, getLanguageModelProviderIcon, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel, LanguageModelProviderIcon } from '../../../../common/languageModels.js';
+import { buildModelToProviderGroupMap, getProviderGroupForModel, getProviderGroupKey, IProviderGroupInfo, isVersionAtLeast } from './modelPickerItemPrimitives.js';
 import { isDeprecated } from './modelPickerBadges.js';
 import { isEarlyAccessModel, latestOfEachLine } from './modelPickerLineage.js';
 import { getProviderIconForIdentity } from './modelProviderIcons.js';
@@ -17,6 +17,8 @@ import { buildSpeedVariants, collapseSpeedVariants, IModelSpeedVariants } from '
 
 /** The built-in provider's models. */
 export const MODEL_PICKER_BUILT_IN_DESTINATION = 'builtIn';
+/** The on-device models of the chat's local Agent Host, placed right after the built-in provider. */
+export const MODEL_PICKER_ON_DEVICE_DESTINATION = 'onDevice';
 /** Prefix for the destination each provider the user added gets. */
 const PROVIDER_DESTINATION_PREFIX = 'provider:';
 
@@ -24,6 +26,8 @@ const PROVIDER_DESTINATION_PREFIX = 'provider:';
 export interface IModelPickerProviderPlaceholder {
 	readonly vendor: string;
 	readonly label: string;
+	/** Shown in place of the provider's icon when the reason is not specific to it, e.g. Restricted Mode. */
+	readonly icon?: ThemeIcon;
 	/** Why there are no models, shown under the provider name. */
 	readonly message: string;
 	/** Optional call to action, e.g. "Sign in". */
@@ -38,7 +42,8 @@ export interface IModelPickerDestination {
 	readonly id: string;
 	/** Names the destination in the tab tooltip and as the list heading. */
 	readonly label: string;
-	readonly icon: ThemeIcon;
+	/** The provider's declared icon, or one recognised from its name. */
+	readonly icon: LanguageModelProviderIcon;
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	/** Providers with nothing to list yet, shown as a welcome body when there are no models. */
 	readonly placeholders: readonly IModelPickerProviderPlaceholder[];
@@ -82,77 +87,69 @@ export function getModelProviderLabel(
  * Splits models into one destination per provider: the built-in one first, then each
  * provider the user added, by name. Models with their own row, Auto by default, are left
  * out, and empty providers are dropped so the common case yields no tab bar.
+ *
+ * @param keepBuiltIn Keeps the built-in destination even with nothing to select, for a
+ * plan whose curated models still need to name the upgrade that would unlock them.
  */
 export function buildModelPickerDestinations(
 	models: readonly ILanguageModelChatMetadataAndIdentifier[],
 	languageModelsService: ILanguageModelsService,
 	placeholders: readonly IModelPickerProviderPlaceholder[] = [],
 	hasOwnRow: (model: ILanguageModelChatMetadataAndIdentifier) => boolean = isAutoModel,
+	keepBuiltIn = false,
 ): IModelPickerDestination[] {
-	const builtInModels: ILanguageModelChatMetadataAndIdentifier[] = [];
-	const userModels: ILanguageModelChatMetadataAndIdentifier[] = [];
+	const builtInVendor = languageModelsService.getVendors().find(vendor => vendor.isDefault);
+	const builtInGroup = {
+		vendor: builtInVendor?.vendor ?? COPILOT_VENDOR_ID,
+		groupName: builtInVendor?.displayName ?? localize('chat.modelPicker.builtInProvider', "GitHub Copilot"),
+		icon: builtInVendor?.icon,
+	};
+	const modelToGroup = buildModelToProviderGroupMap(languageModelsService);
+	// Provider identity keeps same-name providers distinct, with the built-in ID reserved.
+	const byProvider = new Map<string, { label: string; icon: LanguageModelProviderIcon | undefined; models: ILanguageModelChatMetadataAndIdentifier[]; placeholders: IModelPickerProviderPlaceholder[] }>();
+	const providerEntry = (group: IProviderGroupInfo, isBuiltIn = false) => {
+		const key = isBuiltIn ? MODEL_PICKER_BUILT_IN_DESTINATION : `${PROVIDER_DESTINATION_PREFIX}${getProviderGroupKey(group.vendor, group.groupName)}`;
+		let entry = byProvider.get(key);
+		if (!entry) {
+			entry = { label: group.groupName, icon: group.icon, models: [], placeholders: [] };
+			byProvider.set(key, entry);
+		}
+		entry.icon ??= group.icon;
+		return entry;
+	};
+	providerEntry(builtInGroup, true);
 	for (const model of models) {
 		if (hasOwnRow(model)) {
 			continue;
 		}
-		(isUserProvidedModel(model, languageModelsService) ? userModels : builtInModels).push(model);
-	}
-
-	const builtInVendor = languageModelsService.getVendors().find(vendor => vendor.isDefault);
-	const builtInVendorId = builtInVendor?.vendor ?? COPILOT_VENDOR_ID;
-	const builtInLabel = builtInVendor?.displayName ?? localize('chat.modelPicker.builtInProvider', "GitHub Copilot");
-	const builtInPlaceholders = placeholders.filter(placeholder => placeholder.vendor === builtInVendorId);
-	const userPlaceholders = placeholders.filter(placeholder => placeholder.vendor !== builtInVendorId);
-
-	// The built-in destination stands even with nothing to list: a plan that only grants
-	// Auto still needs somewhere to show it, and its curated models still need to name
-	// the upgrade that would unlock them.
-	const hasOwnRowModel = models.some(hasOwnRow);
-	const destinations: IModelPickerDestination[] = [];
-	if (builtInModels.length || builtInPlaceholders.length || hasOwnRowModel) {
-		destinations.push({
-			id: MODEL_PICKER_BUILT_IN_DESTINATION,
-			label: builtInLabel,
-			icon: getProviderIconForIdentity(`${builtInLabel} ${builtInVendorId}`),
-			models: builtInModels,
-			placeholders: builtInPlaceholders,
-		});
-	}
-
-	const modelToGroup = buildModelToProviderGroupMap(languageModelsService);
-	// Keyed by provider identity rather than by display name, so two providers that
-	// happen to share a name each keep their own tab instead of being merged.
-	const byProvider = new Map<string, { label: string; models: ILanguageModelChatMetadataAndIdentifier[]; placeholders: IModelPickerProviderPlaceholder[] }>();
-	const providerEntry = (key: string, label: string) => {
-		let entry = byProvider.get(key);
-		if (!entry) {
-			entry = { label, models: [], placeholders: [] };
-			byProvider.set(key, entry);
-		}
-		return entry;
-	};
-	for (const model of userModels) {
-		const { vendor, groupName } = getProviderGroupForModel(model, modelToGroup, languageModelsService);
-		providerEntry(getProviderGroupKey(vendor, groupName), groupName).models.push(model);
+		const isBuiltIn = !isUserProvidedModel(model, languageModelsService);
+		const group = isBuiltIn ? builtInGroup : getProviderGroupForModel(model, modelToGroup, languageModelsService);
+		providerEntry(group, isBuiltIn).models.push(model);
 	}
 	// A provider still signing in has no models yet, but it has earned its tab.
-	for (const placeholder of userPlaceholders) {
-		providerEntry(getProviderGroupKey(placeholder.vendor, placeholder.label), placeholder.label).placeholders.push(placeholder);
+	for (const placeholder of placeholders) {
+		const isBuiltIn = placeholder.vendor === builtInGroup.vendor;
+		const group = isBuiltIn ? builtInGroup : {
+			vendor: placeholder.vendor,
+			groupName: placeholder.label,
+			icon: getLanguageModelProviderIcon(languageModelsService, placeholder.vendor),
+		};
+		providerEntry(group, isBuiltIn).placeholders.push(placeholder);
 	}
-	// Ordered by the name the user reads, with the key breaking ties so that providers
-	// sharing a name keep a stable order.
-	const sortedProviders = [...byProvider].sort(([leftKey, left], [rightKey, right]) =>
-		left.label.localeCompare(right.label) || leftKey.localeCompare(rightKey));
-	for (const [key, entry] of sortedProviders) {
-		destinations.push({
-			id: `${PROVIDER_DESTINATION_PREFIX}${key}`,
+	// Auto-only and curated-upgrade plans still need the built-in destination.
+	const retainBuiltIn = keepBuiltIn || models.some(hasOwnRow);
+	return [...byProvider]
+		.filter(([key, entry]) => entry.models.length || entry.placeholders.length || (key === MODEL_PICKER_BUILT_IN_DESTINATION && retainBuiltIn))
+		.sort(([leftKey, left], [rightKey, right]) =>
+			Number(rightKey === MODEL_PICKER_BUILT_IN_DESTINATION) - Number(leftKey === MODEL_PICKER_BUILT_IN_DESTINATION)
+			|| left.label.localeCompare(right.label) || leftKey.localeCompare(rightKey))
+		.map(([key, entry]) => ({
+			id: key,
 			label: entry.label,
-			icon: getProviderIconForIdentity(entry.label),
+			icon: entry.icon ?? getProviderIconForIdentity(key === MODEL_PICKER_BUILT_IN_DESTINATION ? `${entry.label} ${builtInGroup.vendor}` : entry.label),
 			models: entry.models,
 			placeholders: entry.placeholders,
-		});
-	}
-	return destinations;
+		}));
 }
 
 export interface IModelPickerSectionsOptions {
@@ -168,6 +165,7 @@ export interface IModelPickerSectionsOptions {
 	readonly showSuggested: boolean;
 	/** Whether to name curated models the user cannot select yet. Off by default. */
 	readonly showUnavailable?: boolean;
+	readonly alwaysShowUnavailableModelIds?: ReadonlySet<string>;
 	/** This build's version, used to spot models gated behind a newer VS Code. */
 	readonly currentVSCodeVersion?: string;
 }
@@ -273,13 +271,10 @@ function hasPromo(model: ILanguageModelChatMetadataAndIdentifier): boolean {
  * build is too old. Named so the path to unlocking them stays visible.
  */
 function buildUnavailableEntries(options: IModelPickerSectionsOptions): IModelPickerUnavailableEntry[] {
-	if (!options.showUnavailable) {
-		return [];
-	}
 	const present = new Set(options.models.flatMap(model => [model.identifier, model.metadata.id]));
 	const entries: IModelPickerUnavailableEntry[] = [];
 	for (const [id, entry] of Object.entries(options.controlModels)) {
-		if (!entry.featured) {
+		if (!entry.featured || (!options.showUnavailable && !options.alwaysShowUnavailableModelIds?.has(id))) {
 			continue;
 		}
 		const outOfDate = isOutOfDate(entry, options.currentVSCodeVersion);

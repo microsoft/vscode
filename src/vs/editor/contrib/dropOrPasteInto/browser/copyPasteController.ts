@@ -38,6 +38,7 @@ import { MessageController } from '../../message/browser/messageController.js';
 import { PreferredPasteConfiguration } from './copyPasteContribution.js';
 import { DefaultTextPasteOrDropEditProvider } from './defaultProviders.js';
 import { createCombinedWorkspaceEdit, sortEditsByYieldTo } from './edit.js';
+import { PasteEditSession } from './pasteEditSession.js';
 import { PostEditWidgetManager } from './postEditWidget.js';
 
 export const changePasteTypeCommandId = 'editor.changePasteType';
@@ -59,11 +60,6 @@ type PasteEditWithProvider = DocumentPasteEdit & {
 	provider: DocumentPasteEditProvider;
 };
 
-
-interface DocumentPasteWithProviderEditsSession {
-	edits: readonly PasteEditWithProvider[];
-	dispose(): void;
-}
 
 export type PastePreference =
 	| { readonly only: HierarchicalKind }
@@ -191,6 +187,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const defaultPastePayload = {
 			multicursorText: e.dataToCopy.multicursorText ?? null,
 			pasteOnNewLine: e.dataToCopy.isFromEmptySelection,
+			isBlock: e.dataToCopy.isBlock,
 			mode: null
 		};
 
@@ -338,7 +335,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 			const disposables = new DisposableStore();
 			const cts = disposables.add(new CancellationTokenSource(pToken));
-			disposables.add(editorStateCts.token.onCancellationRequested(() => cts.cancel()));
+			const editorStateListener = disposables.add(editorStateCts.token.onCancellationRequested(() => cts.cancel()));
 
 			const token = cts.token;
 			try {
@@ -358,8 +355,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					triggerKind: DocumentPasteTriggerKind.Automatic,
 				};
 
-				const editSession = await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, context, token);
-				disposables.add(editSession);
+				const editSession = disposables.add(await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, context, token));
 				if (token.isCancellationRequested) {
 					return;
 				}
@@ -371,7 +367,9 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 				if (editSession.edits.length) {
 					const canShowWidget = editor.getOption(EditorOption.pasteAs).showPasteSelector === 'afterPaste';
-					return this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections, { activeEditIndex: this.getInitialActiveEditIndex(model, editSession.edits), allEdits: editSession.edits }, canShowWidget, async (edit, resolveToken) => {
+					// Applying the paste changes editor state itself. The widget manager handles cancellation during resolve.
+					disposables.delete(editorStateListener);
+					return await this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections, { activeEditIndex: this.getInitialActiveEditIndex(model, editSession.edits), allEdits: editSession.edits }, canShowWidget, async (edit, resolveToken) => {
 						if (!edit.provider.resolveDocumentPasteEdit) {
 							return edit;
 						}
@@ -387,7 +385,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 							edit.additionalEdit = resolved.additionalEdit;
 						}
 						return edit;
-					}, token);
+					}, token, editSession);
 				}
 
 				await this.applyDefaultPasteHandler(dataTransfer, metadata, token, clipboardEvent);
@@ -442,28 +440,26 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					triggerKind: DocumentPasteTriggerKind.PasteAs,
 					only: preference && 'only' in preference ? preference.only : undefined,
 				};
-				let editSession = disposables.add(await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, context, tokenSource.token));
+				const editSession = disposables.add(await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, context, tokenSource.token));
 				if (tokenSource.token.isCancellationRequested) {
 					return;
 				}
 
 				// Filter out any edits that don't match the requested kind
+				let edits = editSession.edits;
 				if (preference) {
-					editSession = {
-						edits: editSession.edits.filter(edit => {
-							if ('only' in preference) {
-								return preference.only.contains(edit.kind);
-							} else if ('preferences' in preference) {
-								return preference.preferences.some(preference => preference.contains(edit.kind));
-							} else {
-								return preference.providerId === edit.provider.id;
-							}
-						}),
-						dispose: editSession.dispose
-					};
+					edits = edits.filter(edit => {
+						if ('only' in preference) {
+							return preference.only.contains(edit.kind);
+						} else if ('preferences' in preference) {
+							return preference.preferences.some(preference => preference.contains(edit.kind));
+						} else {
+							return preference.providerId === edit.provider.id;
+						}
+					});
 				}
 
-				if (!editSession.edits.length) {
+				if (!edits.length) {
 					if (preference) {
 						this.showPasteAsNoEditMessage(selections, preference);
 					}
@@ -472,7 +468,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 				let pickedEdit: DocumentPasteEdit | undefined;
 				if (preference) {
-					pickedEdit = editSession.edits.at(0);
+					pickedEdit = edits.at(0);
 				} else {
 					type ItemWithEdit = IQuickPickItem & { edit?: DocumentPasteEdit };
 					const configureDefaultItem: ItemWithEdit = {
@@ -483,7 +479,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 					const selected = await this._quickInputService.pick<ItemWithEdit>(
 						[
-							...editSession.edits.map((edit): ItemWithEdit => ({
+							...edits.map((edit): ItemWithEdit => ({
 								label: edit.title,
 								description: edit.kind?.value,
 								edit,
@@ -551,6 +547,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					mode: e.metadata.mode,
 					multicursorText: e.metadata.multicursorText ?? null,
 					pasteOnNewLine: !!e.metadata.isFromEmptySelection,
+					isBlock: !!e.metadata.isBlock,
 				},
 			};
 		}
@@ -594,7 +591,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		}
 	}
 
-	private async getPasteEdits(providers: readonly DocumentPasteEditProvider[], dataTransfer: VSDataTransfer, model: ITextModel, selections: readonly Selection[], context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteWithProviderEditsSession> {
+	private async getPasteEdits(providers: readonly DocumentPasteEditProvider[], dataTransfer: VSDataTransfer, model: ITextModel, selections: readonly Selection[], context: DocumentPasteContext, token: CancellationToken): Promise<PasteEditSession<PasteEditWithProvider>> {
 		const disposables = new DisposableStore();
 
 		const results = await raceCancellation(
@@ -616,10 +613,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const edits = coalesce(results ?? []).flat().filter(edit => {
 			return !context.only || context.only.contains(edit.kind);
 		});
-		return {
-			edits: sortEditsByYieldTo(edits),
-			dispose: () => disposables.dispose()
-		};
+		return new PasteEditSession(sortEditsByYieldTo(edits), disposables);
 	}
 
 	private async applyDefaultPasteHandler(dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, token: CancellationToken, clipboardEvent: ClipboardEvent | undefined) {
@@ -634,6 +628,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			text,
 			pasteOnNewLine: metadata?.defaultPastePayload.pasteOnNewLine ?? false,
 			multicursorText: metadata?.defaultPastePayload.multicursorText ?? null,
+			isBlock: !!metadata?.defaultPastePayload.isBlock,
 			mode: null,
 		};
 		this._logService.trace('CopyPasteController#applyDefaultPasteHandler for id : ', metadata?.id);

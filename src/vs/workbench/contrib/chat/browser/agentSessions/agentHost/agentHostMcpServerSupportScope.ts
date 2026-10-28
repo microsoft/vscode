@@ -90,6 +90,8 @@ export function getMcpCompatibilityDetail(reason: AgentHostMcpSupportReason): st
 	switch (reason) {
 		case AgentHostMcpSupportReason.UnsupportedSourceLocation:
 			return localize('mcpCompatibilityUnsupportedSourceLocation', "The current configuration location for this server is not supported by the Copilot harness.\nTo migrate this server, move its configuration to the workspace root .mcp.json file.");
+		case AgentHostMcpSupportReason.CopilotHomeNotForwarded:
+			return localize('mcpCompatibilityCopilotHomeNotForwarded', "Servers from the GitHub Copilot CLI configuration are only used by Copilot CLI sessions on the machine that owns the configuration, so their settings and credentials are not shared with other agents or remote hosts.\nTo use this server in this session, add it to an MCP configuration for this agent or host.");
 		case AgentHostMcpSupportReason.RequiresUserInteraction:
 			return localize('mcpCompatibilityRequiresUserInteraction', "Input and command variables are not supported by the Copilot harness.\nTo migrate this server, replace them with concrete values or environment variables defined directly in the server configuration.");
 		case AgentHostMcpSupportReason.UnresolvedConfiguration:
@@ -100,16 +102,14 @@ export function getMcpCompatibilityDetail(reason: AgentHostMcpSupportReason): st
 			return localize('mcpCompatibilityEnvironmentFileIgnored', "Environment files are not supported by the Copilot harness.\nTo migrate this server, move required variables from the environment file into the server env configuration.");
 		case AgentHostMcpSupportReason.WorkingDirectoryNotPortable:
 			return localize('mcpCompatibilityWorkingDirectoryNotPortable', "Working directory settings cannot be migrated to the workspace root .mcp.json file.\nTo migrate this server, remove the cwd property.");
-		case AgentHostMcpSupportReason.ServerVersionNotPortable:
-			return localize('mcpCompatibilityServerVersionNotPortable', "Server version metadata cannot be migrated to the workspace root .mcp.json file.\nTo migrate this server, remove the version property.");
 		case AgentHostMcpSupportReason.SseTransportNotPortable:
 			return localize('mcpCompatibilitySseTransportNotPortable', "SSE transport settings cannot be migrated to the workspace root .mcp.json file.\nTo migrate this server, use the default HTTP transport.");
 		case AgentHostMcpSupportReason.SandboxConfigurationIgnored:
-			return localize('mcpCompatibilitySandboxConfigurationIgnored', "Per-server sandbox settings are not supported by the Copilot harness.\nTo migrate this server, remove the server sandbox setting.");
+			return localize('mcpCompatibilitySandboxConfigurationIgnored', "Per-server sandboxing isn't supported. Migrating removes sandboxEnabled.");
 		case AgentHostMcpSupportReason.DevelopmentModeIgnored:
-			return localize('mcpCompatibilityDevelopmentModeIgnored', "MCP development mode is not supported by the Copilot harness.\nTo migrate this server, remove the development mode setting and restart the server manually after configuration changes.");
+			return localize('mcpCompatibilityDevelopmentModeIgnored', "Development mode isn't supported. Migrating removes dev.");
 		case AgentHostMcpSupportReason.OAuthClientConfigurationIgnored:
-			return localize('mcpCompatibilityOAuthClientConfigurationIgnored', "Custom OAuth client configuration is not supported by the Copilot harness.\nTo migrate this server, remove the custom OAuth client configuration and sign in when the Copilot harness prompts for authentication.");
+			return localize('mcpCompatibilityOAuthClientConfigurationIgnored', "The Copilot harness does not receive this server's custom OAuth client configuration from VS Code.\nMigrate this server to keep its OAuth client ID. Servers that use a client secret or enterprise-managed sign-in cannot be migrated.");
 		case AgentHostMcpSupportReason.DefinitionNotLoaded:
 			return localize('mcpCompatibilityDefinitionNotLoaded', "Compatibility cannot be determined because the server definition has not loaded.\nTo migrate this server, wait for MCP discovery to finish, then refresh this view. If the issue persists, check the server configuration for errors.");
 		case AgentHostMcpSupportReason.SourceUnknown:

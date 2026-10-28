@@ -11,9 +11,8 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { readSessionGitHubStateInput } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestSessionMetadata, getExistingPullRequests, getPullRequestNumberFromCheckoutRef, IPullRequestQuickPickItem, isPullRequestAvailable, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from '../../browser/pullRequestPicker.js';
+import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestUrl, getExistingPullRequests, getPullRequestNumberFromCheckoutRef, IPullRequestQuickPickItem, isPullRequestAvailable, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from '../../browser/pullRequestPicker.js';
 import { IGitHubPullRequestSummary } from '../../common/types.js';
 import { createAndOpenPullRequestSession } from '../../browser/pullRequestSessionCreation.js';
 
@@ -129,17 +128,14 @@ suite('Create Session from Pull Request', () => {
 		);
 	});
 
-	test('creates session metadata with the selected pull request identity', () => {
-		assert.deepStrictEqual(
-			readSessionGitHubStateInput(createPullRequestSessionMetadata('microsoft', 'vscode', pullRequest(42, { headRef: 'feature' }))),
-			{
-				owner: 'microsoft',
-				repo: 'vscode',
-				pullRequestUrls: ['https://github.com/microsoft/vscode/pull/42'],
-				associatedPullRequestUrls: ['https://github.com/microsoft/vscode/pull/42'],
-				pullRequestBranchName: 'feature',
-			},
-		);
+	test('creates the pull request URL the agent host checks out', () => {
+		assert.deepStrictEqual({
+			dotCom: createPullRequestUrl('microsoft', 'vscode', 42),
+			enterprise: createPullRequestUrl('microsoft', 'vscode', 42, 'tenant.ghe.com'),
+		}, {
+			dotCom: 'https://github.com/microsoft/vscode/pull/42',
+			enterprise: 'https://tenant.ghe.com/microsoft/vscode/pull/42',
+		});
 	});
 
 	test('creates a transcript context attachment containing the PR snapshot as JSON', () => {

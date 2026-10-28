@@ -5,14 +5,84 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseGitWorktrees, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
-import { EMPTY_TREE_OBJECT, getBranchCompletions, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
+import { Branch, EMPTY_TREE_OBJECT, getBranchCompletions, GitRefType, IRefQuery, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
 import { needsSessionGitStateRefresh } from '../../common/state/sessionState.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { IFileService } from '../../../files/common/files.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { NullLogService } from '../../../log/common/log.js';
 
 suite('AgentHostGitService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('parses managed inventory branches and unquoted paths without splitting embedded newlines', () => {
+		const path = '/repo.worktrees/path with\n"quotes"';
+		assert.deepStrictEqual(parseGitWorktrees(`worktree /repo\0HEAD abc\0branch refs/heads/main\0\0worktree ${path}\0HEAD def\0branch refs/heads/agents/recovered\0\0worktree /detached\0HEAD abc\0detached\0\0`), [
+			{ path: URI.file('/repo'), branchName: 'main' },
+			{ path: URI.file(path), branchName: 'agents/recovered' },
+			{ path: URI.file('/detached'), branchName: undefined },
+		]);
+	});
+
+	test('overlapping branch lookups share work only for the same directory and branch', async () => {
+		const reads: { directory: string; pattern: IRefQuery['pattern'] }[] = [];
+		const answers: DeferredPromise<Branch[]>[] = [];
+		const git = new class extends AgentHostGitService {
+			override getBranches(directory: URI, query?: IRefQuery): Promise<Branch[]> {
+				reads.push({ directory: directory.toString(), pattern: query?.pattern });
+				const answer = new DeferredPromise<Branch[]>();
+				answers.push(answer);
+				return answer.p;
+			}
+		}(new class extends mock<IFileService>() { }(), new class extends mock<INativeEnvironmentService>() { }(), new NullLogService());
+		const directory = URI.file('/repo');
+		const first = git.getBranch(directory, 'main');
+		const shared = git.getBranch(directory, 'main');
+		const otherBranch = git.getBranch(directory, 'feature');
+		const otherDirectory = git.getBranch(URI.file('/other'), 'main');
+		await answers[0].complete([{ kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main' }]);
+		await answers[1].complete([{ kind: GitRefType.Head, name: 'feature', ref: 'refs/heads/feature' }]);
+		await answers[2].complete([]);
+		const results = await Promise.all([first, shared, otherBranch, otherDirectory]);
+		const refreshed = git.getBranch(directory, 'main');
+		await answers[3].complete([]);
+		assert.deepStrictEqual({
+			shared: first === shared, reads, results: results.map(branch => branch?.name), refreshed: await refreshed,
+		}, {
+			shared: true,
+			reads: [
+				{ directory: directory.toString(), pattern: ['refs/heads/main', 'refs/remotes/main'] },
+				{ directory: directory.toString(), pattern: ['refs/heads/feature', 'refs/remotes/feature'] },
+				{ directory: URI.file('/other').toString(), pattern: ['refs/heads/main', 'refs/remotes/main'] },
+				{ directory: directory.toString(), pattern: ['refs/heads/main', 'refs/remotes/main'] },
+			],
+			results: ['main', 'main', 'feature', undefined], refreshed: undefined,
+		});
+	});
+
+	test('a rejected shared branch lookup is surfaced to every caller and can be retried', async () => {
+		const failure = new DeferredPromise<Branch[]>();
+		let reads = 0;
+		const git = new class extends AgentHostGitService {
+			override getBranches(): Promise<Branch[]> {
+				reads++;
+				return reads === 1 ? failure.p : Promise.resolve([]);
+			}
+		}(new class extends mock<IFileService>() { }(), new class extends mock<INativeEnvironmentService>() { }(), new NullLogService());
+		const directory = URI.file('/repo');
+		const results = Promise.allSettled([git.getBranch(directory, 'main'), git.getBranch(directory, 'main')]);
+		const error = new Error('Git unavailable');
+		await failure.error(error);
+		const failed = await results;
+		assert.deepStrictEqual({ failed, retried: await git.getBranch(directory, 'main'), reads }, {
+			failed: [{ status: 'rejected', reason: error }, { status: 'rejected', reason: error }],
+			retried: undefined, reads: 2,
+		});
+	});
 
 	test('maps branches and GitHub pull request refs to origin tracking refs', () => {
 		assert.deepStrictEqual({
@@ -192,6 +262,26 @@ suite('AgentHostGitService', () => {
 		});
 	});
 
+	suite('parseDefaultRemoteBranchRef', () => {
+		test('splits an origin remote-tracking ref into the default branch and its remote branch', () => {
+			assert.deepStrictEqual({
+				main: parseDefaultRemoteBranchRef('refs/remotes/origin/main\n'),
+				nested: parseDefaultRemoteBranchRef('refs/remotes/origin/release/1.0'),
+				otherRemote: parseDefaultRemoteBranchRef('refs/remotes/upstream/main'),
+				localRef: parseDefaultRemoteBranchRef('refs/heads/main'),
+				prefixOnly: parseDefaultRemoteBranchRef('refs/remotes/origin/'),
+				missing: parseDefaultRemoteBranchRef(undefined),
+			}, {
+				main: { branchName: 'main', remoteBranchName: 'origin/main' },
+				nested: { branchName: 'release/1.0', remoteBranchName: 'origin/release/1.0' },
+				otherRemote: undefined,
+				localRef: undefined,
+				prefixOnly: undefined,
+				missing: undefined,
+			});
+		});
+	});
+
 	suite('parseGitHubRepoFromRemote', () => {
 		test('parses only the requested fork remote', () => {
 			const out = [
@@ -251,6 +341,15 @@ suite('AgentHostGitService', () => {
 		].join('\n')), [
 			'https://github.com/me/vscode.git',
 			'git@github.com:microsoft/vscode.git',
+		]);
+	});
+
+	test('reads fetch remote URLs of partial clones', () => {
+		assert.deepStrictEqual(parseFetchRemoteUrls([
+			'origin\thttps://github.com/microsoft/vscode.git (fetch) [blob:none]',
+			'origin\thttps://github.com/microsoft/vscode.git (push)',
+		].join('\n')), [
+			'https://github.com/microsoft/vscode.git',
 		]);
 	});
 
@@ -325,6 +424,19 @@ suite('AgentHostGitService', () => {
 				'worktree-copied-new.txt',
 				'worktree-copied-old.txt',
 			]);
+		});
+	});
+
+	suite('canRestageOntoIndexCopy', () => {
+		test('copies only HEAD-equivalent indexes without staged blob metadata', () => {
+			const statuses = [' M', 'M ', 'MM', 'A ', 'AM', ' D', ' T', 'T ', '??', 'D ', 'AD', 'R ', 'C ', ' R', 'UU', 'AA', 'DD'];
+			assert.deepStrictEqual(
+				Object.fromEntries(statuses.map(status => [status, canRestageOntoIndexCopy(`${status} file.txt\x00`)])),
+				{
+					' M': true, 'M ': false, 'MM': false, 'A ': false, 'AM': false, ' D': true, ' T': true, 'T ': false, '??': true,
+					'D ': false, 'AD': false, 'R ': false, 'C ': false, ' R': false, 'UU': false, 'AA': false, 'DD': false,
+				},
+			);
 		});
 	});
 
@@ -515,6 +627,18 @@ suite('AgentHostGitService', () => {
 			assert.strictEqual(summarizeStderrForError('fatal: invalid reference: x\n'), 'fatal: invalid reference: x');
 		});
 
+		test('keeps the lock failure instead of trailing lock removal advice', () => {
+			const diagnostic = 'fatal: Unable to create \'/repo/.git/worktrees/session/index.lock\': File exists.';
+			assert.strictEqual(summarizeStderrForError([
+				diagnostic, '',
+				'Another git process seems to be running in this repository, e.g.',
+				'an editor opened by \'git commit\'. Please make sure all processes',
+				'are terminated then try again. If it still fails, a git process',
+				'may have crashed in this repository earlier:',
+				'remove the file manually to continue.',
+			].join('\n')), diagnostic);
+		});
+
 		test('truncates very long lines with an ellipsis', () => {
 			const long = `fatal: ${'a'.repeat(500)}`;
 			const result = summarizeStderrForError(long);
@@ -533,8 +657,10 @@ suite('AgentHostGitService', () => {
 					resolveDiffBaseBranchName('origin/main', undefined),
 					resolveDiffBaseBranchName('refs/remotes/origin/release', undefined),
 					resolveDiffBaseBranchName(undefined, undefined),
+					resolveDiffBaseBranchName('', 'origin/main'),
+					resolveDiffBaseBranchName('', undefined),
 				],
-				['persisted', 'gitState', 'persisted', 'main', 'release', undefined],
+				['persisted', 'gitState', 'persisted', 'main', 'release', undefined, 'main', undefined],
 			);
 		});
 	});

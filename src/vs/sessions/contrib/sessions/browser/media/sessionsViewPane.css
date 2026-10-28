@@ -85,13 +85,13 @@
 		position: relative;
 	}
 
-	.agent-sessions-content.sessions-find-header-open > .agent-sessions-header-container {
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		z-index: 14;
-		box-sizing: border-box;
+	.agent-sessions-navigation-container {
+		flex: 0 0 auto;
+		overflow: hidden;
+
+		&.empty {
+			display: none;
+		}
 	}
 
 	.agent-sessions-content.collapsed {
@@ -185,6 +185,11 @@
 		overflow: hidden;
 	}
 
+	/* Lays out top notices as items of the sessions content, so they can size against it. */
+	.agent-sessions-top-notices {
+		display: contents;
+	}
+
 	.agent-sessions-storage-cleanup-notice {
 		display: none;
 		flex-shrink: 0;
@@ -244,6 +249,13 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--vscode-spacing-size40);
+	}
+
+	.agent-sessions-storage-cleanup-notice-actions > .monaco-button {
+		width: auto;
+		min-width: 0;
+		max-width: 100%;
+		overflow-wrap: anywhere;
 	}
 
 	.agent-sessions-customizations-section {

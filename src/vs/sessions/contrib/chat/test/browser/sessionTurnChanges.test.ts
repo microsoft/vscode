@@ -536,10 +536,10 @@ suite('SessionTurnChanges', () => {
 		});
 	});
 
-	test('falls back to request stats when another chat becomes most recent', () => {
+	test('uses request stats until chat timestamps resolve and when another chat is most recent', () => {
 		const chatResource = URI.parse('chat:session');
 		const chatUpdatedAt = observableValue('chatUpdatedAt', new Date('2026-08-13T10:00:00Z'));
-		const newerChatUpdatedAt = observableValue('newerChatUpdatedAt', new Date('2026-08-13T09:00:00Z'));
+		const newerChatUpdatedAt = observableValue<Date | undefined>('newerChatUpdatedAt', undefined);
 		const changeset = upcastPartial<ISessionChangeset>({
 			id: TURN_CHANGES_CHANGESET_ID,
 			isEnabled: constObservable(true),
@@ -594,12 +594,15 @@ suite('SessionTurnChanges', () => {
 
 		const stats = service.getChangeStatsForRequest(chatResource, 'request', { isLastTurn: true });
 		const states = [stats?.get()];
+		newerChatUpdatedAt.set(new Date('2026-08-13T09:00:00Z'), undefined);
+		states.push(stats?.get());
 		newerChatUpdatedAt.set(new Date('2026-08-13T11:00:00Z'), undefined);
 		states.push(stats?.get());
 		chatUpdatedAt.set(new Date('2026-08-13T12:00:00Z'), undefined);
 		states.push(stats?.get());
 
 		assert.deepStrictEqual(states, [
+			{ files: 1, insertions: 2, deletions: 1 },
 			{ files: 1, insertions: 4, deletions: 2 },
 			{ files: 1, insertions: 2, deletions: 1 },
 			{ files: 1, insertions: 4, deletions: 2 },

@@ -31,10 +31,6 @@ export function createPullRequestHover(data: IPullRequestHoverData): IPullReques
 	});
 }
 
-export function createPullRequestHoverElement(data: IPullRequestHoverData): HTMLElement {
-	return createPullRequestHover(data).element;
-}
-
 /** Returns the localized CI summary shown in a pull request reference hover. */
 export function getPullRequestChecksStatusLabel(pullRequest: IGitHubPullRequest, ciStatus: GitHubCIOverallStatus | undefined): string | undefined {
 	return getResourceChecksStatusLabel(toPullRequestHoverModel(pullRequest), toChecksStatus(ciStatus));
@@ -52,6 +48,7 @@ function toChecksStatus(ciStatus: GitHubCIOverallStatus | undefined): GitHubChec
 		case GitHubCIOverallStatus.Success: return 'success';
 		case GitHubCIOverallStatus.Failure: return 'failure';
 		case GitHubCIOverallStatus.Neutral: return 'neutral';
+		case GitHubCIOverallStatus.Loading:
 		case undefined: return undefined;
 	}
 }

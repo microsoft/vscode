@@ -8,9 +8,11 @@ import { ISessionsProvidersService } from '../services/sessions/browser/sessions
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../common/agentHostSessionsProvider.js';
 import { encodeHex, VSBuffer } from '../../base/common/buffer.js';
 import { URI } from '../../base/common/uri.js';
-import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, fromAgentHostUri, LOCAL_AGENT_HOST_AUTHORITY } from '../../platform/agentHost/common/agentHostUri.js';
 import { Schemas } from '../../base/common/network.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
+import { findDevContainerSample } from '../../platform/agentHost/common/devContainerSamples.js';
+import { localize } from '../../nls.js';
 
 export interface IDevContainerSourceWorkspace {
 	readonly folderUri: URI;
@@ -22,7 +24,7 @@ export function resolveDevContainerSourceWorkspace(provider: ISessionsProvider |
 	if (!folderUri) {
 		return undefined;
 	}
-	if (folderUri.scheme === Schemas.file) {
+	if (folderUri.scheme === Schemas.file || findDevContainerSample(folderUri)) {
 		return { folderUri, providerId: LOCAL_AGENT_HOST_PROVIDER_ID };
 	}
 	if (folderUri.scheme === AGENT_HOST_SCHEME) {
@@ -68,6 +70,9 @@ export function resolveRemoteAgentHostEntryAuthority(entry: IRemoteAgentHostEntr
 		case RemoteAgentHostEntryType.WSL:
 			return `wsl+${entry.connection.distro}`;
 		case RemoteAgentHostEntryType.DevContainer: {
+			if (entry.connection.repository) {
+				return `dev-container+${encodeHex(VSBuffer.fromString(JSON.stringify(entry.connection.repository)))}`;
+			}
 			let { hostPath, hostAuthority } = entry.connection;
 			if (hostAuthority?.startsWith('wsl+')) {
 				// Dev Containers identifies WSL through a UNC host path, not an @wsl parent authority.
@@ -81,20 +86,24 @@ export function resolveRemoteAgentHostEntryAuthority(entry: IRemoteAgentHostEntr
 	}
 }
 
-/** Resolves an Agent Host folder to the URI understood by its VS Code remote extension. */
+/** Resolves an Agent Host folder for the Editor window, or returns undefined when no remote resolver supports it. */
 export function resolveRemoteFolderUri(
 	folderUri: URI,
 	providerId: string,
 	sessionsProvidersService: ISessionsProvidersService,
 	remoteAgentHostService: IRemoteAgentHostService,
-): URI {
+): URI | undefined {
+	if (findDevContainerSample(folderUri)) {
+		throw new Error(localize('devContainerSample.notPrepared', "Send the first prompt to prepare this Dev Container sample before opening it in the editor."));
+	}
 	if (folderUri.scheme !== AGENT_HOST_SCHEME) {
 		return folderUri;
 	}
 
 	const remoteAuthority = resolveRemoteAuthority(providerId, sessionsProvidersService, remoteAgentHostService);
 	if (!remoteAuthority) {
-		return folderUri;
+		// Remote Agent Host filesystem connections belong to the originating window.
+		return folderUri.authority === LOCAL_AGENT_HOST_AUTHORITY ? folderUri : undefined;
 	}
 
 	return fromAgentHostUri(folderUri).with({ authority: remoteAuthority, scheme: Schemas.vscodeRemote });

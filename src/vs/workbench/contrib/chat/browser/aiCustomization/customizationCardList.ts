@@ -35,6 +35,12 @@ export function createCustomizationCardPrimaryAction(parent: HTMLElement, ariaLa
 	return button;
 }
 
+export function trackCustomizationCardPrimaryActionFocus(primaryAction: HTMLElement, row: HTMLElement, disposables: DisposableStore): void {
+	const updateFocus = () => row.classList.toggle('primary-action-focus-visible', primaryAction.matches(':focus-visible'));
+	disposables.add(DOM.addDisposableListener(primaryAction, DOM.EventType.FOCUS, updateFocus));
+	disposables.add(DOM.addDisposableListener(primaryAction, DOM.EventType.BLUR, () => row.classList.remove('primary-action-focus-visible')));
+}
+
 export function setupCollapsibleSection(
 	headingRow: HTMLElement,
 	content: HTMLElement,

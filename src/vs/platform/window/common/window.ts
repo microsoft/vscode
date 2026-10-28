@@ -7,7 +7,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { AGENTS_AUTHORITY } from '../../../base/common/network.js';
 import { PerformanceMark } from '../../../base/common/performance.js';
-import { isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
+import { isMacintosh, isNative, isTahoeOrNewer, isWeb } from '../../../base/common/platform.js';
 import { URI, UriComponents, UriDto } from '../../../base/common/uri.js';
 import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -153,6 +153,9 @@ export const enum AgentsWindowOpenSource {
 	CurrentChatHandoff = 'currentChatHandoff',
 	EmptyWorkspaceCurrentChatHandoff = 'emptyWorkspaceCurrentChatHandoff',
 	ParallelWorkEmptyChatHandoff = 'parallelWorkEmptyChatHandoff',
+	ContinueInAgentsWindow = 'continueInAgentsWindow',
+	ParallelWorkSameWindow = 'parallelWorkSameWindow',
+	ParallelWorkAllWindows = 'parallelWorkAllWindows',
 	WelcomeTryOut = 'welcomeTryOut',
 	WelcomeViewAll = 'welcomeViewAll',
 	CommandLine = 'commandLine',
@@ -169,6 +172,9 @@ export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowO
 		case AgentsWindowOpenSource.CurrentChatHandoff:
 		case AgentsWindowOpenSource.EmptyWorkspaceCurrentChatHandoff:
 		case AgentsWindowOpenSource.ParallelWorkEmptyChatHandoff:
+		case AgentsWindowOpenSource.ContinueInAgentsWindow:
+		case AgentsWindowOpenSource.ParallelWorkSameWindow:
+		case AgentsWindowOpenSource.ParallelWorkAllWindows:
 		case AgentsWindowOpenSource.WelcomeTryOut:
 		case AgentsWindowOpenSource.WelcomeViewAll:
 		case AgentsWindowOpenSource.CommandLine:
@@ -378,6 +384,13 @@ export function getWindowControlsStyle(configurationService: IConfigurationServi
 }
 
 export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
+
+/** Centers macOS traffic lights vertically, optionally keeping their horizontal inset independent of height. */
+export function getMacOSWindowControlsPosition(height: number, osVersion: string, horizontalInset?: number): IPoint | null {
+	const buttonHeight = isTahoeOrNewer(osVersion) ? 14 : 16;
+	const offset = Math.floor((height - buttonHeight) / 2);
+	return !offset && horizontalInset === undefined ? null : { x: horizontalInset ?? offset + 1, y: offset };
+}
 
 export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
 	if (isWeb) {
