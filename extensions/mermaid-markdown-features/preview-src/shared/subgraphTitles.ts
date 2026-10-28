@@ -10,8 +10,17 @@
  */
 export const subgraphTitleMargin: Readonly<{ top: number; bottom: number }> = { top: 8, bottom: 8 };
 
-/** Horizontal inset of a subgraph title from its subgraph's border. */
-const titleInset = 8;
+/**
+ * Horizontal inset of a subgraph title from its subgraph's border. It is larger than the top margin
+ * because the title's line height already adds space above the text.
+ */
+const titleInset = 12;
+
+/** Smallest horizontal inset a title gets when a smaller inset is what keeps it clear of an edge. */
+const minTitleInset = 4;
+
+/** Space Mermaid leaves around a flowchart inside its viewBox (`flowchart.diagramPadding`). */
+const diagramPadding = 8;
 
 /** Clearance kept between a subgraph title and the edges and edge labels around it. */
 const titleClearance = 4;
@@ -44,6 +53,19 @@ interface Obstacles {
 	readonly labels: readonly Box[];
 }
 
+interface Cluster {
+	readonly rect: Element;
+	readonly label: Element;
+	/** Offset of the cluster's coordinate space from the root SVG's. */
+	readonly origin: Point;
+	readonly labelPosition: Point;
+	readonly title: { readonly width: number; readonly height: number };
+	/** The box as Mermaid drew it, in root coordinates. */
+	readonly drawn: Box;
+	/** The box once it fits its title and nested subgraphs, in root coordinates. */
+	box: Box;
+}
+
 /**
  * Applies {@link placeSubgraphTitles} to the SVG markup returned by `mermaid.render`.
  */
@@ -64,20 +86,39 @@ export function placeSubgraphTitlesInSvgMarkup(svgMarkup: string): string {
 /**
  * Moves flowchart subgraph titles from the top center of their subgraph, where edges entering the
  * subgraph usually cross them, to the top left. If an edge or edge label would still cross a title
- * there, the title is centered, right-aligned, or moved into the leftmost gap between edges instead,
- * whichever is clear first.
+ * there, the title is centered, right-aligned, or moved into the closest gap between edges instead.
+ *
+ * Subgraphs too narrow to keep the title clear of their sides are widened first.
  *
  * Only reads SVG attributes, so it also works on detached markup that has not been laid out.
  *
- * @returns Whether any title moved.
+ * @returns Whether the SVG changed.
  */
 export function placeSubgraphTitles(svg: SVGSVGElement): boolean {
 	if (!svg.getAttribute('aria-roledescription')?.startsWith('flowchart')) {
 		return false;
 	}
 
-	let obstacles: Obstacles | undefined;
-	let changed = false;
+	const clusters = collectClusters(svg);
+	if (!clusters.length) {
+		return false;
+	}
+
+	let changed = makeRoomForTitles(svg, clusters);
+	const obstacles = collectObstacles(svg);
+	for (const { label, origin, labelPosition, title, box } of clusters) {
+		const blocked = getBlockedRanges(obstacles, origin.y + labelPosition.y - titleClearance, origin.y + labelPosition.y + title.height + titleClearance);
+		const x = chooseTitleX({ start: box.left, end: box.right }, title.width, blocked) - origin.x;
+		if (Math.abs(x - labelPosition.x) > 0.01) {
+			label.setAttribute('transform', `translate(${x}, ${labelPosition.y})`);
+			changed = true;
+		}
+	}
+	return changed;
+}
+
+function collectClusters(svg: SVGSVGElement): Cluster[] {
+	const clusters: Cluster[] = [];
 	for (const cluster of svg.querySelectorAll('g.cluster')) {
 		// Subgraphs use Mermaid's `rect` cluster shape: a single rect plus a title translated to its top center.
 		const rects = cluster.querySelectorAll(':scope > rect');
@@ -90,29 +131,114 @@ export function placeSubgraphTitles(svg: SVGSVGElement): boolean {
 
 		const box = readBox(rects[0]);
 		const title = box && getTitleSize(label, box, labelPosition);
-		if (!box || !title || title.width > box.right - box.left) {
-			continue;
-		}
-
-		obstacles ??= collectObstacles(svg);
-		const blocked = getBlockedRanges(obstacles, origin.y + labelPosition.y - titleClearance, origin.y + labelPosition.y + title.height + titleClearance);
-		const x = chooseTitleX({ start: origin.x + box.left, end: origin.x + box.right }, title.width, blocked) - origin.x;
-		if (Math.abs(x - labelPosition.x) > 0.01) {
-			label.setAttribute('transform', `translate(${x}, ${labelPosition.y})`);
-			changed = true;
+		if (box && title) {
+			const drawn = { left: origin.x + box.left, top: origin.y + box.top, right: origin.x + box.right, bottom: origin.y + box.bottom };
+			clusters.push({ rect: rects[0], label, origin, labelPosition, title, drawn, box: drawn });
 		}
 	}
-	return changed;
+	return clusters;
 }
 
 /**
- * Picks the title's left x: left-aligned, centered, right-aligned, or the leftmost gap between
- * obstacles, whichever is clear first. Falls back to left-aligned when nothing is clear.
+ * Widens subgraphs that are too narrow for their title and side insets, then the subgraphs around
+ * them so they still contain them. Mermaid widens a subgraph for its title only after layout, so a
+ * nested subgraph with a long title can otherwise stick out of its parent.
+ *
+ * @returns Whether any subgraph was widened.
+ */
+function makeRoomForTitles(svg: SVGSVGElement, clusters: readonly Cluster[]): boolean {
+	const parents = new Map(clusters.map(cluster => [cluster, findParent(cluster, clusters)]));
+	const height = (box: Box) => box.bottom - box.top;
+	// Innermost first, so each subgraph is fitted around its nested subgraphs' final boxes.
+	for (const cluster of [...clusters].sort((a, b) => height(a.drawn) - height(b.drawn))) {
+		let { left, right } = cluster.box;
+		const missing = cluster.title.width + 2 * titleInset - (right - left);
+		if (missing > 0) {
+			left -= missing / 2;
+			right += missing / 2;
+		}
+		for (const [child, parent] of parents) {
+			if (parent === cluster) {
+				left = Math.min(left, child.box.left - getNestedMargin(child.drawn.left - cluster.drawn.left));
+				right = Math.max(right, child.box.right + getNestedMargin(cluster.drawn.right - child.drawn.right));
+			}
+		}
+		cluster.box = { ...cluster.box, left, right };
+	}
+
+	const widened = clusters.filter(({ box, drawn }) => box.left < drawn.left || box.right > drawn.right);
+	for (const { rect, origin, box } of widened) {
+		rect.setAttribute('x', String(box.left - origin.x));
+		rect.setAttribute('width', String(box.right - box.left));
+	}
+	growViewBox(svg, widened.map(cluster => cluster.box));
+	return widened.length > 0;
+}
+
+/**
+ * Finds the innermost subgraph around `cluster`: one that is taller and spans it vertically and
+ * horizontally around its center. Subgraphs are not nested in the DOM, and a nested subgraph that
+ * Mermaid widened for its title can be wider than its parent.
+ */
+function findParent(cluster: Cluster, clusters: readonly Cluster[]): Cluster | undefined {
+	const { left, top, right, bottom } = cluster.drawn;
+	const center = (left + right) / 2;
+	let parent: Cluster | undefined;
+	for (const candidate of clusters) {
+		const box = candidate.drawn;
+		if (box.top <= top && box.bottom >= bottom && box.bottom - box.top > bottom - top && box.left < center && center < box.right
+			&& (!parent || box.bottom - box.top < parent.drawn.bottom - parent.drawn.top)) {
+			parent = candidate;
+		}
+	}
+	return parent;
+}
+
+/**
+ * Space to keep between a nested subgraph and its parent's border, given the space Mermaid left:
+ * up to the title inset, and the title inset where the nested subgraph stuck out.
+ */
+function getNestedMargin(drawnMargin: number): number {
+	return drawnMargin < 0 ? titleInset : Math.min(drawnMargin, titleInset);
+}
+
+/**
+ * Grows the SVG's viewBox, and the size Mermaid derived from it, so that `boxes` keep the diagram's
+ * padding.
+ */
+function growViewBox(svg: SVGSVGElement, boxes: readonly Box[]): void {
+	const viewBox = svg.getAttribute('viewBox')?.trim().split(/[\s,]+/).map(parseFloat);
+	if (!boxes.length || viewBox?.length !== 4 || !viewBox.every(Number.isFinite)) {
+		return;
+	}
+
+	const [x, y, width, height] = viewBox;
+	const left = Math.min(x, ...boxes.map(box => box.left - diagramPadding));
+	const right = Math.max(x + width, ...boxes.map(box => box.right + diagramPadding));
+	const growth = right - left - width;
+	if (growth <= 0) {
+		return;
+	}
+
+	svg.setAttribute('viewBox', `${left} ${y} ${right - left} ${height}`);
+	const maxWidth = parseFloat(svg.style.maxWidth);
+	if (Number.isFinite(maxWidth)) {
+		svg.style.maxWidth = `${maxWidth + growth}px`;
+	}
+	const widthAttribute = svg.getAttribute('width');
+	if (widthAttribute && !widthAttribute.endsWith('%') && Number.isFinite(parseFloat(widthAttribute))) {
+		svg.setAttribute('width', String(parseFloat(widthAttribute) + growth));
+	}
+}
+
+/**
+ * Picks the title's left x: left-aligned, centered or right-aligned, whichever is clear first.
+ * Otherwise the clear position closest to left-aligned, where the title may come as close as
+ * {@link minTitleInset} to the border. Falls back to left-aligned when nothing is clear.
  */
 function chooseTitleX(cluster: Range, titleWidth: number, blocked: readonly Range[]): number {
-	const inset = Math.max(0, Math.min(titleInset, (cluster.end - cluster.start - titleWidth) / 2));
-	const left = cluster.start + inset;
-	const right = cluster.end - inset - titleWidth;
+	const left = cluster.start + titleInset;
+	const right = cluster.end - titleInset - titleWidth;
 	const isClear = (x: number) => blocked.every(range => range.end <= x - titleClearance || range.start >= x + titleWidth + titleClearance);
 
 	for (const x of [left, (cluster.start + cluster.end - titleWidth) / 2, right]) {
@@ -121,14 +247,25 @@ function chooseTitleX(cluster: Range, titleWidth: number, blocked: readonly Rang
 		}
 	}
 
-	let x = left;
+	const gaps: Range[] = [];
+	let start = cluster.start + minTitleInset;
+	const end = cluster.end - minTitleInset - titleWidth;
 	for (const range of [...blocked].sort((a, b) => a.start - b.start)) {
-		if (range.start >= x + titleWidth + titleClearance) {
-			break;
-		}
-		x = Math.max(x, range.end + titleClearance);
+		gaps.push({ start, end: Math.min(end, range.start - titleClearance - titleWidth) });
+		start = Math.max(start, range.end + titleClearance);
 	}
-	return x <= right ? x : left;
+	gaps.push({ start, end });
+
+	let x = left;
+	let distance = Infinity;
+	for (const gap of gaps.filter(gap => gap.start <= gap.end)) {
+		const closest = Math.min(Math.max(left, gap.start), gap.end);
+		if (Math.abs(closest - left) < distance) {
+			x = closest;
+			distance = Math.abs(closest - left);
+		}
+	}
+	return x;
 }
 
 /**

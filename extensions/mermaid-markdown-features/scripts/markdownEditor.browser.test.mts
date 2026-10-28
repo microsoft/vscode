@@ -92,28 +92,31 @@ it('renders diagrams at their natural size in the VS Code theme, and follows edi
 		await page.evaluate(() => window.mermaidTest.setText('flowchart LR\n A[Recovered] --> B[Second]'));
 		await frame.locator('svg').filter({ hasText: 'Recovered' }).waitFor();
 
-		// Subgraph titles sit at the top left, clear of the edge that enters the subgraph at its top center.
-		await page.evaluate(() => window.mermaidTest.setText('flowchart TD\n A[Source] --> B\n subgraph Webview\n  B[Layout graph] --> C[Render SVG]\n end'));
+		// Subgraph titles sit at the top left, clear of the edge that enters the subgraph at its top center,
+		// and a subgraph narrower than its title is widened to keep the title off its sides.
+		await page.evaluate(() => window.mermaidTest.setText('flowchart TD\n A[Source] --> B\n subgraph Webview\n  B[Layout graph] --> C[Render SVG]\n end\n subgraph Long[A subgraph title that is much wider than its content]\n  D[Step]\n end'));
 		await frame.locator('svg').filter({ hasText: 'Webview' }).waitFor();
-		const subgraphTitle = await frame.evaluate(() => {
-			const cluster = document.querySelector('g.cluster')!;
-			const rect = cluster.querySelector('rect')!;
-			const box = rect.getBoundingClientRect();
-			const title = cluster.querySelector('.cluster-label foreignObject')!.getBoundingClientRect();
-			const scale = box.width / rect.width.baseVal.value;
-			const crossedByEdge = [...document.querySelectorAll<SVGPathElement>('.edgePaths path')].some(path => {
-				const toScreen = path.getScreenCTM()!;
-				for (let length = 0; length <= path.getTotalLength(); length++) {
-					const point = path.getPointAtLength(length).matrixTransform(toScreen);
-					if (point.x >= title.left && point.x <= title.right && point.y >= title.top && point.y <= title.bottom) {
-						return true;
+		const subgraphTitles = await frame.evaluate(() => {
+			const [webview, long] = [...document.querySelectorAll('g.cluster')].map(cluster => {
+				const rect = cluster.querySelector('rect')!;
+				const box = rect.getBoundingClientRect();
+				const title = cluster.querySelector('.cluster-label foreignObject')!.getBoundingClientRect();
+				const scale = box.width / rect.width.baseVal.value;
+				const crossedByEdge = [...document.querySelectorAll<SVGPathElement>('.edgePaths path')].some(path => {
+					const toScreen = path.getScreenCTM()!;
+					for (let length = 0; length <= path.getTotalLength(); length++) {
+						const point = path.getPointAtLength(length).matrixTransform(toScreen);
+						if (point.x >= title.left && point.x <= title.right && point.y >= title.top && point.y <= title.bottom) {
+							return true;
+						}
 					}
-				}
-				return false;
+					return false;
+				});
+				return { insetLeft: Math.round((title.left - box.left) / scale), insetRight: Math.round((box.right - title.right) / scale), insetTop: Math.round((title.top - box.top) / scale), crossedByEdge };
 			});
-			return { insetLeft: Math.round((title.left - box.left) / scale), insetTop: Math.round((title.top - box.top) / scale), crossedByEdge };
+			return { webview: { insetLeft: webview.insetLeft, insetTop: webview.insetTop, crossedByEdge: webview.crossedByEdge }, long: { insetLeft: long.insetLeft, insetRight: long.insetRight } };
 		});
-		assert.deepEqual(subgraphTitle, { insetLeft: 8, insetTop: 8, crossedByEdge: false });
+		assert.deepEqual(subgraphTitles, { webview: { insetLeft: 12, insetTop: 8, crossedByEdge: false }, long: { insetLeft: 12, insetRight: 12 } });
 		assert.deepEqual(errors, []);
 	} finally {
 		await browser.close();
