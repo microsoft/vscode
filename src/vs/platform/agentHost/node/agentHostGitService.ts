@@ -1424,7 +1424,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 		return new Promise((resolve, reject) => {
 			const env = options?.env ? { ...process.env, ...options.env } : undefined;
-			const timeoutMs = options?.timeout ?? 5000;
+			const timeoutMs = options?.timeout ?? 30_000;
 			// Use our own timer rather than execFile's `timeout` option so
 			// we can definitively flag the timeout case in the error
 			// message — execFile only surfaces signal/killed, which can

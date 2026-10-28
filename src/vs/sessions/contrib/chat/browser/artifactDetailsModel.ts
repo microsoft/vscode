@@ -22,9 +22,12 @@ import { ArtifactAutopilotModel } from './artifactAutopilotModel.js';
 import { artifactViewKey as key, IArtifactActionViewData, IArtifactDetailsViewData, IArtifactListViewData, IArtifactSectionTarget } from './artifactDetailsView.js';
 import { ArtifactIntegrationPresentation } from './artifactIntegrationPresentation.js';
 
+/**
+ * Only lasting conditions are described. Loading and stale states are transient (a stale resource keeps showing its last
+ * known state while it refreshes, such as after every action or Autopilot change), so describing them would flicker.
+ */
 function availabilityText(availability: ArtifactAvailability | undefined): string {
-	return !availability || availability.kind === 'loading' ? localize('artifactDetailsLoading', "Loading details...")
-		: availability.kind === 'available' ? '' : availability.reason;
+	return !availability || availability.kind === 'loading' || availability.kind === 'stale' || availability.kind === 'available' ? '' : availability.reason;
 }
 
 function requiresAuthentication(contribution: ArtifactContributionSnapshot): boolean {
@@ -130,8 +133,10 @@ export class ArtifactDetailsModel extends Disposable {
 		const contribution = getArtifactMainContribution(snapshot);
 		const main = contribution?.view.main;
 		const mainDetails = main && contribution ? details.get(key(contribution.integrationId, main.detailsId)) : undefined;
+		const loading = snapshot.contributions.some(contribution => contribution.view.availability.kind === 'loading')
+			|| !!(main && contribution && !requiresAuthentication(contribution) && (!mainDetails || mainDetails.availability.kind === 'loading'));
 		const title = mainDetails?.title || snapshot.artifact.label;
-		const description = (mainDetails ? getArtifactDetailsDescription(mainDetails) : '') || (mainDetails?.availability.kind === 'available' ? localize('artifactNoDescription', "No description provided.") : '');
+		const description = mainDetails ? getArtifactDetailsDescription(mainDetails) : '';
 		const message = [...new Set([
 			...snapshot.contributions.map(contribution => availabilityText(contribution.view.availability)),
 			...(main && contribution && !requiresAuthentication(contribution) ? [availabilityText(mainDetails?.availability)] : []),
@@ -154,6 +159,7 @@ export class ArtifactDetailsModel extends Disposable {
 				const detailKey = key(contribution.integrationId, reference.detailsId);
 				const value = details.get(detailKey);
 				const lease = this.leases.get(detailKey);
+				const loading = !value || value.availability.kind === 'loading';
 				const items = value?.items ?? [];
 				const itemActions = new Map(items.flatMap(item => {
 					const actions = this.itemActionButtons(detailKey, value?.itemActions ?? [], item);
@@ -164,9 +170,9 @@ export class ArtifactDetailsModel extends Disposable {
 					id, title: value?.title || reference.label,
 					icon: getArtifactThemeIcon(reference.icon ?? contribution.view.sections.find(section => section.detailsId === reference.detailsId)?.icon ?? Codicon.listFlat),
 					description: value ? getArtifactDetailsDescription(value) : '',
-					message: availabilityText(value?.availability) || (!items.length ? value?.completeness === 'partial'
+					message: availabilityText(value?.availability) || (!loading && !items.length ? value?.completeness === 'partial'
 						? localize('artifactListIncomplete', "This list is incomplete.") : localize('artifactListEmpty', "No items.") : ''),
-					loading: !value || value.availability.kind === 'loading', items, itemActions,
+					loading, items, itemActions,
 					more: value?.completeness === 'partial' ? {
 						id: key(id, 'loadMore'), label: localize('artifactLoadMore', "Load More"), enabled: lease?.canLoadMore === true,
 						description: lease?.canLoadMore ? undefined : localize('artifactPartialList', "This list is incomplete. Open the resource to see all items."),
@@ -232,7 +238,7 @@ export class ArtifactDetailsModel extends Disposable {
 		const selectedList = lists.some(list => list.id === this.presentation.viewState.selectedList) ? this.presentation.viewState.selectedList : undefined;
 		return {
 			title, resource: snapshot.artifact.resource, icon: main ? getArtifactThemeIcon(main.icon) : entry?.icon,
-			titleDescription: main?.description ?? '', description, message, lists, selectedList, stateActions, generalActions, autopilot, activities, sections,
+			titleDescription: main?.description ?? '', description, message, loading, lists, selectedList, stateActions, generalActions, autopilot, activities, sections,
 			openResource: () => {
 				void this.presentation.run(async () => {
 					const entry = this.presentation.baseEntry;

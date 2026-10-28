@@ -61,7 +61,7 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 suite('Mission Control native provider inventory', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('labels the remote picker entry and connect command as Environments', () => {
+	test('labels the remote picker entry as GitHub Environments and retains the connect command title', () => {
 		const labels = [
 			{ menu: Menus.SessionWorkspaceManage, command: RemoteAgentHostCommandIds.connectViaMissionControl },
 			{ menu: MenuId.CommandPalette, command: ConnectMissionControlEnvironmentCommand },
@@ -70,7 +70,7 @@ suite('Mission Control native provider inventory', () => {
 			assert.ok(item);
 			return typeof item.command.title === 'string' ? item.command.title : item.command.title.value;
 		});
-		assert.deepStrictEqual(labels, ['Environments...', 'Connect to Environment...']);
+		assert.deepStrictEqual(labels, ['GitHub Environments...', 'Connect to Environment...']);
 	});
 
 	for (const { name, quality, development, hostsEnabled, environmentsEnabled = true, chatEnabled, aiDisabled, available } of [

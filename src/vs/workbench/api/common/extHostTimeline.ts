@@ -254,7 +254,8 @@ export class ExtHostTimeline implements IExtHostTimeline {
  * Copies the public properties of a timeline item, except its command, without sharing mutable values with it.
  */
 function toReadonlyCopy(item: vscode.TimelineItem): vscode.TimelineItem {
-	const copy: vscode.TimelineItem = new TimelineItemType(item.label, item.timestamp);
+	const copy: vscode.TimelineItem = new TimelineItemType('', item.timestamp);
+	copy.label = item.label;
 	copy.id = item.id;
 	copy.iconPath = copyIconPath(item.iconPath);
 	copy.description = item.description;

@@ -21,6 +21,7 @@ import { getArtifactThemeIcon as icon, renderArtifactIcon } from '../../../../pl
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ChatPillActionViewItem, IChatPill, IChatPillAction, IChatPillEntry } from '../../../../workbench/browser/chatPills.js';
 import { ArtifactButtons, IArtifactButton } from './artifactButtons.js';
 import { ArtifactDetailsSelection, ArtifactDetailsViewState, IArtifactActionViewData } from './artifactDetailsView.js';
@@ -89,6 +90,7 @@ export class ArtifactIntegrationPresentation extends Disposable {
 		readonly detailsHost: IArtifactDetailsHost,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notifications: INotificationService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 		this.snapshot = derived(this, reader => {
@@ -156,12 +158,21 @@ export class ArtifactIntegrationPresentation extends Disposable {
 		if (!contribution.authentication) {
 			return undefined;
 		}
+		const availability = contribution.view.availability;
+		// Signing in again would not grant what the page grants the current credential, such as single sign-on access.
+		const authorizationUrl = availability.kind === 'authenticationRequired' ? availability.authorizationUrl : undefined;
 		return {
 			id: JSON.stringify([contribution.integrationId, 'authentication', 'request']),
 			label: localize('artifactSignIn', "Sign In"), icon: Codicon.signIn,
 			enabled: contribution.authentication.enabled,
-			description: contribution.authentication.disabledReason ?? (contribution.view.availability.kind === 'authenticationRequired' ? contribution.view.availability.reason : undefined),
-			run: () => this.run(async () => { await this.model.requestAuthentication(contribution.integrationId); }),
+			description: contribution.authentication.disabledReason ?? (availability.kind === 'authenticationRequired' ? availability.reason : undefined),
+			run: () => this.run(async () => {
+				if (authorizationUrl) {
+					await this.openerService.open(authorizationUrl, { openExternal: true });
+				} else {
+					await this.model.requestAuthentication(contribution.integrationId);
+				}
+			}),
 		};
 	}
 

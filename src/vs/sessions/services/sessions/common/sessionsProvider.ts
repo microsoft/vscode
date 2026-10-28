@@ -31,6 +31,13 @@ export interface ISessionChangeEvent {
 	readonly changed: readonly ISession[];
 }
 
+/** Creation context to inherit instead of an existing session's execution workspace and backend. */
+export interface ISessionCreationTarget {
+	readonly providerId: string;
+	readonly sessionTypeId?: string;
+	readonly folderUri: URI;
+}
+
 /** One end of a chat move: the session and the chat's resource in it. */
 export interface IChatMoveEnd {
 	readonly session: ISession;
@@ -82,6 +89,8 @@ export type INestedChatWorkspace =
 export interface INestedChatWorkspaceSupport {
 	/** The session's own folder (its default chat's primary folder, excluding scratch folders); `undefined` for a workspace-less session. */
 	readonly sessionFolder: URI | undefined;
+	/** When the session folder is the session's own git worktree, its branch and repository label; `undefined` otherwise. */
+	readonly sessionFolderWorktree: { readonly branch: string | undefined; readonly repositoryLabel: string | undefined } | undefined;
 	/** Whether the agent gives a chat its own folder (agent capability `multipleWorkingDirectories`). */
 	readonly multipleFolders: boolean;
 	/** Folder browse actions of this provider (same host), for "Browse…". */
@@ -478,6 +487,9 @@ export interface ISessionsProvider {
 	 */
 	resolveWorkspace(workspaceUri: URI): ISessionWorkspace | undefined;
 
+	/** An alternate creation context for New Session gestures from an existing session. */
+	getNewSessionTarget?(sessionResource: URI): ISessionCreationTarget | undefined;
+
 	/**
 	 * Returns the canonical URI for a workspace represented by this provider.
 	 * Providers may use this to collapse alternate execution environments onto
@@ -668,10 +680,13 @@ export interface ISessionsProvider {
 	importSession?(sessionId: string): Promise<void>;
 
 	/**
-	 * Returns the current on-disk size of the session's isolated worktree.
+	 * Returns the current on-disk size, zero for confirmed absent storage, or undefined when measurement is unavailable.
 	 * Providers without host-owned worktrees leave this capability undefined.
 	 */
 	getSessionWorktreeDiskUsage?(sessionId: string, token?: CancellationToken): Promise<number | undefined>;
+
+	/** Cheaply checks the owning host's worktrees. False confirms all roots are absent; undefined means unavailable. */
+	sessionWorktreeExists?(sessionId: string, token?: CancellationToken): Promise<boolean | undefined>;
 
 	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
 	sessionWorktreeCleanup?(sessionId: string, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;

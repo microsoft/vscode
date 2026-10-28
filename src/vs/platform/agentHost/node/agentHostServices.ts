@@ -134,7 +134,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostChangesetService, new SyncDescriptor(AgentHostChangesetService));
 	services.set(IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));
 	services.set(IAgentHostResourceProviders, new SyncDescriptor(AgentHostResourceProviders));
-	services.set(IAgentHostWorktreeDiskUsageService, new SyncDescriptor(AgentHostWorktreeDiskUsageService));
+	services.set(IAgentHostWorktreeDiskUsageService, new SyncDescriptor(AgentHostWorktreeDiskUsageService, [undefined]));
 	services.set(IAgentHostTerminalManager, new SyncDescriptor(AgentHostTerminalManager));
 	services.set(IAgentHostSessionPromptService, new SyncDescriptor(AgentHostSessionPromptService));
 	services.set(IAgentHostChatContributions, new SyncDescriptor(AgentHostChatContributions));

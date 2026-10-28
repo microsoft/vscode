@@ -24,6 +24,7 @@ import { IAICustomizationItemsModel } from '../../../../../workbench/contrib/cha
 import { CustomizationMigrationCategoryId } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
 import { getCustomizationMigrationGroupIgnoreKey, storeIgnoredCustomizationMigrationGroupKeys } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationIgnoredGroups.js';
 import { IAgentHostToolSetEnablementService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { getCopilotCliBuiltinToolSet } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/copilotCliBuiltinToolSet.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
@@ -46,6 +47,7 @@ function createExtensionSuggestionsService(showBadge: IObservable<boolean>): IAg
 
 suite('Customizations toolbar', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const copilotCliToolCount = [...getCopilotCliBuiltinToolSet().getTools()].length;
 
 	test('does not include standalone Remotes management in Customizations', () => {
 		assert.ok(CUSTOMIZATION_ITEMS.every(item => item.id !== 'sessions.customization.remotes'));
@@ -87,7 +89,7 @@ suite('Customizations toolbar', () => {
 			enablementService,
 		)).get();
 
-		assert.strictEqual(count, 1);
+		assert.strictEqual(count, 1 + copilotCliToolCount);
 	});
 
 	test('gates Canvases on desktop and the shared enablement setting', () => {
@@ -239,7 +241,7 @@ suite('Customizations toolbar', () => {
 			},
 		}, {
 			enabledState: {
-				totalCount: 9,
+				totalCount: 9 + copilotCliToolCount,
 				migrationAvailable: true,
 				extensionSuggestionsAvailable: true,
 			},

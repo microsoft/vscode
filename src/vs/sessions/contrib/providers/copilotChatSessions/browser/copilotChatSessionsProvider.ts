@@ -66,6 +66,7 @@ import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../common/copilotChatSessions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { resolveGitRepositoryFromGitConfig } from '../../../../services/sessions/browser/gitHubRepositoryResolver.js';
+import { cloneRepository } from '../../../../services/sessions/browser/cloneRepository.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
 import { RepositoryPicker } from '../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
@@ -245,6 +246,10 @@ function isModelOptionGroup(group: IChatSessionProviderOptionGroup): boolean {
 
 function isRepositoriesOptionGroup(group: IChatSessionProviderOptionGroup): boolean {
 	return group.id === 'repositories';
+}
+
+function getSandboxSessionTitle(query: string, title?: string): string {
+	return (title || query.split('\n')[0]).trim().substring(0, 100) || localize('new session', "New Session");
 }
 
 /**
@@ -1928,6 +1933,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (this._sandboxSends.has(sessionId)) {
 			throw new Error(localize('sandbox.alreadyStarting', "A GitHub sandbox session is already being started. Wait for it to finish before sending another message."));
 		}
+		// The draft is already listed while sandbox preparation is pending.
+		session.setTitle(getSandboxSessionTitle(query));
 		if (this._preparedSandboxes.has(sessionId)) {
 			return { session: this._chatToSession(session) };
 		}
@@ -2053,7 +2060,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._sandboxSends.add(session.sessionId);
 		const preparation = session.startPreparation();
 		const token = preparation.object;
-		session.setTitle((options.title || options.query.split('\n')[0]).trim().substring(0, 100) || localize('new session', "New Session"));
+		session.setTitle(getSandboxSessionTitle(options.query, options.title));
 		session.setStatus(SessionStatus.InProgress);
 		this._sessionCache.set(session.resource.toString(), session);
 		const placeholder = this._chatToSession(session);
@@ -2595,24 +2602,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	private async _cloneRepository(url: string): Promise<ISessionWorkspace | undefined> {
-		try {
-			const repositoryPath = await this.commandService.executeCommand<string>(
-				'git.clone',
-				url,
-				undefined,
-				{ postCloneAction: 'none', returnRepositoryPath: true },
-			);
-			if (repositoryPath?.endsWith('.code-workspace')) {
-				this.notificationService.error(localize('cloneRepository.workspaceFile', "The selected clone is a workspace file. Choose the repository again to select a repository folder."));
-				return undefined;
-			}
-			return repositoryPath ? this.resolveWorkspace(URI.file(repositoryPath)) : undefined;
-		} catch (error) {
-			if (!isCancellationError(error)) {
-				this.notificationService.error(error);
-			}
-			return undefined;
-		}
+		const folderUri = await cloneRepository(this.commandService, this.notificationService, url);
+		return folderUri ? this.resolveWorkspace(folderUri) : undefined;
 	}
 
 	private async _browseForGitHubContext(commandId: string, icon: ThemeIcon, currentWorkspace: ISessionWorkspace | undefined): Promise<ISessionWorkspace | undefined> {
