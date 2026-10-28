@@ -242,7 +242,7 @@ export function createTestAgentService(
 		[IAgentHostGitService, gitService],
 		[ITelemetryService, telemetryService],
 		[IAgentHostClientConnectionService, clientConnectionService],
-		[IAgentHostSystemWakeService, new AgentHostSystemWakeService()],
+		[IAgentHostSystemWakeService, foundationDisposables.add(new AgentHostSystemWakeService(logService))],
 		[IAgentHostMacAccessibilityTrustService, new AgentHostMacAccessibilityTrustService()],
 	);
 	const options = {
