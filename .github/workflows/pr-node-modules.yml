@@ -147,6 +147,15 @@ jobs:
           key-args: "linux ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
           lookup-only: ${{ steps.cache-electron.outputs.cache-hit == 'true' }}
 
+      # The runner image lacks the headers that native modules such as native-keymap build against.
+      # The Linux test jobs install the same packages before they install the dependencies.
+      - name: Install build tools
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config libxkbfile-dev libkrb5-dev
+
       - name: Install build dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         working-directory: build
