@@ -362,6 +362,31 @@ suite('QuickInput hosts its context menus', () => { // https://github.com/micros
 		return { x: rect.left + 5, y: rect.bottom + 100 };
 	}
 
+	test('arrow keys in a hosted toolbar menu do not move focus in the enclosing toolbar', async () => {
+		setupController();
+		const picker = showPicker([
+			{ iconClass: Codicon.add.id, tooltip: 'T10 primary' },
+			{ iconClass: Codicon.gear.id, tooltip: 'T10 secondary 1', secondary: true },
+			{ iconClass: Codicon.gear.id, tooltip: 'T10 secondary 2', secondary: true },
+		]);
+		const more = widget().querySelector<HTMLElement>('.quick-input-right-action-bar .codicon-toolbar-more')!;
+		more.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+		more.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+		await settle();
+		const results = [];
+		for (const [key, keyCode] of [['ArrowLeft', 37], ['ArrowRight', 39], ['Home', 36], ['End', 35]] as const) {
+			keydown(activeElementDeep()!, key, keyCode);
+			await settle();
+			results.push({ key, menu: state(picker).menu, focusInMenu: !!activeElementDeep()?.closest('.monaco-menu') });
+		}
+		assert.deepStrictEqual(results, [
+			{ key: 'ArrowLeft', menu: 'hosted', focusInMenu: true },
+			{ key: 'ArrowRight', menu: 'hosted', focusInMenu: true },
+			{ key: 'Home', menu: 'hosted', focusInMenu: true },
+			{ key: 'End', menu: 'hosted', focusInMenu: true },
+		]);
+	});
+
 	test('clicking outside an open hosted menu hides menu and picker and returns focus', async () => {
 		setupController();
 		const picker = showPicker();

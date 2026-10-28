@@ -375,14 +375,16 @@ export class QuickInputController extends Disposable {
 		this._register(dom.addDisposableListener(container, dom.EventType.POINTER_DOWN, () => this.finishOpenMotion(), true));
 		this._register(dom.addDisposableListener(container, dom.EventType.MOUSE_DOWN, e => this.onHostedContextViewMouseDown(container, e), true));
 		// Keyboard events of a hosted context menu must not reach the quick input
-		// (e.g. quick navigation accepting on modifier release) or keybindings
-		// such as quick open navigation: like a native context menu, the menu
-		// receives all keyboard input while it has focus. Registered before any
-		// quick input adds its own listeners to the container.
+		// or its toolbars (e.g. arrow keys moving toolbar focus, quick navigation
+		// accepting on modifier release) or keybindings such as quick open
+		// navigation: like a native context menu, the menu receives all keyboard
+		// input while it has focus. The context view element is shared, so only
+		// stop events of a context view that is hosted inside this quick input.
+		const contextView = this.contextViewService.getContextViewElement();
 		for (const type of [dom.EventType.KEY_DOWN, dom.EventType.KEY_UP]) {
-			this._register(dom.addDisposableListener(container, type, e => {
-				if (e.composedPath().includes(this.contextViewService.getContextViewElement())) {
-					e.stopImmediatePropagation();
+			this._register(dom.addDisposableListener(contextView, type, e => {
+				if (this.isHostedContextView(contextView, container)) {
+					e.stopPropagation();
 				}
 			}));
 		}
@@ -963,11 +965,14 @@ export class QuickInputController extends Disposable {
 	 * Hides a context view (e.g. a context menu) that is rendered inside of the
 	 * quick input, so that it does not remain open in a hidden or inert container.
 	 */
-	private hideHostedContextView(container: HTMLElement): void {
-		const view = this.contextViewService.getContextViewElement();
+	private isHostedContextView(view: HTMLElement, container: HTMLElement): boolean {
 		const root = view.getRootNode();
 		const host = dom.isShadowRoot(root) ? root.host : view;
-		if (view.isConnected && dom.isAncestor(host, container)) {
+		return view.isConnected && dom.isAncestor(host, container);
+	}
+
+	private hideHostedContextView(container: HTMLElement): void {
+		if (this.isHostedContextView(this.contextViewService.getContextViewElement(), container)) {
 			this.contextViewService.hideContextView();
 		}
 	}
