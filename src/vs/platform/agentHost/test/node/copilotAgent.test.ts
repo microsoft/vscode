@@ -14251,7 +14251,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('registers a fallback Kerberos callback backed by client connections', async () => {
+		test('registers a runtime-scoped fallback Kerberos callback backed by client connections', async () => {
 			const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]) });
 			const connections = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostClientConnectionService));
 			const request = { spn: 'HTTP/custom' };
@@ -14272,8 +14272,8 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.listChatsToMigrate();
 				const callback = getCreatedClientOptions(agent).at(-1)?.kerberosAuth;
-				assert.deepStrictEqual({ mode: callback?.mode, token: await callback?.callback(request), calls }, {
-					mode: 'fallback', token: 'ticket', calls: [request],
+				assert.deepStrictEqual({ mode: callback?.mode, scope: callback?.scope, token: await callback?.callback(request), calls }, {
+					mode: 'fallback', scope: 'runtime', token: 'ticket', calls: [request],
 				});
 			} finally {
 				await disposeAgent(agent);

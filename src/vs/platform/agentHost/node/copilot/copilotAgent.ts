@@ -4327,8 +4327,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			const clientOptions: CopilotClientOptions = {
 				// Native lookup runs first; only clients advertising `vscode.kerberosAuth` (the Windows client of a WSL agent host) can supply fallback credentials.
+				// The runtime process belongs to this agent host, so its shared background traffic may use them too.
 				kerberosAuth: {
 					mode: 'fallback',
+					scope: 'runtime',
 					callback: request => this._clientConnections.lookupKerberosAuthorization(request),
 				},
 				useLoggedInUser: false,
