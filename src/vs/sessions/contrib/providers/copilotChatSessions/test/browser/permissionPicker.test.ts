@@ -42,7 +42,7 @@ import { MobilePermissionPicker } from '../../browser/mobilePermissionPicker.js'
 import { PickerActionViewItem } from '../../../agentHost/browser/agentHostSessionConfigPicker.js';
 
 const POLICY_DESCRIPTION = '$(briefcase) Disabled by your organization';
-const POLICY_HOVER = 'Your organization\'s policy doesn\'t allow this permission level.';
+const POLICY_HOVER = 'Your organization doesn\'t allow this permission level. Contact your administrator.';
 
 suite('Copilot PermissionPicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

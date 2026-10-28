@@ -252,7 +252,7 @@ suite('PermissionPickerActionItem', () => {
 				{ label: 'Assisted permissions', ...enabled, badge: 'New' },
 				{ label: 'Allow all', ...policy },
 			],
-			hover: 'Your organization\'s policy doesn\'t allow this permission level.',
+			hover: 'Your organization doesn\'t allow this permission level. Contact your administrator.',
 			hidesAfterRefresh: 1,
 			withheld: [
 				{ label: 'Default permissions', ...enabled },

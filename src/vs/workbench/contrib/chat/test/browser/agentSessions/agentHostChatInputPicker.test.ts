@@ -1519,7 +1519,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			} : {
 				ariaDescription: 'Disabled by your organization. Contact your administrator.',
 				description: '$(briefcase) Disabled by your organization',
-				hover: 'Your organization\'s policy doesn\'t allow this permission level.',
+				hover: 'Your organization doesn\'t allow this permission level. Contact your administrator.',
 			};
 
 			assert.deepStrictEqual({ unattributed, levels, dispatches }, {
@@ -2388,7 +2388,7 @@ suite('AgentHostChatInputPicker - resolveConfigChipValue', () => {
 				policy: text(getConfigPickerItemHover(SessionConfigKey.AutoApprove, { value: 'assisted', label: 'Assisted permissions', disabledByPolicy: true }, true)),
 				unattributed: text(getConfigPickerItemHover(SessionConfigKey.AutoApprove, { value: 'assisted', label: 'Assisted permissions' }, true)),
 			}, {
-				policy: 'Your organization\'s policy doesn\'t allow this permission level.',
+				policy: 'Your organization doesn\'t allow this permission level. Contact your administrator.',
 				unattributed: 'The agent host doesn\'t allow this permission level for this session.',
 			});
 		});
