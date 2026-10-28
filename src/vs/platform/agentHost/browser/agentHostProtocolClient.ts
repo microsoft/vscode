@@ -2324,6 +2324,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (operation.token.isCancellationRequested) {
 				throw new CancellationError();
 			}
+			this._markSubscriptionsAwaitingRestore([]);
 			await this._restoreSubscriptionsAwaitingRestore();
 			if (operation.token.isCancellationRequested) {
 				throw new CancellationError();
@@ -2890,7 +2891,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				case 'auth/required': {
 					if (msg.method === 'auth/required' && this._isWebPubSubRelay()
 						&& isAhpRootChannel(msg.params.channel) && msg.params.reason === AuthRequiredReason.Expired
-						&& msg.params.resource.resource === this._initialAuthenticationResource) {
+						&& msg.params.resource.resource === this._initialAuthenticationResource && !this._expiredRelayAuthentication) {
 						this._expiredRelayAuthentication = { transport: this._transport, resource: msg.params.resource.resource };
 						this._markSubscriptionsAwaitingRestore([]);
 					}

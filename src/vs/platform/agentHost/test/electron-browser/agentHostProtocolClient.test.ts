@@ -4746,7 +4746,7 @@ suite('AgentHostProtocolClient', () => {
 		}
 
 		for (const connectionKind of [AgentHostClientConnectionKind.WebPubSub, AgentHostClientConnectionKind.MissionControl]) {
-			test(`${connectionKind} restores open sessions, chats and filesystem watches after identity renewal`, async () => {
+			test(`${connectionKind} restores open sessions, chats and filesystem watches despite duplicate expiry during restoration`, async () => {
 				const { client, transport, root } = await createExpiringRelayClient(connectionKind);
 				const sessionUri = URI.parse('other-agent://tenant/conversations/opaque-session');
 				const chatUri = URI.parse('other-chat://tenant/opaque-thread');
@@ -4791,6 +4791,12 @@ suite('AgentHostProtocolClient', () => {
 				for (const [index, snapshot] of snapshots.entries()) {
 					const subscribe = await waitForRequestAtWithin(transport, 'subscribe', index + 5);
 					assert.deepStrictEqual(subscribe.params, { channel: snapshot.resource });
+					if (index === 0) {
+						transport.fireMessage({
+							jsonrpc: '2.0', method: 'auth/required',
+							params: { channel: ROOT_STATE_URI, resource: { resource: 'https://api.github.com' }, reason: AuthRequiredReason.Expired },
+						});
+					}
 					transport.fireMessage({
 						jsonrpc: '2.0', id: subscribe.id,
 						result: { snapshot: { ...snapshot, state: { ...snapshot.state, title: 'After expiry' }, fromSeq: 3 } },
@@ -4814,6 +4820,46 @@ suite('AgentHostProtocolClient', () => {
 					watch: watch.params,
 					watchSubscription: { channel: 'ahp-resource-watch:/restored' },
 					initializations: 1,
+				});
+			});
+		}
+
+		for (const kind of [StateComponents.Session, StateComponents.Chat]) {
+			test(`restores a ${kind === StateComponents.Session ? 'session' : 'chat'} opened while relay identity renewal is pending`, async () => {
+				const { client, transport, root } = await createExpiringRelayClient(AgentHostClientConnectionKind.MissionControl);
+				transport.fireMessage({
+					jsonrpc: '2.0', method: 'auth/required',
+					params: { channel: ROOT_STATE_URI, resource: { resource: 'https://api.github.com' }, reason: AuthRequiredReason.Expired },
+				});
+				const renewed = client.authenticate({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.fresh' });
+				const authentication = await waitForRequestAtWithin(transport, 'authenticate', 1);
+				const resource = kind === StateComponents.Session
+					? 'other-agent://tenant/conversations/late-session'
+					: 'other-chat://tenant/late-thread';
+				const subscription = disposables.add(client.getSubscription<SessionState | ChatState>(kind, URI.parse(resource), 'test'));
+				const initialError = Event.toPromise(subscription.object.onDidError!);
+				const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 1);
+				transport.fireMessage({
+					jsonrpc: '2.0', id: subscribe.id,
+					error: { code: AhpErrorCodes.AuthRequired, message: 'Relay identity authentication is required' },
+				});
+				await initialError;
+				transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+				const rootSubscription = await waitForRequestAtWithin(transport, 'subscribe', 2);
+				transport.fireMessage({ jsonrpc: '2.0', id: rootSubscription.id, result: root });
+				const restored = await waitForRequestAtWithin(transport, 'subscribe', 3);
+				const state = kind === StateComponents.Session
+					? createSessionState({
+						resource, provider: 'other-agent', title: 'After expiry', status: SessionStatus.Idle,
+						createdAt: '2026-10-02T00:00:00.000Z', modifiedAt: '2026-10-02T00:00:00.000Z',
+					})
+					: createChatState({
+						resource, title: 'After expiry', status: SessionStatus.Idle, modifiedAt: '2026-10-02T00:00:00.000Z',
+					});
+				transport.fireMessage({ jsonrpc: '2.0', id: restored.id, result: { snapshot: { resource, state, fromSeq: 2 } } });
+				await renewed;
+				assert.deepStrictEqual({ request: restored.params, state: subscription.object.value }, {
+					request: { channel: resource }, state,
 				});
 			});
 		}
