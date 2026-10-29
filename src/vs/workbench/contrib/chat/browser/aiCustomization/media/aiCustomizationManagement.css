@@ -2258,16 +2258,6 @@ per-word capitalization does not survive translation. */
 	color: var(--vscode-descriptionForeground);
 }
 
-.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .embedded-detail-uninstall-button.monaco-button {
-	color: var(--vscode-errorForeground);
-	border-color: transparent;
-	background: transparent;
-}
-
-.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .embedded-detail-uninstall-button.monaco-button:hover {
-	background: var(--vscode-button-secondaryHoverBackground);
-}
-
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-name {
 	margin: 0;
 	font-size: var(--vscode-fontSize-heading2);
