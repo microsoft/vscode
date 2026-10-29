@@ -433,6 +433,12 @@ export interface IChatRequestModelParameters {
 	modelId?: string;
 	modelConfiguration?: IStringDictionary<unknown>;
 	restoredId?: string;
+	/**
+	 * Initial {@link ChatRequestModel.version}. A request that replaces an earlier model with the same id
+	 * must start above that model's version so views keyed on the version re-render it.
+	 * Values that are not non-negative safe integers fall back to 0.
+	 */
+	version?: number;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	userSelectedTools?: UserSelectedTools;
 	isSystemInitiated?: boolean;
@@ -559,6 +565,8 @@ export class ChatRequestModel implements IChatRequestModel {
 		this._modelId = params.modelId;
 		this.modelConfiguration = params.modelConfiguration;
 		this.id = params.restoredId ?? 'request_' + generateUuid();
+		const version = params.version;
+		this._version = version !== undefined && Number.isSafeInteger(version) && version >= 0 ? version : 0;
 		this._editedFileEvents = params.editedFileEvents;
 		this.userSelectedTools = params.userSelectedTools;
 		this.isSystemInitiated = params.isSystemInitiated;

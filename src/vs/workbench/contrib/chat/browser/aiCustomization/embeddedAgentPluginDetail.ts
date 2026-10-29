@@ -416,21 +416,17 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			return;
 		}
 
+		this.renderEnablementSplitButton(item);
+
 		const uninstallAction = createUninstallPluginAction(item.plugin, () => removePluginWithMarketplaceOwnership(item.plugin, this.marketplaceInstallService));
 		if (uninstallAction) {
 			this.renderDisposables.add(uninstallAction);
 			const uninstallButton = this.renderDisposables.add(new Button(this.titleActionsEl, {
-				...getButtonStyles({
-					buttonSecondaryBackground: undefined,
-					buttonSecondaryForeground: undefined,
-					buttonSecondaryHoverBackground: undefined,
-					buttonSecondaryBorder: undefined,
-				}),
+				...defaultButtonStyles,
 				secondary: true,
 				supportIcons: true,
 				ariaLabel: uninstallAction.label,
 			}));
-			uninstallButton.element.classList.add('embedded-detail-uninstall-button');
 			uninstallButton.label = uninstallAction.label;
 			uninstallButton.enabled = uninstallAction.enabled;
 			this.renderDisposables.add(uninstallButton.onDidClick(async () => {
@@ -446,8 +442,6 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 				}
 			}));
 		}
-
-		this.renderEnablementSplitButton(item);
 	}
 
 	private renderEnablementSplitButton(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Installed }>): void {

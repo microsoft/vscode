@@ -1301,7 +1301,7 @@ export class PluginListWidget extends Disposable {
 
 	private getPluginEntryAriaLabel(element: IPluginListEntry): string | IObservable<string> {
 		if (element.type === 'group-header') {
-			return localize('pluginGroupAriaLabel', "{0}, {1} items", element.label, element.count);
+			return localize('pluginGroupAriaLabel2', "{0}, {1} items", element.label, element.count);
 		}
 		if (element.type === 'search-header') {
 			return element.label;

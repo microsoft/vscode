@@ -833,6 +833,10 @@ suite('CustomizationMarketplaceInstallService', () => {
 			icon: undefined,
 			installation: undefined,
 		};
+		const alias = {
+			...candidate,
+			identifier: `${itemUrl}?source=alias`,
+		};
 		const provider = new class implements ICustomizationMarketplaceInstallProvider {
 			readonly onDidChange = Event.None;
 			getInstallations(): Promise<readonly IRecordedCustomizationMarketplaceResource[]> {
@@ -851,20 +855,27 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 		fixture.service.getInstallState(providerResource);
 		const state = fixture.service.getInstallState(candidate);
+		const aliasState = fixture.service.getInstallState(alias);
 		await timeout(0);
 		const snapshot = fixture.service.installations.get();
 		const associated = snapshot.findByResource(candidate);
+		const providerAssociation = fixture.service.findInstallation(candidate);
+		const aliasProviderAssociation = fixture.service.findInstallation(alias);
 
 		assert.deepStrictEqual({
 			state,
+			aliasState,
 			installationCount: snapshot.installations.length,
-			installationId: associated?.installationId,
+			installationId: providerAssociation?.installationId,
+			aliasInstallationId: aliasProviderAssociation?.installationId,
 			resourceIdentifier: associated?.resource.identifier,
 			icon: URI.isUri(associated?.resource.icon) ? associated.resource.icon.toString() : undefined,
 		}, {
 			state: { kind: 'installed', target: { kind: 'mcp', name: 'com.figma.mcp/mcp' } },
+			aliasState: { kind: 'installed', target: { kind: 'mcp', name: 'com.figma.mcp/mcp' } },
 			installationCount: 1,
 			installationId: 'figma-installation',
+			aliasInstallationId: 'figma-installation',
 			resourceIdentifier: itemUrl,
 			icon: 'https://example.com/figma.png',
 		});

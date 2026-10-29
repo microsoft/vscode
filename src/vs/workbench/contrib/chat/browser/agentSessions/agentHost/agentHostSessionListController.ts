@@ -12,7 +12,7 @@ import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { withEphemeralSessionMeta } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
-import { ChatInteractivity, type ChangesSummary, type SessionChatSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatInteractivity, SessionOriginKind, type ChangesSummary, type SessionChatSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatOriginKind, SessionStatus, readSessionEhcliAdoptable, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -280,6 +280,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			modifiedAt: Date.parse(summary.modifiedAt),
 			changesSummary: summary.changes,
 			adoptable: readSessionEhcliAdoptable(summary._meta),
+			isAutomation: summary.origin?.kind === SessionOriginKind.Automation,
 		};
 		if (!summary.chats?.length) {
 			return this._makeItem(resource, base);
@@ -317,14 +318,16 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		changesSummary?: ChangesSummary;
 		/** Un-adopted legacy Copilot CLI session surfaced as adoptable; must not be passively restored. */
 		adoptable?: boolean;
+		isAutomation?: boolean;
 		chat?: SessionChatSummary;
 		children?: readonly IChatSessionItem[];
 	}): IChatSessionItem {
 		const inProgress = opts.status !== undefined && (opts.status & SessionStatus.InProgress) !== 0;
 		const description = inProgress && opts.activity ? opts.activity : this._description;
-		const metadata = opts.adoptable
-			? { ...(this._buildMetadata(opts.workingDirectory) ?? {}), [SESSION_META_EHCLI_ADOPTABLE_KEY]: true }
-			: this._buildMetadata(opts.workingDirectory);
+		const metadata = this._buildMetadata(opts.workingDirectory, opts.isAutomation);
+		const itemMetadata = opts.adoptable
+			? { ...metadata, [SESSION_META_EHCLI_ADOPTABLE_KEY]: true }
+			: metadata;
 		return {
 			resource: opts.chat ? resource.with({ fragment: getAgentHostChatId(opts.chat.resource) }) : resource,
 			label: opts.title || `Session ${AgentSession.id(resource).substring(0, 8)}`,
@@ -340,7 +343,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			isRead: opts.status !== undefined && opts.statusKnown !== false
 				? (opts.status & SessionStatus.IsRead) === SessionStatus.IsRead
 				: undefined,
-			metadata,
+			metadata: itemMetadata,
 			timing: {
 				created: opts.createdAt,
 				lastRequestStarted: opts.modifiedAt,
@@ -396,8 +399,8 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		return URI.from({ scheme: this._sessionType, path: `/${rawId}` });
 	}
 
-	private _buildMetadata(workingDirectory: URI | undefined): { readonly [key: string]: unknown } | undefined {
-		if (!this._description && !workingDirectory) {
+	private _buildMetadata(workingDirectory: URI | undefined, isAutomation: boolean | undefined): { readonly [key: string]: unknown } | undefined {
+		if (!this._description && !workingDirectory && !isAutomation) {
 			return undefined;
 		}
 		const result: { [key: string]: unknown } = {};
@@ -406,6 +409,9 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		}
 		if (workingDirectory) {
 			result.workingDirectoryPath = workingDirectory.fsPath;
+		}
+		if (isAutomation) {
+			result.isAutomation = true;
 		}
 		return Object.keys(result).length > 0 ? result : undefined;
 	}

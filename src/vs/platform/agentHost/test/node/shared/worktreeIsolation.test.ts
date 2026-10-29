@@ -1277,6 +1277,26 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('lists retained detached paths from persisted records before and after a claim or host restart', async () => {
+		const { service } = createTrackedSessionDataService();
+		const isolation = createIsolation(disposables, { sessionDataService: service });
+		const created = await isolation.createDetachedWorktree({
+			workingDirectory: repoRoot,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+			prompt: 'do a thing',
+		});
+		const unclaimed = await isolation.getDetachedWorktreePaths();
+		await isolation.claimDetachedWorktree(created.handle);
+		const restarted = createIsolation(disposables, { sessionDataService: service });
+		const claimedAfterRestart = await restarted.getDetachedWorktreePaths();
+		await restarted.deleteDetachedWorktreeRecord(created.handle);
+		assert.deepStrictEqual({
+			unclaimed: unclaimed.map(path => path.toString()),
+			claimedAfterRestart: claimedAfterRestart.map(path => path.toString()),
+			afterDeletion: await restarted.getDetachedWorktreePaths(),
+		}, { unclaimed: [created.worktree.toString()], claimedAfterRestart: [created.worktree.toString()], afterDeletion: [] });
+	});
+
 	test('detached worktree persists the default diff base before creation completes', async () => {
 		let diffBaseWrites = 0;
 		db = new class extends TestSessionDatabase {
@@ -1475,7 +1495,7 @@ suite('WorktreeIsolation', () => {
 		const afterFailure = { deletionAttempts, attempts: (await database.readPendingWorktreeRemoval('detached', created.handle))?.attempts };
 
 		// After a restart, the removal is retried once its backoff elapsed.
-		const restarted = disposables.add(new AgentHostWorktreeCleanupService({ now: () => Date.now() + 60 * 60 * 1000 }, database, createIsolation(disposables, { gitService, sessionDataService }), new NullLogService()));
+		const restarted = disposables.add(new AgentHostWorktreeCleanupService({ now: () => Date.now() + 60 * 60 * 1000 }, database, createIsolation(disposables, { gitService, sessionDataService }), new NullLogService(), gitService));
 		await restarted.runPass();
 
 		assert.deepStrictEqual({

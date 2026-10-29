@@ -13,6 +13,7 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { ILanguageSelection } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { IChatThinkingTitleRequest } from '../../../common/chatThinkingTitleService.js';
 
 export interface IChatContentPart extends IDisposable {
 	domNode: HTMLElement | undefined;
@@ -99,6 +100,8 @@ export interface IChatContentPartRenderContext {
 	readonly diffEditorPool: DiffEditorPool;
 	readonly currentWidth: IObservable<number>;
 	readonly onDidChangeVisibility: Event<boolean>;
+	/** Only a newly completed, visible header may generate a title; historical headers may reuse cached titles. */
+	readonly registerThinkingTitle?: (header: HTMLElement, getRequest: () => IChatThinkingTitleRequest, acceptTitle: (title: string) => void, newlyCompleted: boolean) => IDisposable;
 	readonly inlineTextModels: InlineTextModelCollection;
 }
 

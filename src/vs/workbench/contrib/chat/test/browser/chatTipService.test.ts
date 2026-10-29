@@ -272,6 +272,21 @@ suite('ChatTipService', () => {
 		assert.deepStrictEqual(dismissed, ['connectorRecommendation.linear']);
 	});
 
+	test('clears dismissed tips through contextual providers', () => {
+		const service = createService();
+		let clearCount = 0;
+		testDisposables.add(service.registerTipProvider({
+			onDidChange: Event.None,
+			provideTip: () => undefined,
+			dismissTip: () => { },
+			clearDismissedTips: () => clearCount++,
+		}));
+
+		service.clearDismissedTips();
+
+		assert.strictEqual(clearCount, 1);
+	});
+
 	test('contextual provider changes notify tip presenters', () => {
 		const service = createService();
 		const onDidChange = testDisposables.add(new Emitter<void>());

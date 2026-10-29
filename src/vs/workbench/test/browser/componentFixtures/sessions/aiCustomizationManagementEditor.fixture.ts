@@ -1077,6 +1077,7 @@ function createEmptyCustomizationMarketplaceInstallService(): ICustomizationMark
 	return new class extends mock<ICustomizationMarketplaceInstallService>() {
 		override readonly onDidChange = Event.None;
 		override readonly installations = constObservable(emptyCustomizationMarketplaceInstallationSnapshot);
+		override findInstallation() { return undefined; }
 	}();
 }
 
@@ -1573,6 +1574,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				reg.defineInstance(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 					override readonly onDidChange = customizationMarketplaceInstallChanged.event;
 					override readonly installations = observableFromEvent(customizationMarketplaceInstallChanged.event, getCustomizationMarketplaceInstallations);
+					override findInstallation(resource: ICustomizationMarketplaceResource) {
+						return getCustomizationMarketplaceInstallations().findByResource(resource);
+					}
 					override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
 						// The outgoing Discover view may read installation state while the visibility change disposes it.
 						assert(sourceEnabled() || (options.toggleMarketplaceVisibility === true && customizationMarketplaceQueryCount > 0), 'A disabled Marketplace fixture must not request installation state.');
@@ -5142,7 +5146,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	EmbeddedPluginDetailInstalled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The installed plugin detail has Uninstall and Disable actions. The Disable split-button divider is visible without leaking through the outer border at its top or bottom edge.'],
+		expectedVisualDescriptions: ['The installed plugin detail has Disable and Uninstall actions. Uninstall uses the standard secondary button style, and the Disable split-button divider is visible without leaking through the outer border at its top or bottom edge.'],
 		render: ctx => renderEmbeddedPluginDetail(ctx, makeInstalledPluginItem('Linear', 'Issue tracking and project management integration')),
 	}),
 

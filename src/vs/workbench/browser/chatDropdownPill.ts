@@ -21,7 +21,8 @@ import { ILanguageService } from '../../editor/common/languages/language.js';
 import { IModelService } from '../../editor/common/services/model.js';
 import { FileKind, IFileService } from '../../platform/files/common/files.js';
 import { IHoverService } from '../../platform/hover/browser/hover.js';
-import { ChatPillActionViewItem, createChatPillImagePreview, getChatPillEntries, getChatPillEntryHoverContents, getChatPillEntryHoverOptions, getChatPillEntryToolbarActions, type IChatPill, type IChatPillEntry, type IChatPillSection } from './chatPills.js';
+import { ChatPillActionViewItem, createChatPillMediaPreview, getChatPillEntries, getChatPillEntryHoverContents, getChatPillEntryHoverOptions, getChatPillEntryToolbarActions, hasChatPillMediaPreview, type IChatPill, type IChatPillEntry, type IChatPillSection } from './chatPills.js';
+import { IAccessibilityService } from '../../platform/accessibility/common/accessibility.js';
 import { ChatResourcePillActionViewItem } from './chatResourcePill.js';
 import type { ResourceLabels } from './labels.js';
 import type { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
@@ -108,6 +109,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		@IModelService private readonly _modelService: IModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super(undefined, action, options);
 	}
@@ -117,7 +119,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 	private readonly _dropdownLabels = new Map<string, Pick<IChatPillEntry, 'label' | 'ariaLabel' | 'dropdownAriaLabel'>>();
 	private _entries: readonly IChatPillEntry[] = [];
 	private _summaryIcon: ThemeIcon | undefined;
-	private readonly _imageHoverContents = new WeakMap<IChatPillEntry, IManagedHoverContent>();
+	private readonly _mediaHoverContents = new WeakMap<IChatPillEntry, IManagedHoverContent>();
 	private readonly _dropdownHovers = new WeakMap<IChatPillEntry, IActionListItemHover>();
 	private readonly _resourceDropdownHovers = new Map<string, { readonly entry: IChatPillEntry; readonly hover: IActionListItemHover }>();
 
@@ -268,7 +270,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		if (this.isSummarized) {
 			return super.getHoverContents();
 		}
-		return getChatPillEntryHoverContents(this.entries.at(0), this._fileService, this._imageHoverContents) ?? super.getHoverContents();
+		return getChatPillEntryHoverContents(this.entries.at(0), this._fileService, this._mediaHoverContents, { isMotionReduced: () => this._accessibilityService.isMotionReduced() }) ?? super.getHoverContents();
 	}
 
 	protected override getAriaLabel(): string | undefined {
@@ -411,7 +413,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 				this._dropdownHovers.set(entry, baseHover);
 			}
 		}
-		const cacheable = !!entry.imagePreview || entry.hover?.panelClassName === 'chat-pill-hover-panel';
+		const cacheable = hasChatPillMediaPreview(entry) || entry.hover?.panelClassName === 'chat-pill-hover-panel';
 		const cached = this._resourceDropdownHovers.get(entry.id);
 		if (cacheable && cached && sameResourceHover(cached.entry, entry)) {
 			if (cached.entry === entry) {
@@ -425,6 +427,8 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 				contentOwnsPadding: cached.hover.contentOwnsPadding,
 				alignToAnchorTop: cached.hover.alignToAnchorTop,
 				preserveVerticalPosition: cached.hover.preserveVerticalPosition,
+				tabThroughPanel: cached.hover.tabThroughPanel,
+				getTabbableElements: cached.hover.getTabbableElements,
 			};
 			this._resourceDropdownHovers.set(entry.id, { entry, hover });
 			return hover;
@@ -432,18 +436,17 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		if (cached) {
 			this._evictResourceHover(entry.id, entry);
 		}
-		if (!entry.imagePreview) {
+		if (!hasChatPillMediaPreview(entry)) {
 			if (cacheable && baseHover) {
 				this._resourceDropdownHovers.set(entry.id, { entry, hover: baseHover });
 			}
 			return baseHover;
 		}
-		const imagePreview = entry.imagePreview;
-		let preview: ReturnType<typeof createChatPillImagePreview> | undefined;
+		let preview: ReturnType<typeof createChatPillMediaPreview> | undefined;
 		const hover: IActionListItemHover = {
 			...baseHover,
 			content: () => {
-				preview ??= createChatPillImagePreview({ ...entry, imagePreview }, this._fileService);
+				preview ??= createChatPillMediaPreview(entry, this._fileService, undefined, { isMotionReduced: () => this._accessibilityService.isMotionReduced() })!;
 				preview.element.classList.add('compact');
 				return preview.element;
 			},
@@ -462,6 +465,11 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			contentOwnsPadding: true,
 			alignToAnchorTop: true,
 			preserveVerticalPosition: true,
+			// With reduced motion a video shows playback controls, which Tab must be able to reach.
+			...(entry.videoPreview ? {
+				tabThroughPanel: true,
+				getTabbableElements: () => [...baseHover?.getTabbableElements?.() ?? [], ...preview?.getTabbableElements?.() ?? []],
+			} : {}),
 		};
 		this._resourceDropdownHovers.set(entry.id, { entry, hover });
 		return hover;
@@ -512,6 +520,8 @@ function sameResourceHover(first: IChatPillEntry, second: IChatPillEntry): boole
 		&& isEqual(first.resource, second.resource)
 		&& isEqual(first.imagePreview?.resource, second.imagePreview?.resource)
 		&& first.imagePreview?.mimeType === second.imagePreview?.mimeType
+		&& isEqual(first.videoPreview?.resource, second.videoPreview?.resource)
+		&& first.videoPreview?.mimeType === second.videoPreview?.mimeType
 		&& first.hover?.panelClassName === second.hover?.panelClassName
 		&& first.hover?.getTabbableElements === second.hover?.getTabbableElements
 		&& (typeof first.hover?.content === 'function'
