@@ -874,6 +874,43 @@ suite('mcpListWidget', () => {
 		}, { matched: servers.slice(0, 2).map(server => server.id), rows: 13, enabled: 11 });
 	});
 
+	test('MCP searches treat dashes and spaces as equivalent separators', () => {
+		const resource: ICustomizationMarketplaceResource = {
+			sourceId: 'githubFeed',
+			identifier: 'io.github.chromedevtools/chrome-devtools-mcp',
+			displayName: 'Chrome DevTools MCP',
+			description: '',
+			mediaType: CustomizationMarketplaceMediaType.McpServer,
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+		};
+		const installations = [{
+			installationId: 'chrome-installation',
+			resource,
+			state: { kind: 'installed' as const, target: { kind: 'mcp' as const, name: 'chrome-devtools' } },
+		}];
+		const matcher = new ActiveSessionMcpServerMatcher([createAgentHostServer({ id: 'session/handy', name: 'handy-commands' })]);
+		const galleryServer = new class extends mock<IWorkbenchMcpServer>() {
+			override readonly label = 'Chrome DevTools MCP';
+			override readonly description = '';
+		}();
+		const matchesGalleryServerQuery = (query: string) => (McpListWidget.prototype as unknown as { matchesGalleryServerQuery(server: IWorkbenchMcpServer, query: string): boolean }).matchesGalleryServerQuery(galleryServer, query);
+		const queries = ['chrome-devtools', 'chrome devtools', 'handy commands', 'handy-commands'];
+
+		assert.deepStrictEqual(queries.map(query => ({
+			query,
+			provider: createProviderMcpEntries(installations, [], query).map(entry => entry.label),
+			gallery: matchesGalleryServerQuery(query),
+			session: matcher.unmatched(query).map(server => server.name),
+		})), [
+			{ query: 'chrome-devtools', provider: ['Chrome DevTools MCP'], gallery: true, session: [] },
+			{ query: 'chrome devtools', provider: ['Chrome DevTools MCP'], gallery: true, session: [] },
+			{ query: 'handy commands', provider: [], gallery: false, session: ['handy-commands'] },
+			{ query: 'handy-commands', provider: [], gallery: false, session: ['handy-commands'] },
+		]);
+	});
+
 	test('restricts display-name matching to connector rows', () => {
 		const connectorServer = createAgentHostServer({
 			id: 'session/github-copilot-connector-94d26095770df60673dd',

@@ -61,6 +61,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { matchesCustomizationSearchQuery } from '../../../../contrib/chat/common/aiCustomizationSearch.js';
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
 import { CustomizationMarketplaceInstallService } from '../../../../contrib/chat/browser/aiCustomization/customizationMarketplaceInstallService.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../../contrib/chat/browser/aiCustomization/copilotConnectorsService.js';
@@ -826,6 +827,36 @@ const overflowingExtensionToolSets: readonly IToolSet[] = Array.from({ length: 8
 	};
 });
 
+/** Names whose separators differ from natural search queries, for dash/space search fixtures. */
+const searchSeparatorMarketplaceResources: readonly ICustomizationMarketplaceResource[] = [
+	{
+		sourceId: 'testSource',
+		identifier: 'example/handy-commands',
+		displayName: 'handy-commands',
+		description: 'Shortcuts for everyday repository tasks.',
+		mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+		publisher: 'Example Tools',
+		version: '1.0.0',
+		tags: ['productivity'],
+		capabilities: [],
+		representativeQueries: [],
+		installation: { kind: 'plugin', repository: 'example/handy-commands', ref: 'main', path: '' },
+	},
+	{
+		sourceId: 'testSource',
+		identifier: 'io.github.example/chrome-devtools-mcp',
+		displayName: 'Chrome DevTools MCP',
+		description: 'Inspect, debug, and automate a live Chrome browser.',
+		mediaType: CustomizationMarketplaceMediaType.McpServer,
+		publisher: 'Example Browser Tools',
+		version: '0.9.0',
+		stars: 512,
+		tags: ['browser', 'debugging'],
+		capabilities: [],
+		representativeQueries: [],
+	},
+];
+
 const customizationMarketplaceResources: readonly ICustomizationMarketplaceResource[] = [
 	{
 		sourceId: 'testSource',
@@ -1194,6 +1225,8 @@ interface IRenderEditorOptions {
 	readonly customizationMarketplaceDetailState?: 'missing' | 'error' | 'unavailable';
 	readonly useRealConnectorInstallService?: boolean;
 	readonly discoveryQuery?: string;
+	/** Adds catalog entries named `handy-commands` and "Chrome DevTools MCP". */
+	readonly searchSeparatorResources?: boolean;
 	readonly directConnectorName?: string;
 	readonly clearDiscoveryQuery?: boolean;
 	readonly selectDiscoveryResult?: boolean;
@@ -1251,6 +1284,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const marketplaceResources = [
 		...(agentFinderPublicFeedEnabled ? customizationMarketplaceResources : []),
 		...(options.copilotConnectorsEnabled ? [copilotConnectorMarketplaceResource] : []),
+		...(options.searchSeparatorResources ? searchSeparatorMarketplaceResources : []),
 	];
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
@@ -1543,11 +1577,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 							: Promise.reject(new Error('The catalog is temporarily unavailable. Try again later.'));
 						case 'empty': return Promise.resolve({ items: [], total: 0 });
 					}
-					const text = query.query?.toLowerCase() ?? '';
+					const text = query.query ?? '';
 					const resources = marketplaceResources.filter(resource =>
 						(!query.mediaType || resource.mediaType === query.mediaType)
 						&& (!query.sourceIds || query.sourceIds.includes(resource.sourceId))
-						&& (!text || `${resource.displayName} ${resource.description} ${resource.tags.join(' ')}`.toLowerCase().includes(text)));
+						&& (!text.trim() || !!matchesCustomizationSearchQuery(text, `${resource.displayName} ${resource.description} ${resource.tags.join(' ')}`)));
 					const offset = Number(query.cursor?.token ?? 0);
 					const page = {
 						items: resources.slice(offset, offset + pageSize),
@@ -3836,6 +3870,18 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	McpServersSearchDashedQuery: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Searching MCP servers for "remote-browser" finds the Remote Browser server.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			isSessionsWindow: true,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			activeSessionMcpServers,
+			mcpSearchQuery: 'remote-browser',
+		}),
+	}),
+
 	McpServersSearchEmpty: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['An MCP server search with no matches shows the empty-results state without stale server actions.'],
@@ -4378,6 +4424,30 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			width: 1200,
 			discoveryQuery: 'review',
 			expectedDiscoveryContentWidth: 840,
+		}),
+	}),
+
+	DiscoverSearchSpacedQueryMatchesDashedName: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Searching Discover for "handy commands" finds the handy-commands plugin.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			searchSeparatorResources: true,
+			width: 1200,
+			discoveryQuery: 'handy commands',
+		}),
+	}),
+
+	DiscoverSearchDashedQueryMatchesSpacedName: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Searching Discover for "chrome-devtools" finds the Chrome DevTools MCP server.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			searchSeparatorResources: true,
+			width: 1200,
+			discoveryQuery: 'chrome-devtools',
 		}),
 	}),
 

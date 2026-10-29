@@ -31,6 +31,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import type { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
 import { AutoUpdateConfigurationKey, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatConfiguration } from '../constants.js';
+import { customizationSearchMatchesAny } from '../aiCustomizationSearch.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { IAgentPluginEnablementService } from './agentPluginService.js';
 import { FileBackedInstalledPluginsStore, IStoredInstalledPlugin } from './fileBackedInstalledPluginsStore.js';
@@ -551,7 +552,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		}
 		const items = continuation?.items ?? plugins.filter(plugin =>
 			options.marketplaceTypes.has(plugin.marketplaceType) &&
-			(!text || [plugin.name, plugin.description, plugin.marketplace].some(value => value.toLowerCase().includes(text))));
+			customizationSearchMatchesAny(text, [plugin.name, plugin.description, plugin.marketplace]));
 		const offset = continuation?.offset ?? 0;
 		const end = Math.min(offset + pageSize, items.length);
 		const nextCursor = end < items.length ? generateUuid() : undefined;

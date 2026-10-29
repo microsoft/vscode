@@ -1084,6 +1084,27 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		await assert.rejects(service.queryMarketplacePlugins({ ...query, cursor: page.nextCursor }, CancellationToken.None), /invalid/);
 	});
 
+	test('query text treats dashes and spaces as equivalent separators', async () => {
+		const service = createService();
+		sinon.stub(service, 'fetchMarketplacePlugins').resolves([makePlugin('handy-commands', 'handy-commands'), makePlugin('other', 'other')]);
+		const results: Record<string, string[]> = {};
+		for (const text of ['handy commands', 'handy-commands', 'HANDY_commands', 'commands handy']) {
+			const page = await service.queryMarketplacePlugins({
+				text,
+				pageSize: 10,
+				marketplaceIds: new Set([marketplaceRef.canonicalId]),
+				marketplaceTypes: new Set([MarketplaceType.Copilot]),
+			}, CancellationToken.None);
+			results[text] = page.items.map(plugin => plugin.name);
+		}
+		assert.deepStrictEqual(results, {
+			'handy commands': ['handy-commands'],
+			'handy-commands': ['handy-commands'],
+			'HANDY_commands': ['handy-commands'],
+			'commands handy': [],
+		});
+	});
+
 	test('filters unsupported marketplace types before paging and totals', async () => {
 		const service = createService();
 		sinon.stub(service, 'fetchMarketplacePlugins').resolves([
