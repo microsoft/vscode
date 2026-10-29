@@ -656,7 +656,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 
 	canForceCleanup(worktree: ISessionWorktree): boolean {
 		return worktree.worktreeExists === true && !worktree.isMeasuring && !worktree.worktreeCheckError && !worktree.cleanupStatusError
-			&& (worktree.cleanupStatus?.state === 'failed' || worktree.cleanupStatus?.state === 'skipped')
+			&& (worktree.cleanupStatus?.state === 'failed' || worktree.cleanupStatus?.state === 'skipped' || worktree.cleanupStatus?.state === 'inUse')
 			&& (worktree.unlinkedWorktree !== undefined || worktree.session.isArchived.get())
 			&& this.sessionsManagementService.canForceWorktreeCleanup?.(worktree.session ?? worktree.unlinkedWorktree) === true;
 	}
@@ -684,7 +684,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 					? localize('worktreeCleanup.confirm.one', "Clean up 1 worktree?")
 					: localize('worktreeCleanup.confirm.many', "Clean up {0} worktrees?", worktreeCount),
 			detail: force
-				? localize('worktreeCleanup.forceDetail', "This permanently deletes the selected worktrees and all uncommitted changes, including ignored and untracked files, without saving them. This cannot be undone. Committed changes, branches, and session history are kept. Worktrees still in use cannot be removed.")
+				? localize('worktreeCleanup.forceDetail', "This permanently deletes the selected worktrees and all uncommitted changes, including ignored and untracked files, without saving them. This cannot be undone. Worktrees will be removed even if another session or chat is using them. Those sessions or chats may stop working. Committed changes, branches, and session history are kept.")
 				: selected.some(candidate => candidate.unlinkedWorktree)
 					? localize('worktreeCleanup.confirm.unlinkedDetail', "Selected sessions will be marked as done. Worktrees with no matching session are removed only if the host verifies they are unused. Uncommitted changes are saved to their branch before removal; branches are kept. Ignored files are deleted. No session history will be created for these worktrees.")
 					: selectedBytes === undefined

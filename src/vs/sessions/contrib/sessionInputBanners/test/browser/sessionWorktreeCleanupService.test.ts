@@ -1091,7 +1091,8 @@ suite('SessionWorktreeCleanupService', () => {
 			assert.deepStrictEqual({
 				result, calls,
 				warnsAboutLoss: confirmations.length === 1 && confirmations[0].includes('all uncommitted changes') && confirmations[0].includes('cannot be undone'),
-			}, { result: confirmed, calls: confirmed ? [{ retry: true, force: true }] : [], warnsAboutLoss: true });
+				warnsAboutUsage: confirmations[0].includes('even if another session or chat is using them') && confirmations[0].includes('may stop working'),
+			}, { result: confirmed, calls: confirmed ? [{ retry: true, force: true }] : [], warnsAboutLoss: true, warnsAboutUsage: true });
 		});
 	}
 
@@ -1113,7 +1114,7 @@ suite('SessionWorktreeCleanupService', () => {
 					return { state: 'unknown' };
 				},
 			}));
-			const worktrees: ISessionWorktree[] = sessions.map(session => ({ session, sizeBytes: undefined, worktreeCount: 1, cleanupState: 'archived', worktreeExists: true, cleanupStatus: { state: 'failed' } }));
+			const worktrees: ISessionWorktree[] = sessions.map((session, index) => ({ session, sizeBytes: undefined, worktreeCount: 1, cleanupState: 'archived', worktreeExists: true, cleanupStatus: { state: index === 0 ? 'failed' : 'inUse' } }));
 			const result = await service.forceCleanupWorktrees(worktrees);
 			assert.deepStrictEqual({ result, confirmations, calls }, {
 				result: confirmed,
@@ -1123,7 +1124,7 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	}
 
-	test('force cleanup is unavailable for in-use, running, unverified, or unsupported worktrees', async () => {
+	test('force cleanup supports in-use worktrees but excludes running, unverified, or unsupported worktrees', async () => {
 		const session = createSession('failed', oldDate(), SessionStatus.Completed, true);
 		let supported = true;
 		const service = disposables.add(createService([session], true, () => undefined, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
@@ -1134,7 +1135,7 @@ suite('SessionWorktreeCleanupService', () => {
 		supported = false;
 		await assert.rejects(service.forceCleanupWorktrees([worktree]), /cannot be forcibly removed/);
 		assert.deepStrictEqual({ states, unverified: service.canForceCleanup({ ...worktree, worktreeExists: undefined }) }, {
-			states: [true, true, false, false, false, false], unverified: false,
+			states: [true, true, true, false, false, false], unverified: false,
 		});
 	});
 

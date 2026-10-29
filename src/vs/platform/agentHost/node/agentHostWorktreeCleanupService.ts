@@ -18,6 +18,7 @@ import { getWorktreesRoot, isWorktreeUnderRepository } from '../common/worktreeP
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import { coOwnedWorktreeRemovalOwner, type IPendingWorktreeRemoval, type IWorktreeCoOwner, type IWorktreeCoOwnerState, type IWorktreeRemovalRequest, type WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, parseSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
+import { AGENT_BRANCH_PREFIX } from './shared/agentBranchNameGenerator.js';
 import { DetachedWorktreeRemovalGuard, IAgentHostWorktreeIsolation, IRecordedWorktree } from './shared/worktreeIsolation.js';
 
 export const IAgentHostWorktreeCleanupService = createDecorator<IAgentHostWorktreeCleanupService>('agentHostWorktreeCleanupService');
@@ -42,7 +43,7 @@ export interface IAgentHostWorktreeCleanupService {
 	readonly _serviceBrand: undefined;
 	/** Archive: records that the session's worktree is to be removed. */
 	requestSessionWorktreeRemoval(session: URI, mode: Extract<WorktreeRemovalMode, 'commit' | 'synced'>): Promise<void>;
-	/** Reports the host's known cleanup outcome; retries only archived, non-deleted session worktrees. */
+	/** Retries archived session worktrees; explicit force discards changes and overrides other usage references. */
 	sessionWorktreeCleanup(session: URI, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus>;
 	listManagedWorktrees(repositories: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
 	cleanupManagedWorktree(repository: URI, worktree: URI, branch: string, force?: boolean): Promise<void>;
@@ -151,19 +152,18 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 				}
 				seen.add(primary.toString());
 				await Promise.all(entries.slice(1).map(({ path: worktree, branchName: branch }) => limiter.queue(async () => {
-					if (!await this._isManagedWorktree(primary, worktree)) {
+					if (!branch?.startsWith(AGENT_BRANCH_PREFIX) || !await this._isManagedWorktree(primary, worktree)) {
 						return;
 					}
 					const pending = await this._database.readPendingWorktreeRemoval('detached', this._managedRemovalOwner(worktree));
 					const known = pending && this._removalStatuses.get(this._removalKey(pending));
 					const cleanupStatus: IAgentHostWorktreeCleanupStatus = detachedPaths.some(path => isEqual(path, worktree)) || await this._database.isWorktreeInUse(worktree.toString(), undefined)
 						? { state: 'inUse' }
-						: !branch ? { state: 'skipped' }
-							: pending ? known?.requestedAt === pending.requestedAt && known.mode === pending.mode
-								? known.status
-								: pending.lastAttempt ?? { state: pending.attempts > 0 ? 'unknown' : 'pending' }
-								: { state: 'unknown' };
-					result.push({ repository: primary.toString(), worktree: worktree.toString(), branch: branch ?? '', cleanupStatus });
+						: pending ? known?.requestedAt === pending.requestedAt && known.mode === pending.mode
+							? known.status
+							: pending.lastAttempt ?? { state: pending.attempts > 0 ? 'unknown' : 'pending' }
+							: { state: 'unknown' };
+					result.push({ repository: primary.toString(), worktree: worktree.toString(), branch, cleanupStatus });
 				})));
 			}
 		} finally {
@@ -175,7 +175,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 	async cleanupManagedWorktree(repository: URI, worktree: URI, branch: string, force = false): Promise<void> {
 		await this._worktree.runExclusive(worktree.toString(), async () => {
 			await this._assertManagedWorktree(repository, worktree, branch);
-			if (await this._isManagedWorktreeInUse(worktree)) {
+			if (!force && await this._isManagedWorktreeInUse(worktree)) {
 				throw new Error('A session, chat, or detached worktree record is still using this worktree.');
 			}
 			// Explicit ownerless cleanup uses the durable detached-removal queue, not a fabricated session owner.
@@ -210,6 +210,10 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		if (!entries[0] || !isEqual(entries[0].path, repository) || !await this._isManagedWorktree(repository, worktree, allowMissing)) {
 			throw new Error('The worktree is no longer registered in the managed worktree directory.');
 		}
+		const registered = entries.slice(1).find(entry => isEqual(entry.path, worktree));
+		if (!branch.startsWith(AGENT_BRANCH_PREFIX) || (registered && !registered.branchName?.startsWith(AGENT_BRANCH_PREFIX))) {
+			throw new Error(`Only worktrees on branches starting with '${AGENT_BRANCH_PREFIX}' can be cleaned up.`);
+		}
 		if (allowMissing) {
 			try {
 				await fs.lstat(worktree.fsPath);
@@ -220,7 +224,6 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 				throw error;
 			}
 		}
-		const registered = entries.slice(1).find(entry => isEqual(entry.path, worktree));
 		if (!registered) {
 			throw new Error('The worktree registration changed. Refresh the worktree inventory before cleanup.');
 		}
@@ -590,9 +593,9 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 			if (managed || force) {
 				await this._assertManagedWorktree(URI.parse(removal.repositoryRoot), URI.parse(removal.worktreePath), removal.branch ?? '', true);
 			}
-			return !await isInUse();
+			return force || !await isInUse();
 		};
-		if (await isInUse()) {
+		if (!force && await isInUse()) {
 			this._setRemovalStatus(removal, { state: 'inUse' });
 			this._logService.trace(`[AgentHostWorktreeCleanup:${key}] Keeping worktree '${removal.worktreePath}': another session or chat uses it`);
 			return;
@@ -610,7 +613,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 				await this._assertManagedWorktree(worktree.repositoryRoot, worktree.worktree, worktree.branchName, true);
 			}
 			this._setRemovalStatus(removal, { state: 'running' });
-			// Asked again after the Git work that precedes the removal, which a folder coming into use meanwhile must stop.
+			// Revalidate immediately before removal; only explicit force overrides usage references.
 			const outcome = await this._worktree.removeRecordedWorktree(key, worktree, mode, isUnused, force);
 			if (outcome === 'inUse') {
 				this._setRemovalStatus(removal, { state: 'inUse' });

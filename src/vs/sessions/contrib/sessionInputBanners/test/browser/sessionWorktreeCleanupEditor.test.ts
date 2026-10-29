@@ -164,6 +164,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 	test('separates cleanup tables and scopes force selection to Needs attention', async () => {
 		const failed: ISessionWorktree = { ...createWorktree('failed', '/repos/app', 'archived'), cleanupStatus: { state: 'failed', message: 'permission denied' } };
 		const deferred: ISessionWorktree = { ...createWorktree('deferred', '/repos/app', 'archived'), cleanupStatus: { state: 'skipped' } };
+		const inUse: ISessionWorktree = { ...createUnlinkedWorktree('in-use'), cleanupStatus: { state: 'inUse' } };
 		const requests: string[] = [];
 		const { editor, container } = createEditor({
 			getWorktrees: async () => [
@@ -172,9 +173,10 @@ suite('SessionWorktreeCleanupEditor', () => {
 				createWorktree('available', '/repos/app'),
 				failed,
 				deferred,
+				inUse,
 				createWorktree('protected', '/repos/app', 'pinned'),
 			],
-			canForceCleanup: worktree => worktree === failed || worktree === deferred,
+			canForceCleanup: worktree => worktree === failed || worktree === deferred || worktree === inUse,
 			forceCleanupWorktrees: async worktrees => { requests.push(...worktrees.map(getWorktreeCleanupId)); return false; },
 		});
 		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
@@ -205,9 +207,9 @@ suite('SessionWorktreeCleanupEditor', () => {
 			requests,
 		}, {
 			tables: 3, progress: ['measuring', 'pending'], available: ['available'],
-			issues: ['protected', 'failed', 'deferred'], initial: ['false', 'false'], deselected: 'true', selectionFocused: true,
-			buttonLabel: 'Force Remove 2 Worktrees', availableSelected: 'true', rowButtons: 0,
-			forceSelected: 'true', requests: ['failed', 'deferred'],
+			issues: ['protected', 'failed', 'deferred', 'in-use'], initial: ['false', 'false', 'false'], deselected: 'true', selectionFocused: true,
+			buttonLabel: 'Force Remove 3 Worktrees', availableSelected: 'true', rowButtons: 0,
+			forceSelected: 'true', requests: ['failed', 'deferred', getWorktreeCleanupId(inUse)],
 		});
 	});
 
@@ -1609,7 +1611,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 			headingIcons: 0,
 			gears: 0,
 			configureActions: 0,
-			intro: 'Clean up worktrees to free disk space. Normal cleanup commits uncommitted changes and marks sessions as done; restore a session to recreate its worktree. Managed worktrees with no matching session can also be selected; their branches are kept. Force Remove permanently discards uncommitted changes after a separate confirmation.',
+			intro: 'Clean up worktrees to free disk space. Normal cleanup commits uncommitted changes and marks sessions as done; restore a session to recreate its worktree. Managed worktrees with no matching session can also be selected; their branches are kept. Force Remove permanently discards uncommitted changes and overrides usage by other sessions or chats after a separate confirmation.',
 		});
 	});
 

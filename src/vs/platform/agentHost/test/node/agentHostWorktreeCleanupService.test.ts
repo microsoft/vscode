@@ -179,7 +179,36 @@ suite('AgentHostWorktreeCleanupService', () => {
 		assert.deepStrictEqual(inventory, [{
 			repository: repository.toString(), worktree: managed.toString(), branch: 'agents/recovered', cleanupStatus: { state: 'unknown' },
 		}]);
-		await assert.rejects(cleanup.cleanupManagedWorktree(repository, external, 'agents/recovered'), /no longer registered/);
+		for (const force of [false, true]) {
+			for (const path of [repository, external, symlink]) {
+				await assert.rejects(cleanup.cleanupManagedWorktree(repository, path, 'agents/recovered', force), /no longer registered/);
+			}
+			await assert.rejects(cleanup.cleanupManagedWorktree(repository, managed, 'agents/wrong-branch', force), /branch/);
+		}
+	});
+
+	test('managed inventory and cleanup require an agents branch prefix even with force', async () => {
+		const { database, cleanup, worktree, repository, managed, head } = await createManagedInventory();
+		for (const branch of ['feature/user-work', 'agents-other', 'main', '']) {
+			head.branch = branch;
+			assert.deepStrictEqual(await cleanup.listManagedWorktrees([repository]), []);
+			for (const force of [false, true]) {
+				await assert.rejects(cleanup.cleanupManagedWorktree(repository, managed, branch, force), /branches starting with 'agents\/'/);
+				await assert.rejects(cleanup.cleanupManagedWorktree(repository, managed, 'agents/recovered', force), /branches starting with 'agents\/'/);
+			}
+		}
+		assert.deepStrictEqual({ calls: worktree.calls, pending: await pending(database) }, { calls: [], pending: [] });
+	});
+
+	test('rechecks the agents branch prefix when a forced removal reaches its final guard', async () => {
+		const { database, cleanup, worktree, repository, managed, head } = await createManagedInventory();
+		worktree.removal = new DeferredPromise<void>();
+		const removal = cleanup.cleanupManagedWorktree(repository, managed, 'agents/recovered', true);
+		await worktree.removalStarted.p;
+		head.branch = 'feature/user-work';
+		await worktree.removal.complete();
+		await assert.rejects(removal, /branches starting with 'agents\/'/);
+		assert.deepStrictEqual({ forced: worktree.forcedRemovals, pending: (await pending(database)).length }, { forced: [], pending: 1 });
 	});
 
 	test('explicit unlinked cleanup persists a commit-mode request without a session owner', async () => {
@@ -212,7 +241,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 		]);
 	});
 
-	test('force removal discards changes only for a verified unused managed worktree', async () => {
+	test('force removal discards changes for a verified managed worktree', async () => {
 		const { database, cleanup, worktree, repository, managed } = await createManagedInventory();
 		await cleanup.cleanupManagedWorktree(repository, managed, 'agents/recovered', true);
 		assert.deepStrictEqual({ forced: worktree.forcedRemovals, pending: await pending(database) }, {
@@ -220,15 +249,21 @@ suite('AgentHostWorktreeCleanupService', () => {
 		});
 	});
 
-	test('force removal protects live owners and retained detached worktrees', async () => {
-		const { database, cleanup, worktree, repository, managed } = await createManagedInventory();
-		worktree.retainedDetachedPaths.push(managed);
-		await assert.rejects(cleanup.cleanupManagedWorktree(repository, managed, 'agents/recovered', true), /still using/);
-		worktree.retainedDetachedPaths.length = 0;
-		await useWorktree(database, OTHER_SESSION, { repositoryRoot: repository, worktree: managed, branchName: 'agents/recovered' });
-		await assert.rejects(cleanup.cleanupManagedWorktree(repository, managed, 'agents/recovered', true), /still using/);
-		assert.deepStrictEqual(worktree.forcedRemovals, []);
-	});
+	for (const usage of ['live session', 'retained detached worktree']) {
+		test(`only explicit force overrides usage by a ${usage}`, async () => {
+			const { database, cleanup, worktree, repository, managed } = await createManagedInventory();
+			if (usage === 'live session') {
+				await useWorktree(database, OTHER_SESSION, { repositoryRoot: repository, worktree: managed, branchName: 'agents/recovered' });
+			} else {
+				worktree.retainedDetachedPaths.push(managed);
+			}
+			await assert.rejects(cleanup.cleanupManagedWorktree(repository, managed, 'agents/recovered'), /still using/);
+			await cleanup.cleanupManagedWorktree(repository, managed, 'agents/recovered', true);
+			assert.deepStrictEqual({ forced: worktree.forcedRemovals, pending: await pending(database) }, {
+				forced: [managed.toString()], pending: [],
+			});
+		});
+	}
 
 	test('force failures persist but automatic retries remain non-destructive', async () => {
 		const { database, cleanup, worktree, repository, managed, gitService } = await createManagedInventory();
@@ -243,15 +278,43 @@ suite('AgentHostWorktreeCleanupService', () => {
 		}, { failure: { state: 'failed', message: 'git failed' }, forceAttempts: 1, attempts: 2, pending: [] });
 	});
 
-	test('force removal rechecks usage at the final guard and surfaces failures', async () => {
+	test('automatic retries do not inherit an explicit in-use override after forced removal fails', async () => {
+		const { database, cleanup, worktree, repository, managed, gitService } = await createManagedInventory();
+		await useWorktree(database, OTHER_SESSION, { repositoryRoot: repository, worktree: managed, branchName: 'agents/recovered' });
+		worktree.failures = 1;
+		await assert.rejects(cleanup.cleanupManagedWorktree(repository, managed, 'agents/recovered', true), /git failed/);
+		const restarted = disposables.add(new AgentHostWorktreeCleanupService({ now: () => Date.now() + 1_000_000 }, database, worktree, new NullLogService(), gitService));
+		await restarted.runPass();
+		assert.deepStrictEqual({
+			attempts: worktree.calls.filter(call => call.startsWith('remove:')).length,
+			forced: worktree.forcedRemovals,
+			pending: (await pending(database)).length,
+		}, { attempts: 1, forced: [], pending: 1 });
+	});
+
+	test('explicit force also overrides usage established while removal is running', async () => {
 		const { database, cleanup, worktree, repository, managed } = await createManagedInventory();
 		worktree.removal = new DeferredPromise<void>();
 		const removal = cleanup.cleanupManagedWorktree(repository, managed, 'agents/recovered', true);
 		await worktree.removalStarted.p;
 		await useWorktree(database, OTHER_SESSION, { repositoryRoot: repository, worktree: managed, branchName: 'agents/recovered' });
 		await worktree.removal.complete();
-		await assert.rejects(removal, /could not be forcibly removed/);
-		assert.deepStrictEqual(worktree.forcedRemovals, []);
+		await removal;
+		assert.deepStrictEqual(worktree.forcedRemovals, [managed.toString()]);
+	});
+
+	test('explicit force removes an archived session worktree used by another live session', async () => {
+		const { database, cleanup, worktree, repository, managed } = await createManagedInventory();
+		const recorded = { repositoryRoot: repository, worktree: managed, branchName: 'agents/recovered' };
+		worktree.sessions.set(SESSION.toString(), recorded);
+		await useWorktree(database, SESSION, recorded, true);
+		await useWorktree(database, OTHER_SESSION, recorded);
+		await cleanup.sessionWorktreeCleanup(SESSION, true, true);
+		assert.deepStrictEqual({
+			forced: worktree.forcedRemovals,
+			otherSessionLive: await database.isSessionLive(OTHER_SESSION.toString()),
+			pending: await pending(database),
+		}, { forced: [managed.toString()], otherSessionLive: true, pending: [] });
 	});
 
 	test('force removal of session worktrees requires an archived session and preserves its history', async () => {
@@ -336,9 +399,9 @@ suite('AgentHostWorktreeCleanupService', () => {
 
 	test('rechecks branch identity before queued unlinked removal', async () => {
 		const { cleanup, worktree, repository, managed, head } = await createManagedInventory();
-		await assert.rejects(cleanup.cleanupManagedWorktree(repository, managed, 'old-branch'), /branch changed/);
+		await assert.rejects(cleanup.cleanupManagedWorktree(repository, managed, 'agents/old-branch'), /branch changed/);
 		await cleanup.cleanupManagedWorktree(repository, managed, head.branch);
-		head.branch = 'other-branch';
+		head.branch = 'agents/other-branch';
 		await cleanup.runPass();
 		const changed = await cleanup.listManagedWorktrees([repository]);
 		assert.deepStrictEqual({ states: changed.map(worktree => worktree.cleanupStatus.state), calls: worktree.calls }, { states: ['failed'], calls: [] });

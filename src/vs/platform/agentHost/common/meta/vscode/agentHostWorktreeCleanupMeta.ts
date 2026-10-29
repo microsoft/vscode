@@ -9,7 +9,7 @@ export const AgentHostWorktreeCleanupCapabilityMetaKey = 'vscode.worktreeCleanup
 export const ManagedWorktreesCapabilityMetaKey = 'vscode.managedWorktrees';
 export const ForceWorktreeCleanupCapabilityMetaKey = 'vscode.forceWorktreeCleanup';
 
-/** Opts into confirmed, destructive `force` cleanup while retaining host ownership and in-use checks. */
+/** Opts into confirmed, destructive `force` cleanup that overrides usage references but retains managed-path validation. */
 export function supportsForceWorktreeCleanup(result: InitializeResult | undefined): boolean {
 	return result?._meta?.[ForceWorktreeCleanupCapabilityMetaKey] === true;
 }

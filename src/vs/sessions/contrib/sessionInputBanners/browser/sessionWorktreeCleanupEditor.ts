@@ -176,7 +176,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const content = dom.append(this.container, dom.$('.session-worktree-cleanup-content'));
 
 		dom.append(content, dom.$('p.session-worktree-cleanup-intro', undefined,
-			localize('sessionWorktreeCleanup.filteredIntro', "Clean up worktrees to free disk space. Normal cleanup commits uncommitted changes and marks sessions as done; restore a session to recreate its worktree. Managed worktrees with no matching session can also be selected; their branches are kept. Force Remove permanently discards uncommitted changes after a separate confirmation.")));
+			localize('sessionWorktreeCleanup.filteredIntro', "Clean up worktrees to free disk space. Normal cleanup commits uncommitted changes and marks sessions as done; restore a session to recreate its worktree. Managed worktrees with no matching session can also be selected; their branches are kept. Force Remove permanently discards uncommitted changes and overrides usage by other sessions or chats after a separate confirmation.")));
 		dom.append(content, dom.$('p', undefined,
 			dom.$('strong', undefined, localize('sessionWorktreeCleanup.reopen', "You can return to this editor at any time by running Open Worktree Cleanup from the Command Palette."))));
 
