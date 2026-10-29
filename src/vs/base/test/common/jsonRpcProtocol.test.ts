@@ -105,6 +105,27 @@ suite('JsonRpcProtocol', () => {
 		await assert.rejects(requestPromise, error => error instanceof CancellationError);
 	});
 
+	test('cancelIncomingRequest cancels the handler token of that request only', async () => {
+		const handled = new DeferredPromise<string>();
+		let receivedToken: CancellationToken | undefined;
+		const { protocol } = createProtocol({
+			handleRequest: (_request, token) => {
+				receivedToken = token;
+				return handled.p;
+			}
+		});
+
+		const outgoingPromise = protocol.sendRequest({ method: 'outgoing' });
+		const replies = protocol.handleMessage({ jsonrpc: '2.0', id: 1, method: 'incoming' });
+		protocol.cancelIncomingRequest(1);
+
+		assert.strictEqual(receivedToken?.isCancellationRequested, true);
+		await protocol.handleMessage({ jsonrpc: '2.0', id: 1, result: 'outgoing:ok' });
+		assert.strictEqual(await outgoingPromise, 'outgoing:ok');
+		handled.complete('incoming:ok');
+		await replies;
+	});
+
 	test('handleRequest responds with method not found without handler', async () => {
 		const { protocol, sentMessages } = createProtocol();
 
