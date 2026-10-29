@@ -18,7 +18,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationError, errorHandler } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, ISettableObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -492,12 +492,7 @@ async function createResolvedRecentWorkspacesService(
 	instantiationService.stub(IFileService, fileService);
 	instantiationService.stub(ILogService, disposables.add(new NullLogService()));
 	const recentWorkspacesService = disposables.add(instantiationService.createInstance(SessionsRecentWorkspacesService));
-	await new Promise<void>(resolve => {
-		const listener = recentWorkspacesService.onDidChangeRecentWorkspaces(() => {
-			listener.dispose();
-			resolve();
-		});
-	});
+	await waitForState(recentWorkspacesService.historyLoadState, state => state !== 'loading');
 	return recentWorkspacesService;
 }
 
@@ -2066,22 +2061,29 @@ suite('WorkspacePicker - Connection Status', () => {
 		let hideCount = 0;
 		const updates: Array<readonly IActionListItem<unknown>[]> = [];
 		const preserveOpenPanel: boolean[] = [];
-		const picker = createTestablePicker(
-			disposables, providersService, true, { restoreFromSessions: false }, undefined, undefined, {
-			get isVisible() { return visible; },
-			show: () => {
-				visible = true;
-				showCount++;
-			},
-			hide: () => {
-				visible = false;
-				hideCount++;
-			},
-			updateItems: (items, _focusItemId, options) => {
-				updates.push(items);
-				preserveOpenPanel.push(options?.preserveHover === true);
-			},
-		},
+		const storage = disposables.add(new TestStorageService());
+		const workspacesService = upcastPartial<IWorkspacesService>({
+			onDidChangeRecentlyOpened: Event.None,
+			getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
+		});
+		const recentWorkspacesService = await createResolvedRecentWorkspacesService(disposables, storage, providersService, workspacesService);
+		const picker = createTestPicker(
+			disposables, providersService, storage, undefined, TestablePicker,
+			undefined, workspacesService, recentWorkspacesService, { restoreFromSessions: false }, undefined, upcastPartial<IActionWidgetService>({
+				get isVisible() { return visible; },
+				show: () => {
+					visible = true;
+					showCount++;
+				},
+				hide: () => {
+					visible = false;
+					hideCount++;
+				},
+				updateItems: (items, _focusItemId, options) => {
+					updates.push(items);
+					preserveOpenPanel.push(options?.preserveHover === true);
+				},
+			}),
 		);
 		picker.showPicker(false, document.createElement('button'));
 
@@ -2402,6 +2404,32 @@ suite('WorkspacePicker - Connection Status', () => {
 			eventuallyStarted: 8,
 			maximumActiveChecks: 4,
 			activeChecks: 0,
+		});
+	});
+
+	test('only checks Dev Container availability for displayed or matching workspaces', async () => {
+		const checked: string[] = [];
+		const provider = createMockProvider('local-agent-host', {
+			group: SESSION_WORKSPACE_GROUP_LOCAL,
+			isDevContainerWorkspaceAvailable: async uri => {
+				checked.push(uri.path);
+				return false;
+			},
+		});
+		providersService.setProviders([provider]);
+		const picker = createTestablePicker(disposables, providersService, true, { restoreFromSessions: false });
+		picker.setRecentWorkspaces(Array.from({ length: 100 }, (_, index) => ({
+			providerId: provider.id,
+			workspace: provider.resolveWorkspace(URI.file(`/agent-host/project-${index}`))!,
+		})));
+		picker.getItems();
+		await timeout(0);
+		const initial = [...checked];
+		picker.getItemsForFilter('project-99');
+		await timeout(0);
+		assert.deepStrictEqual({ initial, searched: checked.slice(initial.length) }, {
+			initial: Array.from({ length: 10 }, (_, index) => `/agent-host/project-${index}`),
+			searched: ['/agent-host/project-99'],
 		});
 	});
 
@@ -5144,6 +5172,8 @@ suite('WorkspacePicker - Category Triggers', () => {
 			override hide(): void {
 				this.isVisible = false;
 			}
+
+			override updateItems(): void { }
 		}
 
 		let browseCalls = 0;
@@ -6980,6 +7010,94 @@ suite('AutomationsWorkspacePicker', () => {
 		await sheet;
 	});
 
+	test('web workspace search stays compact and refreshes desktop and mobile history without losing the query', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const workbench = document.createElement('div');
+		workbench.classList.add('phone-layout');
+		document.body.append(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+		const provider = createMockProvider('local');
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		providersService.setProviders([provider]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, Array.from({ length: 12 }, (_, index) => ({
+			providerId: provider.id,
+			uri: URI.file(`/folder-${index}`),
+			checked: false,
+		})));
+		const historyChanged = disposables.add(new Emitter<void>());
+		let importedFolders: URI[] = [];
+		const workspacesService = upcastPartial<IWorkspacesService>({
+			onDidChangeRecentlyOpened: historyChanged.event,
+			getRecentlyOpened: async () => ({ workspaces: importedFolders.map(folderUri => ({ folderUri })), files: [] }),
+		});
+		const recentWorkspacesService = await createResolvedRecentWorkspacesService(disposables, storage, providersService, workspacesService);
+		let desktopVisible = false;
+		let desktopOptions: IActionListOptions | undefined;
+		let desktopLabels: string[] = [];
+		const actionWidgetService = upcastPartial<IActionWidgetService>({
+			get isVisible() { return desktopVisible; },
+			show: (_user, _supportsPreview, _items, _delegate, _anchor, _container, _actions, _accessibilityProvider, options) => {
+				desktopVisible = true;
+				desktopOptions = options;
+			},
+			hide: () => { desktopVisible = false; },
+			updateItems: items => { desktopLabels = items.flatMap(item => item.label ? [item.label] : []); },
+		});
+		const picker = createTestPicker(
+			disposables, providersService, storage, undefined, TestWebWorkspacePicker,
+			undefined, workspacesService, recentWorkspacesService, { restoreFromSessions: false },
+			undefined, actionWidgetService, undefined,
+			upcastPartial<IAgentHostFilterService>({ onDidChange: Event.None, selectedHost: hostEntry(provider.id), isDiscovering: false, rediscover: async () => true }),
+			upcastPartial<IWorkbenchLayoutService>({ mainContainer: workbench }),
+		);
+		const trigger = workbench.appendChild(document.createElement('button'));
+		picker.showPicker(false, trigger);
+		const searchInput = workbench.querySelector<HTMLInputElement>('.mobile-picker-sheet-search-input')!;
+		const labels = () => Array.from(workbench.querySelectorAll('.mobile-picker-sheet-label')).map(row => row.textContent);
+		const search = async (value: string) => {
+			searchInput.value = value;
+			searchInput.dispatchEvent(new CustomEvent('input'));
+			await timeout(300);
+			return labels();
+		};
+		const initial = await search('');
+		const matching = await search('folder-11');
+		const cleared = await search('');
+		const beforeArrival = await search('folder-12');
+		importedFolders = [URI.file('/folder-12')];
+		historyChanged.fire();
+		await timeout(300);
+		const afterArrival = { labels: labels(), query: searchInput.value };
+		workbench.querySelector<HTMLButtonElement>('.mobile-picker-sheet-item')?.click();
+		await timeout(0);
+		assert.deepStrictEqual({ initial, matching, cleared, beforeArrival, afterArrival, selected: picker.selectedFolderUri?.path }, {
+			initial: Array.from({ length: 10 }, (_, index) => `folder-${index}`),
+			matching: ['folder-11'],
+			cleared: Array.from({ length: 10 }, (_, index) => `folder-${index}`),
+			beforeArrival: [],
+			afterArrival: { labels: ['folder-12'], query: 'folder-12' },
+			selected: '/folder-12',
+		});
+		workbench.classList.remove('phone-layout');
+		picker.showPicker(false, trigger);
+		desktopOptions?.onDidChangeFilter?.('folder-13');
+		const beforeDesktopArrival = [...desktopLabels];
+		importedFolders = [URI.file('/folder-12'), URI.file('/folder-13')];
+		historyChanged.fire();
+		await timeout(300);
+		assert.deepStrictEqual({
+			beforeDesktopArrival,
+			afterDesktopArrival: desktopLabels,
+			stillOpen: desktopVisible,
+			selected: picker.selectedFolderUri?.path,
+		}, {
+			beforeDesktopArrival: ['GitHub repositories are still loading'],
+			afterDesktopArrival: ['folder-13'],
+			stillOpen: true,
+			selected: '/folder-12',
+		});
+	}));
+
 	test('mobile workspace sheet shows a caller-provided repository policy caption', async () => {
 		const workbench = document.createElement('div');
 		document.body.appendChild(workbench);
@@ -7038,6 +7156,11 @@ class TestablePicker extends WorkspacePicker {
 
 	getItems() {
 		return this._buildItems();
+	}
+
+	getItemsForFilter(value: string) {
+		this._workspaceFilter = value.trim().toLocaleLowerCase();
+		return this.getItems();
 	}
 
 	getListOptions(): IActionListOptions {
@@ -7150,8 +7273,10 @@ const buildWebWorkspacePickerItems = Reflect.get(WebWorkspacePicker.prototype, '
 	readonly sessionsProvidersService: ISessionsProvidersService;
 	readonly _directPickerAttachesContext: boolean | undefined;
 	readonly _directPickerGroup: string | undefined;
+	readonly _workspaceFilter?: string;
 	readonly options: IWorkspacePickerOptions;
 	_getRecentWorkspaces(): Array<{ readonly workspace: ISessionWorkspace; readonly providerId: string }>;
+	_matchesWorkspaceFilter(workspace: ISessionWorkspace): boolean;
 	_getAllBrowseActions(): ISessionWorkspaceBrowseAction[];
 	_isSelectedFolder(folderUri: URI): boolean;
 	_isProviderUnavailable(providerId: string): boolean;
@@ -7433,6 +7558,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 			'Open Folder...',
 			'Select Remote',
 		]);
+		assert.deepStrictEqual(picker.getItemsForFilter('folder-10').flatMap(entry => entry.item?.folderUri?.path ?? []), ['/local/folder-10']);
 	});
 
 	test('strips only trailing ellipses from unified browse action labels', () => {
@@ -7573,7 +7699,24 @@ suite('WorkspacePicker - Tab discovery', () => {
 		]);
 	});
 
-	test('caps recent workspaces at ten including session workspaces', () => {
+	test('chooses the ten most recent entries before grouping repositories below folders', () => {
+		const provider = createMockProvider('local');
+		providersService.setProviders([provider]);
+		const picker = createTestablePicker(disposables, providersService);
+		picker.setRecentWorkspaces(Array.from({ length: 12 }, (_, index) => ({
+			providerId: provider.id,
+			workspace: {
+				...provider.resolveWorkspace(URI.file(`/recent-${index}`))!,
+				group: index === 0 ? SESSION_WORKSPACE_GROUP_GITHUB : SESSION_WORKSPACE_GROUP_LOCAL,
+			},
+		})));
+		assert.deepStrictEqual(picker.getItems().flatMap(entry => entry.item?.folderUri?.path ?? []), [
+			...Array.from({ length: 9 }, (_, index) => `/recent-${index + 1}`),
+			'/recent-0',
+		]);
+	});
+
+	test('keeps older session workspaces searchable beyond the ten visible recents', () => {
 		const provider = createMockProvider('local');
 		providersService.setProviders([provider]);
 		const recentWorkspaces = Array.from({ length: 12 }, (_, index) => ({
@@ -7583,10 +7726,13 @@ suite('WorkspacePicker - Tab discovery', () => {
 		}));
 		const picker = createTestablePicker(disposables, providersService);
 		picker.setRecentWorkspaces(recentWorkspaces);
-		assert.deepStrictEqual(
-			picker.getItems().flatMap(entry => entry.item?.folderUri?.path ?? []),
-			recentWorkspaces.slice(0, 10).map(({ workspace }) => workspace.uri.path),
-		);
+		assert.deepStrictEqual({
+			visible: picker.getItems().flatMap(entry => entry.item?.folderUri?.path ?? []),
+			searchable: picker.getItemsForFilter('recent-').flatMap(entry => entry.item?.folderUri?.path ?? []),
+		}, {
+			visible: recentWorkspaces.slice(0, 10).map(({ workspace }) => workspace.uri.path),
+			searchable: recentWorkspaces.map(({ workspace }) => workspace.uri.path),
+		});
 	});
 
 	test('keeps unified action dispatch stable when GitHub actions are hidden', async () => {
@@ -8092,6 +8238,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 			_directPickerGroup: SESSION_WORKSPACE_GROUP_GITHUB,
 			options: {},
 			_getRecentWorkspaces: () => [{ workspace: { ...repositoryWorkspace, group: SESSION_WORKSPACE_GROUP_GITHUB }, providerId: githubProvider.id }],
+			_matchesWorkspaceFilter: () => true,
 			_getAllBrowseActions: () => [repositoryAction],
 			_isSelectedFolder: () => false,
 			_isProviderUnavailable: () => false,
@@ -8143,6 +8290,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 				{ workspace: remoteWorkspace, providerId: remoteProvider.id },
 				{ workspace: gitHubWorkspace, providerId: gitHubProvider.id },
 			],
+			_matchesWorkspaceFilter: () => true,
 			_getAllBrowseActions: () => [remoteAction, repositoryAction],
 			_isSelectedFolder: () => false,
 			_isProviderUnavailable: () => false,

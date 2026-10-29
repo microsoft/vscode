@@ -19,6 +19,7 @@ import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/c
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
+import { toToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { compactContextAttribution } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
@@ -1956,6 +1957,65 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('MCP App results', () => {
+		const backendSession = URI.parse('other-host:/opaque-session');
+		const ui = { resourceUri: 'ui://remote/app', channel: 'mcp://other-host/opaque-channel' };
+		const resultMeta = { ui: { private: [null, false, 0, { value: 'opaque' }] }, toolKind: 'server-owned' };
+		for (const fixture of [
+			{ name: 'nested result meta', resultMeta, withContent: true, success: true },
+			{ name: 'metadata-only result', resultMeta, withContent: false, success: true },
+			{ name: 'empty result meta', resultMeta: {}, withContent: false, success: true },
+			{ name: 'metadata-only error result', resultMeta, withContent: false, success: false },
+		]) {
+			test(`preserves MCP ${fixture.name} identically in live and restored results`, () => {
+				const running = createToolCallState({
+					contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'remote-server' },
+					_meta: toToolCallMeta({ ui, mcpServerName: 'remote-server' }),
+				});
+				const content = fixture.withContent ? [{ type: ToolResultContentType.Text, text: 'Public result' }] satisfies ToolResultContent[] : [];
+				const structuredContent = fixture.withContent ? { public: true } : undefined;
+				const completed = createCompletedToolCall({
+					...running,
+					status: ToolCallStatus.Completed,
+					success: fixture.success,
+					content,
+					structuredContent,
+					resultMetadata: fixture.resultMeta,
+				});
+				const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+				rawFinalizeToolInvocation(live, completed, backendSession, 'other-host');
+				const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'other-host');
+				const expected = {
+					content: content.map(block => ({ type: 'text', text: block.text })),
+					...(structuredContent !== undefined ? { structuredContent } : {}),
+					_meta: fixture.resultMeta,
+					isError: fixture.success ? undefined : true,
+				};
+				assert.deepStrictEqual([live, restored].map(part => {
+					const details = part.kind === 'toolInvocation' ? IChatToolInvocation.resultDetails(part) : part.resultDetails;
+					return isToolResultInputOutputDetails(details) ? details.mcpOutput : undefined;
+				}), [expected, expected]);
+			});
+		}
+
+		test('does not emit MCP result meta from a running tool', () => {
+			const running = {
+				...createToolCallState({
+					contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'remote-server' },
+					content: [],
+					_meta: toToolCallMeta({ ui }),
+				}),
+				resultMetadata: resultMeta,
+			};
+			const invocation = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+			rawUpdateRunningToolSpecificData(invocation, running, backendSession, 'other-host');
+			const runningDetails = IChatToolInvocation.resultDetails(invocation);
+			rawFinalizeToolInvocation(invocation, running, backendSession, 'other-host');
+			assert.deepStrictEqual({ runningDetails, finalizedDetails: IChatToolInvocation.resultDetails(invocation) }, {
+				runningDetails: undefined,
+				finalizedDetails: { input: '', inputLanguage: 'json', output: [], isError: false, mcpOutput: undefined },
+			});
+		});
+
 		const textContent = [{ type: ToolResultContentType.Text, text: 'Opened the accent-color editor.' }] satisfies ToolResultContent[];
 		for (const toolInput of ['{}', undefined]) {
 			for (const content of [textContent, []]) {

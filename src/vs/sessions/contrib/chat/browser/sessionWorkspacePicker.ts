@@ -95,7 +95,7 @@ export const WORKSPACE_PICKER_LIST_OPTIONS = {
  * selection than leave the user staring at an unreachable workspace.
  */
 const RESTORE_CONNECT_GRACE_MS = 5000;
-const MAX_NEW_PICKER_RECENT_WORKSPACES = 10;
+export const MAX_NEW_PICKER_RECENT_WORKSPACES = 10;
 /**
  * A touch tap fires a Gesture Tap and, shortly after, a browser "ghost" click at the same position.
  * The picker may render under that position before the click arrives, so the click can be retargeted
@@ -535,6 +535,7 @@ export class WorkspacePicker extends Disposable {
 		// VS Code's recent-workspace history is loaded asynchronously.
 		this._register(this.recentWorkspacesService.onDidChangeRecentWorkspaces(() => {
 			this._restoreAutomaticSelection();
+			this._refreshRecentWorkspaces();
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(DevContainerAgentHostEnabledSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId)
@@ -779,6 +780,7 @@ export class WorkspacePicker extends Disposable {
 			this._hidePicker();
 		}
 		this._activeTriggerElement = triggerElement;
+		this._workspaceFilter = '';
 		this._setDirectPickerFilter(preferredGroup, attachesContext);
 		if (preferredGroup === SESSION_WORKSPACE_GROUP_GITHUB && attachesContext === false && !this._getCurrentRepositoryId()) {
 			const items = this._buildItems();
@@ -864,6 +866,7 @@ export class WorkspacePicker extends Disposable {
 				hide();
 			},
 			onHide: () => {
+				this._workspaceFilter = '';
 				this._setTriggerExpanded(triggerElement, false);
 				if (this._activeTriggerElement === triggerElement) {
 					this._activeTriggerElement = undefined;
@@ -880,7 +883,20 @@ export class WorkspacePicker extends Disposable {
 		const showFilter = isConsolidatedWorkspacePicker
 			|| items.filter(i => i.kind === ActionListItemKind.Action).length > FILTER_THRESHOLD;
 		return showFilter
-			? { ...WORKSPACE_PICKER_LIST_OPTIONS, showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: isConsolidatedWorkspacePicker ? localize('workspacePicker.filter', "Search") : undefined, submenuPointerIntent: isConsolidatedWorkspacePicker || undefined, submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, minWidth: pickerWidth, maxWidth: pickerWidth }
+			? {
+				...WORKSPACE_PICKER_LIST_OPTIONS,
+				showFilter: true,
+				focusFilterOnOpen: isConsolidatedWorkspacePicker,
+				filterPlaceholder: isConsolidatedWorkspacePicker ? localize('workspacePicker.filter', "Search") : undefined,
+				submenuPointerIntent: isConsolidatedWorkspacePicker || undefined,
+				submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined,
+				minWidth: pickerWidth,
+				maxWidth: pickerWidth,
+				onDidChangeFilter: value => {
+					this._workspaceFilter = value.trim().toLocaleLowerCase();
+					this._refreshPickerItems();
+				},
+			}
 			: { ...WORKSPACE_PICKER_LIST_OPTIONS, submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, minWidth: pickerWidth, maxWidth: pickerWidth };
 	}
 
@@ -1102,9 +1118,11 @@ export class WorkspacePicker extends Disposable {
 		return undefined;
 	}
 
-	private _getRepositoryId(workspace: ISessionWorkspace, reader?: IReader): string | undefined {
-		for (const folder of workspace.folders) {
-			folder.gitRepository?.resolveGitHubInfo?.();
+	private _getRepositoryId(workspace: ISessionWorkspace, reader?: IReader, resolveMetadata = true): string | undefined {
+		if (resolveMetadata) {
+			for (const folder of workspace.folders) {
+				folder.gitRepository?.resolveGitHubInfo?.();
+			}
 		}
 		const info = workspace.folders
 			.map(folder => folder.gitRepository?.gitHubInfo.read(reader))
@@ -1148,6 +1166,10 @@ export class WorkspacePicker extends Disposable {
 		if (activeTrigger && this.actionWidgetService.isVisible) {
 			this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true, preserveScrollPosition: true });
 		}
+	}
+
+	protected _refreshRecentWorkspaces(): void {
+		this._refreshPickerItems();
 	}
 
 	private _getCurrentRepositoryId(reader?: IReader): string | undefined {
@@ -1696,12 +1718,13 @@ export class WorkspacePicker extends Disposable {
 				.filter(w => providerIds.has(w.providerId))
 				.filter(w => !tabFilter || tabFilter(w))
 				.filter(w => !workspaceGroupAction?.hideWorkspaceItems || w.workspace.group !== workspaceGroupActionGroup)
+				.filter(w => this._matchesWorkspaceFilter(w.workspace))
 				.filter(({ workspace }) => {
 					if (!environment) {
 						return true;
 					}
 					const folderUri = workspace.folders[0]?.root;
-					const provider = folderUri && getEnvironmentWorkspaceProvider(environment, allProviders, folderUri);
+					const provider = folderUri && getEnvironmentWorkspaceProvider(environment, allProviders, folderUri, false);
 					if (!folderUri || !provider) {
 						return false;
 					}
@@ -1713,20 +1736,24 @@ export class WorkspacePicker extends Disposable {
 					failedContainerChecks ||= available === 'error';
 					return available === true;
 				});
+		const getRepositoryId = (resolved: IResolvedFolderWorkspace) => this._workspaceFilter
+			? this._getRepositoryId(resolved.workspace, undefined, false)
+			: this._getRepositoryIdForResolvedWorkspace(resolved);
 		const localRepositoryIds = new Set(recentWorkspaces
 			.filter(({ workspace }) => workspace.group === SESSION_WORKSPACE_GROUP_LOCAL)
-			.map(workspace => this._getRepositoryIdForResolvedWorkspace(workspace))
+			.map(getRepositoryId)
 			.filter(repositoryId => repositoryId !== undefined));
 
 		const recentWorkspaceEntries = recentWorkspaces
 			.map(resolved => ({
 				...resolved,
-				repositoryId: this._getRepositoryIdForResolvedWorkspace(resolved),
+				repositoryId: getRepositoryId(resolved),
 			}))
 			.filter(({ workspace, repositoryId }) =>
 				workspace.group !== SESSION_WORKSPACE_GROUP_GITHUB
 				|| !repositoryId
-				|| !localRepositoryIds?.has(repositoryId));
+				|| !localRepositoryIds?.has(repositoryId))
+			.slice(0, this._workspaceFilter ? undefined : MAX_NEW_PICKER_RECENT_WORKSPACES);
 		const orderByWorkspaceKind = (entries: typeof recentWorkspaceEntries) => [
 			...entries.filter(({ workspace }) => !ThemeIcon.isEqual(this._getWorkspaceIcon(workspace), Codicon.repo)),
 			...entries.filter(({ workspace }) => ThemeIcon.isEqual(this._getWorkspaceIcon(workspace), Codicon.repo)),
@@ -1735,7 +1762,7 @@ export class WorkspacePicker extends Disposable {
 		const orderedRecentWorkspaceEntries = [
 			...recentEntries,
 			...orderByWorkspaceKind(recentWorkspaceEntries.filter(entry => entry.isSessionWorkspace)),
-		].slice(0, MAX_NEW_PICKER_RECENT_WORKSPACES);
+		];
 
 		let previousRecentWorkspaceIsRepository: boolean | undefined;
 		for (const { workspace, providerId, repositoryId } of orderedRecentWorkspaceEntries) {
@@ -1743,7 +1770,7 @@ export class WorkspacePicker extends Disposable {
 			if (!folderUri) {
 				continue;
 			}
-			const environmentProvider = environment && getEnvironmentWorkspaceProvider(environment, allProviders, folderUri);
+			const environmentProvider = environment && getEnvironmentWorkspaceProvider(environment, allProviders, folderUri, false);
 			if (environment && !environmentProvider) {
 				continue;
 			}
@@ -2640,8 +2667,18 @@ export class WorkspacePicker extends Disposable {
 
 	// -- Recent workspaces (sessions' own history) --
 
-	protected _getRecentWorkspaces(): IResolvedFolderWorkspace[] {
-		const recentWorkspaces = this.recentWorkspacesService.getRecentWorkspaces(true, true)
+	protected _workspaceFilter = '';
+
+	protected _matchesWorkspaceFilter(workspace: ISessionWorkspace): boolean {
+		return !this._workspaceFilter
+			|| workspace.label.toLocaleLowerCase().includes(this._workspaceFilter)
+			|| workspace.description?.toLocaleLowerCase().includes(this._workspaceFilter) === true;
+	}
+
+	protected _getRecentWorkspaces(includeOlder = this._workspaceFilter.length > 0): IResolvedFolderWorkspace[] {
+		const recentWorkspaces = (includeOlder
+			? this.recentWorkspacesService.getWorkspaceCatalog(true)
+			: this.recentWorkspacesService.getRecentWorkspaces(true, true))
 			.filter(workspace => this._isWorkspaceProviderVisible(workspace.providerId));
 		const seen = new Set(recentWorkspaces.map(({ workspace }) =>
 			this.uriIdentityService.extUri.getComparisonKey(workspace.folders[0]?.root ?? workspace.uri)));

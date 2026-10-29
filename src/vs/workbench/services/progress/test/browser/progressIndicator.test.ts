@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../browser/progressIndicator.js';
 import { ProgressBar } from '../../../../../base/browser/ui/progressbar/progressbar.js';
@@ -66,11 +65,7 @@ class TestProgressBar extends ProgressBar {
 
 suite('Progress Indicator', () => {
 
-	const disposables = new DisposableStore();
-
-	teardown(() => {
-		disposables.clear();
-	});
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('ScopedProgressIndicator', async () => {
 		const testProgressBar = disposables.add(new TestProgressBar(document.createElement('div')));
@@ -127,5 +122,4 @@ suite('Progress Indicator', () => {
 		assert.strictEqual(true, testProgressBar.fDone);
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

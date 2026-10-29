@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore, type IReference } from '../../../../base/common/lifecycle.js';
+import { type IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -144,7 +144,7 @@ class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 
 suite('AgentHostCustomizationEnablementService', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = 'ahp://copilot/session-1';
 	const workspace = URI.file('/repo');
 	let storage: AgentHostStorageService;
@@ -170,8 +170,6 @@ suite('AgentHostCustomizationEnablementService', () => {
 		await service.initializeSession(session);
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('resolves session, workspace, global, and default decisions in precedence order', () => {
 		service.setEnablement(session, plugin, CustomizationEnablementKind.Global, false);

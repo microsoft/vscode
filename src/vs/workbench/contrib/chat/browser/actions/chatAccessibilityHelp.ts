@@ -95,6 +95,9 @@ export function getModelPickerConfigurationAccessibilityHelp(): string {
 
 export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive, codexContinuationShown: boolean = false, localModelEnabled: boolean = false, responseSelectionSupported = isResponseSelectionSupported(), sessionWorkingSetEnabled: boolean = false, sessionWorkingSetUndo: boolean = false, sessionWorkingSetReviewEnabled: boolean = true): string {
 	const content = [];
+	if (type !== 'inlineChat' && type !== 'quickChat') {
+		content.push(localize('chat.agentPickerSources', "When an Agent Host picker lists agents with the same name, each entry includes its source, using the extension name when available. If sources also match, a file name or location helps distinguish the agents."));
+	}
 	if (type !== 'inlineChat') {
 		content.push(getChatInputSessionLinkAccessibilityHelp());
 	}

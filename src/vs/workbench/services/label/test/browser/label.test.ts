@@ -674,7 +674,7 @@ suite('URI Label', () => {
 
 suite('multi-root workspace', () => {
 	let labelService: LabelService;
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
 		const sources = URI.file('folder1/src');
@@ -695,10 +695,6 @@ suite('multi-root workspace', () => {
 			disposables.add(new TestLifecycleService()),
 			uriIdentityService
 		));
-	});
-
-	teardown(() => {
-		disposables.clear();
 	});
 
 	test('labels of files in multiroot workspaces are the foldername followed by offset from the folder', () => {
@@ -843,7 +839,6 @@ suite('multi-root workspace', () => {
 		}
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
 });
 
 suite('workspace at FSP root', () => {

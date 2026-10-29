@@ -65,7 +65,7 @@ import { rootReducer } from '../../common/state/sessionReducers.js';
 import { getAgentHostClientProtocolVersions } from '../../common/agentHostProtocolCompatibility.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, AHP_AUTH_REQUIRED, type AhpNotification, type InitializeResult, type ProtocolMessage, type JsonRpcResponse, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
-import { supportsAgentHostManagedWorktrees } from '../../common/meta/agentHostWorktreeCleanupMeta.js';
+import { supportsAgentHostManagedWorktrees, supportsForceWorktreeCleanup } from '../../common/meta/agentHostWorktreeCleanupMeta.js';
 import { ROOT_STATE_URI, AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChangesetState, type ChatState, type Message, type RootState, type SessionState, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
 import { ChatInputResponseKind, SessionInputRequestKind, TerminalClaimKind, type AutomationEntry, type JsonPrimitive } from '../../common/state/protocol/state.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
@@ -573,7 +573,7 @@ function waitForResponse(transport: MockProtocolTransport, id: number): Promise<
 
 suite('ProtocolServerHandler', () => {
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let stateManager: AgentHostStateManager;
 	let server: MockProtocolServer;
 	let agentService: MockAgentService;
@@ -645,7 +645,6 @@ suite('ProtocolServerHandler', () => {
 	}
 
 	setup(() => {
-		disposables = new DisposableStore();
 		stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		server = disposables.add(new MockProtocolServer());
 		agentService = new MockAgentService();
@@ -672,12 +671,6 @@ suite('ProtocolServerHandler', () => {
 			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
 		));
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('pulls client certificates lazily over reverse RPC without changing the AH environment', async () => {
 		const environment = { ...process.env };
@@ -2593,12 +2586,15 @@ suite('ProtocolServerHandler', () => {
 					NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
 				));
 				const calls: string[][] = [];
+				const forced: boolean[] = [];
+				agentService.sessionWorktreeCleanup = async () => ({ state: 'unknown' });
 				agentService.listManagedWorktrees = async repositories => {
 					calls.push(repositories.map(repository => repository.toString()));
 					return [];
 				};
-				agentService.cleanupManagedWorktree = async (repository, worktree, branch) => {
+				agentService.cleanupManagedWorktree = async (repository, worktree, branch, force) => {
 					calls.push([repository.toString(), worktree.toString(), branch]);
+					forced.push(force === true);
 				};
 				const transport = disposables.add(new MockProtocolTransport());
 				const initialization = waitForResponse(transport, 1);
@@ -2607,13 +2603,20 @@ suite('ProtocolServerHandler', () => {
 				const initialized = await initialization;
 				assert.ok(hasKey(initialized, { result: true }));
 				assert.strictEqual(supportsAgentHostManagedWorktrees(initialized.result as InitializeResult), true);
+				assert.strictEqual(supportsForceWorktreeCleanup(initialized.result as InitializeResult), true);
 				const inventory = waitForResponse(transport, 20);
 				transport.simulateMessage(request(20, 'vscode/listManagedWorktrees', { repositories: ['file:///repo'] }));
 				assert.deepStrictEqual(await inventory, { jsonrpc: '2.0', id: 20, result: [] });
 				const cleanup = waitForResponse(transport, 21);
 				transport.simulateMessage(request(21, 'vscode/cleanupManagedWorktree', { repository: 'file:///repo', worktree: 'file:///repo.worktrees/recovered', branch: 'agents/recovered' }));
 				await cleanup;
-				assert.deepStrictEqual(calls, [['file:///repo'], ['file:///repo', 'file:///repo.worktrees/recovered', 'agents/recovered']]);
+				const forceCleanup = waitForResponse(transport, 22);
+				transport.simulateMessage(request(22, 'vscode/cleanupManagedWorktree', { repository: 'file:///repo', worktree: 'file:///repo.worktrees/recovered', branch: 'agents/recovered', force: true }));
+				await forceCleanup;
+				assert.deepStrictEqual({ calls, forced }, {
+					calls: [['file:///repo'], ['file:///repo', 'file:///repo.worktrees/recovered', 'agents/recovered'], ['file:///repo', 'file:///repo.worktrees/recovered', 'agents/recovered']],
+					forced: [false, true],
+				});
 			});
 		}
 
@@ -2648,6 +2651,27 @@ suite('ProtocolServerHandler', () => {
 			transport.simulateMessage(request(20, 'vscode/sessionWorktreeCleanup', { session: 'opaque-session://host/session', retry: 'true' }));
 			const result = await response;
 			assert.ok(hasKey(result, { error: true }) && result.error?.code === JsonRpcErrorCodes.InvalidParams);
+		});
+
+		test('routes confirmed force cleanup and rejects malformed force flags', async () => {
+			const calls: { session: string; retry: boolean; force: boolean | undefined }[] = [];
+			agentService.sessionWorktreeCleanup = async (session, retry, force) => {
+				calls.push({ session: session.toString(), retry, force });
+				return { state: 'unknown' };
+			};
+			agentService.cleanupManagedWorktree = async () => { throw new Error('Must not be called'); };
+			const transport = connectClient('force-worktree-cleanup');
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/sessionWorktreeCleanup', { session: 'opaque-session://host/session', retry: true, force: true }));
+			await response;
+			const invalidSession = waitForResponse(transport, 21);
+			transport.simulateMessage(request(21, 'vscode/sessionWorktreeCleanup', { session: 'opaque-session://host/session', retry: true, force: 'true' }));
+			const invalidManaged = waitForResponse(transport, 22);
+			transport.simulateMessage(request(22, 'vscode/cleanupManagedWorktree', { repository: 'file:///repo', worktree: 'file:///repo.worktrees/recovered', branch: 'agents/recovered', force: 'true' }));
+			const results = await Promise.all([invalidSession, invalidManaged]);
+			assert.deepStrictEqual({
+				calls, errors: results.map(result => hasKey(result, { error: true }) ? result.error?.code : undefined),
+			}, { calls: [{ session: 'opaque-session://host/session', retry: true, force: true }], errors: [JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams] });
 		});
 
 		test('returns aggregate bytes without routing per-file resource requests', async () => {
