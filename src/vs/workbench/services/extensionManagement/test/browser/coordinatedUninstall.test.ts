@@ -39,6 +39,8 @@ suite('Coordinated local uninstall exchanges', () => {
 		const gates: { release?: DeferredPromise<void>; ack?: DeferredPromise<void> } = {};
 		const started = { release: new DeferredPromise<void>(), ack: new DeferredPromise<void>() };
 		const state = {
+			localCapability: true,
+			remoteCapability: true,
 			identity: 'store-one',
 			identityCalls: 0,
 			commits: 0,
@@ -63,7 +65,8 @@ suite('Coordinated local uninstall exchanges', () => {
 		};
 		const local = upcastPartial<IProfileAwareExtensionManagementService>({
 			...events,
-			supportsCoordinatedUninstall: async () => true,
+			supportsCoordinatedUninstall: async () => state.localCapability,
+			uninstallExtensions: async () => { calls.push('legacy-uninstall'); state.installed = false; },
 			getPendingLocalUninstalls: async target => {
 				calls.push('pending'); fail('pending');
 				return [...operations].filter(([, value]) => value.pending && value.target === target).map(([id]) => id);
@@ -96,7 +99,11 @@ suite('Coordinated local uninstall exchanges', () => {
 		});
 		const remote = upcastPartial<IProfileAwareExtensionManagementService>({
 			...events,
-			supportsCoordinatedUninstall: async () => true,
+			supportsCoordinatedUninstall: async () => state.remoteCapability,
+			getInstalled: async () => {
+				calls.push('legacy-inventory');
+				return state.dependent ? [upcastPartial<ILocalExtension>({ identifier: { id: 'fixture.remote' }, manifest: { name: 'remote', publisher: 'fixture', version: '1.0.0', engines: { vscode: '*' }, extensionDependencies: ['fixture.local'] } })] : [];
+			},
 			getCoordinatedUninstallIdentity: async () => { calls.push('identity'); state.identityCalls++; fail('identity'); return state.identity; },
 			reserveLocalUninstall: async (id, _profile, expected) => {
 				calls.push('reserve');
@@ -258,6 +265,34 @@ suite('Coordinated local uninstall exchanges', () => {
 		await assert.rejects(h.uninstall(), /lost pending reply/);
 		await h.uninstall();
 		assert.strictEqual(h.state.identityCalls, 3);
+	});
+
+	for (const capability of ['localCapability', 'remoteCapability'] as const) {
+		test(`unsupported ${capability} retains ordered per-item checks without reservation`, async () => {
+			const h = harness();
+			h.state[capability] = false;
+			await h.uninstall();
+			assert.deepStrictEqual(h.calls.filter(call => call !== 'identity' && call !== 'pending'), ['legacy-inventory', 'legacy-uninstall']);
+			assert.strictEqual(h.operations.size, 0);
+			assert.strictEqual(h.reservations.size, 0);
+		});
+	}
+
+	test('legacy fallback checks every local item before removing the batch', async () => {
+		const h = harness();
+		h.state.remoteCapability = false;
+		const extension = upcastPartial<ILocalExtension>({ identifier: { id: 'fixture.local' }, location: URI.file('/extensions/fixture.local'), manifest: { name: 'local', publisher: 'fixture', version: '1.0.0', engines: { vscode: '*' } } });
+		await h.service.uninstallExtensions([{ extension }, { extension: { ...extension, identifier: { id: 'fixture.other' } } }]);
+		assert.deepStrictEqual(h.calls.filter(call => call !== 'identity' && call !== 'pending'), ['legacy-inventory', 'legacy-inventory', 'legacy-uninstall']);
+	});
+
+	test('legacy fallback still rejects a blocking remote dependency', async () => {
+		const h = harness();
+		h.state.remoteCapability = false;
+		h.state.dependent = true;
+		await assert.rejects(h.uninstall(), /depends on this/);
+		assert.strictEqual(h.state.installed, true);
+		assert.ok(!h.calls.includes('legacy-uninstall') && !h.calls.includes('reserve'));
 	});
 
 	test('failed startup identity handshake is refreshed by the first explicit request', async () => {
