@@ -3932,8 +3932,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// same moment.
 		const editedModeRequestOptions = isInlineEdit ? this.getModeRequestOptions() : undefined;
 		const editedInstructionRouting = isInlineEdit ? this._getInstructionRouting() : undefined;
-		// Inline attachment pills keep their references in the inline editor, so they are taken before it goes.
-		const editedReferences = isInlineEdit && this.input.inlineAttachments?.isEnabled ? getDynamicVariablesForWidget(this) : undefined;
+		// Inline attachment pills keep their references in the input, which the request is parsed with. They are taken
+		// before the input goes: the inline editor of an edited request is torn down, and the request that starts a new
+		// session is parsed once the session exists, after the input was cleared.
+		const editedReferences = isUserQuery && this.input.inlineAttachments?.isEnabled ? getDynamicVariablesForWidget(this, { forModel: true }) : undefined;
 		let cancelledCurrentRequest = false;
 		if (isEditing) {
 			// Clear the carousel since the existing request is being replaced

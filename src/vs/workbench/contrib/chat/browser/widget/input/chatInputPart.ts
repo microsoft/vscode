@@ -3901,6 +3901,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			inlineAttachments.refresh();
 		}));
 		this._register(this.themeService.onDidFileIconThemeChange(() => inlineAttachments.refresh()));
+		// A pill that starts a row leaves no text to click in front of, so clicking the padding beside a row of the input places
+		// the cursor at that end of the row, as clicking beside the row in the editor does.
+		this._register(dom.addDisposableListener(inputContainer, dom.EventType.MOUSE_DOWN, e => {
+			if (e.button !== 0 || (e.target !== inputContainer && e.target !== editorContainer) || !inlineAttachments.isEnabled) {
+				return;
+			}
+			const editorBox = this._inputEditorElement.getBoundingClientRect();
+			const layout = this._inputEditor.getLayoutInfo();
+			const contentLeft = editorBox.left + layout.contentLeft;
+			const contentRight = contentLeft + layout.contentWidth;
+			if (e.clientY < editorBox.top || e.clientY >= editorBox.bottom || (e.clientX >= contentLeft && e.clientX < contentRight)) {
+				return;
+			}
+			const position = inlineAttachments.getPositionAtClientPoint(e.clientX < contentLeft ? contentLeft + 1 : contentRight - 1, e.clientY);
+			if (position) {
+				// The click would otherwise take focus away from the input.
+				e.preventDefault();
+				this._inputEditor.setPosition(position, 'mouse');
+				this._inputEditor.focus();
+			}
+		}));
 
 		const dictationRecording = ChatContextKeys.speechToTextRecording.bindTo(this.contextKeyService);
 		const dictationPreparing = ChatContextKeys.speechToTextPreparing.bindTo(this.contextKeyService);
@@ -4907,7 +4928,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	/**
 	 * Whether an attachment is shown as a pill inline with the prompt, see
-	 * {@link ChatInlineAttachments}. Images are always shown above the prompt.
+	 * {@link ChatInlineAttachments}.
 	 */
 	private isAttachmentShownInline(attachment: IChatRequestVariableEntry): boolean {
 		return !!this._inlineAttachments?.isShownInline(attachment);

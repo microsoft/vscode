@@ -35,7 +35,7 @@ import { KeybindingWeight } from '../../../../../../../platform/keybinding/commo
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { AccessibilityVerbositySettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
-import { canOpenAttachment, canShowAttachmentInline, getAttachmentMention, GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX, IInlineAttachmentAnchor, IInlineAttachmentProjection, INLINE_ATTACHMENT_ANCHOR, isInlineAttachmentCandidate, projectInlineAttachments, toRelativeRange } from '../../../../common/attachments/chatInlineAttachments.js';
+import { canOpenAttachment, canShowAttachmentInline, getAttachmentLabel, getAttachmentMention, getAttachmentPromptText, GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX, IInlineAttachmentAnchor, IInlineAttachmentProjection, INLINE_ATTACHMENT_ANCHOR, isInlineAttachmentCandidate, projectInlineAttachments, toRelativeRange } from '../../../../common/attachments/chatInlineAttachments.js';
 import { IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { IDynamicVariable, toAttachedContextDynamicVariable } from '../../../../common/attachments/chatVariables.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
@@ -199,6 +199,8 @@ export class ChatInlineAttachments extends Disposable {
 	 * active, so that Enter sends the prompt.
 	 */
 	private _isCursorPlacedByEdit = false;
+	/** How the cursor last changed other than by an edit of this controller, which tells whether a completion placed it. */
+	private _lastCursorChange: { readonly source: string; readonly reason: CursorChangeReason } | undefined;
 	private readonly _activePillContextKey: IContextKey<boolean>;
 
 	constructor(
@@ -279,7 +281,12 @@ export class ChatInlineAttachments extends Disposable {
 		}));
 
 		this._register(this._editor.onDidChangeCursorSelection(e => {
-			this._isCursorPlacedByEdit = this._isApplyingEdits || e.source === 'api' || (e.reason !== CursorChangeReason.Explicit && e.reason !== CursorChangeReason.NotSet);
+			// An edit of this controller, as when what a completion inserted becomes a pill, moves the cursor
+			// that the user or the edit before it placed, which tells whether the pill before it is active.
+			if (!this._isApplyingEdits) {
+				this._isCursorPlacedByEdit = e.source === 'api' || (e.reason !== CursorChangeReason.Explicit && e.reason !== CursorChangeReason.NotSet);
+				this._lastCursorChange = { source: e.source, reason: e.reason };
+			}
 			this._updateSelectedPills();
 			const previousActive = this._activePill;
 			this._updateActivePill();
@@ -331,9 +338,14 @@ export class ChatInlineAttachments extends Disposable {
 	 * expanded to the text it stands for.
 	 *
 	 * @param references References in the input to project along with it.
+	 * @param options.forModel Whether the prompt is parsed into the request that
+	 * is sent to the model, which reads each pill's attachment by its name and
+	 * location rather than the text that the pill stands for, see
+	 * {@link getAttachmentPromptText}. The prompt that is persisted, copied, or
+	 * restored keeps the text.
 	 * @returns `undefined` when the input contains no anchor, so it already is the prompt.
 	 */
-	project(references: readonly IDynamicVariable[] = []): IInlineAttachmentProjection | undefined {
+	project(references: readonly IDynamicVariable[] = [], options?: { readonly forModel?: boolean }): IInlineAttachmentProjection | undefined {
 		const model = this._editor.getModel();
 		// Without pills, any anchor character in the input is the user's own text.
 		if (!model || (!this._isEnabled && !this._pills.size && !this._pendingAnchors.length)) {
@@ -343,9 +355,11 @@ export class ChatInlineAttachments extends Disposable {
 		for (const pill of this._pills) {
 			const range = pill.range;
 			if (range && isAnchorRange(model, range)) {
-				anchors.push({ offset: model.getOffsetAt(range.getStartPosition()), text: pill.data.text, reference: pill.data.reference });
+				const promptText = options?.forModel && pill.data.reference ? getAttachmentPromptText(this._resolveEntry(pill.data)) : undefined;
+				anchors.push({ offset: model.getOffsetAt(range.getStartPosition()), text: pill.data.text, reference: pill.data.reference, promptText });
 			}
 		}
+		// Pills that this controller's edit adds exist only while it edits, when no request is sent.
 		anchors.push(...this._pendingAnchors);
 		// A reference that covers a pill is stale: it is the one whose text the pill replaced.
 		const currentReferences = references.filter(reference => {
@@ -539,7 +553,9 @@ export class ChatInlineAttachments extends Disposable {
 
 		this._renderPills();
 		this._updateUnavailablePills(widget);
+		const previousActive = this._activePill;
 		this._updateActivePill();
+		this._announceActivatedPill(previousActive);
 		this._recordPills(model);
 		this._version = model.getAlternativeVersionId();
 		if (changed) {
@@ -715,7 +731,7 @@ export class ChatInlineAttachments extends Disposable {
 			this._host.removeAttachments([...attachmentsToDelete.values()], !change.undoRedo);
 		}
 		if (removed.length === 1 && this._accessibilityService.isScreenReaderOptimized()) {
-			status(localize('chat.inlineAttachment.removed', "Removed {0}", getLabel(removed[0].data.entry)));
+			status(localize('chat.inlineAttachment.removed', "Removed {0}", getAttachmentLabel(removed[0].data.entry)));
 		}
 	}
 
@@ -742,22 +758,28 @@ export class ChatInlineAttachments extends Disposable {
 		};
 
 		// References, such as `#file:index.ts`
+		let isCompletion = false;
 		for (const reference of dynamicVariableModel?.variables ?? []) {
 			const range = Range.lift(reference.range);
 			const text = model.getValueInRange(range);
-			if (range.startLineNumber !== range.endLineNumber || !isReferenceText(text) || this._expandedByUndoRedo.has(reference.id)) {
+			if (range.startLineNumber !== range.endLineNumber || !isReferenceText(text, reference) || this._expandedByUndoRedo.has(reference.id)) {
 				continue;
 			}
-			// Images are shown above the input, so a mention of one stays text.
+			// Mentions of attachments that are shown above the input, such as agent host completions, stay text.
 			const attachment = reference.isAttachmentReference ? this._attachmentModel.attachments.find(candidate => candidate.id === reference.id) : undefined;
 			if (attachment && !canShowAttachmentInline(attachment)) {
 				continue;
 			}
 			const entry = toVariableEntry(reference, text, model.getOffsetAt(range.getStartPosition()), range);
-			if (!canShowAttachmentInline(entry) || !claim(range)) {
+			const completedRange = this._getCompletedReferenceRange(model, range, text);
+			const pillRange = completedRange ?? range;
+			if (!canShowAttachmentInline(entry) || !claim(pillRange)) {
 				continue;
 			}
-			pending.push({ data: { id: reference.id, text, reference: { ...reference }, entry }, range });
+			// The user chose the completion, so the cursor that it leaves right after the pill highlights it.
+			isCompletion ||= !!completedRange;
+			// What the model reads in place of the pill is derived from its attachment when a request is sent.
+			pending.push({ data: { id: reference.id, text, reference: { ...reference, promptText: undefined }, entry }, range: pillRange });
 		}
 
 		// Tool and tool set references, which are recognized from their text
@@ -834,6 +856,10 @@ export class ChatInlineAttachments extends Disposable {
 		// says into pills is not an edit of the user's to undo either: undoing it would lose references.
 		const undoable = !change?.flush || model.canUndo();
 		this._replaceWithPills(model, pending, orphans, undoable);
+		if (isCompletion) {
+			// The completion's edit placed the cursor, but the user chose the completion.
+			this._isCursorPlacedByEdit = false;
+		}
 		if (insertions.length) {
 			this._insertPillsAtCursor(model, insertions);
 		}
@@ -939,7 +965,7 @@ export class ChatInlineAttachments extends Disposable {
 
 		if (this._accessibilityService.isScreenReaderOptimized()) {
 			status(pills.length === 1
-				? localize('chat.inlineAttachment.added', "Added {0} to the prompt", getLabel(pills[0].entry))
+				? localize('chat.inlineAttachment.added', "Added {0} to the prompt", getAttachmentLabel(pills[0].entry))
 				: localize('chat.inlineAttachment.addedMultiple', "Added {0} attachments to the prompt", pills.length));
 		}
 	}
@@ -1109,6 +1135,31 @@ export class ChatInlineAttachments extends Disposable {
 			&& (this._editor.getSelections() ?? []).some(selection => selection.isEmpty() && selection.getPosition().equals(range.getEndPosition()));
 	}
 
+	/**
+	 * The range that the pill of a reference replaces when a completion just inserted the reference, with the cursor
+	 * right after it: the reference, and the space after it when the completion inserted one, so that the cursor is
+	 * right after the pill.
+	 *
+	 * @returns `undefined` when no completion just inserted the reference.
+	 */
+	private _getCompletedReferenceRange(model: ITextModel, range: Range, text: string): Range | undefined {
+		const change = this._lastCursorChange;
+		const selections = this._editor.getSelections() ?? [];
+		// Pasted, restored, and undone text is not completed, nor is text that the API inserted.
+		if (!change || change.source === 'api' || (change.reason !== CursorChangeReason.NotSet && change.reason !== CursorChangeReason.RecoverFromMarkers)
+			|| selections.length !== 1 || !selections[0].isEmpty() || !this._lastInsertedTexts.some(inserted => inserted.includes(text))) {
+			return undefined;
+		}
+		const position = selections[0].getPosition();
+		if (position.equals(range.getEndPosition())) {
+			return range;
+		}
+		const withSpace = range.setEndPosition(range.endLineNumber, range.endColumn + 1);
+		return position.equals(withSpace.getEndPosition()) && model.getValueInRange(withSpace) === `${text} ` && this._lastInsertedTexts.some(inserted => inserted.endsWith(`${text} `))
+			? withSpace
+			: undefined;
+	}
+
 	private _updateSelectedPills(): void {
 		const selections = (this._editor.getSelections() ?? []).filter(selection => !selection.isEmpty());
 		for (const pill of this._pills) {
@@ -1183,12 +1234,12 @@ export class ChatInlineAttachments extends Disposable {
 			});
 		}
 		// The pill becomes active however the cursor reaches it, as when Backspace removes the space after it.
-		const active = this._activePill !== previousActive && this._activePill?.canOpen && this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Chat) ? this._activePill : undefined;
+		const active = this._activePill !== previousActive && this._shouldAnnounceActivePill() ? this._activePill : undefined;
 		const pill = crossed ?? active;
 		if (!pill) {
 			return;
 		}
-		const label = getLabel(this._resolveEntry(pill.data));
+		const label = getAttachmentLabel(this._resolveEntry(pill.data));
 		if (!selection.isEmpty()) {
 			status(localize('chat.inlineAttachment.selected', "{0}, attachment, selected", label));
 		} else if (pill === active) {
@@ -1200,9 +1251,23 @@ export class ChatInlineAttachments extends Disposable {
 		}
 	}
 
+	/** Whether to announce that Enter opens the active pill, which is when it can be opened. */
+	private _shouldAnnounceActivePill(): boolean {
+		return !!this._activePill?.canOpen && this._accessibilityService.isScreenReaderOptimized() && !!this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Chat);
+	}
+
+	/** Announces the pill that became active without the cursor moving, as when a completion became a pill. */
+	private _announceActivatedPill(previousActive: InlineAttachmentPill | undefined): void {
+		const pill = this._activePill;
+		if (pill && pill !== previousActive && this._shouldAnnounceActivePill()) {
+			status(localize('chat.inlineAttachment.open', "{0}, attachment, press Enter to open", getAttachmentLabel(this._resolveEntry(pill.data))));
+		}
+	}
+
 	private _getHoverMessage(entry: IChatRequestVariableEntry): IMarkdownString {
 		const resource = IChatRequestVariableEntry.toUri(entry);
-		const label = resource ? this._labelService.getUriLabel(resource, { relative: true }) : getLabel(entry);
+		// The full name of a dropped image is its path, as the path of a file is.
+		const label = resource ? this._labelService.getUriLabel(resource, { relative: true }) : entry.fullName ?? entry.name;
 		return new MarkdownString().appendText(label);
 	}
 
@@ -1590,9 +1655,13 @@ function matchCopiedAnchors(model: ITextModel, pills: Iterable<InlineAttachmentP
 	return matches;
 }
 
-/** Whether text is what a reference covers in the input, which guards against references whose range went stale. */
-function isReferenceText(text: string): boolean {
-	return !!text && !text.includes(INLINE_ATTACHMENT_ANCHOR) && [chatVariableLeader, chatAgentLeader, chatSubcommandLeader].includes(text.charAt(0));
+/**
+ * Whether text is what a reference covers in the input, which guards against references whose range went stale.
+ * A reference to an attachment may also cover what the model read in place of a pill, see {@link getAttachmentPromptText},
+ * as when a request that an agent host's history restored is edited.
+ */
+function isReferenceText(text: string, reference: IDynamicVariable): boolean {
+	return !!text && !text.includes(INLINE_ATTACHMENT_ANCHOR) && ([chatVariableLeader, chatAgentLeader, chatSubcommandLeader].includes(text.charAt(0)) || !!reference.isAttachmentReference);
 }
 
 /** The range to delete along with a pill: its anchor, and a following space that would otherwise double up. */
@@ -1626,10 +1695,6 @@ function toVariableEntry(reference: IDynamicVariable, text: string, offset: numb
 	const part = new ChatRequestDynamicVariablePart(new OffsetRange(offset, offset + text.length), range, text, reference.id, reference.modelDescription, reference.data, reference.fullName, reference.icon, reference.isFile, reference.isDirectory, reference._meta, reference.isAttachmentReference, reference.promptText);
 	const entry = part.toVariableEntry();
 	return { ...entry, range: undefined };
-}
-
-function getLabel(entry: IChatRequestVariableEntry): string {
-	return entry.fullName ?? entry.name;
 }
 
 function isSameEntry(a: IChatRequestVariableEntry, b: IChatRequestVariableEntry): boolean {

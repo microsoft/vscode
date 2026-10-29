@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as marked from '../../../../../base/common/marked/marked.js';
+import { basename } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IPosition, Position } from '../../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { PositionOffsetTransformer } from '../../../../../editor/common/core/text/positionToOffset.js';
+import { isLocation } from '../../../../../editor/common/languages.js';
 import { ChatRequestDynamicVariablePart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatVariableLeader, IParsedChatRequest, IParsedChatRequestPart } from '../requestParser/chatParserTypes.js';
-import { IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPastedTextArtifact } from './chatVariableEntries.js';
+import { IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isPastedTextArtifact } from './chatVariableEntries.js';
 import { IDynamicVariable } from './chatVariables.js';
 
 /**
@@ -46,6 +49,12 @@ export interface IInlineAttachmentAnchor {
 	readonly text: string;
 	/** The reference to {@link text}, if any. Its range is ignored. */
 	readonly reference?: IDynamicVariable;
+	/**
+	 * What the prompt sent to the model says in place of the pill, see
+	 * {@link getAttachmentPromptText}. It is the {@link IDynamicVariable.promptText}
+	 * of the pill's reference, and is unset for the prompt that is persisted.
+	 */
+	readonly promptText?: string;
 }
 
 /**
@@ -168,6 +177,8 @@ export function projectInlineAttachments(input: string, anchors: readonly IInlin
 		if (item.anchor?.reference) {
 			projectedReferences.push({
 				...item.anchor.reference,
+				// A pill's reference may have been restored from a prompt sent to the model, which the persisted prompt does not say.
+				promptText: item.anchor.promptText,
 				range: Range.fromPositions(promptPositions.getPosition(item.textStart), promptPositions.getPosition(item.textStart + item.anchor.text.length)),
 			});
 		}
@@ -199,15 +210,65 @@ export function fromRelativeRange(range: IRange, origin: IPosition): Range {
 	return Range.fromPositions(fromRelative(range.startLineNumber, range.startColumn), fromRelative(range.endLineNumber, range.endColumn));
 }
 
-/**
- * Whether an attachment can be shown as a pill inline with the prompt. Images,
- * including notebook outputs that are images, are shown above the prompt.
- */
+/** Whether an attachment can be shown as a pill inline with the prompt. */
 export function canShowAttachmentInline(attachment: IChatRequestVariableEntry): boolean {
-	if (isImageVariableEntry(attachment) || isAgentHostCompletionVariableEntry(attachment)) {
-		return false;
+	// Agent host completions, such as skills, are shown as decorations of their text.
+	return !isAgentHostCompletionVariableEntry(attachment);
+}
+
+/**
+ * What the prompt sent to the model says in place of the pill of an attachment:
+ * the attachment's name and, when it has one, its location, as a Markdown link
+ * such as `[index.ts](file:///src/index.ts)`. The attachment itself is attached
+ * to the request once, however many pills mention it.
+ */
+export function getAttachmentPromptText(attachment: IChatRequestVariableEntry): string {
+	const name = getAttachmentLabel(attachment).replace(/\r\n|\r|\n/g, ' ');
+	const location = getAttachmentLocation(attachment);
+	return location ? `[${name.replace(/[\\[\]]/g, '\\$&')}](${location})` : name;
+}
+
+/** The name of an attachment, as its pill shows it. */
+export function getAttachmentLabel(attachment: IChatRequestVariableEntry): string {
+	// A file that a completion referenced is named after the reference, such as `file:index.ts`.
+	const uri = attachment.kind === 'file' || attachment.kind === 'directory' || attachment.kind === 'promptFile' ? IChatRequestVariableEntry.toUri(attachment) : undefined;
+	if (uri) {
+		return basename(uri);
 	}
-	return !isNotebookOutputVariableEntry(attachment) || !attachment.mimeType?.startsWith('image/');
+	// The full name of a dropped image is its path.
+	return attachment.kind === 'image' ? attachment.name : attachment.fullName ?? attachment.name;
+}
+
+/** Where what an attachment stands for is, such as the URI of a file, or the link of a pull request. */
+function getAttachmentLocation(attachment: IChatRequestVariableEntry): string | undefined {
+	if (attachment.id.startsWith(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX)) {
+		return attachment.id.slice(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX.length);
+	}
+	const withRange = (uri: URI, range: IRange | undefined) => {
+		const fragment = range ? (range.startLineNumber === range.endLineNumber ? `L${range.startLineNumber}` : `L${range.startLineNumber}-L${range.endLineNumber}`) : '';
+		return (fragment ? uri.with({ fragment }) : uri).toString();
+	};
+	switch (attachment.kind) {
+		case 'paste':
+			return attachment.copiedFrom && withRange(attachment.copiedFrom.uri, attachment.copiedFrom.range);
+		case 'terminalCommand':
+			return attachment.resource.toString();
+		case 'string':
+			return (attachment.resourceUri ?? attachment.uri).toString();
+		case 'transcriptContext':
+			return attachment.uri.toString();
+		case 'diagnostic':
+			return attachment.filterUri && withRange(attachment.filterUri, attachment.filterRange);
+	}
+	if (URI.isUri(attachment.value)) {
+		return attachment.value.toString();
+	}
+	if (isLocation(attachment.value)) {
+		return withRange(attachment.value.uri, attachment.value.range);
+	}
+	// An image dropped from a file refers to the file.
+	const reference = attachment.references?.[0]?.reference;
+	return URI.isUri(reference) ? reference.toString() : undefined;
 }
 
 /**
@@ -252,8 +313,8 @@ export function canOpenAttachment(attachment: IChatRequestVariableEntry): boolea
 /**
  * The attachments of a submitted request that are shown as pills inline with
  * its text, by the index of the part of the request that stands for them.
- * Images, and parts that stand for no attachment, are left out, as are parts
- * in code, where Markdown renders them as text.
+ * Parts that stand for no attachment are left out, as are parts in code, where
+ * Markdown renders them as text.
  *
  * @param text The text of the request, which tells where its code is.
  */
@@ -282,8 +343,10 @@ export function getInlineRequestAttachments(parts: readonly IParsedChatRequestPa
 /**
  * Recovers the mentions of a request's attachments from its text, for a
  * request whose history kept its text and attachments but not its references,
- * as an agent host's history does. A mention of an attachment that is outside
- * code becomes a reference to the attachment again: its mention by name, see
+ * as an agent host's history does, which keeps the prompt sent to the model.
+ * A mention of an attachment that is outside code becomes a reference to the
+ * attachment again: what the prompt says in its place, see
+ * {@link getAttachmentPromptText}, its mention by name, see
  * {@link getAttachmentMention}, the reference that a completion inserts for a
  * file or folder, or the link of a GitHub issue or pull request. Mentions of
  * attachments that share a name are bound to them in order.
@@ -301,13 +364,13 @@ export function recoverAttachmentMentions(message: IParsedChatRequest, variables
 		if (referencedIds.has(variable.id) || !variable.name || !canShowAttachmentInline(variable)) {
 			continue;
 		}
-		const mentions = [getAttachmentMention(variable.name)];
+		const mentions = new Set([getAttachmentPromptText(variable), getAttachmentMention(variable.name)]);
 		if (variable.kind === 'file' || variable.kind === 'directory') {
-			mentions.push(`${chatVariableLeader}file:${variable.name}`, `${chatVariableLeader}${variable.name}`);
+			mentions.add(`${chatVariableLeader}file:${variable.name}`).add(`${chatVariableLeader}${variable.name}`);
 		}
 		if (variable.id.startsWith(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX)) {
 			const link = variable.id.slice(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX.length);
-			mentions.push(link);
+			mentions.add(link);
 			links.add(link);
 		}
 		for (const mention of mentions) {
@@ -318,6 +381,7 @@ export function recoverAttachmentMentions(message: IParsedChatRequest, variables
 		return message;
 	}
 
+	const isWordCharacter = (character: string) => /[\p{L}\p{N}_-]/u.test(character);
 	const codeRanges = getMarkdownCodeRanges(message.text);
 	const positions = new PositionOffsetTransformer(message.text);
 	const toRange = (start: number, end: number) => Range.fromPositions(positions.getPosition(start), positions.getPosition(end));
@@ -339,7 +403,8 @@ export function recoverAttachmentMentions(message: IParsedChatRequest, variables
 					while (end < part.range.endExclusive && !/\s/.test(message.text.charAt(end))) {
 						end++;
 					}
-				} else if (/[\p{L}\p{N}_-]/u.test(message.text.charAt(end))) {
+				} else if (isWordCharacter(message.text.charAt(end)) || (isWordCharacter(mention.charAt(0)) && isWordCharacter(message.text.charAt(start - 1)))) {
+					// The name of an attachment without a location is only a mention when it is not part of a longer word.
 					continue;
 				}
 				if (!codeRanges.some(range => range.intersects(new OffsetRange(start, end)))) {

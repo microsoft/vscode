@@ -8,7 +8,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
-import { canOpenAttachment, canShowAttachmentInline, getAttachmentMention, getInlineRequestAttachments, getMarkdownCodeRanges, INLINE_ATTACHMENT_ANCHOR as A, isInlineAttachmentCandidate, projectInlineAttachments, recoverAttachmentMentions } from '../../../common/attachments/chatInlineAttachments.js';
+import { canOpenAttachment, canShowAttachmentInline, getAttachmentMention, getAttachmentPromptText, getInlineRequestAttachments, getMarkdownCodeRanges, INLINE_ATTACHMENT_ANCHOR as A, isInlineAttachmentCandidate, projectInlineAttachments, recoverAttachmentMentions } from '../../../common/attachments/chatInlineAttachments.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../../../common/attachments/chatVariables.js';
 import { ChatRequestDynamicVariablePart, ChatRequestTextPart, ChatRequestToolPart } from '../../../common/requestParser/chatParserTypes.js';
@@ -95,7 +95,7 @@ suite('Chat inline attachments', () => {
 		});
 	});
 
-	test('shows the attachments of a request inline, except images', () => {
+	test('shows the attachments of a request inline, including images', () => {
 		const text = 'compare #attachment:a.ts #attachment:shot.png #codebase #attachment:gone.ts';
 		const parts = [
 			new ChatRequestTextPart(new OffsetRange(0, 8), new Range(1, 1, 1, 9), 'compare '),
@@ -114,23 +114,58 @@ suite('Chat inline attachments', () => {
 		const inline = getInlineRequestAttachments(parts, variables);
 		assert.deepStrictEqual([...inline].map(([index, attachment]) => [index, attachment.kind, attachment.id]), [
 			[1, 'file', 'file-a'],
+			[3, 'image', 'image-1'],
 			[5, 'tool', 'search-codebase'],
 		]);
 	});
 
-	test('keeps images above the input', () => {
+	test('shows every attachment inline, including images, except agent host completions', () => {
 		assert.deepStrictEqual([
 			{ kind: 'file', id: 'file', name: 'a.ts', value: URI.file('/a.ts') },
 			{ kind: 'image', id: 'image', name: 'shot.png', value: new Uint8Array() },
 			{ kind: 'notebookOutput', id: 'plot', name: 'plot', value: URI.file('/a.ipynb'), mimeType: 'image/png' },
-			{ kind: 'notebookOutput', id: 'text', name: 'text', value: URI.file('/a.ipynb'), mimeType: 'text/plain' },
 			{ kind: 'file', id: 'ranged', name: 'b.ts', value: URI.file('/b.ts'), range: { start: 0, endExclusive: 5 } },
 		].map(attachment => [canShowAttachmentInline(attachment as IChatRequestVariableEntry), isInlineAttachmentCandidate(attachment as IChatRequestVariableEntry)]), [
 			[true, true],
-			[false, false],
-			[false, false],
+			[true, true],
 			[true, true],
 			[true, false],
+		]);
+	});
+
+	test('reads an attachment in the prompt sent to the model as its name and location', () => {
+		assert.deepStrictEqual([
+			{ kind: 'file', id: 'file', name: 'a b.ts', value: URI.file('/src/a b.ts') },
+			{ kind: 'file', id: 'completed', name: 'file:c.ts', value: URI.file('/src/c.ts') },
+			{ kind: 'directory', id: 'folder', name: 'docs', value: URI.file('/docs') },
+			{ kind: 'symbol', id: 'symbol', name: 'main', value: { uri: URI.file('/src/app.ts'), range: new Range(3, 1, 5, 2) }, symbolKind: 11 },
+			{ kind: 'generic', id: 'github-context:https://github.com/o/r/pull/1', name: 'o/r#1', value: 'GitHub context: https://github.com/o/r/pull/1' },
+			{ kind: 'image', id: 'dropped', name: 'shot [1].png', fullName: '/shot [1].png', value: new Uint8Array(), references: [{ kind: 'reference', reference: URI.file('/shot [1].png') }] },
+			{ kind: 'image', id: 'pasted', name: 'Pasted Image', value: new Uint8Array() },
+			{ kind: 'paste', id: 'paste', name: 'Pasted text #1', value: 'x', code: 'x', language: 'plaintext', pastedLines: '1 line', fileName: 'Pasted text #1', copiedFrom: undefined },
+		].map(attachment => getAttachmentPromptText(attachment as IChatRequestVariableEntry)), [
+			'[a b.ts](file:///src/a%20b.ts)',
+			'[c.ts](file:///src/c.ts)',
+			'[docs](file:///docs)',
+			'[main](file:///src/app.ts#L3-L5)',
+			'[o/r#1](https://github.com/o/r/pull/1)',
+			'[shot \\[1\\].png](file:///shot%20%5B1%5D.png)',
+			'Pasted Image',
+			'Pasted text #1',
+		]);
+	});
+
+	test('the projected reference of a pill reads as what the prompt sent to the model says, and otherwise as its text', () => {
+		const pillReference: IDynamicVariable = { id: 'a', range: new Range(1, 1, 1, 1), data: URI.file('/a.ts'), isAttachmentReference: true, promptText: 'stale' };
+		const input = `see ${A} and ${A}`;
+		const anchors = [
+			{ offset: 4, text: '#attachment:a.ts', reference: pillReference, promptText: '[a.ts](file:///a.ts)' },
+			{ offset: 10, text: '#attachment:a.ts', reference: pillReference },
+		];
+		const projection = projectInlineAttachments(input, anchors, []);
+		assert.deepStrictEqual(projection?.references.map(projected => [projected.id, projected.promptText]), [
+			['a', '[a.ts](file:///a.ts)'],
+			['a', undefined],
 		]);
 	});
 
@@ -195,6 +230,19 @@ suite('Chat inline attachments', () => {
 			parts: ['compare ', '[first]', ' with ', '[second]', ' and ', '[long]', ', ', '[completed]', ', ', '[github-context:https://github.com/o/r/pull/1]', ' and not `#attachment:a.ts`'],
 			inline: ['first', 'second', 'long', 'completed', 'github-context:https://github.com/o/r/pull/1'],
 		});
+	});
+
+	test('recovers the mentions that the prompt sent to the model read pills as', () => {
+		const text = 'compare [utils.ts](file:///src/utils.ts) with [utils.ts](file:///src/utils.ts) using Pasted text #1, not Pasted text #12 or MyPasted text #1';
+		const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] };
+		const variables: IChatRequestVariableEntry[] = [
+			{ kind: 'file', id: 'utils', name: 'utils.ts', value: URI.file('/src/utils.ts') },
+			{ kind: 'paste', id: 'paste', name: 'Pasted text #1', value: 'x', code: 'x', language: 'plaintext', pastedLines: '1 line', fileName: 'Pasted text #1', copiedFrom: undefined },
+		];
+		const recovered = recoverAttachmentMentions(message, variables);
+		assert.deepStrictEqual(recovered.parts.map(part => part instanceof ChatRequestDynamicVariablePart ? `[${part.id}]` : part.text), [
+			'compare ', '[utils]', ' with ', '[utils]', ' using ', '[paste]', ', not Pasted text #12 or MyPasted text #1',
+		]);
 	});
 
 	test('opens pills only when activating them does something', () => {

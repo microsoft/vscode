@@ -14,10 +14,14 @@ import { URI } from '../../../../../base/common/uri.js';
  * The references in the prompt that the widget's input represents, including
  * those of inline attachment pills. Their ranges are in the text that
  * {@link IChatWidget.getInput} returns.
+ *
+ * @param options.forModel Whether the references are parsed into the request
+ * sent to the model, which reads each pill as the name and location of its
+ * attachment rather than the text that the pill stands for.
  */
-export function getDynamicVariablesForWidget(widget: IChatWidget): ReadonlyArray<IDynamicVariable> {
+export function getDynamicVariablesForWidget(widget: IChatWidget, options?: { readonly forModel?: boolean }): ReadonlyArray<IDynamicVariable> {
 	const references = getInputDynamicVariablesForWidget(widget);
-	return widget.input.inlineAttachments?.project(references)?.references ?? references;
+	return widget.input.inlineAttachments?.project(references, options)?.references ?? references;
 }
 
 /**
@@ -103,7 +107,8 @@ export class ChatVariablesService implements IChatVariablesService {
 		if (!widget) {
 			return [];
 		}
-		return getDynamicVariablesForWidget(widget);
+		// The request parser takes these to parse the request that is sent.
+		return getDynamicVariablesForWidget(widget, { forModel: true });
 	}
 
 	getSelectedToolAndToolSets(sessionResource: URI): ToolAndToolSetEnablementMap {
