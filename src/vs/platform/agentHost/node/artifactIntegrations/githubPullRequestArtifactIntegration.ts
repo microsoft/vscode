@@ -369,6 +369,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	private readonly checkpointWrites = new Sequencer();
 	private refreshedAutomationRevision: number | undefined;
 	private nextAutomationPollAt: number | undefined;
+	private reconcilingRun = false;
+	private nextReconciliationAt = 0;
 
 	constructor(
 		private readonly resource: GitHubPullRequestArtifactResource,
@@ -1099,12 +1101,21 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		const uncertain = runs.find(run => run.indeterminate);
 		if (uncertain) {
 			if (uncertain.actionKind === 'code' && (uncertain.actionId === 'markReady' || uncertain.actionId === 'merge')) {
-				const delay = uncertain.updatedAt + undispatchedRetryDelay - Date.now();
+				if (this.reconcilingRun) {
+					return undispatchedRetryDelay;
+				}
+				const delay = Math.max(uncertain.updatedAt + undispatchedRetryDelay, this.nextReconciliationAt) - Date.now();
 				if (delay > 0) {
 					return delay;
 				}
-				await context.reconcileRun(uncertain.id);
-				return undispatchedRetryDelay;
+				this.reconcilingRun = true;
+				this.nextReconciliationAt = Date.now() + undispatchedRetryDelay;
+				try {
+					await context.reconcileRun(uncertain.id);
+				} finally {
+					this.reconcilingRun = false;
+				}
+				return Math.max(0, this.nextReconciliationAt - Date.now());
 			}
 			return;
 		}

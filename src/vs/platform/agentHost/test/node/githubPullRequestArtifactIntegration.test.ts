@@ -1917,6 +1917,44 @@ suite('GitHub pull request artifact integration', () => {
 		}, { attempts: 2, refreshed: true, mutations: ['merge'], availability: 'available' });
 	}));
 
+	for (const transientFailure of [false, true]) {
+		test(`reconciliation survives core refresh reactivation and backs off after ${transientFailure ? 'transient failures' : 'unchanged outcomes'}`, () => run(async store => {
+			const base = createPullRequestArtifactSnapshot();
+			const queued = { ...base, mergeability: { ...base.mergeability, value: { ...base.mergeability.value!, mergeQueueRequired: true } } };
+			const f = await fixture(store, queued);
+			f.onMerge(async () => { throw new GitHubRequestError('Response lost', 'network'); });
+			await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'always' });
+			await waitForState(f.service.ledger.state, state => state.runs.some(run => run.indeterminate));
+			await f.service.whenIdle();
+			const refreshTimes: number[] = [];
+			let active = 0;
+			let maximumActive = 0;
+			f.onRefresh(async () => {
+				refreshTimes.push(Date.now());
+				maximumActive = Math.max(maximumActive, ++active);
+				try {
+					f.snapshot.set({ ...queued, core: { ...queued.core, status: 'loading', complete: false } }, undefined);
+					await timeout(1);
+					f.snapshot.set(queued, undefined);
+					await timeout(1_000);
+					if (transientFailure) {
+						throw new GitHubRequestError('GitHub unavailable', 'network');
+					}
+				} finally {
+					active--;
+				}
+			});
+			await timeout(125_000);
+			f.onRefresh(() => { });
+			await f.service.whenIdle();
+			assert.deepStrictEqual({
+				maximumActive, repeated: refreshTimes.length >= 3,
+				backedOff: refreshTimes.slice(1).every((time, index) => time - refreshTimes[index] >= 30_000),
+				mutations: f.mutations, runs: f.service.ledger.state.get().runs.map(run => [run.state, !!run.indeterminate]),
+			}, { maximumActive: 1, repeated: true, backedOff: true, mutations: [], runs: [['interrupted', true]] });
+		}));
+	}
+
 	for (const queue of [false, true]) {
 		test(`automatically confirms a ${queue ? 'queue submission' : 'merge'} whose response was lost without resubmitting`, () => run(async store => {
 			const base = createPullRequestArtifactSnapshot();
