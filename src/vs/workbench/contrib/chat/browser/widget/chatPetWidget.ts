@@ -35,7 +35,7 @@ import { getChatPetAccessoryRigFrame, getChatPetReducedMotionRigFrame } from './
 import { isImageGenerationToolInProgress } from './chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { ChatPetJumpGame } from './chatPetJumpGame.js';
 
-export type ChatPetState = 'idle' | 'sleep' | 'waking' | 'typing' | 'rendering' | 'painting' | 'achievementUnlocked' | 'buttonPress' | 'complete' | 'love' | 'clapping' | 'jump' | 'cool' | 'yapping' | 'yappingMouthOpen' | 'sing' | 'speechless' | 'worry' | 'dizzy' | 'falling' | 'wallImpact' | 'splat' | 'onTheRun' | 'searching' | 'searchingDown';
+export type ChatPetState = 'idle' | 'sleep' | 'waking' | 'typing' | 'rendering' | 'painting' | 'achievementUnlocked' | 'buttonPress' | 'complete' | 'love' | 'clapping' | 'jump' | 'cool' | 'yapping' | 'yappingMouthOpen' | 'sing' | 'speechless' | 'worry' | 'dizzy' | 'falling' | 'wallImpact' | 'splat';
 export type ChatPetClickInteraction = Extract<ChatPetState, 'buttonPress' | 'complete' | 'love' | 'cool' | 'yapping' | 'sing' | 'speechless' | 'worry'>;
 
 export interface IChatPetPlatformOccupation {
@@ -83,7 +83,6 @@ interface ChatPetHostTransition {
 
 /** The layer the pet is positioned in, spanning its host. */
 export const CHAT_PET_OVERLAY_CLASS = 'chat-pet-overlay';
-const CHAT_PET_RUN_LAYER_CLASS = 'chat-pet-run-layer';
 
 export const CHAT_PET_IDLE_SLEEP_DELAY = 20_000;
 export const CHAT_PET_CONFIRMATION_ATTENTION_DURATION = 2_000;
@@ -184,7 +183,6 @@ const SING_FRAME_DURATIONS = [180, 180, 180, 180];
 const SPEECHLESS_FRAME_DURATIONS = [400, 120, 1_000, 120, 1_080];
 const WORRY_FRAME_DURATIONS = [600, 600];
 const DIZZY_FRAME_DURATIONS = Array.from({ length: 8 }, () => 120);
-const SEARCH_FRAME_DURATIONS = [500, 500, 500, 500];
 
 interface ChatPetSpriteSource {
 	readonly url: string;
@@ -306,7 +304,7 @@ const speechSpriteSources = new Map<ChatPetVariant, ChatPetSpriteSources>();
 const respawnSpriteSources = new Map<ChatPetVariant, ChatPetSpriteSources>();
 
 export function doesChatPetStateTrackCursor(state: ChatPetState | undefined): boolean {
-	return state !== undefined && state !== 'sleep' && state !== 'waking' && state !== 'typing' && state !== 'painting' && state !== 'buttonPress' && state !== 'complete' && state !== 'jump' && state !== 'love' && state !== 'cool' && state !== 'yappingMouthOpen' && state !== 'sing' && state !== 'speechless' && state !== 'worry' && state !== 'dizzy' && state !== 'falling' && state !== 'wallImpact' && state !== 'splat' && state !== 'onTheRun' && state !== 'searching' && state !== 'searchingDown';
+	return state !== undefined && state !== 'sleep' && state !== 'waking' && state !== 'typing' && state !== 'painting' && state !== 'buttonPress' && state !== 'complete' && state !== 'jump' && state !== 'love' && state !== 'cool' && state !== 'yappingMouthOpen' && state !== 'sing' && state !== 'speechless' && state !== 'worry' && state !== 'dizzy' && state !== 'falling' && state !== 'wallImpact' && state !== 'splat';
 }
 
 export function doesChatPetStateBlink(state: ChatPetState | undefined, frameIndex?: number): boolean {
@@ -335,10 +333,6 @@ export function getChatPetSpriteName(state: ChatPetState, quality: string | unde
 			return `buddy-wall-impact-${variant}`;
 		case 'splat':
 			return `buddy-splat-${variant}`;
-		case 'onTheRun':
-		case 'searching':
-		case 'searchingDown':
-			return `buddy-search-${variant}`;
 		case 'sleep':
 			return `buddy-sleep-${variant}`;
 		case 'waking':
@@ -396,11 +390,7 @@ export function getChatPetFrameDurations(state: ChatPetState): readonly number[]
 			return WORRY_FRAME_DURATIONS;
 		case 'dizzy':
 			return DIZZY_FRAME_DURATIONS;
-		case 'searching':
-			return SEARCH_FRAME_DURATIONS;
-		case 'onTheRun':
 		case 'wallImpact':
-		case 'searchingDown':
 			return [];
 		case 'yappingMouthOpen':
 		case 'yapping':
@@ -439,7 +429,7 @@ function createSpriteSources(name: string, state: ChatPetState, tracksCursor = t
 			fixedOrientationDecorations,
 			frameDurations: coalesceIdleFrames ? IDLE_ANIMATION_FRAME_DURATIONS : frameDurations,
 			frameIndices: coalesceIdleFrames ? IDLE_ANIMATION_FRAME_INDICES : undefined,
-			iterations: state === 'waking' || state === 'buttonPress' || state === 'cool' || state === 'splat' || state === 'searching' || state === 'jump' ? 1 : Infinity,
+			iterations: state === 'waking' || state === 'buttonPress' || state === 'cool' || state === 'splat' || state === 'jump' ? 1 : Infinity,
 		},
 		reducedMotion: staticSource,
 	};
@@ -480,9 +470,6 @@ export function getChatPetSpriteSources(variant: ChatPetVariant): Record<ChatPet
 			falling: createStateSpriteSources('falling'),
 			wallImpact: createStateSpriteSources('wallImpact'),
 			splat: createStateSpriteSources('splat'),
-			onTheRun: createStateSpriteSources('onTheRun'),
-			searching: createStateSpriteSources('searching'),
-			searchingDown: createStateSpriteSources('searchingDown'),
 		};
 		spriteSources.set(variant, sources);
 	}
@@ -596,8 +583,8 @@ export function shouldClaimChatPetWindowOnConstruction(windowActive: boolean, do
 	return windowActive && documentFocused;
 }
 
-export function isChatPetKeyboardInteractionEnabled(enabled: boolean, isDead: boolean, hasPointerInteraction: boolean, isAirborne: boolean, onTheRun: boolean): boolean {
-	return enabled && !isDead && !hasPointerInteraction && !isAirborne && !onTheRun;
+export function isChatPetKeyboardInteractionEnabled(enabled: boolean, isDead: boolean, hasPointerInteraction: boolean, isAirborne: boolean): boolean {
+	return enabled && !isDead && !hasPointerInteraction && !isAirborne;
 }
 
 function isChatPetYapState(state: ChatPetState | undefined): boolean {
@@ -1426,7 +1413,7 @@ export class ChatPetWidget extends Disposable {
 			this._overlay.remove();
 		}));
 		this._button = this._register(new Button(this._overlay, {
-			ariaLabel: this._getAriaLabel(false, false),
+			ariaLabel: this._getAriaLabel(false),
 		}));
 		this._button.element.classList.add('chat-pet-button');
 		this._button.element.dataset.facing = this._facingController.direction;
@@ -1567,11 +1554,6 @@ export class ChatPetWidget extends Disposable {
 					return;
 				}
 				this._finishHostTransition(true);
-			} else if (event.target === this._button.element && event.propertyName === 'transform') {
-				this._button.element.classList.remove('returning-from-run');
-				this._updateRunLayer();
-				this._updatePlatformOccupation();
-				this._rememberHostPosition();
 			}
 		};
 		this._register(dom.addDisposableListener(this._button.element, 'transitionend', onTransitionComplete));
@@ -1591,7 +1573,7 @@ export class ChatPetWidget extends Disposable {
 			const currentHost = this._host.read(reader);
 			reader.store.add(currentHost.inputChanged(() => {
 				this._stopJumpGame('fall');
-				if (this._enabled && !this.chatPetService.onTheRun.read(undefined)) {
+				if (this._enabled) {
 					this._wake();
 				}
 			}));
@@ -1626,11 +1608,6 @@ export class ChatPetWidget extends Disposable {
 				this._transientScheduler.cancel();
 				this._transientState.set(undefined, undefined);
 				void this.commandService.executeCommand(CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID);
-				return;
-			}
-			if (this.chatPetService.onTheRun.get()) {
-				this._transientState.set(undefined, undefined);
-				this.chatPetService.setOnTheRun(false);
 				return;
 			}
 			const wasSleeping = this._idleExpired.get() || this._renderedState === 'sleep';
@@ -1675,7 +1652,7 @@ export class ChatPetWidget extends Disposable {
 			}
 		}));
 		this._register(this.chatPetService.onDidUnlockAchievement(id => {
-			if (!this._enabled || !this.hostService.hasFocus || this.chatPetService.onTheRun.get() || this._isDead.get()) {
+			if (!this._enabled || !this.hostService.hasFocus || this._isDead.get()) {
 				return;
 			}
 			this._stopJumpGame('restore');
@@ -1746,15 +1723,7 @@ export class ChatPetWidget extends Disposable {
 			if (accessoryChanged) {
 				this._switchAccessory(selectedAccessory);
 			}
-			const onTheRun = this.chatPetService.onTheRun.read(reader);
 			const isDead = this._isDead.read(reader);
-			if (onTheRun || this._motionReduced) {
-				this._button.element.classList.remove('returning-from-run');
-			} else if (this._enabled && this._button.element.classList.contains('on-the-run')) {
-				this._button.element.classList.add('returning-from-run');
-			}
-			this._button.element.classList.toggle('on-the-run', onTheRun);
-			this._updateRunLayer();
 			const currentHost = this._host.read(reader);
 			const chatModel = currentHost.model.read(reader);
 			const request = chatModel?.lastRequestObs.read(reader);
@@ -1774,13 +1743,13 @@ export class ChatPetWidget extends Disposable {
 			const inputHasContent = currentHost.hasInput.read(reader);
 			this._busy = hasActiveRequest || needsInput;
 			const jumpGameActive = this._jumpGameActive.read(reader);
-			if (jumpGameActive && (!enabled || onTheRun || this._busy)) {
-				this._stopJumpGame(enabled && !onTheRun ? 'fall' : 'immediate');
+			if (jumpGameActive && (!enabled || this._busy)) {
+				this._stopJumpGame(enabled ? 'fall' : 'immediate');
 			}
 			let idleExpired = this._idleExpired.read(reader);
 			let transientState = this._transientState.read(reader);
 			if (!this._jumpGame.value) {
-				this._button.setAriaLabel(this._getAriaLabel(onTheRun, transientState === 'achievementUnlocked', isGeneratingImage && !needsInput));
+				this._button.setAriaLabel(this._getAriaLabel(transientState === 'achievementUnlocked', isGeneratingImage && !needsInput));
 			}
 			const isDragging = this._isDragging.read(reader);
 			const hostTransition = this._hostTransition.read(reader);
@@ -1825,16 +1794,6 @@ export class ChatPetWidget extends Disposable {
 				this._idleScheduler.cancel();
 				this._transientScheduler.cancel();
 				this._showRespawnSequence();
-				return;
-			}
-
-			if (onTheRun) {
-				this._finishHostTransition();
-				this._clearPlatformOccupation();
-				this._dismissBounceResult();
-				this._hopController.cancel();
-				this._idleScheduler.cancel();
-				this._renderState('onTheRun', variantChanged);
 				return;
 			}
 
@@ -1902,7 +1861,7 @@ export class ChatPetWidget extends Disposable {
 
 	private _tryStartJumpGame(platform = this._restingPlatform): boolean {
 		if (!platform?.supportsJumpGame || !platform.element || this._busy || !this._enabled || this._jumpGame.value
-			|| this._isDead.get() || this._isDragging.get() || this._isAirborne() || this.chatPetService.onTheRun.get()) {
+			|| this._isDead.get() || this._isDragging.get() || this._isAirborne()) {
 			return false;
 		}
 		const bounds = this.movementBounds.getBoundingClientRect();
@@ -2014,7 +1973,7 @@ export class ChatPetWidget extends Disposable {
 			source = { ...source, transition: transition.source.transition };
 		}
 		const canAnimate = this._enabled && !this._motionReduced && !this._isDead.get() && !this._isDragging.get()
-			&& (!this._isAirborne() || !!transition) && !this.chatPetService.onTheRun.get();
+			&& (!this._isAirborne() || !!transition);
 		this.parent.classList.remove('chat-pet-host');
 		this.parent = host.parent;
 		this.dragBounds = host.dragBounds;
@@ -2285,7 +2244,7 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _startDrag(event: PointerEvent): void {
-		if (!this._enabled || this._jumpGameActive.get() || this._isDead.get() || this._isDragging.get() || this._isAirborne() || this.chatPetService.onTheRun.get() || event.button !== 0) {
+		if (!this._enabled || this._jumpGameActive.get() || this._isDead.get() || this._isDragging.get() || this._isAirborne() || event.button !== 0) {
 			return;
 		}
 		this._wake();
@@ -2709,7 +2668,6 @@ export class ChatPetWidget extends Disposable {
 
 	private _showContextMenu(event?: MouseEvent): void {
 		this._contextMenuVisible = true;
-		const onTheRun = this.chatPetService.onTheRun.get();
 		const actions = new DisposableStore();
 		this._contextMenuActions.value = actions;
 		const achievements = actions.add(new Action(
@@ -2740,21 +2698,11 @@ export class ChatPetWidget extends Disposable {
 			this.chatPetService.resetScale();
 			status(localize('chatPet.sizeReset', "VS Code pet size: {0} percent", CHAT_PET_DEFAULT_SCALE * 100));
 		}));
-		const onTheRunAction = actions.add(new Action(
-			'chat.pet.onTheRun',
-			onTheRun ? localize('chatPet.comeBack.action', "Come Back") : localize('chatPet.goOnTheRun.action', "Go on the Run"),
-			undefined,
-			true,
-			() => {
-				this._transientState.set(undefined, undefined);
-				this.chatPetService.setOnTheRun(!onTheRun);
-			}
-		));
 		const playJumpGame = this._getJumpGamePlatform() ? actions.add(new Action(
 			'chat.pet.playJumpGame',
 			localize('chatPet.playJumpGame.action', "Play Jump Game"),
 			undefined,
-			!this._busy && !onTheRun && !this._isDead.get() && !this._isDragging.get() && !this._isAirborne(),
+			!this._busy && !this._isDead.get() && !this._isDragging.get() && !this._isAirborne(),
 			() => {
 				const platform = this._getJumpGamePlatform();
 				if (platform) {
@@ -2770,7 +2718,6 @@ export class ChatPetWidget extends Disposable {
 			getActions: (): IAction[] => [
 				achievements,
 				...(playJumpGame ? [playJumpGame] : []),
-				onTheRunAction,
 				interactionSeparator,
 				grow,
 				shrink,
@@ -2795,7 +2742,7 @@ export class ChatPetWidget extends Disposable {
 			this._dragMonitor.stopMonitoring(false);
 		}
 		const hasPointerInteraction = this._isDragging.get() || this._dragMonitor.isMonitoring();
-		if (!isChatPetKeyboardInteractionEnabled(this._enabled, this._isDead.get(), hasPointerInteraction, this._isAirborne(), this.chatPetService.onTheRun.get())) {
+		if (!isChatPetKeyboardInteractionEnabled(this._enabled, this._isDead.get(), hasPointerInteraction, this._isAirborne())) {
 			return;
 		}
 		const keyboardEvent = new StandardKeyboardEvent(event);
@@ -2846,17 +2793,14 @@ export class ChatPetWidget extends Disposable {
 			: localize('chatPet.movedRight', "VS Code pet moved right"));
 	}
 
-	private _getAriaLabel(onTheRun: boolean, achievementUnlocked: boolean, isGeneratingImage = false): string {
+	private _getAriaLabel(achievementUnlocked: boolean, isGeneratingImage = false): string {
 		if (achievementUnlocked) {
 			return localize('chatPet.openAchievements', "Open pet achievements. A new achievement is unlocked.");
-		}
-		if (onTheRun) {
-			return localize('chatPet.restore', "Bring back the VS Code pet");
 		}
 		if (this._restingPlatform?.supportsJumpGame && !this._busy) {
 			return localize('chatPet.playJumpGame', "Play Blobby's Jump Game. Activate the pet on this perch to play, or drag it to move it.");
 		}
-		const label = localize('chatPet.interact', "Interact with the VS Code pet. Drag it around the chat, or flick it toward either side to throw it. While it is falling, catch it with the pointer to bounce it; while it is airborne, press Enter or Space to bounce it. Use the left and right arrow keys to make it hop, or hold Shift to throw it toward a wall. Use the context menu to put it on the run.");
+		const label = localize('chatPet.interact', "Interact with the VS Code pet. Drag it around the chat, or flick it toward either side to throw it. While it is falling, catch it with the pointer to bounce it; while it is airborne, press Enter or Space to bounce it. Use the left and right arrow keys to make it hop, or hold Shift to throw it toward a wall. Use the context menu to open achievements, change its size, or change its color.");
 		if (this._enabled && !this._busy && this._getJumpGamePlatform()) {
 			return localize('chatPet.playJumpGameFromInput', "{0} Choose Play Jump Game in the context menu to play from here.", label);
 		}
@@ -2982,13 +2926,6 @@ export class ChatPetWidget extends Disposable {
 			.reduce<IChatPetPlatform>((topmost, platform) => platform.top <= topmost.top ? platform : topmost, fallback);
 	}
 
-	private _updateRunLayer(): void {
-		this._overlay.classList.toggle(
-			CHAT_PET_RUN_LAYER_CLASS,
-			this._button.element.classList.contains('on-the-run') || this._button.element.classList.contains('returning-from-run')
-		);
-	}
-
 	private _setInitialVerticalPosition(): void {
 		if (this._getHorizontalBounds() === undefined) {
 			return;
@@ -3023,7 +2960,7 @@ export class ChatPetWidget extends Disposable {
 		const jumpGameAvailabilityChanged = this._restingPlatform?.supportsJumpGame !== platform.supportsJumpGame;
 		this._restingPlatform = platform;
 		if (jumpGameAvailabilityChanged) {
-			this._button.setAriaLabel(this._getAriaLabel(this.chatPetService.onTheRun.get(), this._transientState.get() === 'achievementUnlocked'));
+			this._button.setAriaLabel(this._getAriaLabel(this._transientState.get() === 'achievementUnlocked'));
 		}
 		this._updatePlatformOccupation(platform.top);
 		this._rememberHostPosition();
@@ -3034,7 +2971,7 @@ export class ChatPetWidget extends Disposable {
 		if (!host.setPlatformOccupation) {
 			return;
 		}
-		if (platformTop === undefined || !this._enabled || this._jumpGameActive.get() || this._isDead.get() || this._isDragging.get() || this._isAirborne() || this.chatPetService.onTheRun.get() || this._button.element.classList.contains('returning-from-run')) {
+		if (platformTop === undefined || !this._enabled || this._jumpGameActive.get() || this._isDead.get() || this._isDragging.get() || this._isAirborne()) {
 			host.setPlatformOccupation(undefined);
 			return;
 		}
@@ -3363,7 +3300,7 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _recordDirectionChange(direction: ChatPetFacingDirection): boolean {
-		if (!this._enabled || this._isDead.get() || this.chatPetService.onTheRun.get() || this._transientState.get() === 'dizzy') {
+		if (!this._enabled || this._isDead.get() || this._transientState.get() === 'dizzy') {
 			return false;
 		}
 		if (!this._directionChangeController.record(direction, dom.getWindow(this._button.element).performance.now())) {
@@ -3445,8 +3382,7 @@ export class ChatPetWidget extends Disposable {
 		this._throwGeometryDirty = false;
 		this._resetBounceCount();
 		this._button.element.style.transform = '';
-		this._button.element.classList.remove('bounce-impact', 'entering', 'exiting', 'falling', 'throwing', 'dragging', 'resisting', 'soft-resisting', 'returning-from-run');
-		this._updateRunLayer();
+		this._button.element.classList.remove('bounce-impact', 'entering', 'exiting', 'falling', 'throwing', 'dragging', 'resisting', 'soft-resisting');
 		this._button.element.style.transitionDuration = '';
 		this._button.element.classList.add('hidden');
 		this._respawnEffectScheduler.cancel();

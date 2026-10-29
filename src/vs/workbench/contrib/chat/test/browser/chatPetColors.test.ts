@@ -10,6 +10,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { Color } from '../../../../../base/common/color.js';
 import { FileAccess, Schemas } from '../../../../../base/common/network.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -32,7 +33,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, ChatPetAchievementIds, getChatPetAchievement, getChatPetAchievementPresentation } from '../../browser/chatPetAchievements.js';
 import '../../browser/chatPetAchievements.contribution.js';
 import { CHAT_PET_BLOBBY_COMMAND_ID, CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, chatPetColorPresets, getChatPetBodyColor, getChatPetColoredSprite, getChatPetEyeColor, parseChatPetColor, setChatPetImageSource } from '../../browser/chatPetColors.js';
-import { ChatPetContextKeys, ChatPetService, IChatPetService } from '../../browser/chatPetService.js';
+import { ChatPetAppearanceTarget, ChatPetContextKeys, ChatPetService, IChatPetService } from '../../browser/chatPetService.js';
 import { ChatPetAchievementsEditorInput, IChatPetCustomizationEditorOptions } from '../../browser/chatPetAchievementsEditorInput.js';
 import { ChatPetColorsWidget } from '../../browser/chatPetColorsWidget.js';
 import { IChatWidgetService } from '../../browser/chat.js';
@@ -57,8 +58,12 @@ suite('Chat Pet Colors', () => {
 	});
 	teardown(() => sinon.restore());
 
-	function createService(storage = store.add(new TestStorageService())) {
-		return store.add(new ChatPetService(storage, new NullTelemetryServiceShape(), new NullLogService()));
+	function createEnvironment(isSessionsWindow = false): IWorkbenchEnvironmentService {
+		return new class extends mock<IWorkbenchEnvironmentService>() { override readonly isSessionsWindow = isSessionsWindow; }();
+	}
+
+	function createService(storage = store.add(new TestStorageService()), isSessionsWindow = false) {
+		return store.add(new ChatPetService(storage, new NullTelemetryServiceShape(), new NullLogService(), createEnvironment(isSessionsWindow)));
 	}
 
 	function createCommandHarness() {
@@ -101,7 +106,8 @@ suite('Chat Pet Colors', () => {
 			service.unlockAchievement(ChatPetAchievementIds.Blobby);
 		}
 		let closeCount = 0;
-		const widget = store.add(new ChatPetColorsWidget(parent, () => closeCount++, service, new TestThemeService(), new NullLogService()));
+		const target = observableValue<ChatPetAppearanceTarget>('chatPetAppearanceTarget', 'both');
+		const widget = store.add(new ChatPetColorsWidget(parent, () => closeCount++, target, service, new TestThemeService(), new NullLogService()));
 		widget.layout(new DOM.Dimension(800, 500));
 		const input = parent.querySelector<HTMLInputElement>('input[aria-label="Custom hex color"]');
 		const picker = parent.querySelector<HTMLInputElement>('input[type="color"]');
@@ -111,7 +117,8 @@ suite('Chat Pet Colors', () => {
 			input.value = value;
 			input.dispatchEvent(new Event('input', { bubbles: true }));
 		};
-		return { parent, service, widget, input, picker, apply, setInput, getCloseCount: () => closeCount };
+		const getTargetOptions = () => Array.from(parent.querySelectorAll<HTMLElement>('.chat-pet-appearance-target [role="radio"]'));
+		return { parent, service, widget, input, picker, apply, setInput, target, getTargetOptions, getCloseCount: () => closeCount };
 	}
 
 	async function loadImage(url: string): Promise<HTMLImageElement> {
@@ -220,7 +227,7 @@ suite('Chat Pet Colors', () => {
 		const warnings: string[] = [];
 		const service = store.add(new ChatPetService(storage, new NullTelemetryServiceShape(), new class extends NullLogService {
 			override warn(message: string): void { warnings.push(message); }
-		}()));
+		}(), createEnvironment()));
 		const locked = service.color.get();
 		service.toggle();
 		service.unlockAchievement(ChatPetAchievementIds.Blobby);
@@ -232,6 +239,69 @@ suite('Chat Pet Colors', () => {
 			invalid: service.color.get(),
 			warningCount: warnings.length,
 		}, { locked: 'insiders', unlocked: '#ff8800', invalid: 'insiders', warningCount: 2 });
+	});
+
+	test('applies colors to both window kinds by default and to one window kind when targeted', () => {
+		const storage = store.add(new TestStorageService());
+		storage.store('chat.vscodePet.variant', 'stable', StorageScope.APPLICATION, StorageTarget.USER);
+		const editorWindow = createService(storage);
+		const agentsWindow = createService(storage, true);
+		editorWindow.toggle();
+		editorWindow.unlockAchievement(ChatPetAchievementIds.Blobby);
+		const snapshot = () => ({
+			editorWindow: editorWindow.color.get(),
+			agentsWindow: agentsWindow.color.get(),
+			agentsSeenFromEditor: editorWindow.getWindowColor('agents').get(),
+		});
+		editorWindow.setColor('#e6536f', 'agents');
+		const agentsOnly = snapshot();
+		agentsWindow.setColor('insiders', 'editor');
+		const separate = snapshot();
+		const restarted = { editorWindow: createService(storage).color.get(), agentsWindow: createService(storage, true).color.get() };
+		editorWindow.setColor('#55b85a');
+		assert.deepStrictEqual({
+			agentsOnly,
+			separate,
+			restarted,
+			both: snapshot(),
+			stored: ['chat.vscodePet.color', 'chat.vscodePet.color.editor', 'chat.vscodePet.color.agents'].map(key => storage.get(key, StorageScope.APPLICATION)),
+		}, {
+			agentsOnly: { editorWindow: 'stable', agentsWindow: '#e6536f', agentsSeenFromEditor: '#e6536f' },
+			separate: { editorWindow: 'insiders', agentsWindow: '#e6536f', agentsSeenFromEditor: '#e6536f' },
+			restarted: { editorWindow: 'insiders', agentsWindow: '#e6536f' },
+			both: { editorWindow: '#55b85a', agentsWindow: '#55b85a', agentsSeenFromEditor: '#55b85a' },
+			stored: ['#55b85a', undefined, undefined],
+		});
+	});
+
+	test('ignores a locked window color and resets custom window colors and hats with achievements', () => {
+		const storage = store.add(new TestStorageService());
+		storage.store('chat.vscodePet.variant', 'stable', StorageScope.APPLICATION, StorageTarget.USER);
+		storage.store('chat.vscodePet.color', 'insiders', StorageScope.APPLICATION, StorageTarget.USER);
+		storage.store('chat.vscodePet.color.agents', '#e6536f', StorageScope.APPLICATION, StorageTarget.USER);
+		const editorWindow = createService(storage);
+		const agentsWindow = createService(storage, true);
+		const locked = agentsWindow.color.get();
+		editorWindow.toggle();
+		editorWindow.unlockAchievement(ChatPetAchievementIds.Blobby);
+		editorWindow.unlockAchievement(ChatPetAchievementIds.FirstChatMessage);
+		const unlocked = agentsWindow.color.get();
+		editorWindow.setColor('stable', 'editor');
+		editorWindow.setAccessory('cowboyHat', 'agents');
+		editorWindow.resetAchievements();
+		assert.deepStrictEqual({
+			locked,
+			unlocked,
+			reset: { editorWindow: editorWindow.color.get(), agentsWindow: agentsWindow.color.get(), agentsHat: agentsWindow.selectedAccessory.get() },
+			storedColors: ['chat.vscodePet.color', 'chat.vscodePet.color.editor', 'chat.vscodePet.color.agents'].map(key => storage.get(key, StorageScope.APPLICATION)),
+			storedHats: ['chat.vscodePet.accessory', 'chat.vscodePet.accessory.editor', 'chat.vscodePet.accessory.agents'].map(key => storage.get(key, StorageScope.APPLICATION_SHARED)),
+		}, {
+			locked: 'insiders',
+			unlocked: '#e6536f',
+			reset: { editorWindow: 'stable', agentsWindow: 'insiders', agentsHat: undefined },
+			storedColors: ['insiders', 'stable', undefined],
+			storedHats: [undefined, undefined, undefined],
+		});
 	});
 
 	test('invoking Blobby turns on an inactive pet without opening the page, then opens Color while active', async () => {
@@ -559,6 +629,80 @@ suite('Chat Pet Colors', () => {
 			locked: input.disabled && picker.disabled && apply.getAttribute('aria-disabled') === 'true',
 			freeCards: Array.from(parent.querySelectorAll<HTMLElement>('.chat-pet-color-card')).filter(card => card.getAttribute('aria-disabled') !== 'true').map(card => card.dataset.color),
 		}, { selected: '#ed83b5', locked: true, freeCards: ['stable', 'insiders'] });
+	});
+
+	test('applies colors to the windows chosen in Apply to and shows which window uses each color', () => {
+		const { parent, service, target, getTargetOptions } = createColorWidget(true);
+		const getSelectedCards = () => Array.from(parent.querySelectorAll<HTMLElement>('.chat-pet-color-card.selected')).map(card => ({
+			color: card.dataset.color,
+			state: card.querySelector('.chat-pet-color-state')?.textContent,
+			pressed: card.getAttribute('aria-pressed'),
+			label: card.getAttribute('aria-label'),
+		}));
+		const [bothOption, editorOption, agentsOption] = getTargetOptions();
+		const group = parent.querySelector<HTMLElement>('.chat-pet-appearance-target [role="radiogroup"]');
+		const picker = {
+			label: group && mainWindow.document.getElementById(group.getAttribute('aria-labelledby') ?? '')?.textContent,
+			options: getTargetOptions().map(option => ({ label: option.textContent, checked: option.getAttribute('aria-checked') })),
+		};
+		bothOption.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+		const afterArrow = { target: target.get(), focused: mainWindow.document.activeElement === editorOption };
+		agentsOption.click();
+		parent.querySelector<HTMLElement>('[data-color="#e6536f"]')!.click();
+		const agentsOnly = getSelectedCards();
+		bothOption.click();
+		const separate = getSelectedCards();
+		parent.querySelector<HTMLElement>('[data-color="#55b85a"]')!.click();
+		assert.deepStrictEqual({
+			picker,
+			afterArrow,
+			agentsOnly,
+			separate,
+			both: { editorWindow: service.getWindowColor('editor').get(), agentsWindow: service.getWindowColor('agents').get(), selected: getSelectedCards() },
+		}, {
+			picker: {
+				label: 'Apply to',
+				options: [
+					{ label: 'Both Windows', checked: 'true' },
+					{ label: 'Editor Window', checked: 'false' },
+					{ label: 'Agents Window', checked: 'false' },
+				],
+			},
+			afterArrow: { target: 'editor', focused: true },
+			agentsOnly: [{ color: '#e6536f', state: 'Selected', pressed: 'true', label: 'Red, selected' }],
+			separate: [
+				{ color: 'stable', state: 'Editor Window', pressed: 'mixed', label: 'Stable, selected in editor windows' },
+				{ color: '#e6536f', state: 'Agents Window', pressed: 'mixed', label: 'Red, selected in the Agents window' },
+			],
+			both: {
+				editorWindow: '#55b85a',
+				agentsWindow: '#55b85a',
+				selected: [{ color: '#55b85a', state: 'Selected', pressed: 'true', label: 'Green, selected' }],
+			},
+		});
+	});
+
+	test('keeps an edited custom color when the target changes and applies it only to that window', () => {
+		const { service, input, apply, setInput, getTargetOptions } = createColorWidget(true);
+		service.setColor('#e6536f', 'agents');
+		const [, editorOption, agentsOption] = getTargetOptions();
+		agentsOption.click();
+		const unedited = { input: input.value, applyDisabled: apply.getAttribute('aria-disabled') };
+		setInput('#123456');
+		editorOption.click();
+		const edited = { input: input.value, applyDisabled: apply.getAttribute('aria-disabled') };
+		apply.click();
+		assert.deepStrictEqual({
+			unedited,
+			edited,
+			editorWindow: service.getWindowColor('editor').get(),
+			agentsWindow: service.getWindowColor('agents').get(),
+		}, {
+			unedited: { input: '#e6536f', applyDisabled: 'true' },
+			edited: { input: '#123456', applyDisabled: 'false' },
+			editorWindow: '#123456',
+			agentsWindow: '#e6536f',
+		});
 	});
 
 	test('recolors every animated and reduced-motion source without changing alpha, eyes, or props', async () => {
