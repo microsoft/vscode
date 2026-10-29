@@ -18,12 +18,16 @@ export function getLinkTarget(element: Element): string {
 
 const hiddenElementAttribute = 'data-chat-clipboard-hidden';
 
+/** Controls rendered alongside chat content; their markup says nothing about what the reader selected. */
+const controlSelector = '[role="toolbar"]';
+
 /**
  * Clones a selected range of rendered chat content along with the elements it sits inside, up to
  * `root`. `cloneContents` returns only what lies between the range boundaries, which drops both
  * the heading or list item giving the text its shape and, for a partly selected link, the rest of
  * its label. Elements the reader cannot see, such as a hidden file changes summary or the
- * stylesheet a list embeds, are left out, just as they are from the selected text.
+ * stylesheet a list embeds, are left out, just as they are from the selected text, and so are
+ * toolbars.
  */
 export function cloneVisibleSelection(range: Range, root: Node): DocumentFragment {
 	const hiddenElements = findHiddenElements(range);
@@ -34,7 +38,7 @@ export function cloneVisibleSelection(range: Range, root: Node): DocumentFragmen
 	try {
 		const fragment = cloneWithAncestors(range, root);
 		// eslint-disable-next-line no-restricted-syntax -- operating on a detached fragment
-		for (const element of Array.from(fragment.querySelectorAll(`[${hiddenElementAttribute}]`))) {
+		for (const element of Array.from(fragment.querySelectorAll(`[${hiddenElementAttribute}], ${controlSelector}`))) {
 			element.remove();
 		}
 		return fragment;

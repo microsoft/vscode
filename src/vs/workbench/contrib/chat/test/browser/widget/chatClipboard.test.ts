@@ -114,21 +114,22 @@ suite('ChatClipboard', () => {
 			'This is **inherited** from the `FooBar` class. See [the docs](https://example.com/docs).');
 	});
 
-	test('copies a selection across a hidden file changes summary without its UI or stylesheet', () => {
+	test('copies a selection across a hidden file changes summary without its UI, stylesheet, or toolbar', () => {
 		const container = document.createElement('div');
 		container.innerHTML = '<div class="value">'
 			+ '<p id="first">Updated <a href="" data-href="file:///repo/src/a.ts">a.ts</a> as <strong>requested</strong>.</p>'
 			+ '<div class="checkpoint-file-changes-summary" style="display: none"><details><summary>0 files changed<span>+0</span><span>-0</span></summary>'
 			+ '<div class="chat-summary-list"><div class="monaco-list list_id_109"><style>.monaco-list.list_id_109:focus .monaco-list-row.focused { background-color: red; }</style></div></div></details></div>'
-			+ '<details><summary>Collapsed</summary><p>Collapsed body</p></details>'
 			+ '<p id="last">Done.</p>'
-			+ '</div>';
+			+ '</div>'
+			+ '<div class="chat-footer-toolbar"><ul class="actions-container" role="toolbar"><li class="action-item chat-copy-action" aria-label="Copy"></li></ul></div>'
+			+ '<p id="next">Next</p>';
 		document.body.appendChild(container);
 		disposables.add(toDisposable(() => container.remove()));
 
 		const range = document.createRange();
 		range.setStart(container.querySelector('#first')!.firstChild!, 0);
-		range.setEnd(container.querySelector('#last')!.firstChild!, 5);
+		range.setEnd(container.querySelector('#next')!.firstChild!, 4);
 		const fragment = cloneVisibleSelection(range, container);
 		sanitizeChatClipboardFragment(fragment);
 		const holder = document.createElement('div');
@@ -138,7 +139,7 @@ suite('ChatClipboard', () => {
 			markdown: convertHtmlToMarkdown(holder.innerHTML),
 			liveMarkers: container.querySelectorAll('[data-chat-clipboard-hidden]').length,
 		}, {
-			markdown: 'Updated `a.ts` as **requested**.\n\nCollapsed\n\nDone.',
+			markdown: 'Updated `a.ts` as **requested**.\n\nDone.\n\nNext',
 			liveMarkers: 0,
 		});
 	});
