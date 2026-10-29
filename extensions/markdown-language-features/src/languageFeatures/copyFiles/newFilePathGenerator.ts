@@ -7,7 +7,7 @@ import * as picomatch from 'picomatch';
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { getParentDocumentUri } from '../../util/document';
-import { CopyFileConfiguration, getCopyFileConfiguration, parseGlob, resolveCopyDestination } from './copyFiles';
+import { CopyFileConfiguration, getCopyFileConfiguration, GetWorkspaceFolder, isCopyDestinationInsideWorkspace, parseGlob, resolveCopyDestination } from './copyFiles';
 
 
 export class NewFilePathGenerator {
@@ -21,6 +21,9 @@ export class NewFilePathGenerator {
 	): Promise<{ readonly uri: vscode.Uri; readonly overwrite: boolean } | undefined> {
 		const config = getCopyFileConfiguration(document);
 		const desiredPath = getDesiredNewFilePath(config, document, file);
+		if (!desiredPath) {
+			return undefined;
+		}
 
 		const root = Utils.dirname(desiredPath);
 		const ext = Utils.extname(desiredPath);
@@ -61,17 +64,33 @@ export class NewFilePathGenerator {
 	}
 }
 
-export function getDesiredNewFilePath(config: CopyFileConfiguration, document: vscode.TextDocument, file: vscode.DataTransferFile): vscode.Uri {
+export function getDesiredNewFilePath(config: CopyFileConfiguration, document: vscode.TextDocument, file: vscode.DataTransferFile): vscode.Uri | undefined {
 	const docUri = getParentDocumentUri(document.uri);
+	const getWorkspaceFolder: GetWorkspaceFolder = uri => vscode.workspace.getWorkspaceFolder(uri)?.uri;
+	const defaultPath = vscode.Uri.joinPath(Utils.dirname(docUri), file.name);
+	const desiredPath = getConfiguredNewFilePath(config, docUri, file, getWorkspaceFolder) ?? defaultPath;
+
+	if (vscode.workspace.isTrusted) {
+		return desiredPath;
+	}
+
+	// In untrusted workspaces, never write outside of the workspace
+	for (const candidate of [desiredPath, defaultPath]) {
+		if (isCopyDestinationInsideWorkspace(docUri, candidate, getWorkspaceFolder)) {
+			return candidate;
+		}
+	}
+	return undefined;
+}
+
+function getConfiguredNewFilePath(config: CopyFileConfiguration, docUri: vscode.Uri, file: vscode.DataTransferFile, getWorkspaceFolder: GetWorkspaceFolder): vscode.Uri | undefined {
 	for (const [rawGlob, rawDest] of Object.entries(config.destination)) {
 		for (const glob of parseGlob(rawGlob)) {
 			if (picomatch.isMatch(docUri.path, glob, { dot: true })) {
-				return resolveCopyDestination(docUri, file.name, rawDest, uri => vscode.workspace.getWorkspaceFolder(uri)?.uri);
+				return resolveCopyDestination(docUri, file.name, rawDest, getWorkspaceFolder);
 			}
 		}
 	}
-
-	// Default to next to current file
-	return vscode.Uri.joinPath(Utils.dirname(docUri), file.name);
+	return undefined;
 }
 
