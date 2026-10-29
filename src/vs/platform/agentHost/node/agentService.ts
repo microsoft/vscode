@@ -2408,12 +2408,13 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	async importSession(session: URI, options?: IAgentImportSessionOptions): Promise<void> {
+	async importSession(session: URI, options?: IAgentImportSessionOptions): Promise<URI> {
 		await this._registerSessionForImport(session);
 		await this.restoreSession(session);
+		// A provider backing can be admitted under another address, such as `ahp-session:` for an unseen Copilot session.
+		const runtimeSession = URI.parse(this._orchestratorDatabase.toRuntimeSession(session.toString()));
 		const provider = this._providerService.getProviderForSession(session);
 		if (provider?.importChat) {
-			const runtimeSession = URI.parse(this._orchestratorDatabase.toRuntimeSession(session.toString()));
 			const chat = URI.parse(this._requireDefaultChat(runtimeSession));
 			const imported = await provider.importChat(chat, this._chatContext(runtimeSession, chat, this._chatStorageResource(runtimeSession, chat)), options);
 			if (imported) {
@@ -2423,6 +2424,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!await this._sessionRegistry.adoptExternalSession(session)) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${session.toString()}`);
 		}
+		return runtimeSession;
 	}
 
 	async installSandboxCertificate(chat: string, scopeId: string): Promise<void> {

@@ -17276,12 +17276,13 @@ suite('AgentService (node dispatcher)', () => {
 		for (const opened of [false, true]) {
 			test(`imports an external session without sending a message (${opened ? 'opened' : 'unopened'})`, async () => {
 				const { svc, agent, session, database, stateManager, chat } = await createExternalSessionForAdoption(opened);
-				await svc.importSession(session);
+				const returned = await svc.importSession(session);
 				await svc.importSession(session);
 				setExternalSessionsMode(svc, AgentHostExternalSessionsMode.None, 1);
 				await waitForSessionListReconciliation(svc);
 				const registered = await database.getSessionV2Registration(session.toString());
 				assert.deepStrictEqual({
+					returned: returned.toString(),
 					registered: { external: registered?.external, source: registered?.source },
 					metadata: stateManager.getSessionState(session.toString())?._meta,
 					sends: agent.sendMessageCalls.length,
@@ -17289,6 +17290,7 @@ suite('AgentService (node dispatcher)', () => {
 					listed: (await svc.listSessions()).map(metadata => metadata.session.toString()),
 					published: stateManager.getExposedSessionKeys().includes(session.toString()),
 				}, {
+					returned: session.toString(),
 					registered: { external: false, source: 'explicit' },
 					metadata: withSessionInitiator(withSessionExternal({ 'test.keep': 'preserved' }, false), { name: 'github/autopilot' }),
 					sends: 0,

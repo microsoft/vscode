@@ -558,7 +558,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().removeSandboxCertificate(chat, scopeId);
 	}
 
-	importSession(session: URI, options?: IAgentImportSessionOptions): Promise<void> {
+	importSession(session: URI, options?: IAgentImportSessionOptions): Promise<URI | void> {
 		return this._requireClient().importSession(session, options);
 	}
 

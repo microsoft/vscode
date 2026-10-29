@@ -41,13 +41,33 @@ suite('CopilotCliSessionLinkOpener', () => {
 		/** The user's answer when asked to take over a session another process holds. */
 		readonly takeOver?: boolean;
 		readonly aiHidden?: boolean;
+		/** The session's address that the host reports for the import, or `null` for a host that reports none. */
+		readonly advertised?: string | null;
+		/** Whether the host listed the session, registering its resource, before the import completed. */
+		readonly listed?: boolean;
 	}
 
 	async function open(id: string, options: IOpenOptions = {}) {
 		const imported: string[] = [];
-		const opened: { resource: string; inChatView: boolean }[] = [];
+		const opened: { resource: string; backend: string | undefined; inChatView: boolean }[] = [];
 		const errors: string[] = [];
 		let takeOverPrompts = 0;
+		const advertised = options.advertised === undefined ? `ahp-session:/${id}` : options.advertised ?? undefined;
+
+		// Like the real service, one frontend resource per session, which refuses a second backend identity.
+		const backends = new Map<string, string>();
+		const registerSessionResource = (backendSession: URI, _authority?: string, provider?: string) => {
+			const resource = URI.from({ scheme: `frontend-${provider}`, path: backendSession.path });
+			const previous = backends.get(resource.toString());
+			if (previous && previous !== backendSession.toString()) {
+				throw new Error(`Conflicting backend identities for ${resource.toString()}`);
+			}
+			backends.set(resource.toString(), backendSession.toString());
+			return resource;
+		};
+		if (options.listed && advertised) {
+			registerSessionResource(URI.parse(advertised), undefined, 'copilotcli');
+		}
 
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
@@ -66,9 +86,14 @@ suite('CopilotCliSessionLinkOpener', () => {
 					if (options.importError) {
 						throw options.importError;
 					}
+					return advertised ? URI.parse(advertised) : undefined;
 				},
 			}),
-			registerSessionResource: (backendSession, authority, provider) => URI.from({ scheme: `frontend-${provider}`, path: backendSession.path, query: authority ?? 'ambient' }),
+			registerSessionResource,
+			findSessionResource: backendSession => {
+				const frontend = [...backends].find(([, backend]) => backend === backendSession.toString())?.[0];
+				return frontend ? URI.parse(frontend) : undefined;
+			},
 		}));
 		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
 			canResolveChatSession: async sessionType => sessionType === SessionType.AgentHostCopilot && (options.copilotSessionsAvailable ?? true),
@@ -78,7 +103,7 @@ suite('CopilotCliSessionLinkOpener', () => {
 		}));
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
 			openSession: async (resource, target) => {
-				opened.push({ resource: resource.toString(), inChatView: target === ChatViewPaneTarget });
+				opened.push({ resource: resource.toString(), backend: backends.get(resource.toString()), inChatView: target === ChatViewPaneTarget });
 				return undefined;
 			},
 		}));
@@ -100,8 +125,20 @@ suite('CopilotCliSessionLinkOpener', () => {
 	test('imports the session into the agent host and opens it in the Chat view', async () => {
 		assert.deepStrictEqual(await open(sessionId), {
 			imported: [`copilotcli:/${sessionId}`],
-			opened: [{ resource: `frontend-copilotcli:/${sessionId}?ambient`, inChatView: true }],
+			opened: [{ resource: `frontend-copilotcli:/${sessionId}`, backend: `ahp-session:/${sessionId}`, inChatView: true }],
 			errors: 0,
+		});
+	});
+
+	test('opens the session at the address the host reports for it', async () => {
+		assert.deepStrictEqual({
+			listedBeforeImportCompleted: (await open(sessionId, { listed: true })).opened,
+			hostReportsOwnAddress: (await open(sessionId, { advertised: `other-host:/session/${sessionId}` })).opened,
+			hostReportsNoAddress: (await open(sessionId, { advertised: null })).opened,
+		}, {
+			listedBeforeImportCompleted: [{ resource: `frontend-copilotcli:/${sessionId}`, backend: `ahp-session:/${sessionId}`, inChatView: true }],
+			hostReportsOwnAddress: [{ resource: `frontend-copilotcli:/session/${sessionId}`, backend: `other-host:/session/${sessionId}`, inChatView: true }],
+			hostReportsNoAddress: [{ resource: `frontend-copilotcli:/${sessionId}`, backend: `copilotcli:/${sessionId}`, inChatView: true }],
 		});
 	});
 
@@ -112,7 +149,7 @@ suite('CopilotCliSessionLinkOpener', () => {
 		}, {
 			takenOver: {
 				imported: [`copilotcli:/${sessionId}`, `copilotcli:/${sessionId} takeOver`],
-				opened: [{ resource: `frontend-copilotcli:/${sessionId}?ambient`, inChatView: true }],
+				opened: [{ resource: `frontend-copilotcli:/${sessionId}`, backend: `ahp-session:/${sessionId}`, inChatView: true }],
 				errors: 0,
 				takeOverPrompts: 1,
 			},

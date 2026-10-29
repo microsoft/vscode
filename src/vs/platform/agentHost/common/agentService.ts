@@ -1019,8 +1019,8 @@ export interface IAgentService {
 	/** Removes an Automation and returns exact backend session URIs deleted by this request. */
 	deleteAutomation?(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[], requestId?: string): Promise<readonly string[]>;
 	acknowledgeAutomationDeletion?(requestId: string): Promise<void>;
-	/** Permanently adopts an external session without sending a message. */
-	importSession?(session: URI, options?: IAgentImportSessionOptions): Promise<void>;
+	/** Permanently adopts an external session without sending a message, and resolves to the session's exact resource. */
+	importSession?(session: URI, options?: IAgentImportSessionOptions): Promise<URI | void>;
 	/** Removes a recorded artifact or reference, awaiting host metadata persistence. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	/** Stops a chat's background work entry. Resolves false when it had already finished or is not tracked. */
@@ -1433,8 +1433,12 @@ export interface IAgentConnection {
 	/** Requires the Automation history capability; returns exact backend session URIs deleted by this request. */
 	deleteAutomation?(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[], requestId?: string): Promise<readonly string[]>;
 	acknowledgeAutomationDeletion?(requestId: string): Promise<void>;
-	/** Requires the VS Code session import capability advertised by initialize. */
-	importSession?(session: URI, options?: IAgentImportSessionOptions): Promise<void>;
+	/**
+	 * Requires the VS Code session import capability advertised by initialize. Resolves to the imported session's
+	 * exact resource as the host advertises it, which can differ from `session`; hosts that don't report it resolve to
+	 * nothing.
+	 */
+	importSession?(session: URI, options?: IAgentImportSessionOptions): Promise<URI | void>;
 	/**
 	 * Moves a session whose only chat is its default chat under `destination` (placed after `after`, `undefined`:
 	 * first) and resolves to `destination`. Rejects with `AgentHostSessionMoveUnsupportedError`, without a request,

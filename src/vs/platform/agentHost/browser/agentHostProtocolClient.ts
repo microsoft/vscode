@@ -2184,8 +2184,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		});
 	}
 
-	async importSession(session: URI, options?: IAgentImportSessionOptions): Promise<void> {
-		await this._sendExtensionRequest(ImportSessionExtensionMethod, { session: session.toString(), ...(options?.takeOver ? { takeOver: true } : {}) });
+	async importSession(session: URI, options?: IAgentImportSessionOptions): Promise<URI | undefined> {
+		const result = await this._sendExtensionRequest(ImportSessionExtensionMethod, { session: session.toString(), ...(options?.takeOver ? { takeOver: true } : {}) });
+		// Hosts that predate the result, or don't conform, leave the caller with the session it requested.
+		return typeof result?.session === 'string' ? URI.parse(result.session) : undefined;
 	}
 
 	async moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {

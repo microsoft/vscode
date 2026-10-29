@@ -3894,6 +3894,26 @@ suite('AgentHostProtocolClient', () => {
 		await Promise.all([result, takeOver]);
 	});
 
+	test('importSession resolves to the session address the host reports, if any', async () => {
+		const { client, transport } = createClient();
+		const responses = [
+			{ session: 'ahp-session:/session-1' },
+			{ session: 'other-host://tenant/opaque' },
+			{},
+			null,
+			{ session: 42 },
+		];
+		const results = responses.map(() => client.importSession(URI.parse('copilotcli:/session-1')));
+		responses.forEach((result, index) => transport.fireMessage({ jsonrpc: '2.0', id: index + 1, result }));
+		assert.deepStrictEqual((await Promise.all(results)).map(uri => uri?.toString()), [
+			'ahp-session:/session-1',
+			'other-host://tenant/opaque',
+			undefined,
+			undefined,
+			undefined,
+		]);
+	});
+
 	test('importSession propagates unsupported host errors', async () => {
 		const { client, transport } = createClient();
 		const result = client.importSession(URI.parse('copilotcli:/session-1'));

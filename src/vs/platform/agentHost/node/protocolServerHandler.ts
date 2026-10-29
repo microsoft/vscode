@@ -3504,7 +3504,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		await withChatWorkspaceErrors(() => this._agentService.setChatWorkspace(owner, URI.parse(chat), workspace, this._config.scopedRelayCredentials ? this._getScopedAuthentication(client) : undefined));
 	}
 
-	private _handleImportSessionRequest(params: unknown): Promise<void> | undefined {
+	private _handleImportSessionRequest(params: unknown): Promise<{ session?: string }> | undefined {
 		if (!this._agentService.importSession) {
 			return undefined;
 		}
@@ -3513,7 +3513,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
 		}
 		try {
-			return this._agentService.importSession(this._parseSessionUri(validated.content.session), validated.content.takeOver ? { takeOver: true } : undefined);
+			return this._agentService.importSession(this._parseSessionUri(validated.content.session), validated.content.takeOver ? { takeOver: true } : undefined)
+				.then(imported => imported ? { session: imported.toString() } : {});
 		} catch (error) {
 			return Promise.reject(error);
 		}
