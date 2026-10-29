@@ -2486,6 +2486,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			const targetWindow = getWindow(activeTabFill);
 			overflowEdge.style.setProperty('--modern-ui-connected-tab-border', targetWindow.getComputedStyle(activeTab).getPropertyValue('--modern-ui-connected-tab-border'));
 			const edgeStyle = targetWindow.getComputedStyle(assertReturnsDefined(activeTabFill.nextElementSibling));
+			overflowEdge.classList.toggle('connected-tab-square-left', edgeStyle.borderTopLeftRadius === '0px');
 			overflowEdge.style.setProperty('--modern-ui-connected-tab-overflow-top-border', edgeStyle.borderTopColor);
 			overflowEdge.style.setProperty('--modern-ui-connected-tab-overflow-top-background', edgeStyle.backgroundImage);
 			// DOM rectangles include CSS zoom; scroll offsets and viewport widths do not.
@@ -2615,6 +2616,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private clearConnectedTabClipping(): void {
 		clearConnectedTabClipping(this.connectedTabBounds?.tab, this.connectedTabOverflowEdge);
+		this.connectedTabOverflowEdge?.classList.remove('connected-tab-square-left');
 		this.connectedTabOverflowEdge?.style.removeProperty('--modern-ui-connected-tab-border');
 		this.connectedTabOverflowEdge?.style.removeProperty('--modern-ui-connected-tab-overflow-top-border');
 		this.connectedTabOverflowEdge?.style.removeProperty('--modern-ui-connected-tab-overflow-top-background');
