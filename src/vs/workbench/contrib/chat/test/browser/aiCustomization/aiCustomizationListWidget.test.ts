@@ -25,8 +25,8 @@ import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getC
 import { AICustomizationItemNormalizer, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, splitPathLabel, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
-import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { AICustomizationManagementSection, AICustomizationScopes, AICustomizationSources, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { ICustomizationHarnessService, ICustomizationItem, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -270,6 +270,25 @@ suite('aiCustomizationListWidget', () => {
 		}, {
 			agents: 'agents:local',
 			skills: 'skills:local',
+		});
+	});
+
+	test('a source label replaces the secondary text in accessible labels', () => {
+		const item: IAICustomizationListItem = {
+			id: 'azure-deploy',
+			uri: URI.file('/home/.copilot/plugins/azure/skills/azure-deploy/SKILL.md'),
+			name: 'azure-deploy',
+			filename: '~/.copilot/plugins/azure/skills/azure-deploy/SKILL.md',
+			source: PromptsStorage.plugin,
+			promptType: PromptsType.skill,
+			disabled: false,
+		};
+		assert.deepStrictEqual({
+			withSource: getCustomizationItemAriaLabel(item, 'Plugin: azure'),
+			withoutSource: getCustomizationItemAriaLabel(item),
+		}, {
+			withSource: 'azure-deploy. Plugin: azure',
+			withoutSource: 'azure-deploy. ~/.copilot/plugins/azure/skills/azure-deploy/SKILL.md',
 		});
 	});
 
@@ -619,6 +638,40 @@ suite('aiCustomizationListWidget', () => {
 		}, PromptsType.prompt);
 
 		assert.strictEqual(item.filename, 'relative:/workspace/.github/prompts/review.prompt.md');
+	});
+
+	test('normalizes scope, origin, and delivery independently of storage', () => {
+		const labelService = new class extends mock<ILabelService>() {
+			override getUriLabel(resource: URI): string { return resource.path; }
+		}();
+		const productService = new class extends mock<IProductService>() {
+			override readonly defaultChatAgent = { chatExtensionId: 'GitHub.copilot-chat' } as IProductService['defaultChatAgent'];
+		}();
+		const normalizer = new AICustomizationItemNormalizer(labelService, productService);
+		const normalize = (item: Partial<ICustomizationItem> & Pick<ICustomizationItem, 'uri' | 'source'>) => {
+			const normalized = normalizer.normalizeItem({ type: PromptsType.agent, name: 'Agent', extensionId: undefined, pluginUri: undefined, ...item }, PromptsType.agent);
+			return { scope: normalized.scope, origin: normalized.origin, groupKey: normalized.groupKey };
+		};
+
+		assert.deepStrictEqual([
+			normalize({ uri: URI.file('/workspace/.github/agents/a.agent.md'), source: PromptsStorage.local }),
+			normalize({ uri: URI.file('/home/.copilot/agents/a.agent.md'), source: PromptsStorage.user, groupKey: 'remote-client' }),
+			normalize({ uri: URI.file('/home/.copilot/plugins/azure/agents/a.agent.md'), source: PromptsStorage.plugin, pluginUri: URI.file('/home/.copilot/plugins/azure'), pluginLabel: 'azure', groupKey: 'remote-host' }),
+			normalize({ uri: URI.file('/ext/acme/agents/a.agent.md'), source: PromptsStorage.extension, extensionId: 'acme.tools', extensionLabel: 'Acme Tools' }),
+			normalize({ uri: URI.file('/ext/copilot/agents/Plan.agent.md'), source: PromptsStorage.extension, extensionId: 'GitHub.copilot-chat' }),
+			normalize({ uri: URI.file('/storage/github.copilot-chat/github/contoso/agents/a.agent.md'), source: PromptsStorage.extension, extensionId: 'GitHub.copilot-chat' }),
+			normalize({ uri: URI.parse('copilot-builtin:/agents/ask.agent.md'), source: AICustomizationSources.builtin, origin: { kind: 'harness' } }),
+			normalize({ uri: URI.file('/host/agents/a.agent.md'), source: PromptsStorage.user, scope: AICustomizationScopes.application }),
+		], [
+			{ scope: 'workspace', origin: undefined, groupKey: undefined },
+			{ scope: 'user', origin: undefined, groupKey: undefined },
+			{ scope: 'user', origin: { kind: 'plugin', id: 'plugin:file:///home/.copilot/plugins/azure', label: 'azure' }, groupKey: undefined },
+			{ scope: 'application', origin: { kind: 'extension', id: 'extension:acme.tools', label: 'Acme Tools' }, groupKey: undefined },
+			{ scope: 'application', origin: { kind: 'vscode', id: 'vscode:' }, groupKey: 'builtin' },
+			{ scope: 'account', origin: { kind: 'account', id: 'account:contoso', label: 'contoso' }, groupKey: 'builtin' },
+			{ scope: 'application', origin: { kind: 'harness', id: 'harness:', label: undefined }, groupKey: 'builtin' },
+			{ scope: 'application', origin: { kind: 'vscode', id: 'vscode:' }, groupKey: undefined },
+		]);
 	});
 
 	suite('extractExtensionIdFromPath', () => {
@@ -1242,6 +1295,67 @@ suite('aiCustomizationListWidget', () => {
 				groups: ['User', 'Workspace'],
 				rowCount: 6,
 			});
+		});
+
+		test('groups items by scope and supplier and names each item\'s source', async () => {
+			const listItem = (id: string, source: IAICustomizationListItem['source'], extra: Partial<IAICustomizationListItem> = {}): IAICustomizationListItem => ({
+				id,
+				uri: URI.file(`/${id}/SKILL.md`),
+				name: id,
+				filename: 'SKILL.md',
+				source,
+				promptType: PromptsType.skill,
+				disabled: false,
+				...extra,
+			});
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', [
+				listItem('triage', PromptsStorage.user),
+				listItem('review', PromptsStorage.user),
+				listItem('azure-deploy', PromptsStorage.plugin, { origin: { kind: 'plugin', id: 'plugin:azure', label: 'azure' } }),
+				listItem('workspace-review', PromptsStorage.local),
+				listItem('release', AICustomizationSources.extension, { scope: AICustomizationScopes.account, origin: { kind: 'account', id: 'account:contoso', label: 'contoso' } }),
+				listItem('acme-lint', AICustomizationSources.extension, { scope: AICustomizationScopes.application, origin: { kind: 'extension', id: 'extension:acme.tools', label: 'Acme Tools' } }),
+				listItem('init', AICustomizationSources.builtin, { scope: AICustomizationScopes.application, origin: { kind: 'vscode', id: 'vscode:' } }),
+				listItem('ask', AICustomizationSources.builtin, { scope: AICustomizationScopes.application, origin: { kind: 'harness', id: 'harness:' } }),
+			]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 0),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: () => Promise.resolve(),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 1000);
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			widget.layout(1000, 800);
+
+			const visibleText = (element: HTMLElement | null) => element && element.style.display !== 'none' ? element.textContent : undefined;
+			const rows = Array.from(widget.element.querySelectorAll<HTMLElement>('.list-container .monaco-list-row'), row => {
+				const group = row.querySelector('.group-label')?.textContent;
+				if (group) {
+					return `# ${group}`;
+				}
+				const source = visibleText(row.querySelector('.item-source'));
+				return [row.querySelector('.item-name')?.textContent, ...(source ? [`(${source})`] : [])].join(' ');
+			});
+			assert.deepStrictEqual(rows, [
+				'# User',
+				'review',
+				'triage',
+				'azure-deploy (Plugin: azure)',
+				'# Workspace',
+				'workspace-review',
+				'# Account',
+				'release (Organization: contoso)',
+				'# Test',
+				'ask',
+				'# VS Code Managed',
+				'init',
+				'acme-lint (Extension: Acme Tools)',
+			]);
 		});
 	});
 });

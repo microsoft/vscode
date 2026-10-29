@@ -143,10 +143,12 @@ export function createRemoteAgentHarnessDescriptor(
 	syncProvider: ICustomizationSyncProvider,
 	customAgentTarget?: Target,
 	modelCatalogueStatus?: IObservable<AgentModelCatalogStatus | undefined>,
+	agentLabel?: string,
 ): IHarnessDescriptor {
 	return {
 		id: harnessId,
 		label: displayName,
+		agentLabel,
 		icon: ThemeIcon.fromId(Codicon.remote.id),
 		customAgentTarget,
 		modelCatalogueStatus,

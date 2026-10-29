@@ -348,7 +348,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		assert.notStrictEqual(items[0].itemKey, items[1].itemKey);
 	});
 
-	test('provider assigns client group to client-synced entries and host group to host entries', async () => {
+	test('provider marks client-synced entries as delivered from the client and leaves host entries unmarked', async () => {
 		const connection = disposables.add(new MockAgentConnection());
 		const hostPlugin: Customization = { type: CustomizationType.Plugin, id: 'file:///plugins/host-plugin', uri: 'file:///plugins/host-plugin', name: 'Host Plugin', };
 		const clientPlugin: Customization = { type: CustomizationType.Plugin, id: 'file:///plugins/client-plugin', uri: 'file:///plugins/client-plugin', name: 'Client Plugin', };
@@ -392,8 +392,10 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		const clientItem = items.find(i => i.name === 'Client Plugin');
 		assert.ok(hostItem, 'should have a host item');
 		assert.ok(clientItem, 'should have a client item');
-		assert.strictEqual(hostItem.groupKey, 'remote-host');
-		assert.strictEqual(clientItem.groupKey, 'remote-client');
+		assert.deepStrictEqual(
+			[{ groupKey: hostItem.groupKey, delivery: hostItem.delivery }, { groupKey: clientItem.groupKey, delivery: clientItem.delivery }],
+			[{ groupKey: undefined, delivery: undefined }, { groupKey: undefined, delivery: 'syncedFromClient' }],
+		);
 	});
 
 	test('provider hides synthetic bundle but still expands its contents', async () => {
@@ -475,7 +477,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		// But its expanded child should appear
 		const skillItem = items.find(i => i.name === 'my-skill');
 		assert.ok(skillItem, 'expanded skill from bundle should be present');
-		assert.strictEqual(skillItem.groupKey, 'remote-client', 'expanded children from bundle should be in client group');
+		assert.strictEqual(skillItem.delivery, 'syncedFromClient', 'expanded children from bundle should be marked as synced from the client');
 	});
 
 	test('toRemoteUri preserves synced-customization scheme URIs', async () => {
@@ -859,7 +861,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		);
 	});
 
-	test('provider keeps client group for recovered user provenance', async () => {
+	test('provider keeps client delivery for recovered user provenance', async () => {
 		const connection = disposables.add(new MockAgentConnection());
 		const bundleUri = `${SYNCED_CUSTOMIZATION_SCHEME}:///test-authority`;
 		const bundle: Customization = { type: CustomizationType.Plugin, id: bundleUri, uri: bundleUri, name: 'VS Code Synced Data', };
@@ -907,11 +909,11 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		assert.deepStrictEqual({
 			uri: rule.uri.toString(),
 			source: rule.source,
-			groupKey: rule.groupKey,
+			delivery: rule.delivery,
 		}, {
 			uri: originUri.toString(),
 			source: 'user',
-			groupKey: 'remote-client',
+			delivery: 'syncedFromClient',
 		});
 	});
 

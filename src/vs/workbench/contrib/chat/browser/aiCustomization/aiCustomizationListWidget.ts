@@ -23,9 +23,9 @@ import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstract
 import { IObjectTreeElement, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, extensionIcon, pluginIcon, builtinIcon } from './aiCustomizationIcons.js';
+import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon } from './aiCustomizationIcons.js';
 import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, AICustomizationManagementCreateMenuId, AICustomizationManagementSection, AI_CUSTOMIZATION_ITEM_DISABLED_KEY, getAICustomizationManagementItemMenuId, sectionToPromptType } from './aiCustomizationManagement.js';
-import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
@@ -39,7 +39,7 @@ import { IMenuService, MenuItemAction } from '../../../../../platform/actions/co
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { createActionViewItem, getContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationScopes, AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -52,14 +52,16 @@ import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentatio
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
+import { getCustomizationListItemScope, IAICustomizationListItem, IAICustomizationListItemOrigin } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from './aiCustomizationItemsModel.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
 import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
-import { getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups, isAICustomizationWorkspaceGroupKey } from './aiCustomizationWorkspaceGroups.js';
+import { findAICustomizationWorkspaceGroupContaining, getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups, isAICustomizationWorkspaceGroupKey } from './aiCustomizationWorkspaceGroups.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
@@ -137,6 +139,7 @@ interface IAICustomizationItemTemplateData {
 	readonly descriptionContainer: HTMLElement;
 	readonly description: HighlightedLabel;
 	readonly path: MiddleEllipsisPathLabel;
+	readonly source: HTMLAnchorElement;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 	readonly iconDisposables: DisposableStore;
@@ -265,12 +268,12 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 
 	constructor(
 		private readonly showItemActions: (item: IAICustomizationListItem, anchor: HTMLElement) => void,
+		private readonly presentation: IAICustomizationItemPresentation,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IThemeService private readonly themeService: IThemeService,
 	) { }
 
@@ -282,7 +285,9 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 	setFocusedItemId(itemId: string | undefined): void {
 		this.focusedItemId = itemId;
 		for (const template of this.templates) {
-			template.actionBar.setFocusable(itemId !== undefined && template.currentItemId === itemId);
+			const focused = itemId !== undefined && template.currentItemId === itemId;
+			template.actionBar.setFocusable(focused);
+			template.source.tabIndex = focused && template.source.classList.contains('source-link') ? 0 : -1;
 		}
 	}
 
@@ -303,6 +308,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		const descriptionContainer = DOM.append(textContainer, $('.item-description'));
 		const description = disposables.add(new HighlightedLabel(descriptionContainer));
 		const path = disposables.add(new MiddleEllipsisPathLabel(DOM.append(descriptionContainer, $('.item-path'))));
+		const source = DOM.append(descriptionContainer, $<HTMLAnchorElement>('a.item-source'));
 
 		// Right section for actions (hover-visible)
 		const actionsContainer = DOM.append(container, $('.item-right'));
@@ -326,6 +332,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			descriptionContainer,
 			description,
 			path,
+			source,
 			disposables,
 			elementDisposables,
 			iconDisposables,
@@ -356,13 +363,12 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		renderIcon();
 		templateData.elementDisposables.add(this.themeService.onDidColorThemeChange(renderIcon));
 
-		// Hover tooltip: name + source + badge context + plugin source
+		// Hover tooltip: name + where it comes from + badge context
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => {
 			let content: string;
-			if (element.isBuiltin) {
-				content = `${element.name}\n${localize('builtinSource', "Built-in")}`;
-			} else if (element.extensionId) {
-				content = `${element.name}\n${localize('fromExtension', "Extension: {0}", element.extensionId)}`;
+			const originLabel = element.origin ? this.presentation.getOriginLabel(element.origin) : undefined;
+			if (element.origin?.kind === 'plugin' || element.origin?.kind === 'extension' || !hasReadableCustomizationContent(element.uri) || element.isBuiltin) {
+				content = `${element.name}\n${originLabel?.detail ? localize('itemOriginWithDetail', "{0} ({1})", originLabel.label, originLabel.detail) : originLabel?.label ?? localize('builtinSource', "Built-in")}`;
 			} else {
 				const isWorkspaceItem = element.source === AICustomizationSources.local;
 				const uriLabel = this.labelService.getUriLabel(element.uri, { relative: isWorkspaceItem });
@@ -370,10 +376,6 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			}
 			if (element.badgeTooltip) {
 				content += `\n\n${element.badgeTooltip}`;
-			}
-			const plugin = element.pluginUri && this.agentPluginService.plugins.get().find(p => isEqual(p.uri, element.pluginUri));
-			if (plugin) {
-				content += `\n${localize('fromPlugin', "Plugin: {0}", plugin.label)}`;
 			}
 			return {
 				content,
@@ -439,8 +441,17 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			templateData.statusIcon.className = 'item-status-icon';
 		}
 
+		// A plugin, extension, or organization is more telling than the path of a
+		// file it supplies, so its name replaces the secondary text.
+		const source = this.presentation.getSourceLabel(element);
+		this.renderSource(templateData, element, source);
+
 		const secondaryText = getCustomizationSecondaryText(element.description, element.filename, element.promptType);
-		if (secondaryText) {
+		if (source) {
+			templateData.description.element.style.display = 'none';
+			templateData.path.element.style.display = 'none';
+			templateData.descriptionContainer.style.display = '';
+		} else if (secondaryText) {
 			const isPath = element.promptType !== PromptsType.hook || !element.description;
 			templateData.description.element.style.display = isPath ? 'none' : '';
 			templateData.path.element.style.display = isPath ? '' : 'none';
@@ -505,6 +516,36 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		templateData.elementDisposables.add(menu.onDidChange(updateActions));
 
 		templateData.actionBar.context = context;
+	}
+
+	private renderSource(templateData: IAICustomizationItemTemplateData, element: IAICustomizationListItem, source: IAICustomizationItemSource | undefined): void {
+		const link = templateData.source;
+		link.textContent = source?.label ?? '';
+		link.style.display = source ? '' : 'none';
+		const open = source?.open;
+		link.classList.toggle('source-link', !!open);
+		link.tabIndex = open && element.id === this.focusedItemId ? 0 : -1;
+		if (!source || !open) {
+			link.removeAttribute('href');
+			link.removeAttribute('aria-label');
+			if (source) {
+				templateData.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), link, source.detail));
+			}
+			return;
+		}
+		link.setAttribute('href', '#');
+		link.setAttribute('aria-label', source.detail);
+		templateData.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), link, source.detail));
+		templateData.elementDisposables.add(DOM.addDisposableListener(link, DOM.EventType.MOUSE_DOWN, e => e.stopPropagation()));
+		templateData.elementDisposables.add(DOM.addStandardDisposableListener(link, DOM.EventType.KEY_DOWN, e => {
+			if (e.keyCode === KeyCode.Enter) {
+				e.stopPropagation();
+			}
+		}));
+		templateData.elementDisposables.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, e => {
+			DOM.EventHelper.stop(e, true);
+			open();
+		}));
 	}
 
 	disposeElement(_entry: IFileItemEntry, _index: number, templateData: IAICustomizationItemTemplateData): void {
@@ -632,6 +673,33 @@ interface ICustomizationItemGroup {
 }
 
 /**
+ * The plugin, extension, or organization that supplied a row, shown in place
+ * of its secondary text.
+ */
+interface IAICustomizationItemSource {
+	/** For example "Plugin: azure". */
+	readonly label: string;
+	/** Hover and, for a link, accessible name. */
+	readonly detail: string;
+	/** Opens the source's details; `undefined` when there is nothing to open. */
+	readonly open?: () => void;
+}
+
+/**
+ * Presentation context the item renderer needs from the widget.
+ */
+interface IAICustomizationItemPresentation {
+	getOriginLabel(origin: IAICustomizationListItemOrigin): { readonly label: string; readonly detail: string };
+	/** The source shown on a row, or `undefined` when the group already names it. */
+	getSourceLabel(item: IAICustomizationListItem): IAICustomizationItemSource | undefined;
+}
+
+/** Group keys for the account scope and the application-scope suppliers. */
+const ACCOUNT_GROUP_KEY = 'account';
+const HARNESS_GROUP_KEY = 'harness';
+const VSCODE_GROUP_KEY = 'vscode';
+
+/**
  * Widget that displays a searchable list of AI customization items.
  */
 export function getCollapsedCustomizationGroupKey(section: AICustomizationManagementSection, groupKey: string): string {
@@ -648,9 +716,9 @@ export function getCustomizationItemStatusLabel(item: IAICustomizationListItem):
 	}
 }
 
-export function getCustomizationItemAriaLabel(item: IAICustomizationListItem): string {
+export function getCustomizationItemAriaLabel(item: IAICustomizationListItem, sourceLabel?: string): string {
 	const displayName = item.displayName ?? formatDisplayName(item.name);
-	const secondaryText = getCustomizationSecondaryText(item.description, item.filename, item.promptType);
+	const secondaryText = sourceLabel ?? getCustomizationSecondaryText(item.description, item.filename, item.promptType);
 	const statusLabel = getCustomizationItemStatusLabel(item);
 	const accessibleSecondaryText = [secondaryText, statusLabel, item.statusMessage].filter(Boolean).join('. ');
 	const nameAndDescription = accessibleSecondaryText ? localize('itemAriaLabel', "{0}. {1}", displayName, accessibleSecondaryText) : displayName;
@@ -722,6 +790,13 @@ export class AICustomizationListWidget extends Disposable {
 	private readonly _onDidRequestBrowse = this._register(new Emitter<void>());
 	readonly onDidRequestBrowse: Event<void> = this._onDidRequestBrowse.event;
 
+	private readonly _onDidRequestShowPlugin = this._register(new Emitter<{ readonly plugin?: IAgentPlugin; readonly name: string }>());
+	/**
+	 * Fires when a row's plugin link is activated, with the plugin when it is
+	 * installed on this computer. Plugin links are only shown while this has listeners.
+	 */
+	readonly onDidRequestShowPlugin: Event<{ readonly plugin?: IAgentPlugin; readonly name: string }> = this._onDidRequestShowPlugin.event;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
@@ -743,6 +818,7 @@ export class AICustomizationListWidget extends Disposable {
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 		this.element = $('.ai-customization-list-widget');
@@ -889,6 +965,10 @@ export class AICustomizationListWidget extends Disposable {
 		const itemRenderer = this.instantiationService.createInstance(
 			AICustomizationItemRenderer,
 			(item: IAICustomizationListItem, anchor: HTMLElement) => this.showItemContextMenu(item, anchor),
+			{
+				getOriginLabel: origin => this.getOriginLabel(origin),
+				getSourceLabel: item => this.getSourceLabel(item),
+			} satisfies IAICustomizationItemPresentation,
 		);
 		this.list = this._register(this.instantiationService.createInstance(
 			WorkbenchObjectTree<IListEntry>,
@@ -912,7 +992,7 @@ export class AICustomizationListWidget extends Disposable {
 						if (entry.type === 'group-header') {
 							return localize('groupAriaLabel2', "{0}, {1} items", entry.label, entry.count);
 						}
-						const label = getCustomizationItemAriaLabel(entry.item);
+						const label = getCustomizationItemAriaLabel(entry.item, this.getSourceLabel(entry.item)?.label);
 						if (!hasReadableCustomizationContent(entry.item.uri)) {
 							return localize('itemAriaLabelNoSourceContent', "{0}, source content unavailable", label);
 						}
@@ -930,14 +1010,8 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Handle item selection (single click opens item, group header toggles)
 		this._register(this.list.onDidOpen(e => {
-			if (e.element) {
-				if (e.element.type === 'group-header') {
-					return;
-				} else {
-					if (hasReadableCustomizationContent(e.element.item.uri)) {
-						this._onDidSelectItem.fire(e.element.item);
-					}
-				}
+			if (e.element?.type === 'file-item' && hasReadableCustomizationContent(e.element.item.uri)) {
+				this._onDidSelectItem.fire(e.element.item);
 			}
 		}));
 
@@ -955,7 +1029,7 @@ export class AICustomizationListWidget extends Disposable {
 		// press an arrow key first.
 		this._register(this.list.onDidFocus(() => {
 			if (this.list.getFocus().length === 0 && this.displayEntries.length > 0) {
-				const firstItem = this.displayEntries.find(entry => entry.type !== 'group-header');
+				const firstItem = this.displayEntries.find(entry => entry.type === 'file-item');
 				if (firstItem) {
 					this.list.setFocus([firstItem]);
 				}
@@ -1494,15 +1568,23 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
+	 * Builds the child rows of a group: items authored directly in the scope
+	 * first, then supplied items ordered by their source.
+	 */
+	private buildGroupChildren(group: ICustomizationItemGroup): IListEntry[] {
+		// Items that need no source line (authored in the scope or built into the
+		// group's supplier) sort ahead of those supplied by a plugin, extension, or organization.
+		const sourceKey = (item: IAICustomizationListItem) => item.origin && item.origin.kind !== 'vscode' && item.origin.kind !== 'harness' ? this.getOriginLabel(item.origin).label.toLowerCase() : '';
+		return [...group.items]
+			.sort((a, b) => sourceKey(a).localeCompare(sourceKey(b)) || a.name.localeCompare(b.name))
+			.map(item => ({ type: 'file-item', item }));
+	}
+
+	/**
 	 * Builds grouped display entries from items assigned to groups.
 	 * Empty groups are omitted. Collapsed groups show only their header.
 	 */
 	private buildGroupedEntries(groups: ICustomizationItemGroup[]): void {
-		// Sort items within each group
-		for (const group of groups) {
-			group.items.sort((a, b) => a.name.localeCompare(b.name));
-		}
-
 		this.displayEntries = [];
 		let isFirstGroup = true;
 		for (const group of groups) {
@@ -1526,9 +1608,7 @@ export class AICustomizationListWidget extends Disposable {
 			isFirstGroup = false;
 
 			if (!collapsed) {
-				for (const item of group.items) {
-					this.displayEntries.push({ type: 'file-item', item });
-				}
+				this.displayEntries.push(...this.buildGroupChildren(group));
 			}
 		}
 	}
@@ -1561,62 +1641,24 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
-	 * Groups normalized list items for display.
-	 * Groups items by normalized storage/groupKey.
+	 * Groups normalized list items for display by scope: User, Workspace (one
+	 * group per folder in a multi-root workspace), Account, and Application.
 	 */
 	private groupMatchedItems(matchedItems: IAICustomizationListItem[]): void {
 		const workspaceGroups = getAICustomizationWorkspaceGroups(this.workspaceContextService);
+		const workspaceDescription = localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control.");
 		const groups: ICustomizationItemGroup[] = [
-			{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
-			...(workspaceGroups.length > 0
-				? workspaceGroups.map(group => ({ groupKey: group.key, label: group.label, icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [], workspaceFolder: group.uri }))
-				: [{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] }]),
-			{ groupKey: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
-			{ groupKey: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
-			{ groupKey: PromptsStorage.builtIn, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
+			{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userScopeGroupDescription', "Customizations in your home folder, including plugins you installed. Private to you and available across all projects."), items: [] },
+			...workspaceGroups.map(group => ({ groupKey: group.key, label: localize('workspaceFolderGroup', "Workspace · {0}", group.label), icon: workspaceIcon, description: workspaceDescription, items: [], workspaceFolder: group.uri })),
+			{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: workspaceDescription, items: [] },
+			{ groupKey: ACCOUNT_GROUP_KEY, label: localize('accountGroup', "Account"), icon: Codicon.organization, description: localize('accountGroupDescription', "Read-only customizations provided by your signed-in account, such as your GitHub organization."), items: [] },
+			{ groupKey: HARNESS_GROUP_KEY, label: this.getAgentLabel(), icon: this.harnessService.getActiveDescriptor().icon, description: localize('harnessGroupDescription', "Read-only customizations built into {0}.", this.getAgentLabel()), items: [] },
+			{ groupKey: VSCODE_GROUP_KEY, label: localize('vscodeManagedGroup', "VS Code Managed"), icon: Codicon.vscode, description: localize('vscodeManagedGroupDescription', "Read-only customizations built into VS Code or provided by installed extensions."), items: [] },
 		];
 
 		for (const item of matchedItems) {
 			const key = this.getItemGroupKey(item, workspaceGroups.length > 0);
-			let group = groups.find(g => g.groupKey === key);
-			if (!group) {
-				// Dynamically create a group for unknown groupKeys from providers
-				let label: string;
-				let description = '';
-				switch (key) {
-					case 'remote-host':
-						label = localize('remoteHostGroupShort', "Remote");
-						if (this.currentSection === AICustomizationManagementSection.Skills) {
-							description = localize(
-								'remoteSkillsGroupDescription',
-								"Skills available from {0}, the active remote agent environment.",
-								this.harnessService.getActiveDescriptor().label,
-							);
-						}
-						break;
-					case 'remote-client':
-						label = localize('remoteClientGroupShort', "This Computer");
-						if (this.currentSection === AICustomizationManagementSection.Skills) {
-							description = localize(
-								'localSkillsGroupDescription',
-								"Skills stored on your local machine and synced to {0}, the active remote agent environment.",
-								this.harnessService.getActiveDescriptor().label,
-							);
-						}
-						break;
-					default:
-						label = formatDisplayName(key);
-				}
-				group = { groupKey: key, label, icon: Codicon.folder, description, items: [] };
-				// Insert dynamic groups before the built-in group so it always stays last.
-				const builtinIdx = groups.findIndex(g => g.groupKey === PromptsStorage.builtIn);
-				if (builtinIdx >= 0) {
-					groups.splice(builtinIdx, 0, group);
-				} else {
-					groups.push(group);
-				}
-			}
-			group.items.push(item);
+			groups.find(g => g.groupKey === key)!.items.push(item);
 		}
 
 		this.buildGroupedEntries(groups);
@@ -1646,7 +1688,7 @@ export class AICustomizationListWidget extends Disposable {
 					description: group.description,
 					count: group.items.length,
 					element,
-					children: group.items.map(item => ({ type: 'file-item' as const, item })),
+					children: this.buildGroupChildren(group),
 				};
 			});
 			this.renderCustomizationTree(treeGroups);
@@ -1656,13 +1698,84 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	private getItemGroupKey(item: IAICustomizationListItem, isMultiRoot: boolean): string {
-		const key = this.currentSection === AICustomizationManagementSection.Instructions
-			? item.source
-			: item.groupKey ?? item.source ?? AICustomizationSources.local;
-		if (key !== PromptsStorage.local || !isMultiRoot) {
-			return key;
+		switch (getCustomizationListItemScope(item)) {
+			case AICustomizationScopes.account: return ACCOUNT_GROUP_KEY;
+			case AICustomizationScopes.application:
+				return item.origin?.kind === 'harness' ? HARNESS_GROUP_KEY : VSCODE_GROUP_KEY;
+			case AICustomizationScopes.workspace: {
+				if (!isMultiRoot) {
+					return PromptsStorage.local;
+				}
+				// Items outside every workspace folder stay in a plain Workspace
+				// group instead of being attributed to an arbitrary folder.
+				return findAICustomizationWorkspaceGroupContaining(item.uri, this.workspaceContextService)?.key ?? PromptsStorage.local;
+			}
+			default: return PromptsStorage.user;
 		}
-		return getAICustomizationWorkspaceGroupForResource(item.uri, this.workspaceContextService)?.key ?? key;
+	}
+
+	private getAgentLabel(): string {
+		const descriptor = this.harnessService.getActiveDescriptor();
+		return descriptor.agentLabel ?? descriptor.label;
+	}
+
+	private getProductName(): string {
+		return this.productService.nameShort || 'VS Code';
+	}
+
+	private getOriginLabel(origin: IAICustomizationListItemOrigin): { readonly label: string; readonly detail: string } {
+		switch (origin.kind) {
+			case 'plugin': {
+				const marketplace = this.agentPluginService.plugins.get().find(plugin => `plugin:${plugin.uri.toString()}` === origin.id)?.fromMarketplace?.marketplace;
+				return {
+					label: origin.label ?? localize('unknownPlugin', "Plugin"),
+					detail: marketplace ? localize('pluginOriginFromMarketplace', "Plugin from {0}", marketplace) : localize('pluginOrigin', "Plugin"),
+				};
+			}
+			case 'extension':
+				return { label: origin.label ?? origin.id, detail: localize('extensionOrigin', "Extension") };
+			case 'account':
+				return { label: origin.label ?? localize('githubAccountOrigin', "GitHub"), detail: localize('organizationOrigin', "GitHub organization") };
+			case 'harness':
+				return { label: origin.label ?? this.getAgentLabel(), detail: localize('harnessOrigin', "Built into the agent") };
+			case 'vscode':
+			default:
+				return { label: origin.label ?? this.getProductName(), detail: localize('vscodeOrigin', "Built-in") };
+		}
+	}
+
+	/**
+	 * The plugin, extension, or organization that supplied a row. Items in a
+	 * group named after their supplier (VS Code or the agent) need none.
+	 */
+	private getSourceLabel(item: IAICustomizationListItem): IAICustomizationItemSource | undefined {
+		const origin = item.origin;
+		switch (origin?.kind) {
+			case 'plugin': {
+				const plugin = item.pluginUri ? this.agentPluginService.plugins.get().find(plugin => isEqual(plugin.uri, item.pluginUri)) : undefined;
+				const name = plugin?.label ?? origin.label ?? this.getOriginLabel(origin).label;
+				const label = localize('itemSourcePlugin', "Plugin: {0}", name);
+				if (!this._onDidRequestShowPlugin.hasListeners()) {
+					return { label, detail: this.getOriginLabel(origin).detail };
+				}
+				// A plugin installed only on the agent host has no details here, but
+				// the Plugins page lists it.
+				return plugin
+					? { label, detail: localize('openItemSourcePlugin', "Open plugin details for {0}", name), open: () => this._onDidRequestShowPlugin.fire({ plugin, name }) }
+					: { label, detail: localize('showItemSourcePlugin', "Show {0} in Plugins", name), open: () => this._onDidRequestShowPlugin.fire({ name }) };
+			}
+			case 'extension': {
+				const name = this.getOriginLabel(origin).label;
+				const extensionId = item.extensionId;
+				return extensionId
+					? { label: localize('itemSourceExtension', "Extension: {0}", name), detail: localize('openItemSourceExtension', "Open extension details for {0}", name), open: () => this.commandService.executeCommand('extension.open', extensionId) }
+					: { label: localize('itemSourceExtension', "Extension: {0}", name), detail: this.getOriginLabel(origin).detail };
+			}
+			case 'account':
+				return { label: localize('itemSourceOrganization', "Organization: {0}", this.getOriginLabel(origin).label), detail: this.getOriginLabel(origin).detail };
+			default:
+				return undefined;
+		}
 	}
 
 	private usesCustomizationTreePresentation(): boolean {

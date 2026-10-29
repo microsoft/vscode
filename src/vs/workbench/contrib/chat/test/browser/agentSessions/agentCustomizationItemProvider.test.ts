@@ -161,6 +161,31 @@ suite('AgentCustomizationItemProvider', () => {
 		]);
 	});
 
+	test('uses host-published scope for directory children instead of inferring it from the URI', async () => {
+		const customizations: Customization[] = [
+			{ type: CustomizationType.Directory, id: 'host-builtins', uri: 'other-host:/opaque/agents', name: 'agents', enabled: true, contents: CustomizationType.Agent, writable: false, _meta: { 'vscode.customization.scope': 'application' }, children: [{ type: CustomizationType.Agent, id: 'ask', uri: 'other-host:/opaque/agents/ask', name: 'Ask' }] },
+			{ type: CustomizationType.Directory, id: 'unscoped', uri: 'other-host:/opaque/user-agents', name: 'agents', enabled: true, contents: CustomizationType.Agent, writable: true, children: [{ type: CustomizationType.Agent, id: 'planner', uri: 'other-host:/opaque/user-agents/planner', name: 'Planner' }] },
+			{ type: CustomizationType.Directory, id: 'invalid-scope', uri: 'other-host:/opaque/more-agents', name: 'agents', enabled: true, contents: CustomizationType.Agent, writable: true, _meta: { 'vscode.customization.scope': 'everyone' }, children: [{ type: CustomizationType.Agent, id: 'tester', uri: 'other-host:/opaque/more-agents/tester', name: 'Tester' }] },
+		];
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomizations(): readonly Customization[] {
+				return customizations;
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'remote', undefined, undefined, upcastPartial<IFileService>({}),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(),
+		));
+
+		const items = await provider.provideChatSessionCustomizations(URI.parse('remote-agent-host-test-copilot:/session'), CancellationToken.None);
+
+		assert.deepStrictEqual(items.map(item => ({ name: item.name, source: item.source, scope: item.scope, origin: item.origin })), [
+			{ name: 'Ask', source: AICustomizationSources.builtin, scope: 'application', origin: { kind: 'harness' } },
+			{ name: 'Planner', source: AICustomizationSources.user, scope: undefined, origin: undefined },
+			{ name: 'Tester', source: AICustomizationSources.user, scope: undefined, origin: undefined },
+		]);
+	});
+
 	test('surfaces draft bundle agents skills and instructions before session state exists', async () => {
 		const bundleUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle' });
 		const workspaceAgentUri = URI.file('/workspace/.github/agents/reviewer.agent.md');

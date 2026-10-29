@@ -13,6 +13,7 @@ import type { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
+import { withCustomizationScopeMeta } from '../../common/meta/customizationScopeMeta.js';
 import { CustomizationLoadStatus, customizationId, type DirectoryCustomization } from '../../common/state/sessionState.js';
 import { toSdkClientToolName } from './copilotPluginConverters.js';
 import type { IActiveClientSnapshot } from './copilotSessionLauncher.js';
@@ -123,6 +124,7 @@ export function buildCopilotBuiltinAgentsContainer(): DirectoryCustomization {
 		contents: CustomizationType.Agent,
 		writable: false,
 		load: { kind: CustomizationLoadStatus.Loaded },
+		_meta: withCustomizationScopeMeta(undefined, 'application'),
 		children: COPILOT_BUILTIN_AGENTS.map(agent => {
 			const agentUri = getCopilotBuiltinAgentUri(agent).toString();
 			return {

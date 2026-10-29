@@ -509,6 +509,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			syncProvider,
 			agent.provider === 'copilotcli' ? Target.GitHubCopilot : undefined,
 			modelCatalogueStatus,
+			agentLabel,
 		);
 		agentStore.add(this._customizationHarnessService.registerExternalHarness(harnessDescriptor));
 

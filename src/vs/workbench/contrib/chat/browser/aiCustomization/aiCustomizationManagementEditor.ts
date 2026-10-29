@@ -56,7 +56,7 @@ import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
-import { McpListWidget } from './mcpListWidget.js';
+import { createInstalledPluginItem, McpListWidget } from './mcpListWidget.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { PluginListWidget } from './pluginListWidget.js';
 import { ToolsListWidget } from './toolsListWidget.js';
@@ -1253,6 +1253,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 		this.editorDisposables.add(this.listWidget.onDidRequestBrowse(() => {
 			this.selectSection(AICustomizationManagementSection.Skills, { showMarketplace: true });
+		}));
+		this.editorDisposables.add(this.listWidget.onDidRequestShowPlugin(({ plugin, name }) => {
+			if (plugin) {
+				this.showPluginDetail(createInstalledPluginItem(plugin));
+			} else {
+				this.selectSection(AICustomizationManagementSection.Plugins);
+				this.pluginListWidget?.setSearchQuery(name);
+			}
 		}));
 
 		// Container for Models content (only in sessions)

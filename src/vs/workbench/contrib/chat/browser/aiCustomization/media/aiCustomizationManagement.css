@@ -2943,7 +2943,8 @@ per-word capitalization does not survive translation. */
 
 .mcp-server-item .mcp-server-source-path.source-link,
 .copilot-customization-tree-source-link.source-link,
-.tools-list-connected-row .source-link {
+.tools-list-connected-row .source-link,
+.ai-customization-list-item .item-source.source-link {
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
 	text-decoration: none;
@@ -2951,14 +2952,16 @@ per-word capitalization does not survive translation. */
 
 .mcp-server-item .mcp-server-source-path.source-link:hover,
 .copilot-customization-tree-source-link.source-link:hover,
-.tools-list-connected-row .source-link:hover {
+.tools-list-connected-row .source-link:hover,
+.ai-customization-list-item .item-source.source-link:hover {
 	color: var(--vscode-textLink-activeForeground);
 	text-decoration: underline;
 }
 
 .mcp-server-item .mcp-server-source-path.source-link:focus-visible,
 .copilot-customization-tree-source-link.source-link:focus-visible,
-.tools-list-connected-row .source-link:focus-visible {
+.tools-list-connected-row .source-link:focus-visible,
+.ai-customization-list-item .item-source.source-link:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }

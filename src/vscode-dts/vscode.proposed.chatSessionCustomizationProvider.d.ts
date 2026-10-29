@@ -68,6 +68,13 @@ declare module 'vscode' {
 	export type ChatSessionCustomizationSource = 'local' | 'user' | 'extension' | 'plugin' | 'builtin';
 
 	/**
+	 * Who a customization applies to: the user's home folder, the workspace,
+	 * the signed-in account (for example a GitHub organization), or the
+	 * application (built into the editor or agent, or contributed by an extension).
+	 */
+	export type ChatSessionCustomizationScope = 'user' | 'workspace' | 'account' | 'application';
+
+	/**
 	 * Represents a single customization item reported by a provider.
 	 */
 	export interface ChatSessionCustomizationItem {
@@ -95,6 +102,12 @@ declare module 'vscode' {
 		 * The source/origin of this customization, which drives UI grouping and filtering
 		 */
 		readonly source: ChatSessionCustomizationSource;
+
+		/**
+		 * Who this customization applies to, which drives the primary grouping
+		 * in the management UI. When omitted, the scope is derived from {@link source}.
+		 */
+		readonly scope?: ChatSessionCustomizationScope;
 
 		/**
 		 * The extension identifier that contributed this customization. Should be set if the source is 'extension'.

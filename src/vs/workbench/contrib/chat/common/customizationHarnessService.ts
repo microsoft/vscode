@@ -11,7 +11,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { AICustomizationManagementSection, AICustomizationSource, BUILTIN_STORAGE } from './aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, AICustomizationScope, AICustomizationSource, BUILTIN_STORAGE } from './aiCustomizationWorkspaceService.js';
 import { PromptsType, Target } from './promptSyntax/promptTypes.js';
 import { AGENT_MD_FILENAME } from './promptSyntax/config/promptFileLocations.js';
 import { IAgentSource, IChatPromptSlashCommand, ICustomAgent, IPromptsService, IResolvedChatPromptSlashCommand, matchesSessionType, PromptsStorage } from './promptSyntax/service/promptsService.js';
@@ -169,6 +169,11 @@ export interface IHarnessDescriptor {
 	readonly label: string;
 	readonly icon: ThemeIcon;
 	/**
+	 * Name of the agent without qualifiers such as the remote host, used to
+	 * label the customizations built into the agent. Defaults to {@link label}.
+	 */
+	readonly agentLabel?: string;
+	/**
 	 * The target whose custom agent format this harness supports.
 	 */
 	readonly customAgentTarget?: Target;
@@ -254,6 +259,15 @@ export interface IHarnessDescriptor {
 }
 
 /**
+ * Identifies who supplied a built-in or account customization.
+ * `label` is optional for `harness`, which defaults to the active harness name.
+ */
+export interface ICustomizationOrigin {
+	readonly kind: 'vscode' | 'harness' | 'account';
+	readonly label?: string;
+}
+
+/**
  * Represents a customization item provided by any source.
  */
 export interface ICustomizationItem {
@@ -281,6 +295,21 @@ export interface ICustomizationItem {
 	readonly disabledReason?: CustomizationDisabledReason;
 	/** When set, items with the same groupKey are displayed under a shared collapsible header. */
 	readonly groupKey?: string;
+	/**
+	 * Who this customization applies to. Drives the primary grouping in the
+	 * management UI. When omitted, the scope is derived from {@link source}.
+	 */
+	readonly scope?: AICustomizationScope;
+	/**
+	 * Supplier of a built-in or account customization, used to subgroup items
+	 * within their scope. Plugin and extension origins come from
+	 * {@link pluginUri} and {@link extensionId}.
+	 */
+	readonly origin?: ICustomizationOrigin;
+	/** Set when the item was synced from this client to a remote agent environment. */
+	readonly delivery?: 'syncedFromClient';
+	/** Human-readable name of the extension that contributed this customization, if any. */
+	readonly extensionLabel?: string;
 	/** When set, shows a small inline badge next to the item name (e.g. an applyTo glob pattern). */
 	readonly badge?: string;
 	/** Tooltip shown when hovering the badge. */
@@ -314,6 +343,29 @@ export interface IAgentFileToolInventoryEntry {
 
 export function isPluginCustomizationItem(item: { readonly type: string }): boolean {
 	return item.type === 'plugin' || item.type === AICustomizationManagementSection.Plugins;
+}
+
+/**
+ * Legacy group keys that providers used to emit for agent-host provenance.
+ * They are not storage groups; they map to {@link ICustomizationItem.delivery}.
+ */
+const LEGACY_SYNCED_FROM_CLIENT_GROUP_KEY = 'remote-client';
+const LEGACY_HOST_GROUP_KEY = 'remote-host';
+
+/**
+ * Returns whether an item was synced from this client to a remote agent
+ * environment, honoring the legacy `remote-client` group key.
+ */
+export function isSyncedFromClientCustomizationItem(item: Pick<ICustomizationItem, 'delivery' | 'groupKey'>): boolean {
+	return item.delivery === 'syncedFromClient' || item.groupKey === LEGACY_SYNCED_FROM_CLIENT_GROUP_KEY;
+}
+
+/**
+ * Returns whether a group key is a legacy agent-host provenance key rather
+ * than a display group.
+ */
+export function isLegacyDeliveryGroupKey(groupKey: string | undefined): boolean {
+	return groupKey === LEGACY_SYNCED_FROM_CLIENT_GROUP_KEY || groupKey === LEGACY_HOST_GROUP_KEY;
 }
 
 export function getCustomizationDisabledLabel(reason: CustomizationDisabledReason | undefined): string {

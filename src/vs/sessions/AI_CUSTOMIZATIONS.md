@@ -87,6 +87,8 @@ Customization source-folder providers may assign an opaque workspace group ident
 
 `AICustomizationSource` distinguishes local, user, extension, plugin, and built-in items. Source providers and workspace services apply their applicable discovery policy before view-model grouping. Filtering changes presentation only; it does not mutate the underlying customization.
 
+`AICustomizationScope` is the independent axis that answers who a customization applies to: `user`, `workspace`, `account` (for example a GitHub organization), or `application` (built into VS Code or the agent, or contributed by an extension). Scope drives the primary grouping of every management section; storage source continues to drive what can be done with an item. Providers may set the scope, an origin for built-in or account suppliers, and a `syncedFromClient` delivery for items synced to a remote agent environment. Overridden customizations are not listed: agent hosts omit them, and local discovery skips same-named duplicates and hides built-in skills that a user or workspace skill replaces. When a provider omits the scope, the shared normalizer derives it from the source and identifies organization files from the default chat extension as account items. Agent hosts state scope through the namespaced `vscode.customization.scope` metadata; clients treat its absence as unknown and never classify an unknown host item as built in. The legacy `remote-host` and `remote-client` group keys are delivery markers, not display groups.
+
 ## Item pipeline
 
 Customization sources adapt their data into the shared item contract. The management model aggregates those items, applies harness and storage filters, and projects list items for the active section.
