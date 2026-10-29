@@ -5,8 +5,12 @@ on:
         description: Whether the pull request can affect the Electron-Unit jobs, which are skipped when false
         type: boolean
         default: true
+      electron_node_affected:
+        description: Whether the pull request can affect the Electron (node.js) job, which is skipped when false
+        type: boolean
+        default: true
       electron_affected:
-        description: Whether the pull request can affect the Electron jobs, which are skipped when false
+        description: Whether the pull request can affect the Electron (extension host) job, which is skipped when false
         type: boolean
         default: true
       agent_host_e2e_affected:
@@ -52,13 +56,15 @@ env:
 # - UNIT_TEST_SUITE: the unit tests of an Electron job, 'electron' or 'node', or both when unset
 # - INTEGRATION_TEST_SUITE: the integration tests of an Electron job, 'node' for the node.js integration
 #   tests or 'extension-host' for the extension host tests, or both when unset
+# - TEST_SELECTION: run only the test files listed in the test-plan artifact of the workflow run, when
+#   the Detect Changes job of pr.yml uploaded one, instead of every test of the kinds that it plans
+#   (unit.txt for the unit tests, integration.txt for the node.js integration tests and Agent Host E2E)
 # - SMOKE_SHARD_INDEX and SMOKE_SHARD_TOTAL: the 1-based index of the Electron smoke test shard to run,
 #   and the number of shards
 # - ARTIFACT_NAME: identifies the job in the names of the artifacts that it publishes
 jobs:
-  # Linux runs every unit test, so the Electron and node.js unit tests in one job could be the slowest
-  # job of the workflow: they run on separate machines. macOS and Windows run only the selected unit
-  # tests, so they rarely take as long.
+  # When a change runs every unit test (see build/ripple/README.md), the Electron and node.js unit tests
+  # in one job could be the slowest job of the workflow, so they run on separate machines.
   electron-unit-electron:
     name: Electron-Unit (electron)
     if: ${{ inputs.electron_unit_affected }}
@@ -68,6 +74,7 @@ jobs:
       ELECTRON_TESTS: 'true'
       UNIT_TESTS: 'true'
       UNIT_TEST_SUITE: electron
+      TEST_SELECTION: 'true'
     steps: &steps
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -322,23 +329,41 @@ jobs:
             sleep 5
           done
 
+      - name: Download test plan
+        id: download-plan
+        if: ${{ env.TEST_SELECTION == 'true' }}
+        # Without a plan (Detect Changes only uploads one when the selection applies), the test
+        # steps below run every test. A pattern, unlike a name, downloads nothing instead of
+        # failing when there is no plan.
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: test-plan
+          path: .build/test-plan
+
+      # A failed download (such as a digest mismatch, reported after extracting) can leave a partial
+      # plan behind: without one, the test steps below run every test.
+      - name: Discard a failed test plan download
+        if: ${{ steps.download-plan.outcome == 'failure' }}
+        run: rm -rf .build/test-plan
+
       - name: 🧪 Run unit tests (Electron)
-        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_SUITE != 'node' }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_SUITE != 'node' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
         timeout-minutes: 25
-        run: ./scripts/test.sh --tfs "Unit Tests" --workers 4 --rerun-failed-files 2
+        run: ./scripts/test.sh --tfs "Unit Tests" --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
         env:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_SUITE != 'electron' }}
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_SUITE != 'electron' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
         timeout-minutes: 25
-        run: npm run test-node -- --workers 4 --rerun-failed-files 2
+        run: npm run test-node -- --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
 
       - name: 🧪 Run unit tests (Browser, Chromium)
-        if: ${{ env.BROWSER_TESTS == 'true' && env.UNIT_TESTS == 'true' }}
+        if: ${{ env.BROWSER_TESTS == 'true' && env.UNIT_TESTS == 'true' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
         timeout-minutes: 30
-        run: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests" --workers 4 --rerun-failed-files 2
+        run: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests" --workers 4 --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/plan.json') != '' && '--runList .build/test-plan/unit.txt' || '' }}
         env:
           DEBUG: "*browser*"
 
@@ -371,7 +396,7 @@ jobs:
         id: agent-host-e2e
         if: ${{ env.ELECTRON_TESTS == 'true' && env.AGENT_HOST_E2E_TESTS == 'true' }}
         timeout-minutes: 25
-        run: ./scripts/test-agent-host-e2e.sh --tfs "Integration Tests" --rerun-failed-files 2
+        run: ./scripts/test-agent-host-e2e.sh --tfs "Integration Tests" --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
         env:
           DISPLAY: ":10"
           AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
@@ -384,7 +409,7 @@ jobs:
         id: node-integration-tests
         if: ${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && env.INTEGRATION_TEST_SUITE != 'extension-host' && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
         timeout-minutes: 25
-        run: ./scripts/test-integration.sh --only-node-tests --tfs "Integration Tests" --rerun-failed-files 2
+        run: ./scripts/test-integration.sh --only-node-tests --tfs "Integration Tests" --rerun-failed-files 2 ${{ hashFiles('.build/test-plan/integration.txt') != '' && '--runList .build/test-plan/integration.txt' || '' }}
         env:
           DISPLAY: ":10"
           AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
@@ -538,19 +563,22 @@ jobs:
       ELECTRON_TESTS: 'true'
       UNIT_TESTS: 'true'
       UNIT_TEST_SUITE: node
+      TEST_SELECTION: 'true'
     steps: *steps
 
   # The node.js integration tests and the extension host tests take about 6.5 and 5 minutes. In one job
-  # they would be the slowest job of the workflow, so they run on separate machines.
+  # they would be the slowest job of the workflow, so they run on separate machines. This job runs only
+  # the node.js integration tests that the plan selects, and is skipped when it selects none.
   electron-node:
     name: Electron (node.js)
-    if: ${{ inputs.electron_affected }}
+    if: ${{ inputs.electron_node_affected }}
     runs-on: vscode-large-runners-ubuntu-8-core
     env:
       ARTIFACT_NAME: electron-node
       ELECTRON_TESTS: 'true'
       INTEGRATION_TESTS: 'true'
       INTEGRATION_TEST_SUITE: node
+      TEST_SELECTION: 'true'
     steps: *steps
 
   electron-extension-host:
@@ -565,7 +593,7 @@ jobs:
     steps: *steps
 
   # The integration tests and Agent Host E2E in one job would be the slowest job of the workflow, so
-  # Agent Host E2E runs in parallel on its own machine.
+  # Agent Host E2E runs in parallel on its own machine. It runs only the suites that the plan selects.
   agent-host-e2e:
     name: Agent-Host-E2E
     if: ${{ inputs.agent_host_e2e_affected }}
@@ -574,6 +602,7 @@ jobs:
       ARTIFACT_NAME: electron-agent-host-e2e
       ELECTRON_TESTS: 'true'
       AGENT_HOST_E2E_TESTS: 'true'
+      TEST_SELECTION: 'true'
     steps: *steps
 
   # Running every Electron smoke test takes one machine up to about 20 minutes, the timeout of the
@@ -623,6 +652,7 @@ jobs:
       ARTIFACT_NAME: browser-unit
       BROWSER_TESTS: 'true'
       UNIT_TESTS: 'true'
+      TEST_SELECTION: 'true'
     steps: *steps
 
   browser:
