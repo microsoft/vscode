@@ -197,6 +197,11 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	hideInput?: boolean;
 
 	/**
+	 * Use neutral item backgrounds to keep selection distinct from the focus outline.
+	 */
+	useNeutralSelection?: boolean;
+
+	/**
 	 * a context key to set when this picker is active
 	 */
 	contextKey?: string;
@@ -315,6 +320,8 @@ export const enum QuickInputType {
  * Represents a quick input control that allows users to make selections or provide input quickly.
  */
 export interface IQuickInput extends IDisposable {
+	/** Optional content rendered above the standard input or picker content. */
+	widget?: unknown /* HTMLElement */;
 
 	/**
 	 * The type of the quick input.
@@ -370,6 +377,11 @@ export interface IQuickInput extends IDisposable {
 	 * Indicates whether the input is enabled.
 	 */
 	enabled: boolean;
+
+	/**
+	 * Use neutral item backgrounds to keep selection distinct from the focus outline.
+	 */
+	useNeutralSelection?: boolean;
 
 	/**
 	 * The context key associated with the quick input.
@@ -522,7 +534,6 @@ export enum QuickPickFocus {
  * Represents a quick pick control that allows the user to select an item from a list of options.
  */
 export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators: boolean } = { useSeparators: false }> extends IQuickInput {
-
 	/**
 	 * The type of the quick input.
 	 */

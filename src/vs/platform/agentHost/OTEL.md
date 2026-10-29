@@ -119,6 +119,8 @@ Records are emitted at terminal observation, including errors/cancellation. Pend
 
 ### Existing product telemetry and logs
 
+`agentHost.copilot.runtimeRestart` counts configuration-driven SDK session relaunches and MCP servers returning to `pending` after stopping, with a bounded cause, whether the chat has a completed turn, and the turn-preparation/in-turn/idle phase; MCP attribution uses host-mutation ordering rather than time windows and never includes server names.
+
 The renderer reports `agentHost.firstResponse` and writes a content-free `[AgentHostFirstResponse]` JSON record to its existing log. Schema version 1 contains `requestId`, `provider`, `connectionKind`, optional backend `agentSessionId` / `chatId`, `sessionTurnKind` (`first`, `later`, or `unknown`), `outcome` (`success`, `cancelled`, `error`, or `notDispatched`), `hasResponseText`, optional `firstResponseTextMs`, and `totalElapsedMs`. The log additionally retains `sessionId`, identical to `agentSessionId`, for compatibility, and includes `turnId`, identical to `requestId`, for AHP joins. The telemetry property uses `agentSessionId` to avoid colliding with the common VS Code `sessionID` property. Durations use a local monotonic clock starting at agent invocation, before trust/authentication/session preparation. `invocationKind` is `newTurn`, `existingTurn`, `subagent`, or `unknown` before hydration. Exclude `existingTurn` and `subagent` records from first-response comparisons rather than treating them as successful turns without an answer. The endpoint is the first nonwhitespace live root markdown emission, including final-only responses, not physical submit, paint, or a semantic guarantee of an answer. Reasoning, tool output, restored history and server-initiated observation do not start this metric. Existing first-progress measurements are unchanged.
 
 `connectionKind` reuses `AgentHostClientConnectionKind`, assigned by the owning client transport/integration and exposed through `IAgentConnection`. Values are `local`, `direct_websocket`, `dev_tunnel`, `dev_container`, `ssh`, `wsl`, `remote_extension_host`, `web_pub_sub`, `mission_control`, and `unknown`. The invocation captures this classification once, independently of provider names, host identities, or the configured-host registry, so it survives disconnection. Missing or unrecognized classifications become `unknown`; older diagnostic payloads can omit the field. The log and OTel diagnostic carry the same value, with no environment IDs, addresses, or credentials.
@@ -167,7 +169,52 @@ For connection latency, `preparationMs` and `connectionMs` are an exclusive part
 
 The existing `credentialsMs`, `relayMs`, `protocolMs`, `authenticationMs` and `restorationMs` remain cumulative diagnostic spans, not an additive breakdown: they may overlap, and `credentialsMs` excludes backoff outside its spans. Compare successful provisioning, preparation and connection p50/p95 separately, split connection outcomes by `operation` and `surface`, and keep failures and cancellations separate. `source: created | existing` is not a warm/cold signal. `wakingResponses > 0` confirms observed waking, but zero does not prove warm compute. Both provisioning and preparation include client/network/credential overhead; pure server startup duration or warm/cold classification still requires a server-reported signal. Neither metric includes subsequent repository preparation.
 
-Both versions need this instrumentation; missing historical measurements cannot be reconstructed, and a version comparison alone is not causal proof. Deltas reset before reporting, but hard crashes can lose the final partial interval or an unfinished outcome; delivery is not exactly once. Browser timer throttling can delay summaries. No connection identifiers, credentials, addresses or error text are emitted, and the existing request aggregation is unchanged.
+Both versions need this instrumentation; missing historical measurements cannot be reconstructed, and a version comparison alone is not causal proof. Deltas reset before reporting, but hard crashes can lose the final partial interval or an unfinished outcome; delivery is not exactly once. Browser timer throttling can delay summaries. These aggregate scorecard events emit no connection identifiers, credentials, addresses or error text, and the request aggregation is unchanged.
+
+## Sandbox lifecycle lookup
+
+`cloudSandboxLifecycle` is a separate, content-free client observation stream for looking up an environment or backend session. It uses the same product telemetry consent and policy controls as the scorecard. It does not change protocol requests, provision compute, or fetch additional state.
+
+The connection tracker excludes user-local connections and their protocol/session/turn observations from this stream. Shared credential paths additionally carry `environmentKind` as local reporting context, so the lifecycle reporter suppresses user-local credential API requests, acquisition, retry waits, authentication renewal and stopped recovery before serialization. That context is not sent to the credential API or uploaded as an event field. Existing aggregate metrics and connection/retry behavior are unchanged.
+
+| Field | Meaning |
+|---|---|
+| `environmentId`, `agentSessionId`, `taskId` | Service entity identities when known. `agentSessionId` is not the common VS Code telemetry `SessionId`. |
+| `operationId`, `parentOperationId` | Client operation and optional enclosing operation. A start emitted before allocation has no backend IDs; a later result on the same operation can supply them. |
+| `eventId`, `observerId`, `sequence` | Upload deduplication and ordering within one reporter lifetime. Not a global ordering across clients or hosts. |
+| `connectionId`, `attemptId` | Protocol client and connection-attempt identities. A connection can serve multiple sessions and is not attributed to its first session. |
+| `chatId`, `requestId`, `serverRequestId` | Chat/turn correlation and a validated service request ID when available. |
+| `phase`, `outcome`, `preparationStep`, `sessionState` | Allowlisted client operation/result, draft preparation step, or lifecycle read from a host snapshot. |
+| `observedAtUnixMs`, `durationMs` | Client observation timestamp and elapsed duration. Numbers are uploaded as measurements; upload time is separate. |
+| `taskCreationPath`, `relatedTaskId` | Client reservation/creation provenance and the requested reservation, which can differ from the task produced by fallback. |
+| `errorCategory`, `errorCode`, `statusCode` | Structured allowlisted failure metadata, not error text or a server-side root cause. |
+| `failurePoint`, `hostErrorKind`, `hostCanResume` | Fixed first-party failure location, recognized host error category, and the optional host resume flag. Unknown host strings are not uploaded. |
+| `recoveryAction`, `refreshStopReason`, `attemptNumber`, `consecutiveFailures`, `retryDelayMs` | Observed credential acquisition/recovery decision and existing retry counters. Deferred means eligible on demand, not automatically scheduled. |
+| `connectionState`, `authenticationRestorePending`, `lastSuccessfulResponseAgeMs` | Client protocol state when a diagnostic/action was observed. The last-response age covers accepted successful RPC responses on the current transport, not notification traffic or proof of authorization. |
+| `reconnectAttempt`, `reconnectScheduled`, `reconnectDelayMs` | Current protocol reconnect attempts and actual timer state, distinct from credential retry eligibility. |
+| `omittedCorrelationFields`, `omittedCorrelationFieldNames` | Count and allowlisted field names of identifiers that could not be safely represented, never their values. Missing IDs must not be replaced by nearby events' IDs. |
+
+Task reservation/creation records carry their returned task/environment/session binding. Discovery records observed bindings, not creation. Preparation records receipt, handoff, fallback and cleanup; `taskCreationPath` is client workflow provenance, never a warm/cold allocation claim. Credential operations describe client connection/authentication acquisition, not the host's independent credential renewal.
+
+Preparation can record fallback/cleanup observations after a failed reservation; select terminal outcomes, not the last observation, when finding an operation result. A successful `released` step means unused-reservation cleanup succeeded, whereas `submitted` means the prepared task was used. Do not combine those steps into a preparation-use success rate. Structured host errors without a recognized code or status remain `unknown`; arbitrary host error types, messages and stacks are not uploaded.
+
+Credential API responses and usable acquisition are distinct: `credentials.refresh` acknowledges the API result, while `credentials.acquire` includes expiry and sealing validation. `credentials.retryWait` describes an actual caller waiting, not a scheduled background refresh. A stopped acquisition includes the existing bounded stop reason and links to its failed attempt. A success with prior unhealthy cycles has `recoveryAction=recovered`; an uneventful acquisition has `acquired`. `attemptNumber` is one plus the unhealthy cycle count at entry, not a lifetime request count: cancelled and superseded acquisitions do not advance it. An immediate permanent failure can have zero previous unhealthy cycles. These events do not change retry behavior or issue requests while idle.
+
+Only the known host error types `policyResolutionFailed`, `executionInterrupted` and `CodexThreadInUse` map to fixed `hostErrorKind` values; all other supplied types map to `unknown`. Free-text action rejection reasons are never parsed into diagnoses or uploaded. A rejected action can be recorded while `connectionState=connected` and with a recent successful response; neither implies host authorization is healthy. Diagnostic counters are capped at 10000 and diagnostic waits/ages at seven days. Invalid measurements are omitted, not silently converted to healthy values.
+
+Protocol state accompanies connection diagnostics and observed session/turn actions once the protocol client exists, including the credential wrapper during reconnect and authentication restoration. Initial credential preparation before client construction and the refresher's own acquisition records have no protocol state; absence does not mean disconnected.
+
+Connection observations retain logical connect/recovery spans and individual diagnostic phase operation/attempt IDs. Logical session and repository operations can wait across reconnects, so they omit an attempt ID rather than attributing completion to the attempt active at entry. Session creation acknowledgement, subscribed snapshots, ready/failed actions, disposal, submitted turns and host acceptance/rejection/completion are distinct phases. Snapshots are observations of existing state, not newly performed transitions. Duplicate terminal operation reports are suppressed, and repeated session/turn action observations are deduplicated within a bounded connection-local cache; delivery remains best effort, not exactly once.
+
+`turn.submit` is an observation of local dispatch, not a pending operation or proof that the host accepted it. Join it to acceptance and completion by `requestId`. High-volume snapshot, chat-binding and local-submission observations remain available to lifecycle telemetry but do not evict connection evidence from the bounded diagnostic buffer.
+
+For the repository preparation compatibility path, `repository.clone` describes the clone **request and response**. Only `repository.prepare` reaching `succeeded` proves that the client observed a usable ready checkout. An already-ready checkout can complete preparation without a clone request. Cancelling a client's preparation wait does not establish that the host cancelled shared work.
+
+Identifiers are deliberately constrained: UUID-backed environment/task/session identities, UUID-based request IDs, and UUID/hex chat IDs. Session URI normalization is for telemetry lookup only and never changes routing or persisted identity. Other valid opaque host identities are omitted and counted in `omittedCorrelationFields`; their environment-level observations remain usable. Repository names, URLs, file paths, prompts, arbitrary diagnostic detail, response bodies, credentials and exception stacks are not included.
+
+The upload boundary builds an explicit payload rather than spreading input objects. All categorical text is checked against fixed runtime allowlists, including phase, outcome, preparation step and task-creation path; invalid required categories become `unknown`, not success. Tests inject names, email-like strings, paths, prompts, response bodies and exception content and verify that none appear in serialized lifecycle properties. The opaque correlation IDs remain linkable metadata subject to telemetry consent, access and retention controls. These guarantees describe this new lifecycle stream; existing exception telemetry uses its separate collection and scrubbing policy.
+
+A timeline should deduplicate by `eventId`, sort by `observedAtUnixMs` with reporter-local sequence as a tie breaker, and distinguish client observations from authoritative backend events. Resolve unbound starts through the same operation's later binding; never overwrite an explicit different environment/session on an earlier record. Preserve reservation fallback as two different resources. With a session lookup, label environment-only connection rows as shared context rather than assigning them to that conversation. Missing completions mean **not observed**, not success or cancellation; a cold/warm allocation verdict and internal compute/clone/credential steps require evidence from their owning backend. Historical data cannot be backfilled by deploying this client instrumentation.
 
 ## Sources of Truth
 
@@ -184,7 +231,7 @@ Do not copy provider-native span, event, metric, or environment-variable catalog
 | Mode | Trigger | Behavior |
 |---|---|---|
 | **Pass-through** | `chat.agentHost.otel.enabled` is `true` and `dbSpanExporter.enabled` is `false` | The SDK exports directly to the user-configured exporter (OTLP/HTTP, OTLP/gRPC, file, or console). SDK spans are not intercepted; host-produced session-title metadata uses the matching JSON/file/console forwarder. |
-| **DB mode** | `chat.agentHost.otel.dbSpanExporter.enabled` is `true` (implicitly enables OTel) | The SDK is pointed at a loopback OTLP/HTTP receiver inside the agent host. Spans are decoded and written to a local SQLite database. With an OTLP/HTTP JSON external endpoint, the receiver also fans the normalized JSON body out to it. Protobuf and gRPC traces remain local because Agent Host does not transcode wire formats. |
+| **DB mode** | `chat.agentHost.otel.dbSpanExporter.enabled` is `true` (implicitly enables OTel) | Unmanaged SDK traces are pointed at a loopback OTLP/HTTP receiver inside the agent host. Received spans are decoded and written to a local SQLite database. With an OTLP/HTTP JSON external endpoint, the receiver also fans the normalized JSON body out to it. Protobuf and gRPC traces remain local because Agent Host does not transcode wire formats. |
 
 ```mermaid
 flowchart LR
@@ -207,6 +254,12 @@ flowchart LR
     claude -. Native logs and metrics .-> sink
     codex -. Native logs and metrics .-> sink
 ```
+
+This routing overview describes the ordinary unmanaged configuration. When the
+native Copilot runtime receives and enforces a managed endpoint/protocol or
+file destination, its native traces go directly to that administrator-selected
+destination rather than through the loopback; DB mode does not create a native
+SQLite copy.
 
 - **Pass-through mode** (default when only `otlpEndpoint` is configured): the SDK exports directly to the user's destination. For native HTTP trace exporters, a bare base URL is resolved to `/v1/traces` before it is supplied as a signal-specific endpoint. Explicit/custom paths and gRPC endpoints are unchanged; the base destination for other signals is preserved. SDK span data is not intercepted; the agent host additionally emits the session-title metadata span described below through the configured exporter.
 - **DB mode** (`COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED=true`): `AgentHostOTelService` starts a `LocalOtlpHttpReceiver` on `127.0.0.1` with an ephemeral port, then configures every native provider's trace exporter to use that loopback over OTLP/HTTP JSON. For each batch the receiver decodes the body and inserts spans into `OTelSqliteStore` (`onSpans`). If an OTLP/HTTP JSON external endpoint is also configured, the receiver fans the normalized JSON trace body out to an `OtlpHttpForwarder` (`onForward`) so the collector keeps receiving traces alongside the local DB. For OTLP/HTTP protobuf and OTLP/gRPC external protocols, traces remain in SQLite while native logs and metrics still export directly.
@@ -285,7 +338,7 @@ Open **Settings** (`Ctrl+,`) and search for `agentHost otel`:
 | `chat.agentHost.otel.otlpEndpoint` | string | `""` | OTLP endpoint URL. Accepts a bare base URL (`http://localhost:4318`) — `/v1/traces` is appended automatically when needed, matching the standard `OTEL_EXPORTER_OTLP_ENDPOINT` convention. A full signal-specific URL (`http://host:4318/v1/traces`) is used verbatim. |
 | `chat.agentHost.otel.captureContent` | boolean | `false` | Capture prompt/response content in span attributes. Privacy-sensitive — do not enable in environments that ship spans to shared sinks. |
 | `chat.agentHost.otel.outfile` | string | `""` | Output path for JSON-lines spans when `exporterType` is `file`. |
-| `chat.agentHost.otel.dbSpanExporter.enabled` | boolean | `false` | Persist every emitted span to a local SQLite database at `<userData>/agent-host/otel/agent-host-traces.db`. Implicitly enables OTel. OTLP/HTTP JSON traces can also be forwarded; protobuf and gRPC traces remain local. |
+| `chat.agentHost.otel.dbSpanExporter.enabled` | boolean | `false` | Persist Agent Host-produced records and ordinary loopback-received traces to a local SQLite database at `<userData>/agent-host/otel/agent-host-traces.db`. Implicitly enables OTel. OTLP/HTTP JSON traces can also be forwarded; protobuf and gRPC traces remain local. A native runtime-enforced managed destination does not add native traces to SQLite. |
 
 ## Environment Variables
 
@@ -309,11 +362,97 @@ The workbench-side starter translates the settings above into the following env 
 
 Inside Agent Host, OTel activates when `COPILOT_OTEL_ENABLED` or `COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED` is truthy, or when an OTLP endpoint or file-exporter path is non-empty. This allows inherited environment configuration to enable OTel without a local VS Code setting.
 
-> **Activation timing.** Env vars are bound at agent host **spawn time**. When settled enterprise OTel policy changes after startup, VS Code automatically respawns the local agent host with the new policy. Temporary policy-refresh values and windows still resolving their initial account do not restart an existing host. Changes to personal settings still require a manual agent host or window restart.
+> **Activation timing.** Env vars are bound at agent host **spawn time**. When settled enterprise OTel policy changes after startup, VS Code automatically respawns the local agent host with the new policy. Temporary policy-refresh values and windows still resolving their initial account do not restart an existing host. Changes to personal settings prompt for a full application restart; reloading a window alone can retain the shared host.
+
+## Enterprise-managed file export
+
+Enterprise policy can supply `telemetry.filePath`. Canonical managed-policy
+validation treats an empty, null, or wrongly typed value as an error. This is a
+managed-only expansion, not a new user setting: it resolves to the existing
+`chat.agentHost.otel.exporterType: "file"` and
+`chat.agentHost.otel.outfile` configuration. A supplied file path enables OTel
+unless the managed `telemetry.enabled` value is explicitly `false`. Explicit
+managed `false` disables both file export and the SQLite DB exporter.
+
+The VS Code managed-settings normalizer does not synthesize an empty file path
+for malformed input. Its generic flattening silently omits nulls and arrays,
+flattens object children, and leaves type-mismatched scalar projection to the
+existing warning-and-omission path. An omitted file path can therefore leave a
+collector effective under ordinary policy precedence; malformed values do not
+have a universal no-fallback guarantee. This generic omission is distinct from
+a projected literal `telemetry.filePath: ""`: that existing value still selects
+file export and clears the collector environment. It is not synthesized by
+normalization.
+
+When a managed file path is present, it takes precedence over a managed
+collector endpoint or protocol. An absent managed file path restores the
+ordinary managed collector/personal-setting resolution. Personal settings prompt
+for a full application restart; reloading a window alone can retain the shared
+host. Settled administrator changes automatically replace the local Agent Host.
+Remote and standalone hosts are not newly proven to support this flow.
+
+`buildAgentHostOTelEnv()` records managed-path provenance with the private
+`VSCODE_AGENT_HOST_OTEL_FILE_PATH_IS_MANAGED` environment variable. It is an
+implementation detail, not a public setting or a variable users should set.
+Only managed paths receive the additional validation and expansion:
+
+- `~/...` is expanded from `HOME` on Unix and `USERPROFILE` on Windows;
+  `~\...` is also accepted. Absolute paths are unchanged. For the native
+  Copilot runtime and VS Code Agent Host writer, a managed relative path is
+  resolved under Copilot home: a nonempty `COPILOT_HOME` is used verbatim and
+  must be absolute. An empty or unset `COPILOT_HOME` uses
+  `<user-home>/.copilot`. Normal platform `..` semantics apply; Copilot home is
+  an anchor, not a containment boundary. Personal or inherited relative paths
+  retain their existing base.
+- After a file path has been selected, an empty path, NUL, unsupported home
+  prefix, environment-variable reference, directory path, filesystem root, or
+  missing required home variable is logged and skipped. It does not fall back
+  to OTLP. The separately configured SQLite DB exporter is preserved unless
+  managed telemetry is explicitly false.
+- An accepted but invalid managed path creates no native file exporter for that
+  provider; recovery requires valid configuration and provider re-resolution or
+  replacement. A valid path that later proves unwritable is different: its
+  existing lazy writer reports the failed write and can retry later writes after
+  repair, without falling back to a collector or SQLite.
+- The host-owned file forwarder creates missing parent directories only for a
+  managed path, then appends in the existing JSONL format and reports failures
+  without blocking the host. For a personal or inherited path with a missing
+  parent, it reports the failed write and produces no output until the parent
+  exists. Native runtime file-export behavior is unchanged.
+
+The managed path is a shared field consumed by the native Copilot runtime and
+the VS Code Agent Host writer on each executing host. This relative-path rule
+is scoped to those consumers and does not claim client-wide or extension-host
+behavior. Producer-specific JSONL formats remain unchanged.
+
+> **Managed-routing parity and integration status.** The following describes
+> the intended routing only when the native Copilot runtime receives and
+> applies the managed setting; it is not a shipped-version or
+> policy-delivery claim.
+>
+> | Effective configuration, with DB recording enabled | Native Copilot traces | SQLite |
+> |---|---|---|
+> | Managed endpoint and protocol | Direct to the administrator's collector | Existing Agent Host-owned records only |
+> | Managed `filePath` | Direct to the administrator's file | Existing Agent Host-owned records only |
+> | Accepted but invalid managed `filePath` | Log and create no file exporter for that provider; no collector fallback | Existing Agent Host-owned records continue; no native-trace route |
+> | Valid but unwritable managed `filePath` | Log failed writes; the lazy exporter can retry later writes after repair; no collector fallback | Existing Agent Host-owned records continue; no native-trace route |
+>
+> Host-owned records also retain their existing host file/collector writer
+> where applicable; they are distinct records, not copied native traces. DB
+> mode off does not become a fallback. Explicit managed `enabled:false` remains
+> separately agreed and unchanged: it disables OTel destinations, including
+> SQLite. No observer, SDK trace-subscription API, bridge, or native SQLite
+> ingestion exists or is implied here.
+>
+> This is not ready or shipped: matching runtime SDK support, generated
+> artifacts, Settings Engine/CSE delivery, and end-to-end/deployment
+> prerequisites are still required. Existing host synthetic-DB tests establish
+> host-owned records, not provider-native trace mirroring.
 
 ## Local SQLite Span Store
 
-When `chat.agentHost.otel.dbSpanExporter.enabled` is on, every span the agent host emits is written to:
+When `chat.agentHost.otel.dbSpanExporter.enabled` is on, Agent Host-produced
+records and ordinary loopback-received spans are written to:
 
 ```
 <userData>/agent-host/otel/agent-host-traces.db
@@ -334,7 +473,12 @@ To collect agent host traces with the [Aspire Dashboard](https://learn.microsoft
 }
 ```
 
-This combination persists every span to SQLite for offline inspection **and** forwards them live to Aspire — useful when you want to spot-check a session in the dashboard and still be able to query the raw data later.
+This combination persists Agent Host-produced records and ordinary
+loopback-received spans to SQLite for offline inspection **and** forwards
+compatible live traffic to Aspire — useful when you want to spot-check a
+session in the dashboard and still be able to query the raw data later. A
+native runtime-enforced managed destination remains direct and is not copied
+into SQLite by this setting.
 
 ---
 
@@ -363,6 +507,8 @@ src/vs/platform/otel/
 ## Settings → Env Var Translation
 
 `buildAgentHostOTelEnv()` ([common/agentService.ts](common/agentService.ts)) is the single translation point. The starter (`electronAgentHostStarter.ts` / `nodeAgentHostStarter.ts`) reads settings, calls `buildAgentHostOTelEnv(settings, parentEnv, policySettings, shellEnv)`, and merges the result into the spawned process's environment. Parent-process env values win over the local `chat.agentHost.otel.*` settings (developer override); **enterprise managed-policy values win over inherited env**. For identity capture, resolved login-shell env also wins over personal settings. Other OTel keys retain their existing precedence: shell-only values do not override the settings overlay.
+
+The policy-readiness diagnostic evaluates this local Copilot/VS Code registered-policy composition only. Managed `enabled: false` is enforced locally; managed `exporterType: file` has no inherited-protocol gap only when a managed outfile is also present. A clear result does not certify remote hosts, independently fetched runtime policy, or unrelated telemetry consumers.
 
 | Setting | Env var |
 |---|---|

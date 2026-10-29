@@ -36,7 +36,8 @@ To check it without changing any source files, run:
 npm run gulp check-api-proposal-names
 ```
 
-Production and PR CI run this check as the first step of `core-ci`, before type-checking,
-transpilation, and bundling. Unlike the legacy production regeneration step, this check
+Production CI runs this check as the first step of `core-ci`, before type-checking,
+transpilation, and bundling. PR CI runs it as the first step of `core-ci-pr`, which
+stops after transpilation. Unlike the legacy production regeneration step, this check
 fails on a stale or missing registry rather than repairing it. It reuses the generator
 to compare the complete generated contents, allowing both LF and CRLF line endings.

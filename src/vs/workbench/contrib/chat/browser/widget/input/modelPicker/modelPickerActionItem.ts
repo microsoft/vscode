@@ -9,15 +9,17 @@ import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { BaseActionViewItem } from '../../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../../../base/common/actions.js';
+import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../../nls.js';
+import type { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
-import { IModelPickerWorkflow } from './modelPickerWorkflow.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { IModelPickerComparison } from './modelPickerComparison.js';
 import { IChatInputPickerOptions } from '../chatInputPickerActionItem.js';
 import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
 import { IModelPickerOpenOptions, ModelPickerWidget } from './modelPickerWidget.js';
@@ -30,15 +32,28 @@ export interface IModelPickerPresentationOptions {
 }
 
 export interface IModelPickerDelegate {
-	readonly workflow?: IModelPickerWorkflow;
+	readonly comparison?: IModelPickerComparison;
+	/** Whether a committed comparison is currently being submitted. */
+	readonly comparisonBusy?: IObservable<boolean>;
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	/**
-	 * Persists a model change without treating it as a user selection.
+	 * Moves focus to the prompt input that owns the picker. Called after a model
+	 * comparison is completed, so the user can write the prompt next.
+	 * When omitted, focus returns to where it was before the picker opened.
+	 */
+	focusInput?(): void;
+	/**
+	 * Shows the selection as an equivalent model without treating it as a user selection.
 	 * Delegates whose {@link setModel} has no user-selection side effects may omit this; {@link setModel} is used instead.
 	 */
 	setModelProgrammatically?(model: ILanguageModelChatMetadataAndIdentifier): void;
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
+	/**
+	 * Models offered while configuring a comparison. When omitted, comparisons
+	 * use the same model pool as ordinary selection.
+	 */
+	getComparisonModels?(): ILanguageModelChatMetadataAndIdentifier[];
 	getPresentationOptions(): IModelPickerPresentationOptions;
 	/**
 	 * The id of the current chat session, used to correlate model-picker
@@ -54,6 +69,8 @@ export interface IModelPickerDelegate {
 	 * the Manage Models editor to that harness's Copilot models.
 	 */
 	getSessionType?(): string | undefined;
+	/** The Agent Host connection the chat runs on, for its on-device models; when omitted, a local Copilot Agent Host chat assumes the local Agent Host. */
+	getLocalModelConnection?(): IAgentConnection | undefined;
 	/**
 	 * UI hint flag controlling whether the picker shows the cache-break hint.
 	 * Returns `true` when the session has likely warmed the prompt cache (e.g. it
@@ -219,18 +236,60 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		if (this._pickerWidget.isRestrictedMode()) {
 			// Suffix avoids a leading "Models" so the hover doesn't stutter as
 			// "Models • Models unavailable…" once the prefix is "Models".
-			return localize('chat.modelPicker.restrictedHover', "{0} • Unavailable while in Restricted mode. Trust Workspace to enable models.", label);
+			return this._appendComparisonAction(localize('chat.modelPicker.restrictedHover', "{0} • Unavailable while in Restricted mode. Trust Workspace to enable models.", label));
 		}
 		if (this._pickerWidget.isSetupRequired()) {
-			return localize('chat.modelPicker.setupRequiredHover', "{0} • Sign in to GitHub Copilot to choose a model.", label);
+			return this._appendComparisonAction(localize('chat.modelPicker.setupRequiredHover', "{0} • Sign in to GitHub Copilot to choose a model.", label));
+		}
+		const comparisonSummary = this.delegate.comparison?.summary.get();
+		if (comparisonSummary) {
+			return this._appendComparisonAction(localize('chat.modelPicker.comparisonSummaryHover', "{0} • {1}", label, comparisonSummary));
 		}
 		const selectedModel = this._pickerWidget.selectedModel;
 		const { statusIcon, tooltip } = selectedModel?.metadata || {};
 		if (selectedModel) {
-			label = localize('chat.modelPicker.selectedModelHover', "{0} • {1}", label, getLanguageModelDisplayNameWithSubscriptionSource(selectedModel));
+			label = localize('chat.modelPicker.selectedModelHover', "{0} • {1}", label, this._pickerWidget.fusionDisplayName ?? getLanguageModelDisplayNameWithSubscriptionSource(selectedModel));
 		}
-		return statusIcon && tooltip
-			? localize('chat.modelPicker.selectedModelStatusHover', "{0} • {1}", label, tooltip)
+		if (statusIcon && tooltip) {
+			label = localize('chat.modelPicker.selectedModelStatusHover', "{0} • {1}", label, tooltip);
+		}
+		const organizationDefaultDescription = this._pickerWidget.organizationDefaultDescription;
+		const hover = organizationDefaultDescription
+			? localize('chat.modelPicker.organizationDefaultHover', "{0}\n\n{1}", label, organizationDefaultDescription)
 			: label;
+		const fusionDescription = selectedModel?.metadata.autoModelFusion || this._pickerWidget.fusionDisplayName ? ILanguageModelChatMetadata.getAutoModelDescription(true) : undefined;
+		if (!fusionDescription) {
+			return this._appendComparisonAction(hover);
+		}
+		// Copilot Fusion's description carries a Learn more link, so it is rendered as Markdown.
+		const comparisonAction = this._getComparisonAction();
+		const markdown = new MarkdownString().appendMarkdown(escapeMarkdownSyntaxTokens(hover)).appendMarkdown('\n\n').appendMarkdown(fusionDescription);
+		if (comparisonAction) {
+			markdown.appendMarkdown('\n\n').appendMarkdown(escapeMarkdownSyntaxTokens(comparisonAction));
+		}
+		return {
+			markdown,
+			markdownNotSupportedFallback: this._appendComparisonAction(localize('chat.modelPicker.fusionHover', "{0}\n\n{1}", hover, ILanguageModelChatMetadata.getFusionSummary())),
+		};
+	}
+
+	private _appendComparisonAction(hover: string): string {
+		const action = this._getComparisonAction();
+		return action ? localize('chat.modelPicker.comparisonActionHover', "{0}\n\n{1}", hover, action) : hover;
+	}
+
+	private _getComparisonAction(): string | undefined {
+		const comparison = this.delegate.comparison;
+		if (!comparison?.available.get() || !comparison.label) {
+			return undefined;
+		}
+		const keybinding = comparison.startCommandId
+			? this.keybindingService.lookupKeybinding(comparison.startCommandId, this._contextKeyService)?.getLabel()
+			: undefined;
+		const label = keybinding
+			? localize('chat.modelPicker.comparisonActionWithKeybinding', "{0} ({1})", comparison.label, keybinding)
+			: comparison.label;
+		const description = comparison.description?.get();
+		return description ? localize('chat.modelPicker.comparisonDescription', "{0}\n\n{1}", label, description) : label;
 	}
 }

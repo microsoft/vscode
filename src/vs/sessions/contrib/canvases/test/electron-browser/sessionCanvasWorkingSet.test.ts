@@ -29,6 +29,7 @@ import { EditorService } from '../../../../../workbench/services/editor/browser/
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { GroupDirection, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../../../workbench/services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { createEditorParts, registerTestEditor, TestFileEditorInput, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IChat, ISessionCanvas } from '../../../../services/sessions/common/session.js';
@@ -75,6 +76,7 @@ suite('Session canvas working sets', () => {
 		const configurationService = harness.instaService.invokeFunction(accessor => accessor.get(IConfigurationService)) as TestConfigurationService;
 		await configurationService.setUserConfiguration(CanvasesEnabledSettingId, true);
 		harness.instaService.stub(INotificationService, new TestNotificationService());
+		harness.instaService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }));
 		harness.instaService.stub(IChatService, upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }));
 		store.add(harness.instaService.createInstance(TestCanvasLayoutController));
 		harness.instaService.stub(ICanvasContextService, store.add(harness.instaService.createInstance(SessionCanvasContextService)));

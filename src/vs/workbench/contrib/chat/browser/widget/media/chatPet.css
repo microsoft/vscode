@@ -53,6 +53,7 @@
 
 .chat-pet-button.dragging {
 	cursor: grabbing;
+	will-change: translate;
 	/* The tree sticky-scroll container uses 13. Keep the active drag above it. */
 	z-index: 14;
 }
@@ -349,12 +350,8 @@
 	visibility: visible;
 }
 
-.chat-pet-eyes.animated {
-	animation: chat-pet-eye-bob 2s steps(1, end) infinite;
-}
-
-.chat-pet-eyes.animated.blinking {
-	animation: none;
+.chat-pet-eyes.bobbed {
+	transform: translateY(var(--vscode-spacing-size20));
 }
 
 .chat-pet-eye {
@@ -526,18 +523,6 @@
 	}
 }
 
-@keyframes chat-pet-eye-bob {
-	0%,
-	39.999% {
-		transform: translateY(0);
-	}
-
-	40%,
-	100% {
-		transform: translateY(2px);
-	}
-}
-
 @keyframes chat-pet-eye-blink {
 	0%,
 	11.537%,
@@ -568,6 +553,13 @@
 
 .monaco-workbench.monaco-reduce-motion .chat-pet-button {
 	transition: none;
+}
+
+.chat-pet-overlay > .chat-pet-button.animation-paused.dragging,
+.chat-pet-button.animation-paused .chat-pet-sprite,
+.chat-pet-button.animation-paused .chat-pet-eye-accessory,
+.chat-pet-button.animation-paused .chat-pet-pupil {
+	animation-play-state: paused;
 }
 
 .monaco-workbench.monaco-reduce-motion .chat-pet-button.entering,

@@ -28,11 +28,19 @@ import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../common/sessionCom
 suite('Session comparison grid controller', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(options?: { readonly attemptsOnly?: boolean; readonly attemptCount?: 2 | 3; readonly hideInactiveInputs?: boolean; readonly screenReaderOptimized?: boolean }) {
+	function setup(options?: {
+		readonly attemptsOnly?: boolean;
+		readonly attemptCount?: 2 | 3;
+		readonly hideInactiveInputs?: boolean;
+		readonly screenReaderOptimized?: boolean;
+		readonly comparisonAvailable?: boolean;
+		readonly comparisonArchived?: boolean;
+	}) {
 		const judge = upcastPartial<IActiveSession>({ sessionId: 'judge', resource: URI.parse('test:///judge') });
 		const attempt = upcastPartial<IActiveSession>({ sessionId: 'attempt', resource: URI.parse('test:///attempt') });
 		const attempt2 = upcastPartial<IActiveSession>({ sessionId: 'attempt-2', resource: URI.parse('test:///attempt-2') });
 		const attempt3 = upcastPartial<IActiveSession>({ sessionId: 'attempt-3', resource: URI.parse('test:///attempt-3') });
+		const unrelated = upcastPartial<IActiveSession>({ sessionId: 'unrelated', resource: URI.parse('test:///unrelated') });
 		const comparison: ISessionComparison = {
 			id: 'comparison',
 			groupId: 'group',
@@ -40,6 +48,7 @@ suite('Session comparison grid controller', () => {
 			prompt: 'Implement',
 			createdAt: 0,
 			workspace: URI.file('/repo'),
+			...(options?.comparisonArchived ? { archivedAt: 1 } : {}),
 			participants: [{
 				id: 'judge',
 				role: SessionComparisonParticipantRole.Judge,
@@ -64,12 +73,13 @@ suite('Session comparison grid controller', () => {
 		};
 		const focused = store.add(new Emitter<string>());
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', attempt);
-		const visibleSessions = observableValue<readonly IActiveSession[]>('visibleSessions', options?.attemptsOnly
+		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', options?.attemptsOnly
 			? [attempt, attempt2, attempt3].slice(0, options.attemptCount ?? 2)
 			: [judge, attempt]);
-		const comparisons = observableValue<readonly ISessionComparison[]>('comparisons', [comparison]);
+		const comparisons = observableValue<readonly ISessionComparison[]>('comparisons', options?.comparisonAvailable === false ? [] : [comparison]);
 		const closed: string[] = [];
 		const shownOnly: string[] = [];
+		const collapsedTo: Array<string | undefined> = [];
 		const hiddenParts: Array<{ hidden: boolean; part: Parts }> = [];
 		const partVisibility = new Map<Parts, boolean>([
 			[Parts.EDITOR_PART, true],
@@ -100,12 +110,17 @@ suite('Session comparison grid controller', () => {
 			override closeSession(session: ISession | undefined): void {
 				if (session) {
 					closed.push(session.sessionId);
-					visibleSessions.set(visibleSessions.get().filter(candidate => candidate.sessionId !== session.sessionId), undefined);
+					visibleSessions.set(visibleSessions.get().filter(candidate => candidate?.sessionId !== session.sessionId), undefined);
 				}
 			}
 			override showSession(resource: URI): void {
-				const session = [judge, attempt, attempt2, attempt3].find(candidate => candidate.resource.toString() === resource.toString())!;
+				const session = [judge, attempt, attempt2, attempt3, unrelated].find(candidate => candidate.resource.toString() === resource.toString())!;
 				shownOnly.push(session.sessionId);
+				activeSession.set(session, undefined);
+			}
+			override collapseToSession(session: IActiveSession | undefined): void {
+				collapsedTo.push(session?.sessionId);
+				visibleSessions.set([session], undefined);
 				activeSession.set(session, undefined);
 			}
 		}());
@@ -137,12 +152,15 @@ suite('Session comparison grid controller', () => {
 			attempt,
 			attempt2,
 			attempt3,
+			unrelated,
+			comparison,
 			focused,
 			activeSession,
 			visibleSessions,
 			comparisons,
 			closed,
 			shownOnly,
+			collapsedTo,
 			hiddenParts,
 			partVisibility,
 			onDidChangePartVisibility,
@@ -211,8 +229,7 @@ suite('Session comparison grid controller', () => {
 	});
 
 	test('does not collapse unrelated multi-session layouts', async () => {
-		const fixture = setup();
-		fixture.comparisons.set([], undefined);
+		const fixture = setup({ comparisonAvailable: false });
 		fixture.activeSession.set(fixture.judge, undefined);
 		await Promise.resolve();
 
@@ -220,8 +237,7 @@ suite('Session comparison grid controller', () => {
 	});
 
 	test('ignores archived comparisons for layout and Judge isolation', async () => {
-		const fixture = setup();
-		fixture.comparisons.set(fixture.comparisons.get().map(comparison => ({ ...comparison, archivedAt: 1 })), undefined);
+		const fixture = setup({ comparisonArchived: true });
 		fixture.focused.fire('judge');
 		fixture.activeSession.set(fixture.judge, undefined);
 		await Promise.resolve();
@@ -241,11 +257,77 @@ suite('Session comparison grid controller', () => {
 		});
 	});
 
-	test('shows inputs by default and hides inactive inputs only when enabled for three or more attempts', async () => {
+	test('closes the comparison grid when an unrelated session replaces one attempt', async () => {
+		const fixture = setup({ attemptsOnly: true, attemptCount: 3 });
+
+		fixture.visibleSessions.set([fixture.attempt, fixture.attempt2, fixture.unrelated], undefined);
+		fixture.activeSession.set(fixture.unrelated, undefined);
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			visible: fixture.visibleSessions.get().map(session => session?.sessionId),
+			active: fixture.activeSession.get()?.sessionId,
+			closed: fixture.closed,
+			shownOnly: fixture.shownOnly,
+			collapsedTo: fixture.collapsedTo,
+		}, {
+			visible: ['unrelated'],
+			active: 'unrelated',
+			closed: [],
+			shownOnly: [],
+			collapsedTo: ['unrelated'],
+		});
+	});
+
+	test('closes the comparison grid around a new-session replacement when its group is deleted', async () => {
+		const fixture = setup({ attemptsOnly: true, attemptCount: 3 });
+
+		fixture.comparisons.set([], undefined);
+		fixture.visibleSessions.set([fixture.attempt, fixture.attempt2, undefined], undefined);
+		fixture.activeSession.set(undefined, undefined);
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			visible: fixture.visibleSessions.get().map(session => session?.sessionId),
+			active: fixture.activeSession.get()?.sessionId,
+			closed: fixture.closed,
+			shownOnly: fixture.shownOnly,
+			collapsedTo: fixture.collapsedTo,
+		}, {
+			visible: [undefined],
+			active: undefined,
+			closed: [],
+			shownOnly: [],
+			collapsedTo: [undefined],
+		});
+	});
+
+	test('does not collapse when switching directly to another comparison', async () => {
+		const fixture = setup({ attemptsOnly: true, attemptCount: 3 });
+		const nextComparison = { ...fixture.comparison, id: 'next-comparison' };
+
+		fixture.comparisons.set([], undefined);
+		fixture.comparisons.set([nextComparison], undefined);
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			visible: fixture.visibleSessions.get().map(session => session?.sessionId),
+			closed: fixture.closed,
+			shownOnly: fixture.shownOnly,
+		}, {
+			visible: ['attempt', 'attempt-2', 'attempt-3'],
+			closed: [],
+			shownOnly: [],
+		});
+	});
+
+	test('shows inputs by default and hides inactive inputs only in comparison grids with three or more panes', async () => {
 		const defaultGrid = setup({ attemptsOnly: true, attemptCount: 3 });
 		const twoAttemptGrid = setup({ attemptsOnly: true, attemptCount: 2, hideInactiveInputs: true });
 		const enabledGrid = setup({ attemptsOnly: true, attemptCount: 3, hideInactiveInputs: true });
 		const mixedGrid = setup({ hideInactiveInputs: true });
+		const mixedThreePaneGrid = setup({ hideInactiveInputs: true });
+		mixedThreePaneGrid.visibleSessions.set([mixedThreePaneGrid.judge, mixedThreePaneGrid.attempt, mixedThreePaneGrid.attempt2], undefined);
 		const screenReaderGrid = setup({ attemptsOnly: true, attemptCount: 3, hideInactiveInputs: true, screenReaderOptimized: true });
 		const className = 'session-comparison-hide-inactive-inputs';
 		const activeClassName = 'session-comparison-grid-active';
@@ -273,6 +355,7 @@ suite('Session comparison grid controller', () => {
 			disabledBySetting,
 			afterLeavingGrid,
 			mixedGrid: mixedGrid.mainContainer.classList.contains(className),
+			mixedThreePaneGrid: mixedThreePaneGrid.mainContainer.classList.contains(className),
 			screenReaderGrid: screenReaderGrid.mainContainer.classList.contains(className),
 			defaultComparisonGrid: defaultGrid.mainContainer.classList.contains(activeClassName),
 			mixedComparisonGrid: mixedGrid.mainContainer.classList.contains(activeClassName),
@@ -286,6 +369,7 @@ suite('Session comparison grid controller', () => {
 			disabledBySetting: false,
 			afterLeavingGrid: false,
 			mixedGrid: false,
+			mixedThreePaneGrid: true,
 			screenReaderGrid: false,
 			defaultComparisonGrid: true,
 			mixedComparisonGrid: true,

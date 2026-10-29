@@ -71,6 +71,13 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 	}
 
 	getMcpServerConfigurationFromManifest(manifest: IGalleryMcpServerConfiguration, packageType: RegistryType): McpServerConfigurationParseResult {
+		return new McpServerManifestParser().getMcpServerConfigurationFromManifest(manifest, packageType);
+	}
+}
+
+export class McpServerManifestParser {
+
+	getMcpServerConfigurationFromManifest(manifest: IGalleryMcpServerConfiguration, packageType: RegistryType): McpServerConfigurationParseResult {
 
 		// remote
 		if (packageType === RegistryType.REMOTE && manifest.remotes?.length) {
@@ -515,7 +522,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 			if (!currentServers.servers) {
 				return;
 			}
-			await this.mcpResourceScannerService.removeMcpServers([server.name], this.mcpResource, this.target, this.format);
+			await this.mcpResourceScannerService.removeMcpServers([server.name], this.mcpResource, this.target, this.format, options?.preserveInputIds);
 			if (server.location) {
 				await this.fileService.del(URI.revive(server.location), { recursive: true });
 			}

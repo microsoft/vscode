@@ -294,7 +294,7 @@
 }
 
 /*
- * Match the standard workbench's persistent three-dot sash gripper. The center
+ * Match the standard workbench's three-dot sash gripper. The center
  * dot is the pseudo-element and box shadows draw the outer dots; hide all three
  * while the full hover/drag highlight communicates the active resize target.
  */
@@ -308,9 +308,9 @@
 	width: var(--vscode-spacing-size20);
 	height: var(--vscode-spacing-size20);
 	border-radius: var(--vscode-cornerRadius-circle);
-	background: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
-	color: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
-	opacity: 0.5;
+	background: var(--vscode-modernSash-gripForeground);
+	color: var(--vscode-modernSash-gripForeground);
+	opacity: var(--sash-grip-opacity, 1);
 	pointer-events: none;
 	transform: translate(-50%, -50%);
 }
@@ -335,10 +335,10 @@
 	opacity: 0;
 }
 
-.monaco-enable-motion .agent-sessions-workbench .part.sessionspart .monaco-sash.agents-grid-gap-sash::after,
-.monaco-enable-motion .agent-sessions-workbench:not(.noeditorpane) .monaco-sash.vertical.sessions-side-pane-divider:not(.disabled)::after,
-.monaco-enable-motion .agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:not(.disabled)::after {
-	transition: opacity 0.1s ease-out;
+:is(.monaco-enable-motion .agent-sessions-workbench, .monaco-enable-motion.agent-sessions-workbench) .part.sessionspart .monaco-sash.agents-grid-gap-sash::after,
+:is(.monaco-enable-motion .agent-sessions-workbench, .monaco-enable-motion.agent-sessions-workbench):not(.noeditorpane) .monaco-sash.vertical.sessions-side-pane-divider:not(.disabled)::after,
+:is(.monaco-enable-motion .agent-sessions-workbench, .monaco-enable-motion.agent-sessions-workbench):not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:not(.disabled)::after {
+	transition: opacity var(--sash-grip-transition-duration, 0.15s) ease-out;
 }
 
 @media (forced-colors: active) {
@@ -348,7 +348,7 @@
 	.agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:not(.disabled)::after {
 		background: CanvasText;
 		color: CanvasText;
-		opacity: 1;
+		opacity: var(--sash-grip-opacity, 1);
 	}
 }
 
@@ -401,6 +401,14 @@
 	&.modern-ui-tabs.nopanel.noeditorpane .agents-part-card .session-view.session-grid-bottom-right {
 		border-bottom-right-radius: max(0px, calc(var(--agents-window-corner-radius) - var(--vscode-strokeThickness)));
 	}
+
+	&.modern-ui-tabs.nopanel.nosidebar .agents-part-card .session-view.session-grid-bottom-left .chat-groups-view-has-gaps .chat-group-view.chat-grid-bottom-left > .chat-group-view-surface {
+		border-bottom-left-radius: max(0px, calc(var(--agents-window-corner-radius) - var(--vscode-strokeThickness)));
+	}
+
+	&.modern-ui-tabs.nopanel.noeditorpane .agents-part-card .session-view.session-grid-bottom-right .chat-groups-view-has-gaps .chat-group-view.chat-grid-bottom-right > .chat-group-view-surface {
+		border-bottom-right-radius: max(0px, calc(var(--agents-window-corner-radius) - var(--vscode-strokeThickness)));
+	}
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar::before {
@@ -436,7 +444,8 @@
 }
 
 .agent-sessions-workbench .explorer-folders-view .monaco-list-row,
-.agent-sessions-workbench .changes-file-list .monaco-list-row {
+.agent-sessions-workbench .changes-file-list .monaco-list-row,
+.agent-sessions-workbench .pane-body.integrated-terminal .tabs-list .monaco-list-row {
 	left: var(--vscode-spacing-size40);
 	right: var(--vscode-spacing-size40);
 	width: auto;
@@ -444,7 +453,8 @@
 }
 
 .agent-sessions-workbench.modern-ui-compact .explorer-folders-view .monaco-list-row,
-.agent-sessions-workbench.modern-ui-compact .changes-file-list .monaco-list-row {
+.agent-sessions-workbench.modern-ui-compact .changes-file-list .monaco-list-row,
+.agent-sessions-workbench.modern-ui-compact .pane-body.integrated-terminal .tabs-list .monaco-list-row {
 	left: var(--vscode-spacing-size20);
 	right: var(--vscode-spacing-size20);
 }

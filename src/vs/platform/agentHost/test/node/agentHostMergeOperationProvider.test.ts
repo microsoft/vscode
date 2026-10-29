@@ -11,7 +11,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { buildBranchChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { SessionStatus, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, SessionStatus, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostMergeOperationContribution } from '../../node/agentHostMergeOperationProvider.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
@@ -54,6 +54,7 @@ suite('AgentHostMergeOperationContribution', () => {
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: [workingDirectory],
 			project: { uri: 'file:///repo', displayName: 'repo' },
+			defaultChat: buildDefaultChatUri(sessionKey),
 		});
 		stateManager.setSessionConfig(sessionKey, {
 			schema: { type: 'object', properties: {} },

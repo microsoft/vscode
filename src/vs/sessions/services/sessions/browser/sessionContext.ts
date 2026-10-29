@@ -25,7 +25,7 @@ export const ISessionContext = createDecorator<ISessionContext>('sessionContext'
  *
  * The global default ({@link ActiveSessionContext}) reports the window's active
  * session, so surfaces outside a scoped override keep working unchanged. A
- * scoped surface (e.g. a `SessionView` or a `NewChatInputWidget`) overrides this
+ * scoped surface (e.g. a `SessionView` or a `SharedChatInputComposer`) overrides this
  * service in its own scoped instantiation service with a {@link SessionContext}
  * bound to that surface's session.
  */

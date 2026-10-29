@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals as arraysEqual } from '../../../../base/common/arrays.js';
+import { distinct, equals as arraysEqual } from '../../../../base/common/arrays.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { decodeHex, encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -23,6 +23,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { McpServerPolicyValues } from '../../../../platform/mcp/common/allowedMcpServers.js';
 import { IMcpGalleryManifest, McpGalleryManifestStatus } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpDevModeConfig, IMcpSandboxConfiguration, IMcpServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -746,7 +747,17 @@ export interface McpServerTransportHTTPOAuth {
  * plain-text config files.
  */
 export function mcpOAuthClientSecretStorageKey(mcpServerUrl: string, clientId: string): string {
-	return `mcp.oauth.clientSecret:${mcpServerUrl}:${clientId}`;
+	return `${mcpOAuthClientSecretStorageKeyPrefix}${mcpServerUrl}:${clientId}`;
+}
+
+const mcpOAuthClientSecretStorageKeyPrefix = 'mcp.oauth.clientSecret:';
+
+/**
+ * Whether a secret-storage key is one under which {@link mcpOAuthClientSecretStorageKey} stores an MCP
+ * server OAuth client secret.
+ */
+export function isMcpOAuthClientSecretStorageKey(key: string): boolean {
+	return key.startsWith(mcpOAuthClientSecretStorageKeyPrefix);
 }
 
 /**
@@ -808,7 +819,7 @@ export namespace McpServerLaunch {
 				env: configuration.env ? { ...configuration.env } : {},
 				envFile: configuration.envFile,
 				cwd: configuration.cwd,
-				sandbox,
+				sandbox: mergeSandboxConfiguration(sandbox, configuration.sandbox),
 			};
 		}
 
@@ -828,6 +839,23 @@ export namespace McpServerLaunch {
 	export async function hash(launch: McpServerLaunch): Promise<string> {
 		const nonce = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(launch)));
 		return encodeHex(VSBuffer.wrap(new Uint8Array(nonce)));
+	}
+
+	function mergeSandboxConfiguration(root: IMcpSandboxConfiguration | undefined, server: IMcpSandboxConfiguration | undefined): IMcpSandboxConfiguration | undefined {
+		if (!root) {
+			return server;
+		}
+		return {
+			network: {
+				allowedDomains: distinct(server?.network?.allowedDomains ?? []),
+				deniedDomains: distinct([...(root.network?.deniedDomains ?? []), ...(server?.network?.deniedDomains ?? [])]),
+			},
+			filesystem: {
+				allowWrite: distinct(server?.filesystem?.allowWrite ?? []),
+				denyRead: distinct([...(root.filesystem?.denyRead ?? []), ...(server?.filesystem?.denyRead ?? [])]),
+				denyWrite: distinct([...(root.filesystem?.denyWrite ?? []), ...(server?.filesystem?.denyWrite ?? [])]),
+			},
+		};
 	}
 }
 
@@ -854,12 +882,14 @@ export interface IMcpServerConnection extends IDisposable {
 	 * resolution logic in extension-provided MCPs.
 	 */
 	readonly launchDefinition: McpServerLaunch;
+	/** Resolves matcher strings on the executing host without caching them or changing connection state. */
+	resolvePolicyVariables(values: readonly string[]): Promise<McpServerPolicyValues>;
 
 	/**
-	 * Starts the server if it's stopped. Returns a promise that resolves once
-	 * server exits a 'starting' state.
+	 * Starts a stopped server using the host expansions the caller already checked against the resolved launch; pass `{}` when none are required.
+	 * The expansions are forwarded for request-destination enforcement, not treated as authorization by the connection.
 	 */
-	start(methods: IMcpClientMethods): Promise<McpConnectionState>;
+	start(methods: IMcpClientMethods, policyValues: McpServerPolicyValues): Promise<McpConnectionState>;
 
 	/**
 	 * Stops the server.

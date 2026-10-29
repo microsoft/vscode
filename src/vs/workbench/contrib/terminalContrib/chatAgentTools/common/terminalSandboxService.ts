@@ -24,7 +24,7 @@ import { SANDBOX_HELPER_CHANNEL_NAME, SandboxHelperChannelClient } from '../../.
 import { ISandboxDependencyStatus, ISandboxHelperService } from '../../../../../platform/sandbox/common/sandboxHelperService.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../../../platform/sandbox/common/terminalSandboxEngine.js';
 import { readSandboxSetting, SANDBOX_SETTING_KEYS } from './sandboxSettingsReader.js';
-import { ITerminalSandboxService, TerminalSandboxPreCheckRemediation, type ISandboxDependencyInstallOptions, type ISandboxDependencyInstallResult, type ITerminalSandboxCommand, type ITerminalSandboxFileAccessCheckResult, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult, type ITerminalSandboxResolvedNetworkDomains, type ITerminalSandboxWrapResult, type TerminalSandboxFileAccessPermission } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+import { getSandboxTempDir, ITerminalSandboxService, TerminalSandboxPreCheckRemediation, type ISandboxDependencyInstallOptions, type ISandboxDependencyInstallResult, type ITerminalSandboxCommand, type ITerminalSandboxFileAccessCheckResult, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult, type ITerminalSandboxResolvedNetworkDomains, type ITerminalSandboxWrapResult, type TerminalSandboxFileAccessPermission } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { getVSCodeSandboxReadRoots } from '../../../../../platform/agentHost/common/vscodeSandboxPaths.js';
@@ -47,9 +47,6 @@ interface ISandboxDependencyInstallTerminalContext {
 	onDisposed: Event<unknown>;
 	didSendInstallCommand(): boolean;
 }
-
-/** Subdirectory under the user home + product data folder where the engine creates its temp dir. */
-const SANDBOX_TEMP_DIR_NAME = 'tmp';
 
 function affectsSandboxSettings(e: IConfigurationChangeEvent): boolean {
 	return SANDBOX_SETTING_KEYS.some(key => e.affectsConfiguration(key));
@@ -212,16 +209,15 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 
 	private async _resolveSandboxTempDir(): Promise<URI | undefined> {
 		const remoteEnv = await this._resolveRemoteEnv();
-		const sandboxTempDirName = this._getSandboxWindowTempDirName();
+		const workbenchEnv = this._environmentService as IEnvironmentService & { window?: { id?: number } };
+		const windowId = workbenchEnv.window?.id;
 		if (remoteEnv?.userHome) {
-			const sandboxRoot = URI.joinPath(remoteEnv.userHome, this._productService.serverDataFolderName ?? this._productService.dataFolderName, SANDBOX_TEMP_DIR_NAME);
-			return sandboxTempDirName ? URI.joinPath(sandboxRoot, sandboxTempDirName) : sandboxRoot;
+			return getSandboxTempDir(remoteEnv.userHome, this._productService.serverDataFolderName ?? this._productService.dataFolderName, windowId);
 		}
 
 		const nativeEnv = this._environmentService as IEnvironmentService & { userHome?: URI };
 		if (nativeEnv.userHome) {
-			const sandboxRoot = URI.joinPath(nativeEnv.userHome, this._productService.dataFolderName, SANDBOX_TEMP_DIR_NAME);
-			return sandboxTempDirName ? URI.joinPath(sandboxRoot, sandboxTempDirName) : sandboxRoot;
+			return getSandboxTempDir(nativeEnv.userHome, this._productService.dataFolderName, windowId);
 		}
 		return undefined;
 	}
@@ -231,12 +227,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const workspaceStorageHome = remoteEnv?.workspaceStorageHome ?? this._environmentService.workspaceStorageHome;
 		const workspaceId = this._workspaceContextService.getWorkspace().id;
 		return URI.joinPath(workspaceStorageHome, workspaceId);
-	}
-
-	private _getSandboxWindowTempDirName(): string | undefined {
-		const workbenchEnv = this._environmentService as IEnvironmentService & { window?: { id?: number } };
-		const windowId = workbenchEnv.window?.id;
-		return typeof windowId === 'number' ? `tmp_vscode_${windowId}` : undefined;
 	}
 
 	private async _resolveSandboxDependencyStatus(): Promise<ISandboxDependencyStatus | undefined> {

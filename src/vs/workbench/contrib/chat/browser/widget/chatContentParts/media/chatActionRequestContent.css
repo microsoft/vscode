@@ -1,0 +1,227 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-action-request {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	margin: var(--vscode-spacing-size40) 0;
+	width: 100%;
+	max-width: 100%;
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.chat-action-request > .chat-action-request-card {
+	display: flex;
+	flex-direction: column;
+	align-self: flex-start;
+	background-color: var(--vscode-chat-statusBackground);
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-medium);
+	overflow: hidden;
+	width: fit-content;
+	max-width: 100%;
+}
+
+.hc-black .chat-action-request > .chat-action-request-card,
+.hc-light .chat-action-request > .chat-action-request-card {
+	border-color: var(--vscode-chat-requestBorder);
+}
+
+.chat-action-request-header,
+.chat-action-request-header-content {
+	display: flex;
+	align-items: center;
+}
+
+.chat-action-request-header {
+	position: relative;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80) var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+	border-radius: calc(var(--vscode-cornerRadius-medium) - var(--vscode-strokeThickness)) calc(var(--vscode-cornerRadius-medium) - var(--vscode-strokeThickness)) 0 0;
+	overflow: hidden;
+}
+
+.chat-action-request .chat-action-request-disclosure {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	padding: 0;
+	border-radius: inherit;
+	color: inherit;
+	text-decoration: none;
+	cursor: pointer;
+	user-select: none;
+}
+
+.chat-action-request-header-content {
+	position: relative;
+	z-index: 1;
+	flex: 0 1 auto;
+	min-width: 0;
+	min-height: var(--vscode-spacing-size200);
+	pointer-events: none;
+	gap: var(--vscode-spacing-size60);
+}
+
+.chat-action-request-header-content > .codicon {
+	font-size: var(--vscode-codiconFontSize);
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-action-request.collapsed .chat-action-request-header {
+	border-radius: calc(var(--vscode-cornerRadius-medium) - var(--vscode-strokeThickness));
+}
+
+.chat-action-request-header:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-action-request .chat-action-request-disclosure:focus-visible,
+.chat-action-request .chat-action-request-message-toggle:focus-visible {
+	outline-offset: -1px;
+}
+
+.chat-action-request .chat-action-request-disclosure:focus:not(:focus-visible) {
+	outline: 0 !important;
+}
+
+.chat-action-request .chat-action-request-message-toggle {
+	position: relative;
+	z-index: 1;
+	box-sizing: border-box;
+	display: none;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	margin-inline-start: auto;
+	width: var(--vscode-spacing-size200);
+	height: var(--vscode-spacing-size200);
+	padding: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	opacity: 0;
+	pointer-events: none;
+	cursor: pointer;
+	transition: opacity 100ms ease-out;
+}
+
+.chat-action-request:not(.collapsed) .chat-action-request-message-toggle {
+	display: flex;
+}
+
+.chat-action-request .chat-action-request-message-toggle.codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.chat-action-request.direct-pointer-input:not(.collapsed) .chat-action-request-header .chat-action-request-message-toggle,
+.chat-action-request:not(.collapsed) .chat-action-request-header:hover .chat-action-request-message-toggle,
+.chat-action-request:not(.collapsed) .chat-action-request-header:focus-within .chat-action-request-message-toggle {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.chat-action-request .chat-action-request-message-toggle:hover,
+.chat-action-request .chat-action-request-message-toggle:focus-visible,
+.chat-action-request .chat-action-request-message-toggle.checked {
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+.chat-action-request .chat-action-request-twistie.codicon {
+	position: relative;
+	z-index: 1;
+	flex: 0 0 auto;
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-descriptionForeground);
+	pointer-events: none;
+	transition: transform 100ms ease-out;
+}
+
+.chat-action-request-header-content + .chat-action-request-twistie {
+	margin-inline-start: auto;
+}
+
+.chat-action-request:not(.collapsed) .chat-action-request-twistie {
+	transform: rotate(90deg);
+}
+
+.chat-action-request-title {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	white-space: nowrap;
+}
+
+.chat-action-request-metadata {
+	align-self: flex-end;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: var(--vscode-spacing-size160);
+	opacity: 0;
+	pointer-events: none;
+	white-space: nowrap;
+	transition: opacity 100ms ease-in-out;
+}
+
+.chat-action-request:hover > .chat-action-request-metadata,
+.chat-action-request:focus-within > .chat-action-request-metadata {
+	opacity: 0.7;
+	pointer-events: auto;
+}
+
+.chat-action-request-timestamp {
+	font-variant-numeric: tabular-nums;
+	font-feature-settings: "tnum";
+}
+
+.chat-action-request-timestamp:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.monaco-reduce-motion .chat-action-request .chat-action-request-twistie.codicon,
+.monaco-reduce-motion .chat-action-request .chat-action-request-message-toggle,
+.monaco-reduce-motion .chat-action-request > .chat-action-request-metadata {
+	transition: none;
+}
+
+.chat-action-request-body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120) var(--vscode-spacing-size120);
+}
+
+.chat-action-request.collapsed .chat-action-request-body,
+.chat-action-request.showing-agent-message .chat-action-request-details {
+	display: none;
+}
+
+.chat-action-request-details {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.chat-action-request-message {
+	display: none;
+	min-width: 0;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-action-request.showing-agent-message .chat-action-request-message {
+	display: block;
+	margin-top: var(--vscode-spacing-size80);
+}

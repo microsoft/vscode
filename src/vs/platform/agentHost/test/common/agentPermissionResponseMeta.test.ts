@@ -21,6 +21,19 @@ suite('Agent permission response metadata', () => {
 		})));
 	});
 
+	test('sandbox path persistence acknowledgement is explicit and never inherited', () => {
+		const _meta = toAgentPermissionResponseMeta({ decisionSource: 'human_response', sandboxPathGrantSaved: true });
+		assert.deepStrictEqual({
+			read: readAgentPermissionResponseMeta({ _meta }),
+			cleared: toAgentPermissionResponseMeta({ decisionSource: 'human_response' }, { _meta }),
+			invalid: [undefined, false, 'true', 1].map(value => readAgentPermissionResponseMeta({ _meta: { 'vscode.sandboxPathGrantSaved': value } })),
+		}, {
+			read: { decisionSource: 'human_response', sandboxPathGrantSaved: true },
+			cleared: { 'agentHost.permissionDecisionSource': 'human_response' },
+			invalid: [{}, {}, {}, {}],
+		});
+	});
+
 	test('missing, legacy, malformed and future metadata remain unattributed', () => {
 		assert.deepStrictEqual([
 			readAgentPermissionResponseMeta({}),

@@ -147,6 +147,7 @@ suite('Copilot built-in agents', () => {
 				name: agent.displayName(),
 				description: agent.description(),
 				disableModelInvocation: true,
+				_meta: { 'vscode.chatMode': 'ask' },
 			})),
 		});
 	});

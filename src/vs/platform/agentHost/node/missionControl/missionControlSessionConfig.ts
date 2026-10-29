@@ -14,6 +14,7 @@ export const missionControlSessionConfigAdapter: ISessionConfigAdapter = {
 	fromClientValues: fromMissionControlConfigValues,
 	fromClientProperty: fromMissionControlConfigProperty,
 	toClientConfig: toMissionControlSessionConfig,
+	toClientValues: values => toMissionControlConfigValues(values),
 	toClientAction: (action, rejected) => rejected && Object.keys(action.config).some(key => fromMissionControlConfigProperty(key) !== key)
 		? action : { ...action, config: toMissionControlConfigValues(action.config) },
 };
@@ -40,16 +41,25 @@ export function fromMissionControlConfigProperty(property: string): string {
 
 /** Translates native configuration to the Copilot Host vocabulary. */
 export function toMissionControlConfigValues(values: Record<string, unknown>, renamed?: ReadonlyMap<string, string>): Record<string, unknown> {
-	const hasApproval = (!renamed || renamed.has(SessionConfigKey.AutoApprove)) && Object.hasOwn(values, SessionConfigKey.AutoApprove);
+	const translateApprovals = !renamed || renamed.has(SessionConfigKey.AutoApprove);
+	const hasApproval = translateApprovals && Object.hasOwn(values, SessionConfigKey.AutoApprove);
+	const hasEffectiveApproval = translateApprovals && Object.hasOwn(values, 'effectiveApprovalMode');
+	const hasAvailableApprovals = translateApprovals && Array.isArray(values.availableApprovalModes);
 	const hasIsolation = (!renamed || renamed.has(SessionConfigKey.Isolation)) && Object.hasOwn(values, SessionConfigKey.Isolation);
 	const hasBranch = (!renamed || renamed.has(SessionConfigKey.Branch)) && Object.hasOwn(values, SessionConfigKey.Branch);
-	if (!hasApproval && !hasIsolation && !hasBranch) {
+	if (!hasApproval && !hasEffectiveApproval && !hasAvailableApprovals && !hasIsolation && !hasBranch) {
 		return values;
 	}
 	const result = { ...values };
 	if (hasApproval) {
 		delete result[SessionConfigKey.AutoApprove];
 		result[approvalModeKey] = toApprovalMode(values[SessionConfigKey.AutoApprove]);
+	}
+	if (hasEffectiveApproval) {
+		result.effectiveApprovalMode = toApprovalMode(values.effectiveApprovalMode);
+	}
+	if (hasAvailableApprovals && Array.isArray(values.availableApprovalModes)) {
+		result.availableApprovalModes = values.availableApprovalModes.map(toApprovalMode);
 	}
 	if (hasIsolation) {
 		delete result[SessionConfigKey.Isolation];
@@ -114,7 +124,7 @@ function toMissionControlEnumProperty(schema: SessionConfigPropertySchema, mapVa
 	const descriptions = schema.enumDescriptions;
 	return {
 		...schema,
-		enum: options.map(option => option.value),
+		...(schema.enum ? { enum: options.map(option => option.value) } : {}),
 		...(schema.default !== undefined ? { default: mapValue(schema.default) } : {}),
 		...(labels ? { enumLabels: options.map(option => labels[option.index]) } : {}),
 		...(descriptions ? { enumDescriptions: options.map(option => descriptions[option.index]) } : {}),
@@ -132,6 +142,18 @@ export function toMissionControlSessionConfig(config: SessionConfigState): Sessi
 		delete properties[approval.key];
 		properties[approvalModeKey] = toMissionControlEnumProperty(approval.schema, toApprovalMode, approvalValues);
 		renamed.set(approval.key, approvalModeKey);
+		const effective = properties.effectiveApprovalMode;
+		if (effective?.type === 'string') {
+			properties.effectiveApprovalMode = toMissionControlEnumProperty(effective, toApprovalMode, approvalValues);
+		}
+		const available = properties.availableApprovalModes;
+		if (available?.type === 'array') {
+			properties.availableApprovalModes = {
+				...available,
+				...(Array.isArray(available.default) ? { default: available.default.map(toApprovalMode) } : {}),
+				...(available.items?.type === 'string' ? { items: toMissionControlEnumProperty(available.items, toApprovalMode, approvalValues) } : {}),
+			};
+		}
 	}
 	if (isolation?.key === SessionConfigKey.Isolation) {
 		delete properties[isolation.key];

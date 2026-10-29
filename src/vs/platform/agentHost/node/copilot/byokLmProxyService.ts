@@ -262,6 +262,12 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			return;
 		}
 
+		// Match extension-host chat so BYOK providers can derive a stable prompt_cache_key.
+		bridgeRequest = {
+			...bridgeRequest,
+			modelOptions: { ...bridgeRequest.modelOptions, _conversationId: sessionId },
+		};
+
 		const capped = capBridgeTools(bridgeRequest);
 		if (capped.droppedToolNames.length > 0) {
 			const requestedToolCount = bridgeRequest.tools?.length ?? 0;

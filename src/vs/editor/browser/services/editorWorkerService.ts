@@ -15,7 +15,7 @@ import { ITextModel } from '../../common/model.js';
 import * as languages from '../../common/languages.js';
 import { ILanguageConfigurationService } from '../../common/languages/languageConfigurationRegistry.js';
 import { EditorWorker } from '../../common/services/editorWebWorker.js';
-import { DiffAlgorithmName, IEditorWorkerService, ILineChange, IUnicodeHighlightsResult } from '../../common/services/editorWorker.js';
+import { DiffAlgorithmName, IEditorWorkerService, ILineChange, IStringEditFromDiff, IUnicodeHighlightsResult } from '../../common/services/editorWorker.js';
 import { IModelService } from '../../common/services/model.js';
 import { ITextResourceConfigurationService } from '../../common/services/textResourceConfiguration.js';
 import { isNonEmptyArray } from '../../../base/common/arrays.js';
@@ -107,9 +107,9 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 		return worker.$computeUnicodeHighlights(uri.toString(), options, range);
 	}
 
-	public async computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDocumentDiff | null> {
+	public async computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName, verify?: boolean): Promise<IDocumentDiff | null> {
 		const worker = await this._workerWithResources([original, modified], /* forceLargeModels */true);
-		const result = await worker.$computeDiff(original.toString(), modified.toString(), options, algorithm);
+		const result = await worker.$computeDiff(original.toString(), modified.toString(), options, algorithm, verify);
 		if (!result) {
 			return null;
 		}
@@ -117,6 +117,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 		const diff: IDocumentDiff = {
 			identical: result.identical,
 			quitEarly: result.quitEarly,
+			validity: result.validity,
 			changes: toLineRangeMappings(result.changes),
 			moves: result.moves.map(m => new MovedText(
 				new LineRangeMapping(new LineRange(m[0], m[1]), new LineRange(m[2], m[3])),
@@ -190,13 +191,17 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 	}
 
 	public async computeStringEditFromDiff(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<StringEdit> {
+		return (await this.computeStringEditFromDiffWithMetadata(original, modified, options, algorithm)).edit;
+	}
+
+	public async computeStringEditFromDiffWithMetadata(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<IStringEditFromDiff> {
 		try {
 			const worker = await this._workerWithResources([]);
-			const edit = await worker.$computeStringDiff(original, modified, options, algorithm);
-			return StringEdit.fromJson(edit);
+			const result = await worker.$computeStringDiff(original, modified, options, algorithm);
+			return { edit: StringEdit.fromJson(result.edit), isCoarse: result.isCoarse };
 		} catch (e) {
 			onUnexpectedError(e);
-			return StringEdit.replace(OffsetRange.ofLength(original.length), modified); // approximation
+			return { edit: StringEdit.replace(OffsetRange.ofLength(original.length), modified), isCoarse: true };
 		}
 	}
 

@@ -88,6 +88,7 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	readonly bottomPanelHeight?: number;
 	readonly chatBackground?: ISessionsChatBackground;
 	readonly chatTabsMode?: SessionsChatTabsMode;
+	readonly compactDensity?: boolean;
 	readonly connectedEditorTabs?: boolean;
 	readonly sidePaneShowTabs?: 'multiple' | 'single';
 } = {}) {
@@ -95,6 +96,7 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	const sidePaneVisible = !!options.sidePane;
 	const bottomPanelVisible = !!options.bottomPanel;
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench', 'modern-ui-tabs', 'nosidebar', 'noauxiliarybar', 'panel-alignment-justify');
+	container.classList.toggle('modern-ui-compact', options.compactDensity === true);
 	container.classList.toggle('modern-ui-connected-editor-tabs', options.connectedEditorTabs !== false);
 	container.classList.toggle('noeditorpane', !sidePaneVisible);
 	container.classList.toggle('nopanel', !bottomPanelVisible);
@@ -116,7 +118,7 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 				|| (bottomPanelVisible && part === Parts.PANEL_PART);
 		}
 		override isEditorPaneVisible() { return sidePaneVisible; }
-		override isModernUICompact() { return false; }
+		override isModernUICompact() { return options.compactDensity === true; }
 		override getPanelAlignment() { return 'justify' as const; }
 		override getContainer() { return container; }
 	}();
@@ -223,5 +225,6 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 		grid.addView(options.sidePane, options.sidePaneWidth ?? 360, part, Direction.Right);
 	}
 	append(container, grid.element);
-	return { ...services, part, grid, layout: () => grid.layout(width - AGENTS_FLOATING_PANEL_GAP, height - AGENTS_FLOATING_PANEL_GAP) };
+	const workbenchGap = options.compactDensity ? 0 : AGENTS_FLOATING_PANEL_GAP;
+	return { ...services, part, grid, layout: () => grid.layout(width - workbenchGap, height - workbenchGap) };
 }

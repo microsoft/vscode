@@ -57,13 +57,11 @@ suite('GitHubResourceDetails', () => {
 	});
 
 	for (const density of ['default', 'compact'] as const) {
-		test(`keeps short text previews content-sized and ${density} GitHub cards bounded`, () => {
+		test(`sizes short text to its content and reserves a responsive width for ${density} GitHub cards`, () => {
 			const measure = (element: HTMLElement): number => {
 				const container = mainWindow.document.createElement('div');
 				container.style.display = 'inline-block';
 				container.style.maxWidth = '700px';
-				container.style.setProperty('--vscode-spacing-size240', '24px');
-				container.style.setProperty('--vscode-strokeThickness', '1px');
 				container.appendChild(element);
 				mainWindow.document.body.appendChild(container);
 				store.add(toDisposable(() => container.remove()));
@@ -72,7 +70,7 @@ suite('GitHubResourceDetails', () => {
 			const location = getChatPillLocationHover('plan.md').content;
 			assert.ok(location instanceof HTMLElement);
 			location.classList.toggle('compact', density === 'compact');
-			const shortWidth = measure(location);
+			const locationWidth = measure(location);
 			const rich = createIssueResourceHover({
 				owner: 'microsoft', repo: 'vscode', number: 1, density,
 				repositoryHref: 'https://github.com/microsoft/vscode',
@@ -80,11 +78,11 @@ suite('GitHubResourceDetails', () => {
 				issue: { title: 'Issue', body: '', state: 'open', author: { login: 'author' } },
 			});
 			const richWidth = measure(rich.element);
-			const expectedRichWidth = Math.min(520, mainWindow.innerWidth - 50);
+			const expectedWidth = Math.min(420, mainWindow.innerWidth * 0.7);
 			assert.deepStrictEqual({
-				shortUsesContentWidth: shortWidth > 0 && shortWidth < expectedRichWidth,
-				richWidth,
-			}, { shortUsesContentWidth: true, richWidth: expectedRichWidth });
+				textIsCompact: locationWidth > 0 && locationWidth < richWidth,
+				responsiveWidth: Math.abs(richWidth - expectedWidth) < 1 / 64,
+			}, { textIsCompact: true, responsiveWidth: true });
 		});
 	}
 

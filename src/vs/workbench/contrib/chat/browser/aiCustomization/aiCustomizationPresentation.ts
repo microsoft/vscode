@@ -12,12 +12,15 @@ import { type ColorScheme } from '../../../../../platform/theme/common/theme.js'
 import { ContributionEnablementState } from '../../common/enablement.js';
 import { IAgentPlugin } from '../../common/plugins/agentPluginService.js';
 
+const maximumCustomizationMarketplaceIconAspectRatio = 1.5;
+
 export function renderCustomizationMarketplaceIcon(
 	container: HTMLElement,
 	fallbackIcon: ThemeIcon,
 	icon: CustomizationMarketplaceIcon | undefined,
 	themeType: ColorScheme,
 	disposables: DisposableStore,
+	allowWideIcon = false,
 ): void {
 	const iconUri = getCustomizationMarketplaceIconUri(icon, themeType);
 	DOM.clearNode(container);
@@ -35,15 +38,21 @@ export function renderCustomizationMarketplaceIcon(
 	image.alt = '';
 	image.loading = 'lazy';
 	image.referrerPolicy = 'no-referrer';
-	disposables.add(DOM.addDisposableListener(image, DOM.EventType.LOAD, () => {
-		container.classList.remove('is-fallback');
-	}));
-	disposables.add(DOM.addDisposableListener(image, DOM.EventType.ERROR, () => {
+	const showFallback = () => {
 		fallback.hidden = false;
 		fallback.style.display = '';
 		container.classList.add('is-fallback');
 		image.remove();
+	};
+	disposables.add(DOM.addDisposableListener(image, DOM.EventType.LOAD, () => {
+		const aspectRatio = Math.max(image.naturalWidth, image.naturalHeight) / Math.min(image.naturalWidth, image.naturalHeight);
+		if (!Number.isFinite(aspectRatio) || !allowWideIcon && aspectRatio > maximumCustomizationMarketplaceIconAspectRatio) {
+			showFallback();
+			return;
+		}
+		container.classList.remove('is-fallback');
 	}));
+	disposables.add(DOM.addDisposableListener(image, DOM.EventType.ERROR, showFallback));
 	image.src = iconUri.toString(true);
 }
 

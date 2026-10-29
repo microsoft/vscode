@@ -18,7 +18,7 @@ import type { CanvasState } from '../../common/state/protocol/channels-canvas/st
 import { normalizeLegacyActionEnvelope, readLegacyTurnError } from '../../common/state/legacyProtocolCompatibility.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
 import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
-import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
+import { buildFolderChangesetOwnerUri, buildTurnChangesetUri } from '../../common/changesetUri.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { buildCanvasUri, parseCanvasChatUri } from '../../common/canvasUri.js';
 import type { IStateSnapshot } from '../../common/state/sessionProtocol.js';
@@ -98,19 +98,30 @@ const automationRunUri = 'ahp-automation-run:/test-run';
 suite('resolveAgentHostSession', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('resolves peer chats and folder changeset owners to their containing session', () => {
+	test('resolves chats through recorded ownership and folder changeset owners to their containing session', () => {
 		const peer = buildChatUri(sessionUri, 'peer');
+		const unknown = buildChatUri(sessionUri, 'unknown');
+		const recordedOwner = 'copilot:/recorded-owner';
 		const folderOwner = buildFolderChangesetOwnerUri(sessionUri, 'folder');
 		const terminal = buildNonPtyShellTerminalUri(sessionUri, sessionUri, peer, 'tool');
+		const owners = new Map([[peer, recordedOwner]]);
+		const getChatOwner = (chat: string) => owners.get(chat);
 
 		assert.deepStrictEqual({
-			peer: resolveAgentHostSession(URI.parse(peer)).toString(),
-			folder: resolveAgentHostSession(URI.parse(folderOwner)).toString(),
-			terminal: resolveAgentHostSession(URI.parse(terminal)).toString(),
+			peer: resolveAgentHostSession(URI.parse(peer), getChatOwner)?.toString(),
+			unknown: resolveAgentHostSession(URI.parse(unknown), getChatOwner)?.toString(),
+			folder: resolveAgentHostSession(URI.parse(folderOwner), getChatOwner)?.toString(),
+			terminal: resolveAgentHostSession(URI.parse(terminal), getChatOwner)?.toString(),
+			peerChangeset: resolveAgentHostSession(URI.parse(buildTurnChangesetUri(peer, 'turn-1')), getChatOwner)?.toString(),
+			unknownChangeset: resolveAgentHostSession(URI.parse(buildTurnChangesetUri(unknown, 'turn-1')), getChatOwner)?.toString(),
 		}, {
-			peer: sessionUri,
+			peer: recordedOwner,
+			unknown: undefined,
 			folder: sessionUri,
-			terminal: sessionUri,
+			// A retained terminal link is routed by the chat it names; the session it embeds is for older builds.
+			terminal: recordedOwner,
+			peerChangeset: recordedOwner,
+			unknownChangeset: undefined,
 		});
 	});
 
@@ -120,7 +131,7 @@ suite('resolveAgentHostSession', () => {
 		const remote = canvas.with({ authority: 'another-host' });
 		assert.deepStrictEqual({
 			owner: parseCanvasChatUri(canvas)?.toString(),
-			session: resolveAgentHostSession(canvas).toString(),
+			session: resolveAgentHostSession(canvas, owner => owner === chat.toString() ? sessionUri : undefined)?.toString(),
 			remoteOwner: parseCanvasChatUri(remote),
 			extraPath: parseCanvasChatUri(canvas.with({ path: canvas.path + '/extra' })),
 			query: parseCanvasChatUri(canvas.with({ query: 'source=other' })),
@@ -813,6 +824,45 @@ suite('ChatStateSubscription', () => {
 		});
 	});
 
+	test('fires snapshot application after replaying buffered canvas changes', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri), 0);
+		const snapshots: ChatState[] = [];
+		disposables.add(sub.onDidApplySnapshot(state => snapshots.push(state)));
+
+		sub.beginSnapshotRefresh();
+		sub.receiveEnvelope(makeEnvelope({
+			type: ActionType.ChatCanvasesChanged,
+			canvases: [{ resource: 'ahp-canvas:/preview' }],
+		}, 2));
+		sub.handleSnapshot(makeChatState(chatUri), 1);
+
+		assert.deepStrictEqual(snapshots.map(snapshot => snapshot.canvases), [[{ resource: 'ahp-canvas:/preview' }]]);
+	});
+
+	test('reports buffered canvas changes replayed after a cancelled snapshot refresh', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri), 0);
+		const replayed: (readonly ActionEnvelope[])[] = [];
+		disposables.add(sub.onDidCancelSnapshotRefresh(envelopes => replayed.push(envelopes)));
+
+		sub.beginSnapshotRefresh();
+		sub.receiveEnvelope(makeEnvelope({
+			type: ActionType.ChatCanvasesChanged,
+			canvases: [{ resource: 'ahp-canvas:/preview' }],
+		}, 2));
+		sub.cancelSnapshotRefresh();
+		const value = sub.value;
+
+		assert.deepStrictEqual({
+			canvases: value instanceof Error ? undefined : value?.canvases,
+			replayed: replayed.map(envelopes => envelopes.map(envelope => envelope.action.type)),
+		}, {
+			canvases: [{ resource: 'ahp-canvas:/preview' }],
+			replayed: [[ActionType.ChatCanvasesChanged]],
+		});
+	});
+
 	for (const bufferedAcknowledgement of [false, true]) {
 		test(`initial snapshot confirms an optimistic turn start (${bufferedAcknowledgement ? 'buffered' : 'missing'} acknowledgement)`, () => {
 			const sub = createSub();
@@ -1269,6 +1319,49 @@ suite('AgentSubscriptionManager', () => {
 
 		ref.dispose();
 		assert.ok(unsubscribedResources.includes(sessionUri));
+	});
+
+	test('a subscribe that resolves after its last ref was released is unsubscribed again, unless the resource is held again', async () => {
+		const hostSubscribed = new Set<string>();
+		const pending: { resource: string; resolve: () => void }[] = [];
+		const mgr = disposables.add(new AgentSubscriptionManager('c1', () => ++seq, noop, resource => new Promise<IStateSnapshot>(resolve => {
+			const key = resource.toString();
+			// The host subscribes when it answers, after any unsubscribe that overtook this subscribe on the wire.
+			pending.push({ resource: key, resolve: () => { hostSubscribed.add(key); resolve({ resource: key, state: makeSessionState(key), fromSeq: 0 }); } });
+		}), resource => { hostSubscribed.delete(resource.toString()); }));
+		const released = URI.parse('copilot:/released');
+		const reacquired = URI.parse('copilot:/reacquired');
+
+		mgr.getSubscription<SessionState>(StateComponents.Session, released, 'test').dispose();
+		mgr.getSubscription<SessionState>(StateComponents.Session, reacquired, 'test').dispose();
+		const held = mgr.getSubscription<SessionState>(StateComponents.Session, reacquired, 'test');
+		for (const request of pending) {
+			request.resolve();
+		}
+		await new Promise(r => setTimeout(r, 0));
+
+		assert.deepStrictEqual({ hostSubscribed: [...hostSubscribed].sort(), heldTitle: held.object.value instanceof Error ? undefined : held.object.value?.title !== undefined }, { hostSubscribed: [reacquired.toString()], heldTitle: true });
+		held.dispose();
+	});
+
+	test('a refresh that resolves after its last ref was released is unsubscribed again', async () => {
+		const hostSubscribed = new Set<string>();
+		const pending: (() => void)[] = [];
+		const mgr = disposables.add(new AgentSubscriptionManager('c1', () => ++seq, noop, resource => new Promise<IStateSnapshot>(resolve => {
+			const key = resource.toString();
+			pending.push(() => { hostSubscribed.add(key); resolve({ resource: key, state: makeSessionState(key), fromSeq: 0 }); });
+		}), resource => { hostSubscribed.delete(resource.toString()); }));
+		const resource = URI.parse('copilot:/refreshed');
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, resource, 'test');
+		pending.shift()!();
+		await new Promise(r => setTimeout(r, 0));
+
+		const refresh = mgr.refreshSubscription(resource);
+		ref.dispose();
+		pending.shift()!();
+		await refresh;
+
+		assert.deepStrictEqual([...hostSubscribed], []);
 	});
 
 	test('receiveEnvelope routes to root and all active subscriptions', async () => {

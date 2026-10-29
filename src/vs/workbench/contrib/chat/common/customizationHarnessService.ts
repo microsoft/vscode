@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { AICustomizationManagementSection, AICustomizationSource, BUILTIN_STORAGE } from './aiCustomizationWorkspaceService.js';
-import { PromptsType } from './promptSyntax/promptTypes.js';
+import { PromptsType, Target } from './promptSyntax/promptTypes.js';
 import { AGENT_MD_FILENAME } from './promptSyntax/config/promptFileLocations.js';
 import { IAgentSource, IChatPromptSlashCommand, ICustomAgent, IPromptsService, IResolvedChatPromptSlashCommand, matchesSessionType, PromptsStorage } from './promptSyntax/service/promptsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -27,6 +27,8 @@ import { CustomizationEnablementKind } from '../../../../platform/agentHost/comm
 import type { IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationResult, McpServerCustomizationMigration } from './promptSyntax/service/customizationMigrationService.js';
 import type { ICustomizationMarketplaceInstallProvider } from './customizationMarketplaceInstallService.js';
 import type { ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import type { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import type { AgentModelCatalogStatus } from '../../../../platform/agentHost/common/agentModelCatalogStatus.js';
 
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
@@ -104,8 +106,56 @@ export interface ICustomizationMarketplaceSearchProvider {
 	 * allowing the workbench to use its compatibility catalog transport.
 	 */
 	query(sessionResource: URI, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage | undefined>;
+	/** Retrieves an ordered saved feed using the same authentication and installation authority as search. */
+	getFeed?(sessionResource: URI, feedId: string, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
 	/** Optional explicit recovery for the provider's current source failure. */
 	getRecoveryAction?(): ICustomizationMarketplaceSourceRecoveryAction | undefined;
+}
+
+export interface ICustomizationMarketplaceInfo {
+	readonly name: string;
+	readonly source: string;
+	readonly isDefault: boolean;
+	readonly managed: boolean;
+	readonly available: boolean;
+}
+
+export interface ICustomizationMarketplaceRemoveResult {
+	readonly removed: boolean;
+	readonly dependentPlugins?: readonly string[];
+}
+
+export interface ICustomizationMarketplaceRefreshResult {
+	readonly name: string;
+	readonly success: boolean;
+	readonly error?: string;
+}
+
+export interface ICustomizationMarketplaceManagementProvider {
+	/**
+	 * Fires when provider state that may affect the marketplace list changes. Consumers should
+	 * list marketplaces again and treat an identical list as unchanged, because this also fires
+	 * for unrelated customization activity such as MCP server status changes.
+	 */
+	readonly onDidChange: Event<void>;
+	/**
+	 * Fires when marketplace contents may have changed even if the marketplace list is identical,
+	 * for example after a marketplace is added, removed, or refreshed.
+	 */
+	readonly onDidChangeMarketplaces: Event<void>;
+	list(sessionResource: URI): Promise<readonly ICustomizationMarketplaceInfo[]>;
+	add(sessionResource: URI, source: string): Promise<ICustomizationMarketplaceInfo>;
+	queryMarketplace(sessionResource: URI, marketplace: ICustomizationMarketplaceInfo, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
+	remove(sessionResource: URI, name: string, force?: boolean): Promise<ICustomizationMarketplaceRemoveResult>;
+	refresh(sessionResource: URI, name?: string): Promise<readonly ICustomizationMarketplaceRefreshResult[]>;
+}
+
+export interface ICustomizationMcpConfigurationProvider {
+	addGlobal(name: string, config: IMcpServerConfiguration): Promise<void>;
+}
+
+export interface ICustomizationPluginInstallProvider {
+	installFromSource(sessionResource: URI, source: string): Promise<void>;
 }
 
 /**
@@ -118,6 +168,12 @@ export interface IHarnessDescriptor {
 	readonly id: string;
 	readonly label: string;
 	readonly icon: ThemeIcon;
+	/**
+	 * The target whose custom agent format this harness supports.
+	 */
+	readonly customAgentTarget?: Target;
+	/** Authoritative model discovery state when supplied by the harness. */
+	readonly modelCatalogueStatus?: IObservable<AgentModelCatalogStatus | undefined>;
 	/**
 	 * Management sections that should be hidden when this harness is active.
 	 * For example, Claude does not support prompt files so the Prompts
@@ -185,10 +241,16 @@ export interface IHarnessDescriptor {
 	 * Supplies harness-specific MCP server migration behavior.
 	 */
 	readonly mcpServerMigrationProvider?: ICustomizationMcpServerMigrationProvider;
+	/** Provisionally routes harness-owned global MCP configuration. */
+	readonly mcpConfigurationProvider?: ICustomizationMcpConfigurationProvider;
+	/** Installs plugin sources through the harness instead of VS Code's plugin configuration. */
+	readonly pluginInstallProvider?: ICustomizationPluginInstallProvider;
 	/** Supplies authoritative installation inventory and mutations for this harness. */
 	readonly marketplaceInstallProvider?: ICustomizationMarketplaceInstallProvider;
 	/** Supplies a harness-native replacement for the public customization catalog. */
 	readonly marketplaceSearchProvider?: ICustomizationMarketplaceSearchProvider;
+	/** Supplies authoritative marketplace inventory and mutations for this harness. */
+	readonly marketplaceManagementProvider?: ICustomizationMarketplaceManagementProvider;
 }
 
 /**
@@ -242,6 +304,14 @@ export interface ICustomizationAgentRef {
 	readonly description?: string;
 }
 
+export type AgentFileToolAvailability = 'available' | 'unavailable' | 'disabled';
+
+export interface IAgentFileToolInventoryEntry {
+	readonly name: string;
+	readonly description?: string;
+	readonly availability: AgentFileToolAvailability;
+}
+
 export function isPluginCustomizationItem(item: { readonly type: string }): boolean {
 	return item.type === 'plugin' || item.type === AICustomizationManagementSection.Plugins;
 }
@@ -289,6 +359,12 @@ export interface ICustomizationItemProvider {
 	 *   this session.
 	 */
 	provideCustomAgents?(sessionResource: URI, token: CancellationToken): Promise<readonly ICustomAgent[]>;
+
+	/**
+	 * Provides the tools accepted by custom agent files for this harness session.
+	 * `undefined` means the dynamic inventory is not authoritative yet and must not be used for unknown-value diagnostics.
+	 */
+	provideAgentFileTools?(sessionResource: URI, token: CancellationToken): Promise<readonly IAgentFileToolInventoryEntry[] | undefined>;
 
 	/**
 	 * Provide the directories where new customization files of the given
@@ -369,6 +445,11 @@ export interface ICustomizationHarnessService {
 	findHarnessById(sessionType: string): IHarnessDescriptor | undefined;
 
 	/**
+	 * Finds the harness descriptor that owns the given session resource.
+	 */
+	getDescriptorForSession(sessionResource: URI): IHarnessDescriptor | undefined;
+
+	/**
 	 * Changes the active session. The new session's type must be present in
 	 * `availableHarnesses`.
 	 */
@@ -431,9 +512,9 @@ export interface ICustomizationHarnessService {
 	/**
 	 * Returns the best session resource to use for a harness lookup.
 	 * Implementations should prefer the most recently used session for the
-	 * given session type and fall back to an untitled session resource.
+	 * given harness and fall back to an untitled session resource.
 	 */
-	getSessionResourceForHarness(sessionType: string): URI;
+	getSessionResourceForHarness(harnessId: string): URI;
 }
 
 /**
@@ -602,13 +683,16 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		return this._getAllHarnesses().find(h => h.id === id);
 	}
 
+	getDescriptorForSession(sessionResource: URI): IHarnessDescriptor | undefined {
+		return this.findHarnessById(getChatSessionType(sessionResource));
+	}
+
 	setActiveSession(sessionResource: URI): void {
 		this._activeSessionResource.set(sessionResource, undefined);
 	}
 
 	getActiveDescriptor(): IHarnessDescriptor {
-		const activeId = this._activeHarness.get();
-		const descriptor = this.findHarnessById(activeId);
+		const descriptor = this.getDescriptorForSession(this._activeSessionResource.get());
 		return descriptor ?? EMPTY_DESCRIPTOR;
 	}
 
@@ -713,12 +797,16 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		return undefined;
 	}
 
-	getSessionResourceForHarness(sessionType: string): URI {
-		if (sessionType === SessionType.Local) {
+	getSessionResourceForHarness(harnessId: string): URI {
+		const activeSessionResource = this._activeSessionResource?.get();
+		if (activeSessionResource && getChatSessionType(activeSessionResource) === harnessId) {
+			return activeSessionResource;
+		}
+		if (harnessId === SessionType.Local) {
 			return LocalChatSessionUri.getNewSessionUri();
 		}
 
-		return URI.from({ scheme: sessionType, path: '/untitled-2' });
+		return URI.from({ scheme: harnessId, path: '/untitled-2' });
 	}
 }
 
