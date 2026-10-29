@@ -106,6 +106,12 @@ steps:
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
     displayName: Build client
 
+  - pwsh: node build/azure-pipelines/common/runWithTimeout.ts 45 -- powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File build/azure-pipelines/win32/collect-network-diagnostics.ps1 -OutputDirectory "$(Build.SourcesDirectory)\.build\logs\network"
+    displayName: Collect Windows network failure diagnostics
+    condition: failed()
+    continueOnError: true
+    timeoutInMinutes: 2
+
   # Note: the appx prepare step has to follow Build client step since build step replaces the template
   # strings in the raw manifest file at resources/win32/appx/AppxManifest.xml and places it under
   # <build-out-dir>/appx/manifest, we need a separate step to prepare the appx package with the
