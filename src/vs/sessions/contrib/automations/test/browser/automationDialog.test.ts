@@ -898,6 +898,8 @@ suite('Automation dialog creation', () => {
 			panel.style.width = `${width}px`;
 			panel.style.minWidth = '0';
 			panel.style.maxWidth = 'none';
+			panel.style.fontFamily = 'Arial, sans-serif';
+			panel.style.setProperty('--vscode-fontSize-label1', '12px');
 			const row = dialog.container.querySelector<HTMLElement>('.automation-form-schedule-row')!;
 			const trigger = row.querySelector<HTMLElement>('.automation-form-schedule-group')!;
 			const select = trigger.querySelector('select')!;

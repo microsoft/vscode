@@ -253,6 +253,40 @@ suite('Automation cron segmented input', () => {
 		})));
 	});
 
+	test('clipboard menus retain whole-expression selection until an outside control gains focus', () => {
+		const expression = '15 1 * * MON-FRI';
+		const results = ['copy', 'cut'].map(type => {
+			const { input, elements, key } = create(expression);
+			const menu = DOM.append(DOM.getActiveDocument().body, DOM.$('.monaco-menu-container'));
+			store.add(toDisposable(() => menu.remove()));
+			const menuItem = DOM.append(menu, DOM.$('button'));
+			elements[1].focus();
+			key(1, 'a', true);
+			elements[1].dispatchEvent(new MouseEvent('mousedown', { button: 2, bubbles: true }));
+			menuItem.focus();
+			elements[1].dispatchEvent(new FocusEvent('blur', { relatedTarget: menuItem }));
+			elements[1].focus();
+			const clipboardData = new DataTransfer();
+			elements[1].dispatchEvent(new ClipboardEvent(type, { clipboardData, bubbles: true, cancelable: true }));
+			const value = input.value;
+			key(1, 'a', true);
+			menuItem.focus();
+			elements[1].dispatchEvent(new FocusEvent('blur', { relatedTarget: menuItem }));
+			const outside = DOM.append(DOM.getActiveDocument().body, DOM.$('button'));
+			store.add(toDisposable(() => outside.remove()));
+			outside.focus();
+			outside.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+			elements[1].focus();
+			const afterOutside = new DataTransfer();
+			elements[1].dispatchEvent(new ClipboardEvent('copy', { clipboardData: afterOutside, bubbles: true, cancelable: true }));
+			return { type, copied: clipboardData.getData('text/plain'), value, copiedAfterOutside: afterOutside.getData('text/plain') };
+		});
+		assert.deepStrictEqual(results, [
+			{ type: 'copy', copied: expression, value: expression, copiedAfterOutside: '' },
+			{ type: 'cut', copied: expression, value: '', copiedAfterOutside: '' },
+		]);
+	});
+
 	test('supports whole-expression selection, copy, replacement, and clearing', () => {
 		const expression = '*/2 * * * MON-FRI';
 		const results = [false, true].map(metaKey => {

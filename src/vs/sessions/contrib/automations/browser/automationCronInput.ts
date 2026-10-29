@@ -9,6 +9,7 @@ import { IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -22,6 +23,10 @@ const fields = [
 	{ label: localize('cron.month', "Month"), caption: localize('cron.monthCaption', "month"), minimum: 1, maximum: 12, hint: localize('cron.monthHint', "Every month * or from January (1) to December (12)") },
 	{ label: localize('cron.weekday', "Day of week"), caption: localize('cron.weekdayCaption', "weekday"), minimum: 0, maximum: 7, hint: localize('cron.weekdayHint', "Every day of week * or from Monday (1) to Sunday (7 and 0)") },
 ];
+
+function isContextMenuTarget(target: EventTarget | null): boolean {
+	return DOM.isHTMLElement(target) && !!target.closest('.monaco-menu-container');
+}
 
 /** A five-part editor for the host's cron expression, with one shared validation border. */
 export class AutomationCronInput extends Disposable {
@@ -51,6 +56,11 @@ export class AutomationCronInput extends Disposable {
 			? localize('cron.localTime', "Evaluated in local time.")
 			: localize('cron.timeZone', "Evaluated in {0}.", timeZone);
 		this.group = DOM.append(container, DOM.$('.automation-cron-segments', { role: 'group', 'aria-label': localize('cron.expression', "Cron expression") }));
+		this._register(DOM.addDisposableListener(DOM.getWindow(this.group).document, 'focusin', (event: FocusEvent) => {
+			if (this.allSelected && DOM.isHTMLElement(event.target) && !this.group.contains(event.target) && !isContextMenuTarget(event.target)) {
+				this.setAllSelected(false);
+			}
+		}));
 		this.error = DOM.append(container, DOM.$('.automation-cron-hint.automation-form-cron-error', { id: 'automation-cron-error', 'aria-live': 'polite' }));
 		const parts = expression.trim().split(/\s+/);
 		for (const [index, field] of fields.entries()) {
@@ -76,11 +86,17 @@ export class AutomationCronInput extends Disposable {
 					persistence: { sticky: true },
 				}, false);
 			}));
-			this._register(DOM.addDisposableListener(input.inputElement, 'blur', () => {
+			this._register(DOM.addDisposableListener(input.inputElement, 'blur', (event: FocusEvent) => {
 				this.hover.clear();
-				this.setAllSelected(false);
+				if (!isContextMenuTarget(event.relatedTarget)) {
+					this.setAllSelected(false);
+				}
 			}));
-			this._register(DOM.addDisposableListener(input.inputElement, 'mousedown', () => this.setAllSelected(false)));
+			this._register(DOM.addDisposableListener(input.inputElement, 'mousedown', (event: MouseEvent) => {
+				if (event.button !== 2 && !(isMacintosh && event.button === 0 && event.ctrlKey)) {
+					this.setAllSelected(false);
+				}
+			}));
 			this._register(DOM.addDisposableListener(input.inputElement, 'beforeinput', (event: InputEvent) => {
 				if (event.inputType === 'historyUndo' || event.inputType === 'historyRedo') {
 					this.setAllSelected(false);
