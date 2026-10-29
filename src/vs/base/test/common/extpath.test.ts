@@ -74,6 +74,22 @@ suite('Paths', () => {
 		}
 	});
 
+	test('isValidBasename - Windows whitespace and control characters', () => {
+		// Windows only strips a trailing space or dot from a name
+		assert.ok(extpath.isValidBasename(' test.txt', true));
+		assert.ok(extpath.isValidBasename('　test.txt', true));
+		assert.ok(extpath.isValidBasename('test　', true));
+		assert.ok(extpath.isValidBasename('test ', true));
+		assert.ok(!extpath.isValidBasename('test.txt ', true));
+		assert.ok(!extpath.isValidBasename('test.txt.', true));
+
+		// Windows does not allow characters 1 through 31 in a name
+		assert.ok(!extpath.isValidBasename('te\u0001st.txt', true));
+		assert.ok(!extpath.isValidBasename('test.txt\t', true));
+		assert.ok(!extpath.isValidBasename('test\n.txt', true));
+		assert.ok(extpath.isValidBasename('te\u0001st.txt', false));
+	});
+
 	test('sanitizeFilePath', () => {
 		if (isWindows) {
 			assert.strictEqual(extpath.sanitizeFilePath('.', 'C:\\the\\cwd'), 'C:\\the\\cwd');

@@ -163,7 +163,7 @@ export function isUNC(path: string): boolean {
 }
 
 // Reference: https://en.wikipedia.org/wiki/Filename
-const WINDOWS_INVALID_FILE_CHARS = /[\\/:\*\?"<>\|]/g;
+const WINDOWS_INVALID_FILE_CHARS = /[\\/:\*\?"<>\|\u0000-\u001f]/g;
 const UNIX_INVALID_FILE_CHARS = /[/]/g;
 const WINDOWS_FORBIDDEN_NAMES = /^(con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9])(\.(.*?))?$/i;
 export function isValidBasename(name: string | null | undefined, isWindowsOS: boolean = isWindows): boolean {
@@ -190,8 +190,8 @@ export function isValidBasename(name: string | null | undefined, isWindowsOS: bo
 		return false; // Windows: file cannot end with a "."
 	}
 
-	if (isWindowsOS && name.length !== name.trim().length) {
-		return false; // Windows: file cannot end with a whitespace
+	if (isWindowsOS && name[name.length - 1] === ' ') {
+		return false; // Windows: file cannot end with a space
 	}
 
 	if (name.length > 255) {
