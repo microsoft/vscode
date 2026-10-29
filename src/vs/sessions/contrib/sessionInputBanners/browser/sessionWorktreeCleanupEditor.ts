@@ -211,7 +211,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		eligibilityInfo.appendChild(renderIcon(Codicon.info));
 		const eligibilityHover = this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), eligibilityInfo, localize(
 			'sessionWorktreeCleanup.unmeasuredEligibilityDescription',
-			"Active sessions and sessions waiting for input can be selected manually but are not selected by default. Sessions already marked as done are selected by default when their host supports retrying cleanup, including previous failures. Their disk usage is not measured and is shown as a dash. Scheduled or running cleanup cannot be selected again. Running, pinned, untitled, and error sessions cannot be selected. Other sessions require a successful disk usage measurement. The filters limit the table and cleanup selection. Estimated disk usage is not guaranteed freed space.",
+			"Active sessions and sessions waiting for input can be selected manually but are not selected by default. Worktrees with no matching session are selected by default when they can be cleaned up, even if their disk usage is unknown. Sessions already marked as done are selected by default when their host supports retrying cleanup, including previous failures. Their disk usage is not measured and is shown as a dash. Scheduled or running cleanup cannot be selected again. Running, pinned, untitled, and error sessions cannot be selected. Other sessions require a successful disk usage measurement. The filters limit the table and cleanup selection. Estimated disk usage is not guaranteed freed space.",
 		)));
 		this.editorDisposables.add(dom.addDisposableListener(eligibilityInfo, dom.EventType.CLICK, () => eligibilityHover.show(true)));
 		this.cleanupButton = this.editorDisposables.add(new Button(summaryRow, defaultButtonStyles));
@@ -230,7 +230,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const selection = dom.$('.session-worktree-cleanup-select-all');
 		summaryRow.insertBefore(selection, this.cleanupButton.element);
 		const selectAll = this.selectAllCheckbox = this.editorDisposables.add(new Checkbox(
-			localize('sessionWorktreeCleanup.selectAll', "Select all sessions that can be cleaned up"),
+			localize('sessionWorktreeCleanup.selectAll', "Select all worktrees that can be cleaned up"),
 			false,
 			defaultCheckboxStyles,
 		));
@@ -327,7 +327,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.loadToken = cancellation.token;
 		this.loadDisposables.add(toDisposable(() => cancellation.dispose(true)));
 		const seenDefaultSelection = new Set(preserveDisplayOrder
-			? this.worktrees.filter(worktree => worktree.sizeBytes !== undefined || worktree.cleanupState === 'archived').map(worktree => getWorktreeCleanupId(worktree))
+			? this.worktrees.filter(worktree => worktree.sizeBytes !== undefined || worktree.cleanupState === 'archived' || worktree.unlinkedWorktree).map(worktree => getWorktreeCleanupId(worktree))
 			: []);
 		let measurementProgress: ISessionWorktreeMeasurementProgress | undefined;
 		const update = (worktrees: readonly ISessionWorktree[]) => {
@@ -349,7 +349,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			this.updateCleanupBatch();
 			this.renderWorkspaceOptions();
 			for (const worktree of this.getVisibleWorktrees()) {
-				const selectByDefault = worktree.cleanupState === 'eligible' || (worktree.cleanupState === 'archived' && this.isManuallySelectable(worktree));
+				const selectByDefault = worktree.cleanupState === 'eligible' || ((worktree.cleanupState === 'archived' || worktree.unlinkedWorktree) && this.isManuallySelectable(worktree));
 				if (selectByDefault && !this.cleanupBatch.has(getWorktreeCleanupId(worktree)) && !seenDefaultSelection.has(getWorktreeCleanupId(worktree))) {
 					seenDefaultSelection.add(getWorktreeCleanupId(worktree));
 					this.selectedSessionIds.add(getWorktreeCleanupId(worktree));
