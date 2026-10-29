@@ -90,6 +90,39 @@ suite('Modal Editor Group', () => {
 		await modalPart.close();
 	});
 
+	test('getPart resolves the part by ancestry when several parts share a document', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		const modalPart = await parts.createModalEditorPart();
+		const modalChild = (modalPart.modalElement as HTMLElement).appendChild(document.createElement('div'));
+		const mainChild = parts.testMainPart.getContainer()!.appendChild(document.createElement('div'));
+
+		assert.deepStrictEqual({
+			modalIsNotMain: parts.getPart(modalChild) !== parts.mainPart,
+			main: parts.getPart(mainChild) === parts.mainPart,
+			modalByGroup: parts.getPart(modalPart.activeGroup.id) !== parts.mainPart
+		}, { modalIsNotMain: true, main: true, modalByGroup: true });
+
+		await modalPart.close();
+	});
+
+	test('getPart resolves the container of the main part to the active part of the document', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		const modalPart = await parts.createModalEditorPart();
+		modalPart.activeGroup.focus();
+
+		assert.strictEqual(parts.getPart(parts.testMainPart.getContainer()!) !== parts.mainPart, true);
+
+		await modalPart.close();
+	});
+
 	test('floating layout applies DPR 2.5 border insets only to the main editor', async () => {
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 		const layoutService = new TestFloatingEditorLayoutService();
