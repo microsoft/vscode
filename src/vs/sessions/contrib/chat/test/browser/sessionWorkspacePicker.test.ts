@@ -1023,6 +1023,35 @@ suite('WorkspacePicker - Environment', () => {
 		}, { resolutions: 1, providerId: base.id, folder: folderUri.toString() });
 	});
 
+	test('revalidates a remembered environment project before restoring it', () => {
+		const providers = disposables.add(new MockSessionsProvidersService());
+		providers.setProviders([createMockProvider('local-agent-host')]);
+		const picker = createTestPicker(disposables, providers, undefined, undefined, WorkspacePicker, {}, undefined, undefined, { restoreFromSessions: false });
+		const remembered = URI.file('/agent-host/remembered');
+		const current = URI.file('/agent-host/current');
+		const unavailable = URI.file('/remote/unavailable');
+		picker.clearSelection();
+		const restoredWithoutSelection = picker.getEnvironmentWorkspace(localEnvironment, undefined, remembered)?.workspace.folders[0].root;
+		const unavailableWithoutSelection = picker.getEnvironmentWorkspace(localEnvironment, undefined, unavailable);
+		const unsupportedContainer = picker.getEnvironmentWorkspace(containerEnvironment, undefined, remembered);
+		picker.setSelectedWorkspace(current, { fireEvent: false });
+		assert.deepStrictEqual({
+			restoredWithoutSelection,
+			unavailableWithoutSelection,
+			unsupportedContainer,
+			preferred: picker.getEnvironmentWorkspace(localEnvironment, undefined, remembered)?.workspace.folders[0].root,
+			fallback: picker.getEnvironmentWorkspace(localEnvironment, undefined, unavailable)?.workspace.folders[0].root,
+			missingProvider: picker.getEnvironmentWorkspace({ ...localEnvironment, providerIds: ['missing'] }, undefined, remembered),
+		}, {
+			restoredWithoutSelection: remembered,
+			unavailableWithoutSelection: undefined,
+			unsupportedContainer: undefined,
+			preferred: remembered,
+			fallback: current,
+			missingProvider: undefined,
+		});
+	});
+
 	test('finds a matching repository in later roots without selecting unrelated or unavailable roots', () => {
 		const providers = disposables.add(new MockSessionsProvidersService());
 		const sourceUri = URI.file('/agent-host/source');

@@ -142,6 +142,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _newChatInput: SharedChatInputComposer;
 	private readonly _pickedEnvironment = observableValue<ISessionCreationEnvironment | undefined>(this, undefined);
+	private readonly _environmentWorkspaces = new Map<string, URI>();
 	private readonly _environmentWorkspaceChanged = observableSignal(this);
 	private readonly _environment: IObservable<ISessionCreationEnvironment | undefined>;
 	private readonly _environments: IObservable<readonly ISessionCreationEnvironment[]>;
@@ -1643,7 +1644,8 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private async _selectEnvironment(environment: ISessionCreationEnvironment): Promise<void> {
-		if (environment.id === this._environment.get()?.id) {
+		const previousEnvironment = this._environment.get();
+		if (environment.id === previousEnvironment?.id) {
 			return;
 		}
 		this._newChatInput.saveState();
@@ -1653,7 +1655,14 @@ export class NewChatWidget extends Disposable {
 		this.newSessionComposerService.notifyUserWorkspaceSelection();
 		const session = this._session.get();
 		const selectedFolderUri = this._workspacePicker.selectedFolderUri;
-		const workspace = selectedFolderUri && this._workspacePicker.getEnvironmentWorkspace(environment);
+		if (previousEnvironment) {
+			if (selectedFolderUri) {
+				this._environmentWorkspaces.set(previousEnvironment.id, selectedFolderUri);
+			} else {
+				this._environmentWorkspaces.delete(previousEnvironment.id);
+			}
+		}
+		const workspace = this._workspacePicker.getEnvironmentWorkspace(environment, undefined, this._environmentWorkspaces.get(environment.id));
 		const folderUri = workspace?.workspace.folders[0]?.root;
 		this._pickedEnvironment.set(environment, undefined);
 		if (!folderUri || !workspace) {
