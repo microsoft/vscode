@@ -1347,7 +1347,7 @@
             "key": "update.restartWhenIdle",
             "name": "UpdateRestartWhenIdle",
             "category": "Update",
-            "minimumVersion": "1.144",
+            "minimumVersion": "1.145",
             "localization": {
                 "description": {
                     "key": "restartWhenIdle",
