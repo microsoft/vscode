@@ -518,6 +518,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			removeCertificate: async () => { },
 			getShellInitDirectory: () => undefined,
 			getAppliedPluginDirectories: () => [],
+			getWorkingDirectory: () => undefined,
 			shellManager: undefined,
 		}));
 		const runtime: ICopilotSessionRuntime = {

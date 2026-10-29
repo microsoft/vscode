@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { homedir } from 'os';
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import { AgentSandboxEnabledValue, type IAgentSandboxMaskedCredentials, normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
 import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
@@ -121,41 +122,33 @@ export interface SandboxSeatbeltPolicy {
  *
  * `extraReadonlyPaths` grants read access to session attachments, generated shell
  * init scripts and applied plugin resources, unless a managed read-only list is present.
+ *
+ * `attachedPaths` grants read-only access to the exact files and folders the
+ * user attached to the chat; see {@link resolveAttachedPathGrants}.
  */
 export function buildSandboxConfigForSdk(
 	platform: NodeJS.Platform,
 	sandbox: ISandboxConfigValue | undefined,
 	extraReadonlyPaths?: readonly string[],
 	managedPolicy?: ISessionSandboxPolicy,
+	attachedPaths?: ISandboxAttachedPaths,
 ): SandboxConfig | undefined {
 	const enabledRaw = sandbox?.[AgentHostSandboxKey.Enabled];
 	if (enabledRaw !== AgentSandboxEnabledValue.On) {
 		return undefined;
 	}
 
-	const fs = sandbox?.[AgentHostSandboxKey.UserConfiguredPaths];
-	const os = platform === 'win32' ? OperatingSystem.Windows : platform === 'darwin' ? OperatingSystem.Macintosh : OperatingSystem.Linux;
-	const denied = new Set((fs?.deniedPaths ?? []).map(path => normalizeSandboxFileSystemPath(path, os)));
-	const readonly = new Set<string>();
-	const readwrite = new Set<string>();
-	for (const path of fs?.readonlyPaths ?? []) {
-		const p = normalizeSandboxFileSystemPath(path, os);
-		if (!denied.has(p)) {
-			readonly.add(p);
-		}
-	}
-	for (const path of fs?.readwritePaths ?? []) {
-		const p = normalizeSandboxFileSystemPath(path, os);
-		if (!denied.has(p) && !readonly.has(p)) {
-			readwrite.add(p);
-		}
-	}
+	const os = toOperatingSystem(platform);
+	const { denied, readonly, readwrite } = resolveUserPaths(sandbox, os);
 	// User denies win over host-generated read grants; existing read/write grants are preserved.
 	for (const path of managedPolicy?.readonlyPaths !== undefined ? [] : extraReadonlyPaths ?? []) {
 		const p = normalizeSandboxFileSystemPath(path, os);
 		if (!denied.has(p) && !readonly.has(p) && !readwrite.has(p)) {
 			readonly.add(p);
 		}
+	}
+	for (const path of partitionAttachedPaths(os, sandbox, { denied, readonly, readwrite }, managedPolicy, attachedPaths).granted) {
+		readonly.add(path);
 	}
 
 	const allowNetwork = sandbox?.[AgentHostSandboxKey.AllowNetwork];
@@ -200,4 +193,123 @@ export function buildSandboxConfigForSdk(
 		},
 	};
 	return sandboxConfig;
+}
+
+/** Files and folders the user attached to a chat, as local paths of the executing Agent Host. */
+export interface ISandboxAttachedPaths {
+	/** The exact attached files and folders. */
+	readonly paths: readonly string[];
+	/** The working directory the runtime grants read/write when `addCurrentWorkingDirectory` is on. */
+	readonly workingDirectory?: string;
+}
+
+/** How the sandbox treats the paths of the user's attachments. */
+export interface ISandboxAttachedPathGrants {
+	/** Paths added to `readonlyPaths`. */
+	readonly granted: readonly string[];
+	/** Paths the effective policy keeps unreadable: under a denied path, or outside a managed read-only list. */
+	readonly blocked: readonly string[];
+}
+
+/**
+ * Resolves read-only grants for user-attached files and folders.
+ *
+ * Attaching a file or folder is explicit consent to let the agent read exactly
+ * that path, so it is granted read-only for the chat. The grant never widens
+ * the policy beyond that:
+ *  - A path that is, or is inside, a denied path stays denied.
+ *  - When the managed policy defines a read-only list, attachments are not
+ *    added: the host must not widen an administrator's allowlist.
+ *  - A path already readable (inside a read-only or read/write grant, or the
+ *    granted working directory) is left alone, so a granted read-only entry
+ *    never downgrades a writable file.
+ *
+ * Returns no grants when sandboxing is off.
+ */
+export function resolveAttachedPathGrants(
+	platform: NodeJS.Platform,
+	sandbox: ISandboxConfigValue | undefined,
+	managedPolicy: ISessionSandboxPolicy | undefined,
+	attachedPaths: ISandboxAttachedPaths | undefined,
+): ISandboxAttachedPathGrants {
+	if (sandbox?.[AgentHostSandboxKey.Enabled] !== AgentSandboxEnabledValue.On) {
+		return { granted: [], blocked: [] };
+	}
+	const os = toOperatingSystem(platform);
+	return partitionAttachedPaths(os, sandbox, resolveUserPaths(sandbox, os), managedPolicy, attachedPaths);
+}
+
+interface IResolvedUserPaths {
+	readonly denied: Set<string>;
+	readonly readonly: Set<string>;
+	readonly readwrite: Set<string>;
+}
+
+function toOperatingSystem(platform: NodeJS.Platform): OperatingSystem {
+	return platform === 'win32' ? OperatingSystem.Windows : platform === 'darwin' ? OperatingSystem.Macintosh : OperatingSystem.Linux;
+}
+
+function resolveUserPaths(sandbox: ISandboxConfigValue | undefined, os: OperatingSystem): IResolvedUserPaths {
+	const fs = sandbox?.[AgentHostSandboxKey.UserConfiguredPaths];
+	const denied = new Set((fs?.deniedPaths ?? []).map(path => normalizeSandboxFileSystemPath(path, os)));
+	const readonly = new Set<string>();
+	const readwrite = new Set<string>();
+	for (const path of fs?.readonlyPaths ?? []) {
+		const p = normalizeSandboxFileSystemPath(path, os);
+		if (!denied.has(p)) {
+			readonly.add(p);
+		}
+	}
+	for (const path of fs?.readwritePaths ?? []) {
+		const p = normalizeSandboxFileSystemPath(path, os);
+		if (!denied.has(p) && !readonly.has(p)) {
+			readwrite.add(p);
+		}
+	}
+	return { denied, readonly, readwrite };
+}
+
+function partitionAttachedPaths(
+	os: OperatingSystem,
+	sandbox: ISandboxConfigValue | undefined,
+	userPaths: IResolvedUserPaths,
+	managedPolicy: ISessionSandboxPolicy | undefined,
+	attachedPaths: ISandboxAttachedPaths | undefined,
+): ISandboxAttachedPathGrants {
+	const granted: string[] = [];
+	const blocked: string[] = [];
+	if (!attachedPaths?.paths.length) {
+		return { granted, blocked };
+	}
+	const readable = [...userPaths.readonly, ...userPaths.readwrite];
+	if (attachedPaths.workingDirectory && (sandbox?.[AgentHostSandboxKey.AddCurrentWorkingDirectory] ?? true)) {
+		readable.push(normalizeSandboxFileSystemPath(attachedPaths.workingDirectory, os));
+	}
+	for (const path of new Set(attachedPaths.paths.map(path => normalizeSandboxFileSystemPath(path, os)))) {
+		if ([...userPaths.denied].some(denied => isEqualOrInside(path, denied, os))) {
+			blocked.push(path);
+		} else if (readable.some(root => isEqualOrInside(path, root, os))) {
+			continue;
+		} else if (managedPolicy?.readonlyPaths !== undefined) {
+			blocked.push(path);
+		} else {
+			granted.push(path);
+		}
+	}
+	return { granted, blocked };
+}
+
+/** Whether `path` is `root` or inside it; `~` in `root` refers to the Agent Host user's home. */
+function isEqualOrInside(path: string, root: string, os: OperatingSystem): boolean {
+	const separator = os === OperatingSystem.Windows ? '\\' : '/';
+	const normalize = (value: string) => {
+		let result = value === '~' || value.startsWith(`~${separator}`) ? normalizeSandboxFileSystemPath(homedir(), os) + value.slice(1) : value;
+		while (result.length > 1 && result.endsWith(separator) && !/^[a-zA-Z]:\\$/.test(result)) {
+			result = result.slice(0, -1);
+		}
+		return os === OperatingSystem.Linux ? result : result.toLowerCase();
+	};
+	const p = normalize(path);
+	const r = normalize(root);
+	return p === r || p.startsWith(r.endsWith(separator) ? r : r + separator);
 }

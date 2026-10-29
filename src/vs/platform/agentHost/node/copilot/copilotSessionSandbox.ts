@@ -8,6 +8,7 @@ import { Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -15,11 +16,14 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService } from '../../../log/common/log.js';
 import { normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
 import type { IAgentPermissionResponseContext } from '../../common/agent.js';
+import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../common/agentHostUri.js';
 import type { IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { isHostSnapshotAttachment } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import type { ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -32,7 +36,7 @@ import { CopilotSandboxDiagnostics } from './copilotSandboxDiagnostics.js';
 import { CopilotSandboxCertificateDiagnostics } from './copilotSandboxCertificateDiagnostics.js';
 import { applySandboxConfig } from './copilotSessionLauncher.js';
 import type { ShellManager } from './copilotShellTools.js';
-import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigForSdk.js';
+import { buildSandboxConfigForSdk, resolveAttachedPathGrants, type ISandboxAttachedPaths, type SandboxConfig } from './sandboxConfigForSdk.js';
 
 /** A config change of the chat this SDK session runs. */
 interface ISandboxConfigChange {
@@ -58,6 +62,8 @@ interface ICopilotSessionSandboxOptions {
 	readonly removeCertificate: (scopeId: string, validate: () => void) => Promise<void>;
 	readonly getShellInitDirectory: () => URI | undefined;
 	readonly getAppliedPluginDirectories: () => readonly URI[];
+	/** The working directory the runtime grants when `addCurrentWorkingDirectory` is on. */
+	readonly getWorkingDirectory: () => URI | undefined;
 	readonly shellManager: ShellManager | undefined;
 	readonly onDidChangeRuntimeConfig?: () => void;
 }
@@ -66,6 +72,8 @@ interface ICopilotSessionSandboxOptions {
 export class CopilotSessionSandbox extends Disposable {
 	private readonly _requests = new Map<string, string>();
 	private readonly _pendingPathGrants = new Map<string, ISandboxPathGrant>();
+	/** Local paths of files and folders the user attached to this chat; read-only for the life of the SDK session, never saved to settings. */
+	private readonly _attachedPaths = new Set<string>();
 	private readonly _configSequencer = new Sequencer();
 	private readonly _diagnostics: CopilotSandboxDiagnostics;
 	private readonly _certificateDiagnostics: CopilotSandboxCertificateDiagnostics;
@@ -176,6 +184,34 @@ export class CopilotSessionSandbox extends Disposable {
 		}
 	}
 
+	/**
+	 * Records the local files and folders of a user message so the next applied
+	 * config grants them read-only. Returns whether any path is new.
+	 */
+	addAttachments(attachments: readonly MessageAttachment[] | undefined): boolean {
+		const size = this._attachedPaths.size;
+		for (const path of getAttachedLocalPaths(attachments)) {
+			this._attachedPaths.add(path);
+		}
+		return this._attachedPaths.size !== size;
+	}
+
+	/** The local attachment paths the effective sandbox policy keeps unreadable (denied, or outside a managed read-only list). */
+	getBlockedAttachmentPaths(attachments: readonly MessageAttachment[] | undefined): readonly string[] {
+		const paths = getAttachedLocalPaths(attachments);
+		if (!paths.length || this._disabledForSession) {
+			return [];
+		}
+		const target = this._target();
+		const sandbox = getSessionSandboxConfig(this._configurationService, target, this._options.platform);
+		const policy = this._configurationService.getSessionSandboxPolicy(target.session);
+		return resolveAttachedPathGrants(this._options.platform, sandbox, policy, this._attachedPathsFor(paths)).blocked;
+	}
+
+	private _attachedPathsFor(paths: readonly string[]): ISandboxAttachedPaths {
+		return { paths, workingDirectory: this._options.getWorkingDirectory()?.fsPath };
+	}
+
 	/** Whether the Agent Host's own shell tools replace the SDK's built-in shell. */
 	isCustomTerminalToolEnabled(): boolean {
 		return this._options.platform !== 'win32' && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
@@ -250,7 +286,7 @@ export class CopilotSessionSandbox extends Disposable {
 				.map(scope => this._sessionDataService.getSessionDataDir(URI.parse(scope))),
 			shellInitDirectory: this._options.getShellInitDirectory(),
 		}), ...this._options.getAppliedPluginDirectories()].map(root => root.fsPath);
-		return buildSandboxConfigForSdk(this._options.platform, sandbox, readonlyPaths, policy);
+		return buildSandboxConfigForSdk(this._options.platform, sandbox, readonlyPaths, policy, this._attachedPathsFor([...this._attachedPaths]));
 	}
 
 	updateDiagnostics(config?: SandboxConfig): Promise<void> {
@@ -395,4 +431,33 @@ export class CopilotSessionSandbox extends Disposable {
 			this._logService.warn(`[Copilot:${this._options.sessionId}] Failed to update sandbox config for request`, err);
 		}
 	}
+}
+
+/**
+ * The Agent Host-local paths of the files and folders a user message attaches:
+ * the exact file, or the folder itself for a directory. Host-created snapshots
+ * (already readable from the session data folder), embedded content, and
+ * non-`file` resources are ignored. A client-wrapped `vscode-agent-host` URI is
+ * unwrapped to the host URI it stands for.
+ */
+export function getAttachedLocalPaths(attachments: readonly MessageAttachment[] | undefined): string[] {
+	const paths: string[] = [];
+	for (const attachment of attachments ?? []) {
+		if (attachment.type !== MessageAttachmentKind.Resource || isHostSnapshotAttachment(attachment)) {
+			continue;
+		}
+		let uri: URI;
+		try {
+			uri = URI.parse(attachment.uri);
+		} catch {
+			continue;
+		}
+		if (uri.scheme === AGENT_HOST_SCHEME) {
+			uri = fromAgentHostUri(uri);
+		}
+		if (uri.scheme === Schemas.file && uri.path.length > 1) {
+			paths.push(uri.fsPath);
+		}
+	}
+	return paths;
 }

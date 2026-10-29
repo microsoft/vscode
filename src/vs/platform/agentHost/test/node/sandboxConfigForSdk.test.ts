@@ -4,12 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { homedir } from 'os';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { toAgentHostUri } from '../../common/agentHostUri.js';
+import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
+import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
 import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
 import { AgentSandboxEnabledValue, type IAgentSandboxUserConfiguredPaths } from '../../../sandbox/common/settings.js';
-import { buildSandboxConfigForSdk, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
+import { getAttachedLocalPaths } from '../../node/copilot/copilotSessionSandbox.js';
+import { buildSandboxConfigForSdk, resolveAttachedPathGrants, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
 
 suite('VS Code sandbox read roots', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -489,5 +494,106 @@ suite('buildSandboxConfigForSdk', () => {
 		test('stays undefined when sandboxing is off, regardless of extra paths', () => {
 			assert.strictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.Off), ['/data/shellInit/s1']), undefined);
 		});
+	});
+
+	suite('attachedPaths', () => {
+		const attach = (paths: string[], workingDirectory?: string) => ({ paths, ...(workingDirectory ? { workingDirectory } : {}) });
+
+		test('grants attached files and folders read-only, exactly as attached', () => {
+			assert.deepStrictEqual({
+				filesystem: buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On), ['/data/attachments'], undefined, attach(['/home/u/Desktop/mockup.txt', '/home/u/notes', '/home/u/notes']))?.userPolicy?.filesystem,
+				grants: resolveAttachedPathGrants('linux', sandbox('linux', AgentSandboxEnabledValue.On), undefined, attach(['/home/u/Desktop/mockup.txt', '/home/u/notes'])),
+			}, {
+				filesystem: { readonlyPaths: ['/data/attachments', '/home/u/Desktop/mockup.txt', '/home/u/notes'] },
+				grants: { granted: ['/home/u/Desktop/mockup.txt', '/home/u/notes'], blocked: [] },
+			});
+		});
+
+		test('keeps paths that are, or are inside, a denied path denied', () => {
+			const config = sandbox('linux', AgentSandboxEnabledValue.On, { deniedPaths: ['/home/u/secret', '/home/u/Desktop/private.txt'] });
+			const attached = attach(['/home/u/secret', '/home/u/secret/key.txt', '/home/u/Desktop/private.txt', '/home/u/secretive.txt']);
+			assert.deepStrictEqual({
+				filesystem: buildSandboxConfigForSdk('linux', config, undefined, undefined, attached)?.userPolicy?.filesystem,
+				grants: resolveAttachedPathGrants('linux', config, undefined, attached),
+			}, {
+				filesystem: { deniedPaths: ['/home/u/secret', '/home/u/Desktop/private.txt'], readonlyPaths: ['/home/u/secretive.txt'] },
+				grants: { granted: ['/home/u/secretive.txt'], blocked: ['/home/u/secret', '/home/u/secret/key.txt', '/home/u/Desktop/private.txt'] },
+			});
+		});
+
+		test('expands a home-relative denied path when checking attachments', () => {
+			assert.deepStrictEqual(resolveAttachedPathGrants('linux', sandbox('linux', AgentSandboxEnabledValue.On, { deniedPaths: ['~/.ssh'] }), undefined, attach([`${homedir()}/.ssh/id_rsa`])), {
+				granted: [],
+				blocked: [`${homedir()}/.ssh/id_rsa`],
+			});
+		});
+
+		test('respects a managed read-only list, including an empty one, and reports the attachments it blocks', () => {
+			assert.deepStrictEqual([undefined, ['/managed'], []].map(readonlyPaths => {
+				const policy = { enabled: true, ...(readonlyPaths ? { readonlyPaths } : {}) };
+				const config = sandbox('linux', AgentSandboxEnabledValue.On, { readonlyPaths: readonlyPaths ?? [] });
+				const attached = attach(['/home/u/Desktop/mockup.txt', '/managed/inside.txt']);
+				return {
+					filesystem: buildSandboxConfigForSdk('linux', config, undefined, policy, attached)?.userPolicy?.filesystem,
+					grants: resolveAttachedPathGrants('linux', config, policy, attached),
+				};
+			}), [
+				{ filesystem: { readonlyPaths: ['/home/u/Desktop/mockup.txt', '/managed/inside.txt'] }, grants: { granted: ['/home/u/Desktop/mockup.txt', '/managed/inside.txt'], blocked: [] } },
+				{ filesystem: { readonlyPaths: ['/managed'] }, grants: { granted: [], blocked: ['/home/u/Desktop/mockup.txt'] } },
+				{ filesystem: undefined, grants: { granted: [], blocked: ['/home/u/Desktop/mockup.txt', '/managed/inside.txt'] } },
+			]);
+		});
+
+		test('never adds a read-only entry for a path that is already readable or writable', () => {
+			const config = sandbox('linux', AgentSandboxEnabledValue.On, { readwritePaths: ['/scratch'], readonlyPaths: ['/docs'] });
+			assert.deepStrictEqual([undefined, false].map(addCurrentWorkingDirectory =>
+				buildSandboxConfigForSdk('linux', { ...config, ...(addCurrentWorkingDirectory !== undefined ? { addCurrentWorkingDirectory } : {}) }, undefined, undefined,
+					attach(['/scratch/a.txt', '/docs/b.md', '/repo/src/c.ts', '/repo'], '/repo'))?.userPolicy?.filesystem,
+			), [
+				{ readonlyPaths: ['/docs'], readwritePaths: ['/scratch'] },
+				{ readonlyPaths: ['/docs', '/repo/src/c.ts', '/repo'], readwritePaths: ['/scratch'] },
+			]);
+		});
+
+		test('normalizes Windows paths and compares macOS and Windows paths case-insensitively', () => {
+			assert.deepStrictEqual({
+				win32: buildSandboxConfigForSdk('win32', sandbox('win32', AgentSandboxEnabledValue.On, { deniedPaths: ['C:/Secret'] }), undefined, undefined, attach(['c:/secret/a.txt', 'C:/Users/u/Desktop/b.txt']))?.userPolicy?.filesystem,
+				darwin: resolveAttachedPathGrants('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, { deniedPaths: ['/Users/u/Secret'] }), undefined, attach(['/users/u/secret/a.txt'])),
+				linux: resolveAttachedPathGrants('linux', sandbox('linux', AgentSandboxEnabledValue.On, { deniedPaths: ['/home/u/Secret'] }), undefined, attach(['/home/u/secret/a.txt'])),
+			}, {
+				win32: { deniedPaths: ['C:\\Secret'], readonlyPaths: ['C:\\Users\\u\\Desktop\\b.txt'] },
+				darwin: { granted: [], blocked: ['/users/u/secret/a.txt'] },
+				linux: { granted: ['/home/u/secret/a.txt'], blocked: [] },
+			});
+		});
+
+		test('grants nothing when sandboxing is off', () => {
+			assert.deepStrictEqual({
+				config: buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.Off), undefined, undefined, attach(['/home/u/a.txt'])),
+				grants: resolveAttachedPathGrants('linux', sandbox('linux', AgentSandboxEnabledValue.Off), undefined, attach(['/home/u/a.txt'])),
+			}, { config: undefined, grants: { granted: [], blocked: [] } });
+		});
+	});
+});
+
+suite('getAttachedLocalPaths', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps local files and folders, unwraps client URIs, and ignores everything else', () => {
+		const file = URI.file('/home/u/Desktop/mockup.txt');
+		const folder = URI.file('/home/u/notes');
+		const attachments: MessageAttachment[] = [
+			{ type: MessageAttachmentKind.Resource, uri: file.toString(), label: 'mockup.txt', displayKind: 'file' },
+			{ type: MessageAttachmentKind.Resource, uri: folder.toString(), label: 'notes', displayKind: 'directory' },
+			{ type: MessageAttachmentKind.Resource, uri: file.toString(), label: 'mockup.txt', displayKind: 'selection', selection: { range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } } } },
+			{ type: MessageAttachmentKind.Resource, uri: toAgentHostUri(URI.file('/home/u/wrapped.txt'), 'my-server').toString(), label: 'wrapped.txt' },
+			{ type: MessageAttachmentKind.Resource, uri: toAgentHostUri(URI.from({ scheme: 'git', path: '/home/u/repo/a.ts' }), 'my-server').toString(), label: 'a.ts' },
+			{ type: MessageAttachmentKind.Resource, uri: 'untitled:Untitled-1', label: 'Untitled-1' },
+			{ type: MessageAttachmentKind.Resource, uri: 'vscode-remote://ssh-remote+box/home/u/remote.txt', label: 'remote.txt' },
+			{ type: MessageAttachmentKind.Resource, uri: URI.file('/data/attachments/snapshot.txt').toString(), label: 'snapshot', _meta: toHostSnapshotAttachmentMeta('text/plain') },
+			{ type: MessageAttachmentKind.EmbeddedResource, data: 'aGk=', contentType: 'text/plain', label: 'inline' },
+			{ type: MessageAttachmentKind.Simple, label: 'simple', modelRepresentation: 'text' },
+		];
+		assert.deepStrictEqual(getAttachedLocalPaths(attachments), [file.fsPath, folder.fsPath, file.fsPath, URI.file('/home/u/wrapped.txt').fsPath]);
 	});
 });
