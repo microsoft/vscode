@@ -77,6 +77,8 @@ interface GalleryPreparation {
 
 type PreparedGalleryExtension = { readonly location: URI; readonly verificationStatus: ExtensionSignatureVerificationCode | undefined };
 
+type InstallAttempt = { readonly kind: 'installed'; readonly local: ILocalExtension } | { readonly kind: 'prepare' };
+
 type ExtractExtensionResult = { readonly local: ILocalExtension; readonly verificationStatus?: ExtensionSignatureVerificationCode };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -911,6 +913,15 @@ export class ExtensionsScanner extends Disposable {
 		});
 	}
 
+	async scanExtensionForRemoval(extensionKey: ExtensionKey): Promise<ILocalExtension | undefined> {
+		const removed = await this.withRemovedExtensions();
+		if (!removed[extensionKey.toString()]) {
+			return undefined;
+		}
+		const extensions = await this.scanAllUserExtensions();
+		return extensions.find(extension => ExtensionKey.create(extension).equals(extensionKey));
+	}
+
 	async unsetExtensionsForRemoval(...extensionKeys: ExtensionKey[]): Promise<boolean[]> {
 		return this.withStoreMutation(async () => {
 			try {
@@ -1259,12 +1270,15 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 	protected async doRun(token: CancellationToken): Promise<ILocalExtension> {
 		let success = false;
 		try {
-			const installed = await this.storeCoordinator.withRead(() => this.extensionsScanner.scanExtensions(ExtensionType.User, this.options.profileLocation, this.options.productVersion));
-			if (installed.some(extension => areSameExtensions(extension.identifier, this.identifier))) {
-				this._operation = InstallOperation.Update;
+			let attempt = await this.storeCoordinator.withMutation(() => this.doInstall(token, this.source instanceof URI));
+			if (attempt.kind === 'prepare') {
+				await this.prepareExtensionFn(this.operation, token);
+				attempt = await this.storeCoordinator.withMutation(() => this.doInstall(token, true));
 			}
-			await this.prepareExtensionFn(this.operation, token);
-			const local = await this.storeCoordinator.withMutation(() => this.doInstall(token));
+			if (attempt.kind !== 'installed') {
+				throw new Error('Prepared extension installation still requires an archive');
+			}
+			const local = attempt.local;
 			if (this.source instanceof URI) {
 				this.updateMetadata(local, token);
 			}
@@ -1275,7 +1289,7 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 		}
 	}
 
-	private async doInstall(token: CancellationToken): Promise<ILocalExtension> {
+	private async doInstall(token: CancellationToken, archivePrepared: boolean): Promise<InstallAttempt> {
 		if (token.isCancellationRequested) {
 			throw toExtensionManagementError(new CancellationError());
 		}
@@ -1346,10 +1360,13 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 				: this.options.installPreReleaseVersion || this.source.properties.isPreReleaseVersion || existingExtension?.preRelease;
 
 			if (existingExtension && existingExtension.type !== ExtensionType.System && existingExtension.manifest.version === this.source.version) {
-				return this.extensionsScanner.updateMetadata(existingExtension, metadata, this.options.profileLocation);
+				return { kind: 'installed', local: await this.extensionsScanner.updateMetadata(existingExtension, metadata, this.options.profileLocation) };
 			}
 
-			// Unset if the extension is uninstalled and return the unset extension.
+			// Do not clear a removal marker until a reusable package or prepared archive is available.
+			if (!archivePrepared && !await this.extensionsScanner.scanExtensionForRemoval(this.extensionKey)) {
+				return { kind: 'prepare' };
+			}
 			local = await this.unsetIfRemoved(this.extensionKey);
 		}
 
@@ -1358,6 +1375,9 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 		}
 
 		if (!local) {
+			if (!archivePrepared) {
+				return { kind: 'prepare' };
+			}
 			const result = await this.extractExtensionFn(this.operation, token);
 			local = result.local;
 			this._verificationStatus = result.verificationStatus;
@@ -1386,7 +1406,7 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 			throw new ExtensionManagementError('Cannot find the installed extension', ExtensionManagementErrorCode.InstalledExtensionNotFound);
 		}
 
-		return result;
+		return { kind: 'installed', local: result };
 	}
 
 	private async unsetIfRemoved(extensionKey: ExtensionKey): Promise<ILocalExtension | undefined> {

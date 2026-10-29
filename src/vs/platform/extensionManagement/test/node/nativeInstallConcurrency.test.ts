@@ -107,7 +107,7 @@ suite('Native install coordination', () => {
 		await files.createFolder(root);
 		const profile = toUserDataProfile('default', 'Default', URI.file('/profiles/default'), URI.file('/cache/default'));
 		const installed: ILocalExtension[] = [];
-		const downloads = new Map<string, { entered: DeferredPromise<void>; finish: DeferredPromise<void>; archive: URI; calls: number }>();
+		const downloads = new Map<string, { entered: DeferredPromise<void>; finish: DeferredPromise<void>; archive: URI; calls: number; error: Error | undefined }>();
 		let deletionGate: DeferredPromise<void> | undefined;
 		const deletionEntered = new DeferredPromise<void>();
 		const deletedArchives: string[] = [];
@@ -123,6 +123,8 @@ suite('Native install coordination', () => {
 			isPreReleaseVersion: false, hasPreReleaseVersion: false, private: false, updated: false,
 			pinned: false, forceAutoUpdate: false, source: 'gallery', size: 0, publisherId: null
 		});
+		const removed = new Set<string>();
+		const packages: ILocalExtension[] = [];
 		const manifests = new Map<string, IExtensionManifest>();
 		const scanner = {
 			dispose() { }, onExtract: Event.None,
@@ -137,8 +139,17 @@ suite('Native install coordination', () => {
 					throw error;
 				} finally { metadataFinished.complete(); }
 			},
-			async unsetExtensionsForRemoval() { return [false]; },
-			async scanAllUserExtensions() { return [...installed]; },
+			async scanExtensionForRemoval(key: { identifier: { id: string }; version: string }) {
+				return removed.has(key.identifier.id) ? packages.find(extension => extension.identifier.id === key.identifier.id && extension.manifest.version === key.version) : undefined;
+			},
+			async unsetExtensionsForRemoval(...keys: { identifier: { id: string } }[]) {
+				return keys.map(key => {
+					const existed = removed.delete(key.identifier.id);
+					if (existed) { timeline.push(`unmark:${key.identifier.id}`); }
+					return existed;
+				});
+			},
+			async scanAllUserExtensions() { return [...installed, ...packages]; },
 			async scanLocalExtension(location: URI) { return installed.find(extension => extUri.isEqual(extension.location, location)) ?? null; },
 			async deleteExtension(extension: ILocalExtension) { timeline.push(`delete:${extension.identifier.id}`); }
 		};
@@ -188,6 +199,7 @@ suite('Native install coordination', () => {
 							const pending = downloads.get(extension.identifier.id)!;
 							pending.calls++;
 							pending.entered.complete();
+							if (pending.error) { throw pending.error; }
 							await pending.finish.p;
 							return { location: pending.archive, verificationStatus: ExtensionSignatureVerificationCode.Success };
 						},
@@ -204,12 +216,13 @@ suite('Native install coordination', () => {
 			manifests.set(id, manifest);
 			const archive = URI.file(join(directory, `${name}.vsix`));
 			await zip(archive.fsPath, [{ path: 'extension/package.json', contents: JSON.stringify(manifest) }]);
-			const pending = { entered: new DeferredPromise<void>(), finish: new DeferredPromise<void>(), archive, calls: 0 };
+			const pending = { entered: new DeferredPromise<void>(), finish: new DeferredPromise<void>(), archive, calls: 0, error: undefined as Error | undefined };
 			downloads.set(id, pending);
 			const gallery = { identifier: { id, uuid: id }, version: '1.0.0', properties: { targetPlatform: TargetPlatform.UNDEFINED }, private: false } as IGalleryExtension;
 			return { pending, local: local(manifest), request: { manifest, extension: gallery, options: { donotIncludePackAndDependencies: true, donotVerifySignature: true, profileLocation: profile.extensionsResource } } };
 		}
 		return { service, extension, installed, timeline, deletedArchives, profile, metadataErrors, metadataFinished: metadataFinished.p,
+			markRemoved: (extension: ILocalExtension, exists = true) => { removed.add(extension.identifier.id); if (exists) { packages.push(extension); } },
 			setGalleryLookup: (lookup: () => Promise<IGalleryExtension[]>) => { galleryLookup = lookup; }, pauseDeletion: () => {
 			deletionGate = new DeferredPromise<void>();
 			return { entered: deletionEntered.p, finish: () => deletionGate!.complete() };
@@ -228,6 +241,95 @@ suite('Native install coordination', () => {
 		child.stderr.on('data', chunk => errors += chunk);
 		return new Promise((resolve, reject) => child.once('exit', code => code === 0 ? resolve(output.trim()) : reject(new Error(errors))));
 	}
+
+	test('an installed same-version gallery extension updates metadata without downloading an archive', async () => {
+		const { service, extension, installed, timeline } = await fixture();
+		const value = await extension('same-version');
+		installed.push(value.local);
+		value.pending.error = new Error('This installed version must not download');
+		const results = await service.installPrepared([value.request]);
+		assert.ifError(results[0].error);
+		assert.deepStrictEqual({ id: results[0].local?.identifier.id, downloads: value.pending.calls, timeline }, {
+			id: 'owned.same-version', downloads: 0, timeline: ['metadata:owned.same-version']
+		});
+	});
+
+	test('an active reservation fences same-version metadata reuse before any download or write', async () => {
+		const { service, extension, installed, timeline } = await fixture();
+		const value = await extension('reserved-reuse');
+		installed.push(value.local);
+		value.pending.error = new Error('Same-version reuse must not download');
+		await other.reserve('remote-reuse', async () => undefined);
+		try {
+			const results = await service.installPrepared([value.request]);
+			assert.match(String(results[0].error), /reserved/);
+			assert.deepStrictEqual({ downloads: value.pending.calls, timeline }, { downloads: 0, timeline: [] });
+		} finally { await other.release('remote-reuse'); }
+		const retried = await service.installPrepared([value.request]);
+		assert.ifError(retried[0].error);
+		assert.deepStrictEqual({ id: retried[0].local?.identifier.id, downloads: value.pending.calls, timeline }, {
+			id: 'owned.reserved-reuse', downloads: 0, timeline: ['metadata:owned.reserved-reuse']
+		});
+	});
+
+	test('a reusable removed gallery package is republished without downloading an archive', async () => {
+		const { service, extension, markRemoved, timeline } = await fixture();
+		const value = await extension('removed');
+		markRemoved(value.local);
+		value.pending.error = new Error('This reusable package must not download');
+		const results = await service.installPrepared([value.request]);
+		assert.ifError(results[0].error);
+		assert.deepStrictEqual({ id: results[0].local?.identifier.id, downloads: value.pending.calls, timeline }, {
+			id: 'owned.removed', downloads: 0, timeline: ['unmark:owned.removed', 'publish:owned.removed']
+		});
+	});
+
+	test('a missing removed package falls back to preparation without clearing its marker first', async () => {
+		const { service, extension, markRemoved, timeline } = await fixture();
+		const value = await extension('missing');
+		markRemoved(value.local, false);
+		const installing = service.installPrepared([value.request]);
+		await value.pending.entered.p;
+		try {
+			assert.deepStrictEqual(timeline, []);
+			assert.strictEqual(await deadline(other.withRead(async () => 'read')), 'read');
+		} finally { value.pending.finish.complete(); }
+		const results = await installing;
+		assert.ifError(results[0].error);
+		assert.deepStrictEqual({ downloads: value.pending.calls, timeline }, {
+			downloads: 1, timeline: ['unmark:owned.missing', 'extract:owned.missing', 'publish:owned.missing']
+		});
+	});
+
+	test('the second locked attempt reuses a version installed by another writer during preparation', async () => {
+		const { service, extension, installed, timeline } = await fixture();
+		const value = await extension('raced');
+		const installing = service.installPrepared([value.request]);
+		await value.pending.entered.p;
+		await other.withMutation(async () => { installed.push(value.local); });
+		value.pending.finish.complete();
+		const results = await installing;
+		assert.ifError(results[0].error);
+		assert.deepStrictEqual({ operation: results[0].operation, downloads: value.pending.calls, timeline }, {
+			operation: InstallOperation.Update, downloads: 1, timeline: ['metadata:owned.raced']
+		});
+	});
+
+	test('the second locked attempt observes a version removed by another writer during preparation', async () => {
+		const { service, extension, installed, timeline } = await fixture();
+		const value = await extension('removed-during-preparation');
+		installed.push({ ...value.local, manifest: { ...value.local.manifest, version: '0.9.0' } });
+		const installing = service.installPrepared([value.request]);
+		await value.pending.entered.p;
+		await other.withMutation(async () => { installed.splice(0); });
+		value.pending.finish.complete();
+		const results = await installing;
+		assert.ifError(results[0].error);
+		assert.deepStrictEqual({ operation: results[0].operation, downloads: value.pending.calls, timeline }, {
+			operation: InstallOperation.Install, downloads: 1,
+			timeline: ['extract:owned.removed-during-preparation', 'publish:owned.removed-during-preparation']
+		});
+	});
 
 	test('a stalled gallery download permits same-service, second-connection and second-process reads', async () => {
 		const { service, extension } = await fixture();
@@ -306,7 +408,7 @@ suite('Native install coordination', () => {
 	test('uninstall waits for an existing install before acquiring the store lock', async () => {
 		const { service, extension, installed, timeline } = await fixture();
 		const value = await extension('ordered');
-		installed.push(value.local);
+		installed.push({ ...value.local, manifest: { ...value.local.manifest, version: '0.9.0' } });
 		const installing = service.installPrepared([value.request]);
 		await value.pending.entered.p;
 		const uninstalling = service.uninstallExtensions([{ extension: value.local, options: { donotIncludePack: true, donotCheckDependents: true } }]);
@@ -318,7 +420,7 @@ suite('Native install coordination', () => {
 	test('an install registered after the uninstall predrain publishes after removal without a lock cycle', async () => {
 		const { service, extension, installed } = await fixture();
 		const value = await extension('late');
-		installed.push(value.local);
+		installed.push({ ...value.local, manifest: { ...value.local.manifest, version: '0.9.0' } });
 		const drained = new DeferredPromise<void>(), acquire = new DeferredPromise<void>();
 		service.afterTaskDrain = async () => { drained.complete(); await acquire.p; };
 		const uninstalling = service.uninstallExtensions([{ extension: value.local, options: { donotIncludePack: true, donotCheckDependents: true } }]);
@@ -349,23 +451,20 @@ suite('Native install coordination', () => {
 		const value = await extension('cancelled');
 		installed.push(value.local);
 		const task = service.nativeTask(value.request);
-		const running = task.run();
-		// Observe rejection immediately while the deterministic lock barrier is still held.
-		const cancelled = assert.rejects(running, /cancel/i);
-		await value.pending.entered.p;
 		const entered = new DeferredPromise<void>(), release = new DeferredPromise<void>();
 		const holding = store.withRead(async () => { entered.complete(); await release.p; });
 		await entered.p;
 		const publicationQueued = new DeferredPromise<void>();
 		store.mutationRequested = () => publicationQueued.complete();
+		const running = task.run();
+		const cancelled = assert.rejects(running, /cancel/i);
 		try {
-			value.pending.finish.complete();
 			await publicationQueued.p;
 			task.cancel();
 		} finally { release.complete(); await holding; store.mutationRequested = undefined; }
 		await cancelled;
 		await store.withRead(async () => undefined);
-		assert.deepStrictEqual({ ids: installed.map(extension => extension.identifier.id), timeline }, { ids: ['owned.cancelled'], timeline: [] });
+		assert.deepStrictEqual({ ids: installed.map(extension => extension.identifier.id), timeline, downloads: value.pending.calls }, { ids: ['owned.cancelled'], timeline: [], downloads: 0 });
 	});
 
 	test('VSIX completion does not await gallery metadata and its later write respects reservations', async () => {
@@ -399,7 +498,7 @@ suite('Native install coordination', () => {
 	test('abort fences a commit waiting for preparation to finish', async () => {
 		const { service, extension, installed } = await fixture();
 		const value = await extension('abort');
-		installed.push(value.local);
+		installed.push({ ...value.local, manifest: { ...value.local.manifest, version: '0.9.0' } });
 		await service.prepareLocalUninstall('abort-commit', [{ extension: value.local }], 'target');
 		const installing = service.installPrepared([value.request]);
 		await value.pending.entered.p;
