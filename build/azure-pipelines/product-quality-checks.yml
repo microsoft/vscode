@@ -147,32 +147,11 @@ jobs:
 
       - template: ./common/mixin-vscode-capi.yml@self
 
-      - ${{ if eq(parameters.VSCODE_CHECK_CHANGED_FILES, true) }}:
-        - script: node build/azure-pipelines/common/computeChangedSince.ts
-          env:
-            SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-          displayName: Determine hygiene and ESLint scope
-
-        # With VSCODE_CHANGED_SINCE, hygiene and ESLint check only the files that changed since that commit, so they
-        # take seconds and fail the job before the compilation checks start. --continue-on-error reports both when both
-        # fail. ESLint stays out of the compilation checks so that its worker memory doesn't overlap theirs.
-        - script: |
-            set -e
-            changed_since="${VSCODE_CHANGED_SINCE:+ -- --changed-since $VSCODE_CHANGED_SINCE}"
-            npm exec -- npm-run-all2 -lp --continue-on-error "hygiene$changed_since" "eslint$changed_since"
-          displayName: Hygiene & ESLint
-
-        - script: npm exec -- npm-run-all2 -lp core-ci valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
-          env:
-            GITHUB_TOKEN: "$(github-token-code-oss)"
-          displayName: Compile
-
-      - ${{ else }}:
-        - script: npm exec -- npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
-          env:
-            GITHUB_TOKEN: "$(github-token-code-oss)"
-          displayName: Compile & Hygiene
-
+      # Generate and publish the NOTICE before compiling: every platform compile job
+      # blocks on the notice_output artifact before packaging, and notice@0 can take
+      # minutes. Component Detection only reads manifests and lockfiles, so scanning
+      # before compile finds the same components (compile only copies src cgmanifest.json
+      # files into out-build).
       - script: npm run download-builtin-extensions-cg
         displayName: Download component details of built-in extensions
         continueOnError: true
@@ -416,6 +395,32 @@ jobs:
         displayName: "Build merged NOTICE (scan extensions + merge into .new.txt)"
         timeoutInMinutes: 10
         continueOnError: true
+
+      - ${{ if eq(parameters.VSCODE_CHECK_CHANGED_FILES, true) }}:
+        - script: node build/azure-pipelines/common/computeChangedSince.ts
+          env:
+            SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          displayName: Determine hygiene and ESLint scope
+
+        # With VSCODE_CHANGED_SINCE, hygiene and ESLint check only the files that changed since that commit, so they
+        # take seconds and fail the job before the compilation checks start. --continue-on-error reports both when both
+        # fail. ESLint stays out of the compilation checks so that its worker memory doesn't overlap theirs.
+        - script: |
+            set -e
+            changed_since="${VSCODE_CHANGED_SINCE:+ -- --changed-since $VSCODE_CHANGED_SINCE}"
+            npm exec -- npm-run-all2 -lp --continue-on-error "hygiene$changed_since" "eslint$changed_since"
+          displayName: Hygiene & ESLint
+
+        - script: npm exec -- npm-run-all2 -lp core-ci valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+          env:
+            GITHUB_TOKEN: "$(github-token-code-oss)"
+          displayName: Compile
+
+      - ${{ else }}:
+        - script: npm exec -- npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+          env:
+            GITHUB_TOKEN: "$(github-token-code-oss)"
+          displayName: Compile & Hygiene
 
       - task: AzureCLI@2
         displayName: Fetch secrets
