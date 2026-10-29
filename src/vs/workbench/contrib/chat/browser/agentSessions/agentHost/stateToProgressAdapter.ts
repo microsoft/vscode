@@ -2041,10 +2041,11 @@ function toMcpCallToolResult(tc: ToolCallState, isError: boolean, connectionAuth
 		}
 	}
 	const structuredContent = tc.status === ToolCallStatus.Completed ? tc.structuredContent : undefined;
-	if (content.length === 0 && structuredContent === undefined && !isError) {
+	const resultMeta = tc.status === ToolCallStatus.Completed ? tc.resultMetadata : undefined;
+	if (content.length === 0 && structuredContent === undefined && resultMeta === undefined && !isError) {
 		return undefined;
 	}
-	return { content, ...(structuredContent !== undefined ? { structuredContent } : {}), isError: isError || undefined };
+	return { content, ...(structuredContent !== undefined ? { structuredContent } : {}), ...(resultMeta !== undefined ? { _meta: resultMeta } : {}), isError: isError || undefined };
 }
 
 function toMcpContentBlock(block: ToolResultContent, connectionAuthority: string): MCP.ContentBlock | undefined {
