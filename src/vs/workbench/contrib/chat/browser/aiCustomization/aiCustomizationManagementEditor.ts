@@ -272,6 +272,13 @@ interface ISectionItem {
 	badge?: string;
 }
 
+const SECTION_ITEM_HEIGHT = 26;
+const SECTION_ITEM_SEPARATOR_SPACING = 8;
+
+function getSectionItemHeight(element: ISectionItem): number {
+	return SECTION_ITEM_HEIGHT + (element.separatorBefore ? SECTION_ITEM_SEPARATOR_SPACING : 0);
+}
+
 interface ISaveTargetQuickPickItem extends IQuickPickItem {
 	readonly target: 'workspace' | 'user' | 'cancel';
 	readonly folder?: URI;
@@ -302,8 +309,8 @@ interface IExistingCustomizationSaveRequest {
 }
 
 class SectionItemDelegate implements IListVirtualDelegate<ISectionItem> {
-	getHeight(): number {
-		return 26;
+	getHeight(element: ISectionItem): number {
+		return getSectionItemHeight(element);
 	}
 
 	getTemplateId(): string {
@@ -977,7 +984,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			? (this.migrationShortcutContainer?.offsetHeight ?? 0)
 			: 0;
 		const availableListHeight = Math.max(0, height - 8 - headerHeight - migrationHeight);
-		const listHeight = Math.min(availableListHeight, this.sections.length * 26);
+		const listHeight = Math.min(availableListHeight, this.sections.reduce((height, section) => height + getSectionItemHeight(section), 0));
 		this.sectionsListContainer.style.height = `${listHeight}px`;
 		this.sectionsList.layout(listHeight, width);
 	}

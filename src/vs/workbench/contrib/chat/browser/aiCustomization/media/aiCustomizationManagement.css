@@ -186,10 +186,14 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
+.ai-customization-management-editor .section-list-item.section-separator-before {
+	padding-top: var(--vscode-spacing-size120);
+}
+
 .ai-customization-management-editor .section-list-item.section-separator-before::before {
 	content: '';
 	position: absolute;
-	top: 0;
+	top: var(--vscode-spacing-size40);
 	left: var(--vscode-spacing-size80);
 	right: var(--vscode-spacing-size80);
 	height: var(--vscode-strokeThickness);
