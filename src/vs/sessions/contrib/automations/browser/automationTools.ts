@@ -881,7 +881,7 @@ The change uses the current tool-approval policy. When approval is required, the
 			target = this.resolveAvailableTarget(target, existing);
 		}
 		if (schedule?.interval === 'cron' && this.automationService.getProviderConfiguration?.(target?.providerId ?? existing?.target.providerId)?.timeZone === 'UTC') {
-			throw new AutomationToolInputError('Cron schedules are not supported by Cloud automations.');
+			throw new AutomationToolInputError('CRON schedules are not supported by Cloud automations.');
 		}
 		const modelId = readOptionalNullableNonEmptyString(input, 'modelId');
 		const mode = readOptionalNullableNonEmptyString(input, 'mode');
@@ -1019,7 +1019,7 @@ function parseSchedule(input: Record<string, unknown>, existing: IAutomationSche
 		const cronExpression = readOptionalRequiredText(value, 'cronExpression') ?? existing?.cronExpression;
 		const cronTimeZone = readOptionalNonEmptyString(value, 'cronTimeZone') ?? existing?.cronTimeZone;
 		if (!cronExpression?.trim()) {
-			throw new AutomationToolInputError('"schedule.cronExpression" is required for cron schedules.');
+			throw new AutomationToolInputError('"schedule.cronExpression" is required for CRON schedules.');
 		}
 		const error = getAutomationCronValidationError(cronExpression, cronTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
 		if (error) {

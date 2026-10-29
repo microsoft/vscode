@@ -52,11 +52,14 @@ suite('Automation cron segmented input', () => {
 		change(0, '*/2');
 		assert.deepStrictEqual({
 			initial, value: input.value,
+			expressionLabel: container.querySelector('.automation-form-label')?.textContent,
+			expressionAriaLabel: container.querySelector('[role="group"]')?.getAttribute('aria-label'),
 			labels: elements.map(element => element.getAttribute('aria-label')),
 			placeholders: elements.map(element => element.placeholder),
 			captions: Array.from(container.querySelectorAll('.automation-cron-caption'), caption => caption.textContent),
 		}, {
 			initial: { value: '', error: '' }, value: '*/2 * * * *',
+			expressionLabel: 'CRON expression', expressionAriaLabel: 'CRON expression',
 			labels: ['Minute', 'Hour', 'Day of month', 'Month', 'Day of week'],
 			placeholders: ['*', '*', '*', '*', '*'],
 			captions: ['min', 'hour', 'day', 'month', 'weekday'],

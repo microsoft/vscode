@@ -189,7 +189,7 @@ function parseAutomationCron(expression: string): IAutomationCron {
 		dayOfWeek: parseField(fields[4], localize('automationCron.dayOfWeek', "Day of week"), 0, 7, WEEKDAY_NAMES, value => value === 7 ? 0 : value),
 	};
 	if (!hasPossibleCalendarDay(cron)) {
-		throw new Error(localize('automationCron.calendar', "Automation schedule cannot match a real calendar date: {0}", expression));
+		throw new Error(localize('automationCron.calendar', "Automation schedule cannot match a real calendar date."));
 	}
 	return cron;
 }
@@ -221,13 +221,13 @@ function parseField(
 	const values = new Set<number>();
 	for (const segment of field.split(',')) {
 		if (!segment) {
-			throw new Error(localize('automationCron.emptySegment', "{0} contains an empty list item: {1}", label, field));
+			throw new Error(localize('automationCron.emptySegment', "{0} contains an empty list item.", label));
 		}
 		const stepParts = segment.split('/');
 		if (stepParts.length > 2) {
-			throw new Error(localize('automationCron.invalidStep', "{0} contains an invalid step: {1}", label, segment));
+			throw new Error(localize('automationCron.invalidStep', "{0} contains an invalid step.", label));
 		}
-		const step = stepParts[1] === undefined ? 1 : parsePositiveInteger(stepParts[1], segment);
+		const step = stepParts[1] === undefined ? 1 : parsePositiveInteger(stepParts[1], label);
 		const base = stepParts[0];
 		let start: number;
 		let end: number;
@@ -238,7 +238,7 @@ function parseField(
 			const range = base.split('-');
 			if (range.length === 1) {
 				if (stepParts.length > 1) {
-					throw new Error(localize('automationCron.stepBase', "{0} steps require '*' or a range: {1}", label, segment));
+					throw new Error(localize('automationCron.stepBase', "{0} steps require '*' or a range such as {1}-{2}.", label, minimum, maximum));
 				}
 				start = parseValue(range[0], label, minimum, maximum, names);
 				end = start;
@@ -246,10 +246,10 @@ function parseField(
 				start = parseValue(range[0], label, minimum, maximum, names);
 				end = parseValue(range[1], label, minimum, maximum, names);
 				if (start > end) {
-					throw new Error(localize('automationCron.ascending', "{0} ranges must be ascending: {1}", label, segment));
+					throw new Error(localize('automationCron.ascending', "{0} ranges must be ascending.", label));
 				}
 			} else {
-				throw new Error(localize('automationCron.invalidRange', "{0} contains an invalid range: {1}", label, segment));
+				throw new Error(localize('automationCron.invalidRange', "{0} contains an invalid range.", label));
 			}
 		}
 		for (let value = start; value <= end; value += step) {
@@ -263,15 +263,15 @@ function parseValue(value: string, label: string, minimum: number, maximum: numb
 	const named = names.get(value.toUpperCase());
 	const parsed = named ?? (/^\d+$/.test(value) ? Number(value) : Number.NaN);
 	if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) {
-		throw new Error(localize('automationCron.range', "{0} value is outside {1}-{2}: {3}", label, minimum, maximum, value));
+		throw new Error(localize('automationCron.range', "{0} value is outside {1}-{2}.", label, minimum, maximum));
 	}
 	return parsed;
 }
 
-function parsePositiveInteger(value: string, segment: string): number {
+function parsePositiveInteger(value: string, label: string): number {
 	const parsed = /^\d+$/.test(value) ? Number(value) : Number.NaN;
 	if (!Number.isInteger(parsed) || parsed <= 0) {
-		throw new Error(localize('automationCron.positiveStep', "Automation schedule step must be a positive integer: {0}", segment));
+		throw new Error(localize('automationCron.positiveStep', "{0} step must be a positive integer.", label));
 	}
 	return parsed;
 }
@@ -289,7 +289,7 @@ function createDateFormatter(timeZone: string): Intl.DateTimeFormat {
 			hourCycle: 'h23',
 		});
 	} catch (error) {
-		throw new Error(localize('automationCron.timeZone', "Automation schedule uses an invalid time zone: {0}", timeZone), { cause: error });
+		throw new Error(localize('automationCron.timeZone', "Automation schedule uses an invalid time zone."), { cause: error });
 	}
 }
 

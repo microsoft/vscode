@@ -906,7 +906,7 @@ suite('Automation dialog creation', () => {
 			select.selectedIndex = Array.from(select.options).findIndex(option => option.textContent === 'Weekly');
 			select.dispatchEvent(new (DOM.getWindow(select).Event)('change'));
 			const weeklyTriggerWidth = trigger.getBoundingClientRect().width;
-			select.selectedIndex = Array.from(select.options).findIndex(option => option.textContent === 'Cron');
+			select.selectedIndex = Array.from(select.options).findIndex(option => option.textContent === 'CRON');
 			select.dispatchEvent(new (DOM.getWindow(select).Event)('change'));
 			const cron = row.querySelector<HTMLElement>('.automation-form-cron-group');
 			const cronControl = cron?.querySelector<HTMLElement>('.automation-cron-segments');
@@ -962,7 +962,7 @@ suite('Automation dialog creation', () => {
 			select.dispatchEvent(new (DOM.getWindow(select).Event)('change'));
 		};
 		const before = snapshot();
-		selectInterval('Cron');
+		selectInterval('CRON');
 		const empty = snapshot();
 		const data = new DataTransfer();
 		data.setData('text/plain', '*/5 * * * *');
@@ -989,7 +989,7 @@ suite('Automation dialog creation', () => {
 		inputs[2].dispatchEvent(new InputEvent('input'));
 		selectInterval('Daily');
 		const preset = snapshot();
-		selectInterval('Cron');
+		selectInterval('CRON');
 		const restored = snapshot();
 		dialog.cancelButton.click();
 		await dialog.result;
@@ -997,7 +997,7 @@ suite('Automation dialog creation', () => {
 		assert.deepStrictEqual({ before, empty, pasted, startingStep, rangeStep, edited, invalid, preset, restored }, {
 			before: hidden, empty: hidden,
 			pasted: { text: 'Runs every 5 minutes every day.', visible: true, role: 'status' },
-			startingStep: { summary: hidden, value: '20/15', invalid: 'true', error: 'Minute steps require \'*\' or a range: 20/15' },
+			startingStep: { summary: hidden, value: '20/15', invalid: 'true', error: 'Minute steps require \'*\' or a range such as 0-59.' },
 			rangeStep: { text: 'Runs at minutes 20, 35 and 50 of every hour every day.', visible: true, role: 'status' },
 			edited: { text: 'Runs at minute 7 of every hour every day.', visible: true, role: 'status' },
 			invalid: hidden, preset: hidden,
@@ -1013,7 +1013,7 @@ suite('Automation dialog creation', () => {
 				dialog.setName('Unsaved Cron draft');
 				dialog.setPrompt('Keep this prompt');
 				const select = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
-				select.selectedIndex = Array.from(select.options).findIndex(option => option.textContent === 'Cron');
+				select.selectedIndex = Array.from(select.options).findIndex(option => option.textContent === 'CRON');
 				select.dispatchEvent(new (DOM.getWindow(select).Event)('change'));
 				const inputs = Array.from(dialog.container.querySelectorAll<HTMLInputElement>('.automation-cron-segments input'));
 				const data = new DataTransfer();
@@ -1636,7 +1636,7 @@ suite('Automation dialog creation', () => {
 		}, cloudConfiguration());
 		await dialog.setCloud(true);
 		const interval = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
-		const blocked = { cronAvailable: Array.from(interval.options).some(option => option.textContent === 'Cron'), disabled: dialog.saveButton.getAttribute('aria-disabled') };
+		const blocked = { cronAvailable: Array.from(interval.options).some(option => option.textContent === 'CRON'), disabled: dialog.saveButton.getAttribute('aria-disabled') };
 		interval.selectedIndex = Array.from(interval.options).findIndex(option => option.textContent === 'Daily');
 		interval.dispatchEvent(new (DOM.getWindow(interval).Event)('change', { bubbles: true }));
 		assert.deepStrictEqual({ blocked, recovered: dialog.saveButton.getAttribute('aria-disabled') }, {
@@ -1666,7 +1666,7 @@ suite('Automation dialog creation', () => {
 		dialog.saveButton.click();
 		await timeout(0);
 		assert.deepStrictEqual({ ...initial, commits }, {
-			options: ['Choose a trigger', 'Manual', 'Hourly', 'Daily', 'Weekdays', 'Weekly', 'Cron'],
+			options: ['Choose a trigger', 'Manual', 'Hourly', 'Daily', 'Weekdays', 'Weekly', 'CRON'],
 			selected: 'Choose a trigger', placeholderDisabled: true, saveDisabled: 'true',
 			error: 'Choose a supported schedule.',
 			commits: 0,
@@ -1677,7 +1677,7 @@ suite('Automation dialog creation', () => {
 			options: Array.from(interval.options, option => option.textContent),
 			selected: interval.selectedOptions[0].textContent,
 			saveDisabled: dialog.saveButton.getAttribute('aria-disabled'),
-		}, { options: ['Manual', 'Hourly', 'Daily', 'Weekdays', 'Weekly', 'Cron'], selected: 'Weekdays', saveDisabled: 'false' });
+		}, { options: ['Manual', 'Hourly', 'Daily', 'Weekdays', 'Weekly', 'CRON'], selected: 'Weekdays', saveDisabled: 'false' });
 		dialog.saveButton.click();
 		const result = await dialog.result;
 		assert.deepStrictEqual({ kind: result?.kind, schedule: result?.value.schedule, commits }, {
@@ -3311,7 +3311,7 @@ suite('Automation dialog layout', () => {
 				borderError: !!cronRow.querySelector('.automation-cron-segments.invalid'),
 			};
 		};
-		selectInterval('Cron');
+		selectInterval('CRON');
 		const empty = enterCron('');
 		assert.strictEqual(cronInput.placeholder, '*');
 		cronInput.dispatchEvent(new FocusEvent('focus'));
@@ -3323,10 +3323,10 @@ suite('Automation dialog layout', () => {
 		cronInput.dispatchEvent(disallowed);
 		selectInterval('Daily');
 		const hidden = cronRow.style.display === 'none';
-		selectInterval('Cron');
+		selectInterval('CRON');
 		assert.deepStrictEqual({ empty, invalid, valid, prevented: disallowed.defaultPrevented, hidden, restored: cronInputs.map(input => input.value).join(' ') }, {
 			empty: { value: '', invalid: 'false', error: '', borderError: false },
-			invalid: { value: '0 24 * * *', invalid: 'true', error: 'Hour value is outside 0-23: 24', borderError: true },
+			invalid: { value: '0 24 * * *', invalid: 'true', error: 'Hour value is outside 0-23.', borderError: true },
 			valid: { value: '*/2 * * * *', invalid: 'false', error: '', borderError: false },
 			prevented: true, hidden: true, restored: '*/2 * * * *',
 		});
@@ -4120,8 +4120,8 @@ suite('Automation dialog target validation', () => {
 		assert.deepStrictEqual([...results, { enabled: saveButton.enabled, error: validation.cronError }], [
 			{ enabled: false, error: undefined },
 			{ enabled: false, error: undefined },
-			{ enabled: false, error: 'Hour value is outside 0-23: 24' },
-			{ enabled: false, error: 'Minute steps require \'*\' or a range: 20/15' },
+			{ enabled: false, error: 'Hour value is outside 0-23.' },
+			{ enabled: false, error: 'Minute steps require \'*\' or a range such as 0-59.' },
 			{ enabled: true, error: undefined },
 			{ enabled: true, error: undefined },
 			{ enabled: true, error: undefined },

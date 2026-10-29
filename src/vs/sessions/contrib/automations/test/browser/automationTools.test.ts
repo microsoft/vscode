@@ -1225,8 +1225,8 @@ suite('AutomationTools', () => {
 		const results = [];
 		for (const parameters of inputs) {
 			const result = await invoke(tool, parameters);
-			results.push({ error: !!result.toolResultError, message: getText(result).includes('Cron schedules are not supported by Cloud automations.') });
-			await assert.rejects(tool.prepareToolInvocation({ toolCallId: 'cron-cloud', parameters, chatSessionResource: SESSION_RESOURCE }, CancellationToken.None), /Cron schedules are not supported by Cloud automations\./);
+			results.push({ error: !!result.toolResultError, message: getText(result).includes('CRON schedules are not supported by Cloud automations.') });
+			await assert.rejects(tool.prepareToolInvocation({ toolCallId: 'cron-cloud', parameters, chatSessionResource: SESSION_RESOURCE }, CancellationToken.None), /CRON schedules are not supported by Cloud automations\./);
 		}
 		assert.deepStrictEqual({ results, creates: service.created, updates: service.updated }, {
 			results: [{ error: true, message: true }, { error: true, message: true }, { error: true, message: true }], creates: [], updates: [],

@@ -1517,7 +1517,7 @@ suite('AgentHostAutomationStore', () => {
 			name: 'Cron', prompt: 'Review',
 			schedule: { interval: 'cron', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
 			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
-		}), /A cron expression is required\./);
+		}), /A CRON expression is required\./);
 		assert.deepStrictEqual(connection.dispatched, []);
 	});
 
