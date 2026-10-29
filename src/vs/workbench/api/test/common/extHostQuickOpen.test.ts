@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import type * as vscode from 'vscode';
+import * as sinon from 'sinon';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
@@ -17,6 +19,8 @@ import { SingleProxyRPCProtocol } from './testRPCProtocol.js';
 suite('ExtHostQuickOpen', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	teardown(() => sinon.restore());
+
 	function createFixture() {
 		const updates: TransferQuickInput[] = [];
 		const disposedIds: number[] = [];
@@ -28,15 +32,153 @@ suite('ExtHostQuickOpen', () => {
 				disposedIds.push(id);
 			}
 		};
-		const quickOpen = createExtHostQuickOpen(
+		const quickOpen = store.add(createExtHostQuickOpen(
 			SingleProxyRPCProtocol(proxy),
 			new class extends mock<IExtHostWorkspaceProvider>() { },
 			new class extends mock<ExtHostCommands>() { },
-		);
+		));
 		return { quickOpen, updates, disposedIds };
 	}
 
+	test('evicts completed subscriptions from the owner while it remains alive', () => {
+		const { quickOpen, disposedIds } = createFixture();
+		const deletions = sinon.spy(DisposableStore.prototype, 'delete');
+		for (let i = 0; i < 20; i++) {
+			const quickPick = store.add(quickOpen.createQuickPick(nullExtensionDescription));
+			const inputBox = store.add(quickOpen.createInputBox(nullExtensionDescription));
+			quickPick.dispose();
+			inputBox.dispose();
+		}
+
+		assert.deepStrictEqual({
+			evictedSubscriptions: deletions.callCount,
+			sameOwner: deletions.alwaysCalledOn(deletions.firstCall.thisValue),
+			disposedSessions: disposedIds.length,
+		}, {
+			evictedSubscriptions: 40,
+			sameOwner: true,
+			disposedSessions: 40,
+		});
+	});
+
+	test('disposes active sessions with the owner and ignores late RPC events', () => {
+		const { quickOpen, updates, disposedIds } = createFixture();
+		const quickPick = store.add(quickOpen.createQuickPick(nullExtensionDescription));
+		const inputBox = store.add(quickOpen.createInputBox(nullExtensionDescription));
+		quickPick.value = 'quick pick';
+		inputBox.value = 'input box';
+		quickPick.show();
+		inputBox.show();
+		const ids = updates.map(update => update.id);
+		const hidden: string[] = [];
+		store.add(quickPick.onDidHide(() => hidden.push('quick pick')));
+		store.add(inputBox.onDidHide(() => hidden.push('input box')));
+
+		quickOpen.dispose();
+		quickOpen.dispose();
+		for (const id of ids) {
+			quickOpen.$onDidChangeValue(id, 'stale');
+			quickOpen.$onDidHide(id);
+		}
+
+		assert.deepStrictEqual({
+			hidden,
+			disposedIds,
+			values: [quickPick.value, inputBox.value],
+		}, {
+			hidden: ['quick pick', 'input box'],
+			disposedIds: ids,
+			values: ['quick pick', 'input box'],
+		});
+	});
+
+	test('rejects new sessions during and after owner disposal', () => {
+		const { quickOpen, disposedIds } = createFixture();
+		const input = store.add(quickOpen.createInputBox(nullExtensionDescription));
+		const attempts: string[] = [];
+		store.add(input.onDidHide(() => {
+			assert.throws(() => quickOpen.createQuickPick(nullExtensionDescription), /owner is disposed/);
+			attempts.push('during disposal');
+		}));
+		input.show();
+
+		quickOpen.dispose();
+		assert.throws(() => quickOpen.createInputBox(nullExtensionDescription), /owner is disposed/);
+		attempts.push('after disposal');
+
+		assert.deepStrictEqual({ attempts, disposedSessions: disposedIds.length }, {
+			attempts: ['during disposal', 'after disposal'],
+			disposedSessions: 1,
+		});
+	});
+
 	for (const kind of ['quickPick', 'inputBox'] as const) {
+		test(`${kind} cleans up input emitters before notifying disposal listeners`, () => {
+			const { quickOpen, disposedIds } = createFixture();
+			const oneShotEvents = sinon.spy(Event, 'once');
+			const quickPick = kind === 'quickPick' ? store.add(quickOpen.createQuickPick(nullExtensionDescription)) : undefined;
+			const input = quickPick ?? store.add(quickOpen.createInputBox(nullExtensionDescription));
+			const onDidDispose = oneShotEvents.lastCall.args[0];
+			let emittersDisposedAtNotification = false;
+			let remoteDisposalsAtNotification = -1;
+			store.add(onDidDispose(() => {
+				const registrations = [
+					store.add(input.onDidAccept(() => { })),
+					store.add(input.onDidChangeValue(() => { })),
+					store.add(input.onDidTriggerButton(() => { })),
+					store.add(input.onDidHide(() => { })),
+				];
+				if (quickPick) {
+					registrations.push(
+						store.add(quickPick.onDidChangeActive(() => { })),
+						store.add(quickPick.onDidChangeSelection(() => { })),
+						store.add(quickPick.onDidTriggerItemButton(() => { })),
+					);
+				}
+				emittersDisposedAtNotification = registrations.every(registration => registration === Disposable.None);
+				remoteDisposalsAtNotification = disposedIds.length;
+			}));
+
+			input.dispose();
+
+			assert.deepStrictEqual({
+				emittersDisposedAtNotification,
+				remoteDisposalsAtNotification,
+				remoteDisposalsAfterNotification: disposedIds.length,
+			}, {
+				emittersDisposedAtNotification: true,
+				remoteDisposalsAtNotification: 0,
+				remoteDisposalsAfterNotification: 1,
+			});
+		});
+
+		test(`${kind} releases lifecycle subscriptions without being shown`, () => {
+			const { quickOpen, updates, disposedIds } = createFixture();
+			const input = store.add(kind === 'quickPick'
+				? quickOpen.createQuickPick(nullExtensionDescription)
+				: quickOpen.createInputBox(nullExtensionDescription));
+			const events: string[] = [];
+			store.add(input.onDidHide(() => events.push('hide')));
+			store.add(input.onDidChangeValue(value => events.push(value)));
+			input.value = 'original';
+
+			input.dispose();
+			input.dispose();
+			quickOpen.$onDidChangeValue(disposedIds[0], 'stale');
+
+			assert.deepStrictEqual({
+				events,
+				updates,
+				disposeCount: disposedIds.length,
+				value: input.value,
+			}, {
+				events: [],
+				updates: [],
+				disposeCount: 1,
+				value: 'original',
+			});
+		});
+
 		test(`${kind} unregisters disposed sessions without unregistering hidden or live sessions`, () => {
 			const { quickOpen, updates, disposedIds } = createFixture();
 			const createInput = () => store.add(kind === 'quickPick'
@@ -80,7 +222,7 @@ suite('ExtHostQuickOpen', () => {
 				: quickOpen.createInputBox(nullExtensionDescription));
 			const first = createInput();
 			first.value = 'original';
-			let replacement: vscode.QuickInput | undefined;
+			let replacement: ReturnType<typeof createInput> | undefined;
 			const events: string[] = [];
 			store.add(first.onDidHide(() => {
 				events.push('hide');
