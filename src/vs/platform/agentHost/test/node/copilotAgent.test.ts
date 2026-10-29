@@ -739,6 +739,7 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 		readonly agents: CopilotAgentDiscovery;
 		readonly instructions: CopilotInstructionDiscovery;
 		readonly skills: CopilotSkillDiscovery;
+		readonly hooks: Pick<CopilotClient['rpc']['hooks'], 'discover'>;
 		readonly sessions: {
 			readonly fork: CopilotClient['rpc']['sessions']['fork'];
 			readonly list: CopilotClient['rpc']['sessions']['list'];
@@ -754,7 +755,7 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 			readonly enable: CopilotExtensionsEnable;
 			readonly disable: CopilotExtensionsDisable;
 		};
-		readonly mcp: { readonly config: Pick<CopilotClient['rpc']['mcp']['config'], 'list'> };
+		readonly mcp: Pick<CopilotClient['rpc']['mcp'], 'discover'> & { readonly config: Pick<CopilotClient['rpc']['mcp']['config'], 'list'> };
 	};
 }
 
@@ -808,6 +809,8 @@ class TestCopilotClient implements ITestCopilotClient {
 	discoverInstructions: CopilotInstructionDiscovery['discover'] = async () => ({ sources: [] });
 	getInstructionDiscoveryPaths: CopilotInstructionDiscovery['getDiscoveryPaths'] = async () => ({ paths: [] });
 	discoverSkills: CopilotSkillDiscovery['discover'] = async () => ({ skills: [] });
+	discoverHooks: CopilotClient['rpc']['hooks']['discover'] = async () => ({ hooks: [], warnings: [], errors: [] });
+	discoverMcp: CopilotClient['rpc']['mcp']['discover'] = async () => ({ servers: [] });
 	getSkillDiscoveryPaths: CopilotSkillDiscovery['getDiscoveryPaths'] = async () => ({ paths: [] });
 	readonly agentDiscoveryRequests: Parameters<CopilotAgentDiscovery['discover']>[0][] = [];
 	readonly instructionDiscoveryRequests: Parameters<CopilotInstructionDiscovery['discover']>[0][] = [];
@@ -817,7 +820,8 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly extensionDisableRequests: Parameters<CopilotExtensionsDisable>[0][] = [];
 
 	readonly rpc: ITestCopilotClient['rpc'] = {
-		mcp: { config: { list: async () => this.mcpConfigListResult } },
+		mcp: { config: { list: async () => this.mcpConfigListResult }, discover: async params => this.discoverMcp(params) },
+		hooks: { discover: async params => this.discoverHooks(params) },
 		managedSettings: {
 			resolve: params => {
 				this.managedSettingsRequests.push(params);
@@ -3280,6 +3284,7 @@ suite('CopilotAgent', () => {
 	test('launch uses the owning AHP customization identity for session-scoped MCP disablement with an independent SDK backing', async () => {
 		const client = new TestCopilotClient([]);
 		client.mcpConfigListResult = { servers: { context7: { type: 'http', url: 'https://mcp.example.com/context7' } } };
+		client.discoverMcp = async () => ({ servers: [{ name: 'native', type: 'stdio', source: 'plugin', enabled: true }] });
 		let launchConfig: SessionConfig | undefined;
 		client.createSession = async config => {
 			launchConfig = config;
@@ -3306,6 +3311,10 @@ suite('CopilotAgent', () => {
 			enablementService.setEnablement(session.toString(), {
 				id, type: CustomizationType.McpServer, name: 'context7', source: URI.parse(id),
 			}, CustomizationEnablementKind.Session, false);
+			enablementService.setEnablement(session.toString(), {
+				id: 'mcp-top-level:copilotcli:context7-launch:native', type: CustomizationType.McpServer,
+				name: 'native', source: URI.parse('agent-discovery://copilot/mcp#native'), defaultEnabled: true,
+			}, CustomizationEnablementKind.Session, false);
 			await enablementService.whenIdle();
 			const chat = defaultChatUri(session);
 			const result = await agent.chats.createChat(chat, exactChatContext(session, chat, session), {
@@ -3321,7 +3330,7 @@ suite('CopilotAgent', () => {
 			}, {
 				session: 'ahp-session:/context7-launch',
 				separateBacking: true,
-				disabledMcpServers: ['context7'],
+				disabledMcpServers: ['context7', 'native'],
 			});
 		} finally {
 			await disposeAgent(agent);
@@ -3329,7 +3338,130 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('discovered SDK customizations', () => {
-		for (const operation of ['catalog', 'legacy'] as const) {
+		for (const hasSkill of [false, true]) {
+			test(`deduplicates nested native MCP declarations without discarding unrelated contributions (${hasSkill})`, async () => {
+				const fileService = disposables.add(new FileService(new NullLogService()));
+				disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+				const workspace = URI.file('/workspace');
+				const plugin = URI.file('/sdk-installed/native');
+				const source = URI.joinPath(plugin, '.mcp.json');
+				const skill = URI.joinPath(plugin, 'skills', 'native', 'SKILL.md');
+				await fileService.writeFile(URI.joinPath(workspace, '.mcp.json'), VSBuffer.fromString('{"mcpServers":{"native":{"command":"client-server"}}}'));
+				await fileService.writeFile(URI.joinPath(plugin, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"native"}'));
+				await fileService.writeFile(source, VSBuffer.fromString('{"mcpServers":{"native":{"command":"native-server"}}}'));
+				if (hasSkill) {
+					await fileService.writeFile(skill, VSBuffer.fromString('---\nname: native\ndescription: Native skill\n---\n'));
+				}
+				const client = new TestCopilotClient([]);
+				client.discoverMcp = async () => ({
+					servers: [{
+						name: 'native', type: 'stdio', source: 'plugin', enabled: true,
+						effectiveSource: { kind: 'plugin', id: 'opaque', editability: 'read-only', file: { uri: source.toString() } },
+					}]
+				});
+				client.discoverSkills = async () => ({
+					skills: hasSkill ? [{
+						name: 'native', description: 'Native skill', path: skill.fsPath, source: 'plugin', enabled: true, userInvocable: true,
+					}] : []
+				});
+				const { agent } = createTestAgentContext(disposables, { fileService, copilotClient: client, rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false } });
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					const session = AgentSession.uri('copilotcli', `dedup-${hasSkill}`);
+					await provisionSession(agent, { session, workingDirectories: [workspace] });
+					const customizations = await getDefaultChatCustomizations(agent, session);
+					assert.deepStrictEqual({
+						servers: customizations.flatMap(item => item.type === CustomizationType.McpServer ? [item.uri] : item.children?.filter(child => child.type === CustomizationType.McpServer).map(child => child.uri) ?? []),
+						plugins: customizations.filter(item => item.type === CustomizationType.Plugin).map(item => item.children?.map(child => child.type)),
+					}, { servers: [URI.joinPath(workspace, '.mcp.json').toString()], plugins: hasSkill ? [[CustomizationType.Skill]] : [] });
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+		}
+
+		test('refreshes SDK hooks and MCP inventory without forwarding definitions or manufacturing runtime intent', async () => {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const workspace = URI.file('/remote-workspace');
+			const client = new TestCopilotClient([]);
+			let installed = true;
+			let enabled = false;
+			let hostDecision: boolean | undefined;
+			client.discoverHooks = async params => ({
+				hooks: installed ? [{ id: 'opaque-hook', hookType: 'sessionStart', origin: 'plugin', source: params.projectPaths?.[0], enabled }] : [],
+				warnings: [], errors: [],
+			});
+			client.discoverMcp = async () => ({ servers: installed ? [{ name: 'native', type: 'stdio', source: 'plugin', sourcePlugin: 'mcp-only', enabled }] : [] });
+			const { agent, instantiationService, stateManager } = createTestAgentContext(disposables, {
+				fileService, copilotClient: client, rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				customizationEnablementService: {
+					...createNoopCustomizationEnablementService(),
+					resolve: (_session, target) => ({
+						kind: 'resolved', workingDirectory: { kind: 'directory', uri: workspace },
+						enabled: hostDecision ?? target.defaultEnabled ?? true,
+						enablement: (hostDecision ?? target.defaultEnabled) === undefined ? [] : [{ kind: CustomizationEnablementKind.Global, enabled: hostDecision ?? target.defaultEnabled! }],
+					}),
+				},
+			});
+			const apply = stub(agent['_customizationInstallations'], 'apply').resolves(undefined);
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
+				await provisionSession(agent, { session: sessionUri, workingDirectories: [workspace] });
+				stateManager.createSession({
+					resource: sessionUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(), workingDirectories: [workspace.toString()],
+					defaultChat: buildDefaultChatUri(sessionUri.toString()),
+				});
+				const initial = await getDefaultChatCustomizations(agent, sessionUri);
+				agent['_hostCustomizations'].set(sessionUri, initial);
+				stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [...initial] });
+				const { session } = createAgentSessionThroughAgent(agent, instantiationService, { workingDirectory: workspace });
+				disposables.add(session);
+				const initialIntent = [...session['_getDesiredMcpServerEnablementByName']()];
+				const activeClient = agent['_getOrCreateActiveClient'](sessionUri, workspace);
+				const inheritedDisabled = (await activeClient.snapshot(defaultChatUri(sessionUri).toString())).disabledNativeMcpServers;
+				const summarize = (customizations: readonly Customization[]) => customizations.flatMap(item => {
+					if (item.type === CustomizationType.McpServer) {
+						return [{ name: item.name, enabled: isCustomizationEnabled(item) }];
+					}
+					return (item.children ?? []).filter(child => child.type === CustomizationType.Hook).map(child => ({ name: child.name, enabled: child.enabled }));
+				});
+				enabled = true;
+				await agent.applyCustomizationInstallation('enable');
+				const refreshed = await getDefaultChatCustomizations(agent, sessionUri);
+				agent['_hostCustomizations'].set(sessionUri, refreshed);
+				stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [...refreshed] });
+				const refreshedIntent = [...session['_getDesiredMcpServerEnablementByName']()];
+				hostDecision = false;
+				const explicitIntent = [...session['_getDesiredMcpServerEnablementByName']()];
+				const disabledSnapshot = await activeClient.snapshot(defaultChatUri(sessionUri).toString());
+				const disabledAtLaunch = await agent['_disabledRootMcpServers'](sessionUri, disabledSnapshot);
+				hostDecision = undefined;
+				const snapshot = await agent['_getOrCreateActiveClient'](sessionUri, workspace).snapshot(defaultChatUri(sessionUri).toString());
+				installed = false;
+				await agent.applyCustomizationInstallation('uninstall');
+				const removed = await getDefaultChatCustomizations(agent, sessionUri);
+				assert.deepStrictEqual({
+					initial: summarize(initial), refreshed: summarize(refreshed), removed: summarize(removed),
+					initialIntent, refreshedIntent, explicitIntent, inheritedDisabled, disabledAtLaunch,
+					forwarded: { plugins: snapshot.plugins, mcpServers: snapshot.mcpServers },
+				}, {
+					initial: [{ name: 'sessionStart', enabled: false }, { name: 'native', enabled: false }],
+					refreshed: [{ name: 'sessionStart', enabled: true }, { name: 'native', enabled: true }],
+					removed: [], initialIntent: [], refreshedIntent: [], explicitIntent: [['native', false]],
+					inheritedDisabled: undefined, disabledAtLaunch: ['native'],
+					forwarded: { plugins: [], mcpServers: {} },
+				});
+			} finally {
+				apply.restore();
+				await disposeAgent(agent);
+			}
+		});
+
+		for (const operation of ['catalog', 'legacy', 'enablement'] as const) {
 			test(`${operation} plugin mutations refresh and publish every session and chat anchor`, async () => {
 				const fileService = disposables.add(new FileService(new NullLogService()));
 				disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
@@ -3363,6 +3495,11 @@ suite('CopilotAgent', () => {
 				const uninstall = stub(client.rpc.plugins, 'uninstall').callsFake(async () => {
 					installed = false;
 				});
+				const list = stub(client.rpc.plugins, 'list').callsFake(async () => ({
+					plugins: [{ name: 'session-timeline', marketplace: 'test', version: '1.0.0', enabled: installed }],
+				}));
+				const enable = stub(client.rpc.plugins, 'enable').callsFake(async () => { installed = true; });
+				const disable = stub(client.rpc.plugins, 'disable').callsFake(async () => { installed = false; });
 				try {
 					await agent.authenticate('https://api.github.com', 'token');
 					const sessions = ['first', 'second'].map(id => AgentSession.uri('copilotcli', `plugin-refresh-${id}`));
@@ -3384,6 +3521,8 @@ suite('CopilotAgent', () => {
 						published.clear();
 						if (operation === 'catalog') {
 							await agent.applyCustomizationInstallation(action);
+						} else if (operation === 'enablement') {
+							await agent.setPluginEnabled('session-timeline@test', action === 'install');
 						} else if (action === 'uninstall') {
 							await agent.uninstallPlugin({ name: 'session-timeline', marketplace: 'test' });
 						} else {
@@ -3399,6 +3538,9 @@ suite('CopilotAgent', () => {
 					apply.restore();
 					install.restore();
 					uninstall.restore();
+					list.restore();
+					enable.restore();
+					disable.restore();
 					await disposeAgent(agent);
 				}
 			});
@@ -20825,6 +20967,12 @@ suite('CopilotAgent', () => {
 					{ id: 'source-agent', name: 'discovered-agent', displayName: 'discovered-agent', description: 'discovered', path: sourceAgent.fsPath, source: 'plugin' },
 					{ id: 'other-agent', name: 'discovered-agent', displayName: 'discovered-agent', description: 'discovered', path: sameNamedAgent.fsPath, source: 'plugin' },
 				],
+			});
+			client.discoverMcp = async () => ({
+				servers: [{
+					name: 'cached-server', type: 'stdio', source: 'plugin', enabled: true,
+					effectiveSource: { kind: 'plugin', id: 'source-server', editability: 'read-only', file: { uri: URI.joinPath(sourcePlugin, '.mcp.json').toString() } },
+				}]
 			});
 			const { agent, stateManager } = createTestAgentContext(disposables, {
 				sessionDataService,
