@@ -3331,18 +3331,18 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const message = storage === PromptsStorage.local
 				? localize(
 					'migrationWorkspaceTargetNeedsSession',
-					"{0} needs an active session before it can report a writable {1} folder for this workspace. Open a session, send a message, then try the migration again.",
+					"{0} needs an active session before it can report a writable {1} folder for this workspace. Start a new session, send a message, then try the migration again.",
 					harnessLabel,
 					targetLabel,
 				)
 				: localize(
 					'migrationUserTargetNeedsSession',
-					"{0} needs an active session before it can report a writable {1} folder for your user profile. Open a session, send a message, then try the migration again.",
+					"{0} needs an active session before it can report a writable {1} folder for your user profile. Start a new session, send a message, then try the migration again.",
 					harnessLabel,
 					targetLabel,
 				);
 			this.notificationService.prompt(Severity.Error, message, [{
-				label: localize('openHarnessSession', "Open {0} Session", harnessLabel),
+				label: localize('startNewHarnessSession', "Start new session"),
 				run: () => this.openMigrationHarnessSession(sessionResource),
 			}]);
 			return;

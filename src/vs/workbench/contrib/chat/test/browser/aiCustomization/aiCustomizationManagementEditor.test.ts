@@ -4284,8 +4284,8 @@ suite('aiCustomizationManagementEditor', () => {
 			}, {
 				prompts: [{
 					severity: Severity.Error,
-					message: 'Copilot needs an active session before it can report a writable skills folder for this workspace. Open a session, send a message, then try the migration again.',
-					label: 'Open Copilot Session',
+					message: 'Copilot needs an active session before it can report a writable skills folder for this workspace. Start a new session, send a message, then try the migration again.',
+					label: 'Start new session',
 				}, {
 					severity: Severity.Error,
 					message: 'Copilot is still loading writable skills folders for this workspace. Wait for the session to finish starting, then try again.',
