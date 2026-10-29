@@ -2232,11 +2232,12 @@ suite('ChatService', () => {
 		const service = createChatService();
 		const model = testDisposables.add(startSessionModel(service)).object;
 		const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
-		const pendingRow = () => {
-			const row = viewModel.getItems().find(isRequestVM)!;
-			return { id: row.id, dataId: row.dataId, text: row.messageText };
-		};
 		const remote = { id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'write the alphabet in reverse' };
+		const pendingRow = () => {
+			const row = viewModel.getItems().filter(isRequestVM).find(item => item.id === remote.id);
+			assert.ok(row, `Expected a request row with id ${remote.id}`);
+			return { dataId: row.dataId, text: row.messageText };
+		};
 
 		service.syncPendingRequestsFromRemote(model.sessionResource, [remote]);
 		const original = pendingRow();
@@ -2247,11 +2248,9 @@ suite('ChatService', () => {
 
 		// The list reuses a rendered row while its dataId is unchanged, so every text change must produce a new dataId.
 		assert.deepStrictEqual({
-			ids: [original.id, replaced.id, restored.id],
 			texts: [original.text, replaced.text, restored.text],
 			distinctDataIds: new Set([original.dataId, replaced.dataId, restored.dataId]).size,
 		}, {
-			ids: ['remote-1', 'remote-1', 'remote-1'],
 			texts: ['write the alphabet in reverse', 'write a to u', 'write the alphabet in reverse'],
 			distinctDataIds: 3,
 		});
