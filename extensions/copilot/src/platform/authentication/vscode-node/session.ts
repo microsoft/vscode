@@ -3,28 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { authentication, AuthenticationGetSessionOptions, AuthenticationSession } from 'vscode';
+import { authentication, AuthenticationDefaultScopesRequest, AuthenticationGetSessionOptions, AuthenticationSession } from 'vscode';
 import { mixin } from '../../../util/vs/base/common/objects';
 import { URI } from '../../../util/vs/base/common/uri';
 import { AuthPermissionMode, AuthProviderId, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
-import { authProviderId, GITHUB_SCOPE_ALIGNED, GITHUB_SCOPE_READ_USER, GITHUB_SCOPE_USER_EMAIL, MinimalModeError } from '../common/authentication';
+import { authProviderId, GITHUB_SCOPE_READ_USER, GITHUB_SCOPE_USER_EMAIL, MinimalModeError } from '../common/authentication';
 import { resolveGitHubSessionUri } from '../common/enterprise';
 
 export const SESSION_LOGIN_MESSAGE = 'You are not signed in to GitHub. Please sign in to use Copilot.';
 
-async function getAuthSession(providerId: AuthProviderId, defaultScopes: string[], getSilentSession: () => Promise<AuthenticationSession | undefined>, options: AuthenticationGetSessionOptions = {}) {
+/**
+ * Asks for the default GitHub scopes that VS Code defines, which are the same scopes that other GitHub extensions
+ * like GitHub Pull Requests use.
+ */
+const GITHUB_DEFAULT_SCOPES_REQUEST: AuthenticationDefaultScopesRequest = { defaultScopes: true };
+
+function getSession(providerId: AuthProviderId, scopesOrRequest: string[] | AuthenticationDefaultScopesRequest, options: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined> {
+	// Each request kind has its own `getSession` overload.
+	return Array.isArray(scopesOrRequest)
+		? authentication.getSession(providerId, scopesOrRequest, options)
+		: authentication.getSession(providerId, scopesOrRequest, options);
+}
+
+async function getAuthSession(providerId: AuthProviderId, scopesOrRequest: string[] | AuthenticationDefaultScopesRequest, getSilentSession: () => Promise<AuthenticationSession | undefined>, options: AuthenticationGetSessionOptions = {}) {
 	const accounts = await authentication.getAccounts(providerId);
 	let session: AuthenticationSession | undefined;
 	if (!accounts.length) {
-		session = await authentication.getSession(providerId, defaultScopes, options);
+		session = await getSession(providerId, scopesOrRequest, options);
 	} else if (options.forceNewSession) {
-		session = await authentication.getSession(providerId, defaultScopes, {
+		session = await getSession(providerId, scopesOrRequest, {
 			...options,
 			forceNewSession: mixin({ learnMore: URI.parse('https://aka.ms/copilotRepoScope') }, options.forceNewSession),
 			clearSessionPreference: true
 		});
 	} else {
-		session = await getSilentSession() ?? await authentication.getSession(providerId, defaultScopes, options);
+		session = await getSilentSession() ?? await getSession(providerId, scopesOrRequest, options);
 	}
 	if (session) {
 		resolveGitHubSessionUri(session, providerId);
@@ -48,7 +61,7 @@ export function getAnyAuthSession(configurationService: IConfigurationService, o
 		async () => {
 			// Ask for aligned scopes first, since that's what we want to use going forward.
 			if (configurationService.getConfig(ConfigKey.Shared.AuthPermissions) !== AuthPermissionMode.Minimal) {
-				const permissive = await authentication.getSession(providerId, GITHUB_SCOPE_ALIGNED, silentOptions);
+				const permissive = await authentication.getSession(providerId, GITHUB_DEFAULT_SCOPES_REQUEST, silentOptions);
 				if (permissive) {
 					return permissive;
 				}
@@ -85,8 +98,8 @@ export function getAlignedSession(configurationService: IConfigurationService, o
 	const providerId = authProviderId(configurationService);
 	return getAuthSession(
 		providerId,
-		GITHUB_SCOPE_ALIGNED,
-		async () => await authentication.getSession(providerId, GITHUB_SCOPE_ALIGNED, { silent: true, account: options.account, authorizationServer: options.authorizationServer }),
+		GITHUB_DEFAULT_SCOPES_REQUEST,
+		async () => await authentication.getSession(providerId, GITHUB_DEFAULT_SCOPES_REQUEST, { silent: true, account: options.account, authorizationServer: options.authorizationServer }),
 		options
 	);
 }

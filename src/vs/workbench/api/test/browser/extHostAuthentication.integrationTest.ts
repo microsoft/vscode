@@ -632,6 +632,51 @@ suite('ExtHostAuthentication', () => {
 			});
 		});
 
+		test('resolves default scopes requests end to end', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			registerProvider('github', provider);
+
+			// Without a session, a passive request asks the user to sign in.
+			const passive = await extHostAuthentication.getSession(extensionDescription, 'github', { defaultScopes: true }, {});
+			const pending = getRequests('github', '2_signInRequests');
+			const created = await extHostAuthentication.getSession(extensionDescription, 'github', { defaultScopes: true, additionalScopes: ['gist'] }, { createIfNone: true });
+			// A session with more scopes than the defaults satisfies the pending request.
+			await mainInstantiationService.get(IAuthenticationExtensionsService).updateNewSessionRequests('github', [created]);
+			const silent = await extHostAuthentication.getSession(extensionDescription, 'github', { defaultScopes: true }, { silent: true });
+			let rejected: string | undefined;
+			try {
+				await extHostAuthentication.getSession(extensionDescription, 'test', { defaultScopes: true }, { silent: true });
+			} catch (error) {
+				rejected = error instanceof Error ? error.message : String(error);
+			}
+
+			assert.deepStrictEqual({
+				passive,
+				pending: pending.length,
+				created: created.scopes,
+				silent: silent?.id,
+				pendingAfterSignIn: getRequests('github', '2_signInRequests'),
+				rejected
+			}, {
+				passive: undefined,
+				pending: 1,
+				created: [...TestProductService.defaultChatAgent.providerScopes[0], 'gist'],
+				silent: created.id,
+				pendingAfterSignIn: [],
+				rejected: `Authentication provider 'test' does not define default scopes.`
+			});
+		});
+
+		test('keeps default scopes requests and scope lists apart', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			registerProvider('github', provider);
+
+			await extHostAuthentication.getSession(extensionDescription, 'github', { defaultScopes: true }, {});
+			await extHostAuthentication.getSession(extensionDescription, 'github', [...TestProductService.defaultChatAgent.providerScopes[0]], {});
+
+			assert.strictEqual(getRequests('github', '2_signInRequests').length, 2);
+		});
+
 		test('rejects incompatible interaction options before calling the provider', async () => {
 			const provider = disposables.add(new ContextAuthProvider());
 			registerProvider('context-provider', provider);

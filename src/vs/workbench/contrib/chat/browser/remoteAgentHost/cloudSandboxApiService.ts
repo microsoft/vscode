@@ -208,9 +208,6 @@ const STALLED_SESSION_GRACE_MS = 60 * 60_000;
 /** HTTP status GitHub answers a rate-limited request with. */
 const HTTP_TOO_MANY_REQUESTS = 429;
 
-/** Fallback scopes when the product does not configure `defaultChatAgent.providerScopes`. */
-const FALLBACK_SCOPES = ['read:user', 'user:email', 'repo', 'workflow'];
-
 /**
  * Mission Control client for cloud sandbox sessions: mints (`connect`) and refreshes (`reconnect`)
  * Web PubSub credentials, reads environment and task records, discovers sandbox-backed sessions,
@@ -1516,40 +1513,23 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		return undefined;
 	}
 
-	/** A GitHub session carrying at least the configured chat provider scopes. */
+	/** The narrowest GitHub session carrying at least the default scopes of the provider. */
 	private async _resolveGitHubSession(): Promise<AuthenticationSession | undefined> {
 		const providerId = this._authenticationProviderId;
-		const scopes = this._productService.defaultChatAgent?.providerScopes?.[0] ?? FALLBACK_SCOPES;
 
-		let exact: readonly AuthenticationSession[];
+		let sessions: readonly AuthenticationSession[];
 		try {
-			exact = await this._authenticationService.getSessions(providerId, [...scopes], undefined, true);
+			// Default scopes sessions are ordered from the fewest extra scopes to the most.
+			sessions = await this._authenticationService.getSessions(providerId, { defaultScopes: true }, undefined, true);
 		} catch (error) {
-			// Throws when the auth provider extension has not registered yet.
+			// Throws when the auth provider extension has not registered yet or the provider has no default scopes.
 			this._logService.warn(`${LOG_PREFIX} getSessions('${providerId}') failed: ${toErrorMessage(error)}`);
 			throw new CloudSandboxAuthenticationRequiredError();
 		}
-		if (exact.length > 0) {
-			return exact[0];
+		if (!sessions.length) {
+			this._logService.warn(`${LOG_PREFIX} No '${providerId}' session with the default scopes`);
 		}
-
-		// Fall back to the narrowest session whose scopes are a superset of what we need.
-		const all = await this._authenticationService.getSessions(providerId, undefined, undefined, true);
-		const required = new Set(scopes);
-		let best: { session: AuthenticationSession; extra: number } | undefined;
-		for (const session of all) {
-			const granted = new Set(session.scopes);
-			if ([...required].every(scope => granted.has(scope))) {
-				const extra = granted.size - required.size;
-				if (!best || extra < best.extra) {
-					best = { session, extra };
-				}
-			}
-		}
-		if (!best) {
-			this._logService.warn(`${LOG_PREFIX} No '${providerId}' session with scopes [${scopes.join(', ')}]`);
-		}
-		return best?.session;
+		return sessions[0];
 	}
 }
 

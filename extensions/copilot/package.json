@@ -124,6 +124,7 @@
     "contribSourceControlInputBoxMenu",
     "authLearnMore",
     "authIssuers",
+    "authDefaultScopes",
     "testObserver",
     "aiTextSearchProvider",
     "chatParticipantPrivate",
