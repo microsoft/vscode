@@ -1712,7 +1712,7 @@ suite('getCopilotAgentSelectionName', () => {
 		};
 		assert.deepStrictEqual([...uris, nativeUri, URI.parse('client-agent:/missing')].map(uri =>
 			getCopilotAgentSelectionName(customizations, uri.toString())),
-		[...uris.map(uri => getSdkCustomAgentName(uri)), 'opaque-native-sdk-id', undefined]);
+			[...uris.map(uri => getSdkCustomAgentName(uri)), 'opaque-native-sdk-id', undefined]);
 	});
 
 	test('keeps plugin and standalone SDK identities stable across cache revisions', () => {
