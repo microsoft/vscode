@@ -116,7 +116,7 @@ export interface ISessionWorktreeCleanupService {
 	refreshPendingCleanup(sessionIds: readonly string[], minimumAgeDays: number, onUpdate?: (worktrees: readonly ISessionWorktree[]) => void, token?: CancellationToken): Promise<readonly ISessionWorktree[]>;
 	cleanupWorktrees(candidates: readonly ISessionWorktreeCleanupCandidate[], onProgress?: (progress: SessionWorktreeCleanupProgress) => void): Promise<boolean>;
 	canForceCleanup(worktree: ISessionWorktree): boolean;
-	forceCleanupWorktree(worktree: ISessionWorktree, onProgress?: (progress: SessionWorktreeCleanupProgress) => void): Promise<boolean>;
+	forceCleanupWorktrees(worktrees: readonly ISessionWorktree[], onProgress?: (progress: SessionWorktreeCleanupProgress) => void): Promise<boolean>;
 }
 
 export class SessionWorktreeCleanupService extends Disposable implements ISessionWorktreeCleanupService {
@@ -661,11 +661,11 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			&& this.sessionsManagementService.canForceWorktreeCleanup?.(worktree.session ?? worktree.unlinkedWorktree) === true;
 	}
 
-	async forceCleanupWorktree(worktree: ISessionWorktree, onProgress?: (progress: SessionWorktreeCleanupProgress) => void): Promise<boolean> {
-		if (!this.canForceCleanup(worktree)) {
+	async forceCleanupWorktrees(worktrees: readonly ISessionWorktree[], onProgress?: (progress: SessionWorktreeCleanupProgress) => void): Promise<boolean> {
+		if (worktrees.some(worktree => !this.canForceCleanup(worktree))) {
 			throw new Error(localize('worktreeCleanup.forceUnavailable', "This worktree cannot be forcibly removed. Refresh its status and check that its host supports forced cleanup."));
 		}
-		return this.cleanupWorktrees([worktree], onProgress, true);
+		return this.cleanupWorktrees(worktrees, onProgress, true);
 	}
 
 	async cleanupWorktrees(selected: readonly ISessionWorktreeCleanupCandidate[], onProgress?: (progress: SessionWorktreeCleanupProgress) => void, force = false): Promise<boolean> {
@@ -677,12 +677,14 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		const worktreeCount = selected.reduce((total, candidate) => total + candidate.worktreeCount, 0);
 		const confirmation = await this.dialogService.confirm({
 			message: force
-				? localize('worktreeCleanup.forceConfirm', "Forcibly remove {0}?", getWorktreeCleanupTitle(selected[0]))
+				? worktreeCount === 1
+					? localize('worktreeCleanup.forceConfirm', "Forcibly remove {0}?", getWorktreeCleanupTitle(selected[0]))
+					: localize('worktreeCleanup.forceConfirmMany', "Forcibly remove {0} worktrees?", worktreeCount)
 				: worktreeCount === 1
 					? localize('worktreeCleanup.confirm.one', "Clean up 1 worktree?")
 					: localize('worktreeCleanup.confirm.many', "Clean up {0} worktrees?", worktreeCount),
 			detail: force
-				? localize('worktreeCleanup.forceDetail', "This permanently deletes the worktree and all uncommitted changes, including ignored and untracked files, without saving them. This cannot be undone. Committed changes, branches, and session history are kept. Worktrees still in use cannot be removed.")
+				? localize('worktreeCleanup.forceDetail', "This permanently deletes the selected worktrees and all uncommitted changes, including ignored and untracked files, without saving them. This cannot be undone. Committed changes, branches, and session history are kept. Worktrees still in use cannot be removed.")
 				: selected.some(candidate => candidate.unlinkedWorktree)
 					? localize('worktreeCleanup.confirm.unlinkedDetail', "Selected sessions will be marked as done. Worktrees with no matching session are removed only if the host verifies they are unused. Uncommitted changes are saved to their branch before removal; branches are kept. Ignored files are deleted. No session history will be created for these worktrees.")
 					: selectedBytes === undefined
