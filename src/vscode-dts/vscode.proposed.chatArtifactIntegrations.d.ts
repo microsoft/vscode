@@ -37,6 +37,21 @@ declare module 'vscode' {
 		readonly enablement?: { readonly enabled: boolean; readonly disabledReason?: string };
 	}
 
+	/** An action on individual details items, such as rerunning a failed check or fixing an issue. */
+	export interface ChatArtifactItemAction {
+		readonly id: string;
+		readonly label: string;
+		readonly icon: ThemeIcon;
+		/**
+		 * Runs the integration's registered action with this ID for the item, with `{ detailsId, itemId }` as the context `input`,
+		 * so the item gets that action's confirmation, run tracking and, for a prompt action, the artifact's chat. The registered
+		 * action must currently be offered in the state's actions and is only enabled while that action is. Being offered, it also
+		 * appears on its own and can run without `input`, for example to apply to all items.
+		 * Without it, choosing the action calls {@link ChatArtifactDetailsModel.runItemAction}.
+		 */
+		readonly actionId?: string;
+	}
+
 	/** Surface-neutral details. Resource links never execute commands. */
 	export interface ChatArtifactDetails {
 		/** Main details supply the full resource title, rather than its compact pill label. */
@@ -49,12 +64,16 @@ declare module 'vscode' {
 		readonly facts?: readonly { readonly id: string; readonly label: string; readonly value: string }[];
 		readonly actions?: readonly string[];
 		readonly automations?: readonly string[];
+		/** Actions that items reference by ID. */
+		readonly itemActions?: readonly ChatArtifactItemAction[];
 		readonly items?: readonly {
 			readonly id: string;
 			readonly icon: ThemeIcon;
 			readonly label: string;
 			readonly description?: string;
 			readonly resource: Uri;
+			/** IDs of the details' {@link ChatArtifactDetails.itemActions itemActions} that currently apply to this item. */
+			readonly actions?: readonly string[];
 		}[];
 		readonly completeness?: 'complete' | 'partial';
 	}
@@ -64,6 +83,12 @@ declare module 'vscode' {
 		readonly onDidChange: Event<void>;
 		/** Present while a partial details model can fetch another page. */
 		loadMore?(token: CancellationToken): ProviderResult<void>;
+		/**
+		 * Runs an item action that has no {@link ChatArtifactItemAction.actionId actionId}, directly and without run tracking or
+		 * activity history. Use it only for effects that are safe to repeat, such as copying a link. Revalidate that the action still
+		 * applies to the item and throw an error with a user-facing message otherwise.
+		 */
+		runItemAction?(itemId: string, actionId: string, token: CancellationToken): ProviderResult<void>;
 	}
 
 	/** A complete presentation snapshot; replacing it and firing onDidChange updates every observing surface. */

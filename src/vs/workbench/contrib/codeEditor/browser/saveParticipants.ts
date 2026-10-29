@@ -8,7 +8,8 @@ import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { createCommandUri } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import * as strings from '../../../../base/common/strings.js';
-import { IActiveCodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { trimTrailingWhitespace } from '../../../../editor/common/commands/trimTrailingWhitespaceCommand.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
@@ -35,12 +36,14 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { ITextFileEditorModel, ITextFileSaveParticipant, ITextFileSaveParticipantContext, ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { getModifiedRanges } from '../../format/browser/formatModified.js';
+import { CustomEditorInput } from '../../customEditor/browser/customEditorInput.js';
 
 export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		// Nothing
 	}
@@ -59,7 +62,15 @@ export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 
 	private doTrimTrailingWhitespace(model: ITextModel, isAutoSaved: boolean, trimInRegexesAndStrings: boolean): void {
 		let prevSelection: Selection[] = [];
-		let cursors: Position[] = [];
+		const cursors: Position[] = [];
+
+		if (isAutoSaved) {
+			const nonCodeEditorCursors = findNonCodeEditorCursors(model, this.editorService);
+			if (!nonCodeEditorCursors) {
+				return;
+			}
+			cursors.push(...nonCodeEditorCursors);
+		}
 
 		const editor = findEditor(model, this.codeEditorService);
 		if (editor) {
@@ -67,7 +78,7 @@ export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 			// Collect active cursors in `cursors` only if `isAutoSaved` to avoid having the cursors jump
 			prevSelection = editor.getSelections();
 			if (isAutoSaved) {
-				cursors = prevSelection.map(s => s.getPosition());
+				cursors.push(...prevSelection.map(s => s.getPosition()));
 				const snippetsRange = SnippetController2.get(editor)?.getSessionEnclosingRange();
 				if (snippetsRange) {
 					for (let lineNumber = snippetsRange.startLineNumber; lineNumber <= snippetsRange.endLineNumber; lineNumber++) {
@@ -102,6 +113,27 @@ function findEditor(model: ITextModel, codeEditorService: ICodeEditorService): I
 	}
 
 	return candidate;
+}
+
+/**
+ * Cursors of the visible editors that show the model but are not code editors, such as custom text editors.
+ * Returns `undefined` if one of them does not report its cursor, so auto save cannot know which lines the user is typing on.
+ */
+function findNonCodeEditorCursors(model: ITextModel, editorService: IEditorService): Position[] | undefined {
+	const cursors: Position[] = [];
+	for (const pane of editorService.visibleEditorPanes) {
+		const control = pane.getControl();
+		if (!isEqual(pane.input.resource, model.uri) || isCodeEditor(control) || isDiffEditor(control)) {
+			continue;
+		}
+		const navigation = pane.input instanceof CustomEditorInput ? pane.input.navigation : undefined;
+		const selection = navigation?.model === model ? navigation.selection : undefined;
+		if (!selection) {
+			return undefined;
+		}
+		cursors.push(new Position(selection.positionLineNumber, selection.positionColumn));
+	}
+	return cursors;
 }
 
 export class FinalNewLineParticipant implements ITextFileSaveParticipant {
@@ -146,7 +178,8 @@ export class TrimFinalNewLinesParticipant implements ITextFileSaveParticipant {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		// Nothing
 	}
@@ -186,6 +219,15 @@ export class TrimFinalNewLinesParticipant implements ITextFileSaveParticipant {
 
 		let prevSelection: Selection[] = [];
 		let cannotTouchLineNumber = 0;
+		if (isAutoSaved) {
+			const nonCodeEditorCursors = findNonCodeEditorCursors(model, this.editorService);
+			if (!nonCodeEditorCursors) {
+				return;
+			}
+			for (const cursor of nonCodeEditorCursors) {
+				cannotTouchLineNumber = Math.max(cannotTouchLineNumber, cursor.lineNumber);
+			}
+		}
 		const editor = findEditor(model, this.codeEditorService);
 		if (editor) {
 			prevSelection = editor.getSelections();
