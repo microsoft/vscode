@@ -91,9 +91,11 @@ import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointServi
 import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from '../shared/persistSessionMetadata.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
-import { applyMcpServerEnablement, applyMcpServerRuntimeStates, buildMcpTopLevelCustomizationId, mergeMcpServerCustomizations, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
+import { applyMcpServerEnablement, applyMcpServerRuntimeStates, buildMcpTopLevelCustomizationId, findDiscoveredPluginMcpServer, getMcpServerCustomizations, mergeMcpServerCustomizations, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
+import { readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
+import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
-import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
+import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { McpServerStatus, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
@@ -3116,6 +3118,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 		await Promise.all(this._allLiveSessions().map(session =>
 			this._queueChat(session.sessionId, session.sessionId, 'reloadPluginEnablement', () => session.reloadPlugins('enablement'))));
+		await this._refreshDiscoveredCustomizations();
 	}
 
 	async installPlugin(request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void> {
@@ -9123,7 +9126,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			session,
 			rootServers,
 		));
-		return rootServers.filter(server => enablement.get(server.id) !== true).map(server => server.name);
+		return [...new Set([
+			...rootServers.filter(server => enablement.get(server.id) !== true).map(server => server.name),
+			...(snapshot.disabledNativeMcpServers ?? []),
+		])];
 	}
 
 	/**
@@ -10604,18 +10610,62 @@ class SessionPluginController extends Disposable {
 			...clientCustomizations.map(item => this._projectForPublish(item.customization)),
 		];
 		const discovered = anchor?.discoveredEntry()?.currentCustomizations() ?? [];
+		const workspaceDefinitions = anchor?.mcpDiscoveryEntry()?.definitions ?? [];
+		const declaredMcpNames = new Set(getMcpServerCustomizations([
+			...result,
+			...workspaceDefinitions.map(definition => definition.customization),
+		]).map(server => server.name));
 		for (const customization of discovered) {
 			if (customization.type === CustomizationType.Plugin && explicitPluginIds.has(customization.id)) {
 				continue;
 			}
+			if (customization.type === CustomizationType.Plugin) {
+				const children = customization.children?.filter(child => child.type !== CustomizationType.McpServer || !declaredMcpNames.has(child.name));
+				if (customization.children?.length && children?.length === 0) {
+					continue;
+				}
+				result.push(this._projectForPublish({ ...customization, children }));
+				continue;
+			}
+			if (customization.type === CustomizationType.McpServer) {
+				if (!declaredMcpNames.has(customization.name)) {
+					result.push(this._projectForPublish({
+						...customization,
+						id: buildMcpTopLevelCustomizationId(COPILOT_CLI_AGENT_PROVIDER_ID, AgentSession.id(this._session), customization.name),
+					}));
+				}
+				continue;
+			}
 			result.push(this._projectForPublish(customization));
 		}
-		for (const definition of anchor?.mcpDiscoveryEntry()?.definitions ?? []) {
+		for (const definition of workspaceDefinitions) {
 			result.push(this._projectForPublish(definition.customization));
 		}
 		result.push(buildCopilotBuiltinAgentsContainer());
+		const hasNativePluginMcp = result.some(customization => customization.type === CustomizationType.Plugin
+			&& customization.children?.some(child => child.type === CustomizationType.McpServer && readCustomizationDiscoveryMeta(child)?.source === 'plugin'));
+		const live = hasNativePluginMcp ? this._topLevelMcpServers() : undefined;
+		const owners = new Map(live?.owners);
+		const nativeLiveServers: McpServerCustomization[] = [];
+		for (const server of live?.customizations ?? []) {
+			if (server.type !== CustomizationType.McpServer) {
+				continue;
+			}
+			const native = findDiscoveredPluginMcpServer(result, server.name, readMcpServerSource(server));
+			if (!native) {
+				continue;
+			}
+			// A confirmed runtime default belongs to both identities of the same SDK declaration.
+			const projected = { ...this._projectForPublish({ ...native.server, id: server.id }), id: native.server.id };
+			result[result.indexOf(native.plugin)] = { ...native.plugin, children: native.plugin.children?.map(child => child === native.server ? projected : child) };
+			nativeLiveServers.push(server);
+			if (!owners.has(server.name)) {
+				owners.set(server.name, native.plugin.uri);
+			}
+		}
+		const merged = mergeMcpServerCustomizations(result, nativeLiveServers);
 		return {
-			...resolveCustomizationEnablement(this._customizationEnablementService, this._session, result, this._clientChildEnablement(), this._clientPlugins()),
+			...resolveCustomizationEnablement(this._customizationEnablementService, this._session, merged, this._clientChildEnablement(), this._clientPlugins(), owners),
 			explicitPluginIds,
 		};
 	}
@@ -10751,6 +10801,21 @@ class SessionPluginController extends Disposable {
 		const desiredByUri = new Map(resolved.customizations.map(customization => [customization.uri, customization]));
 		const desiredById = new Map(resolved.customizations.map(customization => [customization.id, customization]));
 		const mcpEnablement = getSdkMcpServerEnablement(resolved);
+		const disabledNativeMcpServers: string[] = [];
+		for (const customization of resolved.customizations) {
+			for (const server of getMcpServerCustomizations([customization])) {
+				if (readCustomizationDiscoveryMeta(server)?.defaultEnabled === undefined || mcpEnablement.get(server.id) === true) {
+					continue;
+				}
+				const hostDecision = this._customizationEnablementService.resolve(this._session.toString(), {
+					...targetForMcpServer(server, customization.type === CustomizationType.Plugin ? customization.uri : undefined, false),
+					defaultEnabled: undefined,
+				});
+				if (hostDecision.kind === 'pending' || hostDecision.enablement.length > 0 || (customization.type === CustomizationType.Plugin && (customization.enablement?.length ?? 0) > 0)) {
+					disabledNativeMcpServers.push(server.name);
+				}
+			}
+		}
 		const isEnabledForSdk = (customization: Customization) => {
 			const desired = desiredById.get(customization.id) ?? desiredByUri.get(customization.uri) ?? customization;
 			return isCustomizationSdkEligible(resolved, desired) && (desired.type === CustomizationType.Directory ? desired.enabled : isCustomizationEnabled(desired));
@@ -10802,6 +10867,7 @@ class SessionPluginController extends Disposable {
 			instructions: [],
 		} satisfies ICopilotPluginInfo] : [];
 		return {
+			...(disabledNativeMcpServers.length > 0 ? { disabledNativeMcpServers } : {}),
 			plugins: [
 				...workspaceMcp,
 				...host.filter(item => !!item.plugin && isEnabledForSdk(item.customization))
@@ -11059,6 +11125,9 @@ class SessionPluginController extends Disposable {
 	}
 
 	private _desiredEnabled(customization: Customization | ChildCustomization): boolean | undefined {
+		if (customization.type === CustomizationType.Hook && readCustomizationDiscoveryMeta(customization)?.hookType) {
+			return customization.enabled;
+		}
 		const exact = this._getDesiredCustomization(customization.id);
 		if (exact) {
 			return exact.type === CustomizationType.Plugin || exact.type === CustomizationType.McpServer
@@ -11124,7 +11193,7 @@ class SessionPluginController extends Disposable {
 	 * stable.
 	 */
 	private _projectForPublish<T extends Customization>(customization: T): T {
-		return applyMcpServerRuntimeStates(this._applyEnablement(customization), this.mcpServerStates.get());
+		return this._applyEnablement(applyMcpServerRuntimeStates(customization, this.mcpServerStates.get()));
 	}
 }
 

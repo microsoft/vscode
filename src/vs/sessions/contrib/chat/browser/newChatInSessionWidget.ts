@@ -245,17 +245,20 @@ export class NewChatInSessionWidget extends Disposable {
 		}
 		this._chat.set(chat, undefined);
 		const draft = this.viewStateService.getDraft(chat.resource);
-		if (!this._isHarnessSwitchResult(chat) && (previous || draft)) {
+		if (!this._consumeHarnessSwitchResult(chat) && (previous || draft)) {
 			this._newChatInput.setDraft(draft);
 		}
 	}
 
-	private _isHarnessSwitchResult(chat: IChat): boolean {
+	private _consumeHarnessSwitchResult(chat: IChat): boolean {
 		const session = this._session.get();
-		return !!session && this._harnessSwitchTarget !== undefined && getChatHarness(session, chat) === this._harnessSwitchTarget;
+		if (!session || this._harnessSwitchTarget === undefined || getChatHarness(session, chat) !== this._harnessSwitchTarget) {
+			return false;
+		}
+		this._harnessSwitchTarget = undefined;
+		return true;
 	}
 
-	/** Keeps what was typed but not sent, so returning to the chat finds it again. */
 	private _saveDraft(chat: IChat): void {
 		this.viewStateService.setDraft(chat.resource, this._newChatInput.getDraft());
 	}

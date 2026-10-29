@@ -17,7 +17,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
-import { CustomizationEnablementKind, McpAuthRequiredReason, McpServerStatus, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceIconUri, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -244,6 +244,28 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 
 suite('mcpListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shows MCP discovery failures separately from server rows and clears them after recovery', () => {
+		let customizations: readonly Customization[] = [{
+			type: CustomizationType.Directory, id: 'mcp-discovery', uri: 'agent-discovery://copilot/mcp', name: 'MCP servers',
+			contents: CustomizationType.McpServer, children: [], enabled: true, writable: false,
+			load: { kind: CustomizationLoadStatus.Error, message: 'SDK inventory unavailable' },
+		}];
+		const message = DOM.$('p', { role: 'status' });
+		const widget = Object.assign(Object.create(McpListWidget.prototype), {
+			discoveryMessage: message,
+			customizationHarnessService: { activeSessionResource: constObservable(URI.parse('copilotcli:/session')) },
+			agentHostCustomizationService: { getCustomizations: () => customizations },
+		}) as { updateDiscoveryMessage(): void };
+		widget.updateDiscoveryMessage();
+		const failed = { text: message.textContent, display: message.style.display, role: message.getAttribute('role') };
+		customizations = [];
+		widget.updateDiscoveryMessage();
+		assert.deepStrictEqual({ failed, recovered: { text: message.textContent, display: message.style.display } }, {
+			failed: { text: 'MCP server discovery needs attention: SDK inventory unavailable', display: '', role: 'status' },
+			recovered: { text: '', display: 'none' },
+		});
+	});
 
 	test('reveals, selects, and focuses an installed server by ID', () => {
 		const targetEntry = {

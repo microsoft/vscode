@@ -177,6 +177,8 @@ type PostToolUseFailureHookOutput = Exclude<Awaited<ReturnType<NonNullable<Sessi
 
 export interface ICopilotAppliedCustomizations {
 	readonly plugins: readonly ICopilotPluginInfo[];
+	/** Host disable decisions for SDK-native servers; no native definitions are forwarded. */
+	readonly disabledNativeMcpServers?: readonly string[];
 	readonly discoveredAgents: readonly IParsedAgent[];
 	/** SDK-native agents participate in selection, never in custom-agent registration. */
 	readonly nativeAgents?: readonly AgentCustomization[];
@@ -190,6 +192,7 @@ export interface ICopilotAppliedCustomizations {
 export interface IActiveClientSnapshot {
 	readonly tools: readonly ToolDefinition[];
 	readonly plugins: readonly ICopilotPluginInfo[];
+	readonly disabledNativeMcpServers?: readonly string[];
 	readonly discoveredAgents: readonly IParsedAgent[];
 	readonly nativeAgents?: readonly AgentCustomization[];
 	/** Primary/home instructions load automatically; only secondary roots need forwarding (https://github.com/github/copilot-agent-runtime/issues/28228). */
