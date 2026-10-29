@@ -5,7 +5,6 @@
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { Event } from '../../../../base/common/event.js';
 import { dirname, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -539,28 +538,46 @@ suite('NativeExtensionsScanerService Test', () => {
 			});
 		});
 
-		test('a user cache hit validates the cache by scanning again', async () => {
+		test('a user cache hit validates the cache by scanning again', async function () {
+			this.timeout(CACHE_VALIDATION_DELAY + 10_000);
 			await runWithFakedTimers({ useFakeTimers: false }, async () => {
 				const extensionLocation = await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
 				const profileLocation = instantiationService.get(IUserDataProfilesService).defaultProfile.extensionsResource;
 				const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
-				const cacheInvalidated = Event.toPromise(Event.filter(testObject.onDidChangeCache, type => type === ExtensionType.User));
-				// The first scan creates the profile resource, so scan twice to cache a stable input
-				await testObject.scanUserExtensions({ profileLocation, language: 'en', useCache: true });
-				await testObject.scanUserExtensions({ profileLocation, language: 'en', useCache: true });
-
-				// Leaves the mtime of the scanned profile resource untouched, so the next scan still hits the cache
-				await instantiationService.get(IFileService).writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '2.0.0' }))));
-				await testObject.scanUserExtensions({ profileLocation, language: 'en', useCache: true });
-				const validationTimeout = timeout(CACHE_VALIDATION_DELAY);
+				let resolveCacheInvalidated!: () => void;
+				const cacheInvalidated = new Promise<void>(resolve => {
+					resolveCacheInvalidated = resolve;
+				});
+				const cacheListener = testObject.onDidChangeCache(type => {
+					if (type === ExtensionType.User) {
+						// Event resolves this promise only after the scanner invalidates its cache.
+						resolveCacheInvalidated();
+					}
+				});
 				try {
-					await Promise.race([cacheInvalidated, validationTimeout]);
-				} finally {
-					cacheInvalidated.cancel();
-					validationTimeout.cancel();
-				}
+					// The first scan creates the profile resource, so scan twice to cache a stable input
+					await testObject.scanUserExtensions({ profileLocation, language: 'en', useCache: true });
+					await testObject.scanUserExtensions({ profileLocation, language: 'en', useCache: true });
 
-				assert.deepStrictEqual(await cacheFileNames(), []);
+					// Leaves the mtime of the scanned profile resource untouched, so the next scan still hits the cache
+					await instantiationService.get(IFileService).writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '2.0.0' }))));
+					await testObject.scanUserExtensions({ profileLocation, language: 'en', useCache: true });
+					let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+					const cacheInvalidationTimeout = new Promise<never>((_resolve, reject) => {
+						timeoutHandle = setTimeout(() => reject(new Error('User extension cache was not invalidated')), CACHE_VALIDATION_DELAY + 5000);
+					});
+					try {
+						await Promise.race([cacheInvalidated, cacheInvalidationTimeout]);
+					} finally {
+						if (timeoutHandle) {
+							clearTimeout(timeoutHandle);
+						}
+					}
+
+					assert.deepStrictEqual(await cacheFileNames(), []);
+				} finally {
+					cacheListener.dispose();
+				}
 			});
 		});
 

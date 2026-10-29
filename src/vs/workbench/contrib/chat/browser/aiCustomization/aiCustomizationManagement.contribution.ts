@@ -807,7 +807,7 @@ registerAction2(class extends Action2 {
 
 //#region Actions
 
-class AICustomizationManagementActionsContribution extends Disposable implements IWorkbenchContribution {
+export class AICustomizationManagementActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.aiCustomizationManagementActions';
 	private readonly chatCustomizationExtensionNotInstalledContext: IContextKey<boolean>;
