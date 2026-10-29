@@ -109,9 +109,10 @@ function hasIncompatiblePluginDiscovery(server: McpServerCustomization | undefin
 export function mergeMcpServerCustomizations(declarations: readonly Customization[], liveServers: readonly Customization[]): Customization[] {
 	const byId = new Map(declarations.map(customization => [customization.id, customization]));
 	for (const live of liveServers) {
-		const declaration = byId.get(live.id) ?? (live.type === CustomizationType.McpServer
-			? findDiscoveredPluginMcpServer(declarations, live.name, readMcpServerSource(live), readMcpServerSourcePlugin(live))?.server
-			: undefined);
+		const native = !byId.has(live.id) && live.type === CustomizationType.McpServer
+			? findDiscoveredPluginMcpServer(declarations, live.name, readMcpServerSource(live), readMcpServerSourcePlugin(live))
+			: undefined;
+		const declaration = byId.get(live.id) ?? native?.server;
 		byId.set(live.id, declaration?.type === CustomizationType.McpServer && live.type === CustomizationType.McpServer
 			? {
 				...live,
@@ -121,7 +122,7 @@ export function mergeMcpServerCustomizations(declarations: readonly Customizatio
 				channel: live.channel,
 				mcpApp: live.mcpApp ?? declaration.mcpApp,
 				enablement: declaration.enablement,
-				_meta: { ...live._meta, ...declaration._meta },
+				_meta: withMcpServerSourcePluginMeta({ ...live._meta, ...declaration._meta }, readMcpServerSourcePlugin(declaration) ?? readMcpServerSourcePlugin(live) ?? native?.plugin.name),
 			}
 			: declaration ?? live);
 	}
@@ -659,7 +660,7 @@ export class McpCustomizationController extends Disposable {
 			withMcpServerControllingSettingMeta(
 				withMcpServerSourcePluginMeta(
 					withMcpServerDisplayNameMeta(withMcpServerSourceMeta(discovered ? { ...existingMeta, ...discovered._meta } : existingMeta, provenance.source ?? readMcpServerSource(discovered)), displayName),
-					provenance.sourcePlugin ?? readMcpServerSourcePlugin(discovered),
+					provenance.sourcePlugin ?? readMcpServerSourcePlugin(discovered) ?? native?.plugin.name,
 				),
 				this._options.controllingSetting?.(serverName, provenance),
 			),

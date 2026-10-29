@@ -389,6 +389,37 @@ suite('McpCustomizationController', () => {
 		}, { previousOwner: 'A', newOwner: 'B', uri: 'file:///plugins/B/.mcp.json', defaultEnabled: false, enabled: false });
 	});
 
+	for (const mergeFirst of [false, true]) {
+		test(`fallback plugin identity preserves a confirmed default after ${mergeFirst ? 'publication merge' : 'controller adoption'}`, () => {
+			const child: McpServerCustomization = {
+				type: CustomizationType.McpServer, id: 'child', uri: 'file:///plugin/.mcp.json', name: 'search', state: stopped(),
+				_meta: withCustomizationDiscoveryMeta(undefined, { source: 'plugin', pluginId: 'opaque-plugin', defaultEnabled: true }),
+			};
+			const plugin: PluginCustomization = { type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///plugin', name: 'Plugin', children: [child] };
+			const provenance = new Map<string, IMcpServerProvenance>();
+			const { controller, setCustomizations } = harness(store, {
+				provenance,
+				resolveEnablement: server => [{ kind: CustomizationEnablementKind.Global, enabled: readCustomizationDiscoveryMeta(server)?.defaultEnabled ?? true }],
+			});
+			store.add(controller);
+			controller.applyOne(server('search', ready()));
+			const live = controller.topLevelCustomizations();
+			const initial = mergeFirst ? mergeMcpServerCustomizations([plugin], live) : [plugin, ...live];
+			setCustomizations(initial);
+			controller.applyOne({ name: 'search', state: ready(), defaultEnabled: false });
+			const adopted = controller.topLevelCustomizations()[0];
+			setCustomizations([plugin, adopted]);
+			provenance.set('search', { source: 'plugin', sourcePlugin: 'Plugin' });
+			controller.refreshProvenance();
+			const updated = controller.topLevelCustomizations()[0];
+			assert.deepStrictEqual({
+				mergedIdentity: mergeFirst ? readMcpServerSourcePlugin(initial.find(item => item.type === CustomizationType.McpServer)) : 'Plugin',
+				adoptedIdentity: readMcpServerSourcePlugin(adopted), updatedIdentity: readMcpServerSourcePlugin(updated),
+				defaultEnabled: readCustomizationDiscoveryMeta(updated)?.defaultEnabled, enabled: isCustomizationEnabled(updated),
+			}, { mergedIdentity: 'Plugin', adoptedIdentity: 'Plugin', updatedIdentity: 'Plugin', defaultEnabled: false, enabled: false });
+		});
+	}
+
 	test('empty inventory dispatches nothing', () => {
 		const { controller, actions } = harness(store);
 		store.add(controller);

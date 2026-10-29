@@ -167,6 +167,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	 * Replayed after either session load or a working-directory event, while resolution reports `pending` rather than no decision.
 	 */
 	private readonly _pendingReplacements = new Map<string, IPendingReplacement>();
+	private readonly _pendingMcpOwnership = new Map<string, { target: ICustomizationEnablementTarget; owningPluginSource: URI }>();
 	private readonly _worktree: IAgentHostWorktreePendingState;
 
 	constructor(
@@ -212,7 +213,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 				// reads the current pending state, and any later clear is observed.
 				return;
 			}
-			this._notifyDecisionChanged([session]);
+			this._notifyWorkingDirectoryChanged(session);
 		}));
 	}
 
@@ -315,6 +316,21 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		if (target.type !== CustomizationType.McpServer || target.owningPluginSource || target.isClientBundled) {
 			throw new Error('Only an unowned host MCP server can adopt plugin ownership');
 		}
+		const key = `${session}\u0000${this._persistentKey(target)}`;
+		const resolution = this.resolve(session, target);
+		if (resolution.kind === 'pending') {
+			this._pendingMcpOwnership.set(key, { target, owningPluginSource });
+			return;
+		}
+		this._pendingMcpOwnership.delete(key);
+		const affectedSessions = this._adoptMcpServerOwnership(session, target, owningPluginSource, resolution.workingDirectory);
+		for (const affectedSession of this._applyPendingReplacements(session)) {
+			affectedSessions.add(affectedSession);
+		}
+		this._notifyDecisionChanged(affectedSessions);
+	}
+
+	private _adoptMcpServerOwnership(session: string, target: ICustomizationEnablementTarget, owningPluginSource: URI, workingDirectory: Exclude<WorkingDirectoryState, { kind: 'pending' }>): Set<string> {
 		const ownedTarget = { ...target, owningPluginSource };
 		const from = this._persistentKey(target);
 		const to = this._persistentKey(ownedTarget);
@@ -334,25 +350,45 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 			changed = true;
 		};
 		move(this._persistent.global, 'global');
-		for (const [directory, decisions] of Object.entries(this._persistent.workingDirectories ?? {})) {
-			move(decisions, 'workspace', directory);
+		if (workingDirectory.kind === 'directory') {
+			const directory = workingDirectory.uri.toString();
+			move(this._persistent.workingDirectories?.[directory], 'workspace', directory);
 		}
 		const pendingKey = `${session}\u0000${from}`;
 		const pending = this._pendingReplacements.get(pendingKey);
 		if (pending) {
 			const ownedKey = `${session}\u0000${to}`;
-			if (!this._pendingReplacements.has(ownedKey)) {
-				this._pendingReplacements.set(ownedKey, { ...pending, target: { ...pending.target, owningPluginSource } });
+			const destination = this._pendingReplacements.get(ownedKey);
+			const resolution = this.resolve(session, ownedTarget);
+			if (resolution.kind !== 'resolved') {
+				throw new Error('MCP ownership adoption requires resolved enablement');
 			}
+			let enablement = destination?.enablement ?? resolution.enablement;
+			for (const scope of [CustomizationEnablementKind.Global, CustomizationEnablementKind.Workspace, CustomizationEnablementKind.Session]) {
+				const persistedDestination = scope === CustomizationEnablementKind.Global ? before.global
+					: scope === CustomizationEnablementKind.Workspace && workingDirectory.kind === 'directory' ? before.workspace.get(workingDirectory.uri.toString())
+						: undefined;
+				// Session storage already uses the retained ID, so its pending writes remain newer than the shared stored decision.
+				if (persistedDestination !== undefined || destination?.enablement !== undefined || destination?.scopedReplacements.some(entry => entry.scope === scope)) {
+					continue;
+				}
+				const scoped = pending.scopedReplacements.find(entry => entry.scope === scope);
+				if (scoped) {
+					enablement = this._replacementEnablement(enablement, workingDirectory, scoped);
+				} else if (pending.enablement !== undefined) {
+					enablement = withCustomizationEnablement(enablement, scope, pending.enablement.find(entry => entry.kind === scope));
+				}
+			}
+			this._pendingReplacements.set(ownedKey, { target: destination?.target ?? ownedTarget, enablement, scopedReplacements: destination?.scopedReplacements ?? [] });
 			this._pendingReplacements.delete(pendingKey);
 		}
 		if (changed) {
 			this._persist();
-			this._notifyDecisionChanged([
-				...this._getAffectedSessions(session, ownedTarget, before),
-				...this._getAffectedSessions(session, target, beforeUnowned),
-			]);
 		}
+		return new Set([
+			...this._getAffectedSessions(session, ownedTarget, before),
+			...this._getAffectedSessions(session, target, beforeUnowned),
+		]);
 	}
 
 	setEnablement(session: string, target: ICustomizationEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): CustomizationEnablementResolution {
@@ -393,6 +429,20 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 
 	private _applyPendingReplacements(session: string): Set<string> {
 		const affectedSessions = new Set<string>();
+		// Adopt before replay: otherwise a queued unowned write can consume the wrong workspace or overwrite an owned decision.
+		for (const [key, adoption] of this._pendingMcpOwnership) {
+			if (!key.startsWith(`${session}\u0000`)) {
+				continue;
+			}
+			const resolution = this.resolve(session, adoption.target);
+			if (resolution.kind === 'pending') {
+				continue;
+			}
+			this._pendingMcpOwnership.delete(key);
+			for (const affectedSession of this._adoptMcpServerOwnership(session, adoption.target, adoption.owningPluginSource, resolution.workingDirectory)) {
+				affectedSessions.add(affectedSession);
+			}
+		}
 		for (const [key, replacement] of this._pendingReplacements) {
 			if (!key.startsWith(`${session}\u0000`)) {
 				continue;
