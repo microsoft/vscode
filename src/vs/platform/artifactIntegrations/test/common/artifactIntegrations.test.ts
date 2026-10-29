@@ -1262,6 +1262,31 @@ suite('Artifact Integrations', () => {
 		});
 	}));
 
+	test('prompt-supplied details replace the linked details in the presentation and are not part of the prompt', () => run(async store => {
+		const promptDetails = {
+			title: 'Failing', availability: { kind: 'available' as const }, links: [{ kind: 'action' as const, actionId: 'act' }],
+			items: [{ id: 'failed', label: 'Failed', icon: { id: 'error' }, resource: artifact.resource }],
+			completeness: 'complete' as const,
+		};
+		const f = fixture(store, { id: 'act', label: 'Analyse', iconId: 'graph', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: 'Analyse', details: [promptDetails, { title: 'Invalid' } as unknown as ArtifactDetails] } }) });
+		const model = store.add(await f.service.acquireArtifact('session', artifact.id)).object;
+		const acquired: string[] = [];
+		f.bindings[0].acquireDetails = (detailsId = 'main') => {
+			acquired.push(detailsId);
+			return { details: f.bindings[0].details, dispose: () => { } };
+		};
+		const requested = await model.invoke('test', 'act', 'invoking-chat', 'manual');
+		await waitForState(f.service.ledger.state, state => state.runs.some(run => run.id === requested.id && run.state === 'submitted'));
+		assert.deepStrictEqual({ prompt: f.submitted[0].prompt, details: f.submitted[0].presentation?.details, acquired }, {
+			prompt: { text: 'Analyse' },
+			details: [
+				{ ...promptDetails, links: [] },
+				{ title: 'Analyse', availability: { kind: 'error', reason: 'The integration supplied invalid details for this action.' }, links: [], items: [], completeness: 'partial' },
+			],
+			acquired: [],
+		});
+	}));
+
 	for (const source of ['manual', 'automation'] as const) {
 		test(`retains an asynchronously loaded chat while admitting ${source} prompts`, () => run(async store => {
 			const action: ArtifactAction = { id: 'act', label: 'Analyse', iconId: 'search', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: 'Analyse' } }) };

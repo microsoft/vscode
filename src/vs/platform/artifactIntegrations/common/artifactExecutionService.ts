@@ -332,7 +332,7 @@ export class ArtifactExecutionService extends Disposable {
 				if (!prepared.value.text.trim()) {
 					throw new Error('An artifact action prepared an empty prompt');
 				}
-				await this.updateRun(runId, { prompt: prepared.value, presentation: this.capturePresentation(binding, action, run) });
+				await this.updateRun(runId, { prompt: { text: prepared.value.text }, presentation: this.capturePresentation(binding, action, run, prepared.value.details) });
 				if (chatObservation?.state.get().busy) {
 					await this.updateRun(runId, { state: 'queued' });
 					return;
@@ -661,8 +661,39 @@ export class ArtifactExecutionService extends Disposable {
 		return { session: binding.session, chat: run.chat, requestId: run.id, prompt: run.prompt, presentation: run.presentation, initiator: getArtifactRunInitiator(run) };
 	}
 
-	private capturePresentation(binding: IArtifactExecutionBinding, action: ArtifactAction, run: ArtifactRun): ArtifactRequestPresentation {
+	private capturePresentation(binding: IArtifactExecutionBinding, action: ArtifactAction, run: ArtifactRun, promptDetails: readonly ArtifactDetails[] | undefined): ArtifactRequestPresentation {
 		const view = binding.presentation.get();
+		const details = promptDetails ? this.capturePromptDetails(action, promptDetails) : this.captureLinkedDetails(binding, action, view);
+		return {
+			version: 1,
+			integrationLabel: binding.integrationLabel,
+			source: run.source,
+			action: { label: action.label, iconId: action.iconId },
+			artifact: {
+				resource: binding.artifact.resource,
+				label: view.main?.label ?? binding.artifact.label,
+				description: view.main?.description,
+				icon: view.main?.icon ? { ...view.main.icon } : undefined,
+			},
+			details,
+		};
+	}
+
+	private capturePromptDetails(action: ArtifactAction, promptDetails: readonly ArtifactDetails[]): ArtifactDetails[] {
+		return promptDetails.map(snapshot => {
+			if (isArtifactDetails(snapshot)) {
+				return deepClone({ ...snapshot, links: [] });
+			}
+			this.logService.error('[ArtifactIntegrations] The integration supplied invalid artifact prompt details');
+			return {
+				title: action.label,
+				availability: { kind: 'error', reason: localize('artifactInvalidPromptDetails', "The integration supplied invalid details for this action.") },
+				links: [], items: [], completeness: 'partial',
+			};
+		});
+	}
+
+	private captureLinkedDetails(binding: IArtifactExecutionBinding, action: ArtifactAction, view: ArtifactContributionView): ArtifactDetails[] {
 		const details: ArtifactDetails[] = [];
 		const summaries = [...view.main ? [view.main] : [], ...view.sections];
 		const parts = new Map([...summaries, ...(view.lists ?? []).filter(list => !summaries.some(part => part.detailsId === list.detailsId)).map(list => ({ ...list, description: undefined }))].map(part => [part.detailsId, part]));
@@ -689,19 +720,7 @@ export class ArtifactExecutionService extends Disposable {
 				});
 			}
 		}
-		return {
-			version: 1,
-			integrationLabel: binding.integrationLabel,
-			source: run.source,
-			action: { label: action.label, iconId: action.iconId },
-			artifact: {
-				resource: binding.artifact.resource,
-				label: view.main?.label ?? binding.artifact.label,
-				description: view.main?.description,
-				icon: view.main?.icon ? { ...view.main.icon } : undefined,
-			},
-			details,
-		};
+		return details;
 	}
 
 	private context(binding: IArtifactExecutionBinding, run: ArtifactRun): IArtifactActionContext {

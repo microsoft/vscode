@@ -329,6 +329,11 @@ export type ArtifactReconciliation =
 
 export interface ArtifactPrompt {
 	readonly text: string;
+	/**
+	 * The details this prompt is about, such as only the failing checks it asks to fix. When present, the request
+	 * presents these instead of the details linked to the action. They are not part of the model-facing prompt.
+	 */
+	readonly details?: readonly ArtifactDetails[];
 }
 
 /** A point-in-time description of an artifact action, independent of its model-facing prompt. */
