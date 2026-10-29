@@ -33,7 +33,7 @@ import { SessionChangesEditorInput } from '../../../changes/browser/sessionChang
 import { IChat, IGitHubInfo, SessionStatus, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { commentableRightLines, mapCurrentLineToPullRequestLine, mapCurrentRangeToPullRequestRange, ICodeReviewService, CodeReviewService, PRReviewStateKind } from '../../browser/codeReviewService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ICreateNewChatInSessionOptions, IActiveSession, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
@@ -779,8 +779,8 @@ suite('Code Review Contributions', () => {
 			override async sendNewChatRequest(): Promise<void> {
 				throw new Error('Cannot start a session that is no longer pending');
 			}
-			override async createNewChatInSession(): Promise<IChat | undefined> {
-				calls.push('createNewChatInSession');
+			override async createNewChatInSession(_session: ISession, options?: ICreateNewChatInSessionOptions): Promise<IChat | undefined> {
+				calls.push(`createNewChatInSession:forceNew=${options?.forceNew}`);
 				return newChat;
 			}
 			override async sendRequest(_session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
@@ -799,7 +799,7 @@ suite('Code Review Contributions', () => {
 
 		await testInstantiationService.invokeFunction((accessor: ServicesAccessor) => command.handler(accessor, sessionResource));
 
-		assert.deepStrictEqual(calls, ['createNewChatInSession', 'sendRequest:chat:new:/code-review']);
+		assert.deepStrictEqual(calls, ['createNewChatInSession:forceNew=true', 'sendRequest:chat:new:/code-review']);
 	});
 });
 

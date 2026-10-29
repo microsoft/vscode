@@ -87,7 +87,8 @@ class RunSessionCodeReviewAction extends Action2 {
 				await sessionManagementService.sendNewChatRequest(session, { query: CODE_REVIEW_QUERY });
 			} else {
 				// sendNewChatRequest only starts pending sessions; an existing session gets a new chat instead.
-				const chat = await sessionManagementService.createNewChatInSession(session);
+				// forceNew keeps any unsent draft chat (and its composed input) untouched.
+				const chat = await sessionManagementService.createNewChatInSession(session, { forceNew: true });
 				if (chat) {
 					await sessionManagementService.sendRequest(session, chat, { query: CODE_REVIEW_QUERY });
 				}
