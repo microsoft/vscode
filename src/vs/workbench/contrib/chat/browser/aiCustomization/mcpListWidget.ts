@@ -60,7 +60,7 @@ import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWo
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { CustomizationMcpServerCompatibilityKind, getCustomizationDisabledLabel, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
-import { CustomizationEnablementKind, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IMcpServerCustomizationMigrationCandidate } from '../../common/promptSyntax/service/customizationMigrationService.js';
@@ -1941,6 +1941,7 @@ export class McpListWidget extends Disposable {
 	readonly onDidRequestBrowse = this._onDidRequestBrowse.event;
 
 	private sectionTitleHeader!: HTMLElement;
+	private discoveryMessage!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
 	private browseCustomizationsButton!: Button;
 	private searchAndButtonContainer!: HTMLElement;
@@ -2147,6 +2148,8 @@ export class McpListWidget extends Disposable {
 				this.openerService.open(URI.parse(href));
 			}
 		}));
+		this.discoveryMessage = DOM.append(this.sectionTitleHeader, $('p.section-title-description.mcp-discovery-message', { role: 'status' }));
+		this.discoveryMessage.style.display = 'none';
 
 		// Re-layout when the header height changes so the list's allotted
 		// height stays in sync with the actual on-screen header size. Only
@@ -2333,6 +2336,7 @@ export class McpListWidget extends Disposable {
 			this.refresh();
 		}));
 		this._register(this.agentHostCustomizationService.onDidChangeCustomizations(() => {
+			this.updateDiscoveryMessage();
 			const previousMembership = this.getInstalledEntryMembershipSignature();
 			this.filterServers(false);
 			if (!hasSameMcpMembership(previousMembership, this.getInstalledEntryMembershipSignature())) {
@@ -2345,10 +2349,24 @@ export class McpListWidget extends Disposable {
 	}
 
 	private async refresh(): Promise<void> {
+		this.updateDiscoveryMessage();
 		this.filterServers();
 		if (!this.isGalleryDiscoveryEnabled() && shouldLoadMcpGallerySnapshot(this.visible, this.searchQuery, this.gallerySnapshotServers.length, this.gallerySnapshotFailed, this.gallerySnapshotLoading, this.mcpAccessEnabled)) {
 			await this.queryGallerySnapshot();
 		}
+	}
+
+	private updateDiscoveryMessage(): void {
+		const session = this.customizationHarnessService.activeSessionResource.get();
+		const messages = this.agentHostCustomizationService.getCustomizations(session).flatMap(customization =>
+			customization.type === CustomizationType.Directory && customization.contents === CustomizationType.McpServer
+				&& (customization.load?.kind === CustomizationLoadStatus.Error || customization.load?.kind === CustomizationLoadStatus.Degraded)
+				? [customization.load.message] : []);
+		const message = messages.length ? localize('mcpDiscoveryFailed', "MCP server discovery needs attention: {0}", messages.join('\n')) : '';
+		if (this.discoveryMessage.textContent !== message) {
+			this.discoveryMessage.textContent = message;
+		}
+		this.discoveryMessage.style.display = message ? '' : 'none';
 	}
 
 	private async refreshConnectors(): Promise<void> {

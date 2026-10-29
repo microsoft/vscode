@@ -329,6 +329,11 @@ export type ArtifactReconciliation =
 
 export interface ArtifactPrompt {
 	readonly text: string;
+	/**
+	 * The details this prompt is about, such as only the failing checks it asks to fix. When present, the request
+	 * presents these instead of the details linked to the action. They are not part of the model-facing prompt.
+	 */
+	readonly details?: readonly ArtifactDetails[];
 }
 
 /** A point-in-time description of an artifact action, independent of its model-facing prompt. */
@@ -408,6 +413,11 @@ export interface ArtifactContributionSnapshot {
 	readonly label: string;
 	/** The integration's name for several of its artifacts, shown when they are grouped. */
 	readonly groupLabel?: string;
+	/**
+	 * The integration's canonical identity for the bound resource, shared by aliases such as a pull request's
+	 * overview and checks pages. Absent until the artifact is bound to a resource.
+	 */
+	readonly resourceKey?: string;
 	readonly view: ArtifactContributionView;
 	readonly actions: readonly ArtifactActionDescriptor[];
 	readonly options: readonly ArtifactAutomationOption[];

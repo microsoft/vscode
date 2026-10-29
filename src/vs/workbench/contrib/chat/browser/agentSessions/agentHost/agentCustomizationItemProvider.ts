@@ -13,7 +13,7 @@ import { autorun, type IObservable } from '../../../../../../base/common/observa
 import { URI } from '../../../../../../base/common/uri.js';
 import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, type CustomizationDisabledReason } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
-import { isAgentBuiltinCustomizationUri } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { hasReadableCustomizationContent, isAgentBuiltinCustomizationUri } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider, ICustomizationSourceFolder, type IAgentFileToolInventoryEntry } from '../../../common/customizationHarnessService.js';
@@ -21,8 +21,10 @@ import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/c
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { readAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
+import { readCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
+import { getAgentHookMetadata } from '../../../common/promptSyntax/hookTypes.js';
 import { AgentCustomizationContentExpander } from './agentCustomizationContentExpander.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { type ISyncedCustomizationOrigin } from './syncedCustomizationBundler.js';
@@ -143,6 +145,15 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 
 	private toDirectoryItems(customization: DirectoryCustomization, source: AICustomizationSource, isRemote: boolean, workingDirectories: readonly string[]): ICustomizationItem[] {
 		const items: ICustomizationItem[] = [];
+		if (!customization.children?.length && customization.contents === CustomizationType.Hook
+			&& !hasReadableCustomizationContent(URI.parse(customization.uri))
+			&& (customization.load?.kind === CustomizationLoadStatus.Error || customization.load?.kind === CustomizationLoadStatus.Degraded)) {
+			items.push({
+				itemKey: customization.id, uri: this.toRemoteUri(customization.uri), type: PromptsType.hook,
+				name: customization.name, source, description: customization.load.message,
+				extensionId: undefined, pluginUri: undefined,
+			});
+		}
 		for (const child of customization.children ?? []) {
 			const item = this.toDirectoryChildItem(child, getDirectoryChildSource(workingDirectories, child.uri, source), isRemote);
 			if (item) {
@@ -157,6 +168,12 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		if (!type) {
 			return undefined;
 		}
+		const discovery = readCustomizationDiscoveryMeta(child);
+		if (discovery) {
+			source = discovery.source === 'plugin' ? AICustomizationSources.plugin
+				: discovery.source === 'repository' ? AICustomizationSources.local : AICustomizationSources.user;
+		}
+		const hookMetadata = discovery?.hookType ? getAgentHookMetadata(Target.GitHubCopilot, discovery.hookType) : undefined;
 		let userInvocable: boolean | undefined = undefined;
 		if (child.type === CustomizationType.Agent) {
 			userInvocable = readAgentCustomizationMeta(child).userInvocable !== false;
@@ -185,8 +202,13 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			itemKey: child.id,
 			uri: this.toRemoteUri(child.uri),
 			type,
-			name: child.name,
-			description: getChildDescription(child),
+			name: hookMetadata?.label ?? child.name,
+			description: discovery?.hookType
+				? discovery.sourceLabel
+					? localize('discoveredHookSource', "{0} — Source file unavailable", discovery.sourceLabel)
+					: localize('discoveredHookSourceUnavailable', "Source file unavailable")
+				: getChildDescription(child),
+			enabled: child.type === CustomizationType.McpServer ? isCustomizationEnabled(child) : child.enabled,
 			source,
 			groupKey,
 			badge,
@@ -371,7 +393,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 					...child,
 					status: toStatusString(sessionCustomization.load),
 					statusMessage: toStatusMessage(sessionCustomization.load),
-					enabled: sessionCustomization.enabled,
+					enabled: sessionCustomization.enabled && child.enabled !== false,
 				});
 			}
 		}

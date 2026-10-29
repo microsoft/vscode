@@ -24,12 +24,39 @@ export function getUncommittedChangesMessage(suggestion: IWorktreeSuggestion): s
 		: localize('worktreeSuggestion.folderChangesPlural', "This folder has {0} uncommitted files.", uncommittedChanges);
 }
 
+/** The inline hint, split around the number of uncommitted files, which it renders as a link to the changes. */
+export interface IInlineHintMessage {
+	/** The text before the number of uncommitted files, e.g. "main has ". */
+	readonly before: string;
+	/** The number of uncommitted files, e.g. "3 uncommitted files", or empty when a translation leaves it out. */
+	readonly files: string;
+	/** The text after the number of uncommitted files, e.g. ". Worktrees allow agents to run on a separate copy of the files." */
+	readonly after: string;
+}
+
+/** Stands for the number of uncommitted files while the inline hint is localized. Git rejects control characters in branch names. */
+const UNCOMMITTED_FILES_PLACEHOLDER = '\u0000';
+
 /**
  * The inline hint, short enough to fit on one line beside its actions, e.g. "main has 3 uncommitted files.
  * Worktrees allow agents to run on a separate copy of the files." A copy is easier to picture than a worktree.
  */
-export function getInlineHintMessage(suggestion: IWorktreeSuggestion): string {
-	return localize('worktreeSuggestion.inlineHintMessage', "{0} Worktrees allow agents to run on a separate copy of the files.", getUncommittedChangesMessage(suggestion));
+export function getInlineHintMessage(suggestion: IWorktreeSuggestion): IInlineHintMessage {
+	const message = suggestion.branchName
+		? localize({ key: 'worktreeSuggestion.inlineHint.branch', comment: ['{0} is a branch name. {1} is the number of uncommitted files, such as "3 uncommitted files", which links to the changes.'] }, "{0} has {1}. Worktrees allow agents to run on a separate copy of the files.", suggestion.branchName, UNCOMMITTED_FILES_PLACEHOLDER)
+		: localize({ key: 'worktreeSuggestion.inlineHint.folder', comment: ['{0} is the number of uncommitted files, such as "3 uncommitted files", which links to the changes.'] }, "This folder has {0}. Worktrees allow agents to run on a separate copy of the files.", UNCOMMITTED_FILES_PLACEHOLDER);
+	const index = message.indexOf(UNCOMMITTED_FILES_PLACEHOLDER);
+	if (index < 0) {
+		return { before: message, files: '', after: '' };
+	}
+	const files = suggestion.uncommittedChanges === 1
+		? localize('worktreeSuggestion.inlineHint.fileSingular', "1 uncommitted file")
+		: localize('worktreeSuggestion.inlineHint.filesPlural', "{0} uncommitted files", suggestion.uncommittedChanges);
+	return { before: message.slice(0, index), files, after: message.slice(index + UNCOMMITTED_FILES_PLACEHOLDER.length) };
+}
+
+export function getShowChangesLabel(): string {
+	return localize('worktreeSuggestion.showChanges', "Show Changes");
 }
 
 export function getUseWorktreeLabel(): string {
@@ -105,11 +132,6 @@ export function getChangedFileAriaDescription(change: ISessionFileChange, label:
 		: localize('worktreeSuggestion.changedFileAriaAtRoot', "{0} {1}", insertions, deletions);
 }
 
-/** The explanation above the list of uncommitted files. */
-export function getUncommittedChangesListHeader(suggestion: IWorktreeSuggestion): string {
-	return localize('worktreeSuggestion.changedFiles.header', "{0} On Branch, the agent works alongside them, so its changes can mix with yours.", getUncommittedChangesMessage(suggestion));
-}
-
 /** Describes the number of uncommitted files shown after Branch, which the isolation picker lists. */
 export function getUncommittedFilesDescription(suggestion: IWorktreeSuggestion): string {
 	return localize('worktreeSuggestion.changedFiles.description', "{0} On Branch, the agent works alongside them.", getUncommittedChangesMessage(suggestion));
@@ -120,5 +142,5 @@ export function getUncommittedFilesDescription(suggestion: IWorktreeSuggestion):
  * every arm of the experiment, so reading it never exposes someone to a single presentation.
  */
 export function getWorktreeSuggestionAccessibilityHelp(): string {
-	return localize('worktreeSuggestion.copyHelp', "When Branch is selected for a new session in a folder with uncommitted changes, the Agents window may suggest New Worktree, in which the agent works on a separate copy of the files, so it does not change your uncommitted files. Depending on the suggestion, it appears as a spotlight on the isolation picker when you send the request, whose Send in Worktree button switches to New Worktree before sending, and whose Send button or Escape sends on Branch; as a hint below the input once you start typing, whose Use Worktree button opens the isolation picker, whose close button hides it for good, and which Escape hides for the session; or as the number of uncommitted files after Branch in the isolation picker, which lists them when opened. Use Tab or Shift+Tab to reach the actions.");
+	return localize('worktreeSuggestion.copyHelp', "When Branch is selected for a new session in a folder with uncommitted changes, the Agents window may suggest New Worktree, in which the agent works on a separate copy of the files, so it does not change your uncommitted files. Depending on the suggestion, it appears as a spotlight on the isolation picker when you send the request, whose Send in Worktree button switches to New Worktree before sending, and whose Send button or Escape sends on Branch; as a hint below the input once you start typing, whose number of uncommitted files is a link that shows the changes, whose Use Worktree button opens the isolation picker, whose close button hides it for good, and which Escape hides for the session; or as the number of uncommitted files after Branch in the isolation picker, which lists them when opened. Use Tab or Shift+Tab to reach the actions.");
 }
