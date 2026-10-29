@@ -430,7 +430,7 @@ export interface ICloudSandboxApiService {
 	getCachedEnvironments(): readonly IMissionControlEnvironment[] | undefined;
 
 	/** Enumerate sandbox sessions, or refresh only the tasks named by feed notifications. */
-	listSessions(token: CancellationToken, options?: { readonly incremental?: boolean; readonly taskIds?: readonly string[] }): Promise<ICloudSandboxDiscoveryResult>;
+	listSessions(token: CancellationToken, options?: ICloudSandboxDiscoveryOptions): Promise<ICloudSandboxDiscoveryResult>;
 
 	/** Reserve or renew an unsubmitted task for the draft's repository or default compute scope. */
 	reserveSession(request: ICloudSandboxReserveSessionRequest, token: CancellationToken): Promise<ICloudSandboxReservedSession>;
@@ -461,6 +461,15 @@ export interface ICloudSandboxApiService {
 
 	/** Drop recorded data and cancel reads for an account/feature lifetime or a removed task. */
 	clearSessionHistory(taskId?: string): void;
+}
+
+export const cloudSandboxDiscoveryTriggers = ['startup', 'poll', 'focus', 'selection', 'accountChange', 'configurationChange', 'manual', 'feedChange', 'feedRenewal', 'feedReconnect'] as const;
+export type CloudSandboxDiscoveryTrigger = typeof cloudSandboxDiscoveryTriggers[number];
+
+export interface ICloudSandboxDiscoveryOptions {
+	readonly incremental?: boolean;
+	readonly taskIds?: readonly string[];
+	readonly trigger?: CloudSandboxDiscoveryTrigger;
 }
 
 /** Only a complete scan permits removing absent sessions; other results may name explicit removals. */

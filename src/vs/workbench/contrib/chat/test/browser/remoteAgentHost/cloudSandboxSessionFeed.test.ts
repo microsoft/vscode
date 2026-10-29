@@ -13,7 +13,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/virtualSc
 import { CloudSandboxRequestError, ICloudSandboxApiService, ICloudSandboxSessionFeedConnection } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { CloudSandboxSessionFeed } from '../../../browser/remoteAgentHost/cloudSandboxSessionFeed.js';
+import { CloudSandboxSessionFeed, type CloudSandboxSessionFeedRefresh } from '../../../browser/remoteAgentHost/cloudSandboxSessionFeed.js';
 
 class TestSocket {
 	onmessage: OmitThisParameter<NonNullable<WebSocket['onmessage']>> | null = null;
@@ -61,6 +61,7 @@ function createFeed(store: Pick<DisposableStore, 'add'>, options?: {
 	const instantiationService = store.add(new TestInstantiationService());
 	const sockets: TestSocket[] = [];
 	const invalidations: boolean[] = [];
+	const reasons: CloudSandboxSessionFeedRefresh['reason'][] = [];
 	const taskBatches: (readonly string[] | undefined)[] = [];
 	const warnings: string[] = [];
 	const debugs: string[] = [];
@@ -75,9 +76,10 @@ function createFeed(store: Pick<DisposableStore, 'add'>, options?: {
 		override warn(message: string) { warnings.push(message); }
 		override debug(message: string) { debugs.push(message); }
 	}());
-	const feed = store.add(instantiationService.createInstance(CloudSandboxSessionFeed, (incremental: boolean, taskIds?: readonly string[]) => {
-		invalidations.push(incremental);
-		taskBatches.push(taskIds);
+	const feed = store.add(instantiationService.createInstance(CloudSandboxSessionFeed, (refresh: CloudSandboxSessionFeedRefresh) => {
+		invalidations.push(refresh.reason !== 'reconnect');
+		reasons.push(refresh.reason);
+		taskBatches.push(refresh.reason === 'change' ? refresh.taskIds : undefined);
 		options?.onInvalidate?.();
 	}, (url: string, protocol: string) => {
 		assert.deepStrictEqual({ url, protocol }, { url: connection().url, protocol: connection().subprotocol });
@@ -91,7 +93,7 @@ function createFeed(store: Pick<DisposableStore, 'add'>, options?: {
 		}
 		return socket;
 	}));
-	return { feed, sockets, requests, invalidations, taskBatches, warnings, debugs };
+	return { feed, sockets, requests, invalidations, reasons, taskBatches, warnings, debugs };
 }
 
 suite('CloudSandboxSessionFeed', () => {
@@ -185,7 +187,7 @@ suite('CloudSandboxSessionFeed', () => {
 		}));
 	}
 
-	test('opens a replacement before closing the previous socket and refreshes the full list', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('overlapping renewal requests incremental inventory catch-up rather than an empty targeted refresh', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const h = createFeed(store, { autoReady: false });
 		const initial = h.feed.start();
 		await timeout(0);
@@ -195,8 +197,47 @@ suite('CloudSandboxSessionFeed', () => {
 		const overlap = h.sockets.map(socket => socket.closed);
 		h.sockets[1].receive({ type: 'system', event: 'connected' });
 		await timeout(501);
-		assert.deepStrictEqual({ overlap, closed: h.sockets.map(socket => socket.closed), refreshes: h.invalidations, taskBatches: h.taskBatches }, {
-			overlap: [false, false], closed: [true, false], refreshes: [false], taskBatches: [undefined],
+		assert.deepStrictEqual({ overlap, closed: h.sockets.map(socket => socket.closed), reasons: h.reasons, taskBatches: h.taskBatches }, {
+			overlap: [false, false], closed: [true, false], reasons: ['renewal'], taskBatches: [undefined],
+		});
+	}));
+
+	test('repeated seamless renewals never request full recovery', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const h = createFeed(store);
+		await h.feed.start();
+		await timeout(24 * 60_000 + 501);
+		assert.deepStrictEqual({ requests: h.requests.length, reasons: h.reasons, taskBatches: h.taskBatches }, {
+			requests: 4, reasons: ['renewal', 'renewal', 'renewal'], taskBatches: [undefined, undefined, undefined],
+		});
+	}));
+
+	test('a connection gap during renewal still requests full recovery', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const h = createFeed(store, { autoReady: false });
+		const initial = h.feed.start();
+		await timeout(0);
+		h.sockets[0].receive({ type: 'system', event: 'connected' });
+		await initial;
+		await timeout(8 * 60_000 + 1);
+		h.sockets[0].disconnect();
+		h.sockets[1].receive({ type: 'system', event: 'connected' });
+		await timeout(501);
+		assert.deepStrictEqual({ reasons: h.reasons, connected: h.feed.connected }, {
+			reasons: ['reconnect'], connected: true,
+		});
+	}));
+
+	test('renewal preserves coalesced task hints for targeted removal checks', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const h = createFeed(store, { autoReady: false });
+		const initial = h.feed.start();
+		await timeout(0);
+		h.sockets[0].receive({ type: 'system', event: 'connected' });
+		await initial;
+		await timeout(8 * 60_000 + 1);
+		h.sockets[0].receive(changed('removed'));
+		h.sockets[1].receive({ type: 'system', event: 'connected' });
+		await timeout(501);
+		assert.deepStrictEqual({ reasons: h.reasons, taskBatches: h.taskBatches }, {
+			reasons: ['renewal', 'change'], taskBatches: [undefined, ['removed']],
 		});
 	}));
 
