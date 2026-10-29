@@ -149,13 +149,15 @@ export class CopilotSessionSandbox extends Disposable {
 				if (!context.sandboxPathGrantSaved) {
 					throw new Error(localize('copilot.permission.grant.unsupportedClient', "This client did not save the sandbox path grant. Update VS Code and retry."));
 				}
-				if (token.isCancellationRequested || !requestId || !grant || this._requests.get(toolCallId) !== requestId) {
+				// The SDK session stops being available once it starts disconnecting.
+				const session = this._options.getSession();
+				if (token.isCancellationRequested || !requestId || !grant || this._requests.get(toolCallId) !== requestId || !session) {
 					throw new Error(localize('copilot.permission.grant.expired', "The sandbox permission request is no longer pending."));
 				}
 				const attributed = attributePermissionResult({ kind: 'approve-once' }, context.decisionSource);
 				// The grant changes the runtime's live policy outside `options.update`.
 				this._appliedConfig = undefined;
-				const result = await this._options.getSession()!.rpc.sandbox.grantPathForRequest({
+				const result = await session.rpc.sandbox.grantPathForRequest({
 					requestId,
 					...(attributed.kind === 'attributed' ? { decisionContext: attributed.decisionContext } : {}),
 				});

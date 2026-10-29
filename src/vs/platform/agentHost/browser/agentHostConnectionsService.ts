@@ -21,16 +21,7 @@ import { IRemoteAgentHostService } from '../common/remoteAgentHostService.js';
 import { getAgentHostOperatingSystem } from '../common/agentHostOperatingSystem.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { extUri, isEqual } from '../../../base/common/resources.js';
-
-const SUBAGENT_CHAT_RESOURCE_QUERY_PARAM = 'subagentChatResource';
-
-function stripSubagentChatSelector(resource: URI): URI {
-	if (!resource.query) {
-		return resource.with({ fragment: '' });
-	}
-	const query = resource.query.split('&').filter(part => !part.startsWith(`${SUBAGENT_CHAT_RESOURCE_QUERY_PARAM}=`)).join('&');
-	return resource.with({ query, fragment: '' });
-}
+import { getAgentHostSessionResource } from '../common/agentHostSessionIdentity.js';
 
 /**
  * Default {@link IAgentHostConnectionsService} that composes the ambient
@@ -269,7 +260,7 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 
 	private _normalizeSessionResource(sessionResource: URI): URI {
 		const withoutFragment = sessionResource.with({ fragment: '' });
-		return this._backendSessions.has(withoutFragment) ? withoutFragment : stripSubagentChatSelector(sessionResource);
+		return this._backendSessions.has(withoutFragment) ? withoutFragment : getAgentHostSessionResource(sessionResource);
 	}
 
 	resolveSessionResourceIdentity(sessionResource: URI): IAgentHostSessionIdentity | undefined {

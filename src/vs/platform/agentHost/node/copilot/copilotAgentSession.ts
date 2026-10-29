@@ -2175,7 +2175,8 @@ export class CopilotAgentSession extends Disposable {
 			getConfigWriteTarget: () => this._configWriteTarget(),
 			platform: options.platform ?? process.platform,
 			getSession: () => !this._store.isDisposed && this._wrapper?.lifecycleState === 'active' ? this._wrapper.session : undefined,
-			isSessionClosed: session => this._store.isDisposed || (session ? this._wrapper?.session === session && this._wrapper.lifecycleState !== 'active' : this._wrapper !== undefined && this._wrapper.lifecycleState !== 'active'),
+			// Only the session of a closing wrapper counts as closed, so a replacement SDK session from a relaunch is still configured.
+			isSessionClosed: session => this._store.isDisposed || (session !== undefined && this._wrapper?.session === session && this._wrapper.lifecycleState !== 'active'),
 			getHostSupport: () => this._launchPlan.client.rpc.sandbox.getHostSupport(),
 			getCertificateStatus: config => options.sandboxCertificate.getStatus(this._launchPlan.client.rpc.sandbox.proxyCa, config),
 			installCertificate: (getConfig, scopeId) => options.sandboxCertificate.install(this._launchPlan.client.rpc.sandbox.proxyCa, getConfig, scopeId),
@@ -4716,7 +4717,6 @@ export class CopilotAgentSession extends Disposable {
 			await wrapper.disconnect().catch(() => { /* best-effort teardown */ });
 		}
 		this._wrapperDisposables.clear();
-		this._wrapper = undefined!;
 		this._lastAppliedShellInitScripts = undefined;
 		this._registeredShellInitScriptPath = undefined;
 	}

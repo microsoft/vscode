@@ -14292,7 +14292,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// The registry is backfilled by that same pass, so re-read it before
 			// concluding the session is unknown.
 			const knownToRegistry = (sessionKnownToRegistry || (await this._listRegisteredSessions()).some(entry => entry.session.toString() === sessionStr))
-				&& (!usesStandardSessionUris(agent.id) || (!session.authority && !session.query && !session.fragment));
+				&& (!usesStandardSessionUris(agent.id) || AgentSession.isCanonical(session));
 			if (!meta) {
 				// A session still marked provisional never materialized, so its
 				// provider never created a backing for it to describe — but only a
@@ -15560,7 +15560,7 @@ export class AgentService extends Disposable implements IAgentService {
 				chatRef.dispose();
 			}
 		}
-		if (session.authority || session.query || session.fragment) {
+		if (!AgentSession.isCanonical(session)) {
 			return undefined;
 		}
 		const ref = await this._sessionDataService.tryOpenDatabase?.(session);
@@ -15578,7 +15578,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (await this._sessionRegistry.isSuppressed(session)) {
 			return true;
 		}
-		if (!agent || !usesStandardSessionUris(agent.id) || (registeredSession && !session.authority && !session.query && !session.fragment)) {
+		if (!agent || !usesStandardSessionUris(agent.id) || (registeredSession && AgentSession.isCanonical(session))) {
 			return false;
 		}
 		const sessionId = AgentSession.id(session);

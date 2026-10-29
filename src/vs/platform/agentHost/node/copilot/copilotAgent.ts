@@ -5249,7 +5249,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined> {
 		const resolvedContext = resolveAgentChatContext(context, chat);
 		const ownerSession = resolvedContext.owner.get();
-		if (ownerSession.authority || ownerSession.query || ownerSession.fragment) {
+		if (!AgentSession.isCanonical(ownerSession)) {
 			return undefined;
 		}
 		// A chat stored in a session's database takes that session's SDK id, deferred-execution marker and stored
@@ -6401,7 +6401,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Adopts a legacy extension-host Copilot CLI session in place when it is eligible on disk. */
 	async ensureChatAdopted(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
 		const session = resolveAgentChatContext(context, chat).owner.get();
-		if (session.authority || session.query || session.fragment) {
+		if (!AgentSession.isCanonical(session)) {
 			return { adopted: false, eligible: false, reason: 'notLegacyChat' };
 		}
 		const sessionId = AgentSession.id(session);
