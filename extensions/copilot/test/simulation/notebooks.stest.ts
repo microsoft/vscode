@@ -222,35 +222,6 @@ ssuite({ title: 'notebook', subtitle: 'edit', location: 'inline' }, () => {
 		});
 	});
 
-	// import matplotlib.pyplot as plt
-
-	// months = range(1, 13)
-	// nyc_temp_2000 = [20.0, 30.5, 80.1, 80.3, 56.5, 99.6]
-	// plt.plot(months, nyc_temp_2000)
-	// stest({ description: '/fix Matplotlib: x and y must have same first dimension', language: 'python' }, (testingServiceCollection) => {
-	// 	return runScenario(accessor, {
-	// 		files: [fromFixture('notebook/errors.ipynb')],
-	// 		queries: [
-	// 			{
-	// 				file: 'errors.ipynb',
-	// 				activeCell: 6,
-	// 				selection: [4, 0, 4, 0],
-	// 				query: '/fix ValueError: x and y must have same first dimension, but have shapes (12,) and (6,)',
-	// 				expectedIntent: 'edit',
-	// 				validate: async (outcome, workspace, accessor) => {
-	// 					assert.strictEqual(outcome.type, 'inlineEdit');
-	// 					assert.strictEqual(outcome.appliedEdits.length, 1);
-	// 					const edit = outcome.appliedEdits[0];
-	// 					assert.ok(edit.newText.includes('global'));
-	// 				}
-	// 			}
-	// 		]
-	// 	});
-	// });
-
-
-
-
 	// NameError: name 'df' is not defined -> should suggest rerun cell
 });
 

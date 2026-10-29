@@ -224,13 +224,6 @@
     "score": 0.25
   },
   {
-    "name": "Debug tools list [context] - typescript",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 0.25
-  },
-  {
     "name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 0)",
     "contentFilterCount": 0,
     "passCount": 10,
