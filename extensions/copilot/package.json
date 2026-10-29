@@ -1990,10 +1990,6 @@
                     "type": "boolean",
                     "description": "Whether the model supports tool calling"
                   },
-                  "toolSearch": {
-                    "type": "boolean",
-                    "markdownDescription": "Whether the model supports client-executed tool search (deferring tools behind a tool-search tool). When `true`, tool search is enabled for this model even when its id is not recognized by the built-in heuristic. When `false`, tool search is disabled even when the heuristic recognizes the id. When unset, the built-in model-id heuristic decides."
-                  },
                   "vision": {
                     "type": "boolean",
                     "description": "Whether the model supports vision capabilities"
