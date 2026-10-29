@@ -5,6 +5,7 @@
 
 import { isThenable, SequencerByKey } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IArcTextEdit } from '../../../../base/common/editArcTracker.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -21,7 +22,7 @@ import { IAgentHostFileEditCoordinator } from '../agentHostFileEditCoordinator.j
 import { extractAiChunks } from './editChunkExtractor.js';
 import { IEditSurvivalReporterFactory } from './editSurvivalReporter.js';
 import { IEditArcReporterService } from './editArcReporter.js';
-import { createArcTextEditFromDiff, extractArcTextEdit } from './arcToolEdit.js';
+import { createArcTextEditFromDiff } from './arcToolEdit.js';
 
 /** A file's content at some point, and whether the file existed then. */
 interface IFileSnapshot {
@@ -278,12 +279,16 @@ export class FileEditTracker extends Disposable {
 		let removedLines: number | undefined;
 		let changes: readonly IOffsetEdit[] = [];
 		let diffHitTimeout = false;
+		let initialEdit: IArcTextEdit | undefined;
 		try {
 			const counts = await this._diffComputeService.computeDiffCounts(beforeText, afterText);
 			addedLines = counts.added;
 			removedLines = isCreate ? 0 : counts.removed;
 			changes = counts.changes;
 			diffHitTimeout = counts.hitTimeout ?? false;
+			if (!diffHitTimeout) {
+				initialEdit = createArcTextEditFromDiff(changes, beforeText, afterText);
+			}
 		} catch (err) {
 			this._logService.warn(`[FileEditTracker] Failed to compute diff counts: ${filePath}`, err);
 		}
@@ -363,29 +368,31 @@ export class FileEditTracker extends Disposable {
 			this._logService.warn(`[FileEditTracker] Failed to record edit attribution for ${filePath}: ${error}`);
 		}
 
-		const initialEdit = extractArcTextEdit(toolName, toolInput, beforeText, afterText)
-			?? createArcTextEditFromDiff(changes, beforeText, afterText);
-		this._editArcReporterService.reportEdit({
-			clientContext,
-			sessionUri: this._sessionUri,
-			ownerSessionUri: this._owner(),
-			isSubagent,
-			...(this._provider ? { provider: this._provider } : {}),
-			turnId,
-			toolCallId,
-			filePath,
-			beforeText,
-			afterText,
-			initialEdit,
-			modelId,
-			...(autoTier !== undefined ? { autoTier } : {}),
-			...(fusionModel !== undefined ? { fusionModel } : {}),
-			toolName,
-			mode: edit.mode,
-			completionTime,
-		}).catch(error => {
-			this._logService.warn(`[FileEditTracker] Failed to start ARC telemetry: ${filePath}`, error);
-		});
+		if (initialEdit) {
+			this._editArcReporterService.reportEdit({
+				clientContext,
+				sessionUri: this._sessionUri,
+				ownerSessionUri: this._owner(),
+				isSubagent,
+				...(this._provider ? { provider: this._provider } : {}),
+				turnId,
+				toolCallId,
+				filePath,
+				beforeText,
+				afterText,
+				initialEdit,
+				modelId,
+				...(autoTier !== undefined ? { autoTier } : {}),
+				...(fusionModel !== undefined ? { fusionModel } : {}),
+				toolName,
+				mode: edit.mode,
+				completionTime,
+			}).catch(error => {
+				this._logService.warn(`[FileEditTracker] Failed to start ARC telemetry: ${filePath}`, error);
+			});
+		} else {
+			this._logService.warn(`[FileEditTracker] Skipping ARC telemetry: no precise diff for ${filePath}`);
+		}
 
 		if (!marker) {
 			return content;
