@@ -3,30 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.custom-view-node[data-view-id="sessions.inboxNotifications.view"] .custom-view-header-band {
-	display: flex;
-	align-items: baseline;
-	flex-wrap: wrap;
-	gap: var(--vscode-spacing-size80);
-	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size240);
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
-}
-
-.custom-view-node[data-view-id="sessions.inboxNotifications.view"] .custom-view-header-title {
-	font-size: var(--vscode-fontSize-heading2);
-}
-
-.custom-view-node[data-view-id="sessions.inboxNotifications.view"] .custom-view-header-description {
-	margin: 0;
-	opacity: 1;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label1);
-}
-
-.custom-view-content.inbox-notifications-view {
-	padding: 0;
-}
-
 .inbox-notifications-view {
 	display: flex;
 	flex-direction: column;
@@ -442,6 +418,7 @@
 	flex-wrap: wrap;
 }
 
+.inbox-notifications-toolbar > .monaco-button,
 .inbox-notifications-sort-buttons .monaco-button {
 	width: auto;
 	flex: 0 0 auto;

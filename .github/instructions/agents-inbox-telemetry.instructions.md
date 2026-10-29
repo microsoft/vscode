@@ -8,13 +8,11 @@ The Sessions Inbox emits a family of `agents/inbox*` telemetry events describing
 
 This document is inbox-centric: it explains how inbox events link and sequence within the whole
 Agents window, how to reconstruct a trajectory from either the **local telemetry log** or **Kusto**,
-and documents the bounded ontologies used by the restricted classification and item-lifecycle events. Non-inbox `agents/*` events are cataloged only briefly, for linking; see
+and documents the bounded outcomes used by item-lifecycle events. Non-inbox `agents/*` events are cataloged only briefly, for linking; see
 their own sources for full field lists.
 
 > All events follow the GDPR patterns in [telemetry.instructions.md](./telemetry.instructions.md):
-> bounded `SystemMetaData` unless a field is explicitly a restricted
-> `EndUserPseudonymizedInformation` label. No titles, message content, file paths, or repo names are
-> ever emitted.
+> bounded `SystemMetaData`. No titles, message content, inferred content labels, file paths, or repo names are emitted. Content-classification model calls and telemetry are not part of the Inbox; adding them requires privacy review of their purpose, classification, and handling.
 
 ## How events link and sequence
 
@@ -53,7 +51,7 @@ without changing that shared primitive (and getting privacy/security sign‑off)
 | Event | Emitted when | Key fields |
 |---|---|---|
 | `agents/windowLayout`, `agents/windowSessionStart`, `agents/firstTimeWindowOpen` | Window lifecycle | layout / session context |
-| `agents/sessionOpen` | A session is opened | `source` (`notification` = from the inbox), `outcome`, durations |
+| `agents/sessionOpen` | A session is opened | `source` (`inbox` = from the Inbox, `notification` = from an OS notification), `outcome`, durations |
 | `agents/requestSent`, `agents/session*`, `agents/*PullRequest`, `agents/commit*`, `agents/feedback*` | Session / PR / feedback actions | see [sessionsTelemetry.contribution.ts](../../src/vs/sessions/contrib/sessions/browser/sessionsTelemetry.contribution.ts) |
 
 ### Sessions Inbox
@@ -65,7 +63,6 @@ without changing that shared primitive (and getting privacy/security sign‑off)
 | `agents/inboxInteraction` | A semantic action (open, run action, answer, dismiss…) | Rich context: `priorityTier`, `answerKind`/`answerCharCount`, `msSinceItemFirstSeen`, `msSinceSelection`, `result`, `actionId`. |
 | `agents/inboxViewState` | View open/close, filter, sort, dwell | |
 | `agents/inboxPreviewGenerated`, `agents/inboxDetailSummaryGenerated` | Utility‑model preview / evidence pack generated on demand | Bounded outcome only. |
-| `agents/inboxContentClassification` | On‑demand item classification (**restricted**) | Bounded content‑derived labels — see [ontology](#restricted-content-classification-ontology). |
 | `agents/inboxItemLifecycle` | An item enters or leaves the inbox | `outcome` (see [lifecycle](#item-lifecycle-outcomes)), `msInInbox`. |
 
 Correlate a raw click to its semantic action with the shared `actionId`
@@ -82,13 +79,6 @@ local **Telemetry** output channel — the same local‑logging path used by inl
 2. Each line is `<eventName> <json-payload>`; the payload includes the common properties above.
 3. Filter for `agents/` and order by the embedded `common.sequence` (or `timestamp`).
 4. Use `common.isAgentsWindow` and `common.sequence` to order events, and `agentSessionId` where available to correlate session-scoped events. The log describes Inbox focus, impressions, clicks, interactions, and lifecycle, not a complete cross-surface focus trajectory.
-
-> **Restricted events are in the local log too.** There is no client‑side split: `_log` in
-> [telemetryService.ts](../../src/vs/platform/telemetry/common/telemetryService.ts) forwards every
-> event to *all* appenders, and `TelemetryLogAppender` logs them unfiltered. So
-> `agents/inboxContentClassification` (whose labels are declared `EndUserPseudonymizedInformation`)
-> appears in the local Telemetry log just like any other event — the "restricted" designation only
-> governs downstream (cloud) storage and access, not local recording.
 
 ## Reconstructing from Kusto
 
@@ -115,68 +105,6 @@ RawEventsVW
 ```
 
 To follow one item/session across the trajectory, add `| where Sid == "<hash>"`.
-
-### Which pipeline the restricted classification uses (and why not the Copilot enhanced table)
-
-`agents/inboxContentClassification` is emitted with core `ITelemetryService.publicLog2`, and its
-content‑derived label fields are declared `EndUserPseudonymizedInformation`. Two things follow from
-how the core pipeline actually works:
-
-- **No client‑side table routing.** `_log` in
-  [telemetryService.ts](../../src/vs/platform/telemetry/common/telemetryService.ts) forwards every
-  event to *all* appenders, and [1dsAppender.ts](../../src/vs/platform/telemetry/common/1dsAppender.ts)
-  sends to a single instrumentation key. The `EndUserPseudonymizedInformation` classification is a
-  compile‑time/GDPR **annotation** (for privacy review and downstream governance) — it does **not**
-  redirect the event to a different iKey/table in the VS Code pipeline.
-- **This is deliberately different from NES / Copilot restricted telemetry.** NES and inline
-  suggestions ship *raw prompts and model outputs*, so they use Copilot's separate **enhanced**
-  telemetry sender (a distinct instrumentation key → the dedicated `copilot_v0_restricted_copilot_event`
-  hydro table; see [agentHostRestrictedTelemetry.ts](../../src/vs/platform/agentHost/node/agentHostRestrictedTelemetry.ts)
-  and the Copilot extension's `ghTelemetrySender`). That path also does **not** mirror its payloads
-  into the local Telemetry channel — it only writes status traces.
-
-The inbox classification intentionally does **not** use that Copilot path: it emits **bounded enum
-labels, never raw content**, so the `EndUserPseudonymizedInformation` annotation on `publicLog2` is
-the appropriate, conservative treatment, and it keeps the event **locally inspectable** in the
-standard Telemetry channel (see above) — which the Copilot enhanced path would sacrifice. If a
-dedicated restricted table is ever required for this data, it would need the Copilot enhanced sender
-plus an explicit local‑log mirror; that is out of scope here. Join the labels back to the rest of the
-trajectory on `agentSessionId`.
-
-## Restricted content‑classification ontology
-
-`agents/inboxContentClassification` (ontology version **2**) is produced on demand through the shared utility-model service from the item title, transcript, and any pending request. The configured model may be remote, so generation can send that context to its provider. The telemetry event contains only the bounded labels below, never the raw input or model response. Each axis is coerced to `unknown` (or `none`) if the model
-returns anything out of range. The axes are intentionally **split** (request kind vs. subject; risk
-vs. reversibility vs. environment) so a meta‑router can reason about who should handle an item and
-whether an agent may act autonomously.
-
-> **It is a separate, on-demand event, not attached to lifecycle events.** Classification requires Usage-level telemetry and
-> runs at most once per item, only when the user opens the detail pane of a **completed** or
-> **needs‑input** item (it piggybacks on the evidence‑pack generation and is model‑gated), so items
-> the user never opens are never classified and most lifecycle events have no classification.
-> Correlate a classification to that item's `agents/inboxItemLifecycle` / `agents/inboxInteraction` events by `agentSessionId` + `notificationKind` and `common.sequence`.
-> The labels are deliberately **not** embedded in those events — that would both force a model call
-> for every item (fan‑out) and leak restricted labels into ordinary `SystemMetaData` events.
-
-| Field | Restricted? | Values |
-|---|---|---|
-| `workType` | yes | bugfix, feature, refactor, test, validation, docs, review, audit, config, dependency, migration, performance, diagnosis, analysis, planning, research, prototype, release, incident, chore, other, unknown |
-| `domain` | yes | frontend, backend, api, database, pipeline, analytics, mobile, desktop, cli, integration, identity, security, observability, operations, infra, network, runtime, build, ci, scm, devtools, test, docs, ml, ai, embedded, accessibility, localization, compliance, other, unknown |
-| `requestKind` | yes | approve, choose, clarify, provideInput, provideEvidence, review, performAction, acknowledge, other, none, unknown |
-| `decisionSubject` | yes | design, requirements, scope, priority, tradeoff, ownership, access, resource, risk, policy, change, merge, release, target, conflict, other, none, unknown |
-| `riskLevel` | yes | none, low, med, high, critical, unknown |
-| `reversibility` | yes | reversible, partial, irreversible, unknown |
-| `environment` | yes | local, isolated, shared, production, external, unknown |
-| `evidenceState` | no (meta) | absent, sparse, sufficient, conflicting, unknown |
-| `confidence` | no (meta) | low, med, high, unknown |
-
-Plus meta: `ontologyVersion`, `inputScope` (`sessionContext`), `provenance` (`utilityModelInference`),
-`notificationKind`, `agentSessionId`, `providerId`.
-
-The ontology and derivation live in
-[inboxNotificationsService.ts](../../src/vs/sessions/contrib/inboxOne/browser/inboxNotificationsService.ts)
-(`CLASSIFICATION_*`, `parseContentClassification`). Bump `CLASSIFICATION_ONTOLOGY_VERSION` whenever
-the label sets change.
 
 ## Item lifecycle outcomes
 

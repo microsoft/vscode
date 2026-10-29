@@ -13,6 +13,7 @@ import { IChat, ISession } from '../../../services/sessions/common/session.js';
 
 export interface IInboxCanvasHost extends IDisposable {
 	layout(): void;
+	setVisible(visible: boolean): void;
 	createAccessibleProvider(): AccessibleContentProvider;
 }
 

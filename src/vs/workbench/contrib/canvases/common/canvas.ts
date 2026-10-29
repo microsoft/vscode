@@ -120,7 +120,7 @@ export interface ICanvasWorkingSetState {
 export interface ICanvasWorkingSets {
 	readonly state: IObservable<ICanvasWorkingSetState>;
 	/** Keeps a live canvas alive while a presentation-only layout change hides the editor area. */
-	registerEditorToRetain(input: CanvasInput): IDisposable;
+	registerEditorToRetain(input: EditorInput): IDisposable;
 	/** Prevents reopening a canvas that a restore could not reconstruct from revealing a hidden editor area. */
 	suppressEditorPartAutoVisibility(): IDisposable;
 }

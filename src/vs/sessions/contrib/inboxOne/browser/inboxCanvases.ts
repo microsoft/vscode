@@ -25,6 +25,7 @@ export class InboxCanvases extends Disposable {
 	private readonly selected = observableValue<URI | undefined>(this, undefined);
 	private readonly pendingInstance = observableValue<string | undefined>(this, undefined);
 	private readonly host = this._register(new MutableDisposable<IInboxCanvasHost>());
+	private visible = true;
 
 	constructor(
 		session: ISession,
@@ -146,6 +147,7 @@ export class InboxCanvases extends Disposable {
 			clearNode(presentation);
 			if (canvas?.source && hostService.supported) {
 				this.host.value = hostService.create(presentation, viewport, session, chat, canvas);
+				this.host.value.setVisible(this.visible);
 			}
 			onLayout();
 		}));
@@ -153,6 +155,11 @@ export class InboxCanvases extends Disposable {
 
 	layout(): void {
 		this.host.value?.layout();
+	}
+
+	setVisible(visible: boolean): void {
+		this.visible = visible;
+		this.host.value?.setVisible(visible);
 	}
 
 	createAccessibleProvider() {

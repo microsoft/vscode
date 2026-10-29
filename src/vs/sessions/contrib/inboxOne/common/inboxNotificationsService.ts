@@ -8,7 +8,8 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IChatQuestion } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatQuestion, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { migrateLegacyTerminalToolSpecificData } from '../../../../workbench/contrib/chat/common/chat.js';
 import { AgentHostPullRequestOperationId } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, IGitHubPullRequestRef, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../services/sessions/common/session.js';
 import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
@@ -102,7 +103,29 @@ export interface IInboxNotificationToolConfirmationPart {
 	readonly confirmationKind: 'execution' | 'result';
 	readonly title: string | IMarkdownString;
 	readonly message: string | IMarkdownString;
+	readonly commandLine?: string;
+	readonly disclaimer?: string | IMarkdownString;
+	readonly originMessage?: string | IMarkdownString;
 	readonly buttons: readonly IInboxNotificationToolConfirmationButton[];
+}
+
+export function getInboxToolConfirmationDetails(invocation: IChatToolInvocation) {
+	const state = invocation.state.get();
+	if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
+		return { requiresSession: true };
+	}
+	const data = invocation.toolSpecificData;
+	const terminal = data?.kind === 'terminal' ? migrateLegacyTerminalToolSpecificData(data) : undefined;
+	const commandLine = terminal ? terminal.commandLine.userEdited ?? terminal.commandLine.toolEdited ?? terminal.commandLine.original : undefined;
+	const hasParameters = state.parameters !== undefined && state.parameters !== null
+		&& (typeof state.parameters !== 'object' || Object.keys(state.parameters).length > 0);
+	return {
+		commandLine,
+		disclaimer: state.confirmationMessages?.disclaimer,
+		originMessage: invocation.originMessage,
+		requiresSession: !!state.confirmationMessages?.terminalCustomActions?.length
+			|| (terminal ? !commandLine : !!data || hasParameters),
+	};
 }
 
 export type IInboxNotificationNeedsInputPart = IInboxNotificationConfirmationPart | IInboxNotificationQuestionCarouselPart | IInboxNotificationToolConfirmationPart;

@@ -18,6 +18,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -27,7 +28,7 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IChat, ISessionArtifact, ISessionChangeset, ISessionChangesetOperation, SessionArtifactKind, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, type IGitHubInfo, type ISession, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { cleanPreviewText, InboxNotificationsService, parseContentClassification, parseDetailSummary } from '../../browser/inboxNotificationsService.js';
+import { cleanPreviewText, InboxNotificationsService, parseDetailSummary } from '../../browser/inboxNotificationsService.js';
 import { getInboxPullRequestMergeOperation, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode, type IInboxNotificationItem } from '../../common/inboxNotificationsService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
@@ -78,7 +79,7 @@ suite('InboxNotificationsService', () => {
 	}): ISession {
 		const key = `inboxNotificationsService/${options.id}`;
 		const chatResource = options.chatResource ?? URI.parse(`test:///chat/${options.id}`);
-		const chat = upcastPartial<IChat>({ resource: chatResource, changesets: observableValue<readonly ISessionChangeset[]>(`${key}/changesets`, options.changesets ?? []) });
+		const chat = upcastPartial<IChat>({ resource: chatResource, status: observableValue(`${key}/chatStatus`, options.status), changesets: observableValue<readonly ISessionChangeset[]>(`${key}/changesets`, options.changesets ?? []) });
 		const gitHubInfo: IGitHubInfo | undefined = options.pullRequests?.length ? {
 			owner: options.pullRequests[0].owner,
 			repo: options.pullRequests[0].repo,
@@ -217,6 +218,7 @@ suite('InboxNotificationsService', () => {
 			configurationService,
 			upcastPartial<IChatEntitlementService>({ sentimentObs: sentiment }),
 			upcastPartial<IChatSessionsService>({ onDidChangeContentProviderSchemes: options.onDidChangeContentProviderSchemes ?? Event.None }),
+			store.add(new NullLogService()),
 		));
 		return {
 			service,
@@ -394,7 +396,7 @@ suite('InboxNotificationsService', () => {
 		assert.deepStrictEqual({ loads, releases, id: fixture.service.notifications.get()[0].id }, { loads: 1, releases: 1, id: item.id });
 	});
 
-	test('keeps the transcript tail for detail and classification and skips classification below usage telemetry', async () => {
+	test('keeps the transcript tail for detail without requesting content classification at any telemetry level', async () => {
 		for (const telemetryLevel of [TelemetryLevel.NONE, TelemetryLevel.ERROR, TelemetryLevel.USAGE]) {
 			const session = createSession({ id: `tail-${telemetryLevel}`, status: SessionStatus.Completed, updatedAt: 200 });
 			const chatService = new TestChatService();
@@ -404,14 +406,12 @@ suite('InboxNotificationsService', () => {
 				telemetryLevel,
 				utilityRequest: async request => {
 					requests.push(request);
-					return request.purpose === 'inboxContentClassification' ? '{"workType":"bugfix"}' : '{"status":"Fixed","decisions":[],"evidence":[]}';
+					return '{"status":"Fixed","decisions":[],"evidence":[]}';
 				},
 			});
 			fixture.service.requestDetailSummary(fixture.service.notifications.get()[0]);
 			await waitForState(fixture.service.isLoading, loading => !loading);
-			// Classification is intentionally fire-and-forget after the detail generation.
-			await Promise.resolve();
-			assert.deepStrictEqual(requests.map(request => request.purpose), telemetryLevel === TelemetryLevel.USAGE ? ['inboxDetailSummary', 'inboxContentClassification'] : ['inboxDetailSummary']);
+			assert.deepStrictEqual(requests.map(request => request.purpose), ['inboxDetailSummary']);
 			for (const request of requests) {
 				const input = request.messages.flatMap(message => message.content).filter(part => part.type === 'text').map(part => part.value).join('\n');
 				assert.ok(input.includes('Final result: fixed the regression.'));
@@ -419,6 +419,37 @@ suite('InboxNotificationsService', () => {
 				assert.strictEqual(request.background, true);
 			}
 		}
+	});
+
+	test('bounds evidence-pack files to the most recent 30 unique sources and excludes canceled responses', async () => {
+		const session = createSession({ id: 'bounded-files', status: SessionStatus.Completed, updatedAt: 200 });
+		const chatService = new TestChatService();
+		chatService.setCompletedResponse(session.mainChat.get().resource, {
+			requestId: 'files', markdown: 'Updated these files.',
+			parts: Array.from({ length: 40 }, (_, index) => ({ kind: 'inlineReference', inlineReference: URI.file(`/workspace/file-${index}.ts`) })),
+		});
+		const model = chatService.getSession(session.mainChat.get().resource)!;
+		const requests = model.getRequests();
+		model.getRequests = () => [...requests, upcastPartial<IChatRequestModel>({
+			response: upcastPartial<IChatResponseModel>({
+				isCanceled: true,
+				response: upcastPartial<IChatResponseModel['response']>({
+					value: [{ kind: 'inlineReference', inlineReference: URI.file('/workspace/canceled.ts') }],
+				}),
+			}),
+		})];
+		let input = '';
+		const fixture = createFixture([session], undefined, undefined, chatService, undefined, true, [], true, {
+			utilityRequest: async request => {
+				input = request.messages.flatMap(message => message.content).filter(part => part.type === 'text').map(part => part.value).join('\n');
+				return '{"status":"Updated","decisions":[],"evidence":[]}';
+			},
+		});
+		fixture.service.requestDetailSummary(fixture.service.notifications.get()[0]);
+		await waitForState(fixture.service.isLoading, loading => !loading);
+		assert.deepStrictEqual({
+			files: [...new Set(input.match(/file-\d+\.ts/g))], canceled: input.includes('canceled.ts'),
+		}, { files: Array.from({ length: 30 }, (_, index) => `file-${39 - index}.ts`), canceled: false });
 	});
 
 	test('includes pending question carousel data for needs-input notifications', () => {
@@ -788,7 +819,7 @@ suite('InboxNotificationsService', () => {
 					elapsed: 10_000,
 					preview: item.description,
 					requests: stalledStage === 'discovery' ? 0 : 1,
-					errors: ['Inbox utility request timed out: inboxPreview'],
+					errors: [],
 				});
 			} finally {
 				setUnexpectedErrorHandler(previousHandler);
@@ -879,7 +910,7 @@ suite('InboxNotificationsService', () => {
 			fixture.service.requestPreview(item);
 			await waitForState(fixture.service.isLoading, loading => !loading);
 			fixture.service.requestPreview(item);
-			assert.deepStrictEqual({ preview: fixture.service.previews.get().get(item.previewSignature!), requests, errors }, { preview: item.description, requests: 1, errors: [expectedError] });
+			assert.deepStrictEqual({ preview: fixture.service.previews.get().get(item.previewSignature!), requests, errors }, { preview: item.description, requests: 1, errors: [] });
 		} finally {
 			setUnexpectedErrorHandler(previousHandler);
 		}
@@ -1013,6 +1044,33 @@ suite('InboxNotificationsService', () => {
 		resolveAcquire();
 		await waitForState(fixture.service.isLoading, isLoading => !isLoading);
 		assert.strictEqual(fixture.service.isLoading.get(), false);
+	});
+
+	test('loads and scans only waiting chats, falling back when no chat reports needs input', async () => {
+		const session = createSession({ id: 'peers', status: SessionStatus.NeedsInput, updatedAt: 100 });
+		const main = session.mainChat.get();
+		(main.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, undefined);
+		const waitingStatus = observableValue('waitingStatus', SessionStatus.NeedsInput);
+		const waiting = upcastPartial<IChat>({ resource: URI.parse('test:///waiting-peer'), status: waitingStatus });
+		(session.chats as ISettableObservable<readonly IChat[]>).set([main, waiting], undefined);
+		const chatService = new TestChatService();
+		const loads: string[] = [];
+		chatService.setAcquireOrLoadHandler(async resource => {
+			loads.push(resource.toString());
+			chatService.setPendingConfirmation(resource, {
+				requestId: resource.path, title: 'Review', message: 'Review this request', data: {}, buttons: ['Accept'],
+			});
+			return { object: chatService.getSession(resource)!, dispose: () => { } };
+		});
+		const fixture = createFixture([session], undefined, undefined, chatService);
+		await waitForState(fixture.service.isLoading, loading => !loading);
+		const waitingOnly = { loads: [...loads], chat: fixture.service.notifications.get()[0].needsInputPart?.chatResource.toString() };
+		waitingStatus.set(SessionStatus.Completed, undefined);
+		await waitForState(fixture.service.isLoading, loading => !loading);
+		assert.deepStrictEqual({ waitingOnly, fallbackLoads: loads }, {
+			waitingOnly: { loads: [waiting.resource.toString()], chat: waiting.resource.toString() },
+			fallbackLoads: [waiting.resource.toString(), main.resource.toString()],
+		});
 	});
 
 	test('does not retain a chat model loaded after its session is removed or the service is disposed', async () => {
@@ -1254,8 +1312,40 @@ suite('InboxNotificationsService', () => {
 		assert.deepStrictEqual({
 			distinct: result.id !== execution.id,
 			stage: result.needsInputPart?.kind === 'toolConfirmation' ? result.needsInputPart.confirmationKind : undefined,
+			buttons: result.needsInputPart?.kind === 'toolConfirmation' ? result.needsInputPart.buttons : undefined,
 			dismissed: fixture.service.dismissedNotifications.get().map(item => item.id),
-		}, { distinct: true, stage: 'result', dismissed: [execution.id] });
+		}, { distinct: true, stage: 'result', buttons: [], dismissed: [execution.id] });
+	});
+
+	test('terminal approvals retain the actual command, origin and disclaimer while complex tools require the session', () => {
+		const session = createSession({ id: 'approval-details', status: SessionStatus.NeedsInput, updatedAt: 100 });
+		const chatService = new TestChatService();
+		const fixture = createFixture([session], undefined, undefined, chatService);
+		const data: NonNullable<IChatToolInvocation['toolSpecificData']>[] = [
+			{ kind: 'terminal', commandLine: { original: 'npm test', toolEdited: 'npm test -- --run regression', forDisplay: 'A harmless description' }, language: 'sh' },
+			...(['input', 'modifiedFilesConfirmation', 'agentFeedbackReviewConfirmation', 'extensions'] as const).map(kind =>
+				upcastPartial<NonNullable<IChatToolInvocation['toolSpecificData']>>({ kind })),
+		];
+		const results = data.map(toolSpecificData => {
+			chatService.setPendingParts(session.mainChat.get().resource, {
+				requestId: 'request', startedWaitingAt: 1,
+				parts: [upcastPartial<IChatToolInvocation>({
+					kind: 'toolInvocation', toolCallId: 'tool', toolSpecificData, originMessage: 'Shell tool',
+					state: observableValue('tool', upcastPartial<IChatToolInvocation.State>({
+						type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+						confirmationMessages: { title: 'Run in terminal?', message: 'Check the regression', disclaimer: 'Runs outside the sandbox' },
+					})),
+				})],
+			});
+			const part = fixture.service.notifications.get()[0].needsInputPart;
+			assert.ok(part?.kind === 'toolConfirmation');
+			return { kind: toolSpecificData.kind, command: part.commandLine, disclaimer: part.disclaimer, origin: part.originMessage, buttons: part.buttons.length };
+		});
+		assert.deepStrictEqual(results, data.map(toolSpecificData => ({
+			kind: toolSpecificData.kind,
+			command: toolSpecificData.kind === 'terminal' ? 'npm test -- --run regression' : undefined,
+			disclaimer: 'Runs outside the sandbox', origin: 'Shell tool', buttons: toolSpecificData.kind === 'terminal' ? 2 : 0,
+		})));
 	});
 
 	test('surfaces failing and passing CI notifications for session pull requests', () => {
@@ -1573,6 +1663,36 @@ suite('InboxNotificationsService', () => {
 			pullRequestStates: [{ label: '#43', statusLabel: 'Unresolved comments', iconId: Codicon.gitPullRequestComment.id }],
 			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.AgentMergeAddressReviews, InboxNotificationActionKind.MarkDone],
 		}]);
+	});
+
+	test('review identity follows reviewer threads rather than session activity or coding-agent replies', () => {
+		const session = createSession({
+			id: 'stable-review', status: SessionStatus.Completed, updatedAt: Date.now(), isRead: true,
+			pullRequest: { owner: 'owner', repo: 'repo', number: 43 },
+		});
+		const gitHubService = new TestGitHubService();
+		const fixture = createFixture([session], undefined, gitHubService);
+		gitHubService.setPullRequest('owner', 'repo', 43, openPullRequest(43, 'sha43'));
+		const comment = (id: number, login: string) => upcastPartial<IGitHubPullRequestReviewThread['comments'][number]>({
+			id, author: { login, avatarUrl: '' }, createdAt: '2026-09-21T16:00:00Z', updatedAt: '2026-09-21T16:00:00Z',
+		});
+		const human = upcastPartial<IGitHubPullRequestReviewThread>({
+			id: 'human', isResolved: false, comments: [comment(1, 'reviewer'), comment(2, 'copilot-swe-agent')],
+		});
+		gitHubService.setReviewThreads('owner', 'repo', 43, [human, {
+			...human, id: 'lookalike', comments: [comment(3, 'not-copilot-reviewer')],
+		}]);
+		const ignored = fixture.service.notifications.get().length;
+		const reviewer = { ...human, id: 'reviewer', comments: [comment(4, 'Copilot-Pull-Request-Reviewer')] };
+		gitHubService.setReviewThreads('owner', 'repo', 43, [human, reviewer]);
+		const item = fixture.service.notifications.get()[0];
+		fixture.service.dismissNotification(item.id);
+		(session.updatedAt as ISettableObservable<Date>).set(new Date(Date.now() + 1000), undefined);
+		const afterTurn = fixture.service.notifications.get().length;
+		gitHubService.setReviewThreads('owner', 'repo', 43, [{ ...reviewer, comments: [...reviewer.comments, comment(5, 'reviewer')] }]);
+		assert.deepStrictEqual({ ignored, afterTurn, newComment: fixture.service.notifications.get()[0].id !== item.id }, {
+			ignored: 0, afterTurn: 0, newComment: true,
+		});
 	});
 
 	test('surfaces merged pull request notifications with session cleanup actions', () => {
@@ -1912,6 +2032,18 @@ suite('InboxNotificationsService', () => {
 		});
 	});
 
+	test('dismissing before marking a completed session read reports dismissed rather than removed', () => {
+		const session = createSession({ id: 'dismiss-before-read', status: SessionStatus.Completed, updatedAt: 100 });
+		const fixture = createFixture([session]);
+		const item = fixture.service.notifications.get()[0];
+		fixture.service.dismissNotification(item.id, item);
+		(session.isRead as ISettableObservable<boolean>).set(true, undefined);
+		assert.deepStrictEqual({
+			outcomes: fixture.telemetryEvents.filter(event => event.eventName === 'agents/inboxItemLifecycle').map(event => event.data.outcome),
+			completed: fixture.service.dismissedNotifications.get().map(item => item.id),
+		}, { outcomes: ['dismissed'], completed: [item.id] });
+	});
+
 	test('dismissed questions have no interactive input or stale actions, including snapshots', () => {
 		const chatResource = URI.parse('test:///chat/dismissed-question');
 		const chatService = new TestChatService();
@@ -2100,64 +2232,6 @@ suite('InboxNotificationsService', () => {
 		test('keeps additional trade-offs without requiring a repeated status', () => {
 			const summary = { status: '', decisions: ['The smaller images avoid horizontal scrolling.'], evidence: [] };
 			assert.deepStrictEqual(parseDetailSummary(JSON.stringify(summary), artifacts), summary);
-		});
-	});
-
-	suite('parseContentClassification', () => {
-		test('parses bounded labels from strict JSON', () => {
-			const raw = JSON.stringify({
-				workType: 'bugfix',
-				domain: 'backend',
-				requestKind: 'approve',
-				decisionSubject: 'merge',
-				riskLevel: 'high',
-				reversibility: 'irreversible',
-				environment: 'production',
-				evidenceState: 'sufficient',
-				confidence: 'med',
-			});
-			const result = parseContentClassification(raw);
-			assert.ok(result);
-			assert.strictEqual(result!.workType, 'bugfix');
-			assert.strictEqual(result!.domain, 'backend');
-			assert.strictEqual(result!.requestKind, 'approve');
-			assert.strictEqual(result!.decisionSubject, 'merge');
-			assert.strictEqual(result!.riskLevel, 'high');
-			assert.strictEqual(result!.reversibility, 'irreversible');
-			assert.strictEqual(result!.environment, 'production');
-			assert.strictEqual(result!.evidenceState, 'sufficient');
-			assert.strictEqual(result!.confidence, 'med');
-		});
-
-		test('coerces out-of-ontology or missing labels to unknown', () => {
-			const raw = JSON.stringify({
-				workType: 'feature',
-				domain: 'not-a-real-domain',
-				riskLevel: 42,
-			});
-			const result = parseContentClassification(raw);
-			assert.ok(result);
-			assert.strictEqual(result!.workType, 'feature');
-			assert.strictEqual(result!.domain, 'unknown');
-			assert.strictEqual(result!.requestKind, 'unknown');
-			assert.strictEqual(result!.decisionSubject, 'unknown');
-			assert.strictEqual(result!.riskLevel, 'unknown');
-			assert.strictEqual(result!.reversibility, 'unknown');
-			assert.strictEqual(result!.environment, 'unknown');
-			assert.strictEqual(result!.confidence, 'unknown');
-		});
-
-		test('extracts JSON embedded in prose or code fences', () => {
-			const raw = 'Here you go: ```json\n{"workType":"docs","domain":"docs","requestKind":"none","decisionSubject":"none","riskLevel":"low","confidence":"high"}\n```';
-			const result = parseContentClassification(raw);
-			assert.ok(result);
-			assert.strictEqual(result!.workType, 'docs');
-			assert.strictEqual(result!.riskLevel, 'low');
-		});
-
-		test('returns undefined for malformed output or when nothing was learned', () => {
-			assert.strictEqual(parseContentClassification('not json at all'), undefined);
-			assert.strictEqual(parseContentClassification(JSON.stringify({ workType: 'nope', domain: 'nope', requestKind: 'none', decisionSubject: 'none', riskLevel: 'nope' })), undefined);
 		});
 	});
 

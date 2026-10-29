@@ -10,7 +10,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
-import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatService, IChatToolInvocationSerialized } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -22,14 +21,12 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 import { fixtureResourceUri, readFixtureBinaryResource } from '../../../../../workbench/test/browser/componentFixtures/fixtureResourceLoader.js';
 import { AbstractChatView } from '../../../../browser/parts/chatView.js';
 import { IChat, ISession, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
-import { CustomViewNode } from '../../../../browser/parts/customViewNode.js';
 import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
-import { INBOX_NOTIFICATIONS_VIEW_ID } from '../../browser/inboxNotificationsConstants.js';
 import { InboxNotificationsView } from '../../browser/inboxNotificationsView.js';
 import { IInboxCanvasHostService, UnsupportedInboxCanvasHostService } from '../../browser/inboxCanvasHost.js';
 import { IInboxDetailSummary, IInboxNotificationItem, IInboxNotificationsService, InboxNotificationActionKind, InboxNotificationKind, InboxNotificationPriority, InboxNotificationsSortMode } from '../../common/inboxNotificationsService.js';
@@ -216,17 +213,14 @@ async function renderInbox(ctx: ComponentFixtureContext, width: number, state?: 
 	ctx.container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 	ctx.container.style.width = `${width}px`;
 	ctx.container.style.height = '820px';
-	const node = ctx.disposableStore.add(instantiationService.createInstance(CustomViewNode, {
-		id: INBOX_NOTIFICATIONS_VIEW_ID, ctor: new SyncDescriptor(InboxNotificationsView),
-	}));
-	node.element.style.height = '100%';
-	ctx.container.appendChild(node.element);
-	node.layout(width, 820);
-	node.element.querySelector<HTMLElement>('.inbox-notifications-item')?.click();
+	const view = ctx.disposableStore.add(instantiationService.createInstance(InboxNotificationsView, undefined, undefined));
+	view.render(ctx.container);
+	view.layout(width, 820);
+	ctx.container.querySelector<HTMLElement>('.inbox-notifications-item')?.click();
 	if (state === 'evidence') {
-		await waitForFixtureCondition(() => !!node.element.querySelector('.inbox-notifications-detail-body > .inbox-notifications-detail-evidence:first-child:not([hidden])'), 'Expected agent interpretation at the top of the detail pane');
-		await waitForFixtureCondition(() => [...node.element.querySelectorAll<HTMLImageElement>('.inbox-evidence img')].filter(image => !!image.src).length === 2, 'Expected both recorded image previews');
-		await Promise.all([...node.element.querySelectorAll<HTMLImageElement>('.inbox-evidence img')].map(image => image.decode()));
-		await waitForFixtureCondition(() => !node.element.querySelector('.inbox-notifications-toolbar-spinner:not(.hidden)'), 'Expected Inbox startup state to settle');
+		await waitForFixtureCondition(() => !!ctx.container.querySelector('.inbox-notifications-detail-body > .inbox-notifications-detail-evidence:first-child:not([hidden])'), 'Expected agent interpretation at the top of the detail pane');
+		await waitForFixtureCondition(() => [...ctx.container.querySelectorAll<HTMLImageElement>('.inbox-evidence img')].filter(image => !!image.src).length === 2, 'Expected both recorded image previews');
+		await Promise.all([...ctx.container.querySelectorAll<HTMLImageElement>('.inbox-evidence img')].map(image => image.decode()));
+		await waitForFixtureCondition(() => !ctx.container.querySelector('.inbox-notifications-toolbar-spinner:not(.hidden)'), 'Expected Inbox startup state to settle');
 	}
 }

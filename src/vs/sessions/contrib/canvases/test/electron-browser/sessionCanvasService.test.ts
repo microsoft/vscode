@@ -43,7 +43,6 @@ import { SessionCanvasContextService } from '../../electron-browser/sessionCanva
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
-import { INBOX_NOTIFICATIONS_VIEW_ID } from '../../../inboxOne/browser/inboxNotificationsConstants.js';
 
 suite('SessionCanvasService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -183,13 +182,15 @@ suite('SessionCanvasService', () => {
 		assert.deepStrictEqual(openOptions, [{ pinned: true, revealIfOpened: true, preserveFocus: false }]);
 	});
 
-	test('Inbox prevents new canvases from taking over the session editor', () => {
+	test('custom views defer new canvases until the session surface is visible again', () => {
 		const harness = createHarness(true, []);
-		harness.activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: INBOX_NOTIFICATIONS_VIEW_ID }), undefined);
+		harness.activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: 'test.customView' }), undefined);
 		harness.canvases.set([harness.canvas], undefined);
 		const hiddenOpens = harness.opened.length;
+		harness.activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: 'test.otherCustomView' }), undefined);
+		const switchedOpens = harness.opened.length;
 		harness.activeCustomView.set(undefined, undefined);
-		assert.deepStrictEqual({ hiddenOpens, visibleOpens: harness.opened.length }, { hiddenOpens: 0, visibleOpens: 1 });
+		assert.deepStrictEqual({ hiddenOpens, switchedOpens, visibleOpens: harness.opened.length }, { hiddenOpens: 0, switchedOpens: 0, visibleOpens: 1 });
 	});
 
 	test('projects active-chat Canvas definitions through the shared context', async () => {

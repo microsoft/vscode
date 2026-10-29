@@ -54,6 +54,7 @@ class InboxCanvasHost extends Disposable implements IInboxCanvasHost {
 	private semanticText = '';
 	private layoutSequence = 0;
 	private permitted = false;
+	private visible = true;
 
 	constructor(
 		parent: HTMLElement,
@@ -152,11 +153,16 @@ class InboxCanvasHost extends Disposable implements IInboxCanvasHost {
 		}
 	}
 
+	setVisible(visible: boolean): void {
+		this.visible = visible;
+		this.layout();
+	}
+
 	layout(): void {
 		const model = this.model.value;
 		const sequence = ++this.layoutSequence;
 		this.host.setVisible(false);
-		if (!model || !this.permitted) {
+		if (!model || !this.permitted || !this.visible) {
 			return;
 		}
 		this.container.style.height = `${Math.max(80, Math.min(360, this.viewport.clientHeight - 100))}px`;
@@ -181,7 +187,7 @@ class InboxCanvasHost extends Disposable implements IInboxCanvasHost {
 		const rect = this.container.getBoundingClientRect();
 		const viewport = this.viewport.getBoundingClientRect();
 		const targetWindow = getWindow(this.container);
-		if (!this.permitted || !this.container.isConnected || targetWindow.document.hidden || rect.width <= 0 || rect.height <= 0
+		if (!this.permitted || !this.visible || !this.container.isConnected || targetWindow.document.hidden || rect.width <= 0 || rect.height <= 0
 			|| rect.top < Math.max(0, viewport.top) || rect.bottom > Math.min(viewport.bottom, targetWindow.innerHeight)
 			|| rect.left < Math.max(0, viewport.left) || rect.right > Math.min(viewport.right, targetWindow.innerWidth)) {
 			return undefined;

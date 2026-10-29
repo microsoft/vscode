@@ -15,6 +15,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { INewSessionInAgentsWindowOptions, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { IWindowCanvasService } from '../../../../services/canvas/browser/windowCanvasService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
@@ -106,6 +107,7 @@ suite('NewChatInSessionsWindowAction', () => {
 		const opened: (ICreateNewSessionOptions | undefined)[] = [];
 		instantiationService.stub(INewSessionComposerService, { notifyUserNavigation() { } });
 		instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
+		instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
 		instantiationService.stub(ISessionsProvidersService, { getProvider: () => undefined });
 		instantiationService.stub(ISessionsManagementService, {
 			getNewSessionTarget: (providerId, sessionResource) => providerId === 'sandbox-backend' && isEqual(sessionResource, backendResource) ? creationTarget : undefined,

@@ -53,6 +53,12 @@ The workbench omits the standard Activity Bar, Status Bar, and Banner. Part posi
 | Panel | Terminal and other panel views |
 | Custom View Grid | Full-surface contributed views that replace session content |
 
+### Window canvases
+
+Built-in native canvases, including Inbox, open as singleton tabs in the Editor rather than replacing the Sessions Part with a custom view. Their definitions and live content belong to `IWindowCanvasService`, not to an agent, session, or chat. The existing Canvas menus expose both native window canvases and provider-owned browser canvases; provider canvases retain their existing ownership and permission model.
+
+Window-canvas content survives tab hiding and session working-set replacement. The service persists which registered canvases are open independently of session working sets, reopens them without taking focus after a working-set restore, and respects the layout's editor visibility. Explicitly closing a tab releases its content and removes it from restoration. Removing a definition (including disabling Inbox or hiding AI) closes its tab and prevents restoration. Inbox's existing session actions, embedded composers, accessibility help, and accessible view remain owned by Inbox.
+
 The Sessions Part contains its own nested two-dimensional split grid. Its leaves are not workbench editor groups, nor the chat groups inside an individual session.
 
 ## Grid behavior

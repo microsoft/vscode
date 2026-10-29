@@ -31,7 +31,7 @@ suite('Inbox extension canvases', () => {
 		const definition: ICanvasDefinition = { canvasId: 'ui-review', extensionId: 'plugin:review', extensionSource: 'plugin', displayName: 'UI review', description: 'Inspect the application', requiresInput: false };
 		let listings = 0;
 		const opened: object[] = [];
-		const hosts: { canvas: ICanvas; disposed: boolean }[] = [];
+		const hosts: { canvas: ICanvas; disposed: boolean; visible: boolean }[] = [];
 		instantiation.stub(ISessionsManagementService, {
 			getSession: () => session,
 			listCanvases: async (owner, selected) => { assert.strictEqual(owner, session); assert.strictEqual(selected, chat); listings++; return [definition, { ...definition, canvasId: 'input', displayName: 'Needs input', requiresInput: true }]; },
@@ -43,9 +43,9 @@ suite('Inbox extension canvases', () => {
 			create: (_container, _viewport, owner, selected, canvas) => {
 				assert.strictEqual(owner, session);
 				assert.strictEqual(selected, chat);
-				const host = { canvas, disposed: false };
+				const host = { canvas, disposed: false, visible: true };
 				hosts.push(host);
-				return upcastPartial<IInboxCanvasHost>({ layout: () => { }, dispose: () => { host.disposed = true; } });
+				return upcastPartial<IInboxCanvasHost>({ layout: () => { }, setVisible: visible => { host.visible = visible; }, dispose: () => { host.disposed = true; } });
 			},
 		});
 		instantiation.stub(IAccessibleViewService, {});
@@ -63,18 +63,22 @@ suite('Inbox extension canvases', () => {
 		const canvas: ICanvas = { resource: URI.parse('canvas:/review'), instanceId: getCanvasDefinitionInstanceId(definition), title: 'Review', source: URI.parse('http://127.0.0.1:1234/review') };
 		canvases.set([canvas], undefined);
 		canvases.set([{ ...canvas, title: 'Review updated' }], undefined);
+		widget.setVisible(false);
+		const hiddenWithTab = !hosts[0].visible;
+		widget.setVisible(true);
+		const visibleWithTab = hosts[0].visible;
 		const retained = hosts.length;
 		buttons().find(button => button.textContent === 'Hide canvas')!.click();
 		const hidden = hosts[0].disposed;
 		buttons().find(button => button.textContent === 'Review updated')!.click();
 		enabled.set(false, undefined);
 		assert.deepStrictEqual({
-			disabled, inputDisabled, opened, retained, hidden,
+			disabled, inputDisabled, opened, retained, hidden, hiddenWithTab, visibleWithTab,
 			disposed: hosts.map(host => host.disposed), canvasStillRegistered: canvases.get().length,
 		}, {
 			disabled: { listings: 0, hosts: 0, hidden: true }, inputDisabled: 'true',
 			opened: [{ owner: session, selected: chat, definition, instanceId: getCanvasDefinitionInstanceId(definition) }],
-			retained: 1, hidden: true, disposed: [true, true], canvasStillRegistered: 1,
+			retained: 1, hidden: true, hiddenWithTab: true, visibleWithTab: true, disposed: [true, true], canvasStillRegistered: 1,
 		});
 	});
 

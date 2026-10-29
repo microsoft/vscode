@@ -5,12 +5,12 @@
 
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
-export const INBOX_NOTIFICATIONS_VIEW_ID = 'sessions.inboxNotifications.view';
+export const INBOX_CANVAS_ID = 'sessions.inbox';
 export const SHOW_INBOX_NOTIFICATIONS_COMMAND_ID = 'sessions.inboxNotifications.show';
 
 /**
  * Gates the entire Inbox feature: the Inbox shortcut section in the Sessions
- * list, the Inbox custom view, and its Show Inbox command/keybinding.
+ * list, the Inbox canvas, and its Show Inbox command/keybinding.
  * Experimental, off by default; rollout is controlled by the experiment service.
  */
 export const CHAT_INBOX_ENABLED_SETTING = 'chat.agentSessions.inbox.enabled';

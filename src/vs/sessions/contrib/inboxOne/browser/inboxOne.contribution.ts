@@ -5,6 +5,8 @@
 
 import './inboxNotificationsAccessibility.js';
 import { localize, localize2 } from '../../../../nls.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
@@ -20,12 +22,12 @@ import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribu
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
+import { IWindowCanvasService } from '../../../services/canvas/browser/windowCanvasService.js';
 import { InboxNotificationsView } from './inboxNotificationsView.js';
 import { InboxNotificationsService } from './inboxNotificationsService.js';
 import { IInboxCanvasHostService, UnsupportedInboxCanvasHostService } from './inboxCanvasHost.js';
 import { IInboxNotificationsService } from '../common/inboxNotificationsService.js';
-import { CHAT_INBOX_ENABLED_SETTING, ChatInboxEnabledContext, INBOX_NOTIFICATIONS_VIEW_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from './inboxNotificationsConstants.js';
+import { CHAT_INBOX_ENABLED_SETTING, ChatInboxEnabledContext, INBOX_CANVAS_ID, SHOW_INBOX_NOTIFICATIONS_COMMAND_ID } from './inboxNotificationsConstants.js';
 
 registerSingleton(IInboxNotificationsService, InboxNotificationsService, InstantiationType.Delayed);
 registerSingleton(IInboxCanvasHostService, UnsupportedInboxCanvasHostService, InstantiationType.Delayed);
@@ -39,7 +41,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.MACHINE,
 			included: false,
 			tags: ['experimental', 'advanced'],
-			description: localize('chat.agentSessions.inbox.enabled', "Enables the Sessions Inbox: a prioritized, actionable notifications view. When disabled, the Inbox entry in the Sessions list, the Inbox view, and its Show Inbox command are hidden."),
+			description: localize('chat.agentSessions.inbox.enabled', "Enables the Sessions Inbox: a prioritized, actionable notifications canvas. When disabled, the Inbox entry in the Sessions list, the Inbox canvas, and its Show Inbox command are hidden."),
 			experiment: { mode: 'auto' },
 		},
 	},
@@ -67,41 +69,38 @@ class ChatInboxEnabledContextContribution extends Disposable implements IWorkben
 
 registerWorkbenchContribution2(ChatInboxEnabledContextContribution.ID, ChatInboxEnabledContextContribution, WorkbenchPhase.BlockStartup);
 
-export class InboxNotificationsCustomViewContribution extends Disposable implements IWorkbenchContribution {
+export class InboxNotificationsCanvasContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsInboxNotificationsView';
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
-		@ICustomViewService customViewService: ICustomViewService,
+		@IWindowCanvasService canvasService: IWindowCanvasService,
 	) {
 		super();
 
 		const inboxEnabled = observableConfigValue(CHAT_INBOX_ENABLED_SETTING, false, configurationService);
 		const enabled = derived(this, reader => inboxEnabled.read(reader) && !chatEntitlementService.sentimentObs.read(reader).hidden);
 		const viewRegistration = this._register(new MutableDisposable());
-		let restore = enabled.get();
 		this._register(autorun(reader => {
 			const isEnabled = enabled.read(reader);
 			if (isEnabled) {
-				viewRegistration.value = customViewService.registerCustomView({
-					id: INBOX_NOTIFICATIONS_VIEW_ID,
+				viewRegistration.value = canvasService.registerCanvas({
+					id: INBOX_CANVAS_ID,
+					title: localize('inbox.canvas.title', "Inbox"),
+					icon: Codicon.inbox,
 					ctor: new SyncDescriptor(InboxNotificationsView, [undefined, undefined]),
-					openNewSession: () => InboxNotificationsView.getActiveInstance()?.openNewSession(),
-				}, { restore });
-				restore = false;
+				});
 			} else {
-				if (customViewService.activeCustomView.read(undefined)?.id === INBOX_NOTIFICATIONS_VIEW_ID) {
-					customViewService.hideCustomView();
-				}
 				viewRegistration.clear();
+				void canvasService.closeCanvas(INBOX_CANVAS_ID).catch(onUnexpectedError);
 			}
 		}));
 	}
 }
 
-registerWorkbenchContribution2(InboxNotificationsCustomViewContribution.ID, InboxNotificationsCustomViewContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(InboxNotificationsCanvasContribution.ID, InboxNotificationsCanvasContribution, WorkbenchPhase.BlockRestore);
 
 class ShowInboxNotificationsAction extends Action2 {
 
@@ -115,8 +114,8 @@ class ShowInboxNotificationsAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		accessor.get(ICustomViewService).showCustomView(INBOX_NOTIFICATIONS_VIEW_ID);
+	run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(IWindowCanvasService).openCanvas(INBOX_CANVAS_ID);
 	}
 }
 

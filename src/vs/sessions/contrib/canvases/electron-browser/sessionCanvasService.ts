@@ -19,7 +19,6 @@ import { ICustomViewService } from '../../../services/customView/browser/customV
 import { IChat, ISession, ISessionCanvasDefinition } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
-import { INBOX_NOTIFICATIONS_VIEW_ID } from '../../inboxOne/browser/inboxNotificationsConstants.js';
 import { createSessionCanvasReference, getSessionCanvasDefinitionInstanceId, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
 
 export class SessionCanvasContextService extends Disposable implements ICanvasContextService {
@@ -79,7 +78,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 	isOwnerVisible(owner: ICanvasOwner, reader?: IReader): boolean {
 		const session = this.sessionsService.activeSession.read(reader);
 		return !!session
-			&& this.customViewService.activeCustomView.read(reader)?.id !== INBOX_NOTIFICATIONS_VIEW_ID
+			&& !this.customViewService.activeCustomView.read(reader)
 			&& session.capabilities.read(reader).supportsCanvases === true
 			&& ownsSession(owner, session)
 			&& isEqual(session.activeChat.read(reader).resource, owner.chat);

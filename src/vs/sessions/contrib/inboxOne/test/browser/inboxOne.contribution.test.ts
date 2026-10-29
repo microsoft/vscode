@@ -4,39 +4,39 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
-import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { CustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { SessionsNavigation } from '../../../../services/sessions/browser/sessionNavigation.js';
-import { SessionsRecencyHistory } from '../../../../services/sessions/browser/sessionsRecencyHistory.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { CHAT_INBOX_ENABLED_SETTING, INBOX_NOTIFICATIONS_VIEW_ID } from '../../browser/inboxNotificationsConstants.js';
-import { InboxNotificationsView } from '../../browser/inboxNotificationsView.js';
-import { InboxNotificationsCustomViewContribution } from '../../browser/inboxOne.contribution.js';
+import { IWindowCanvasDescriptor, IWindowCanvasService } from '../../../../services/canvas/browser/windowCanvasService.js';
+import { CHAT_INBOX_ENABLED_SETTING, INBOX_CANVAS_ID } from '../../browser/inboxNotificationsConstants.js';
+import { InboxNotificationsCanvasContribution } from '../../browser/inboxOne.contribution.js';
 
-suite('InboxNotificationsCustomViewContribution', () => {
+suite('InboxNotificationsCanvasContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createFixture(enabled: boolean, storageService = disposables.add(new InMemoryStorageService())) {
+	function createFixture(enabled: boolean, hidden = false) {
 		const configurationService = new TestConfigurationService({ [CHAT_INBOX_ENABLED_SETTING]: enabled });
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
-		const sentiment = observableValue<IChatSentiment>('test.chatSentiment', {});
-		const customViewService = disposables.add(new CustomViewService(new NullLogService(), storageService));
-		disposables.add(new InboxNotificationsCustomViewContribution(
+		const sentiment = observableValue<IChatSentiment>('test.chatSentiment', { hidden });
+		const registered = new Map<string, IWindowCanvasDescriptor>();
+		const closed: string[] = [];
+		disposables.add(new InboxNotificationsCanvasContribution(
 			configurationService,
 			upcastPartial<IChatEntitlementService>({ sentimentObs: sentiment }),
-			customViewService,
+			upcastPartial<IWindowCanvasService>({
+				registerCanvas: descriptor => {
+					registered.set(descriptor.id, descriptor);
+					return toDisposable(() => registered.delete(descriptor.id));
+				},
+				closeCanvas: async id => { closed.push(id); },
+			}),
 		));
 		return {
-			customViewService, sentiment, storageService,
+			registered, closed, sentiment,
 			async setEnabled(value: boolean): Promise<void> {
 				await configurationService.setUserConfiguration(CHAT_INBOX_ENABLED_SETTING, value);
 				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
@@ -46,82 +46,36 @@ suite('InboxNotificationsCustomViewContribution', () => {
 		};
 	}
 
-	test('blocks explicit and history opens while disabled', () => {
-		const { customViewService } = createFixture(false);
-		customViewService.showCustomView(INBOX_NOTIFICATIONS_VIEW_ID);
-		const explicit = customViewService.activeCustomView.get()?.id;
-		customViewService.showCustomView(INBOX_NOTIFICATIONS_VIEW_ID, { source: 'history' });
-		assert.deepStrictEqual({ explicit, history: customViewService.activeCustomView.get()?.id }, {
-			explicit: undefined, history: undefined,
+	test('disabled Inbox is not registered and clears pending tab restoration', () => {
+		const fixture = createFixture(false);
+		assert.deepStrictEqual({ registered: [...fixture.registered.keys()], closed: fixture.closed }, {
+			registered: [], closed: [INBOX_CANVAS_ID],
 		});
 	});
 
-	test('hides Inbox on disable and allows opening it again after reenabling', async () => {
+	test('registers a native canvas only while enabled', async () => {
 		const fixture = createFixture(true);
-		fixture.customViewService.showCustomView(INBOX_NOTIFICATIONS_VIEW_ID);
-		const enabledView = fixture.customViewService.activeCustomView.get()?.id;
+		const enabled = [...fixture.registered.keys()];
 		await fixture.setEnabled(false);
-		const disabledView = fixture.customViewService.activeCustomView.get()?.id;
-		fixture.customViewService.showCustomView(INBOX_NOTIFICATIONS_VIEW_ID, { source: 'history' });
-		const disabledHistoryView = fixture.customViewService.activeCustomView.get()?.id;
+		const disabled = [...fixture.registered.keys()];
 		await fixture.setEnabled(true);
-		fixture.customViewService.showCustomView(INBOX_NOTIFICATIONS_VIEW_ID);
-		assert.deepStrictEqual({ enabledView, disabledView, disabledHistoryView, reenabledView: fixture.customViewService.activeCustomView.get()?.id }, {
-			enabledView: INBOX_NOTIFICATIONS_VIEW_ID, disabledView: undefined, disabledHistoryView: undefined, reenabledView: INBOX_NOTIFICATIONS_VIEW_ID,
+		assert.deepStrictEqual({ enabled, disabled, reenabled: [...fixture.registered.keys()], closed: fixture.closed }, {
+			enabled: [INBOX_CANVAS_ID], disabled: [], reenabled: [INBOX_CANVAS_ID], closed: [INBOX_CANVAS_ID],
 		});
 	});
 
-	test('navigation skips disabled Inbox history entries', async () => {
+	test('AI hiding removes the canvas and unhiding makes it available again', () => {
 		const fixture = createFixture(true);
-		const history = disposables.add(new SessionsRecencyHistory(fixture.storageService, new NullLogService()));
-		const navigation = disposables.add(new SessionsNavigation(
-			{
-				openSession: async () => { },
-				openChat: async () => { },
-				openNewSession: async () => fixture.customViewService.hideCustomView(),
-			},
-			constObservable(undefined),
-			fixture.customViewService,
-			upcastPartial<ISessionsManagementService>({}),
-			history,
-			new MockContextKeyService(),
-			new NullLogService(),
-		));
-		fixture.customViewService.showCustomView(INBOX_NOTIFICATIONS_VIEW_ID);
-		fixture.customViewService.hideCustomView();
-		await fixture.setEnabled(false);
-		await navigation.goBack();
-		assert.deepStrictEqual({
-			activeView: fixture.customViewService.activeCustomView.get()?.id,
-			hasInboxHistory: history.entries.some(entry => entry.kind === 'customView' && entry.id === INBOX_NOTIFICATIONS_VIEW_ID),
-		}, { activeView: undefined, hasInboxHistory: false });
-	});
-
-	test('AI hiding blocks Inbox activation without affecting another custom view', () => {
-		const fixture = createFixture(true);
-		disposables.add(fixture.customViewService.registerCustomView({ id: 'other', ctor: new SyncDescriptor(InboxNotificationsView) }));
-		fixture.customViewService.showCustomView('other');
 		fixture.sentiment.set({ hidden: true }, undefined);
-		const otherView = fixture.customViewService.activeCustomView.get()?.id;
-		fixture.customViewService.showCustomView(INBOX_NOTIFICATIONS_VIEW_ID, { source: 'history' });
-		assert.deepStrictEqual({ otherView, inboxView: fixture.customViewService.activeCustomView.get()?.id }, {
-			otherView: 'other', inboxView: 'other',
+		const hidden = [...fixture.registered.keys()];
+		fixture.sentiment.set({}, undefined);
+		assert.deepStrictEqual({ hidden, available: [...fixture.registered.keys()], closed: fixture.closed }, {
+			hidden: [], available: [INBOX_CANVAS_ID], closed: [INBOX_CANVAS_ID],
 		});
 	});
 
-	test('does not restore Inbox while disabled', () => {
-		const previous = createFixture(true);
-		previous.customViewService.showCustomView(INBOX_NOTIFICATIONS_VIEW_ID);
-		previous.customViewService.dispose();
-		const restored = createFixture(false, previous.storageService);
-		assert.strictEqual(restored.customViewService.activeCustomView.get()?.id, undefined);
-	});
-
-	test('restores Inbox while enabled', () => {
-		const previous = createFixture(true);
-		previous.customViewService.showCustomView(INBOX_NOTIFICATIONS_VIEW_ID);
-		previous.customViewService.dispose();
-		const restored = createFixture(true, previous.storageService);
-		assert.strictEqual(restored.customViewService.activeCustomView.get()?.id, INBOX_NOTIFICATIONS_VIEW_ID);
+	test('AI hidden at startup never registers Inbox', () => {
+		const fixture = createFixture(true, true);
+		assert.deepStrictEqual([...fixture.registered.keys()], []);
 	});
 });

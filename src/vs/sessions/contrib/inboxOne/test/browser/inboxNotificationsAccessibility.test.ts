@@ -5,11 +5,12 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { InboxCustomViewFocusContext } from '../../../../common/contextkeys.js';
+import { InboxCanvasFocusContext } from '../../../../common/contextkeys.js';
 import { InboxNotificationKind, InboxNotificationPriority } from '../../common/inboxNotificationsService.js';
 import { buildInboxNotificationsAccessibleContent } from '../../browser/inboxNotificationsAccessibility.js';
 
@@ -21,7 +22,7 @@ suite('InboxNotificationsAccessibility', () => {
 		disposables.add(configuration.onDidChangeConfigurationEmitter);
 		const context = disposables.add(new ContextKeyService(configuration));
 		const providers = AccessibleViewRegistry.getImplementations().filter(provider => provider.name.startsWith('sessions-inbox-notifications-'));
-		const inboxFocused = InboxCustomViewFocusContext.bindTo(context);
+		const inboxFocused = InboxCanvasFocusContext.bindTo(context);
 		const inChat = ChatContextKeys.inChatSession.bindTo(context);
 		const matches = () => providers.map(provider => context.contextMatchesRules(provider.when));
 		inboxFocused.set(true);
@@ -38,6 +39,18 @@ suite('InboxNotificationsAccessibility', () => {
 			buildInboxNotificationsAccessibleContent([]),
 			'No active notifications.',
 		);
+	});
+
+	test('includes the actual terminal command and disclaimer in accessible content', () => {
+		const content = buildInboxNotificationsAccessibleContent([{
+			kind: InboxNotificationKind.NeedsInput, priority: InboxNotificationPriority.Now, title: 'Terminal', description: '',
+			needsInputPart: {
+				kind: 'toolConfirmation', chatResource: URI.parse('test:///chat'), requestId: 'request', toolCallId: 'tool',
+				confirmationKind: 'execution', title: 'Run in terminal?', message: 'Run checks', commandLine: 'npm test',
+				disclaimer: { value: 'Runs outside the sandbox' }, buttons: [],
+			},
+		}]);
+		assert.deepStrictEqual(['npm test', 'Runs outside the sandbox', 'Open the session to review the full request and respond.'].map(text => content.includes(text)), [true, true, true]);
 	});
 
 	test('builds numbered accessible content for notifications', () => {
