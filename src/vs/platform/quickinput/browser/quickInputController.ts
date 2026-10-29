@@ -30,6 +30,7 @@ import { IContextKey, IContextKeyService } from '../../contextkey/common/context
 import './quickInputActions.js';
 import { IObservable, autorun, observableValue } from '../../../base/common/observable.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
+import { markAsContextMenuHost } from '../../../base/browser/contextmenu.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { Platform, platform, setTimeout0 } from '../../../base/common/platform.js';
@@ -177,8 +178,7 @@ export class QuickInputController extends Disposable {
 			hoverDelegate: this.options.hoverDelegate,
 			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
 			icon: true,
-			label: false,
-			renderDropdownAsChildElement: true
+			label: false
 		}));
 		leftActionBar.getElement().classList.add('quick-input-left-action-bar');
 
@@ -188,8 +188,7 @@ export class QuickInputController extends Disposable {
 			hoverDelegate: this.options.hoverDelegate,
 			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
 			icon: true,
-			label: false,
-			renderDropdownAsChildElement: true
+			label: false
 		}));
 		rightActionBar.getElement().classList.add('quick-input-right-action-bar');
 
@@ -227,8 +226,7 @@ export class QuickInputController extends Disposable {
 			hoverDelegate: this.options.hoverDelegate,
 			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
 			icon: true,
-			label: false,
-			renderDropdownAsChildElement: true
+			label: false
 		}));
 		inlineActionBar.getElement().classList.add('quick-input-inline-action-bar');
 
@@ -371,6 +369,7 @@ export class QuickInputController extends Disposable {
 		// it so that focus does not leave the quick input and hide it
 		// (https://github.com/microsoft/vscode/issues/153267). Hosted menus are
 		// positioned fixed, so any opening motion must have completed first.
+		this._register(markAsContextMenuHost(container));
 		this._register(dom.addDisposableListener(container, dom.EventType.CONTEXT_MENU, () => this.finishOpenMotion(), true));
 		this._register(dom.addDisposableListener(container, dom.EventType.POINTER_DOWN, () => this.finishOpenMotion(), true));
 		this._register(dom.addDisposableListener(container, dom.EventType.MOUSE_DOWN, e => this.onHostedContextViewMouseDown(container, e), true));
@@ -394,22 +393,6 @@ export class QuickInputController extends Disposable {
 				this.finishOpenMotion();
 			}
 		}, true));
-		this._register(dom.addDisposableListener(filterContainer, dom.EventType.CONTEXT_MENU, e => {
-			const actions = this.options.textInputContextMenuActions?.();
-			const target = e.target;
-			if (!actions || e.defaultPrevented || !(dom.isHTMLInputElement(target) || dom.isHTMLTextAreaElement(target))) {
-				return;
-			}
-
-			dom.EventHelper.stop(e, true);
-			const anchor = new StandardMouseEvent(dom.getWindow(container), e);
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
-				getActions: () => actions,
-				getActionsContext: () => target,
-				domForShadowRoot: container
-			});
-		}));
 		this._register(inputBox.onKeyDown(e => {
 			const value = this.getUI().inputBox.isSelectionAtEnd();
 			if (this.endOfQuickInputBoxContext.get() !== value) {

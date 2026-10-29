@@ -10,7 +10,6 @@ import { Button, IButtonStyles } from '../../../base/browser/ui/button/button.js
 import { CountBadge, ICountBadgeStyles } from '../../../base/browser/ui/countBadge/countBadge.js';
 import { IHoverDelegate, IHoverDelegateOptions } from '../../../base/browser/ui/hover/hoverDelegate.js';
 import { IInputBoxStyles } from '../../../base/browser/ui/inputbox/inputBox.js';
-import { IAction } from '../../../base/common/actions.js';
 import { IKeybindingLabelStyles } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListStyles } from '../../../base/browser/ui/list/listWidget.js';
 import { IProgressBarStyles, ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
@@ -65,12 +64,6 @@ export interface IQuickInputOptions {
 	 */
 	hoverDelegate: IHoverDelegate;
 	styles: IQuickInputStyles;
-	/**
-	 * Actions for the context menu of the quick input's text box. When provided,
-	 * the quick input shows this menu itself and hosts it inside its own DOM so
-	 * that focus does not leave the quick input while the menu is open.
-	 */
-	textInputContextMenuActions?(): readonly IAction[];
 }
 
 export interface IQuickInputStyles {

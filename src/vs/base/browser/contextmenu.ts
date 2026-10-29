@@ -10,6 +10,7 @@ import { AnchorAlignment, AnchorAxisAlignment, IAnchor, IContextViewCloseAnimati
 import { IAction, IActionRunner } from '../common/actions.js';
 import { ResolvedKeybinding } from '../common/keybindings.js';
 import { OmitOptional } from '../common/types.js';
+import { IDisposable, toDisposable } from '../common/lifecycle.js';
 
 export interface IContextMenuEvent {
 	readonly shiftKey?: boolean;
@@ -50,6 +51,11 @@ export interface IContextMenuDelegate {
 	autoSelectItem?: boolean | number;
 	anchorAlignment?: AnchorAlignment;
 	anchorAxisAlignment?: AnchorAxisAlignment;
+	/**
+	 * The element to render the context menu in. When unset, a context menu that is
+	 * anchored to an element or a mouse event is rendered in the nearest
+	 * {@link markAsContextMenuHost context menu host} of that element, if any.
+	 */
 	domForShadowRoot?: HTMLElement;
 	/**
 	 * Mount the shadow root in the window container instead of `domForShadowRoot`.
@@ -73,4 +79,26 @@ export function getContextMenuAutoSelectItem(delegate: IContextMenuDelegate, act
 		return Number.isInteger(selection) && selection >= 0 && selection < actions.length ? selection : false;
 	}
 	return selection === true;
+}
+
+const CONTEXT_MENU_HOST_ATTRIBUTE = 'data-context-menu-host';
+
+/**
+ * Declares `element` as a context menu host: context menus that are triggered from
+ * within it (anchored to one of its descendants or to a mouse event targeting one)
+ * and that do not specify `domForShadowRoot` are rendered inside of the nearest
+ * such host. Use this for elements that own focus, e.g. overlays that hide when
+ * focus moves out of them, so that opening a context menu keeps focus within.
+ */
+export function markAsContextMenuHost(element: HTMLElement): IDisposable {
+	element.setAttribute(CONTEXT_MENU_HOST_ATTRIBUTE, '');
+	return toDisposable(() => element.removeAttribute(CONTEXT_MENU_HOST_ATTRIBUTE));
+}
+
+/**
+ * Returns the nearest {@link markAsContextMenuHost context menu host} of `element`
+ * (including `element` itself). Does not cross shadow roots.
+ */
+export function findContextMenuHost(element: HTMLElement | undefined): HTMLElement | undefined {
+	return element?.closest<HTMLElement>(`[${CONTEXT_MENU_HOST_ATTRIBUTE}]`) ?? undefined;
 }

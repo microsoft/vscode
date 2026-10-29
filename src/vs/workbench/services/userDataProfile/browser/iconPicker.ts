@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { markAsContextMenuHost } from '../../../../base/browser/contextmenu.js';
 import { Dimension, DisposableResizeObserver, getActiveElement, getWindow, trackFocus } from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -46,6 +47,9 @@ export class IconPicker extends Disposable {
 			picker.itemActivation = ItemActivation.NONE;
 			picker.widget = grid.domNode;
 			picker.items = [{ type: 'separator' }, { label: localize('resetIcon', "Reset to default") }];
+			// The grid owns focus within the picker (see the blur handling below), so
+			// context menus opened from it, e.g. on its search box, are rendered in it
+			disposables.add(markAsContextMenuHost(grid.domNode));
 			const focus = disposables.add(trackFocus(grid.domNode));
 			disposables.add(focus.onDidFocus(() => picker.activeItems = []));
 			disposables.add(focus.onDidBlur(() => picker.focus(QuickPickFocus.First)));

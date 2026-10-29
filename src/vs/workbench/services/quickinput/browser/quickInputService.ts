@@ -15,16 +15,10 @@ import { QuickInputService as BaseQuickInputService } from '../../../../platform
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { InQuickPickContextKey } from '../../../browser/quickaccess.js';
-import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { Lazy } from '../../../../base/common/lazy.js';
-import { IAction } from '../../../../base/common/actions.js';
-import { createTextInputActions } from '../../../browser/actions/textInputActions.js';
 
 export class QuickInputService extends BaseQuickInputService {
 
 	private readonly inQuickInputContext = InQuickPickContextKey.bindTo(this.contextKeyService);
-	private readonly textInputActions = new Lazy<IAction[]>(() => createTextInputActions(this.clipboardService, this.logService));
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
@@ -34,8 +28,6 @@ export class QuickInputService extends BaseQuickInputService {
 		@IThemeService themeService: IThemeService,
 		@ILayoutService layoutService: ILayoutService,
 		@IOpenerService openerService: IOpenerService,
-		@IClipboardService private readonly clipboardService: IClipboardService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super(instantiationService, contextKeyService, themeService, layoutService, configurationService, openerService);
 
@@ -51,7 +43,6 @@ export class QuickInputService extends BaseQuickInputService {
 		return super.createController(this.layoutService, {
 			ignoreFocusOut: () => !this.configurationService.getValue('workbench.quickOpen.closeOnFocusLost'),
 			backKeybindingLabel: () => this.keybindingService.lookupKeybinding('workbench.action.quickInputBack')?.getLabel() || undefined,
-			textInputContextMenuActions: () => this.textInputActions.value,
 		});
 	}
 }

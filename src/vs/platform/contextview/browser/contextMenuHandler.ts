@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getContextMenuAutoSelectItem, IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
+import { findContextMenuHost, getContextMenuAutoSelectItem, IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
 import { $, addDisposableListener, EventType, getActiveElement, getWindow, isAncestor, isHTMLElement } from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { Menu } from '../../../base/browser/ui/menu/menu.js';
@@ -49,7 +49,7 @@ export class ContextMenuHandler {
 
 		let menu: Menu | undefined;
 
-		const shadowRootElement = isHTMLElement(delegate.domForShadowRoot) ? delegate.domForShadowRoot : undefined;
+		const shadowRootElement = isHTMLElement(delegate.domForShadowRoot) ? delegate.domForShadowRoot : findContextMenuHost(getTriggerElement(delegate));
 		this.contextViewService.showContextView({
 			getAnchor: () => delegate.getAnchor(),
 			canRelayout: false,
@@ -167,4 +167,19 @@ export class ContextMenuHandler {
 			this.notificationService.error(e.error);
 		}
 	}
+}
+
+/**
+ * The element a context menu was triggered from: the anchor element or the
+ * target of the anchor mouse event. Coordinate-only anchors have none.
+ */
+function getTriggerElement(delegate: IContextMenuDelegate): HTMLElement | undefined {
+	const anchor = delegate.getAnchor();
+	if (isHTMLElement(anchor)) {
+		return anchor;
+	}
+	if (anchor instanceof StandardMouseEvent) {
+		return anchor.target;
+	}
+	return undefined;
 }

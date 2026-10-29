@@ -13,6 +13,10 @@ import { unthemedListStyles } from '../../../../base/browser/ui/list/listWidget.
 import { unthemedProgressBarOptions } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { markAsContextMenuHost } from '../../../../base/browser/contextmenu.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { IconSelectBox } from '../../../../base/browser/ui/icons/iconSelectBox.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -47,7 +51,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { IThemeService } from '../../../theme/common/themeService.js';
 import { TestThemeService } from '../../../theme/test/common/testThemeService.js';
 import { QuickInputController } from '../../browser/quickInputController.js';
-import { IQuickInputButton, IQuickPick, IQuickPickItem, QuickInputButtonLocation } from '../../common/quickInput.js';
+import { IQuickInputButton, IQuickPick, IQuickPickItem, QuickInputButtonLocation, QuickPickFocus } from '../../common/quickInput.js';
 
 /**
  * Real blur/focus events only fire while the test document has focus. The main
@@ -61,14 +65,13 @@ async function setWebContentsFocus(focused: boolean): Promise<void> {
 	await changed;
 }
 
-function createQuickInputController(instantiationService: TestInstantiationService, container: HTMLElement, ignoreFocusOut: () => boolean, textInputContextMenuActions: (() => readonly IAction[]) | undefined): QuickInputController {
+function createQuickInputController(instantiationService: TestInstantiationService, container: HTMLElement, ignoreFocusOut: () => boolean): QuickInputController {
 	return instantiationService.createInstance(
 		QuickInputController,
 		{
 			container,
 			idPrefix: 'testQuickInput',
 			ignoreFocusOut,
-			textInputContextMenuActions,
 			returnFocus() { },
 			backKeybindingLabel() { return undefined; },
 			setContextKey() { return undefined; },
@@ -114,20 +117,44 @@ suite('QuickInput hosts its context menus', () => { // https://github.com/micros
 	let controller: QuickInputController;
 	let input: HTMLInputElement;
 
+	// Harmless stand-ins for the workbench text input actions; they act on the input the menu was opened for
 	const textInputActions: IAction[] = [
 		toAction({
-			id: 'harmlessPaste', label: 'Paste', run: () => {
-				const start = input.selectionStart ?? 0;
-				const end = input.selectionEnd ?? 0;
-				input.value = `${input.value.substring(0, start)}T10-pasted${input.value.substring(end)}`;
-				input.selectionStart = input.selectionEnd = start + 'T10-pasted'.length;
+			id: 'harmlessPaste', label: 'Paste', run: (target: HTMLInputElement) => {
+				const start = target.selectionStart ?? 0;
+				const end = target.selectionEnd ?? 0;
+				target.value = `${target.value.substring(0, start)}T10-pasted${target.value.substring(end)}`;
+				target.selectionStart = target.selectionEnd = start + 'T10-pasted'.length;
 			}
 		}),
-		toAction({ id: 'selectAll', label: 'Select All', run: () => input.select() }),
+		toAction({ id: 'selectAll', label: 'Select All', run: (target: HTMLInputElement) => target.select() }),
 	];
 
-	function setupController(withTextInputActions = true): void {
-		controller = store.add(createQuickInputController(instantiationService, fixture, () => ignoreFocusOut, withTextInputActions ? () => textInputActions : undefined));
+	/**
+	 * Mirrors the workbench `TextInputActionsProvider`: a generic opener for the context
+	 * menu of any input that knows nothing about the quick input (no `domForShadowRoot`).
+	 */
+	function registerGenericTextInputContextMenu(): void {
+		store.add(dom.addDisposableListener(fixture, dom.EventType.CONTEXT_MENU, e => {
+			const target = e.target;
+			if (e.defaultPrevented || !(target instanceof HTMLInputElement)) {
+				return;
+			}
+			dom.EventHelper.stop(e, true);
+			const anchor = new StandardMouseEvent(mainWindow, e);
+			contextMenuService.showContextMenu({
+				getAnchor: () => anchor,
+				getActions: () => textInputActions,
+				getActionsContext: () => target,
+			});
+		}));
+	}
+
+	function setupController(withGenericTextInputContextMenu = true): void {
+		if (withGenericTextInputContextMenu) {
+			registerGenericTextInputContextMenu();
+		}
+		controller = store.add(createQuickInputController(instantiationService, fixture, () => ignoreFocusOut));
 		controller.layout({ height: 400, width: 800 }, 0);
 	}
 
@@ -508,12 +535,93 @@ suite('QuickInput hosts its context menus', () => { // https://github.com/micros
 		assert.deepStrictEqual(state(picker).visible, true);
 	});
 
-	test('without text input actions (e.g. standalone) no menu is shown and the event is not prevented', async () => {
+	test('the quick input itself does not handle context menu events of its input', async () => {
 		setupController(false);
 		const picker = showPicker();
 		const event = rightClickInput();
 		await settle();
 		assert.deepStrictEqual([event.defaultPrevented, state(picker).menu, state(picker).visible], [false, 'none', true]);
+	});
+
+	test('the context menu of an ordinary input outside of the quick input is not hosted', async () => {
+		setupController();
+		const picker = showPicker();
+		picker.hide();
+		const other = document.createElement('input');
+		fixture.appendChild(other);
+		other.focus();
+		other.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: 5, clientY: 5 }));
+		await settle();
+		const menu = openMenu();
+		const hostedInWidget = !!menu && widget().contains(menu.host);
+		instantiationService.get(IContextViewService).hideContextView();
+		assert.deepStrictEqual([!!menu, hostedInWidget], [true, false]);
+	});
+
+	test('item row overflow menu is hosted in the quick input, not in the row; Escape keeps the picker', async () => {
+		setupController();
+		editor.focus();
+		const picker = store.add(controller.createQuickPick());
+		picker.items = [{ label: 'item', buttons: [{ iconClass: Codicon.gear.id, tooltip: 'T10 row secondary', secondary: true }] }];
+		picker.show();
+		input = fixture.querySelector<HTMLInputElement>('.quick-input-widget input')!;
+		await settle();
+		const row = widget().querySelector<HTMLElement>('.quick-input-list .monaco-list-row')!;
+		const more = row.querySelector<HTMLElement>('.codicon-toolbar-more')!;
+		more.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+		more.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+		await settle();
+		const menu = openMenu();
+		const hosted = { inWidget: !!menu && widget().contains(menu.host), inRow: !!menu && row.contains(menu.host), visible: state(picker).visible };
+		keydown(activeElementDeep()!, 'Escape', 27);
+		await settle();
+		assert.deepStrictEqual([hosted, state(picker).visible, state(picker).menu], [{ inWidget: true, inRow: false, visible: true }, true, 'none']);
+	});
+
+	test('a nested focus owner (icon picker) hosts the menu of its search box; it stays usable and Escape restores the search box', async () => {
+		setupController();
+		editor.focus();
+		// Mirrors workbench IconPicker: hidden quick input box, an icon select box as custom widget that is
+		// declared a context menu host and that moves focus to the first item when it loses focus.
+		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
+		const grid = store.add(new IconSelectBox({ icons: [Codicon.add, Codicon.gear, Codicon.edit].map(icon => ThemeIcon.fromId(icon.id)), inputBoxStyles: unthemedInboxStyles }));
+		picker.hideInput = true;
+		picker.widget = grid.domNode;
+		picker.items = [{ type: 'separator' }, { label: 'Reset to default' }];
+		store.add(markAsContextMenuHost(grid.domNode));
+		const gridFocus = store.add(dom.trackFocus(grid.domNode));
+		store.add(gridFocus.onDidFocus(() => picker.activeItems = []));
+		store.add(gridFocus.onDidBlur(() => picker.focus(QuickPickFocus.First)));
+		picker.show();
+		grid.layout(new dom.Dimension(400, 200));
+		grid.focus();
+		const search = grid.domNode.querySelector<HTMLInputElement>('input')!;
+		search.value = 'gear';
+		search.setSelectionRange(1, 3);
+
+		const rect = search.getBoundingClientRect();
+		search.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: rect.left + 5, clientY: rect.top + 5 }));
+		await settle();
+		await timeout(20); // let deferred focus tracker callbacks run
+		const menu = openMenu();
+		const opened = { menu: !!menu, inGrid: !!menu && grid.domNode.contains(menu.host), focusInMenu: !!activeElementDeep()?.closest('.monaco-menu'), visible: controller.currentQuickInput === picker };
+
+		keydown(activeElementDeep()!, 'Escape', 27);
+		await settle();
+		const escaped = { menu: !!openMenu(), focusInSearch: mainWindow.document.activeElement === search, selection: [search.selectionStart, search.selectionEnd], visible: controller.currentQuickInput === picker };
+
+		search.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: rect.left + 5, clientY: rect.top + 5 }));
+		await settle();
+		keydown(activeElementDeep()!, 'End', 35);
+		keydown(activeElementDeep()!, 'Enter', 13);
+		await settle();
+		const selectedAll = { focusInSearch: mainWindow.document.activeElement === search, selection: [search.selectionStart, search.selectionEnd], visible: controller.currentQuickInput === picker };
+
+		assert.deepStrictEqual({ opened, escaped, selectedAll }, {
+			opened: { menu: true, inGrid: true, focusInMenu: true, visible: true },
+			escaped: { menu: false, focusInSearch: true, selection: [1, 3], visible: true },
+			selectedAll: { focusInSearch: true, selection: [0, 4], visible: true },
+		});
 	});
 
 	for (const immediate of [true, false]) {
