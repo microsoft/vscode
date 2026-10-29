@@ -43,6 +43,17 @@ suite('Registry leak check', () => {
 		});
 	});
 
+	test('reports a menu item object that is registered again', () => {
+		const registrations = store.add(new DisposableStore());
+		const item = { command: { id: 'registryLeakCheck.test.duplicate', title: 'Duplicate' } };
+		registrations.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, item));
+		const before = takeRegistrySnapshot();
+		registrations.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, item));
+		const changes = diffRegistrySnapshots(before, takeRegistrySnapshot());
+		registrations.dispose();
+		assert.deepStrictEqual(changes, [`registered menu item 'registryLeakCheck.test.duplicate' in 'CommandPalette'`]);
+	});
+
 	test('reports what was registered and unregistered between snapshots', () => {
 		const registrations = store.add(new DisposableStore());
 		const before = takeRegistrySnapshot();

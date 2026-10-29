@@ -11,9 +11,20 @@ import { IMenuItem, isIMenuItem, ISubmenuItem, MenuId, MenuRegistry } from '../.
 export interface IRegistrySnapshot {
 	readonly commands: ReadonlyMap<string, ICommand>;
 	readonly menuCommands: ReadonlyMap<string, ICommandAction>;
-	readonly menuItems: ReadonlyMap<MenuId, ReadonlySet<IMenuItem | ISubmenuItem>>;
-	readonly keybindings: ReadonlySet<IKeybindingItem>;
-	readonly keybindingRules: ReadonlySet<IKeybindingRule>;
+	readonly menuItems: ReadonlyMap<MenuId, ReadonlyMap<IMenuItem | ISubmenuItem, number>>;
+	readonly keybindings: ReadonlyMap<IKeybindingItem, number>;
+	readonly keybindingRules: ReadonlyMap<IKeybindingRule, number>;
+}
+
+/**
+ * Counts how often each object is registered: the registries keep a list, so the same object can be registered more than once.
+ */
+function countRegistrations<T>(items: Iterable<T>): ReadonlyMap<T, number> {
+	const counts = new Map<T, number>();
+	for (const item of items) {
+		counts.set(item, (counts.get(item) ?? 0) + 1);
+	}
+	return counts;
 }
 
 function getMenuIds(): Iterable<MenuId> {
@@ -27,7 +38,7 @@ function getKeybindingRules(): Iterable<IKeybindingRule> {
 }
 
 export function takeRegistrySnapshot(): IRegistrySnapshot {
-	const menuItems = new Map<MenuId, ReadonlySet<IMenuItem | ISubmenuItem>>();
+	const menuItems = new Map<MenuId, ReadonlyMap<IMenuItem | ISubmenuItem, number>>();
 	for (const id of getMenuIds()) {
 		let items = MenuRegistry.getMenuItems(id);
 		if (id === MenuId.CommandPalette) {
@@ -37,15 +48,15 @@ export function takeRegistrySnapshot(): IRegistrySnapshot {
 			items = items.filter(item => registered.has(item));
 		}
 		if (items.length) {
-			menuItems.set(id, new Set(items));
+			menuItems.set(id, countRegistrations(items));
 		}
 	}
 	return {
 		commands: CommandsRegistry.getCommands(),
 		menuCommands: new Map(MenuRegistry.getCommands()),
 		menuItems,
-		keybindings: new Set(KeybindingsRegistry.getDefaultKeybindings()),
-		keybindingRules: new Set(getKeybindingRules()),
+		keybindings: countRegistrations(KeybindingsRegistry.getDefaultKeybindings()),
+		keybindingRules: countRegistrations(getKeybindingRules()),
 	};
 }
 
@@ -65,6 +76,15 @@ function diffMaps<V>(kind: string, before: ReadonlyMap<string, V>, after: Readon
 	}
 }
 
+function diffCounts<T>(before: ReadonlyMap<T, number> | undefined, after: ReadonlyMap<T, number> | undefined, describe: (item: T) => string, changes: string[]): void {
+	for (const item of new Set([...before?.keys() ?? [], ...after?.keys() ?? []])) {
+		const delta = (after?.get(item) ?? 0) - (before?.get(item) ?? 0);
+		for (let i = 0; i < Math.abs(delta); i++) {
+			changes.push(`${delta > 0 ? 'registered' : 'unregistered'} ${describe(item)}`);
+		}
+	}
+}
+
 function describeMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): string {
 	return `menu item '${isIMenuItem(item) ? item.command.id : `submenu ${item.submenu.id}`}' in '${menu.id}'`;
 }
@@ -73,42 +93,12 @@ export function diffRegistrySnapshots(before: IRegistrySnapshot, after: IRegistr
 	const changes: string[] = [];
 	diffMaps('command', before.commands, after.commands, changes);
 	diffMaps('menu command', before.menuCommands, after.menuCommands, changes);
-	for (const [menu, items] of after.menuItems) {
-		const previous = before.menuItems.get(menu);
-		for (const item of items) {
-			if (!previous?.has(item)) {
-				changes.push(`registered ${describeMenuItem(menu, item)}`);
-			}
-		}
+	const menus = new Set([...before.menuItems.keys(), ...after.menuItems.keys()]);
+	for (const menu of menus) {
+		diffCounts(before.menuItems.get(menu), after.menuItems.get(menu), item => describeMenuItem(menu, item), changes);
 	}
-	for (const [menu, items] of before.menuItems) {
-		const current = after.menuItems.get(menu);
-		for (const item of items) {
-			if (!current?.has(item)) {
-				changes.push(`unregistered ${describeMenuItem(menu, item)}`);
-			}
-		}
-	}
-	for (const item of after.keybindings) {
-		if (!before.keybindings.has(item)) {
-			changes.push(`registered keybinding for '${item.command ?? '<none>'}'`);
-		}
-	}
-	for (const item of before.keybindings) {
-		if (!after.keybindings.has(item)) {
-			changes.push(`unregistered keybinding for '${item.command ?? '<none>'}'`);
-		}
-	}
-	for (const rule of after.keybindingRules) {
-		if (!before.keybindingRules.has(rule)) {
-			changes.push(`registered keybinding rule for '${rule.id}'`);
-		}
-	}
-	for (const rule of before.keybindingRules) {
-		if (!after.keybindingRules.has(rule)) {
-			changes.push(`unregistered keybinding rule for '${rule.id}'`);
-		}
-	}
+	diffCounts(before.keybindings, after.keybindings, item => `keybinding for '${item.command ?? '<none>'}'`, changes);
+	diffCounts(before.keybindingRules, after.keybindingRules, rule => `keybinding rule for '${rule.id}'`, changes);
 	return changes;
 }
 
