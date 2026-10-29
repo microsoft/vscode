@@ -159,6 +159,25 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, applicationFilter: true, moveToSession: true });
 	});
 
+	test('documents terminal command descriptions and Explain in confirmations', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+
+		assert.deepStrictEqual({
+			description: content.includes('the confirmation title includes that description, such as Run in terminal: followed by the description'),
+			explain: content.includes('use Tab to reach Explain and press Enter or Space to open a side chat'),
+			pending: content.includes('The confirmation stays pending until you allow or skip it'),
+		}, { description: true, explain: true, pending: true });
+	});
+
 	test('documents connector recommendations when the marketplace is available', () => {
 		const enabled = [false, true].map(value => {
 			const instantiationService = store.add(new TestInstantiationService());

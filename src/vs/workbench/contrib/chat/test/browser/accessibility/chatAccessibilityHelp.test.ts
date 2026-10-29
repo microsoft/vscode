@@ -71,6 +71,19 @@ suite('Chat Accessibility Help', () => {
 		].map(help => help.includes('/btw followed by a question') && help.includes('while a response is in progress')), [true, true, true, true, false, false]);
 	});
 
+	test('documents terminal command descriptions and Explain wherever side chats are documented', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('editsView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
+		].map(help => help.includes('the confirmation title includes that description, such as Run in terminal: followed by the description')
+			&& help.includes('use Tab to reach Explain')
+			&& help.includes('The confirmation stays pending until you allow or skip it')), [true, true, true, true, false, false]);
+	});
+
 	test('documents private early preparation and the pending Send handoff', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false);
 		const preparation = getCloudSandboxPreparationAccessibilityHelp();
