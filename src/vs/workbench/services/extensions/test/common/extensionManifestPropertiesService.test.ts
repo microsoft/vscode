@@ -399,12 +399,48 @@ if (!isWeb) {
 			return Object.create({ name: 'a', publisher: 'pub', version: '1.0.0', ...properties }) as IExtensionManifest;
 		}
 
-		test('test extension workspace trust request when main entry point is missing', () => {
+		test('test extension workspace trust request when no executable entry point exists', () => {
 			instantiationService.stub(IProductService, {});
 			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
 
 			const extensionManifest = getExtensionManifest();
 			assertUntrustedWorkspaceSupport(extensionManifest, true);
+		});
+
+		for (const supported of [false, true, 'limited'] as const) {
+			test(`browser-only extension honors its declared untrusted workspace support: ${supported}`, () => {
+				instantiationService.stub(IProductService, {});
+				instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+				assertUntrustedWorkspaceSupport(getExtensionManifest({
+					browser: './dist/browser/extension.js',
+					capabilities: { untrustedWorkspaces: { supported, description: 'Workspace trust support' } },
+				}), supported);
+			});
+		}
+
+		test('browser-only extensions without declared support require workspace trust', () => {
+			instantiationService.stub(IProductService, {});
+			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+			assertUntrustedWorkspaceSupport(getExtensionManifest({ browser: './dist/browser/extension.js' }), false);
+		});
+
+		test('browser-only extensions still honor the disabled workspace trust feature', () => {
+			instantiationService.stub(IProductService, {});
+			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService(false));
+			assertUntrustedWorkspaceSupport(getExtensionManifest({
+				browser: './dist/browser/extension.js',
+				capabilities: { untrustedWorkspaces: { supported: false, description: 'Requires trust' } },
+			}), true);
+		});
+
+		test('browser-only extensions honor an explicit user trust-support override', async () => {
+			instantiationService.stub(IProductService, {});
+			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+			await testConfigurationService.setUserConfiguration('extensions', { supportUntrustedWorkspaces: { 'pub.a': { supported: true } } });
+			assertUntrustedWorkspaceSupport(getExtensionManifest({
+				browser: './dist/browser/extension.js',
+				capabilities: { untrustedWorkspaces: { supported: false, description: 'Requires trust' } },
+			}), true);
 		});
 
 		test('test extension workspace trust request when workspace trust is disabled', async () => {
