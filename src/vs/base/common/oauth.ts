@@ -1302,20 +1302,17 @@ export interface IFetchAuthorizationServerMetadataOptions {
 }
 
 /** Compares metadata issuers, including the tenant-independent Entra discovery aliases. */
-function isMatchingAuthorizationServerIssuer(authorizationServer: string, expected: URL, issuer: string): boolean {
-	const actual = new URL(issuer);
-	if (issuer.includes('?') || issuer.includes('#') || actual.username || actual.password) {
-		return false;
+function isMatchingAuthorizationServerIssuer(expectedIssuer: URL, issuerValue: string): boolean {
+	const issuer = new URL(issuerValue);
+	// Entra discovery uses issuer aliases; access-token issuer validation belongs to the resource server.
+	if (expectedIssuer.origin === 'https://login.microsoftonline.com'
+		&& (/^\/(?:common|organizations|consumers)\/v2\.0\/?$/.test(expectedIssuer.pathname)
+			&& issuer.pathname === '/%7Btenantid%7D/v2.0'
+			|| /^\/consumers\/v2\.0\/?$/.test(expectedIssuer.pathname)
+			&& issuer.pathname === '/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0')) {
+		issuer.pathname = expectedIssuer.pathname;
 	}
-	if (issuer === authorizationServer) {
-		return true;
-	}
-	if (expected.origin !== 'https://login.microsoftonline.com' || actual.origin !== expected.origin) {
-		return false;
-	}
-	// Entra publishes tenant-independent metadata with a template or consumer tenant issuer.
-	return /^\/(?:common|organizations|consumers)\/v2\.0\/?$/.test(expected.pathname) && actual.pathname === '/%7Btenantid%7D/v2.0'
-		|| /^\/consumers\/v2\.0\/?$/.test(expected.pathname) && actual.pathname === '/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0';
+	return issuer.toString() === expectedIssuer.toString() && !issuer.search && !issuer.hash && !issuer.username && !issuer.password;
 }
 
 /** Helper to try parsing the response as authorization server metadata */
@@ -1375,9 +1372,6 @@ export async function fetchAuthorizationServerMetadata(
 	} = options;
 
 	const authorizationServerUrl = new URL(authorizationServer);
-	if (authorizationServer.includes('?') || authorizationServer.includes('#') || authorizationServerUrl.username || authorizationServerUrl.password) {
-		throw new Error('Authorization server identifier must not contain credentials, query, or fragment');
-	}
 	const extraPath = authorizationServerUrl.pathname === '/' ? '' : authorizationServerUrl.pathname;
 
 	const errors: Error[] = [];
@@ -1393,7 +1387,7 @@ export async function fetchAuthorizationServerMetadata(
 			});
 			const metadata = await tryParseAuthServerMetadata(rawResponse);
 			if (metadata) {
-				if (!isMatchingAuthorizationServerIssuer(authorizationServer, authorizationServerUrl, metadata.issuer)) {
+				if (!isMatchingAuthorizationServerIssuer(authorizationServerUrl, metadata.issuer)) {
 					errors.push(new Error('Authorization server metadata issuer does not match the requested authorization server (RFC 8414 section 3)'));
 					return undefined;
 				}
