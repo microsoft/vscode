@@ -52,24 +52,22 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		const input = IssueReporterEditorInput.instance;
 		input.setIssueReporterData(enrichedData);
 
-		// Get window bounds for positioning auxiliary window
-		const bounds = await this.nativeHostService.getActiveWindowPosition();
-		const boundsOptions = bounds ? {
-			x: bounds.x + bounds.width / 2 - 350,
-			y: bounds.y + bounds.height / 2 - 400,
-			width: 700,
-			height: 800
-		} : { width: 700, height: 800 };
-
-		// Open in auxiliary window for better UX (similar to process explorer)
-		await this.editorService.openEditor(input, {
-			pinned: true,
-			revealIfOpened: true,
-			auxiliary: {
-				bounds: boundsOptions,
-				compact: true,
-				alwaysOnTop: true
+		const pane = await this.editorService.openEditor({
+			resource: IssueReporterEditorInput.RESOURCE,
+			options: {
+				pinned: true,
+				revealIfOpened: true,
+				auxiliary: {
+					compact: true,
+					alwaysOnTop: true
+				}
 			}
 		}, AUX_WINDOW_GROUP);
+
+		if (pane) {
+			const listener = pane.input?.onWillDispose(() => {
+				listener?.dispose();
+			});
+		}
 	}
 }

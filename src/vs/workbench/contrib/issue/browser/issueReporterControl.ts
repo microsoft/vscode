@@ -29,7 +29,7 @@ export abstract class IssueReporterControl extends Disposable {
 
 	private create(): void {
 		console.log('IssueReporterControl.create called', { container: this.container, data: this.data });
-		this.container.classList.add('issue-reporter-container');
+		this.container.classList.add('issue-reporter-container-WOAH');
 
 		// Create a wrapper div to contain the issue reporter HTML
 		const issueReporterWrapper = document.createElement('div');

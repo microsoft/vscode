@@ -251,7 +251,6 @@ export class BaseIssueReporterService extends Disposable {
 		this.updateInternalGithubButton(filingRow);
 		this.updateInternalElementsVisibility();
 	}
-
 	private updateInternalFilingNote(container: HTMLElement) {
 		let filingNote = this.getElementById('internal-preview-message');
 		if (!filingNote) {

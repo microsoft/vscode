@@ -13,7 +13,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
-import { Extensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { Extensions, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { EditorExtensions, IEditorSerializer, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
@@ -72,7 +72,7 @@ class IssueReporterEditorContribution {
 			{
 				createEditorInput: () => {
 					return {
-						editor: IssueReporterEditorInput.instance,
+						editor: instantiationService.createInstance(IssueReporterEditorInput),
 						options: {
 							pinned: true
 						}
@@ -82,8 +82,8 @@ class IssueReporterEditorContribution {
 		);
 	}
 }
-
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(IssueReporterEditorContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(IssueReporterEditorContribution.ID, IssueReporterEditorContribution, WorkbenchPhase.BlockStartup)
+// Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(IssueReporterEditorContribution, LifecyclePhase.Restored);
 
 // Register the editor pane
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
