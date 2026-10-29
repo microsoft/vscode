@@ -86,7 +86,7 @@ import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/
 import { type ISessionChangeset, type ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService } from '../../../worktreeSuggestion/browser/worktreeSuggestionService.js';
-import { getChangedFileUri, getUncommittedChangesListHeader, getUncommittedFilesDescription, getUncommittedFilesSectionLabel } from '../../../worktreeSuggestion/browser/worktreeSuggestionPresentation.js';
+import { getChangedFileUri, getUncommittedFilesDescription, getUncommittedFilesSectionLabel } from '../../../worktreeSuggestion/browser/worktreeSuggestionPresentation.js';
 import { WorktreeSuggestionVariant } from '../../../worktreeSuggestion/common/worktreeSuggestion.js';
 
 const ExperimentalSessionComposerLayout = SessionUsesExperimentalComposerLayoutContext;
@@ -1445,12 +1445,6 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			},
 			{
 				...(showFilter ? { showFilter: true, filterPlaceholder: localize('agentHostSessionConfig.filter', "Filter options...") } : {}),
-				// Closing the explanation above the listed files keeps them listed.
-				...(listedFiles && !this._worktreeSuggestionService.isExplanationClosed(undefined) ? {
-					headerText: getUncommittedChangesListHeader(listedFiles),
-					headerIcon: Codicon.info,
-					headerDismiss: () => this._worktreeSuggestionService.closeExplanation(listedFiles),
-				} : {}),
 				...(listedFiles ? { className: LISTED_FILES_CLASS } : {}),
 				minWidth: listedFiles ? 300 : 255,
 				anchorPosition: AnchorPosition.BELOW,

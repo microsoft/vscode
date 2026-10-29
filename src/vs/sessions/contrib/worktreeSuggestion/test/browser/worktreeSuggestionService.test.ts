@@ -40,7 +40,7 @@ import { ISessionsProvider } from '../../../../services/sessions/common/sessions
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { WORKTREE_SUGGESTION_SETTING, WORKTREE_SUGGESTION_TOUR_ID, WorktreeSuggestionVariant } from '../../common/worktreeSuggestion.js';
-import { getChangedFileLabel } from '../../browser/worktreeSuggestionPresentation.js';
+import { getChangedFileLabel, getInlineHintMessage } from '../../browser/worktreeSuggestionPresentation.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, WorktreeSpotlightChoice, WorktreeSuggestionService } from '../../browser/worktreeSuggestionService.js';
 
 class RecordingTelemetryService extends TestExperimentTriggerTelemetryService {
@@ -274,7 +274,6 @@ suite('WorktreeSuggestionService', () => {
 		const responded = createService({ spotlightShown: true });
 		const suggestion = responded.service.getSuggestion(createSession(), undefined)!;
 		responded.service.closeHint(suggestion);
-		responded.service.closeExplanation(suggestion);
 		const preview = createService();
 		preview.service.setPreview(WorktreeSuggestionVariant.InlineHint);
 		preview.service.reportWouldShow();
@@ -292,14 +291,13 @@ suite('WorktreeSuggestionService', () => {
 		});
 	});
 
-	test('closes the hint and the explanation above the uncommitted files for good, which a preview neither reads nor changes', () => {
+	test('closes the hint for good, which a preview neither reads nor changes', () => {
 		const { service, storage, telemetry } = createService();
 		const suggestion = service.getSuggestion(createSession(), undefined)!;
-		const closed = () => ({ hint: service.isHintClosed(undefined), explanation: service.isExplanationClosed(undefined) });
+		const closed = () => service.isHintClosed(undefined);
 
 		const initially = closed();
 		service.closeHint(suggestion);
-		service.closeExplanation(suggestion);
 		const afterClosing = closed();
 		const stored = JSON.parse(storage.get('sessions.worktreeSuggestion.state', StorageScope.PROFILE) ?? 'null');
 		service.setPreview(WorktreeSuggestionVariant.InlineHint);
@@ -323,15 +321,15 @@ suite('WorktreeSuggestionService', () => {
 			afterReset: closed(),
 			events: actions(telemetry),
 		}, {
-			initially: { hint: false, explanation: false },
-			afterClosing: { hint: true, explanation: true },
-			stored: { hintClosed: true, explanationClosed: true },
-			inPreview: { hint: false, explanation: false },
-			afterClosingInPreview: { hint: true, explanation: false },
-			inNextPreview: { hint: false, explanation: false },
-			afterPreview: { hint: true, explanation: true },
-			afterReset: { hint: false, explanation: false },
-			events: ['dismissed:inlineHint', 'explanationClosed:uncommittedFilesCount'],
+			initially: false,
+			afterClosing: true,
+			stored: { hintClosed: true },
+			inPreview: false,
+			afterClosingInPreview: true,
+			inNextPreview: false,
+			afterPreview: true,
+			afterReset: false,
+			events: ['dismissed:inlineHint'],
 		});
 	});
 
@@ -399,7 +397,7 @@ suite('WorktreeSuggestionService', () => {
 			uri: URI.file(`/repo/${path}`), modifiedUri: URI.file(`/repo/${path}`), insertions: index + 1, deletions: index,
 		}));
 		const list = (count: number) => service.getUncommittedChangesListItems(variant, service.getSuggestion(createSession({ changes: changes(count) }), undefined)!, 3);
-		// Rows show their label, folder, and lines added and removed, and keep a file icon for alignment.
+		// Rows show their label and lines added and removed, but no folder, which only screen readers hear, and keep a file icon for alignment.
 		const describe = (row: IActionListItem<IUncommittedChangesListItem>) => [row.label, row.description, ...(row.additionalBadges?.map(badge => badge.label) ?? []), row.ariaDescription, `[${row.className}]`, `{${row.iconClasses?.filter(name => name === 'file-icon').join(' ')}}`].filter(Boolean).join(' ');
 
 		const five = list(5);
@@ -416,8 +414,8 @@ suite('WorktreeSuggestionService', () => {
 		}, {
 			three: [
 				'README.md +1 -0 +1 -0 [worktree-suggestion-changed-file show-file-icons] {file-icon}',
-				'app.ts src +2 -1 src, +2 -1 [worktree-suggestion-changed-file show-file-icons] {file-icon}',
-				'todo.ts src +3 -2 src, +3 -2 [worktree-suggestion-changed-file show-file-icons] {file-icon}',
+				'app.ts +2 -1 src, +2 -1 [worktree-suggestion-changed-file show-file-icons] {file-icon}',
+				'todo.ts +3 -2 src, +3 -2 [worktree-suggestion-changed-file show-file-icons] {file-icon}',
 			],
 			four: ['README.md', 'app.ts', 'todo.ts', 'store.ts'],
 			five: ['README.md', 'app.ts', 'todo.ts', '2 more'],
@@ -465,6 +463,21 @@ suite('WorktreeSuggestionService', () => {
 			lostTarget: { choice: undefined, revealed: 1, buttons, events: ['shown:spotlightOnSend'], declined: false, canShowLater: false, tourRegistered: false },
 			preview: { choice: WorktreeSpotlightChoice.Branch, revealed: 1, buttons, events: [], declined: true, canShowLater: true, tourRegistered: false },
 			previewOnceShown: { choice: WorktreeSpotlightChoice.Worktree, revealed: 1, buttons, events: [], declined: false, canShowLater: false, tourRegistered: false },
+		});
+	});
+
+	test('splits the inline hint around its number of uncommitted files, which links to the changes', () => {
+		const session = createSession();
+		const hint = (uncommittedChanges: number, branchName: string | undefined) => getInlineHintMessage({ session, uncommittedChanges, branchName });
+		const after = '. Worktrees allow agents to run on a separate copy of the files.';
+		assert.deepStrictEqual({
+			branch: hint(3, 'main'),
+			singleFile: hint(1, 'main'),
+			folder: hint(2, undefined),
+		}, {
+			branch: { before: 'main has ', files: '3 uncommitted files', after },
+			singleFile: { before: 'main has ', files: '1 uncommitted file', after },
+			folder: { before: 'This folder has ', files: '2 uncommitted files', after },
 		});
 	});
 

@@ -35,6 +35,16 @@
 	text-wrap: pretty;
 }
 
+/* The number of uncommitted files is a link within the sentence, underlined like links in paragraphs. */
+.new-session-worktree-suggestion-message > .monaco-link {
+	text-decoration: var(--text-link-decoration);
+}
+
+.hc-black .new-session-worktree-suggestion-message > .monaco-link,
+.hc-light .new-session-worktree-suggestion-message > .monaco-link {
+	text-decoration: underline;
+}
+
 .new-session-worktree-suggestion > .monaco-button {
 	flex-shrink: 0;
 	width: auto;
@@ -45,20 +55,7 @@
 	flex-shrink: 0;
 }
 
-/* A changed file reads like a row of the Changes view: name, folder, then the lines added and removed. */
-.action-widget .monaco-list-row.action.worktree-suggestion-changed-file .title {
-	flex: 0 1 auto;
-	min-width: 0;
-}
-
-.action-widget .monaco-list-row.action.worktree-suggestion-changed-file .description {
-	flex: 1;
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
+/* A changed file shows its name, then the lines added and removed at the end of the row, as in the Changes view. */
 .action-widget .monaco-list-row.action.worktree-suggestion-changed-file .action-item-additional-badges {
 	order: 1;
 	margin-left: auto;

@@ -10,7 +10,11 @@ import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { WorktreeSuggestionVariant } from '../../common/worktreeSuggestion.js';
@@ -31,6 +35,8 @@ suite('WorktreeSuggestionController', () => {
 		pickerVisibility.setVisible('worktree', options.isolationPicker ?? true);
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IWorktreeSuggestionService, service);
+		instantiationService.stub(IHoverService, NullHoverService);
+		instantiationService.set(IOpenerService, NullOpenerService);
 		// Attached, so that focus can move between the hint and the input.
 		const container = mainWindow.document.body.appendChild(document.createElement('div'));
 		store.add(toDisposable(() => container.remove()));
@@ -56,6 +62,7 @@ suite('WorktreeSuggestionController', () => {
 			},
 			hint: () => hint.style.display === 'none' ? undefined : hint.querySelector('.new-session-worktree-suggestion-message')?.textContent,
 			clickUseWorktree: () => hint.querySelector<HTMLElement>('.monaco-button')!.click(),
+			filesLink: () => hint.querySelector<HTMLElement>('.new-session-worktree-suggestion-message .monaco-link')!,
 			clickClose: () => hint.querySelector<HTMLElement>('.monaco-action-bar .action-label')!.click(),
 			/** Presses Escape on the focused Use Worktree button, which handles Escape itself. */
 			pressEscape: () => {
@@ -105,6 +112,22 @@ suite('WorktreeSuggestionController', () => {
 			escaped: { hint: undefined, composer: ['openIsolationPicker', 'focusInput'], calls: ['shown:inlineHint', 'opened:inlineHint', 'declined:inlineHint'], closedForGood: false },
 			closeLabel: 'Close and Don\'t Show Again',
 			closed: { hint: undefined, calls: ['shown:inlineHint', 'hintClosed'], closedForGood: true },
+		});
+	});
+
+	test('the inline hint links its number of uncommitted files to the changes', () => {
+		const { service, type, hint, filesLink } = createController(WorktreeSuggestionVariant.InlineHint);
+		type('Add a dark theme');
+		const link = filesLink();
+		const shown = { message: hint(), link: link.textContent, role: link.getAttribute('role'), tabIndex: link.tabIndex };
+		link.click();
+		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+
+		assert.deepStrictEqual({ shown, calls: service.calls, hint: hint() }, {
+			shown: { message: 'main has 3 uncommitted files. Worktrees allow agents to run on a separate copy of the files.', link: '3 uncommitted files', role: 'button', tabIndex: 0 },
+			calls: ['shown:inlineHint', 'reviewChanges:inlineHint', 'reviewChanges:inlineHint'],
+			// Showing the changes keeps the hint, whose choice is still open.
+			hint: 'main has 3 uncommitted files. Worktrees allow agents to run on a separate copy of the files.',
 		});
 	});
 
