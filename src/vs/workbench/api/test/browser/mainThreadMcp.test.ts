@@ -28,6 +28,7 @@ import { IWorkbenchMcpGatewayService } from '../../../contrib/mcp/common/mcpGate
 import { IMcpHostDelegate, IMcpRegistry } from '../../../contrib/mcp/common/mcpRegistryTypes.js';
 import { McpCollectionDefinition, McpCollectionSortOrder, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, mcpOAuthClientSecretStorageKey } from '../../../contrib/mcp/common/mcpTypes.js';
 import { mcpEnterpriseManagedAuthIdpSection } from '../../../contrib/mcp/common/mcpConfiguration.js';
+import { MCP } from '../../../contrib/mcp/common/modelContextProtocol.js';
 import { IAuthenticationMcpAccessService } from '../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../services/authentication/browser/authenticationMcpUsageService.js';
@@ -138,6 +139,118 @@ suite('MainThreadMcp - McpServerAuthTracker', () => {
 suite('MainThreadMcp - launch', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createLaunchFixture(proxy: Partial<ExtHostMcpShape>) {
+		let capturedDelegate: IMcpHostDelegate | undefined;
+		const registry = new class extends mock<IMcpRegistry>() {
+			override readonly collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
+			override registerDelegate(delegate: IMcpHostDelegate) {
+				capturedDelegate = delegate;
+				return { dispose() { } };
+			}
+		};
+		const mainThread = createMainThreadMcp(disposables, {
+			$onDidChangeMcpServerDefinitions() { },
+			...proxy,
+		}, registry);
+		const launch: McpServerLaunch = { type: McpServerTransportType.HTTP, uri: URI.parse('https://server.example/mcp'), headers: [] };
+		const definition: McpServerDefinition = { id: 'server', label: 'Server', launch, cacheNonce: 'nonce' };
+		const collection: McpCollectionDefinition = {
+			id: 'collection',
+			label: 'Collection',
+			remoteAuthority: null,
+			serverDefinitions: observableValue<readonly McpServerDefinition[]>('definitions', [definition]),
+			trustBehavior: McpServerTrust.Kind.Trusted,
+			scope: StorageScope.WORKSPACE,
+			configTarget: ConfigurationTarget.USER,
+			order: McpCollectionSortOrder.WorkspaceFolder,
+		};
+		assert.ok(capturedDelegate);
+		const delegate = capturedDelegate;
+		return { mainThread, start: () => delegate.start(collection, definition, launch) };
+	}
+
+	test('routes outgoing messages and stops to the correct extension-host server', () => {
+		const calls: { method: 'start' | 'send' | 'stop'; id: number; message?: string }[] = [];
+		const fixture = createLaunchFixture({
+			$startMcp(id) {
+				calls.push({ method: 'start', id });
+			},
+			$sendMessage(id, message) {
+				calls.push({ method: 'send', id, message });
+			},
+			$stopMcp(id) {
+				calls.push({ method: 'stop', id });
+			},
+		});
+		const first = fixture.start();
+		const second = fixture.start();
+		const request: MCP.JSONRPCMessage = { jsonrpc: '2.0', id: 7, method: 'ping' };
+		const notification: MCP.JSONRPCMessage = { jsonrpc: '2.0', method: 'notifications/initialized' };
+
+		first.send(request);
+		second.send(notification);
+		second.stop();
+		first.stop();
+
+		assert.deepStrictEqual(calls, [
+			{ method: 'start', id: 1 },
+			{ method: 'start', id: 2 },
+			{ method: 'send', id: 1, message: '{"jsonrpc":"2.0","id":7,"method":"ping"}' },
+			{ method: 'send', id: 2, message: '{"jsonrpc":"2.0","method":"notifications/initialized"}' },
+			{ method: 'stop', id: 2 },
+			{ method: 'stop', id: 1 },
+		]);
+	});
+
+	test('only stops active transports on disposal', () => {
+		const states: McpConnectionState[] = [
+			{ state: McpConnectionState.Kind.Starting },
+			{ state: McpConnectionState.Kind.Running },
+			{ state: McpConnectionState.Kind.Stopped },
+			{ state: McpConnectionState.Kind.Error, message: 'Connection failed' },
+		];
+		const results = states.map(state => {
+			const stopped: number[] = [];
+			const fixture = createLaunchFixture({
+				$startMcp() { },
+				$stopMcp(id) {
+					stopped.push(id);
+				},
+			});
+			const transport = fixture.start();
+			fixture.mainThread.$onDidChangeState(1, state);
+			transport.dispose();
+			fixture.mainThread.dispose();
+			return { state: state.state, stopped };
+		});
+
+		assert.deepStrictEqual(results, [
+			{ state: McpConnectionState.Kind.Starting, stopped: [1] },
+			{ state: McpConnectionState.Kind.Running, stopped: [1] },
+			{ state: McpConnectionState.Kind.Stopped, stopped: [] },
+			{ state: McpConnectionState.Kind.Error, stopped: [] },
+		]);
+	});
+
+	test('extension-host shutdown stops local state without sending another stop command', () => {
+		const stopped: number[] = [];
+		const fixture = createLaunchFixture({
+			$startMcp() { },
+			$stopMcp(id) {
+				stopped.push(id);
+			},
+		});
+		const transport = fixture.start();
+		fixture.mainThread.$onDidChangeState(1, { state: McpConnectionState.Kind.Running });
+
+		fixture.mainThread.dispose();
+
+		assert.deepStrictEqual({ stopped, state: transport.state.get() }, {
+			stopped: [],
+			state: { state: McpConnectionState.Kind.Stopped },
+		});
+	});
 
 	test('forwards the definition default cwd to the extension host', () => {
 		let startOptions: Parameters<ExtHostMcpShape['$startMcp']>[1] | undefined;

@@ -188,6 +188,15 @@ export default defineConfig(
 			'local/code-no-sync-fs': 'error',
 		},
 	},
+	// Opt in migrated areas without introducing warnings in the remaining callback APIs.
+	{
+		files: [
+			'src/vs/workbench/api/browser/mainThreadMcp.ts',
+		],
+		rules: {
+			'local/code-prefer-event-or-observable': 'warn',
+		},
+	},
 	// Disallow bracket notation for property names that can use dot notation.
 	{
 		files: [
