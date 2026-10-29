@@ -10,6 +10,7 @@ import { EventType as TouchEventType } from '../../../base/browser/touch.js';
 import { IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
 import type { IManagedHoverContent, IManagedHoverContentOrFactory, IManagedHoverOptions } from '../../../base/browser/ui/hover/hover.js';
+import { getBaseLayerHoverDelegate, setBaseLayerHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate2.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { timeout } from '../../../base/common/async.js';
 import { Action, IAction } from '../../../base/common/actions.js';
@@ -33,7 +34,7 @@ import { ChatDropdownPillActionViewItem, ChatPillSingleEntry, createChatSectionP
 import { ChatResourcePillActionViewItem } from '../../browser/chatResourcePill.js';
 import { createChatImageHoverContent } from '../../browser/chatImagePreview.js';
 import { ChatPillHoverCache, createChatPillHover, type IChatPillHoverContent } from '../../browser/chatPillHover.js';
-import { ChatPillsRow, ChatPillsWidget, createChatPillImagePreview, getChatPillLocationHover, getChatReferencePillPresentation, type ChatPillsCompactMode, type IChatPill, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../browser/chatPills.js';
+import { ChatPillsRow, ChatPillsWidget, createChatPillImagePreview, createChatPillMediaPreview, getChatPillLocationHover, getChatReferencePillPresentation, type ChatPillsCompactMode, type IChatPill, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../browser/chatPills.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../browser/labels.js';
 import { workbenchInstantiationService } from './workbenchTestServices.js';
 
@@ -458,6 +459,83 @@ suite('ChatPills', () => {
 			labels: ['Copy Path', 'Copy Relative Path', 'Remove Reference'],
 			trapFocus: true,
 			runs: ['copy', 'relative', 'remove'],
+		});
+	});
+
+	test('single resource pills leave hovering to the pill rather than their resource label', () => {
+		const labelHovers: unknown[] = [];
+		const previous = getBaseLayerHoverDelegate();
+		setBaseLayerHoverDelegate({
+			...previous,
+			setupManagedHover: (...args: Parameters<typeof previous.setupManagedHover>) => {
+				if (args[1].closest('.monaco-icon-label')) {
+					labelHovers.push(args[2]);
+				}
+				return previous.setupManagedHover(...args);
+			},
+		});
+		store.add(toDisposable(() => setBaseLayerHoverDelegate(previous)));
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const resourceLabels = store.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+		const entry: IChatPillEntry = { id: 'design', label: 'design.png', resource: URI.file('/repo/design.png'), tooltip: '/repo/design.png', open: () => { } };
+		const action = store.add(new Action('artifacts', 'Artifacts'));
+		const viewItem = store.add(instantiationService.createInstance(ChatResourcePillActionViewItem, action, {}, constObservable(entry), resourceLabels));
+		const container = mainWindow.document.createElement('div');
+		viewItem.render(container);
+
+		assert.deepStrictEqual({
+			label: container.querySelector('.monaco-icon-label')?.textContent,
+			labelHovers,
+		}, {
+			label: 'design.png',
+			labelHovers: [],
+		});
+	});
+
+	test('previews videos muted and looping, honoring reduced motion, and releases them on close', async () => {
+		const resource = URI.file('/repo/demo.mp4');
+		const content = Promise.resolve<IFileContent>({
+			resource,
+			name: 'demo.mp4',
+			value: VSBuffer.fromString('video'),
+			etag: 'video-etag',
+			mtime: 0,
+			ctime: 0,
+			size: 5,
+			readonly: false,
+			locked: false,
+			executable: false,
+		});
+		const fileService = upcastPartial<IFileService>({ readFile: () => content });
+		const entry: IChatPillEntry = { id: 'demo', label: 'demo.mp4', ariaDescription: '~/repo/demo.mp4', videoPreview: { resource, mimeType: 'video/mp4' }, open: () => { } };
+		const playing = createChatPillMediaPreview(entry, fileService)!;
+		const still = createChatPillMediaPreview(entry, fileService, undefined, { autoPlay: false })!;
+		await content;
+		const describe = (element: HTMLElement) => {
+			const video = element.querySelector('video');
+			return video && {
+				muted: video.muted,
+				loop: video.loop,
+				autoplay: video.autoplay,
+				controls: video.controls,
+				ariaLabel: video.getAttribute('aria-label'),
+				blobSource: video.src.startsWith('blob:'),
+				location: element.querySelector('.chat-image-hover-location')?.textContent,
+			};
+		};
+		const shown = [describe(playing.element), describe(still.element)];
+		store.add(playing.disposable).dispose();
+		store.add(still.disposable).dispose();
+
+		assert.deepStrictEqual({
+			shown,
+			sourceAfterClose: playing.element.querySelector('video')?.hasAttribute('src'),
+		}, {
+			shown: [
+				{ muted: true, loop: true, autoplay: true, controls: false, ariaLabel: 'Preview of demo.mp4', blobSource: true, location: '~/repo/demo.mp4' },
+				{ muted: true, loop: true, autoplay: false, controls: true, ariaLabel: 'Preview of demo.mp4', blobSource: true, location: '~/repo/demo.mp4' },
+			],
+			sourceAfterClose: false,
 		});
 	});
 
