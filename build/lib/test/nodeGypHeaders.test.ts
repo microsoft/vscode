@@ -21,7 +21,7 @@ const step = plan[Math.min(runs, plan.length - 1)];
 if (step === 'hang') { setInterval(() => { }, 1000); } else { process.exit(step === 'ok' ? 0 : 1); }
 `;
 
-function withFakeNodeGyp(plan: string, fn: (script: string, runs: () => string[]) => void): void {
+async function withFakeNodeGyp(plan: string, fn: (script: string, runs: () => string[]) => Promise<void>): Promise<void> {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'node-gyp-headers-test-'));
 	const script = path.join(dir, 'node-gyp.cjs');
 	const log = path.join(dir, 'runs.log');
@@ -29,7 +29,7 @@ function withFakeNodeGyp(plan: string, fn: (script: string, runs: () => string[]
 	process.env.FAKE_GYP_LOG = log;
 	process.env.FAKE_GYP_PLAN = plan;
 	try {
-		fn(script, () => fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter(Boolean) : []);
+		await fn(script, () => fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter(Boolean) : []);
 	} finally {
 		delete process.env.FAKE_GYP_LOG;
 		delete process.env.FAKE_GYP_PLAN;
@@ -38,28 +38,28 @@ function withFakeNodeGyp(plan: string, fn: (script: string, runs: () => string[]
 }
 
 suite('installNodeGypHeaders', () => {
-	test('runs node-gyp install once when it succeeds', () => withFakeNodeGyp('ok', (script, runs) => {
-		installNodeGypHeaders(script, 'https://nodejs.org/dist', '24.22.1', { retryDelaysMs: [0, 0], log: () => { } });
+	test('runs node-gyp install once when it succeeds', () => withFakeNodeGyp('ok', async (script, runs) => {
+		await installNodeGypHeaders(script, 'https://nodejs.org/dist', '24.22.1', { retryDelaysMs: [0, 0], log: () => { } });
 		assert.deepStrictEqual(runs(), ['install --dist-url https://nodejs.org/dist 24.22.1']);
 	}));
 
-	test('retries a failed install', () => withFakeNodeGyp('fail,fail,ok', (script, runs) => {
+	test('retries a failed install', () => withFakeNodeGyp('fail,fail,ok', async (script, runs) => {
 		const messages: string[] = [];
-		installNodeGypHeaders(script, 'https://electronjs.org/headers', '43.8.3', { retryDelaysMs: [0, 0], log: m => messages.push(m) });
+		await installNodeGypHeaders(script, 'https://electronjs.org/headers', '43.8.3', { retryDelaysMs: [0, 0], log: m => messages.push(m) });
 		assert.strictEqual(runs().length, 3);
 		assert.strictEqual(messages.length, 2);
 		assert.match(messages[0], /43\.8\.3 headers from https:\/\/electronjs\.org\/headers failed \(attempt 1 of 3\): exit code 1/);
 	}));
 
-	test('kills and retries a stalled install', () => withFakeNodeGyp('hang,ok', (script, runs) => {
+	test('kills and retries a stalled install', () => withFakeNodeGyp('hang,ok', async (script, runs) => {
 		const messages: string[] = [];
-		installNodeGypHeaders(script, 'https://nodejs.org/dist', '24.22.1', { timeoutMs: 500, retryDelaysMs: [0], log: m => messages.push(m) });
+		await installNodeGypHeaders(script, 'https://nodejs.org/dist', '24.22.1', { timeoutMs: 500, retryDelaysMs: [0], log: m => messages.push(m) });
 		assert.strictEqual(runs().length, 2);
-		assert.match(messages[0], /attempt 1 of 2/);
+		assert.match(messages[0], /attempt 1 of 2\): timed out after 0\.5 s/);
 	}));
 
-	test('throws once every attempt fails', () => withFakeNodeGyp('fail', (script, runs) => {
-		assert.throws(
+	test('throws once every attempt fails', () => withFakeNodeGyp('fail', async (script, runs) => {
+		await assert.rejects(
 			() => installNodeGypHeaders(script, 'https://nodejs.org/dist', '24.22.1', { retryDelaysMs: [0, 0], log: () => { } }),
 			/failed \(attempt 3 of 3\): exit code 1/);
 		assert.strictEqual(runs().length, 3);

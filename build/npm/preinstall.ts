@@ -70,7 +70,7 @@ if (process.platform === 'win32') {
 	}
 }
 
-installHeaders();
+await installHeaders();
 
 if (process.arch !== os.arch()) {
 	console.error(`\x1b[1;31m*** ARCHITECTURE MISMATCH: The node.js process is ${process.arch}, but your OS architecture is ${os.arch()}. ***\x1b[0;0m`);
@@ -121,7 +121,7 @@ function hasSupportedVisualStudioVersion() {
 	return availableVersions.length;
 }
 
-function installHeaders() {
+async function installHeaders() {
 	const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 	child_process.execSync(`${npm} ${process.env.npm_command || 'ci'}`, {
 		env: process.env,
@@ -139,12 +139,12 @@ function installHeaders() {
 
 	if (local !== undefined) {
 		// Both disturl and target come from a file checked into our repository
-		installNodeGypHeaders(nodeGypScript, local.disturl, local.target);
+		await installNodeGypHeaders(nodeGypScript, local.disturl, local.target);
 	}
 
 	if (remote !== undefined) {
 		// Both disturl and target come from a file checked into our repository
-		installNodeGypHeaders(nodeGypScript, remote.disturl, remote.target);
+		await installNodeGypHeaders(nodeGypScript, remote.disturl, remote.target);
 	}
 
 	// Overlay any custom headers shipped in build/npm/gyp/custom-headers on top of
