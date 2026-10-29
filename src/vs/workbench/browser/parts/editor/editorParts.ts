@@ -174,7 +174,9 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		disposables.add(toDisposable(() => this.mapPartToInstantiationService.delete(part)));
 
 		// Events
-		this._onDidAddGroup.fire(part.activeGroup);
+		for (const group of part.getGroups(GroupsOrder.CREATION_TIME)) {
+			this._onDidAddGroup.fire(group);
+		}
 
 		this._onDidCreateAuxiliaryEditorPart.fire(part);
 
@@ -193,7 +195,9 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		disposables.add(toDisposable(() => this.mapPartToInstantiationService.delete(part)));
 
 		// Events
-		this._onDidAddGroup.fire(part.activeGroup);
+		for (const group of part.getGroups(GroupsOrder.CREATION_TIME)) {
+			this._onDidAddGroup.fire(group);
+		}
 
 		return part;
 	}
@@ -282,7 +286,9 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		}));
 
 		// Events
-		this._onDidAddGroup.fire(part.activeGroup);
+		for (const group of part.getGroups(GroupsOrder.CREATION_TIME)) {
+			this._onDidAddGroup.fire(group);
+		}
 
 		return part;
 	}
@@ -427,12 +433,23 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			if (isHTMLElement(groupOrElement)) {
 				const element = groupOrElement;
 
-				// Several parts can share a document, so prefer the part containing the element
+				// Several parts can share a document, so prefer the closest part containing the element. An embedded part
+				// is also found by its own root, any other part by the document as before.
+				let closestPart: EditorPart | undefined;
+				let closestContainer: HTMLElement | undefined;
 				for (const part of this._parts) {
 					const container = part.getContainer();
-					if (container && container !== element && isAncestor(element, container)) {
-						return part;
+					if (!container || !(isAncestor(element, container) && (container !== element || part instanceof EmbeddedEditorPart))) {
+						continue;
 					}
+					if (!closestContainer || isAncestor(container, closestContainer)) {
+						closestPart = part;
+						closestContainer = container;
+					}
+				}
+
+				if (closestPart) {
+					return closestPart;
 				}
 
 				return this.getPartByDocument(element.ownerDocument);

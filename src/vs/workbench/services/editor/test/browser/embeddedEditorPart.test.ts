@@ -291,6 +291,64 @@ suite('Embedded Editor Part', () => {
 		});
 	});
 
+	test('a batch of editors opens each in the group that takes it, and the group left for redirected ones goes after the batch', async () => {
+		const parts = await createServices();
+		const others = parts.createEditorPart({ container: createContainer() });
+		disposables.add({ dispose: () => others.close() });
+		const limited = parts.createEditorPart({ container: createContainer(), redirectEditor: editor => editor.resource?.path.startsWith('/limited/') ? undefined : others.activeGroup });
+		disposables.add({ dispose: () => limited.close() });
+		others.layout(800, 400, 0, 0);
+		limited.layout(800, 200, 400, 0);
+		const redirectedFirst = createInput('/other/a.txt');
+		const redirectedSecond = createInput('/other/b.txt');
+		const taken = createInput('/limited/c.txt');
+
+		const split = limited.addGroup(limited.activeGroup, GroupDirection.RIGHT);
+		const pane = await split.openEditors([{ editor: redirectedFirst }, { editor: taken }, { editor: redirectedSecond }]);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			others: others.activeGroup.editors.map(editor => editor.resource?.path),
+			taken: split.editors.map(editor => editor.resource?.path),
+			groups: limited.groups.length,
+			pane: pane === others.activeGroup.activeEditorPane
+		}, { others: ['/other/a.txt', '/other/b.txt'], taken: ['/limited/c.txt'], groups: 2, pane: true });
+	});
+
+	test('the owner is notified of closing, and the root of a part is found as its own part, with editor classes and no auto locking', async () => {
+		const parts = await createServices();
+		const outer = parts.createEditorPart({ container: createContainer() });
+		const inner = parts.createEditorPart({ container: elementOf(outer).appendChild(mainWindow.document.createElement('div')) });
+		let notified = false;
+		disposables.add(outer.onWillClose(() => notified = elementOf(outer).isConnected));
+
+		const result = {
+			outerRoot: sameAs(parts.getPart(elementOf(outer)), outer),
+			innerRoot: sameAs(parts.getPart(elementOf(inner)), inner),
+			classes: elementOf(inner).classList.contains('part') && elementOf(inner).classList.contains('editor'),
+			autoLock: inner.partOptions.autoLockGroups?.size
+		};
+		inner.close();
+		outer.close();
+
+		assert.deepStrictEqual({ ...result, notified, listed: parts.parts.includes(outer as never) }, { outerRoot: true, innerRoot: true, classes: true, autoLock: 0, notified: true, listed: false });
+	});
+
+	test('every group of a part created with state is announced', async () => {
+		const parts = await createServices();
+		const first = parts.createEditorPart({ container: createContainer() });
+		first.addGroup(first.activeGroup, GroupDirection.RIGHT);
+		const state = first.createState();
+		first.close();
+
+		const added: number[] = [];
+		disposables.add(parts.onDidAddGroup(group => added.push(group.id)));
+		const second = parts.createEditorPart({ container: createContainer(), state });
+		disposables.add({ dispose: () => second.close() });
+
+		assert.deepStrictEqual(added, second.getGroups(GroupsOrder.CREATION_TIME).map(group => group.id));
+	});
+
 	test('its groups are marked as embedded for their menus, unlike those of the main part', async () => {
 		const parts = await createServices();
 
