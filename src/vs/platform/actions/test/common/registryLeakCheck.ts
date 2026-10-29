@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICommand, CommandsRegistry } from '../../../commands/common/commands.js';
-import { IKeybindingItem, KeybindingsRegistry } from '../../../keybinding/common/keybindingsRegistry.js';
+import { IKeybindingItem, IKeybindingRule, KeybindingsRegistry } from '../../../keybinding/common/keybindingsRegistry.js';
 import { ICommandAction } from '../../../action/common/action.js';
 import { IMenuItem, isIMenuItem, ISubmenuItem, MenuId, MenuRegistry } from '../../common/actions.js';
 
@@ -13,11 +13,17 @@ export interface IRegistrySnapshot {
 	readonly menuCommands: ReadonlyMap<string, ICommandAction>;
 	readonly menuItems: ReadonlyMap<MenuId, ReadonlySet<IMenuItem | ISubmenuItem>>;
 	readonly keybindings: ReadonlySet<IKeybindingItem>;
+	readonly keybindingRules: ReadonlySet<IKeybindingRule>;
 }
 
 function getMenuIds(): Iterable<MenuId> {
 	// Menus are created on demand by contributions, so only MenuId knows all of them.
 	return (MenuId as unknown as { readonly _instances: ReadonlyMap<string, MenuId> })._instances.values();
+}
+
+function getKeybindingRules(): Iterable<IKeybindingRule> {
+	// Rules keep the keybindings of every platform, while getDefaultKeybindings() only has those of the current one.
+	return (KeybindingsRegistry as unknown as { readonly _coreKeybindingRules: Iterable<IKeybindingRule> })._coreKeybindingRules;
 }
 
 export function takeRegistrySnapshot(): IRegistrySnapshot {
@@ -39,6 +45,7 @@ export function takeRegistrySnapshot(): IRegistrySnapshot {
 		menuCommands: new Map(MenuRegistry.getCommands()),
 		menuItems,
 		keybindings: new Set(KeybindingsRegistry.getDefaultKeybindings()),
+		keybindingRules: new Set(getKeybindingRules()),
 	};
 }
 
@@ -90,6 +97,16 @@ export function diffRegistrySnapshots(before: IRegistrySnapshot, after: IRegistr
 	for (const item of before.keybindings) {
 		if (!after.keybindings.has(item)) {
 			changes.push(`unregistered keybinding for '${item.command ?? '<none>'}'`);
+		}
+	}
+	for (const rule of after.keybindingRules) {
+		if (!before.keybindingRules.has(rule)) {
+			changes.push(`registered keybinding rule for '${rule.id}'`);
+		}
+	}
+	for (const rule of before.keybindingRules) {
+		if (!after.keybindingRules.has(rule)) {
+			changes.push(`unregistered keybinding rule for '${rule.id}'`);
 		}
 	}
 	return changes;
