@@ -185,30 +185,60 @@ suite('SessionsRecentWorkspacesService', () => {
 		}]);
 	});
 
-	test('bounds workspace-file reads and file size while retaining later standalone folders', async () => {
+	test('loads older workspace files while bounding file size and retaining later standalone folders', async () => {
 		const workspaceFiles = Array.from({ length: 15 }, (_, index) => URI.file(`/workspace-${index}.code-workspace`));
+		const folders = workspaceFiles.map((_, index) => URI.file(`/workspace-folder-${index}`));
 		const harness = createHarness([
 			...workspaceFiles.map(uri => recentWorkspace(uri)),
 			{ folderUri: firstFolder },
-		], new Map(workspaceFiles.map(uri => [extUri.getComparisonKey(uri), '{"folders":[]}'])));
+		], new Map(workspaceFiles.map((uri, index) => [extUri.getComparisonKey(uri), JSON.stringify({ folders: [{ uri: folders[index].toString() }] })])));
 		await harness.ready();
 		assert.deepStrictEqual({
 			readCount: harness.reads.length,
 			sizeLimits: [...new Set(harness.reads.map(read => read.sizeLimit))],
 			entries: snapshot(harness.service),
 		}, {
-			readCount: 10, sizeLimits: [1024 * 1024],
-			entries: [{ uri: firstFolder.toString(), source: 'vscode', checked: false }],
+			readCount: 15, sizeLimits: [1024 * 1024],
+			entries: [
+				...folders.map(uri => ({ uri: uri.toString(), source: 'vscodeWorkspace', checked: false })),
+				{ uri: firstFolder.toString(), source: 'vscode', checked: false },
+			],
 		});
 	});
 
-	test('keeps the ten-folder limit and does not read older workspace files unnecessarily', async () => {
+	test('bounds concurrent workspace-file reads while loading the full history', async () => {
+		const pending = new DeferredPromise<string>();
+		const workspaceFiles = Array.from({ length: 15 }, (_, index) => URI.file(`/workspace-${index}.code-workspace`));
+		const harness = createHarness(workspaceFiles.map(uri => recentWorkspace(uri)),
+			new Map(workspaceFiles.map(uri => [extUri.getComparisonKey(uri), pending])));
+		await timeout(0);
+		const initialReads = harness.reads.length;
+		await pending.complete('{"folders":[]}');
+		await harness.ready();
+		assert.deepStrictEqual({ initialReads, totalReads: harness.reads.length }, { initialReads: 4, totalReads: 15 });
+	});
+
+	test('loads standalone folders and workspace-file folders beyond the compact recent list', async () => {
 		const folders = Array.from({ length: 12 }, (_, index) => URI.file(`/folder-${index}`));
-		const harness = createHarness([...folders.map(folderUri => ({ folderUri })), recentWorkspace()]);
+		const harness = createHarness([...folders.map(folderUri => ({ folderUri })), recentWorkspace()],
+			new Map([[extUri.getComparisonKey(workspaceFile), JSON.stringify({ folders: [{ uri: firstFolder.toString() }] })]]));
 		await harness.ready();
 		assert.deepStrictEqual({
-			folders: harness.service.getRecentWorkspaces().map(entry => entry.workspace.uri), reads: harness.reads,
-		}, { folders: folders.slice(0, 10), reads: [] });
+			folders: harness.service.getRecentWorkspaces().map(entry => entry.workspace.uri),
+			reads: harness.reads.map(read => read.uri),
+		}, { folders: [...folders, firstFolder], reads: [workspaceFile] });
+	});
+
+	test('retains older Agents picks across service recreation', async () => {
+		const harness = createHarness([]);
+		const folders = Array.from({ length: 15 }, (_, index) => URI.file(`/picked-${index}`));
+		for (const folder of folders) {
+			harness.service.addRecentWorkspace(folder, 'provider', true);
+		}
+		const restored = createHarness([], undefined, harness.storage);
+		assert.deepStrictEqual(restored.service.getRecentWorkspaces(false).map(entry => ({
+			uri: entry.workspace.uri, checked: entry.checked,
+		})), folders.toReversed().map((uri, index) => ({ uri, checked: index === 0 })));
 	});
 
 	test('never interprets a remote workspace file path relative to the local filesystem', async () => {
@@ -285,17 +315,20 @@ suite('SessionsRecentWorkspacesService', () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const pending = new DeferredPromise<string>();
 			const startedAt = Date.now();
-			const harness = createHarness([recentWorkspace(), { folderUri: firstFolder }],
-				new Map([[extUri.getComparisonKey(workspaceFile), pending]]));
+			const workspaceFiles = Array.from({ length: 15 }, (_, index) => URI.file(`/workspace-${index}.code-workspace`));
+			const harness = createHarness([...workspaceFiles.map(uri => recentWorkspace(uri)), { folderUri: firstFolder }],
+				new Map(workspaceFiles.map(uri => [extUri.getComparisonKey(uri), pending])));
 			await harness.ready();
 			const elapsed = Date.now() - startedAt;
 			await pending.complete('{"folders":[{"path":"../second"}]}');
 			assert.deepStrictEqual({
 				elapsed, entries: snapshot(harness.service), state: harness.service.historyLoadState.get(),
 				cancelled: harness.reads[0].token?.isCancellationRequested, warningCount: harness.warnings.length,
+				readCount: harness.reads.length,
 			}, {
 				elapsed: 5_000, entries: [{ uri: firstFolder.toString(), source: 'vscode', checked: false }],
 				state: 'error', cancelled: true, warningCount: 1,
+				readCount: 4,
 			});
 		});
 	});

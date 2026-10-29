@@ -1735,10 +1735,10 @@ export class WorkspacePicker extends Disposable {
 		const orderedRecentWorkspaceEntries = [
 			...recentEntries,
 			...orderByWorkspaceKind(recentWorkspaceEntries.filter(entry => entry.isSessionWorkspace)),
-		].slice(0, MAX_NEW_PICKER_RECENT_WORKSPACES);
+		];
 
 		let previousRecentWorkspaceIsRepository: boolean | undefined;
-		for (const { workspace, providerId, repositoryId } of orderedRecentWorkspaceEntries) {
+		for (const [index, { workspace, providerId, repositoryId }] of orderedRecentWorkspaceEntries.entries()) {
 			const folderUri = workspace.folders[0]?.root;
 			if (!folderUri) {
 				continue;
@@ -1774,6 +1774,7 @@ export class WorkspacePicker extends Disposable {
 				: undefined;
 			items.push({
 				kind: ActionListItemKind.Action,
+				showOnlyWhenFiltering: index >= MAX_NEW_PICKER_RECENT_WORKSPACES,
 				label: environmentProvider ? this._getWorkspaceLabel(workspace, environmentProvider.id) : workspace.label,
 				description: workspace.description,
 				group: { title: '', icon },
