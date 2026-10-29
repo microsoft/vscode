@@ -1021,7 +1021,7 @@ export function registerTerminalActions() {
 		}
 	});
 
-	registerActiveInstanceAction({
+	registerTerminalAction({
 		id: TerminalCommandId.RenameWithArgs,
 		title: terminalStrings.renameWithArgs,
 		metadata: {
@@ -1036,6 +1036,26 @@ export function registerTerminalActions() {
 							description: localize('workbench.action.terminal.renameWithArg.name', "The new name for the terminal"),
 							type: 'string',
 							minLength: 1
+						},
+						terminalId: {
+							description: localize('workbench.action.terminal.renameWithArg.terminalId', "The terminal instance ID. Use only one of terminalId, resource, or tab. Omit all three to rename the active terminal."),
+							type: 'integer',
+							minimum: 1
+						},
+						resource: {
+							description: localize('workbench.action.terminal.renameWithArg.resource', "The vscode-terminal URI of an existing terminal. Use only one of terminalId, resource, or tab."),
+							type: 'string',
+							minLength: 1
+						},
+						tab: {
+							description: localize('workbench.action.terminal.renameWithArg.tab', "The 1-based position of a terminal tab in the terminal panel. Use only one of terminalId, resource, or tab."),
+							type: 'integer',
+							minimum: 1
+						},
+						split: {
+							description: localize('workbench.action.terminal.renameWithArg.split', "The 1-based position of a split in the selected tab, or the active terminal tab when tab is omitted. When split is omitted, the selected tab's active terminal is renamed."),
+							type: 'integer',
+							minimum: 1
 						}
 					}
 				}
@@ -1043,14 +1063,48 @@ export function registerTerminalActions() {
 		},
 		precondition: sharedWhenClause.terminalAvailable,
 		f1: false,
-		run: async (activeInstance, c, accessor, args) => {
+		run: async (c, accessor, args) => {
 			const notificationService = accessor.get(INotificationService);
-			const name = args ? toOptionalString((<{ name?: string }>args).name) : undefined;
-			if (!name) {
+			const options = isObject(args) ? args as Record<string, unknown> : undefined;
+			const name = options?.name;
+			if (!options || !isString(name) || !name) {
 				notificationService.warn(localize('workbench.action.terminal.renameWithArg.noName', "No name argument provided"));
 				return;
 			}
-			activeInstance.rename(name);
+			const { terminalId, resource, tab, split } = options;
+			const selectorCount = [terminalId, resource, tab].filter(value => value !== undefined).length;
+			const invalidIndex = [terminalId, tab, split].some(value => value !== undefined && (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1));
+			if (selectorCount > 1 || invalidIndex || (resource !== undefined && !isString(resource)) || (split !== undefined && (terminalId !== undefined || resource !== undefined))) {
+				notificationService.warn(localize('workbench.action.terminal.renameWithArg.invalidSelector', "Invalid terminal selector. Use one of terminalId, resource, or tab. Split can be used with tab or on its own for the active terminal tab. Terminal IDs, tabs, and splits must be positive integers."));
+				return;
+			}
+
+			let instance: ITerminalInstance | undefined;
+			if (typeof terminalId === 'number') {
+				instance = c.service.getInstanceFromId(terminalId);
+			} else if (isString(resource)) {
+				let uri: URI | undefined;
+				try {
+					uri = URI.parse(resource, true);
+				} catch {
+					// An invalid explicit resource must not fall back to the active terminal.
+				}
+				if (uri?.scheme === Schemas.vscodeTerminal) {
+					instance = c.service.getInstanceFromResource(uri);
+				}
+			} else if (typeof tab === 'number' || typeof split === 'number') {
+				const group = typeof tab === 'number' ? c.groupService.groups[tab - 1] : c.groupService.activeGroup;
+				instance = typeof split === 'number' ? group?.terminalInstances[split - 1] : group?.activeInstance;
+			} else {
+				instance = c.service.activeInstance;
+			}
+			if (!instance) {
+				if (selectorCount > 0 || split !== undefined) {
+					notificationService.warn(localize('workbench.action.terminal.renameWithArg.targetNotFound', "The selected terminal was not found."));
+				}
+				return;
+			}
+			instance.rename(name);
 		}
 	});
 

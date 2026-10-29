@@ -4,18 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok } from 'assert';
+import { SinonSpy, spy } from 'sinon';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { TerminalIcon } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { ITerminalConfigurationService, ITerminalEditorService, ITerminalEditingService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
+import { ITerminalConfigurationService, ITerminalEditorService, ITerminalEditingService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import '../../browser/terminal.contribution.js';
 import { ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from '../../common/terminal.js';
 import { WorkspaceFolderCwdPair, shrinkWorkspaceFolderCwdPairs } from '../../browser/terminalActions.js';
+import { getInstanceFromResource } from '../../browser/terminalUri.js';
 
 function makeFakeFolder(name: string, uri: URI): IWorkspaceFolder {
 	return {
@@ -130,6 +134,158 @@ suite('terminalActions', () => {
 			await runCommand(TerminalCommandId.ChangeColor, 'terminal.ansiRed', true);
 			deepStrictEqual({ iconChanges, colorChanges }, { iconChanges: [], colorChanges: [] });
 		});
+	});
+
+	suite('renameWithArg terminal selection', () => {
+		let instantiationService: TestInstantiationService;
+		let instances: ITerminalInstance[];
+		let groups: ITerminalGroup[];
+		let activeGroup: ITerminalGroup | undefined;
+		let activeInstance: ITerminalInstance | undefined;
+		let renames: { terminalId: number; name: string }[];
+		let warning: SinonSpy;
+
+		setup(() => {
+			instantiationService = store.add(new TestInstantiationService());
+			renames = [];
+			instances = [3, 12, 21, 99].map(id => new class extends mock<ITerminalInstance>() {
+				override readonly instanceId = id;
+				override readonly title = 'Shell';
+				// A terminal moved from another window can retain a resource with a different ID.
+				override readonly resource = URI.parse(id === 99 ? 'vscode-terminal:/previous-workspace/7' : `vscode-terminal:/workspace/${id}`);
+				override rename(name: string): void { renames.push({ terminalId: id, name }); }
+			}());
+			groups = [
+				new class extends mock<ITerminalGroup>() {
+					override readonly terminalInstances = instances.slice(0, 2);
+					override activeInstance = instances[1];
+				}(),
+				new class extends mock<ITerminalGroup>() {
+					override readonly terminalInstances = [instances[2]];
+					override activeInstance = instances[2];
+				}()
+			];
+			activeInstance = instances[2];
+			activeGroup = groups[1];
+			instantiationService.stub(ITerminalService, {
+				get activeInstance() { return activeInstance; },
+				getInstanceFromId: id => instances.find(instance => instance.instanceId === id),
+				getInstanceFromResource: resource => getInstanceFromResource(instances, resource)
+			});
+			instantiationService.stub(ITerminalGroupService, {
+				get groups() { return groups; },
+				get activeGroup() { return activeGroup; }
+			});
+			instantiationService.stub(ITerminalConfigurationService, {});
+			instantiationService.stub(ITerminalInstanceService, {});
+			instantiationService.stub(ITerminalEditorService, {});
+			instantiationService.stub(ITerminalEditingService, {});
+			instantiationService.stub(ITerminalProfileService, {});
+			instantiationService.stub(ITerminalProfileResolverService, {});
+			const notificationService = new TestNotificationService();
+			warning = spy(notificationService, 'warn');
+			instantiationService.stub(INotificationService, notificationService);
+		});
+
+		teardown(() => warning.restore());
+
+		async function rename(args: unknown): Promise<void> {
+			const command = CommandsRegistry.getCommand(TerminalCommandId.RenameWithArgs);
+			ok(command);
+			await instantiationService.invokeFunction(accessor => command.handler(accessor, args));
+		}
+
+		const selections = [
+			{ title: 'preserves the active-terminal default', selector: {}, terminalId: 21 },
+			{ title: 'selects a background split by instance ID', selector: { terminalId: 12 }, terminalId: 12 },
+			{ title: 'selects a background split by resource', selector: { resource: 'vscode-terminal:/workspace/12' }, terminalId: 12 },
+			{ title: 'ignores the resource title fragment when resolving identity', selector: { resource: 'vscode-terminal:/workspace/12#Previous title' }, terminalId: 12 },
+			{ title: 'resolves a moved terminal by its original resource', selector: { resource: 'vscode-terminal:/previous-workspace/7' }, terminalId: 99 },
+			{ title: 'selects an editor terminal by its current instance ID', selector: { terminalId: 99 }, terminalId: 99 },
+			{ title: 'uses the selected tab active split when split is omitted', selector: { tab: 1 }, terminalId: 12 },
+			{ title: 'uses 1-based tab positions', selector: { tab: 2 }, terminalId: 21 },
+			{ title: 'uses the active tab when only split is provided', selector: { split: 1 }, terminalId: 21 },
+			{ title: 'selects the first split explicitly', selector: { tab: 1, split: 1 }, terminalId: 3 },
+			{ title: 'selects the second split explicitly', selector: { tab: 1, split: 2 }, terminalId: 12 },
+			{ title: 'accepts split 1 in an unsplit tab', selector: { tab: 2, split: 1 }, terminalId: 21 }
+		];
+		for (const { title, selector, terminalId } of selections) {
+			test(title, async () => {
+				await rename({ name: 'Build logs', ...selector });
+				deepStrictEqual({ renames, activeId: activeInstance?.instanceId, groupActiveIds: groups.map(group => group.activeInstance?.instanceId), warnings: warning.callCount }, {
+					renames: [{ terminalId, name: 'Build logs' }], activeId: 21, groupActiveIds: [12, 21], warnings: 0
+				});
+			});
+		}
+
+		test('selects a background split in the active tab without changing focus', async () => {
+			activeGroup = groups[0];
+			activeInstance = instances[1];
+			await rename({ name: 'Background pane', split: 1 });
+			deepStrictEqual({ renames, activeId: activeInstance.instanceId, groupActiveId: activeGroup.activeInstance?.instanceId, warnings: warning.callCount }, {
+				renames: [{ terminalId: 3, name: 'Background pane' }], activeId: 12, groupActiveId: 12, warnings: 0
+			});
+		});
+
+		test('does not fall back to an active terminal when no panel tab is active', async () => {
+			activeGroup = undefined;
+			await rename({ name: 'Missing panel tab', split: 1 });
+			deepStrictEqual({ renames, warnings: warning.callCount }, { renames: [], warnings: 1 });
+		});
+
+		test('resolves tab positions after reordering', async () => {
+			groups.reverse();
+			await rename({ name: 'Reordered tab', tab: 1 });
+			deepStrictEqual(renames, [{ terminalId: 21, name: 'Reordered tab' }]);
+		});
+
+		test('renames an explicit target without an active terminal', async () => {
+			activeInstance = undefined;
+			await rename({ name: 'Background', terminalId: 12 });
+			deepStrictEqual({ renames, activeInstance, warnings: warning.callCount }, {
+				renames: [{ terminalId: 12, name: 'Background' }], activeInstance: undefined, warnings: 0
+			});
+		});
+
+		test('does nothing without a selector or active terminal', async () => {
+			activeInstance = undefined;
+			await rename({ name: 'No target' });
+			deepStrictEqual({ renames, warnings: warning.callCount }, { renames: [], warnings: 0 });
+		});
+
+		test('does not fall back when an explicit target has closed', async () => {
+			const resource = instances[1].resource.toString();
+			instances = instances.filter(instance => instance.instanceId !== 12);
+			await rename({ name: 'Closed terminal', resource });
+			deepStrictEqual({ renames, activeId: activeInstance?.instanceId, warnings: warning.callCount }, { renames: [], activeId: 21, warnings: 1 });
+		});
+
+		const invalidSelectors = [
+			{ terminalId: 404 }, { terminalId: 0 }, { terminalId: -1 }, { terminalId: 1.2 }, { terminalId: '12' },
+			{ terminalId: NaN }, { terminalId: Infinity }, { terminalId: Number.MAX_SAFE_INTEGER + 1 },
+			{ resource: 'vscode-terminal:/workspace/404' }, { resource: 'vscode-terminal:/wrong-workspace/12' },
+			{ resource: 'file:/workspace/12' }, { resource: '/workspace/12' }, { resource: 'vscode-terminal:/%' },
+			{ resource: '' }, { resource: 12 }, { resource: null },
+			{ tab: 0 }, { tab: -1 }, { tab: 1.1 }, { tab: '1' }, { tab: 3 },
+			{ tab: 1, split: 0 }, { tab: 1, split: -1 }, { tab: 1, split: 1.2 }, { tab: 1, split: '2' }, { tab: 1, split: 3 },
+			{ split: 0 }, { split: -1 }, { split: 1.2 }, { split: '2' }, { split: 2 },
+			{ terminalId: 12, split: 1 }, { resource: 'vscode-terminal:/workspace/12', split: 1 },
+			{ terminalId: 12, tab: 1 }, { terminalId: 12, resource: 'vscode-terminal:/workspace/12' },
+			{ resource: 'vscode-terminal:/workspace/12', tab: 1 }
+		];
+		for (const selector of invalidSelectors) {
+			test(`rejects selector ${JSON.stringify(selector, (_, value) => typeof value === 'number' && !Number.isFinite(value) ? String(value) : value)} without renaming the active terminal`, async () => {
+				await rename({ name: 'Wrong terminal', ...selector });
+				deepStrictEqual({ renames, activeId: activeInstance?.instanceId, warnings: warning.callCount }, { renames: [], activeId: 21, warnings: 1 });
+			});
+		}
+
+		for (const args of [undefined, null, 'Build logs', [], {}, { name: '' }, { name: 12 }, { name: '', terminalId: 12 }]) {
+			test(`rejects missing or invalid name in ${JSON.stringify(args)}`, async () => {
+				await rename(args);
+				deepStrictEqual({ renames, warnings: warning.callCount }, { renames: [], warnings: 1 });
+			});
+		}
 	});
 
 	suite('shrinkWorkspaceFolderCwdPairs', () => {
