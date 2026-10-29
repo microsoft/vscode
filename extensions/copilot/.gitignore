@@ -7,6 +7,8 @@ dist-sourcemaps/
 
 # created by simulation
 .simulation
+# written by script/compareStestAlternativeRuns.ts
+test/simulation/baseline.old.json
 
 # stores wasm and other build files
 .build
