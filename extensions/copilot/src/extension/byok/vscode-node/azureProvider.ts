@@ -12,7 +12,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { resolveModelInfo } from '../common/byokProvider';
+import { isAzureOpenAIResourceUrl, resolveModelInfo } from '../common/byokProvider';
 import { AzureOpenAIEndpoint } from '../node/azureOpenAIEndpoint';
 import { OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { IBYOKStorageService } from './byokStorageService';
@@ -38,7 +38,7 @@ export function resolveAzureUrl(modelId: string, url: string): string {
 
 	if (url.includes('models.ai.azure.com') || url.includes('inference.ml.azure.com')) {
 		return `${url}/v1${defaultApiPath}`;
-	} else if (url.includes('openai.azure.com')) {
+	} else if (isAzureOpenAIResourceUrl(url)) {
 		return `${url}/openai/deployments/${modelId}${defaultApiPath}?api-version=2025-01-01-preview`;
 	} else {
 		throw new Error(`Unrecognized Azure deployment URL: ${url}`);
