@@ -64,25 +64,31 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+  # npm ci removes node_modules before installing, so retrying it after a transient registry error
+  # such as ECONNRESET starts from a clean state.
   - script: npm ci
     workingDirectory: build
     displayName: Install build dependencies
     condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+    retryCountOnTaskFailure: 3
 
   - script: npm ci --ignore-scripts --no-workspaces
     workingDirectory: $(Build.SourcesDirectory)
     displayName: Install vscode dependencies
     condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+    retryCountOnTaskFailure: 3
 
   - script: npm ci
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Install copilot dependencies
     condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+    retryCountOnTaskFailure: 3
 
   - script: npm ci
     workingDirectory: $(Build.SourcesDirectory)/.build/vscode-capi
     displayName: Install vscode-capi dependencies
     condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+    retryCountOnTaskFailure: 3
 
   - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
     workingDirectory: $(Build.SourcesDirectory)

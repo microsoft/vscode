@@ -292,8 +292,6 @@ export interface IExtensionCapabilities {
 	readonly agentsWindow?: { readonly supported: boolean };
 }
 
-export const EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY = 'extensions.experimental.enableAgentsWindowCapability';
-
 /**
  * Lets users choose which extensions run in the Agents window. When disabled, extensions that do not
  * support the Agents window stay disabled there and saved choices are ignored.

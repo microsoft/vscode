@@ -76,7 +76,7 @@ export function mapArtifactModelChats(
 		}),
 		requestAuthentication: integrationId => model.requestAuthentication(integrationId),
 		configure: (integrationId, revision, values, actor) => model.configure(integrationId, revision, values, actor),
-		invoke: async (integrationId, actionId, chat, requestId, actor) => {
+		invoke: async (integrationId, actionId, chat, requestId, actor, input) => {
 			const resource = URI.parse(chat, true);
 			const target = chats.get().find(chat => isEqual(chat.client, resource));
 			if (!target) {
@@ -85,7 +85,7 @@ export function mapArtifactModelChats(
 			if (!target.backend) {
 				throw new Error(localize('artifactInvokingChatMissing', "The invoking chat has not been resolved on the agent host."));
 			}
-			return mapRun(await model.invoke(integrationId, actionId, target.backend, requestId, actor));
+			return mapRun(await model.invoke(integrationId, actionId, target.backend, requestId, actor, input));
 		},
 		cancel: runId => model.cancel(runId),
 		reconcile: runId => model.reconcile(runId),
