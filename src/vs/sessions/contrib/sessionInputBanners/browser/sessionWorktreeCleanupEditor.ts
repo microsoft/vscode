@@ -152,6 +152,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	protected override createEditor(parent: HTMLElement): void {
 		this.container = dom.$('.session-worktree-cleanup-editor');
+		this.container.tabIndex = -1;
 		const focusedContext = SessionWorktreeCleanupEditorFocusedContext.bindTo(this.contextKeyService);
 		const focusTracker = this.editorDisposables.add(dom.trackFocus(this.container));
 		this.editorDisposables.add(focusTracker.onDidFocus(() => focusedContext.set(true)));
@@ -262,6 +263,11 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	override async setInput(input: SessionWorktreeCleanupEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		void this.load(true);
+	}
+
+	override focus(): void {
+		super.focus();
+		this.container?.focus();
 	}
 
 	focusAutomaticCleanup(): void {
