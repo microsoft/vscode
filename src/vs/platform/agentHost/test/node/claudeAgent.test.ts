@@ -8928,6 +8928,81 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		assert.deepStrictEqual(pm.syncCalls, []);
 	});
 
+	test('active-client customization assignments notify once per assignment, including an empty snapshot', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const handle = getOrCreateActiveClient(agent, defaultChatUri(created.session), 'client-1');
+		const customizations = [makeClientCustomization('https://bundle', 'Bundle')];
+		handle.customizations = customizations;
+		await tick();
+		handle.customizations = [];
+		await tick();
+		assert.deepStrictEqual({ calls: pm.syncCalls, current: handle.customizations }, {
+			calls: [
+				{ clientId: 'client-1', customizations },
+				{ clientId: 'client-1', customizations: [] },
+			],
+			current: [],
+		});
+	});
+
+	test('active-client removal evicts registrations and detaches retained handles', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const chat = defaultChatUri(created.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		await agent.chats.sendMessage(chat, 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+		const session = agent.getSessionForTesting(created.session)!;
+		const snapshots = [];
+		for (const name of ['first', 'second', 'third']) {
+			const handle = getOrCreateActiveClient(agent, chat, 'client-1');
+			const reused = handle === getOrCreateActiveClient(agent, chat, 'client-1');
+			handle.tools = [{ name, inputSchema: { type: 'object' } }];
+			const before = session.getClientTools('client-1').map(tool => tool.name);
+			agent.removeActiveClient(chat, chatContext(chat), 'client-1');
+			handle.tools = [{ name: 'stale', inputSchema: { type: 'object' } }];
+			handle.customizations = [makeClientCustomization('https://stale', 'Stale')];
+			await tick();
+			snapshots.push({ reused, before, after: session.getClientTools('client-1'), registrations: agent['_activeClientHandles'].size });
+		}
+		assert.deepStrictEqual({ snapshots, syncCalls: pm.syncCalls }, {
+			snapshots: [
+				{ reused: true, before: ['first'], after: [], registrations: 0 },
+				{ reused: true, before: ['second'], after: [], registrations: 0 },
+				{ reused: true, before: ['third'], after: [], registrations: 0 },
+			],
+			syncCalls: [],
+		});
+	});
+
+	test('shutdown and dispose detach active-client subscriptions', async () => {
+		const snapshots = [];
+		for (const terminal of ['shutdown', 'dispose'] as const) {
+			const pm = new FakeAgentPluginManager();
+			const { agent } = buildCtxWith(pm);
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+			const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+			const handle = getOrCreateActiveClient(agent, defaultChatUri(created.session), 'client-1');
+			if (terminal === 'shutdown') {
+				await agent.shutdown();
+			} else {
+				agent.dispose();
+			}
+			handle.tools = [{ name: 'stale', inputSchema: { type: 'object' } }];
+			handle.customizations = [makeClientCustomization('https://stale', 'Stale')];
+			await tick();
+			snapshots.push({ terminal, registrations: agent['_activeClientHandles'].size, syncCalls: pm.syncCalls });
+		}
+		assert.deepStrictEqual(snapshots, [
+			{ terminal: 'shutdown', registrations: 0, syncCalls: [] },
+			{ terminal: 'dispose', registrations: 0, syncCalls: [] },
+		]);
+	});
+
 	test('GitHub MCP is enabled by default and respects customization disablement', async () => {
 		const pm = new FakeAgentPluginManager();
 		const { agent, sdk, stateManager } = buildCtxWith(pm);
