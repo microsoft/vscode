@@ -219,11 +219,14 @@ export class MockAgent implements IAgent {
 		this._sessions.set(AgentSession.id(session), session);
 	}
 
+	/** Provider data the initializing createChat reports for a new session's chat: the agent's backing of it. */
+	initialChatProviderData: string | undefined;
+
 	/** Backing helper for an initializing {@link chats}.createChat call. */
 	private _createSessionRecord(session: URI, config: IAgentCreateSessionConfig | undefined): IAgentCreateChatResult {
 		this.lastCreateSessionConfig = config;
 		this._sessions.set(AgentSession.id(session), session);
-		return { project: mockProject(this.id), resolvedWorkingDirectory: this.resolvedWorkingDirectory };
+		return { project: mockProject(this.id), resolvedWorkingDirectory: this.resolvedWorkingDirectory, ...(this.initialChatProviderData !== undefined ? { providerData: this.initialChatProviderData } : {}) };
 	}
 
 	async resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {

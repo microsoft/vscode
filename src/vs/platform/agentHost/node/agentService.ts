@@ -7845,12 +7845,13 @@ export class AgentService extends Disposable implements IAgentService {
 	/**
 	 * The chat a session that moves under another session takes along: its default chat, which must be its only one.
 	 * The host knows a session's default chat only once it has loaded the session, so it loads one it hasn't, held in
-	 * `leases` (C15).
+	 * `leases` (C15). Its data only when that chat records a backing of its own: otherwise it is restored in full, where
+	 * its agent recovers the backing and the host records it, so the nested chat can become a session again (#344917).
 	 */
 	private async _movedSessionChat(session: URI, leases: DisposableStore): Promise<URI> {
 		const sourceKey = session.toString();
 		this._assertChatMovesEnabled();
-		await this._restoreForMove(session, AgentChatMoveRefusal.NotMovable, leases, true);
+		await this._restoreForMove(session, AgentChatMoveRefusal.NotMovable, leases, await this._recordsDefaultChatBacking(session));
 		const defaultChat = this._stateManager.getSessionState(sourceKey)?.defaultChat ?? this._defaultChat(sourceKey);
 		if (defaultChat === undefined) {
 			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotMovable, `Session ${sourceKey} is not available.`);
@@ -8087,6 +8088,9 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (sessionMove) {
 			this._checkMovedSession(sourceKey, chat);
+			if (!await this._recordsDefaultChatBacking(session)) {
+				refuse(AgentChatMoveRefusal.NotMovable, `Session ${sourceKey} has no recorded conversation of its own to keep under another session.`);
+			}
 		} else {
 			this._checkMovedChat(sourceKey, chat);
 		}
@@ -15538,6 +15542,18 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _readDefaultChatProviderData(session: URI): Promise<string | undefined> {
 		return (await this._readDefaultChatBacking(session)).providerData;
+	}
+
+	/**
+	 * Whether the default chat of `session` records a backing of its own, which it keeps when its session moves under
+	 * another. Refuses the move when the session's chats can't be read, as loading it for the move does.
+	 */
+	private async _recordsDefaultChatBacking(session: URI): Promise<boolean> {
+		try {
+			return await this._readDefaultChatProviderData(session) !== undefined;
+		} catch (error) {
+			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotMovable, `Session ${session.toString()} can't be opened: ${toErrorMessage(error)}`);
+		}
 	}
 
 	/**

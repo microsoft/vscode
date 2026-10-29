@@ -42,6 +42,7 @@ class ChatAgent extends MockAgent {
 
 	constructor(id: string, private readonly _defaultMode: string, multipleChats = true, multipleWorkingDirectories = false) {
 		super(id, { ...(multipleChats ? { multipleChats: { fork: true, sideChat: true } } : {}), ...(multipleWorkingDirectories ? { multipleWorkingDirectories: {} } : {}) });
+		this.initialChatProviderData = `${id}-backing`;
 		const createChat = this.chats.createChat;
 		this.chats.createChat = (chat, context, options) => {
 			this.onCreateChat?.(chat);
