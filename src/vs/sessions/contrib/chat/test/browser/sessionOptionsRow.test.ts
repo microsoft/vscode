@@ -30,7 +30,6 @@ suite('Sessions - SessionOptionsRow', () => {
 		const folder = control(row, 'folder', 'button');
 		const sessionOptionsRow = store.add(new SessionOptionsRow(row, container, {
 			user: 'test',
-			useExperimentalLayout: constObservable(true),
 			screenReaderOptimized: constObservable(false),
 			expanded: constObservable(true),
 			collapsedShowIcons: constObservable(true),
@@ -71,7 +70,6 @@ suite('Sessions - SessionOptionsRow', () => {
 		const hasDetails = observableValue('hasDetails', true);
 		const sessionOptionsRow = store.add(new SessionOptionsRow(row, container, {
 			user: 'test',
-			useExperimentalLayout: constObservable(true),
 			screenReaderOptimized: constObservable(false),
 			expanded: constObservable(true),
 			collapsedShowIcons: constObservable(true),
@@ -87,7 +85,7 @@ suite('Sessions - SessionOptionsRow', () => {
 		assert.deepStrictEqual({ focused: document.activeElement?.getAttribute('aria-label'), toggleHidden: sessionOptionsRow.toggle.element.hidden }, { focused: 'folder', toggleHidden: true });
 	});
 
-	test('pickers collapse to their icon and open their context menu only in the experimental layout', () => {
+	test('pickers collapse to their icon and open their context menu', () => {
 		const document = mainWindow.document;
 		const container = document.body.appendChild(document.createElement('div'));
 		store.add(toDisposable(() => container.remove()));
@@ -102,12 +100,10 @@ suite('Sessions - SessionOptionsRow', () => {
 			return slot;
 		};
 		const workspace = picker(row, 'workspace');
-		const useExperimentalLayout = observableValue('useExperimentalLayout', true);
 		const iconOnlyPickerIds = observableValue<ReadonlySet<string>>('iconOnlyPickerIds', new Set());
 		const contextMenus: string[] = [];
 		const sessionOptionsRow = store.add(new SessionOptionsRow(row, container, {
 			user: 'test',
-			useExperimentalLayout,
 			screenReaderOptimized: constObservable(false),
 			expanded: constObservable(true),
 			collapsedShowIcons: constObservable(true),
@@ -135,13 +131,10 @@ suite('Sessions - SessionOptionsRow', () => {
 		const states = [snapshot()];
 		iconOnlyPickerIds.set(new Set(['workspace', 'environment']), undefined);
 		states.push(snapshot());
-		useExperimentalLayout.set(false, undefined);
-		states.push(snapshot());
 
 		assert.deepStrictEqual(states, [
 			{ iconOnly: [], contextMenu: ['harness'], handled: true },
 			{ iconOnly: ['workspace', 'environment'], contextMenu: ['harness'], handled: true },
-			{ iconOnly: [], contextMenu: [], handled: false },
 		]);
 	});
 });

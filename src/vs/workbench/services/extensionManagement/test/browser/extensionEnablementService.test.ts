@@ -9,7 +9,7 @@ import { EnablementState, IExtensionManagementServerService, IExtensionManagemen
 import { ExtensionEnablementService } from '../../browser/extensionEnablementService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, toWorkspaceFolder, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, IExtensionContributions, ExtensionType, IExtension, IExtensionManifest, IExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -29,10 +29,10 @@ import { TestNotificationService } from '../../../../../platform/notification/te
 import { IHostService } from '../../../host/browser/host.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IExtensionBisectService } from '../../browser/extensionBisect.js';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, WorkspaceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, WorkspaceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { EXTENSIONS_SUPPORT_AGENTS_WINDOW, ExtensionManifestPropertiesService, IExtensionManifestPropertiesService } from '../../../extensions/common/extensionManifestPropertiesService.js';
 import { TestChatEntitlementService, TestContextService, TestProductService, TestWorkspaceTrustEnablementService, TestWorkspaceTrustManagementService } from '../../../../test/common/workbenchTestServices.js';
-import { TestWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { TestWorkspace, Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ExtensionManagementService } from '../../common/extensionManagementService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -52,8 +52,16 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { parse, TaskConfigSource } from '../../../../contrib/tasks/common/taskConfiguration.js';
 import { ShellExecutionSupportedContext } from '../../../../contrib/tasks/common/taskService.js';
 import { filterEnabledExtensions } from '../../../extensions/common/abstractExtensionService.js';
-import { toExtensionDescription } from '../../../extensions/common/extensions.js';
+import { IExtensionService, toExtensionDescription } from '../../../extensions/common/extensions.js';
 import { ExtensionMessageCollector, ExtensionsRegistry } from '../../../extensions/common/extensionsRegistry.js';
+import { encodeHex, VSBuffer } from '../../../../../base/common/buffer.js';
+import { ICanonicalUriService } from '../../../../../platform/workspace/common/canonicalUri.js';
+import { IRemoteAuthorityResolverService } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { CanonicalUriService } from '../../../workspaces/common/canonicalUriService.js';
+import { WorkspaceTrustManagementService, WORKSPACE_TRUST_STORAGE_KEY } from '../../../workspaces/common/workspaceTrust.js';
+import { ExtensionEnablementWorkspaceTrustTransitionParticipant } from '../../../../contrib/extensions/browser/extensionEnablementWorkspaceTrustTransitionParticipant.js';
 
 function createStorageService(instantiationService: TestInstantiationService, disposableStore: DisposableStore): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -1178,6 +1186,99 @@ suite('ExtensionEnablementService Test', () => {
 		assert.deepStrictEqual((<IExtension>target.args[0][0][1]).identifier, { id: 'pub.c' });
 	});
 
+	test('fork PR source trust gates browser extension activation until the fork is approved', async () => {
+		const base = URI.from({ scheme: 'vscode-vfs', authority: 'github', path: '/microsoft/project' });
+		const fork = base.with({ path: '/fork-owner/project' });
+		const pullRequest = base.with({
+			authority: `github+${encodeHex(VSBuffer.fromString(JSON.stringify({ v: 1, ref: { type: 3, id: '1887' } })))}`,
+		});
+		const context = new TestContextService();
+		context.setWorkspace(new Workspace('fork-pr-extension-enablement', [toWorkspaceFolder(pullRequest)]));
+		instantiationService.stub(IWorkspaceContextService, context);
+		instantiationService.get(IStorageService).store(
+			WORKSPACE_TRUST_STORAGE_KEY, JSON.stringify({ uriTrustInfo: [{ uri: base, trusted: true }] }),
+			StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
+		const canonicalUris = disposableStore.add(new CanonicalUriService());
+		instantiationService.stub(ICanonicalUriService, canonicalUris);
+		instantiationService.stub(IUriIdentityService, disposableStore.add(new UriIdentityService(instantiationService.get(IFileService))));
+		instantiationService.stub(IRemoteAuthorityResolverService, new class extends mock<IRemoteAuthorityResolverService>() { });
+		instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+		const trust = disposableStore.add(instantiationService.createInstance(WorkspaceTrustManagementService));
+		instantiationService.stub(IWorkspaceTrustManagementService, trust);
+
+		const server = instantiationService.get(IExtensionManagementServerService).localExtensionManagementServer;
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, null, server));
+		// Keep the simulated web host independent of the test runner's platform.
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('remote.extensionKind', {
+			'vscode.typescript-language-features': ['web'],
+		});
+		const typescript = aLocalExtension2('vscode.typescript-language-features', {
+			main: './out/extension',
+			browser: './dist/browser/extension',
+			capabilities: { virtualWorkspaces: { supported: 'limited', description: 'Limited language support' }, untrustedWorkspaces: { supported: false, description: 'Requires trust' } },
+		}, { location: URI.parse('https://extensions.test/typescript'), type: ExtensionType.System });
+		const browserOnly = aLocalExtension2('example.browser-plugin-loader', {
+			browser: './dist/browser/extension.js',
+			capabilities: { virtualWorkspaces: true, untrustedWorkspaces: { supported: false, description: 'Requires trust' } },
+		}, { location: URI.parse('https://extensions.test/browser-plugin-loader') });
+		const repositories = aLocalExtension2('ms-vscode.remote-repositories', {
+			browser: './dist/browser/extension.js',
+			capabilities: { virtualWorkspaces: true, untrustedWorkspaces: { supported: true } },
+		}, { location: URI.parse('https://extensions.test/remote-repositories') });
+		installed.push(typescript, browserOnly, repositories);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await testObject.waitUntilInitialized();
+		const descriptions = installed.map(extension => toExtensionDescription(extension));
+		const enabled = () => filterEnabledExtensions(new NullLogService(), testObject, descriptions, false).map(extension => extension.identifier.value);
+		await trust.workspaceTrustInitialized;
+		assert.strictEqual(testObject.getEnablementState(typescript), EnablementState.DisabledByTrustRequirement);
+		assert.deepStrictEqual(enabled(), ['ms-vscode.remote-repositories']);
+
+		const resolved = Event.toPromise(trust.onDidChangeTrustedFolders);
+		const provider = disposableStore.add(canonicalUris.registerCanonicalUriProvider({
+			scheme: 'vscode-vfs',
+			provideCanonicalUri: async () => fork,
+		}));
+		await resolved;
+		assert.deepStrictEqual(enabled(), ['ms-vscode.remote-repositories']);
+
+		let stops = 0;
+		let starts = 0;
+		disposableStore.add(new ExtensionEnablementWorkspaceTrustTransitionParticipant(
+			new class extends mock<IExtensionService>() {
+				override async stopExtensionHosts() { stops++; return true; }
+				override async startExtensionHosts() { starts++; }
+			},
+			new class extends mock<IHostService>() { },
+			instantiationService.get(IWorkbenchEnvironmentService),
+			testObject,
+			instantiationService.get(IWorkspaceTrustEnablementService),
+			trust,
+		));
+		await Promise.resolve();
+		const changes: string[][] = [];
+		disposableStore.add(testObject.onEnablementChanged(extensions => changes.push(extensions.map(extension => extension.identifier.id))));
+		await trust.setWorkspaceTrust(true);
+
+		assert.deepStrictEqual(enabled(), ['vscode.typescript-language-features', 'example.browser-plugin-loader', 'ms-vscode.remote-repositories']);
+		assert.deepStrictEqual(changes, [['vscode.typescript-language-features', 'example.browser-plugin-loader']]);
+		assert.deepStrictEqual(trust.getTrustedUris().map(uri => uri.toString()), [base.toString(), fork.toString()]);
+
+		provider.dispose();
+		await trust.resolveWorkspaceTrust();
+		assert.strictEqual(trust.isWorkspaceTrusted(), true);
+		assert.deepStrictEqual([stops, starts], [0, 0]);
+
+		const registeredAgain = Event.toPromise(trust.onDidChangeTrustedFolders);
+		disposableStore.add(canonicalUris.registerCanonicalUriProvider({
+			scheme: 'vscode-vfs',
+			provideCanonicalUri: async () => fork,
+		}));
+		await registeredAgain;
+		assert.strictEqual(trust.isWorkspaceTrusted(), true);
+		assert.deepStrictEqual([stops, starts], [0, 0]);
+	});
+
 	test('test adding an extension that was disabled', async () => {
 		const extension = aLocalExtension('pub.a');
 		installed.push(extension);
@@ -1376,6 +1477,33 @@ suite('ExtensionEnablementService Test', () => {
 			off: { state: EnablementState.DisabledByEnvironment, canChange: false },
 			on: { state: EnablementState.EnabledWorkspace, canChange: true },
 			changed: [['pub.unsupported'], ['pub.unsupported']],
+		});
+	});
+
+	test('test sessions window enables extensions without code while extensions are managed', async () => {
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+		const skills = aLocalExtension2('pub.skills', { contributes: someContributions({ chatSkills: [{}] }) });
+		const withCode = aLocalExtension2('pub.withCode', { main: 'main.js', contributes: someContributions({ chatSkills: [{}] }) });
+		const theme = aLocalExtension2('pub.theme', { contributes: aContributes('themes') });
+		installed.push(skills, withCode, theme);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await testObject.waitUntilInitialized();
+		const changed: string[][] = [];
+		disposableStore.add(testObject.onEnablementChanged(extensions => changed.push(extensions.map(e => e.identifier.id))));
+		const states = () => [skills, withCode, theme].map(extension => testObject.getEnablementState(extension));
+
+		const unmanaged = states();
+		await configurationService.setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, true);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === EXTENSIONS_AGENTS_WINDOW_MANAGEMENT }));
+		const managed = states();
+		await testObject.setEnablement([skills], EnablementState.DisabledWorkspace);
+
+		assert.deepStrictEqual({ unmanaged, managed, disabledByUser: testObject.getEnablementState(skills), changed }, {
+			unmanaged: [EnablementState.DisabledByEnvironment, EnablementState.DisabledByEnvironment, EnablementState.EnabledGlobally],
+			managed: [EnablementState.EnabledGlobally, EnablementState.DisabledWorkspace, EnablementState.EnabledGlobally],
+			disabledByUser: EnablementState.DisabledWorkspace,
+			changed: [['pub.skills', 'pub.withCode'], ['pub.skills']],
 		});
 	});
 

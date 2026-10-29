@@ -6,6 +6,11 @@
 import type { InitializeResult } from '../../state/protocol/common/commands.js';
 
 export const AgentHostWorktreeCleanupCapabilityMetaKey = 'vscode.worktreeCleanup';
+export const ManagedWorktreesCapabilityMetaKey = 'vscode.managedWorktrees';
+
+export function supportsAgentHostManagedWorktrees(result: InitializeResult | undefined): boolean {
+	return result?._meta?.[ManagedWorktreesCapabilityMetaKey] === true;
+}
 
 export function supportsAgentHostWorktreeCleanup(result: InitializeResult | undefined): boolean {
 	return result?._meta?.[AgentHostWorktreeCleanupCapabilityMetaKey] === true;

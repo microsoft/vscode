@@ -3597,6 +3597,38 @@ suite('Sessions - ChatGroupsView', () => {
 			assert.strictEqual(chatView.boundChats.length, bindCount);
 		});
 
+		test('keeps the composer, and so its typed draft and attachments, when its unsent chat is replaced by one of another harness', () => {
+			const { view, chatViewFactory } = createHarness(disposables);
+			const main = createChat('main');
+			const draft = createChat('draft', SessionStatus.Untitled);
+			const replacement = createChat('replacement', SessionStatus.Untitled);
+			const session = new TestActiveSession([main, draft], [main, draft]);
+			session.activeChat.set(draft, undefined);
+			view.setSession(session, options);
+			const composer = chatViewFactory.views.at(-1);
+
+			// The harness picker opens the replacement draft, then deletes the one it replaces.
+			transaction(tx => {
+				session.allChats.set([main, draft, replacement], tx);
+				session.visibleChatTabs.set([main, draft, replacement], tx);
+				session.activeChat.set(replacement, tx);
+			});
+			transaction(tx => {
+				session.allChats.set([main, replacement], tx);
+				session.visibleChatTabs.set([main, replacement], tx);
+			});
+
+			assert.deepStrictEqual({
+				kind: composer?.kind,
+				reused: chatViewFactory.views.at(-1) === composer && !composer?.isDisposed,
+				bound: composer?.boundChats.map(binding => binding.chat).at(-1),
+			}, {
+				kind: 'newChatInSession',
+				reused: true,
+				bound: 'test-chat://replacement',
+			});
+		});
+
 		test('recreates the chat view when the next session shows a composer', () => {
 			const { view, chatViewFactory } = createHarness(disposables);
 			view.setSession(new TestActiveSession([createChat('a')]), options);
