@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { promises as fs } from 'fs';
 import { isBinaryFile } from 'isbinaryfile';
+import { createRequire, syncBuiltinESMExports } from 'module';
 import * as os from 'os';
 import * as path from 'path';
 import { beforeAll, describe, it } from 'vitest';
@@ -196,13 +197,33 @@ describe('CopilotCLI SDK Upgrade', function () {
 			const summarize = (sessions: readonly { sessionId: string; summary?: string; context?: { cwd?: string } }[]) =>
 				sessions.map(s => ({ id: s.sessionId.slice(-1), summary: s.summary, hasContext: s.context !== undefined })).sort((a, b) => a.id.localeCompare(b.id));
 
-			const listed = await sessionManager.listSessions({ metadataLimit: 0, includeDetached: false });
-			const enriched = await sessionManager.enrichSessionMetadata(listed);
-			const full = await sessionManager.listSessions();
+			// Record which session files each step touches through Node's `fs`. The ids-only
+			// listing must not touch any; the full listing is the positive control that proves
+			// this observer still sees the SDK's reads (its detached-status scan opens
+			// `events.jsonl` via `fs/promises`). The SDK reads `workspace.yaml` and the first
+			// user message in native code, which only the returned-metadata checks can cover.
+			type ListingPhase = 'idsOnly' | 'enrich' | 'full';
+			let phase: ListingPhase = 'idsOnly';
+			const sessionFileAccess: Record<ListingPhase, Set<string>> = { idsOnly: new Set(), enrich: new Set(), full: new Set() };
+			const stopObserving = observeSessionFileAccess(fileName => sessionFileAccess[phase].add(fileName));
+			let listed: Awaited<ReturnType<typeof sessionManager.listSessions>>;
+			let enriched: Awaited<ReturnType<typeof sessionManager.enrichSessionMetadata>>;
+			let full: Awaited<ReturnType<typeof sessionManager.listSessions>>;
+			try {
+				listed = await sessionManager.listSessions({ metadataLimit: 0, includeDetached: false });
+				phase = 'enrich';
+				enriched = await sessionManager.enrichSessionMetadata(listed);
+				phase = 'full';
+				full = await sessionManager.listSessions();
+			} finally {
+				stopObserving();
+			}
 
 			assert.deepStrictEqual({
 				listed: summarize(listed),
 				enriched: summarize(enriched),
+				idsOnlyListingFileAccess: [...sessionFileAccess.idsOnly],
+				fullListingOpensEventLogsObservably: sessionFileAccess.full.has('events.jsonl'),
 			}, {
 				listed: [
 					{ id: '1', summary: undefined, hasContext: false },
@@ -210,6 +231,8 @@ describe('CopilotCLI SDK Upgrade', function () {
 					{ id: '3', summary: undefined, hasContext: false },
 				],
 				enriched: summarize(full),
+				idsOnlyListingFileAccess: [],
+				fullListingOpensEventLogsObservably: true,
 			});
 			assert.deepStrictEqual(summarize(enriched).map(s => s.id), ['1', '3']);
 		} finally {
@@ -311,4 +334,41 @@ async function findAllBinaries(dir: string): Promise<string[]> {
 
 	await findFilesRecursively(dir);
 	return binaryFiles;
+}
+
+type FileSystemFunctions = Record<string, (...args: unknown[]) => unknown>;
+
+const OBSERVED_SESSION_FILES = new Set(['events.jsonl', 'workspace.yaml']);
+
+/**
+ * Reports `events.jsonl` / `workspace.yaml` accesses made through Node's `fs` and `fs/promises`,
+ * including from already-loaded ES modules (via `syncBuiltinESMExports`). Returns a function that
+ * restores the original implementations.
+ */
+function observeSessionFileAccess(onAccess: (fileName: string) => void): () => void {
+	const nodeFs = createRequire(__filename)('fs') as typeof import('fs');
+	const restores: (() => void)[] = [];
+	const wrap = (target: FileSystemFunctions, names: readonly string[]) => {
+		for (const name of names) {
+			const original = target[name];
+			target[name] = (...args: unknown[]) => {
+				const file = args[0];
+				const fileName = typeof file === 'string' ? path.basename(file) : file instanceof URL ? path.posix.basename(file.pathname) : undefined;
+				if (fileName && OBSERVED_SESSION_FILES.has(fileName)) {
+					onAccess(fileName);
+				}
+				return original(...args);
+			};
+			restores.push(() => { target[name] = original; });
+		}
+	};
+	wrap(nodeFs.promises as unknown as FileSystemFunctions, ['open', 'readFile', 'stat']);
+	wrap(nodeFs as unknown as FileSystemFunctions, ['open', 'openSync', 'readFile', 'readFileSync', 'createReadStream', 'stat', 'statSync']);
+	syncBuiltinESMExports();
+	return () => {
+		for (const restore of restores) {
+			restore();
+		}
+		syncBuiltinESMExports();
+	};
 }
