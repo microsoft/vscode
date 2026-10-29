@@ -1031,6 +1031,28 @@ suite('CloudSandboxApiService session feed', () => {
 		});
 	});
 
+	test('honors relative feed lifetimes independently of the local wall clock', async () => {
+		const results = [];
+		for (const skew of [60 * 60_000, -60 * 60_000]) {
+			const connection = {
+				...feedConnection(),
+				expires_at: new Date(Date.now() - skew + 10 * 60_000).toISOString(),
+				reconnect_after: new Date(Date.now() - skew + 8 * 60_000).toISOString(),
+				expires_in: 10 * 60_000,
+				reconnect_in: 8 * 60_000,
+			};
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(), onRequest: () => jsonResponse(connection),
+			});
+			const result = await service.connectSessionFeed(CancellationToken.None);
+			results.push({ expiresIn: result?.expires_in, reconnectIn: result?.reconnect_in });
+		}
+		assert.deepStrictEqual(results, [
+			{ expiresIn: 600_000, reconnectIn: 480_000 },
+			{ expiresIn: 600_000, reconnectIn: 480_000 },
+		]);
+	});
+
 	for (const status of [403, 404]) {
 		test(`retains polling when feed negotiation returns ${status}`, async () => {
 			const logService = new TestLogService();
@@ -1066,6 +1088,11 @@ suite('CloudSandboxApiService session feed', () => {
 		{ frame_schema_version: 2 },
 		{ subprotocol: 'json.reliable.webpubsub.azure.v1' },
 		{ group: '' },
+		{ expires_in: 600_000 },
+		{ reconnect_in: 480_000 },
+		{ expires_in: 600_000, reconnect_in: 0 },
+		{ expires_in: 600_000, reconnect_in: 600_000 },
+		{ expires_in: 2 ** 32, reconnect_in: 2 ** 31 },
 	]) {
 		test(`rejects malformed feed metadata (${Object.keys(invalid)[0]}: ${Object.values(invalid)[0]}) without disclosing it`, async () => {
 			const { service } = createService(store, {

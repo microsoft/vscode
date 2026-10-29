@@ -241,6 +241,29 @@ suite('CloudSandboxSessionFeed', () => {
 		});
 	}));
 
+	test('uses server-relative renewal timing despite clock skew', () => runWithFakedTimers<void>({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+		const results: { skew: number; negotiations: number; refreshes: number }[] = [];
+		for (const skew of [475_000, -475_000]) {
+			const h = createFeed(store, {
+				connect: async () => ({
+					...connection(),
+					expires_at: new Date(Date.now() - skew + 10 * 60_000).toISOString(),
+					reconnect_after: new Date(Date.now() - skew + 8 * 60_000).toISOString(),
+					expires_in: 10 * 60_000,
+					reconnect_in: 8 * 60_000,
+				}),
+			});
+			await h.feed.start();
+			await timeout(30 * 60_000 - 1);
+			results.push({ skew, negotiations: h.requests.length, refreshes: h.invalidations.length });
+			h.feed.dispose();
+		}
+		assert.deepStrictEqual(results, [
+			{ skew: 475_000, negotiations: 4, refreshes: 3 },
+			{ skew: -475_000, negotiations: 4, refreshes: 3 },
+		]);
+	}));
+
 	test('reconnects after disconnection and requests an authoritative full refresh', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const h = createFeed(store);
 		await h.feed.start();
