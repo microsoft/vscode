@@ -12,6 +12,7 @@ import { IObservable, autorun, autorunWithStore, constObservable, derived, deriv
 import * as strings from '../../../../../../base/common/strings.js';
 import { applyFontInfo } from '../../../../../browser/config/domFontInfo.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition, IViewZoneChangeAccessor, MouseTargetType } from '../../../../../browser/editorBrowser.js';
+import { DynamicCssRules } from '../../../../../browser/editorDom.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from '../../../../../common/config/editorOptions.js';
 import { StringEdit, StringReplacement } from '../../../../../common/core/edits/stringEdit.js';
@@ -62,6 +63,8 @@ const GHOST_TEXT_CLASS_NAME = 'ghost-text';
 export class GhostTextView extends Disposable {
 	private readonly _isDisposed = observableValue(this, false);
 	private readonly _editorObs;
+	private readonly _ruleFactory: DynamicCssRules;
+	private readonly _lineHeightChanged;
 	private readonly _warningState = derived(reader => {
 		const model = this._data.read(reader);
 		const warning = model?.warning;
@@ -103,6 +106,8 @@ export class GhostTextView extends Disposable {
 		this._highlightShortText = options.highlightShortSuggestions ?? false;
 
 		this._editorObs = observableCodeEditor(this._editor);
+		this._ruleFactory = this._register(new DynamicCssRules(this._editor));
+		this._lineHeightChanged = observableSignalFromEvent(this, this._editor.onDidChangeLineHeight);
 		this._additionalLinesWidget = this._register(
 			new AdditionalLinesWidget(
 				this._editor,
@@ -292,11 +297,30 @@ export class GhostTextView extends Disposable {
 		};
 	});
 
+	private readonly _inlineFont = derived(this, reader => {
+		const uiState = this._state.read(reader);
+		if (!uiState) { return undefined; }
+
+		const multiplier = this._editorObs.getOption(EditorOption.effectiveShrinkEmptyLines).read(reader);
+		if (multiplier === 1) { return undefined; }
+
+		this._lineHeightChanged.read(reader);
+		const lineHeight = this._editorObs.getOption(EditorOption.lineHeight).read(reader);
+		if (this._editor.getLineHeightForPosition(new Position(uiState.lineNumber, 1)) >= lineHeight) {
+			return undefined;
+		}
+
+		const fontSize = `${this._editorObs.getOption(EditorOption.fontInfo).read(reader).fontSize * multiplier}px`;
+		const className = reader.store.add(this._ruleFactory.createClassNameRef({ fontSize })).className;
+		return { fontSize, className };
+	});
+
 	private readonly _decorations = derived(this, reader => {
 		const uiState = this._state.read(reader);
 		if (!uiState) { return []; }
 
 		const decorations: IModelDeltaDecoration[] = [];
+		const inlineFont = this._inlineFont.read(reader);
 
 		const extraClassNames = this._extraClassNames.read(reader);
 
@@ -323,6 +347,8 @@ export class GhostTextView extends Disposable {
 				range: Range.fromPositions(new Position(uiState.lineNumber, p.column)),
 				options: {
 					description: 'ghost-text-decoration',
+					fontSize: inlineFont?.fontSize,
+					inlineClassName: inlineFont?.className,
 					after: {
 						content: p.text,
 						tokens: p.tokens,
@@ -330,6 +356,7 @@ export class GhostTextView extends Disposable {
 							+ (this._isClickable ? ' clickable' : '')
 							+ extraClassNames
 							+ inlineExtraClassNames
+							+ (inlineFont ? ` ${inlineFont.className}` : '')
 							+ p.lineDecorations.map(d => ' ' + d.className).join(' '), // TODO: take the ranges into account for line decorations
 						cursorStops: InjectedTextCursorStops.Left,
 						attachedData: new GhostTextAttachedData(this),
