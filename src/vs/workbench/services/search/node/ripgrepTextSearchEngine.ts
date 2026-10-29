@@ -12,11 +12,12 @@ import { groupBy } from '../../../../base/common/collections.js';
 import { splitGlobAware } from '../../../../base/common/glob.js';
 import { createRegExp, escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, ITextSearchPreviewOptions, SearchError, SearchErrorCode, serializeSearchError, TextSearchMatch } from '../common/search.js';
-import { Range, TextSearchComplete2, TextSearchContext2, TextSearchMatch2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2 } from '../common/searchExtTypes.js';
+import { Range, TextSearchComplete2, TextSearchCompleteMessageType, TextSearchContext2, TextSearchMatch2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2 } from '../common/searchExtTypes.js';
 import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
-import { anchorGlob, IOutputChannel, Maybe, rangeToSearchRange, searchRangeToRange } from './ripgrepSearchUtils.js';
+import { anchorGlob, IOutputChannel, MAX_RIPGREP_SYMLINK_LOOPS, Maybe, rangeToSearchRange, RipgrepSymlinkLoopDetector, searchRangeToRange } from './ripgrepSearchUtils.js';
 import type { RipgrepTextSearchOptions } from '../common/searchExtTypesInternal.js';
 import { newToOldPreviewOptions } from '../common/searchExtConversionTypes.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
@@ -41,6 +42,10 @@ export class RipgrepTextSearchEngine {
 				// todo: get this to actually check
 				limitHit: e.some(complete => !!complete && complete.limitHit)
 			};
+			const messages = e.flatMap(complete => complete?.message ?? []);
+			if (messages.length) {
+				complete.message = messages;
+			}
 			return complete;
 		}));
 	}
@@ -84,9 +89,19 @@ export class RipgrepTextSearchEngine {
 
 			let gotResult = false;
 			const ripgrepParser = new RipgrepParser(options.maxResults ?? DEFAULT_MAX_SEARCH_RESULTS, options.folderOptions.folder, newToOldPreviewOptions(options.previewOptions));
+
+			// When ripgrep reports too many symbolic link loops, search the folder again without following
+			// symbolic links and skip the results that were already reported
+			const symlinkLoopDetector = options.folderOptions.followSymlinks ? new RipgrepSymlinkLoopDetector() : undefined;
+			const reportedPaths: string[] = [];
+			let isRetrying = false;
+
 			ripgrepParser.on('result', (match: TextSearchResult2) => {
 				gotResult = true;
 				dataWithoutResult = '';
+				if (symlinkLoopDetector) {
+					reportedPaths.push(match.uri.path);
+				}
 				progress.report(match);
 			});
 
@@ -124,6 +139,11 @@ export class RipgrepTextSearchEngine {
 				if (stderr.length + message.length < 1e6) {
 					stderr += message;
 				}
+
+				if (!isDone && symlinkLoopDetector?.handleStderr(message)) {
+					isRetrying = true;
+					cancel();
+				}
 			});
 
 			rgProc.on('close', () => {
@@ -135,7 +155,9 @@ export class RipgrepTextSearchEngine {
 
 				this.outputChannel.appendLine('');
 
-				if (isDone) {
+				if (isRetrying && !token.isCancellationRequested) {
+					resolve(this.searchAgainWithoutFollowingSymlinks(query, options, progress, token, reportedPaths));
+				} else if (isDone) {
 					resolve({ limitHit });
 				} else {
 					// Trigger last result
@@ -150,6 +172,43 @@ export class RipgrepTextSearchEngine {
 				}
 			});
 		});
+	}
+
+	private async searchAgainWithoutFollowingSymlinks(query: TextSearchQuery2, options: RipgrepTextSearchOptions, progress: Progress<TextSearchResult2>, token: CancellationToken, reportedPaths: readonly string[]): Promise<TextSearchComplete2> {
+		const folder = options.folderOptions.folder;
+		this.outputChannel.appendLine(`ripgrep reported more than ${MAX_RIPGREP_SYMLINK_LOOPS} symbolic link loops, searching ${folder.fsPath} again without following symbolic links`);
+
+		// ripgrep reports the results of a file in the same order every time, so skip as many results of each
+		// file as were already reported. This also covers a file whose results were only partially reported.
+		const resultsToSkip = new Map<string, number>();
+		for (const path of reportedPaths) {
+			resultsToSkip.set(path, (resultsToSkip.get(path) ?? 0) + 1);
+		}
+
+		const complete = await this.provideTextSearchResultsWithRgOptions(
+			query,
+			{ ...options, folderOptions: { ...options.folderOptions, followSymlinks: false } },
+			new Progress<TextSearchResult2>(result => {
+				const toSkip = resultsToSkip.get(result.uri.path);
+				if (toSkip) {
+					resultsToSkip.set(result.uri.path, toSkip - 1);
+				} else {
+					progress.report(result);
+				}
+			}),
+			token
+		);
+
+		return {
+			...complete,
+			message: [
+				...complete.message ?? [],
+				{
+					type: TextSearchCompleteMessageType.Warning,
+					text: localize('symlinkLoops', "Symbolic links in '{0}' were not followed because they form too many loops, so results may be incomplete. Exclude the folders that contain the loops or turn off the '{1}' setting to avoid this.", folder.fsPath, 'search.followSymlinks')
+				}
+			]
+		};
 	}
 }
 

@@ -8,12 +8,14 @@ import { CancellationTokenSource } from '../../../common/cancellation.js';
 import { DisposableStore } from '../../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../utils.js';
 import {
+	createRecordingRealTimeApi,
 	createTraceRoot,
 	createVirtualTimeApi,
 	drainMicrotasksEmbedding,
 	nextMacrotask,
 	pushGlobalTimeApi,
 	realTimeApi,
+	RecordedTimerEvent,
 	runWithFakedTimers,
 	Trace,
 	TraceContext,
@@ -51,6 +53,54 @@ suite('virtualScheduling - Trace + TraceContext', () => {
 			rootLabel: 'fixture',
 			depth: 2,
 		});
+	});
+
+	test('Trace formats captured stacks only when requested', () => {
+		const error = new Error();
+		let stackReads = 0;
+		Object.defineProperty(error, 'stack', {
+			get: () => {
+				stackReads++;
+				return 'captured stack';
+			},
+		});
+		const root = createTraceRoot('root', 'root stack');
+		const trace = root.child('timer', error);
+		trace.describe();
+		const readsBeforeAccess = stackReads;
+
+		assert.deepStrictEqual({
+			readsBeforeAccess,
+			rootStack: root.stack,
+			stack: trace.stack,
+			stackReads,
+			childStack: trace.child('tick').stack,
+		}, {
+			readsBeforeAccess: 0,
+			rootStack: 'root stack',
+			stack: 'captured stack',
+			stackReads: 1,
+			childStack: undefined,
+		});
+	});
+
+	test('recorded timers retain their scheduling stack after running', async () => {
+		const history: RecordedTimerEvent[] = [];
+		const api = createRecordingRealTimeApi(history);
+		await new Promise<void>(resolve => {
+			function scheduleRecordedTimer(): void {
+				api.setTimeout(resolve, 0);
+			}
+			scheduleRecordedTimer();
+		});
+
+		assert.deepStrictEqual(history.map(event => ({
+			source: event.source.toString(),
+			hasSchedulingSite: event.source.stackTrace?.includes('scheduleRecordedTimer'),
+			sameTraceStack: event.source.stackTrace === event.trace?.stack,
+		})), [
+			{ source: 'setTimeout', hasSchedulingSite: true, sameTraceStack: true },
+		]);
 	});
 
 	test('runWithTrace installs and restores synchronously; supports nesting', () => {
@@ -99,6 +149,27 @@ suite('virtualScheduling - Trace + TraceContext', () => {
 suite('virtualScheduling - createVirtualTimeApi trace propagation', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => TraceContext.instance._resetForTesting());
+
+	test('timer source and trace retain their scheduling site', () => {
+		const clock = new VirtualClock();
+		const api = createVirtualTimeApi(clock, { fakeRequestAnimationFrame: true });
+		function scheduleTimers(): void {
+			api.setTimeout(() => { }, 5);
+			api.setInterval(() => { }, 10);
+			api.requestAnimationFrame!(() => { });
+		}
+		scheduleTimers();
+
+		assert.deepStrictEqual(clock.getEvents().map(event => ({
+			source: event.source.toString(),
+			hasSchedulingSite: event.source.stackTrace?.includes('scheduleTimers'),
+			sameTraceStack: event.source.stackTrace === (event.trace?.stack ?? event.trace?.parent?.stack),
+		})), [
+			{ source: 'setTimeout', hasSchedulingSite: true, sameTraceStack: true },
+			{ source: 'setInterval (iteration 1)', hasSchedulingSite: true, sameTraceStack: true },
+			{ source: 'requestAnimationFrame', hasSchedulingSite: true, sameTraceStack: true },
+		]);
+	});
 
 	test('virtual setTimeout: callback fires under trace child of schedule-time trace', async () => {
 		await runWithFakedTimers({}, async () => {
@@ -311,6 +382,7 @@ suite('virtualScheduling - runWithFakedTimers', () => {
 
 	test('drains queue after fn() resolves', async () => {
 		const log: string[] = [];
+		// eslint-disable-next-line local/code-run-with-faked-timers-whole-test -- asserts that the drain runs after fn() resolves, which is only observable outside the call
 		await runWithFakedTimers({}, async () => {
 			setTimeout(() => log.push('a'), 100);
 			setTimeout(() => log.push('b'), 50);
@@ -320,6 +392,7 @@ suite('virtualScheduling - runWithFakedTimers', () => {
 
 	test('useFakeTimers=false bypasses virtual time', async () => {
 		const before = globalThis.setTimeout;
+		// eslint-disable-next-line local/code-run-with-faked-timers-whole-test -- captures the real setTimeout before the call to assert useFakeTimers=false leaves it in place
 		await runWithFakedTimers({ useFakeTimers: false }, async () => {
 			assert.strictEqual(globalThis.setTimeout, before);
 		});
@@ -327,6 +400,7 @@ suite('virtualScheduling - runWithFakedTimers', () => {
 
 	test('promise chains awaited inside fn() resolve deterministically', async () => {
 		const log: string[] = [];
+		// eslint-disable-next-line local/code-run-with-faked-timers-whole-test -- self-test of runWithFakedTimers: asserts the result observed by the caller once the call resolves
 		await runWithFakedTimers({}, async () => {
 			await new Promise<void>(resolve => {
 				setTimeout(async () => {
@@ -348,7 +422,8 @@ suite('virtualScheduling - createVirtualTimeApi without processor', () => {
 		const clock = new VirtualClock(12345);
 		const api = createVirtualTimeApi(clock, { fakeRequestAnimationFrame: true });
 		const originalPerformanceNow = performance.now;
-		const originalPerformanceTimeOrigin = performance.timeOrigin;
+		// WebKit's native timeOrigin getter can return slightly different values on successive reads.
+		const originalPerformanceTimeOriginDescriptor = Object.getOwnPropertyDescriptor(performance, 'timeOrigin');
 		const restore = pushGlobalTimeApi(api);
 		let animationFrameTime: number | undefined;
 		let actual: object;
@@ -367,7 +442,7 @@ suite('virtualScheduling - createVirtualTimeApi without processor', () => {
 		assert.deepStrictEqual({
 			actual,
 			restoredPerformanceNow: performance.now === originalPerformanceNow,
-			restoredPerformanceTimeOrigin: performance.timeOrigin,
+			restoredPerformanceTimeOriginDescriptor: Object.getOwnPropertyDescriptor(performance, 'timeOrigin'),
 		}, {
 			actual: {
 				dateNow: 12361,
@@ -376,7 +451,7 @@ suite('virtualScheduling - createVirtualTimeApi without processor', () => {
 				animationFrameTime: 16,
 			},
 			restoredPerformanceNow: true,
-			restoredPerformanceTimeOrigin: originalPerformanceTimeOrigin,
+			restoredPerformanceTimeOriginDescriptor: originalPerformanceTimeOriginDescriptor,
 		});
 	});
 });

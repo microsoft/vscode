@@ -6,9 +6,13 @@
 import { createHash } from 'crypto';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute, normalize } from '../../../../base/common/path.js';
-import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { compare } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
-import { CustomizationLoadStatus, CustomizationType, customizationId, type DirectoryCustomization, type HookCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
+import { localize } from '../../../../nls.js';
+import { CustomizationLoadStatus, CustomizationType, customizationId, type DirectoryCustomization, type HookCustomization, type RuleCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
+import { readAgentComponents, readSkills, toParsedAgent, toParsedSkill, type IParsedAgent } from '../../../agentPlugins/common/pluginParsers.js';
+import type { IFileService } from '../../../files/common/files.js';
 import type { HookMetadata } from './protocol/generated/v2/HookMetadata.js';
 import type { HooksListResponse } from './protocol/generated/v2/HooksListResponse.js';
 import type { SelectedCapabilityRoot } from './protocol/generated/v2/SelectedCapabilityRoot.js';
@@ -35,6 +39,185 @@ import type { SkillsListResponse } from './protocol/generated/v2/SkillsListRespo
 const CODEX_SKILLS_SCHEME = 'codex-skills';
 /** Synthetic URI scheme for the codex hooks container. */
 const CODEX_HOOKS_SCHEME = 'codex-hooks';
+
+export interface ICodexWorkspaceAgentDiscovery {
+	readonly agents: readonly IParsedAgent[];
+	readonly containers: readonly DirectoryCustomization[];
+}
+
+/**
+ * Discovers custom agents owned by the session's workspace roots.
+ */
+export async function discoverCodexWorkspaceAgents(
+	workingDirectories: readonly URI[],
+	fileService: IFileService,
+): Promise<ICodexWorkspaceAgentDiscovery> {
+	const agents: IParsedAgent[] = [];
+	const containers: DirectoryCustomization[] = [];
+	const seenDirectories = new Set<string>();
+	const seenNames = new Set<string>();
+
+	for (const workingDirectory of workingDirectories) {
+		const directory = URI.joinPath(workingDirectory, '.github', 'agents');
+		const directoryKey = extUriBiasedIgnorePathCase.getComparisonKey(directory);
+		if (seenDirectories.has(directoryKey)) {
+			continue;
+		}
+		seenDirectories.add(directoryKey);
+
+		let candidateFiles: readonly URI[];
+		try {
+			const stat = await fileService.resolve(directory);
+			candidateFiles = stat.children
+				?.filter(child => {
+					const filename = basename(child.resource);
+					return child.isFile && filename.endsWith('.md') && filename !== 'README.md';
+				})
+				.map(child => child.resource) ?? [];
+		} catch {
+			continue;
+		}
+
+		const children: IParsedAgent[] = [];
+		// Candidate filtering happens before frontmatter parsing and name
+		// de-duplication so README metadata cannot suppress a real agent.
+		for (const resource of await readAgentComponents(candidateFiles, fileService)) {
+			if (seenNames.has(resource.name)) {
+				continue;
+			}
+			seenNames.add(resource.name);
+			const agent = toParsedAgent(resource);
+			agents.push(agent);
+			children.push(agent);
+		}
+
+		if (children.length === 0) {
+			continue;
+		}
+		const uri = directory.toString();
+		containers.push({
+			type: CustomizationType.Directory,
+			id: customizationId(uri),
+			uri,
+			name: '.github',
+			enabled: true,
+			contents: CustomizationType.Agent,
+			writable: true,
+			load: { kind: CustomizationLoadStatus.Loaded },
+			children: children.map(agent => agent.customization),
+		});
+	}
+
+	return { agents, containers };
+}
+
+export async function discoverCodexWorkspaceSkills(
+	workingDirectories: readonly URI[],
+	fileService: IFileService,
+): Promise<readonly DirectoryCustomization[]> {
+	const containers: DirectoryCustomization[] = [];
+	const seenDirectories = new Set<string>();
+	const seenNames = new Set<string>();
+	for (const workingDirectory of workingDirectories) {
+		const directory = URI.joinPath(workingDirectory, '.github', 'skills');
+		const directoryKey = extUriBiasedIgnorePathCase.getComparisonKey(directory);
+		if (seenDirectories.has(directoryKey)) {
+			continue;
+		}
+		seenDirectories.add(directoryKey);
+		const skills = [...await readSkills(workingDirectory, [directory], fileService, { childDirectoriesOnly: true, deduplicateByName: false })]
+			.sort((left, right) => left.name.localeCompare(right.name) || compare(left.uri.toString(), right.uri.toString()))
+			.filter(skill => {
+				if (seenNames.has(skill.name)) {
+					return false;
+				}
+				seenNames.add(skill.name);
+				return true;
+			});
+		if (skills.length === 0) {
+			continue;
+		}
+		const uri = directory.toString();
+		containers.push({
+			type: CustomizationType.Directory,
+			id: customizationId(uri),
+			uri,
+			name: '.github',
+			enabled: true,
+			contents: CustomizationType.Skill,
+			writable: true,
+			load: { kind: CustomizationLoadStatus.Loaded },
+			children: skills.map(skill => toParsedSkill(skill).customization),
+		});
+	}
+	return containers;
+}
+
+export function excludeCodexWorkspaceSkillDuplicates(
+	nativeContainers: readonly DirectoryCustomization[],
+	workspaceSkills: readonly DirectoryCustomization[],
+): DirectoryCustomization[] {
+	const workspaceSkillIds = new Set(workspaceSkills.flatMap(container => container.children?.map(child => child.id) ?? []));
+	return nativeContainers.flatMap(container => {
+		if (container.contents !== CustomizationType.Skill) {
+			return [container];
+		}
+		const children = container.children?.filter(child => !workspaceSkillIds.has(child.id));
+		if (!children || children.length === container.children?.length) {
+			return [container];
+		}
+		return children.length > 0 ? [{ ...container, children }] : [];
+	});
+}
+
+/**
+ * Surfaces the root `AGENTS.md` file that Codex natively loads for each
+ * workspace. The transport/provider owns applying the instruction; this scan
+ * only projects that effective workspace customization into AHP state.
+ */
+export async function discoverCodexWorkspaceInstructions(
+	workingDirectories: readonly URI[],
+	fileService: IFileService,
+): Promise<readonly DirectoryCustomization[]> {
+	const containers: DirectoryCustomization[] = [];
+	const seenDirectories = new Set<string>();
+	for (const workingDirectory of workingDirectories) {
+		const directoryKey = extUriBiasedIgnorePathCase.getComparisonKey(workingDirectory);
+		if (seenDirectories.has(directoryKey)) {
+			continue;
+		}
+		seenDirectories.add(directoryKey);
+		const resource = URI.joinPath(workingDirectory, 'AGENTS.md');
+		try {
+			if (!(await fileService.stat(resource)).isFile) {
+				continue;
+			}
+		} catch {
+			continue;
+		}
+		const ruleUri = resource.toString();
+		const rule: RuleCustomization = {
+			type: CustomizationType.Rule,
+			id: customizationId(ruleUri),
+			uri: ruleUri,
+			name: 'AGENTS.md',
+			alwaysApply: true,
+		};
+		const directoryUri = workingDirectory.toString();
+		containers.push({
+			type: CustomizationType.Directory,
+			id: customizationId(directoryUri),
+			uri: directoryUri,
+			name: basename(workingDirectory),
+			enabled: true,
+			contents: CustomizationType.Rule,
+			writable: false,
+			load: { kind: CustomizationLoadStatus.Loaded },
+			children: [rule],
+		});
+	}
+	return containers;
+}
 
 function localFileComparisonKey(resource: URI): { readonly key: string; readonly resource: URI } | undefined {
 	if (resource.scheme !== Schemas.file || !resource.path.startsWith('/') || !isAbsolute(resource.fsPath)) {
@@ -122,13 +305,16 @@ function skillToCustomization(skill: SkillMetadata): SkillCustomization {
  * {@link DirectoryCustomization} container per {@link SkillScope}, each
  * carrying its skills as {@link SkillCustomization} children. Skills are
  * de-duplicated by their `SKILL.md` path (codex can report the same skill
- * for several requested cwds). Scopes with no skills are omitted; the result
- * is ordered by {@link SKILL_SCOPE_ORDER}.
+ * for several requested cwds). Loaded containers are ordered by
+ * {@link SKILL_SCOPE_ORDER}, followed by disabled containers grouped by diagnostic.
  */
 export function codexSkillsToContainers(response: SkillsListResponse | undefined): DirectoryCustomization[] {
 	const byScope = new Map<SkillScope, Map<string, SkillMetadata>>();
+	const loadedPaths = new Set<string>();
+	const errors = new Map<string, string>();
 	for (const entry of response?.data ?? []) {
 		for (const skill of entry.skills ?? []) {
+			loadedPaths.add(skill.path);
 			let scoped = byScope.get(skill.scope);
 			if (!scoped) {
 				scoped = new Map();
@@ -136,6 +322,11 @@ export function codexSkillsToContainers(response: SkillsListResponse | undefined
 			}
 			if (!scoped.has(skill.path)) {
 				scoped.set(skill.path, skill);
+			}
+		}
+		for (const error of entry.errors ?? []) {
+			if (!errors.has(error.path)) {
+				errors.set(error.path, error.message);
 			}
 		}
 	}
@@ -158,6 +349,36 @@ export function codexSkillsToContainers(response: SkillsListResponse | undefined
 			contents: CustomizationType.Skill,
 			writable: false,
 			load: { kind: CustomizationLoadStatus.Loaded },
+			children,
+		});
+	}
+	const errorsByMessage = new Map<string, SkillCustomization[]>();
+	for (const [path, message] of [...errors].sort(([left], [right]) => compare(left, right))) {
+		if (loadedPaths.has(path)) {
+			continue;
+		}
+		const skillUri = URI.file(path);
+		const uri = skillUri.toString();
+		const name = basename(dirname(skillUri));
+		let children = errorsByMessage.get(message);
+		if (!children) {
+			children = [];
+			errorsByMessage.set(message, children);
+		}
+		children.push({ type: CustomizationType.Skill, id: customizationId(uri), uri, name, enabled: false });
+	}
+	for (const [message, children] of [...errorsByMessage].sort(([left], [right]) => compare(left, right))) {
+		const digest = createHash('sha256').update(message).digest('hex');
+		const containerUri = URI.from({ scheme: CODEX_SKILLS_SCHEME, path: `/errors/${digest}` }).toString();
+		containers.push({
+			type: CustomizationType.Directory,
+			id: customizationId(containerUri),
+			uri: containerUri,
+			name: localize('codex.invalidSkills', "Invalid Skills"),
+			enabled: false,
+			contents: CustomizationType.Skill,
+			writable: false,
+			load: { kind: CustomizationLoadStatus.Error, message },
 			children,
 		});
 	}

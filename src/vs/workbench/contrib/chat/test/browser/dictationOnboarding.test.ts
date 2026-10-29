@@ -13,6 +13,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { buildMicrophoneOptions, DictationOnboardingBanner, DictationOnboardingService, indexOfMicrophone } from '../../browser/speechToText/dictationOnboarding.js';
+import { isChatInputStackSlotShowing } from '../../browser/widget/input/chatInputStack.js';
 
 /** Minimal stand-in for the browser's device descriptor. */
 function device(kind: MediaDeviceKind, deviceId: string, label: string): MediaDeviceInfo {
@@ -108,12 +109,12 @@ suite('Dictation onboarding', () => {
 		const telemetryEvents: ITelemetryEvent[] = [];
 		const service = createService(disposables, undefined, telemetryEvents);
 		const host = createHost(disposables);
-		disposables.add(service.registerHost(host.container, host.root));
+		disposables.add(service.registerHost({ container: host.container, focusRoot: host.root }));
 
 		const shownFirstTime = service.showIfNeeded();
-		const shown = host.container.classList.contains('has-dictation-onboarding');
+		const shown = isChatInputStackSlotShowing(host.container);
 
-		const closeIcon = host.container.querySelector('.dictation-onboarding-close .codicon')?.className;
+		const closeIcon = host.container.querySelector('.dictation-onboarding-close')?.className;
 		const hasMicrophoneControls = host.container.querySelector('.dictation-onboarding-device') !== null;
 		const hasWaveform = host.container.querySelector('.dictation-onboarding-waveform') !== null;
 		host.container.querySelector<HTMLElement>('.dictation-onboarding-close')!.click();
@@ -124,12 +125,12 @@ suite('Dictation onboarding', () => {
 				shownFirstTime, shown, closeIcon,
 				hasMicrophoneControls,
 				hasWaveform,
-				visibleAfterClose: host.container.classList.contains('has-dictation-onboarding'),
+				visibleAfterClose: isChatInputStackSlotShowing(host.container),
 				shownAgain,
 				telemetryEvents,
 			},
 			{
-				shownFirstTime: true, shown: true, closeIcon: 'codicon codicon-close',
+				shownFirstTime: true, shown: true, closeIcon: 'action-label codicon codicon-close-compact dictation-onboarding-close chat-input-notice-dismiss',
 				hasMicrophoneControls: true,
 				hasWaveform: true,
 				visibleAfterClose: false,
@@ -166,6 +167,7 @@ suite('Dictation onboarding', () => {
 
 		const analyser = new class extends mock<AnalyserNode>() {
 			override readonly fftSize = 256;
+			override getByteTimeDomainData(): void { }
 		};
 		await banner.refreshMicrophones(analyser, async deviceId => {
 			selectedDeviceIds.push(deviceId);
@@ -243,13 +245,13 @@ suite('Dictation onboarding', () => {
 	test('escape dismisses the card', () => {
 		const service = createService(disposables);
 		const host = createHost(disposables);
-		disposables.add(service.registerHost(host.container, host.root));
+		disposables.add(service.registerHost({ container: host.container, focusRoot: host.root }));
 
 		service.showIfNeeded();
 		host.container.querySelector<HTMLElement>('.dictation-onboarding-banner')!
 			.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
 
-		assert.strictEqual(host.container.classList.contains('has-dictation-onboarding'), false);
+		assert.strictEqual(isChatInputStackSlotShowing(host.container), false);
 	});
 
 	test('dictates straight away when there is no chat input to dock to', () => {
@@ -261,26 +263,28 @@ suite('Dictation onboarding', () => {
 	test('showing again replaces the card rather than hiding it', () => {
 		const service = createService(disposables);
 		const host = createHost(disposables);
-		disposables.add(service.registerHost(host.container, host.root));
+		disposables.add(service.registerHost({ container: host.container, focusRoot: host.root }));
 
 		service.show();
 		service.show();
 
+		const microphonePicker = host.container.querySelector<HTMLElement>('.dictation-onboarding-picker');
 		assert.deepStrictEqual(
 			{
-				visible: host.container.classList.contains('has-dictation-onboarding'),
+				visible: isChatInputStackSlotShowing(host.container),
 				cards: host.container.querySelectorAll('.dictation-onboarding-banner').length,
 				hasMicrophoneControls: host.container.querySelector('.dictation-onboarding-device') !== null,
 				hasWaveform: host.container.querySelector('.dictation-onboarding-waveform') !== null,
-				microphonePickerHidden: host.container.querySelector<HTMLElement>('.dictation-onboarding-picker')?.hidden,
+				microphonePickerHidden: microphonePicker?.hidden,
+				microphonePickerDisplay: microphonePicker && dom.getWindow(microphonePicker).getComputedStyle(microphonePicker).display,
 			},
-			{ visible: true, cards: 1, hasMicrophoneControls: true, hasWaveform: true, microphonePickerHidden: true });
+			{ visible: true, cards: 1, hasMicrophoneControls: true, hasWaveform: true, microphonePickerHidden: true, microphonePickerDisplay: 'none' });
 	});
 
 	test('reset shows the introduction on the next dictation', () => {
 		const service = createService(disposables);
 		const host = createHost(disposables);
-		disposables.add(service.registerHost(host.container, host.root));
+		disposables.add(service.registerHost({ container: host.container, focusRoot: host.root }));
 
 		service.showIfNeeded();
 		host.container.querySelector<HTMLElement>('.dictation-onboarding-close')!.click();
@@ -293,8 +297,8 @@ suite('Dictation onboarding', () => {
 		const service = createService(disposables);
 		const first = createHost(disposables);
 		const second = createHost(disposables);
-		disposables.add(service.registerHost(first.container, first.root));
-		disposables.add(service.registerHost(second.container, second.root));
+		disposables.add(service.registerHost({ container: first.container, focusRoot: first.root }));
+		disposables.add(service.registerHost({ container: second.container, focusRoot: second.root }));
 
 		// The renderer running these tests does not reliably hand out real focus,
 		// so raise the same event the focus tracker listens for.
@@ -304,8 +308,8 @@ suite('Dictation onboarding', () => {
 
 		assert.deepStrictEqual(
 			{
-				first: first.container.classList.contains('has-dictation-onboarding'),
-				second: second.container.classList.contains('has-dictation-onboarding'),
+				first: isChatInputStackSlotShowing(first.container),
+				second: isChatInputStackSlotShowing(second.container),
 			},
 			{ first: false, second: true });
 	});
@@ -315,7 +319,7 @@ suite('Dictation onboarding', () => {
 		const telemetryEvents: ITelemetryEvent[] = [];
 		const service = createService(disposables, executed, telemetryEvents);
 		const host = createHost(disposables);
-		disposables.add(service.registerHost(host.container, host.root));
+		disposables.add(service.registerHost({ container: host.container, focusRoot: host.root }));
 
 		service.show();
 		const links = host.container.querySelectorAll<HTMLAnchorElement>('.dictation-onboarding-description a');
@@ -344,14 +348,14 @@ suite('Dictation onboarding', () => {
 	test('disposing the host it is docked to takes the card down with it', () => {
 		const service = createService(disposables);
 		const host = createHost(disposables);
-		const registration = service.registerHost(host.container, host.root);
+		const registration = service.registerHost({ container: host.container, focusRoot: host.root });
 
 		service.show();
 		registration.dispose();
 
 		assert.deepStrictEqual(
 			{
-				visible: host.container.classList.contains('has-dictation-onboarding'),
+				visible: isChatInputStackSlotShowing(host.container),
 				cards: host.container.querySelectorAll('.dictation-onboarding-banner').length,
 			},
 			{ visible: false, cards: 0 });

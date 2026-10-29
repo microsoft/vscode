@@ -849,7 +849,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			return {};
 		}
 
-		const chatRequest = typeConvert.ChatAgentRequest.to(request, undefined, await this.getModelForRequest(request, entry.sessionObj.extension), request.modelConfiguration, [], new Map(), entry.sessionObj.extension, this._logService);
+		const chatRequest = typeConvert.ChatAgentRequest.to(request, undefined, await this._languageModels.getLanguageModelForRequest(entry.sessionObj.extension, request.userSelectedModelId), request.modelConfiguration, [], new Map(), entry.sessionObj.extension, this._logService);
 
 		const stream = entry.sessionObj.getActiveRequestStream(request);
 		await entry.sessionObj.session.requestHandler(chatRequest, { history, yieldRequested: false }, stream.apiObject, token);
@@ -1025,21 +1025,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				}),
 			};
 		});
-	}
-
-	private async getModelForRequest(request: IChatAgentRequest, extension: IExtensionDescription): Promise<vscode.LanguageModelChat> {
-		let model: vscode.LanguageModelChat | undefined;
-		if (request.userSelectedModelId) {
-			model = await this._languageModels.getLanguageModelByIdentifier(extension, request.userSelectedModelId);
-		}
-		if (!model) {
-			model = await this._languageModels.getDefaultLanguageModel(extension);
-			if (!model) {
-				throw new Error('Language model unavailable');
-			}
-		}
-
-		return model;
 	}
 
 	private convertRequestTurn(turn: extHostTypes.ChatRequestTurn) {

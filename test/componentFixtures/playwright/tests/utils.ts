@@ -5,8 +5,8 @@
 
 import { Page } from '@playwright/test';
 
-function getBaseURL(): string {
-	const port = process.env['COMPONENT_EXPLORER_PORT'];
+export function getBaseURL(): string {
+	const port = process.env.COMPONENT_EXPLORER_PORT;
 	if (!port) {
 		throw new Error('COMPONENT_EXPLORER_PORT is not set. Is the webServer running?');
 	}

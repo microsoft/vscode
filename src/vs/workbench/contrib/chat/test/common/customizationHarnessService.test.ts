@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { CustomizationHarnessServiceBase, createVSCodeHarnessDescriptor, ICustomizationItemProvider, IHarnessDescriptor, ICustomizationItem } from '../../common/customizationHarnessService.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { ICustomAgent, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { SessionType } from '../../common/chatSessionsService.js';
 import { MockPromptsService } from './promptSyntax/service/mockPromptsService.js';
 
@@ -331,6 +334,25 @@ suite('CustomizationHarnessService', () => {
 	});
 
 	suite('getSlashCommands', () => {
+		function createSlashCommandService(uri: URI, promptsService: IPromptsService): CustomizationHarnessServiceBase {
+			const testSessionType = 'test-session-type';
+			const emitter = new Emitter<void>();
+			store.add(emitter);
+			const service = new CustomizationHarnessServiceBase([{
+				id: testSessionType,
+				label: 'Test Extension',
+				icon: ThemeIcon.fromId('extensions'),
+				itemProvider: {
+					onDidChange: emitter.event,
+					provideChatSessionCustomizations: async () => [
+						{ uri, type: PromptsType.skill, source: 'local', name: 'init', enabled: true, extensionId: undefined, pluginUri: undefined, userInvocable: undefined },
+					],
+				},
+			}], testSessionType, promptsService);
+			store.add(service);
+			return service;
+		}
+
 		test('uses the active harness provider for prompt and skill items', async () => {
 
 
@@ -415,6 +437,44 @@ suite('CustomizationHarnessService', () => {
 					{ name: 'review', type: PromptsType.skill, userInvocable: true, sessionTypes: undefined },
 				]);
 			}
+		});
+
+		test('resolves a wrapped synthetic built-in without reading prompt content', async () => {
+			let parseCalls = 0;
+			const promptsService = new class extends MockPromptsService {
+				override async parseNew(uri: URI, token: CancellationToken) {
+					parseCalls++;
+					return super.parseNew(uri, token);
+				}
+			};
+			const builtInUri = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/init' });
+			const service = createSlashCommandService(toAgentHostUri(builtInUri, 'remote'), promptsService);
+
+			const command = await service.resolvePromptSlashCommand('init', URI.parse('test-session-type://session'), CancellationToken.None);
+
+			assert.deepStrictEqual({
+				name: command?.name,
+				parsedPromptFile: command?.parsedPromptFile,
+				parseCalls,
+			}, {
+				name: 'init',
+				parsedPromptFile: undefined,
+				parseCalls: 0,
+			});
+		});
+
+		test('propagates cancellation while resolving file-backed command content', async () => {
+			const promptsService = new class extends MockPromptsService {
+				override async parseNew(): Promise<never> {
+					throw new CancellationError();
+				}
+			};
+			const service = createSlashCommandService(URI.file('/workspace/.test/skills/init/SKILL.md'), promptsService);
+
+			await assert.rejects(
+				service.resolvePromptSlashCommand('init', URI.parse('test-session-type://session'), CancellationToken.None),
+				error => error instanceof CancellationError
+			);
 		});
 	});
 

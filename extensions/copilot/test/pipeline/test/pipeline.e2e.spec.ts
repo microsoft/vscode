@@ -74,6 +74,7 @@ interface OutputSample {
 async function runPipeline(opts?: Partial<RunPipelineOptions>): Promise<{
 	samples: OutputSample[];
 	logs: string[];
+	scoredEdits: { fileName: string; value: { edits: unknown[]; scoringContext: { recording: { nextUserEdit: unknown } } } }[];
 }> {
 	const logs: string[] = [];
 	const log = (...args: unknown[]) => {
@@ -85,7 +86,7 @@ async function runPipeline(opts?: Partial<RunPipelineOptions>): Promise<{
 			input: inputPath,
 			output: outputPath,
 			rowOffset: 0,
-			workerMode: false, sampleTask: NesDatagenSampleTask.Xtab, sameFileJumpMinAbove: 5, sameFileJumpMinBelow: 5, inputFormat: NesDatagenInputFormat.AlternativeAction, pivotStrategy: PivotStrategy.Random, seed: 0,
+			workerMode: false, generateScoredEdits: false, sampleTask: NesDatagenSampleTask.Xtab, sameFileJumpMinAbove: 5, sameFileJumpMinBelow: 5, inputFormat: NesDatagenInputFormat.AlternativeAction, pivotStrategy: PivotStrategy.Random, seed: 0,
 		},
 		configFile: configPath,
 		verbose: true,
@@ -97,8 +98,15 @@ async function runPipeline(opts?: Partial<RunPipelineOptions>): Promise<{
 
 	const outputContents = await fs.readFile(outputPath, 'utf-8');
 	const samples = parseJsonl<OutputSample>(outputContents);
+	const scoredEditsDirectory = path.join(tmpDir, 'output.scoredEdits');
+	const scoredEdits = pipelineOpts.nesDatagen?.generateScoredEdits
+		? await Promise.all((await fs.readdir(scoredEditsDirectory)).sort().map(async fileName => ({
+			fileName,
+			value: JSON.parse(await fs.readFile(path.join(scoredEditsDirectory, fileName), 'utf8')),
+		})))
+		: [];
 
-	return { samples, logs };
+	return { samples, logs, scoredEdits };
 }
 
 // ---------------------------------------------------------------------------
@@ -112,6 +120,80 @@ describe('nes-datagen pipeline e2e', () => {
 
 		beforeAll(async () => {
 			result = await runPipeline();
+		});
+
+		test('generates scoredEdits files from alternative-action recordings', async () => {
+			const result = await runPipeline({
+				nesDatagen: {
+					input: inputPath,
+					output: outputPath,
+					rowOffset: 0,
+					workerMode: false,
+					generateScoredEdits: true,
+					sampleTask: NesDatagenSampleTask.Xtab,
+					sameFileJumpMinAbove: 5,
+					sameFileJumpMinBelow: 5,
+					inputFormat: NesDatagenInputFormat.AlternativeAction,
+					pivotStrategy: PivotStrategy.Random,
+					seed: 0,
+				},
+			});
+
+			expect(result.scoredEdits.map(({ fileName, value }) => ({
+				fileName,
+				edit: value.edits,
+				nextUserEdit: value.scoringContext.recording.nextUserEdit,
+			}))).toEqual([
+				{
+					fileName: '0.scoredEdits.w.json',
+					edit: [{
+						documentUri: 'src/loader.ts',
+						edit: [[116, 120, 'contents'], [166, 170, 'contents']],
+						scoreCategory: 'nextEdit',
+						score: 0,
+					}],
+					nextUserEdit: {
+						edit: [[116, 120, 'contents'], [166, 170, 'contents']],
+						relativePath: 'src/loader.ts',
+						originalOpIdx: 3,
+					},
+				},
+				{
+					fileName: '1.scoredEdits.w.json',
+					edit: [{
+						documentUri: 'src/utils.py',
+						edit: [[15, 15, ' -> str']],
+						scoreCategory: 'nextEdit',
+						score: 0,
+					}],
+					nextUserEdit: {
+						edit: [[15, 15, ' -> str']],
+						relativePath: 'src/utils.py',
+						originalOpIdx: 3,
+					},
+				},
+			]);
+		});
+
+		test('applies the configured oracle edit limit to alternative-action recordings', async () => {
+			const result = await runPipeline({
+				nesDatagen: {
+					input: inputPath,
+					output: outputPath,
+					rowOffset: 0,
+					workerMode: false,
+					generateScoredEdits: false,
+					sampleTask: NesDatagenSampleTask.Xtab,
+					sameFileJumpMinAbove: 5,
+					sameFileJumpMinBelow: 5,
+					inputFormat: NesDatagenInputFormat.AlternativeAction,
+					pivotStrategy: PivotStrategy.Random,
+					seed: 0,
+					maxOracleEdits: 1,
+				},
+			});
+
+			expect(result.samples.map(sample => sample.metadata.oracleEdits.length)).toEqual([1, 1]);
 		});
 
 		test('produces output samples for valid rows', () => {
@@ -263,7 +345,7 @@ describe('nes-datagen pipeline e2e', () => {
 						input: invalidInputPath,
 						output: invalidOutputPath,
 						rowOffset: 0,
-						workerMode: false, sampleTask: NesDatagenSampleTask.Xtab, sameFileJumpMinAbove: 5, sameFileJumpMinBelow: 5, inputFormat: NesDatagenInputFormat.AlternativeAction, pivotStrategy: PivotStrategy.Random, seed: 0,
+						workerMode: false, generateScoredEdits: false, sampleTask: NesDatagenSampleTask.Xtab, sameFileJumpMinAbove: 5, sameFileJumpMinBelow: 5, inputFormat: NesDatagenInputFormat.AlternativeAction, pivotStrategy: PivotStrategy.Random, seed: 0,
 					},
 					configFile: configPath,
 					verbose: false,
@@ -290,7 +372,7 @@ describe('nes-datagen pipeline e2e', () => {
 						input: inputPath,
 						output: outputPath,
 						rowOffset: 0,
-						workerMode: false, sampleTask: NesDatagenSampleTask.Xtab, sameFileJumpMinAbove: 5, sameFileJumpMinBelow: 5, inputFormat: NesDatagenInputFormat.AlternativeAction, pivotStrategy: PivotStrategy.Random, seed: 0,
+						workerMode: false, generateScoredEdits: false, sampleTask: NesDatagenSampleTask.Xtab, sameFileJumpMinAbove: 5, sameFileJumpMinBelow: 5, inputFormat: NesDatagenInputFormat.AlternativeAction, pivotStrategy: PivotStrategy.Random, seed: 0,
 					},
 					configFile: undefined,
 					verbose: false,
@@ -298,6 +380,28 @@ describe('nes-datagen pipeline e2e', () => {
 				})
 			).rejects.toThrow('nes-datagen requires --config-file');
 		});
+	});
+
+	test('rejects the internal scoredEdits output directory outside worker mode', async () => {
+		await expect(runInputPipeline({
+			nesDatagen: {
+				input: inputPath,
+				output: outputPath,
+				rowOffset: 0,
+				workerMode: false,
+				generateScoredEdits: true,
+				scoredEditsOutputDirectory: path.join(tmpDir, 'unexpected-scored-edits'),
+				sampleTask: NesDatagenSampleTask.Xtab,
+				sameFileJumpMinAbove: 5,
+				sameFileJumpMinBelow: 5,
+				inputFormat: NesDatagenInputFormat.AlternativeAction,
+				pivotStrategy: PivotStrategy.Random,
+				seed: 0,
+			},
+			configFile: configPath,
+			verbose: false,
+			parallelism: 1,
+		})).rejects.toThrow('--scored-edits-output-directory is only valid for nes-datagen workers');
 	});
 
 	describe('row offset', () => {
@@ -309,7 +413,7 @@ describe('nes-datagen pipeline e2e', () => {
 						input: inputPath,
 						output: offsetOutputPath,
 						rowOffset: 100,
-						workerMode: false, sampleTask: NesDatagenSampleTask.Xtab, sameFileJumpMinAbove: 5, sameFileJumpMinBelow: 5, inputFormat: NesDatagenInputFormat.AlternativeAction, pivotStrategy: PivotStrategy.Random, seed: 0,
+						workerMode: false, generateScoredEdits: false, sampleTask: NesDatagenSampleTask.Xtab, sameFileJumpMinAbove: 5, sameFileJumpMinBelow: 5, inputFormat: NesDatagenInputFormat.AlternativeAction, pivotStrategy: PivotStrategy.Random, seed: 0,
 					},
 					configFile: configPath,
 					verbose: false,

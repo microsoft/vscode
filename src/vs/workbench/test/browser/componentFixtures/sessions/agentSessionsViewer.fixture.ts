@@ -17,7 +17,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
-import { AgentSessionRenderer, AgentSessionSectionRenderer, IAgentSessionRendererOptions } from '../../../../contrib/chat/browser/agentSessions/agentSessionsViewer.js';
+import { AgentSessionChatRenderer, AgentSessionRenderer, AgentSessionsListDelegate, AgentSessionSectionRenderer, IAgentSessionRendererOptions } from '../../../../contrib/chat/browser/agentSessions/agentSessionsViewer.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
 import { AgentSessionStatus, IAgentSession, AgentSessionSection, IAgentSessionSection } from '../../../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
@@ -38,6 +38,7 @@ function createMockSession(overrides: Partial<IAgentSession> & { label: string; 
 		override readonly resource = overrides.resource ?? URI.parse(`vscode-chat-session://${overrides.providerType}/session-${Math.random().toString(36).slice(2)}`);
 		override readonly label = overrides.label;
 		override readonly status = overrides.status;
+		override readonly statusKnown = overrides.statusKnown;
 		override readonly providerType = overrides.providerType;
 		override readonly providerLabel = overrides.providerLabel ?? overrides.providerType;
 		override readonly icon = overrides.icon ?? Codicon.vm;
@@ -45,6 +46,8 @@ function createMockSession(overrides: Partial<IAgentSession> & { label: string; 
 		override readonly description = overrides.description;
 		override readonly tooltip = overrides.tooltip;
 		override readonly changes = overrides.changes;
+		override readonly children = overrides.children;
+		override readonly parentSession = overrides.parentSession;
 		override readonly timing = overrides.timing ?? {
 			created: now - 60 * 60 * 1000,
 			lastRequestStarted: undefined,
@@ -95,8 +98,8 @@ function createMockApprovalModel(sessionResource: URI, info: IAgentSessionApprov
 	}();
 }
 
-function renderSessionItem(ctx: ComponentFixtureContext, session: IAgentSession, approvalModel?: AgentSessionApprovalModel): void {
-	const { container, disposableStore } = ctx;
+function createAgentSessionInstantiationService(ctx: ComponentFixtureContext) {
+	const { disposableStore } = ctx;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
@@ -129,6 +132,13 @@ function renderSessionItem(ctx: ComponentFixtureContext, session: IAgentSession,
 	const markdownRendererService = instantiationService.get(IMarkdownRendererService);
 	markdownRendererService.setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
+	return instantiationService;
+}
+
+function renderSessionItem(ctx: ComponentFixtureContext, session: IAgentSession, approvalModel?: AgentSessionApprovalModel): void {
+	const { container, disposableStore } = ctx;
+	const instantiationService = createAgentSessionInstantiationService(ctx);
+
 	const renderer = disposableStore.add(
 		instantiationService.createInstance(AgentSessionRenderer, rendererOptions, approvalModel ?? undefined, observableValue<URI | undefined>('activeSessionResource', undefined))
 	);
@@ -150,6 +160,128 @@ function renderSessionItem(ctx: ComponentFixtureContext, session: IAgentSession,
 		renderer.disposeElement(treeNode, 0, template);
 		renderer.disposeTemplate(template);
 	}));
+}
+
+function renderSessionHierarchy(ctx: ComponentFixtureContext, withApproval = false): void {
+	const { container, disposableStore } = ctx;
+	const instantiationService = createAgentSessionInstantiationService(ctx);
+	const now = Date.now();
+	const parentResource = URI.parse('vscode-chat-session://local/hierarchy');
+	const child = createMockSession({
+		resource: parentResource.with({ fragment: 'peer-chat' }),
+		label: 'Add some random comment',
+		status: AgentSessionStatus.Completed,
+		statusKnown: false,
+		providerType: AgentSessionProviders.Local,
+		parentSession: {
+			resource: parentResource,
+			label: 'Hello Chat',
+		},
+		timing: {
+			created: now - 4 * 24 * 60 * 60 * 1000,
+			lastRequestStarted: now - 4 * 24 * 60 * 60 * 1000,
+			lastRequestEnded: now - 4 * 24 * 60 * 60 * 1000 + 30 * 1000,
+		},
+	});
+	const approvalModel = withApproval ? createMockApprovalModel(child.resource, {
+		approvalId: child.resource.toString(),
+		kind: AgentSessionApprovalKind.Terminal,
+		label: 'npm install --save express@latest',
+		languageId: 'sh',
+		since: new Date(),
+		confirm: () => { },
+	}) : undefined;
+	const sessionRenderer = disposableStore.add(
+		instantiationService.createInstance(AgentSessionRenderer, rendererOptions, approvalModel, observableValue<URI | undefined>('activeSessionResource', undefined))
+	);
+	const chatRenderer = instantiationService.createInstance(AgentSessionChatRenderer, sessionRenderer, () => true);
+	const parent = createMockSession({
+		resource: parentResource,
+		label: 'Hello Chat',
+		status: AgentSessionStatus.Completed,
+		providerType: AgentSessionProviders.Local,
+		children: [child],
+		changes: { files: 1, insertions: 2, deletions: 0 },
+		timing: {
+			created: now - 4 * 24 * 60 * 60 * 1000,
+			lastRequestStarted: now - 4 * 24 * 60 * 60 * 1000,
+			lastRequestEnded: now - 4 * 24 * 60 * 60 * 1000 + 30 * 1000,
+		},
+	});
+	const childHeight = new AgentSessionsListDelegate(approvalModel).getHeight(child);
+
+	container.classList.add('monaco-workbench', 'modern-ui');
+	container.style.width = '350px';
+	container.style.height = `${AgentSessionsListDelegate.COMPACT_ITEM_HEIGHT + childHeight}px`;
+	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
+
+	const viewer = document.createElement('div');
+	viewer.classList.add('agent-sessions-viewer');
+	viewer.style.position = 'relative';
+	viewer.style.height = '100%';
+	container.appendChild(viewer);
+
+	const createRow = (top: number, height: number): { row: HTMLElement; contents: HTMLElement } => {
+		const row = document.createElement('div');
+		row.classList.add('monaco-list-row');
+		row.style.top = `${top}px`;
+		row.style.height = `${height}px`;
+		const treeRow = document.createElement('div');
+		treeRow.classList.add('monaco-tl-row');
+		const contents = document.createElement('div');
+		contents.classList.add('monaco-tl-contents');
+		treeRow.appendChild(contents);
+		row.appendChild(treeRow);
+		viewer.appendChild(row);
+		return { row, contents };
+	};
+
+	const parentNode = wrapAsTreeNode(parent);
+	const parentRow = createRow(0, AgentSessionsListDelegate.COMPACT_ITEM_HEIGHT);
+	parentRow.row.setAttribute('aria-expanded', 'true');
+	const parentTemplate = sessionRenderer.renderTemplate(parentRow.contents);
+	sessionRenderer.renderElement(parentNode, 0, parentTemplate);
+
+	const childNode = wrapAsTreeNode(child);
+	const childRow = createRow(AgentSessionsListDelegate.COMPACT_ITEM_HEIGHT, childHeight);
+	const childTemplate = chatRenderer.renderTemplate(childRow.contents);
+	chatRenderer.renderElement(childNode, 0, childTemplate);
+
+	disposableStore.add(toDisposable(() => {
+		chatRenderer.disposeElement(childNode, 0, childTemplate);
+		chatRenderer.disposeTemplate(childTemplate);
+		sessionRenderer.disposeElement(parentNode, 0, parentTemplate);
+		sessionRenderer.disposeTemplate(parentTemplate);
+	}));
+}
+
+function renderSessionList(ctx: ComponentFixtureContext, sessions: IAgentSession[]): void {
+	const { container, disposableStore } = ctx;
+	const instantiationService = createAgentSessionInstantiationService(ctx);
+
+	const renderer = disposableStore.add(
+		instantiationService.createInstance(AgentSessionRenderer, rendererOptions, undefined, observableValue<URI | undefined>('activeSessionResource', undefined))
+	);
+
+	container.style.width = '350px';
+	container.style.height = 'auto';
+	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
+	container.classList.add('agent-sessions-viewer');
+
+	for (const session of sessions) {
+		const listRow = document.createElement('div');
+		listRow.classList.add('monaco-list-row');
+		listRow.style.position = 'relative';
+		container.appendChild(listRow);
+
+		const template = renderer.renderTemplate(listRow);
+		const treeNode = wrapAsTreeNode(session);
+		renderer.renderElement(treeNode, 0, template);
+		disposableStore.add(toDisposable(() => {
+			renderer.disposeElement(treeNode, 0, template);
+			renderer.disposeTemplate(template);
+		}));
+	}
 }
 
 function renderSectionItem(ctx: ComponentFixtureContext, section: IAgentSessionSection): void {
@@ -194,6 +326,17 @@ function renderSectionItem(ctx: ComponentFixtureContext, section: IAgentSessionS
 // ============================================================================
 
 export default defineThemedFixtureGroup({
+
+	SessionWithPeerChat: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['A completed session titled "Hello Chat" has one compact peer chat child. A single uninterrupted vertical guide connects the parent to a rounded elbow ending at the child status dot, with no gap between rows.'],
+		render: renderSessionHierarchy,
+	}),
+
+	SessionWithPeerChatApproval: defineComponentFixture({
+		expectedVisualDescriptions: ['A completed session titled "Hello Chat" has one compact peer chat child with a styled approval row containing a truncated terminal command and an Allow button. The hierarchy guide remains continuous beside the expanded peer row.'],
+		render: ctx => renderSessionHierarchy(ctx, true),
+	}),
 
 	// --- Status variants ---
 
@@ -502,7 +645,7 @@ export default defineThemedFixtureGroup({
 			renderSessionItem(ctx, createMockSession({
 				label: 'Analyze code complexity',
 				status: AgentSessionStatus.Completed,
-				providerType: AgentSessionProviders.Claude,
+				providerType: AgentSessionProviders.AgentHostClaude,
 				icon: Codicon.claude,
 				timing: {
 					created: now - 150 * 60 * 1000,
@@ -528,6 +671,95 @@ export default defineThemedFixtureGroup({
 					lastRequestEnded: undefined,
 				},
 			}));
+		},
+	}),
+
+	MixedHarnesses: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: (ctx) => {
+			const now = Date.now();
+			const minutes = (n: number) => n * 60 * 1000;
+			renderSessionList(ctx, [
+				createMockSession({
+					label: 'Refactor settings editor',
+					status: AgentSessionStatus.Completed,
+					providerType: AgentSessionProviders.Local,
+					icon: Codicon.vm,
+					changes: { files: 3, insertions: 42, deletions: 7 },
+					timing: { created: now - minutes(20), lastRequestStarted: now - minutes(20), lastRequestEnded: now - minutes(15) },
+				}),
+				createMockSession({
+					label: 'Fix flaky terminal tests',
+					status: AgentSessionStatus.InProgress,
+					providerType: AgentSessionProviders.Background,
+					icon: Codicon.worktree,
+					badge: '$(worktree) fix-flaky-tests',
+					timing: { created: now - minutes(10), lastRequestStarted: now - minutes(2), lastRequestEnded: undefined },
+				}),
+				createMockSession({
+					label: 'Analyze code complexity',
+					status: AgentSessionStatus.NeedsInput,
+					providerType: AgentSessionProviders.AgentHostClaude,
+					icon: Codicon.claude,
+					timing: { created: now - minutes(40), lastRequestStarted: now - minutes(35), lastRequestEnded: undefined },
+				}),
+				createMockSession({
+					label: 'Migrate build scripts to ESM',
+					status: AgentSessionStatus.Completed,
+					providerType: AgentSessionProviders.AgentHostCodex,
+					icon: Codicon.openai,
+					isRead: () => false,
+					changes: { files: 5, insertions: 120, deletions: 64 },
+					timing: { created: now - minutes(90), lastRequestStarted: now - minutes(90), lastRequestEnded: now - minutes(80) },
+				}),
+				createMockSession({
+					label: 'Generate API documentation',
+					status: AgentSessionStatus.Failed,
+					providerType: AgentSessionProviders.Cloud,
+					icon: Codicon.cloud,
+					badge: '$(repo) microsoft/vscode',
+					timing: { created: now - minutes(150), lastRequestStarted: now - minutes(150), lastRequestEnded: now - minutes(140) },
+				}),
+			]);
+		},
+	}),
+
+	DescriptionRows: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: (ctx) => {
+			const now = Date.now();
+			const hours = (n: number) => n * 60 * 60 * 1000;
+			renderSessionList(ctx, [
+				createMockSession({
+					label: 'Deploy staging environment',
+					status: AgentSessionStatus.Failed,
+					providerType: AgentSessionProviders.Local,
+					timing: { created: now - hours(1), lastRequestStarted: now - hours(1), lastRequestEnded: now - hours(1) + 3 * 60 * 1000 },
+				}),
+				createMockSession({
+					label: 'Upgrade dependencies',
+					status: AgentSessionStatus.Completed,
+					providerType: AgentSessionProviders.Local,
+					description: 'Updated 12 packages to latest versions',
+					timing: { created: now - hours(24), lastRequestStarted: now - hours(24), lastRequestEnded: now - hours(23.5) },
+				}),
+				createMockSession({
+					label: 'Audit telemetry events',
+					status: AgentSessionStatus.Completed,
+					providerType: AgentSessionProviders.AgentHostClaude,
+					icon: Codicon.claude,
+					description: 'Reviewed every event classification and flagged the ones missing owners',
+					timing: { created: now - hours(48), lastRequestStarted: now - hours(48), lastRequestEnded: now - hours(47) },
+				}),
+				createMockSession({
+					label: 'Scaffold new microservice',
+					status: AgentSessionStatus.InProgress,
+					providerType: AgentSessionProviders.Background,
+					icon: Codicon.worktree,
+					description: 'Installing dependencies...',
+					timing: { created: now - 5 * 60 * 1000, lastRequestStarted: now - 60 * 1000, lastRequestEnded: undefined },
+				}),
+			]);
 		},
 	}),
 

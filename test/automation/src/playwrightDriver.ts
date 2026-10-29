@@ -26,6 +26,18 @@ try {
 
 type PageFunction<Arg, T> = (arg: Arg) => T | Promise<T>;
 
+/**
+ * How long {@link PlaywrightDriver.waitForPage} and {@link PlaywrightDriver.waitForNewPage}
+ * wait by default. This matches Playwright's default timeout, which the locator and
+ * navigation waits that follow these calls use.
+ *
+ * Playwright reports an Electron `WebContentsView`, such as an Integrated Browser page, as
+ * a page only after its first navigation commits. That includes starting a renderer and,
+ * for the first page of a fresh browser session, initializing its network stack, so a
+ * tighter budget turns transient slowness of the machine into a missing page.
+ */
+const DEFAULT_PAGE_WAIT_TIMEOUT = 30_000;
+
 export interface AccessibilityScanOptions {
 	/** Specific selector to scan. If not provided, scans the entire page. */
 	selector?: string;
@@ -48,6 +60,7 @@ export class PlaywrightDriver {
 
 	private static traceCounter = 1;
 	private static screenShotCounter = 1;
+	private static reloadMarkerCounter = 1;
 
 	private static readonly vscodeToPlaywrightKey: { [key: string]: string } = {
 		cmd: 'Meta',
@@ -69,7 +82,19 @@ export class PlaywrightDriver {
 		private _currentPage: playwright.Page,
 		private readonly serverProcess: ChildProcess | undefined,
 		private readonly whenLoaded: Promise<unknown>,
-		private readonly options: LaunchOptions
+		private readonly options: LaunchOptions,
+		/**
+		 * Wall-clock time sampled when the first recorded page was created, used to
+		 * express captured timestamps as offsets into the recording.
+		 *
+		 * Playwright rebases each video to its first screencast frame, which arrives
+		 * shortly after page creation, so this is an approximation rather than an
+		 * exact origin. Consumers should treat derived offsets as accurate to a
+		 * fraction of a second and must not rely on frame-exact alignment.
+		 *
+		 * Undefined when the run is not recording.
+		 */
+		readonly videoStartedAt?: number
 	) {
 	}
 
@@ -83,6 +108,25 @@ export class PlaywrightDriver {
 
 	get currentPage(): playwright.Page {
 		return this._currentPage;
+	}
+
+	/** Resize the current window and return its previous size. */
+	async resizeWindow(size: { width: number; height: number }): Promise<{ width: number; height: number }> {
+		if ('browserWindow' in this.application) {
+			const window = await this.application.browserWindow(this.page);
+			try {
+				return await window.evaluate((window, size) => {
+					const [width, height] = window.getSize();
+					window.setSize(size.width, size.height);
+					return { width, height };
+				}, size);
+			} finally {
+				await window.dispose();
+			}
+		}
+		const previous = this.page.viewportSize() ?? await this.page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
+		await this.page.setViewportSize(size);
+		return previous;
 	}
 
 	/**
@@ -143,10 +187,118 @@ export class PlaywrightDriver {
 		}));
 	}
 
+	async getCDPTargets(): Promise<Protocol.Target.TargetInfo[]> {
+		const session = await this.context.newCDPSession(this.page);
+		try {
+			return (await session.send('Target.getTargets')).targetInfos;
+		} finally {
+			await session.detach();
+		}
+	}
+
+	async evaluateCDPTarget<T>(targetId: string, expression: string): Promise<T> {
+		const response = await this.sendCDPTargetCommand(targetId, 'Runtime.evaluate', {
+			expression,
+			awaitPromise: true,
+			returnByValue: true
+		}) as Protocol.Runtime.evaluateReturnValue;
+		if (response.exceptionDetails) {
+			throw new Error(response.exceptionDetails.exception?.description ?? response.exceptionDetails.text);
+		}
+		return response.result.value as T;
+	}
+
+	async evaluateCDPTargetFrame<T>(targetId: string, frameUrlPattern: string, expression: string): Promise<T> {
+		const { frameTree } = await this.sendCDPTargetCommand(targetId, 'Page.getFrameTree', {}) as Protocol.Page.getFrameTreeReturnValue;
+		const frame = findFrame(frameTree, frameUrlPattern);
+		let frameId = frame?.id;
+		if (!frameId) {
+			const { root } = await this.sendCDPTargetCommand(targetId, 'DOM.getDocument', {
+				depth: -1,
+				pierce: true
+			}) as Protocol.DOM.getDocumentReturnValue;
+			frameId = findDOMFrameId(root, frameUrlPattern);
+		}
+		if (!frameId) {
+			throw new Error(`Frame not found for URL pattern '${frameUrlPattern}'.`);
+		}
+		const { executionContextId } = await this.sendCDPTargetCommand(targetId, 'Page.createIsolatedWorld', {
+			frameId,
+			worldName: 'vscodeAutomation',
+			grantUniveralAccess: true
+		}) as Protocol.Page.createIsolatedWorldReturnValue;
+		const response = await this.sendCDPTargetCommand(targetId, 'Runtime.evaluate', {
+			expression,
+			contextId: executionContextId,
+			awaitPromise: true,
+			returnByValue: true
+		}) as Protocol.Runtime.evaluateReturnValue;
+		if (response.exceptionDetails) {
+			throw new Error(response.exceptionDetails.exception?.description ?? response.exceptionDetails.text);
+		}
+		return response.result.value as T;
+	}
+
+	private async sendCDPTargetCommand(targetId: string, method: string, params: object): Promise<unknown> {
+		const rootSession = await this.context.newCDPSession(this.page);
+		let sessionId: string | undefined;
+		const messageId = 1;
+		let listener: ((event: { sessionId: string; message: string }) => void) | undefined;
+		let detachedListener: ((event: { sessionId: string; targetId?: string }) => void) | undefined;
+		let timeout: NodeJS.Timeout | undefined;
+		try {
+			sessionId = (await rootSession.send('Target.attachToTarget', { targetId, flatten: false })).sessionId;
+			const response = new Promise<unknown>((resolve, reject) => {
+				listener = event => {
+					if (event.sessionId !== sessionId) {
+						return;
+					}
+					const message = JSON.parse(event.message) as { id?: number; result?: unknown; error?: { message: string } };
+					if (message.id !== messageId) {
+						return;
+					}
+					if (message.error) {
+						reject(new Error(message.error.message));
+					} else {
+						resolve(message.result);
+					}
+				};
+				detachedListener = event => {
+					if (event.sessionId === sessionId) {
+						reject(new Error(`CDP target '${targetId}' detached while running '${method}'.`));
+					}
+				};
+				rootSession.on('Target.receivedMessageFromTarget', listener);
+				rootSession.on('Target.detachedFromTarget', detachedListener);
+				timeout = setTimeout(() => reject(new Error(`Timed out running CDP command '${method}' on target '${targetId}'.`)), 15_000);
+			});
+			const send = rootSession.send('Target.sendMessageToTarget', {
+				sessionId,
+				message: JSON.stringify({ id: messageId, method, params })
+			});
+			const [, result] = await Promise.all([send, response]);
+			return result;
+		} finally {
+			if (listener) {
+				rootSession.off('Target.receivedMessageFromTarget', listener);
+			}
+			if (detachedListener) {
+				rootSession.off('Target.detachedFromTarget', detachedListener);
+			}
+			if (timeout) {
+				clearTimeout(timeout);
+			}
+			if (sessionId) {
+				await rootSession.send('Target.detachFromTarget', { sessionId }).catch(() => undefined);
+			}
+			await rootSession.detach();
+		}
+	}
+
 	/**
 	 * Wait for an open window/page whose URL contains the provided pattern.
 	 */
-	async waitForPage(urlPattern: string, timeoutMs: number = 10_000): Promise<playwright.Page> {
+	async waitForPage(urlPattern: string, timeoutMs: number = DEFAULT_PAGE_WAIT_TIMEOUT): Promise<playwright.Page> {
 		const deadline = Date.now() + timeoutMs;
 		do {
 			const page = this.getAllWindows().find(candidate => !candidate.isClosed() && candidate.url().includes(urlPattern));
@@ -157,13 +309,13 @@ export class PlaywrightDriver {
 		} while (Date.now() < deadline);
 
 		const openUrls = this.getAllWindows().map(page => page.url());
-		throw new Error(`Timed out waiting for page matching '${urlPattern}'. Open pages: ${JSON.stringify(openUrls)}`);
+		throw new Error(`Timed out waiting for page matching '${urlPattern}' after ${timeoutMs}ms. Open pages: ${JSON.stringify(openUrls)}. Page targets: ${await this.describePageTargets()}`);
 	}
 
 	/**
 	 * Run an action and wait for a newly opened window/page whose URL contains the provided pattern.
 	 */
-	async waitForNewPage(urlPattern: string, action: () => Promise<unknown>, timeoutMs: number = 10_000): Promise<playwright.Page> {
+	async waitForNewPage(urlPattern: string, action: () => Promise<unknown>, timeoutMs: number = DEFAULT_PAGE_WAIT_TIMEOUT): Promise<playwright.Page> {
 		const existingPages = new Set(this.getAllWindows());
 		await action();
 
@@ -177,7 +329,24 @@ export class PlaywrightDriver {
 		} while (Date.now() < deadline);
 
 		const openUrls = this.getAllWindows().map(page => page.url());
-		throw new Error(`Timed out waiting for new page matching '${urlPattern}'. Open pages: ${JSON.stringify(openUrls)}`);
+		throw new Error(`Timed out waiting for new page matching '${urlPattern}' after ${timeoutMs}ms. Open pages: ${JSON.stringify(openUrls)}. Page targets: ${await this.describePageTargets()}`);
+	}
+
+	/**
+	 * Describe the browser's page targets, including those that are not Playwright pages
+	 * yet because their first navigation has not committed. This tells a slow page apart
+	 * from one that was never created or never reported to Playwright.
+	 */
+	private async describePageTargets(): Promise<string> {
+		try {
+			const targets = await Promise.race([
+				this.getCDPTargets(),
+				wait(5_000).then(() => { throw new Error('Target.getTargets timed out'); })
+			]);
+			return JSON.stringify(targets.filter(target => target.type === 'page').map(({ url, title }) => ({ url, title })));
+		} catch (error) {
+			return `unavailable (${error})`;
+		}
 	}
 
 	/**
@@ -436,6 +605,25 @@ export class PlaywrightDriver {
 		await this.whenLoaded;
 	}
 
+	/**
+	 * Stamps the current document so that {@link waitForWindowReload} can tell the
+	 * document apart from the one that a window reload will bring up.
+	 */
+	async markWindowForReload(): Promise<string> {
+		const marker = `vscodeSmokeTestReloadMarker${PlaywrightDriver.reloadMarkerCounter++}`;
+		await this.page.evaluate(m => { (window as unknown as Record<string, boolean>)[m] = true; }, marker);
+
+		return marker;
+	}
+
+	/**
+	 * Waits until the document that was stamped via {@link markWindowForReload} is
+	 * gone, meaning the window reload actually took effect.
+	 */
+	async waitForWindowReload(marker: string, timeout: number = 60_000): Promise<void> {
+		await this.page.waitForFunction(m => !(window as unknown as Record<string, boolean>)[m], marker, { timeout, polling: 100 });
+	}
+
 	private _cdpSession: playwright.CDPSession | undefined;
 
 	async startCDP() {
@@ -529,9 +717,32 @@ export class PlaywrightDriver {
 
 	async close() {
 
-		// Stop tracing
+		// Electron: ask the application to quit right away. Playwright's `close()`
+		// below only quits the application after all pending trace writes have been
+		// flushed to disk, which can take tens of seconds on slow disks. By then
+		// `Code#exit()` has already force killed the application, skipping its
+		// graceful shutdown (https://github.com/microsoft/vscode/issues/344456).
+		let exited = false;
+		if ('browserWindow' in this.application) {
+			const application = this.application;
+			const whenExited = new Promise<void>(resolve => application.once('close', () => resolve()));
+			try {
+				await measureAndLog(() => application.evaluate(({ app }) => app.quit()), 'app.quit()', this.options.logger);
+
+				// Wait for the application to exit before the cleanup below: Playwright's
+				// `close()` quits the application again, and a second quit while VS Code is
+				// still shutting down terminates it right away, because VS Code only defers
+				// the first `will-quit` event.
+				await measureAndLog(() => whenExited, 'wait for application exit', this.options.logger);
+				exited = true;
+			} catch (error) {
+				this.options.logger.log(`Error quitting application (${error})`);
+			}
+		}
+
+		// Stop tracing (it can no longer be stopped once the application has exited)
 		try {
-			if (this.options.tracing) {
+			if (this.options.tracing && !exited) {
 				await measureAndLog(() => this.context.tracing.stop(), 'stop tracing', this.options.logger);
 			}
 		} catch (error) {
@@ -865,6 +1076,40 @@ export class PlaywrightDriver {
 
 export function wait(ms: number): Promise<void> {
 	return new Promise<void>(resolve => setTimeout(resolve, ms));
+}
+
+function findFrame(frameTree: Protocol.Page.FrameTree, urlPattern: string): Protocol.Page.Frame | undefined {
+	if (frameTree.frame.url.includes(urlPattern)) {
+		return frameTree.frame;
+	}
+	for (const child of frameTree.childFrames ?? []) {
+		const frame = findFrame(child, urlPattern);
+		if (frame) {
+			return frame;
+		}
+	}
+	return undefined;
+}
+
+function findDOMFrameId(node: Protocol.DOM.Node, urlPattern: string): Protocol.Page.FrameId | undefined {
+	const attributes = node.attributes ?? [];
+	for (let index = 0; index < attributes.length; index += 2) {
+		if (attributes[index] === 'src' && attributes[index + 1]?.includes(urlPattern) && node.frameId) {
+			return node.frameId;
+		}
+	}
+	for (const child of [
+		...(node.children ?? []),
+		...(node.shadowRoots ?? []),
+		...(node.pseudoElements ?? []),
+		...(node.contentDocument ? [node.contentDocument] : [])
+	]) {
+		const frameId = findDOMFrameId(child, urlPattern);
+		if (frameId) {
+			return frameId;
+		}
+	}
+	return undefined;
 }
 
 export type { AxeResults };

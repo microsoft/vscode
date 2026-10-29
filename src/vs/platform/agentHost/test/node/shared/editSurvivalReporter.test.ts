@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../files/common/fileService.js';
@@ -15,6 +14,8 @@ import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFil
 import { NullLogService } from '../../../../log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../../telemetry/common/telemetryUtils.js';
 import { EditSurvivalReporterFactory } from '../../../node/shared/editSurvivalReporter.js';
+import { AgentHostClientType } from '../../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../../common/agentHostTelemetry.js';
 import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
 
 class RecordingTelemetryService extends NullTelemetryServiceShape {
@@ -26,7 +27,7 @@ class RecordingTelemetryService extends NullTelemetryServiceShape {
 
 suite('agentHost editSurvivalReporter', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: FileService;
 	let telemetry: RecordingTelemetryService;
 	let factory: EditSurvivalReporterFactory;
@@ -38,17 +39,20 @@ suite('agentHost editSurvivalReporter', () => {
 		factory = new EditSurvivalReporterFactory(fileService, new NullLogService(), telemetry);
 	});
 
-	teardown(() => {
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
 	test('emits a sample at t=0 with the right shape', async () => {
 		await fileService.writeFile(URI.file('/workspace/a.ts'), VSBuffer.fromString('after-text'));
 
 		const reporter = factory.launch({
+			clientContext: {
+				clientType: AgentHostClientType.EditorWindow,
+				connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+				transportKind: AgentHostTransportKind.MessagePort,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
+			},
 			sessionUri: 'claude:/session-1',
+			ownerSessionUri: 'claude:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			filePath: '/workspace/a.ts',
@@ -74,6 +78,12 @@ suite('agentHost editSurvivalReporter', () => {
 		assert.strictEqual(data.agentSessionId, 'session-1');
 		assert.strictEqual(data.turnId, 'turn-1');
 		assert.strictEqual(data.toolCallId, 'tc-1');
+		assert.strictEqual(data.initiatorClientType, 'editor_window');
+		assert.strictEqual(data.initiatorConnectionKind, 'remote_extension_host');
+		assert.strictEqual(data.initiatorTransportKind, 'message_port');
+		assert.strictEqual(data.hostLaunchKind, 'vscode_main_process');
+		assert.strictEqual(data.initiatorMachineId, 'client-machine-id');
+		assert.strictEqual(data.initiatorDevDeviceId, 'client-dev-device-id');
 		assert.strictEqual(data.fileExtension, '.ts');
 		assert.strictEqual(data.timeDelayMs, 0);
 		assert.strictEqual(data.didFileGetDeleted, 0);
@@ -84,11 +94,12 @@ suite('agentHost editSurvivalReporter', () => {
 		assert.strictEqual(data.aiCharCount, 'after-text'.length);
 	});
 
-	test('resolves ahp-chat sub-channel URIs back to the parent harness', async () => {
+	test('attributes ahp-chat sub-channel edits to the recorded owner harness, not the session the URI encodes', async () => {
 		await fileService.writeFile(URI.file('/workspace/b.ts'), VSBuffer.fromString('after-text'));
 
 		const reporter = factory.launch({
-			sessionUri: buildDefaultChatUri('claude:/session-9'),
+			sessionUri: buildDefaultChatUri('claude:/session-encoded'),
+			ownerSessionUri: 'codex:/session-9',
 			turnId: 'turn-1',
 			toolCallId: 'tc-9',
 			filePath: '/workspace/b.ts',
@@ -97,18 +108,64 @@ suite('agentHost editSurvivalReporter', () => {
 			isCreate: false,
 			aiChunks: ['after-text'],
 		});
+
 		disposables.add(reporter);
 
 		await timeout(50);
 
 		const data = telemetry.events[0].data as Record<string, unknown>;
-		assert.strictEqual(data.provider, 'claude');
-		assert.strictEqual(data.agentSessionId, 'session-9');
+		assert.deepStrictEqual({ provider: data.provider, agentSessionId: data.agentSessionId }, { provider: 'codex', agentSessionId: 'session-9' });
+	});
+
+	test('standard session samples retain their explicit provider', async () => {
+		await fileService.writeFile(URI.file('/workspace/standard.ts'), VSBuffer.fromString('after-text'));
+		const reporter = factory.launch({
+			sessionUri: 'ahp-session:/standard', ownerSessionUri: 'ahp-session:/standard', provider: 'claude', turnId: 'turn-1', toolCallId: 'tc-standard',
+			filePath: '/workspace/standard.ts', beforeText: 'before-text', afterText: 'after-text',
+			isCreate: false, modelId: 'model', toolName: 'Edit',
+		});
+		disposables.add(reporter);
+		await timeout(50);
+		const data = telemetry.events[0].data as Record<string, unknown>;
+		assert.deepStrictEqual([data.provider, data.agentSessionId], ['claude', 'standard']);
+	});
+
+	test('reports the HydraFusion model only when the edit has one', async () => {
+		const launch = async (toolCallId: string, fusionModel?: string) => {
+			const filePath = `/workspace/${toolCallId}.ts`;
+			await fileService.writeFile(URI.file(filePath), VSBuffer.fromString('after-text'));
+			disposables.add(factory.launch({
+				sessionUri: 'copilotcli:/session-1', ownerSessionUri: 'copilotcli:/session-1', turnId: 'turn-1', toolCallId, filePath,
+				beforeText: 'before-text', afterText: 'after-text', isCreate: false, modelId: 'gpt-5', toolName: 'edit',
+				...(fusionModel ? { fusionModel } : {}),
+			}));
+		};
+		await launch('tc-hf', 'hydrafusion');
+		await launch('tc-hf-max', 'hydrafusion-max');
+		await launch('tc-plain');
+		await timeout(50);
+
+		const firstSamples = new Map<unknown, Record<string, unknown>>();
+		for (const event of telemetry.events) {
+			const data = event.data as Record<string, unknown>;
+			if (!firstSamples.has(data.toolCallId)) {
+				firstSamples.set(data.toolCallId, data);
+			}
+		}
+		assert.deepStrictEqual(['tc-hf', 'tc-hf-max', 'tc-plain'].map(toolCallId => {
+			const data = firstSamples.get(toolCallId);
+			return { toolCallId, hasFusionModel: !!data && Object.hasOwn(data, 'fusionModel'), fusionModel: data?.fusionModel };
+		}), [
+			{ toolCallId: 'tc-hf', hasFusionModel: true, fusionModel: 'hydrafusion' },
+			{ toolCallId: 'tc-hf-max', hasFusionModel: true, fusionModel: 'hydrafusion-max' },
+			{ toolCallId: 'tc-plain', hasFusionModel: false, fusionModel: undefined },
+		]);
 	});
 
 	test('emits a delete event when the file is missing', async () => {
 		const reporter = factory.launch({
 			sessionUri: 'codex:/session-2',
+			ownerSessionUri: 'codex:/session-2',
 			turnId: 'turn-1',
 			toolCallId: 'tc-x',
 			filePath: '/workspace/missing.ts',
@@ -154,6 +211,7 @@ suite('agentHost editSurvivalReporter', () => {
 
 		const reporter = flakyFactory.launch({
 			sessionUri: 'claude:/session-flaky',
+			ownerSessionUri: 'claude:/session-flaky',
 			turnId: 'turn-1',
 			toolCallId: 'tc-flaky',
 			filePath: '/workspace/flaky.ts',
@@ -179,6 +237,7 @@ suite('agentHost editSurvivalReporter', () => {
 
 		const reporter = factory.launch({
 			sessionUri: 'claude:/session-3',
+			ownerSessionUri: 'claude:/session-3',
 			turnId: 'turn-1',
 			toolCallId: 'tc-nb',
 			filePath: '/workspace/n.ipynb',
@@ -201,6 +260,7 @@ suite('agentHost editSurvivalReporter', () => {
 
 		const reporter = factory.launch({
 			sessionUri: 'claude:/session-huge',
+			ownerSessionUri: 'claude:/session-huge',
 			turnId: 'turn-1',
 			toolCallId: 'tc-huge',
 			filePath: '/workspace/huge.ts',
@@ -220,6 +280,7 @@ suite('agentHost editSurvivalReporter', () => {
 
 		const reporter = factory.launch({
 			sessionUri: 'claude:/session-4',
+			ownerSessionUri: 'claude:/session-4',
 			turnId: 'turn-1',
 			toolCallId: 'tc-secret',
 			filePath: '/workspace/secret.ts',

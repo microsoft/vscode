@@ -4,19 +4,39 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpr, IContextKey, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { applyCodexAgentHostPreference, ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
-import { ChatSessionOptionsMap, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSession, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
+import { IChatSideChatOrigin } from '../../../common/chatSideChatService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AGENT_HOST_ENABLED_CONTEXT_KEY, IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../../platform/agentHost/common/agentService.js';
+import { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { RootStateSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { buildDefaultChatUri } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentHostSavedChat } from '../../../../../../platform/agentHost/common/agentHostSavedChat.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
+import { ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IChatService } from '../../../common/chatService/chatService.js';
+import { CloudSandboxSessionHandler } from '../../../browser/remoteAgentHost/cloudSandboxSessionHandler.js';
+import { ReadOnlyChatSession } from '../../../browser/remoteAgentHost/cloudSandboxReadOnlySessionHandler.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { PolicyUnavailableAgentHostContentProvider } from '../../../browser/agentSessions/agentHost/agentHostPolicyUnavailableSession.js';
+import '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 
 suite('Codex Agent Host preference', () => {
 
@@ -165,6 +185,321 @@ suite.skip('ChatSessionsService', () => {
 	});
 });
 
+suite('ChatSessionsService - async activation', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const sessionType = 'test-activation-order';
+	const registry = Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation);
+	let service: ChatSessionsService;
+
+	setup(() => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+	});
+
+	function registerProvider(type = sessionType): IDisposable {
+		const provider = service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async () => { throw new Error('Content is not requested during activation'); },
+		});
+		return store.add(toDisposable(() => provider.dispose()));
+	}
+
+	test('does not wait after an opted-in activation lifetime ends before activation resolves', async () => {
+		const lifetime = store.add(new CancellationTokenSource());
+		store.add(registry.register({
+			matchSessionType: type => type === sessionType,
+			getActivationToken: () => lifetime.token,
+			waitForActivation: async () => {
+				const provider = registerProvider();
+				provider.dispose();
+				lifetime.cancel();
+				return true;
+			},
+		}));
+		assert.strictEqual(await service.canResolveChatSession(sessionType), false);
+	});
+
+	test('an opted-in lifetime releases a pending activation without waiting for its background work', async () => {
+		const lifetime = store.add(new CancellationTokenSource());
+		const started = new DeferredPromise<IDisposable>();
+		const activation = new DeferredPromise<boolean>();
+		store.add(registry.register({
+			matchSessionType: type => type === sessionType,
+			getActivationToken: () => lifetime.token,
+			waitForActivation: () => {
+				void started.complete(registerProvider());
+				return activation.p;
+			},
+		}));
+		const pending = service.canResolveChatSession(sessionType);
+		(await started.p).dispose();
+		lifetime.cancel();
+		const resolved = await pending;
+		await activation.complete(true);
+		assert.strictEqual(resolved, false);
+	});
+
+	test('captures the activation lifetime before a replacement owner is registered', async () => {
+		const first = store.add(new CancellationTokenSource());
+		const second = store.add(new CancellationTokenSource());
+		let current = first;
+		store.add(registry.register({
+			matchSessionType: type => type === sessionType,
+			getActivationToken: () => current.token,
+			waitForActivation: async () => {
+				first.cancel();
+				current = second;
+				registerProvider();
+				return true;
+			},
+		}));
+		assert.strictEqual(await service.canResolveChatSession(sessionType), false);
+	});
+
+	test('an opted-in lifetime releases the provider-registration wait after successful activation', async () => {
+		const lifetime = store.add(new CancellationTokenSource());
+		const started = new DeferredPromise<void>();
+		store.add(registry.register({
+			matchSessionType: type => type === sessionType,
+			getActivationToken: () => lifetime.token,
+			waitForActivation: async () => { void started.complete(); return true; },
+		}));
+		const pending = service.canResolveChatSession(sessionType);
+		await started.p;
+		await timeout(0);
+		lifetime.cancel();
+		assert.strictEqual(await pending, false);
+	});
+
+	test('does not activate an already cancelled owner', async () => {
+		let activated = false;
+		store.add(registry.register({
+			matchSessionType: type => type === sessionType,
+			getActivationToken: () => CancellationToken.Cancelled,
+			waitForActivation: async () => { activated = true; return true; },
+		}));
+		assert.deepStrictEqual({ resolved: await service.canResolveChatSession(sessionType), activated }, { resolved: false, activated: false });
+	});
+
+	test('still waits for asynchronous registration and ignores unrelated provider removal', async () => {
+		const started = new DeferredPromise<void>();
+		store.add(registry.register({
+			matchSessionType: type => type === sessionType,
+			waitForActivation: async () => { void started.complete(); return true; },
+		}));
+		const pending = service.canResolveChatSession(sessionType);
+		await started.p;
+		registerProvider('unrelated-activation').dispose();
+		registerProvider();
+		assert.strictEqual(await pending, true);
+	});
+
+	test('accepts a replacement already registered when the original provider is removed during activation', async () => {
+		store.add(registry.register({
+			matchSessionType: type => type === sessionType,
+			waitForActivation: async () => {
+				registerProvider().dispose();
+				registerProvider();
+				return true;
+			},
+		}));
+		assert.strictEqual(await service.canResolveChatSession(sessionType), true);
+	});
+
+	test('ordinary activation waits for delayed replacement after a registration is retired before consumption', async () => {
+		const started = new DeferredPromise<void>();
+		store.add(registry.register({
+			matchSessionType: type => type === sessionType,
+			waitForActivation: async () => { void started.complete(); return true; },
+		}));
+		let resolved = false;
+		const pending = service.canResolveChatSession(sessionType).then(value => { resolved = true; return value; });
+		await started.p;
+		await timeout(0);
+		registerProvider().dispose();
+		await timeout(0);
+		const afterRemoval = resolved;
+		registerProvider();
+		assert.deepStrictEqual({ afterRemoval, result: await pending }, { afterRemoval: false, result: true });
+	});
+
+	test('ordinary activation waits for a replacement when a provider is removed during activation', async () => {
+		const activation = new DeferredPromise<boolean>();
+		const started = new DeferredPromise<IDisposable>();
+		store.add(registry.register({
+			matchSessionType: type => type === sessionType,
+			waitForActivation: () => {
+				void started.complete(registerProvider());
+				return activation.p;
+			},
+		}));
+		let resolved = false;
+		const pending = service.canResolveChatSession(sessionType).then(value => { resolved = true; return value; });
+		(await started.p).dispose();
+		await timeout(0);
+		const duringActivation = resolved;
+		await activation.complete(true);
+		await timeout(0);
+		const awaitingReplacement = resolved;
+		registerProvider();
+		assert.deepStrictEqual({ duringActivation, awaitingReplacement, result: await pending }, {
+			duringActivation: false, awaitingReplacement: false, result: true,
+		});
+	});
+
+	test('preserves registration order for default and equal priorities, ignoring unmatched and disposed activators', async () => {
+		const calls: string[] = [];
+		const activate = async (name: string) => {
+			calls.push(name);
+			return false;
+		};
+		store.add(registry.register({
+			matchSessionType: type => type === sessionType,
+			waitForActivation: () => activate('first'),
+		}));
+		store.add(registry.register({
+			priority: 0,
+			matchSessionType: type => type === sessionType,
+			waitForActivation: () => activate('second'),
+		}));
+		store.add(registry.register({
+			priority: 1,
+			matchSessionType: () => false,
+			waitForActivation: () => activate('unmatched'),
+		}));
+		const removed = store.add(registry.register({
+			priority: 2,
+			matchSessionType: type => type === sessionType,
+			waitForActivation: () => activate('removed'),
+		}));
+		removed.dispose();
+
+		assert.deepStrictEqual({ resolved: await service.canResolveChatSession(sessionType), calls }, {
+			resolved: false, calls: ['first', 'second'],
+		});
+	});
+
+	test('tries a higher-priority activator first and falls back when it declines', async () => {
+		const calls: string[] = [];
+		store.add(registry.register({
+			matchSessionType: type => type === sessionType,
+			waitForActivation: async () => {
+				calls.push('fallback');
+				store.add(service.registerChatSessionContentProvider(sessionType, {
+					provideChatSessionContent: async () => { throw new Error('Content is not requested during activation'); },
+				}));
+				return true;
+			},
+		}));
+		store.add(registry.register({
+			priority: 1,
+			matchSessionType: type => type === sessionType,
+			waitForActivation: async () => {
+				calls.push('specialized');
+				return false;
+			},
+		}));
+
+		assert.deepStrictEqual({ resolved: await service.canResolveChatSession(sessionType), calls }, {
+			resolved: true, calls: ['specialized', 'fallback'],
+		});
+	});
+});
+
+suite('ChatSessionsService - policy history activation', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createService(provider: 'claude' | 'codex', options: { policy?: boolean; hostEnabled?: boolean; preferAgentHost?: boolean; isSessionsWindow?: boolean } = {}) {
+		const setting = provider === 'claude' ? AgentHostClaudeAgentEnabledSettingId : AgentHostCodexAgentEnabledSettingId;
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: options.policy !== false && key === setting ? value.value : undefined };
+			}
+		}({ [setting]: false, [CodexPreferAgentHostEditorSettingId]: options.preferAgentHost !== false });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const subscription = store.add(new RootStateSubscription('policy-history-activation', () => { }));
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IAgentHostEnablementService, { enabled: constObservable(options.hostEnabled !== false) });
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: options.isSessionsWindow ?? false });
+		const backend = URI.from({ scheme: provider, path: '/saved' });
+		instantiationService.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
+			override readonly rootState = subscription;
+			override readonly onAgentHostExit = Event.None;
+			override async listSessions() { return [{ session: backend, provider, startTime: 1, modifiedTime: 1 }]; }
+			override async readSavedChat(): Promise<IAgentHostSavedChat> {
+				return { session: backend, chat: URI.parse(buildDefaultChatUri(backend)), provider, identity: 'saved-read', availability: { kind: 'available' }, title: '', turns: [], workspace: { kind: 'none' } };
+			}
+		}());
+		instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
+			override registerSessionResource(resource: URI): URI { return resource.with({ scheme: `agent-host-${provider}` }); }
+		}());
+		const service = store.add(instantiationService.createInstance(ChatSessionsService));
+		return { service, subscription, sessionType: `agent-host-${provider}`, contentProvider: instantiationService.createInstance(PolicyUnavailableAgentHostContentProvider) };
+	}
+
+	for (const provider of ['claude', 'codex'] as const) {
+		for (const root of ['valid', 'Error', 'undefined']) {
+			test(`waits for ${provider} policy history registration with a ${root} root snapshot`, async () => {
+				const { service, subscription, sessionType, contentProvider } = createService(provider);
+				if (root === 'valid') {
+					subscription.handleSnapshot({ agents: [], activeSessions: 0 }, 0);
+				} else if (root === 'Error') {
+					subscription.setError(new Error('Root snapshot failed'));
+				}
+				let resolution: boolean | undefined;
+				const activation = service.canResolveChatSession(sessionType).then(value => { resolution = value; return value; });
+				try {
+					await timeout(0);
+					const beforeRegistration = resolution;
+					store.add(service.registerChatSessionContentProvider(sessionType, contentProvider));
+					await timeout(0);
+					const session = resolution === true ? store.add(await service.getOrCreateChatSession(URI.from({ scheme: sessionType, path: '/saved' }), CancellationToken.None)) : undefined;
+					assert.deepStrictEqual({
+						beforeRegistration: beforeRegistration ?? 'pending',
+						afterRegistration: resolution ?? 'pending',
+						session: session && { history: session.history, readOnly: session.isReadOnly?.get(), canSend: !!session.requestHandler },
+						contributions: service.getAllChatSessionContributions().map(contribution => contribution.type),
+					}, {
+						beforeRegistration: 'pending',
+						afterRegistration: true,
+						session: { history: [], readOnly: true, canSend: false },
+						contributions: [],
+					});
+				} finally {
+					subscription.handleSnapshot({ agents: [], activeSessions: 0 }, 1);
+					await activation;
+				}
+			});
+		}
+
+		for (const reason of ['manual disablement', 'global Agent Host disablement']) {
+			test(`does not wait for ${provider} history after ${reason}`, async () => {
+				const { service, subscription, sessionType } = createService(provider, { policy: reason !== 'manual disablement', hostEnabled: reason !== 'global Agent Host disablement' });
+				subscription.handleSnapshot({ agents: [{ provider, displayName: provider, description: 'test', models: [] }], activeSessions: 0 }, 0);
+				assert.strictEqual(await service.canResolveChatSession(sessionType), false);
+			});
+		}
+	}
+
+	test('does not wait for Codex policy history when the editor prefers the extension', async () => {
+		const { service, subscription, sessionType } = createService('codex', { preferAgentHost: false });
+		subscription.handleSnapshot({ agents: [], activeSessions: 0 }, 0);
+		assert.strictEqual(await service.canResolveChatSession(sessionType), false);
+	});
+
+	test('the Agents window waits for Codex policy history independently of the editor preference', async () => {
+		const { service, subscription, sessionType, contentProvider } = createService('codex', { preferAgentHost: false, isSessionsWindow: true });
+		subscription.handleSnapshot({ agents: [], activeSessions: 0 }, 0);
+		const activation = service.canResolveChatSession(sessionType);
+		await timeout(0);
+		store.add(service.registerChatSessionContentProvider(sessionType, contentProvider));
+		assert.strictEqual(await activation, true);
+	});
+});
+
 suite('ChatSessionsService - getChatSessionItems availability', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -246,6 +581,1041 @@ suite('ChatSessionsService - getChatSessionItems availability', () => {
 
 		gatedEnabled.set(false);
 		assert.deepStrictEqual(await resolvedTypes(), [UNGATED_TYPE]);
+	});
+});
+
+suite('ChatSessionsService - in-progress lifecycle', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('removes in-progress state when its controller is disposed', async () => {
+		const changed = store.add(new Emitter<IChatSessionItemsDelta>());
+		const sessionType = 'test-provider';
+		const controller: IChatSessionItemController = {
+			onDidChangeChatSessionItems: changed.event,
+			items: [{
+				resource: URI.from({ scheme: sessionType, path: '/session-1' }),
+				label: 'In-progress session',
+				status: ChatSessionStatus.InProgress,
+				timing: { created: 0, lastRequestStarted: 0, lastRequestEnded: undefined },
+			}],
+			async refresh(): Promise<void> { },
+		};
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		const service = store.add(instantiationService.createInstance(ChatSessionsService));
+		const registration = service.registerChatSessionItemController(sessionType, controller);
+
+		const progressAdded = Event.toPromise(service.onDidChangeInProgress);
+		changed.fire({ addedOrUpdated: controller.items });
+		await progressAdded;
+
+		const progressRemoved = Event.toPromise(service.onDidChangeInProgress);
+		registration.dispose();
+		await progressRemoved;
+
+		assert.deepStrictEqual(service.getInProgress(), []);
+	});
+
+	test('does not dispose a replacement controller or publish stale progress', async () => {
+		const firstRefresh = new DeferredPromise<void>();
+		const sessionType = 'test-provider';
+		const firstController: IChatSessionItemController = {
+			onDidChangeChatSessionItems: Event.None,
+			items: [{
+				resource: URI.from({ scheme: sessionType, path: '/session-1' }),
+				label: 'In-progress session',
+				status: ChatSessionStatus.InProgress,
+				timing: { created: 0, lastRequestStarted: 0, lastRequestEnded: undefined },
+			}],
+			refresh: () => firstRefresh.p,
+		};
+		const replacementController: IChatSessionItemController = {
+			onDidChangeChatSessionItems: Event.None,
+			items: [],
+			async refresh(): Promise<void> { },
+		};
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		const service = store.add(instantiationService.createInstance(ChatSessionsService));
+		const firstRegistration = service.registerChatSessionItemController(sessionType, firstController);
+
+		type ServiceWithUpdateInProgressStatus = {
+			updateInProgressStatus(chatSessionType: string): Promise<void>;
+		};
+		const staleUpdate = (service as unknown as ServiceWithUpdateInProgressStatus).updateInProgressStatus(sessionType);
+		store.add(service.registerChatSessionItemController(sessionType, replacementController));
+		firstRegistration.dispose();
+		await firstRefresh.complete();
+		await staleUpdate;
+
+		assert.deepStrictEqual({
+			registeredProviders: service.getRegisteredChatSessionItemProviders(),
+			inProgress: service.getInProgress(),
+		}, {
+			registeredProviders: [sessionType],
+			inProgress: [],
+		});
+	});
+});
+
+suite('ChatSessionsService - deletion lifecycle', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let service: ChatSessionsService;
+
+	setup(() => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+	});
+
+	test('disposes cached content only after controller deletion succeeds', async () => {
+		const sessionType = 'delete-provider';
+		const resource = URI.from({ scheme: sessionType, path: '/session-1' });
+		const counters = { deleted: 0, provided: 0, disposed: 0 };
+		let deletionError: Error | undefined = new Error('delete failed');
+
+		store.add(service.registerChatSessionContribution({
+			type: sessionType,
+			name: sessionType,
+			displayName: sessionType,
+			description: '',
+		}));
+		store.add(service.registerChatSessionItemController(sessionType, {
+			onDidChangeChatSessionItems: Event.None,
+			items: [],
+			async refresh(): Promise<void> { },
+			async deleteChatSessionItem(): Promise<void> {
+				counters.deleted++;
+				if (deletionError) {
+					throw deletionError;
+				}
+			},
+		}));
+		store.add(service.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: async sessionResource => {
+				counters.provided++;
+				const disposable = store.add(toDisposable(() => {
+					counters.disposed++;
+				}));
+				return {
+					sessionResource,
+					history: [],
+					onWillDispose: Event.None,
+					dispose: () => disposable.dispose(),
+				};
+			},
+		}));
+
+		const initialSession = await service.getOrCreateChatSession(resource, CancellationToken.None);
+		await assert.rejects(service.deleteChatSessionItem(resource, CancellationToken.None), deletionError);
+		const sessionAfterFailure = await service.getOrCreateChatSession(resource, CancellationToken.None);
+
+		deletionError = undefined;
+		await service.deleteChatSessionItem(resource, CancellationToken.None);
+		const sessionAfterSuccess = await service.getOrCreateChatSession(resource, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			counters,
+			cachedAfterFailure: sessionAfterFailure === initialSession,
+			recreatedAfterSuccess: sessionAfterSuccess !== initialSession,
+		}, {
+			counters: { deleted: 2, provided: 2, disposed: 1 },
+			cachedAfterFailure: true,
+			recreatedAfterSuccess: true,
+		});
+	});
+
+	test('disposes cached content when the controller removes a session', async () => {
+		const sessionType = 'remove-provider';
+		const resource = URI.from({ scheme: sessionType, path: '/session-1' });
+		const changed = store.add(new Emitter<IChatSessionItemsDelta>());
+		const counters = { provided: 0, disposed: 0 };
+
+		store.add(service.registerChatSessionContribution({
+			type: sessionType,
+			name: sessionType,
+			displayName: sessionType,
+			description: '',
+		}));
+		store.add(service.registerChatSessionItemController(sessionType, {
+			onDidChangeChatSessionItems: changed.event,
+			items: [],
+			async refresh(): Promise<void> { },
+		}));
+		store.add(service.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: async sessionResource => {
+				counters.provided++;
+				const disposable = store.add(toDisposable(() => {
+					counters.disposed++;
+				}));
+				return {
+					sessionResource,
+					history: [],
+					onWillDispose: Event.None,
+					dispose: () => disposable.dispose(),
+				};
+			},
+		}));
+
+		const initialSession = await service.getOrCreateChatSession(resource, CancellationToken.None);
+		changed.fire({ removed: [resource] });
+		const sessionAfterRemoval = await service.getOrCreateChatSession(resource, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			counters,
+			recreatedAfterRemoval: sessionAfterRemoval !== initialSession,
+		}, {
+			counters: { provided: 2, disposed: 1 },
+			recreatedAfterRemoval: true,
+		});
+	});
+
+	test('cancels pending content resolution when the controller removes a session', async () => {
+		const sessionType = 'remove-provider';
+		const resource = URI.from({ scheme: sessionType, path: '/session-1' });
+		const changed = store.add(new Emitter<IChatSessionItemsDelta>());
+		const providerStarted = new DeferredPromise<void>();
+		const firstResult = new DeferredPromise<IChatSession>();
+		const counters = { provided: 0, disposed: 0 };
+		const createSession = (): IChatSession => {
+			const disposable = store.add(toDisposable(() => {
+				counters.disposed++;
+			}));
+			return {
+				sessionResource: resource,
+				history: [],
+				onWillDispose: Event.None,
+				dispose: () => disposable.dispose(),
+			};
+		};
+
+		store.add(service.registerChatSessionContribution({
+			type: sessionType,
+			name: sessionType,
+			displayName: sessionType,
+			description: '',
+		}));
+		store.add(service.registerChatSessionItemController(sessionType, {
+			onDidChangeChatSessionItems: changed.event,
+			items: [],
+			async refresh(): Promise<void> { },
+		}));
+		store.add(service.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: async () => {
+				counters.provided++;
+				if (counters.provided === 1) {
+					providerStarted.complete();
+					return firstResult.p;
+				}
+				return createSession();
+			},
+		}));
+
+		const pendingSession = service.getOrCreateChatSession(resource, CancellationToken.None);
+		await providerStarted.p;
+		changed.fire({ removed: [resource] });
+		await assert.rejects(pendingSession);
+
+		const abandonedSession = createSession();
+		firstResult.complete(abandonedSession);
+		await firstResult.p;
+		const sessionAfterRemoval = await service.getOrCreateChatSession(resource, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			counters,
+			recreatedAfterRemoval: sessionAfterRemoval !== abandonedSession,
+		}, {
+			counters: { provided: 2, disposed: 1 },
+			recreatedAfterRemoval: true,
+		});
+	});
+});
+
+suite('ChatSessionsService - side chats', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const type = 'side-chat-origins';
+	const resource = URI.from({ scheme: type, path: '/session', fragment: 'side' });
+	const origin: IChatSideChatOrigin = {
+		sourceSessionResource: resource.with({ fragment: '' }),
+		sourceTurnId: 'source-turn',
+		sourceTitle: 'Source',
+		selection: { text: 'Selected transcript' },
+	};
+	let service: ChatSessionsService;
+
+	setup(() => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '' }));
+	});
+
+	test('reports unsupported side chats without exposing the session resource', async () => {
+		await assert.rejects(service.createSideChat(resource, origin.sourceTurnId, CancellationToken.None), {
+			message: 'This conversation does not support side chats.',
+		});
+	});
+
+	test('observes late loading, title hydration, disposal, reloading and provider removal', async () => {
+		const metadata = observableValue<IChatSideChatOrigin | undefined>('origin', { ...origin, sourceTitle: undefined });
+		const provider = store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async sessionResource => {
+				const onWillDispose = store.add(new Emitter<void>());
+				const disposable = store.add(toDisposable(() => onWillDispose.fire()));
+				return { sessionResource, history: [], sideChatOrigin: metadata, onWillDispose: onWillDispose.event, dispose: () => disposable.dispose() };
+			},
+		}));
+		const observed = service.observeSideChatOrigin(resource);
+		const origins: (IChatSideChatOrigin | undefined)[] = [];
+		store.add(autorun(reader => origins.push(observed.read(reader))));
+		const session = await service.getOrCreateChatSession(resource, CancellationToken.None);
+		metadata.set(origin, undefined);
+		session.dispose();
+		await service.getOrCreateChatSession(resource, CancellationToken.None);
+		provider.dispose();
+		metadata.set({ ...origin, sourceTitle: 'After removal' }, undefined);
+
+		assert.deepStrictEqual(origins, [undefined, { ...origin, sourceTitle: undefined }, origin, undefined, origin, undefined]);
+	});
+
+	test('resolves a late materialized-resource alias without loading another session', async () => {
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async sessionResource => ({
+				sessionResource, history: [], sideChatOrigin: constObservable(origin), onWillDispose: Event.None, dispose: () => { },
+			}),
+		}));
+		const alias = resource.with({ path: '/materialized' });
+		const observed = service.observeSideChatOrigin(alias);
+		const origins: (IChatSideChatOrigin | undefined)[] = [];
+		store.add(autorun(reader => origins.push(observed.read(reader))));
+		await service.getOrCreateChatSession(resource, CancellationToken.None);
+		service.registerSessionResourceAlias(resource, alias);
+		assert.deepStrictEqual(origins, [undefined, origin]);
+	});
+
+	test('does not invent an origin for a loaded provider without side-chat metadata', async () => {
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async sessionResource => ({
+				sessionResource, history: [], onWillDispose: Event.None, dispose: () => { },
+			}),
+		}));
+		await service.getOrCreateChatSession(resource, CancellationToken.None);
+		assert.strictEqual(service.observeSideChatOrigin(resource).get(), undefined);
+	});
+});
+
+suite('ChatSessionsService - session resolution', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let service: ChatSessionsService;
+
+	setup(() => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+	});
+
+	test('deduplicates concurrent session content resolution', async () => {
+		const type = 'deduplicated-resolution';
+		const resource = URI.from({ scheme: type, path: '/session-1' });
+		const providerStarted = new DeferredPromise<void>();
+		const completeProvider = new DeferredPromise<void>();
+		let provideCalls = 0;
+		const session = {
+			sessionResource: resource,
+			history: [],
+			onWillDispose: Event.None,
+			dispose: () => { },
+		};
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '' }));
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async () => {
+				provideCalls++;
+				providerStarted.complete();
+				await completeProvider.p;
+				return session;
+			},
+		}));
+
+		const first = service.getOrCreateChatSession(resource, CancellationToken.None);
+		const second = service.getOrCreateChatSession(resource, CancellationToken.None);
+		await providerStarted.p;
+		await completeProvider.complete();
+		const [firstSession, secondSession] = await Promise.all([first, second]);
+
+		assert.deepStrictEqual({
+			provideCalls,
+			sameSession: firstSession === secondSession,
+		}, {
+			provideCalls: 1,
+			sameSession: true,
+		});
+	});
+
+	test('retries after a failed session content resolution', async () => {
+		const type = 'retryable-resolution';
+		const resource = URI.from({ scheme: type, path: '/session-1' });
+		let provideCalls = 0;
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '' }));
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async sessionResource => {
+				provideCalls++;
+				if (provideCalls === 1) {
+					throw new Error('temporary failure');
+				}
+				return {
+					sessionResource,
+					history: [],
+					onWillDispose: Event.None,
+					dispose: () => { },
+				};
+			},
+		}));
+
+		await assert.rejects(service.getOrCreateChatSession(resource, CancellationToken.None), /temporary failure/);
+		const session = await service.getOrCreateChatSession(resource, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			provideCalls,
+			resource: session.sessionResource.toString(),
+		}, {
+			provideCalls: 2,
+			resource: resource.toString(),
+		});
+	});
+
+	test('keeps original callers through repeated provider replacement and disposes late content', async () => {
+		const type = 'replaced-pending-content';
+		const resource = URI.from({ scheme: type, path: '/saved' });
+		const firstStarted = new DeferredPromise<void>();
+		const secondStarted = new DeferredPromise<void>();
+		const firstContent = new DeferredPromise<IChatSession>();
+		const secondContent = new DeferredPromise<IChatSession>();
+		const callerCancellation = store.add(new CancellationTokenSource());
+		const calls: string[] = [];
+		const disposed: string[] = [];
+		const firstRegistration = store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: () => {
+				calls.push('first');
+				firstStarted.complete();
+				return firstContent.p;
+			},
+		}));
+		const originalCallers = Promise.all([
+			service.getOrCreateChatSession(resource, callerCancellation.token),
+			service.getOrCreateChatSession(resource, CancellationToken.None),
+		]);
+		await firstStarted.p;
+		firstRegistration.dispose();
+		const secondRegistration = store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: () => {
+				calls.push('second');
+				secondStarted.complete();
+				return secondContent.p;
+			},
+		}));
+		// Surface a rejected original caller rather than timing out waiting for the replacement.
+		await Promise.race([secondStarted.p, originalCallers]);
+		const joinedDuringReplacement = service.getOrCreateChatSession(resource, CancellationToken.None);
+		secondRegistration.dispose();
+		const replacementSession: IChatSession = {
+			sessionResource: resource, history: [], isReadOnly: constObservable(true),
+			options: new Map([['model', 'replacement-model']]), onWillDispose: Event.None, dispose: () => { },
+		};
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async () => {
+				calls.push('third');
+				return replacementSession;
+			},
+		}));
+		const [sessions, joinedSession] = await Promise.all([originalCallers, joinedDuringReplacement]);
+		await firstContent.complete({ sessionResource: resource, history: [], options: new Map([['model', 'first-model']]), onWillDispose: Event.None, dispose: () => { disposed.push('first'); } });
+		await secondContent.complete({ sessionResource: resource, history: [], options: new Map([['model', 'second-model']]), onWillDispose: Event.None, dispose: () => { disposed.push('second'); } });
+		const cached = await service.getOrCreateChatSession(resource, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			calls, disposed, callerCancelled: callerCancellation.token.isCancellationRequested,
+			originalCallersReceivedReplacement: sessions.map(session => session === replacementSession),
+			joinedCallerReceivedReplacement: joinedSession === replacementSession,
+			cachedReplacement: cached === replacementSession,
+			model: service.getSessionOption(resource, 'model'),
+		}, {
+			calls: ['first', 'second', 'third'], disposed: ['first', 'second'], callerCancelled: false,
+			originalCallersReceivedReplacement: [true, true], joinedCallerReceivedReplacement: true, cachedReplacement: true, model: 'replacement-model',
+		});
+	});
+
+	test('disposes content resolved just before provider replacement without publishing its options', async () => {
+		const type = 'resolved-before-replacement';
+		const resource = URI.from({ scheme: type, path: '/saved' });
+		const started = new DeferredPromise<void>();
+		const content = new DeferredPromise<IChatSession>();
+		const publishedOptions: IChatSessionOptionsChangeEvent['updates'][] = [];
+		const calls: string[] = [];
+		let retiredContentDisposed = 0;
+		store.add(service.onDidChangeSessionOptions(event => publishedOptions.push(event.updates)));
+		const registration = store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: () => {
+				calls.push('retired');
+				started.complete();
+				return content.p;
+			},
+		}));
+		const replacementSession: IChatSession = {
+			sessionResource: resource, history: [], options: new Map([['model', 'replacement-model']]),
+			onWillDispose: Event.None, dispose: () => { },
+		};
+		const pending = service.getOrCreateChatSession(resource, CancellationToken.None);
+		await started.p;
+		// Retire after the content promise resolves but before its awaiting continuation runs.
+		const replaced = content.p.then(() => {
+			registration.dispose();
+			store.add(service.registerChatSessionContentProvider(type, {
+				provideChatSessionContent: async () => {
+					calls.push('replacement');
+					return replacementSession;
+				},
+			}));
+		});
+		await content.complete({
+			sessionResource: resource, history: [], options: new Map([['model', 'retired-model']]),
+			onWillDispose: Event.None, dispose: () => { retiredContentDisposed++; },
+		});
+		await replaced;
+		const session = await pending;
+		const cached = await service.getOrCreateChatSession(resource, CancellationToken.None);
+
+		assert.deepStrictEqual({ calls, retiredContentDisposed, publishedOptions, receivedReplacement: session === replacementSession, cachedReplacement: cached === replacementSession }, {
+			calls: ['retired', 'replacement'], retiredContentDisposed: 1, publishedOptions: [replacementSession.options], receivedReplacement: true, cachedReplacement: true,
+		});
+	});
+
+	test('replaces cached content retired before the shared resolution returns', async () => {
+		const type = 'replaced-cached-content';
+		const resource = URI.from({ scheme: type, path: '/saved' });
+		const joined = new DeferredPromise<IChatSession>();
+		const calls: string[] = [];
+		const retiredWillDispose = store.add(new Emitter<void>());
+		let retiredContentDisposed = 0;
+		let cachedModelAtRetirement: ReturnType<ChatSessionsService['getSessionOption']>;
+		const retiredContent = store.add(toDisposable(() => { retiredContentDisposed++; retiredWillDispose.fire(); }));
+		const retiredSession: IChatSession = {
+			sessionResource: resource, history: [], options: new Map([['model', 'retired-model']]),
+			onWillDispose: retiredWillDispose.event, dispose: () => retiredContent.dispose(),
+		};
+		const replacementSession: IChatSession = {
+			sessionResource: resource, history: [], options: new Map([['model', 'replacement-model']]),
+			onWillDispose: Event.None, dispose: () => { },
+		};
+		const registration = store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async () => { calls.push('retired'); return retiredSession; },
+		}));
+		store.add(service.onDidChangeSessionOptions(event => {
+			if (event.updates === retiredSession.options) {
+				// The cache exists now; this runs before the outer resolution's await resumes.
+				queueMicrotask(() => {
+					cachedModelAtRetirement = service.getSessionOption(resource, 'model');
+					registration.dispose();
+					store.add(service.registerChatSessionContentProvider(type, {
+						provideChatSessionContent: async () => { calls.push('replacement'); return replacementSession; },
+					}));
+					void joined.settleWith(service.getOrCreateChatSession(resource, CancellationToken.None));
+				});
+			}
+		}));
+		const originalCallers = Promise.all([
+			service.getOrCreateChatSession(resource, CancellationToken.None),
+			service.getOrCreateChatSession(resource, CancellationToken.None),
+		]);
+		const [sessions, joinedSession] = await Promise.all([originalCallers, joined.p]);
+		const cachedModelAfterResolution = service.getSessionOption(resource, 'model');
+		const cached = await service.getOrCreateChatSession(resource, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			calls, cachedModelAtRetirement, retiredContentDisposed, cachedModelAfterResolution,
+			originalCallersReceivedReplacement: sessions.map(session => session === replacementSession),
+			joinedCallerReceivedReplacement: joinedSession === replacementSession,
+			cachedReplacement: cached === replacementSession,
+		}, {
+			calls: ['retired', 'replacement'], cachedModelAtRetirement: 'retired-model', retiredContentDisposed: 1, cachedModelAfterResolution: 'replacement-model',
+			originalCallersReceivedReplacement: [true, true], joinedCallerReceivedReplacement: true, cachedReplacement: true,
+		});
+	});
+
+	test('keeps cached content alive for a joining caller when the original caller cancels', async () => {
+		const type = 'joined-cached-content';
+		const resource = URI.from({ scheme: type, path: '/saved' });
+		const cancellation = store.add(new CancellationTokenSource());
+		const joined = new DeferredPromise<IChatSession>();
+		const willDispose = store.add(new Emitter<void>());
+		let disposed = 0;
+		let provideCalls = 0;
+		const content = store.add(toDisposable(() => { disposed++; willDispose.fire(); }));
+		const session: IChatSession = {
+			sessionResource: resource, history: [], options: new Map([['model', 'live-model']]),
+			onWillDispose: willDispose.event, dispose: () => content.dispose(),
+		};
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async () => { provideCalls++; return session; },
+		}));
+		store.add(Event.once(service.onDidChangeSessionOptions)(() => {
+			queueMicrotask(() => {
+				void joined.settleWith(service.getOrCreateChatSession(resource, CancellationToken.None));
+				cancellation.cancel();
+			});
+		}));
+		const cancelled = assert.rejects(service.getOrCreateChatSession(resource, cancellation.token), isCancellationError);
+		const joinedSession = await joined.p;
+		await cancelled;
+
+		assert.deepStrictEqual({
+			provideCalls, disposed, joinedSameSession: joinedSession === session, cachedModel: service.getSessionOption(resource, 'model'),
+		}, {
+			provideCalls: 1, disposed: 0, joinedSameSession: true, cachedModel: 'live-model',
+		});
+	});
+
+	test('acquires fresh content when a new caller arrives after cached resolution was cancelled', async () => {
+		const type = 'reacquired-cached-content';
+		const resource = URI.from({ scheme: type, path: '/saved' });
+		const cancellation = store.add(new CancellationTokenSource());
+		const joined = new DeferredPromise<IChatSession>();
+		const willDispose = store.add(new Emitter<void>());
+		let disposed = 0;
+		let provideCalls = 0;
+		const content = store.add(toDisposable(() => { disposed++; willDispose.fire(); }));
+		const cancelledSession: IChatSession = {
+			sessionResource: resource, history: [], options: new Map([['model', 'cancelled-model']]),
+			onWillDispose: willDispose.event, dispose: () => content.dispose(),
+		};
+		const currentSession: IChatSession = {
+			sessionResource: resource, history: [], options: new Map([['model', 'current-model']]),
+			onWillDispose: Event.None, dispose: () => { },
+		};
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async () => ++provideCalls === 1 ? cancelledSession : currentSession,
+		}));
+		store.add(Event.once(service.onDidChangeSessionOptions)(() => {
+			queueMicrotask(() => {
+				cancellation.cancel();
+				void joined.settleWith(service.getOrCreateChatSession(resource, CancellationToken.None));
+			});
+		}));
+		const cancelled = assert.rejects(service.getOrCreateChatSession(resource, cancellation.token), isCancellationError);
+		const joinedSession = await joined.p;
+		await cancelled;
+
+		assert.deepStrictEqual({
+			provideCalls, disposed, joinedCurrentSession: joinedSession === currentSession, cachedModel: service.getSessionOption(resource, 'model'),
+		}, {
+			provideCalls: 2, disposed: 1, joinedCurrentSession: true, cachedModel: 'current-model',
+		});
+	});
+
+	test('a cancelled newcomer does not acquire content while the previous resolution settles', async () => {
+		const type = 'cancelled-newcomer';
+		const resource = URI.from({ scheme: type, path: '/saved' });
+		const cancellation = store.add(new CancellationTokenSource());
+		const joined = new DeferredPromise<IChatSession>();
+		const willDispose = store.add(new Emitter<void>());
+		let disposed = 0;
+		let provideCalls = 0;
+		const content = store.add(toDisposable(() => { disposed++; willDispose.fire(); }));
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async () => {
+				provideCalls++;
+				return {
+					sessionResource: resource, history: [], options: new Map([['model', 'cancelled-model']]),
+					onWillDispose: willDispose.event, dispose: () => content.dispose(),
+				};
+			},
+		}));
+		store.add(Event.once(service.onDidChangeSessionOptions)(() => {
+			queueMicrotask(() => {
+				cancellation.cancel();
+				void joined.settleWith(service.getOrCreateChatSession(resource, CancellationToken.Cancelled));
+			});
+		}));
+		await Promise.all([
+			assert.rejects(service.getOrCreateChatSession(resource, cancellation.token), isCancellationError),
+			assert.rejects(joined.p, isCancellationError),
+		]);
+
+		assert.deepStrictEqual({ provideCalls, disposed, cachedModel: service.getSessionOption(resource, 'model') }, {
+			provideCalls: 1, disposed: 1, cachedModel: undefined,
+		});
+	});
+
+	test('reacquires an untitled session while cancelled input-state resolution is still pending', async () => {
+		const type = 'cancelled-untitled-options';
+		const resource = URI.from({ scheme: type, path: '/untitled-saved' });
+		const cancellation = store.add(new CancellationTokenSource());
+		const started = new DeferredPromise<void>();
+		const stalled = new DeferredPromise<undefined>();
+		let optionCalls = 0;
+		store.add(service.registerChatSessionItemController(type, {
+			onDidChangeChatSessionItems: Event.None, items: [], refresh: async () => { },
+			getNewChatSessionInputState: async () => {
+				if (++optionCalls === 1) {
+					started.complete();
+					return stalled.p;
+				}
+				return [{ id: 'model', name: 'Model', items: [{ id: 'current-model', name: 'Current model' }] }];
+			},
+		}));
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async () => ({ sessionResource: resource, history: [], onWillDispose: Event.None, dispose: () => { } }),
+		}));
+		const cancelled = assert.rejects(service.getOrCreateChatSession(resource, cancellation.token), isCancellationError);
+		await started.p;
+		cancellation.cancel();
+		await cancelled;
+		try {
+			const current = await service.getOrCreateChatSession(resource, CancellationToken.None);
+			assert.deepStrictEqual({ optionCalls, oldOptionsSettled: stalled.isSettled, model: current.options?.get('model') }, {
+				optionCalls: 2, oldOptionsSettled: false, model: { id: 'current-model', name: 'Current model' },
+			});
+		} finally {
+			await stalled.complete(undefined);
+		}
+	});
+
+	for (const terminalAction of ['provider removal', 'session deletion', 'all callers cancelling'] as const) {
+		test(`${terminalAction} after caching terminates the shared resolution and disposes content once`, async () => {
+			const type = 'cancelled-cached-content';
+			const resource = URI.from({ scheme: type, path: '/saved' });
+			const changed = store.add(new Emitter<IChatSessionItemsDelta>());
+			const willDispose = store.add(new Emitter<void>());
+			const cancellation = store.add(new CancellationTokenSource());
+			let disposed = 0;
+			let provideCalls = 0;
+			let cachedModelBeforeCancellation: ReturnType<ChatSessionsService['getSessionOption']>;
+			const content = store.add(toDisposable(() => { disposed++; willDispose.fire(); }));
+			store.add(service.registerChatSessionItemController(type, {
+				onDidChangeChatSessionItems: changed.event, items: [], refresh: async () => { },
+			}));
+			const registration = store.add(service.registerChatSessionContentProvider(type, {
+				provideChatSessionContent: async () => {
+					provideCalls++;
+					return {
+						sessionResource: resource, history: [], options: new Map([['model', 'cancelled-model']]),
+						onWillDispose: willDispose.event, dispose: () => content.dispose(),
+					};
+				},
+			}));
+			store.add(service.onDidChangeSessionOptions(() => {
+				queueMicrotask(() => {
+					cachedModelBeforeCancellation = service.getSessionOption(resource, 'model');
+					if (terminalAction === 'provider removal') {
+						registration.dispose();
+					} else if (terminalAction === 'session deletion') {
+						changed.fire({ removed: [resource] });
+					} else {
+						cancellation.cancel();
+					}
+				});
+			}));
+			const callers = await Promise.allSettled([
+				service.getOrCreateChatSession(resource, cancellation.token),
+				service.getOrCreateChatSession(resource, cancellation.token),
+			]);
+
+			assert.deepStrictEqual({
+				provideCalls, disposed, cachedModelBeforeCancellation,
+				cancelled: callers.map(result => result.status === 'rejected' && isCancellationError(result.reason)),
+				cachedModel: service.getSessionOption(resource, 'model'),
+			}, {
+				provideCalls: 1, disposed: 1, cachedModelBeforeCancellation: 'cancelled-model', cancelled: [true, true], cachedModel: undefined,
+			});
+		});
+	}
+
+	for (const terminalAction of ['session deletion', 'all callers cancelling'] as const) {
+		test(`${terminalAction} during provider replacement terminates the shared resolution`, async () => {
+			const type = 'terminated-replacement';
+			const resource = URI.from({ scheme: type, path: '/saved' });
+			const changed = store.add(new Emitter<IChatSessionItemsDelta>());
+			const started = new DeferredPromise<void>();
+			const delayed = new DeferredPromise<IChatSession>();
+			const firstCancellation = store.add(new CancellationTokenSource());
+			const secondCancellation = store.add(new CancellationTokenSource());
+			let replacementCalls = 0;
+			let lateDisposed = 0;
+			store.add(service.registerChatSessionItemController(type, {
+				onDidChangeChatSessionItems: changed.event, items: [], refresh: async () => { },
+			}));
+			const registration = store.add(service.registerChatSessionContentProvider(type, {
+				provideChatSessionContent: () => { started.complete(); return delayed.p; },
+			}));
+			const callers = Promise.all([
+				assert.rejects(service.getOrCreateChatSession(resource, firstCancellation.token), isCancellationError),
+				assert.rejects(service.getOrCreateChatSession(resource, secondCancellation.token), isCancellationError),
+			]);
+			await started.p;
+			registration.dispose();
+			store.add(service.registerChatSessionContentProvider(type, {
+				provideChatSessionContent: async () => {
+					replacementCalls++;
+					return { sessionResource: resource, history: [], onWillDispose: Event.None, dispose: () => { } };
+				},
+			}));
+			if (terminalAction === 'session deletion') {
+				changed.fire({ removed: [resource] });
+			} else {
+				firstCancellation.cancel();
+				secondCancellation.cancel();
+			}
+			await callers;
+			await delayed.complete({ sessionResource: resource, history: [], options: new Map([['model', 'retired-model']]), onWillDispose: Event.None, dispose: () => { lateDisposed++; } });
+
+			assert.deepStrictEqual({ replacementCalls, lateDisposed, model: service.getSessionOption(resource, 'model') }, {
+				replacementCalls: 0, lateDisposed: 1, model: undefined,
+			});
+		});
+	}
+
+	test('provider removal without replacement cancels shared pending content', async () => {
+		const type = 'removed-pending-content';
+		const resource = URI.from({ scheme: type, path: '/saved' });
+		const started = new DeferredPromise<void>();
+		const delayed = new DeferredPromise<IChatSession>();
+		let lateDisposed = 0;
+		const registration = store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: () => { started.complete(); return delayed.p; },
+		}));
+		const callers = Promise.all([
+			assert.rejects(service.getOrCreateChatSession(resource, CancellationToken.None), isCancellationError),
+			assert.rejects(service.getOrCreateChatSession(resource, CancellationToken.None), isCancellationError),
+		]);
+		await started.p;
+		registration.dispose();
+		await callers;
+		await delayed.complete({ sessionResource: resource, history: [], onWillDispose: Event.None, dispose: () => { lateDisposed++; } });
+		assert.strictEqual(lateDisposed, 1);
+	});
+
+	test('provider cancellation without retirement fails once and permits a later explicit acquire', async () => {
+		const type = 'provider-cancelled-content';
+		const resource = URI.from({ scheme: type, path: '/saved' });
+		let provideCalls = 0;
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async () => {
+				provideCalls++;
+				if (provideCalls === 1) {
+					throw new CancellationError();
+				}
+				return { sessionResource: resource, history: [], onWillDispose: Event.None, dispose: () => { } };
+			},
+		}));
+
+		await assert.rejects(service.getOrCreateChatSession(resource, CancellationToken.None), isCancellationError);
+		const callsBeforeExplicitAcquire = provideCalls;
+		const session = await service.getOrCreateChatSession(resource, CancellationToken.None);
+		assert.deepStrictEqual({ callsBeforeExplicitAcquire, provideCalls, resource: session.sessionResource }, {
+			callsBeforeExplicitAcquire: 1, provideCalls: 2, resource,
+		});
+	});
+
+	test('does not let one caller cancellation cancel the shared resolution', async () => {
+		const type = 'independent-cancellation';
+		const resource = URI.from({ scheme: type, path: '/session-1' });
+		const providerStarted = new DeferredPromise<void>();
+		const completeProvider = new DeferredPromise<void>();
+		const cancellationTokenSource = store.add(new CancellationTokenSource());
+		let provideCalls = 0;
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '' }));
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async sessionResource => {
+				provideCalls++;
+				providerStarted.complete();
+				await completeProvider.p;
+				return {
+					sessionResource,
+					history: [],
+					onWillDispose: Event.None,
+					dispose: () => { },
+				};
+			},
+		}));
+
+		const cancelled = service.getOrCreateChatSession(resource, cancellationTokenSource.token);
+		const retained = service.getOrCreateChatSession(resource, CancellationToken.None);
+		await providerStarted.p;
+		cancellationTokenSource.cancel();
+		await assert.rejects(cancelled);
+		await completeProvider.complete();
+		const session = await retained;
+
+		assert.deepStrictEqual({
+			provideCalls,
+			resource: session.sessionResource.toString(),
+		}, {
+			provideCalls: 1,
+			resource: resource.toString(),
+		});
+	});
+
+	test('cancels resolution when every caller has cancelled', async () => {
+		const type = 'all-callers-cancelled';
+		const resource = URI.from({ scheme: type, path: '/session-1' });
+		const providerStarted = new DeferredPromise<void>();
+		const cancellationObserved = new DeferredPromise<void>();
+		const cancellationTokenSource = store.add(new CancellationTokenSource());
+		let provideCalls = 0;
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '' }));
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async (_sessionResource, token) => {
+				provideCalls++;
+				if (provideCalls === 1) {
+					providerStarted.complete();
+					const cancellationListener = token.onCancellationRequested(() => cancellationObserved.complete());
+					await cancellationObserved.p;
+					cancellationListener.dispose();
+					throw new Error('cancelled');
+				}
+				return {
+					sessionResource: resource,
+					history: [],
+					onWillDispose: Event.None,
+					dispose: () => { },
+				};
+			},
+		}));
+
+		const cancelled = service.getOrCreateChatSession(resource, cancellationTokenSource.token);
+		await providerStarted.p;
+		cancellationTokenSource.cancel();
+		await cancellationObserved.p;
+		await assert.rejects(cancelled);
+		const retried = await service.getOrCreateChatSession(resource, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			provideCalls,
+			retriedResource: retried.sessionResource.toString(),
+		}, {
+			provideCalls: 2,
+			retriedResource: resource.toString(),
+		});
+	});
+
+	test('disposes a session returned after every caller has cancelled', async () => {
+		const type = 'uncooperative-cancellation';
+		const resource = URI.from({ scheme: type, path: '/session-1' });
+		const providerStarted = new DeferredPromise<void>();
+		const completeProvider = new DeferredPromise<void>();
+		const sessionDisposed = new DeferredPromise<void>();
+		const cancellationTokenSource = store.add(new CancellationTokenSource());
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '' }));
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async sessionResource => {
+				providerStarted.complete();
+				await completeProvider.p;
+				return {
+					sessionResource,
+					history: [],
+					onWillDispose: Event.None,
+					dispose: () => sessionDisposed.complete(),
+				};
+			},
+		}));
+
+		const cancelled = service.getOrCreateChatSession(resource, cancellationTokenSource.token);
+		await providerStarted.p;
+		cancellationTokenSource.cancel();
+		await assert.rejects(cancelled);
+		await completeProvider.complete();
+		await sessionDisposed.p;
+
+		assert.deepStrictEqual({ disposed: sessionDisposed.isSettled }, { disposed: true });
+	});
+});
+
+suite('ChatSessionsService - requiresCopilotSignInForSessionType', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let service: ChatSessionsService;
+
+	setup(() => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+	});
+
+	function register(type: string, extra: Partial<IChatSessionsExtensionPoint>): void {
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '', ...extra }));
+	}
+
+	test('evaluates a functional requiresCopilotSignIn, and reads a static flag otherwise', () => {
+		// Declarative (extension) types supply a static boolean, read directly.
+		register('static-required', { requiresCopilotSignIn: true });
+		register('static-not-required', { requiresCopilotSignIn: false });
+
+		// Programmatic types (e.g. agent host) own a function deriving the
+		// requirement from their agent's advertised protected resources — an agent
+		// that marks the Copilot resource `required: false` (Claude native, Codex on
+		// OpenAI) is usable without signing in; an unresolved agent falls back to
+		// "required".
+		const resourcesByProvider: Record<string, readonly ProtectedResourceMetadata[] | undefined> = {
+			proxy: [GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE],
+			native: [{ ...GITHUB_COPILOT_PROTECTED_RESOURCE, required: false }, GITHUB_REPO_PROTECTED_RESOURCE],
+			'codex-openai': [{ ...GITHUB_COPILOT_PROTECTED_RESOURCE, required: false }],
+			unresolved: undefined,
+		};
+		const derive = (provider: string) => () => {
+			const resources = resourcesByProvider[provider];
+			return resources !== undefined ? protectedResourcesRequireGitHubCopilotSignIn(resources) : true;
+		};
+		register('ah-proxy', { agentHostProviderId: 'proxy', requiresCopilotSignIn: derive('proxy') });
+		register('ah-native', { agentHostProviderId: 'native', requiresCopilotSignIn: derive('native') });
+		register('ah-codex-openai', { agentHostProviderId: 'codex-openai', requiresCopilotSignIn: derive('codex-openai') });
+		register('ah-unresolved', { agentHostProviderId: 'unresolved', requiresCopilotSignIn: derive('unresolved') });
+
+		assert.deepStrictEqual({
+			staticRequired: service.requiresCopilotSignInForSessionType('static-required'),
+			staticNotRequired: service.requiresCopilotSignInForSessionType('static-not-required'),
+			ahProxy: service.requiresCopilotSignInForSessionType('ah-proxy'),
+			ahNative: service.requiresCopilotSignInForSessionType('ah-native'),
+			ahCodexOpenai: service.requiresCopilotSignInForSessionType('ah-codex-openai'),
+			ahUnresolved: service.requiresCopilotSignInForSessionType('ah-unresolved'),
+			unknownType: service.requiresCopilotSignInForSessionType('never-registered'),
+		}, {
+			staticRequired: true,
+			staticNotRequired: false,
+			ahProxy: true,
+			ahNative: false,
+			ahCodexOpenai: false,
+			ahUnresolved: true,
+			unknownType: false,
+		});
+	});
+
+	test('a contribution change event re-fires onDidChangeAvailability until it is unregistered', () => {
+		const changed = store.add(new Emitter<void>());
+		let availabilityFires = 0;
+		store.add(service.onDidChangeAvailability(() => availabilityFires++));
+
+		// Registering the contribution fires availability once (a type appeared);
+		// its onDidChangeRequiresCopilotSignIn is wired generically.
+		const registration = store.add(service.registerChatSessionContribution({
+			type: 'dyn', name: 'dyn', displayName: 'dyn', description: '',
+			requiresCopilotSignIn: () => true,
+			onDidChangeRequiresCopilotSignIn: changed.event,
+		}));
+		const afterRegister = availabilityFires;
+
+		changed.fire();
+		const afterChange = availabilityFires;
+
+		// Unregistering disposes the subscription (and fires once for the removal),
+		// so a later change no longer drives availability.
+		registration.dispose();
+		const afterDispose = availabilityFires;
+		changed.fire();
+		const afterChangePostDispose = availabilityFires;
+
+		assert.deepStrictEqual(
+			{ afterRegister, afterChange, afterDispose, afterChangePostDispose },
+			{ afterRegister: 1, afterChange: 2, afterDispose: 3, afterChangePostDispose: 3 },
+		);
 	});
 });
 
@@ -447,6 +1817,200 @@ suite('ChatSessionsService - untitled↔real session aliases', () => {
 		// option to the untitled entry.
 		service.clearMaterializedSessionResource(untitled);
 		assert.strictEqual(service.getSessionOption(real, 'model'), 'sonnet');
+	});
+});
+
+suite('ChatSessionsService - lightweight history reads', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let service: ChatSessionsService;
+	let instantiationService: ReturnType<typeof workbenchInstantiationService>;
+
+	setup(() => {
+		instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+	});
+
+	function registerHistoryProvider(type: string, history: readonly IChatSessionHistoryItem[], counters: { provided: number; disposed: number }): void {
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '' }));
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async resource => {
+				counters.provided++;
+				return {
+					sessionResource: resource,
+					history,
+					onWillDispose: Event.None,
+					dispose: () => counters.disposed++,
+				};
+			},
+		}));
+	}
+
+	test('loads and disposes uncached sessions without retaining them', async () => {
+		const type = 'history-preview';
+		const resource = URI.from({ scheme: type, path: '/session-1' });
+		const history: readonly IChatSessionHistoryItem[] = [{ type: 'request', prompt: 'Summarize the changes', participant: 'test' }];
+		const counters = { provided: 0, disposed: 0 };
+		registerHistoryProvider(type, history, counters);
+
+		const first = await service.getChatSessionHistory(resource, CancellationToken.None);
+		const second = await service.getChatSessionHistory(resource, CancellationToken.None);
+
+		assert.deepStrictEqual({ first, second, counters }, {
+			first: history,
+			second: history,
+			counters: { provided: 2, disposed: 2 },
+		});
+	});
+
+	test('a concurrent sandbox history preview cannot dispose the conversation being retained for an editor', async () => {
+		const type = 'history-sandbox';
+		const resource = URI.from({ scheme: type, path: '/session-1' });
+		const historyReady = new DeferredPromise<void>();
+		const bothReaders = new DeferredPromise<void>();
+		let historyReads = 0;
+		let provided = 0;
+		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+			override readonly onDidSubmitRequest = Event.None;
+			override setSessionTitle(): void { }
+		}());
+		instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
+			override async getSessionHistory() { historyReads++; await historyReady.p; return undefined; }
+			override invalidateSessionHistory(): void { }
+		}());
+		const handler = store.add(instantiationService.createInstance(CloudSandboxSessionHandler, {
+			taskId: 'task', agentId: 'test', connectionAuthority: 'test',
+		}));
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '' }));
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: (resource, token) => {
+				if (++provided === 2) {
+					void bothReaders.complete();
+				}
+				return handler.provideChatSessionContent(resource, token);
+			},
+		}));
+		const preview = service.getChatSessionHistory(resource, CancellationToken.None);
+		const opening = service.getOrCreateChatSession(resource, CancellationToken.None);
+		await bothReaders.p;
+		await historyReady.complete();
+		const [history, session] = await Promise.all([preview, opening]);
+		let disposed = false;
+		store.add(session.onWillDispose(() => disposed = true));
+		const live = store.add(new ReadOnlyChatSession(resource, [
+			{ type: 'request', id: 'live', prompt: 'Live history', participant: 'test' },
+		], 'Live title', constObservable(false)));
+		let liveDisposed = false;
+		store.add(live.onWillDispose(() => liveDisposed = true));
+		handler.setLiveProvider({ provideChatSessionContent: async () => live });
+		await timeout(0);
+		const promoted = {
+			history: session.history, readOnly: session.isReadOnly?.get(), disposed, liveDisposed,
+			retained: session === await service.getOrCreateChatSession(resource, CancellationToken.None),
+		};
+		session.dispose();
+		assert.deepStrictEqual({ history, historyReads, provided, promoted, disposed, liveDisposed }, {
+			history: [], historyReads: 1, provided: 2,
+			promoted: { history: live.history, readOnly: false, disposed: false, liveDisposed: false, retained: true },
+			disposed: true, liveDisposed: true,
+		});
+	});
+
+	test('disposes a late history session when its reader cancels before the provider returns', async () => {
+		const type = 'history-cancelled';
+		const resource = URI.from({ scheme: type, path: '/session-1' });
+		const started = new DeferredPromise<void>();
+		const response = new DeferredPromise<IChatSession>();
+		const cancellation = store.add(new CancellationTokenSource());
+		let disposed = 0;
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '' }));
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: () => { void started.complete(); return response.p; },
+		}));
+		const history = service.getChatSessionHistory(resource, cancellation.token);
+		await started.p;
+		const cancelled = assert.rejects(history, isCancellationError);
+		cancellation.cancel();
+		await cancelled;
+		await response.complete({ sessionResource: resource, history: [], onWillDispose: Event.None, dispose: () => disposed++ });
+		await timeout(0);
+		assert.strictEqual(disposed, 1);
+	});
+
+	test('reads an already retained session without resolving it again', async () => {
+		const type = 'history-cached';
+		const resource = URI.from({ scheme: type, path: '/session-1' });
+		const history: readonly IChatSessionHistoryItem[] = [{ type: 'request', prompt: 'Continue the review', participant: 'test' }];
+		const counters = { provided: 0, disposed: 0 };
+		registerHistoryProvider(type, history, counters);
+
+		await service.getOrCreateChatSession(resource, CancellationToken.None);
+		const result = await service.getChatSessionHistory(resource, CancellationToken.None);
+
+		assert.deepStrictEqual({ result, counters }, {
+			result: history,
+			counters: { provided: 1, disposed: 0 },
+		});
+	});
+
+	test('reads an aliased retained session without resolving it again', async () => {
+		const type = 'history-cached-alias';
+		const resource = URI.from({ scheme: type, path: '/session-1' });
+		const alias = URI.from({ scheme: type, path: '/session-1-materialized' });
+		const history: readonly IChatSessionHistoryItem[] = [{ type: 'request', prompt: 'Continue the aliased session', participant: 'test' }];
+		const counters = { provided: 0, disposed: 0 };
+		registerHistoryProvider(type, history, counters);
+
+		await service.getOrCreateChatSession(resource, CancellationToken.None);
+		service.registerSessionResourceAlias(resource, alias);
+		const result = await service.getChatSessionHistory(alias, CancellationToken.None);
+
+		assert.deepStrictEqual({ result, counters }, {
+			result: history,
+			counters: { provided: 1, disposed: 0 },
+		});
+	});
+
+	test('resolves alternative session types through their primary provider', async () => {
+		const type = 'history-primary';
+		const alternativeType = 'history-alternative';
+		const resource = URI.from({ scheme: alternativeType, path: '/session-1' });
+		const history: readonly IChatSessionHistoryItem[] = [{ type: 'request', prompt: 'Read through the primary provider', participant: 'test' }];
+		const counters = { provided: 0, disposed: 0 };
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '', alternativeIds: [alternativeType] }));
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async sessionResource => {
+				counters.provided++;
+				return {
+					sessionResource,
+					history,
+					onWillDispose: Event.None,
+					dispose: () => counters.disposed++,
+				};
+			},
+		}));
+
+		const result = await service.getChatSessionHistory(resource, CancellationToken.None);
+
+		assert.deepStrictEqual({ result, counters }, {
+			result: history,
+			counters: { provided: 1, disposed: 1 },
+		});
+	});
+
+	test('returns empty history for an unretained untitled session', async () => {
+		const resource = URI.from({ scheme: 'history-untitled', path: '/untitled-session-1' });
+
+		assert.deepStrictEqual(await service.getChatSessionHistory(resource, CancellationToken.None), []);
+	});
+
+	test('throws when a retained-session provider cannot be resolved', async () => {
+		const type = 'history-unresolvable';
+		const resource = URI.from({ scheme: type, path: '/session-1' });
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '' }));
+
+		await assert.rejects(service.getChatSessionHistory(resource, CancellationToken.None), new Error(`Cannot find provider '${type}'`));
 	});
 });
 

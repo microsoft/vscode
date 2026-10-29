@@ -47,7 +47,7 @@ import { builtinSlashSCommands, CopilotCLICommand, copilotCLICommands, CopilotCL
 import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../copilotcli/node/copilotcliSessionService';
 import { buildMcpServerMappings } from '../copilotcli/node/mcpHandler';
 import { ICopilotCLISessionTracker } from '../copilotcli/vscode-node/copilotCLISessionTracker';
-import { ICopilotCLITerminalIntegration, TerminalOpenLocation } from './copilotCLITerminalIntegration';
+import { ICopilotCLITerminalIntegration } from './copilotCLITerminalIntegration';
 import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
 import { UNTRUSTED_FOLDER_MESSAGE } from './folderRepositoryManagerImpl';
 import { IPullRequestDetectionService } from './pullRequestDetectionService';
@@ -63,7 +63,6 @@ export interface ICopilotCLIChatSessionItemProvider extends IDisposable {
 	refreshSession(refreshOptions: { reason: 'update'; sessionId: string } | { reason: 'update'; sessionIds: string[] } | { reason: 'delete'; sessionId: string }): Promise<void>;
 }
 
-const OPEN_IN_COPILOT_CLI_COMMAND_ID = 'github.copilot.cli.openInCopilotCLI';
 const CHECK_FOR_STEERING_DELAY = 100; // ms
 
 const _invalidCopilotCLISessionIdsWithErrorMessage = new Map<string, string>();
@@ -100,35 +99,6 @@ function getSessionLoadFailureIssueInfo(invalidSessionMessage: string): { readon
 	const issueUrl = `https://github.com/microsoft/vscode/issues/new?title=${encodeURIComponent(issueTitle)}&body=${encodeURIComponent(issueBody)}`;
 
 	return { issueBody, issueUrl };
-}
-
-/**
- * Resolves candidate session directories for a CLI terminal, ordered by
- * terminal affinity.
- *
- * Sessions whose owning terminal matches `terminal` are returned first so the
- * link provider's file-existence probing hits the correct session-state dir
- * before unrelated ones. Unrelated sessions are still included at the tail
- * because a new session may not have registered its terminal yet (session IDs
- * arrive later via MCP?).
- */
-export async function resolveSessionDirsForTerminal(
-	sessionTracker: ICopilotCLISessionTracker,
-	terminal: vscode.Terminal,
-): Promise<Uri[]> {
-	const activeIds = sessionTracker.getSessionIds();
-	const matching: Uri[] = [];
-	const rest: Uri[] = [];
-	for (const id of activeIds) {
-		const sessionTerminal = await sessionTracker.getTerminal(id);
-		const dir = Uri.file(getCopilotCLISessionDir(id));
-		if (sessionTerminal === terminal) {
-			matching.push(dir);
-		} else {
-			rest.push(dir);
-		}
-	}
-	return [...matching, ...rest];
 }
 
 export class CopilotCLIChatSessionContentProvider extends Disposable implements vscode.ChatSessionContentProvider, ICopilotCLIChatSessionItemProvider {
@@ -182,11 +152,6 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 				await refreshSessions();
 			}
 		));
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ConfigKey.Advanced.CLIShowExternalSessions.fullyQualifiedId)) {
-				void refreshSessions();
-			}
-		}));
 		this._register(this._workspaceFolderService.onDidChangeWorkspaceFolderChanges(e => {
 			this.refreshSession({ reason: 'update', sessionId: e.sessionId });
 		}));
@@ -385,11 +350,13 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		}
 		item.timing = session.timing;
 		item.status = session.status ?? vscode.ChatSessionStatus.Completed;
+		// Rehydrate persisted archived state: a re-emit (e.g. onDidChangeSession) must not
+		// resurrect an archived row by rebuilding the item without it.
+		item.archived = await this._metadataStore.getSessionArchived(session.id);
 
-		// `buildChanges` runs `git diff` and is the slow leg of populating an item. Skip it on the
-		// eager pass and let `resolveChatSessionItem` fill it in lazily for visible items.
-		// But if computing changes is easy (cached or the like), then include them right away to avoid a second update pass.
-		if (options?.includeChanges || ((await this.hasCachedChanges(session.id, worktreeProperties)))) {
+		// Building changes is expensive, so defer it to explicit resolve and refresh paths
+		// when lazy loading is enabled. Preserve eager loading when it is disabled.
+		if (options?.includeChanges || !this.configurationService.getConfig(ConfigKey.Advanced.CLIChatLazyLoadSessionItem)) {
 			const changes = await this.buildChanges(session.id, worktreeProperties, workingDirectory, token);
 			if (token.isCancellationRequested) {
 				return item;
@@ -441,17 +408,6 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		const badge = new vscode.MarkdownString(`${icon} ${basename(badgeUri)}`);
 		badge.supportThemeIcons = true;
 		return badge;
-	}
-
-	private async hasCachedChanges(sessionId: string, worktreeProperties: Awaited<ReturnType<IChatSessionWorktreeService['getWorktreeProperties']>>): Promise<boolean> {
-		if (!this.configurationService.getConfig(ConfigKey.Advanced.CLIChatLazyLoadSessionItem)) {
-			return true;
-		}
-		const [hasCachedWorktreeChanges, hasCachedWorkspaceChanges] = await Promise.all([
-			this.copilotCLIWorktreeManagerService.hasCachedChanges(sessionId),
-			this._workspaceFolderService.hasCachedChanges(sessionId)
-		]);
-		return hasCachedWorktreeChanges || hasCachedWorkspaceChanges;
 	}
 
 	private async buildChanges(
@@ -1106,11 +1062,6 @@ export function registerCLIChatCommands(
 		return siblings.length > 0;
 	}
 
-	// Terminal integration setup: resolve session dirs for terminal links.
-	disposableStore.add(terminalIntegration);
-	terminalIntegration.setSessionDirResolver(terminal =>
-		resolveSessionDirsForTerminal(sessionTracker, terminal)
-	);
 	disposableStore.add(vscode.commands.registerCommand('github.copilot.cli.sessions.delete', async (sessionItem?: vscode.ChatSessionItem) => {
 		if (sessionItem?.resource) {
 			const id = SessionIdForCLI.parse(sessionItem.resource);
@@ -1222,22 +1173,6 @@ export function registerCLIChatCommands(
 		}
 	}));
 
-	const createCopilotCLITerminal = async (location: TerminalOpenLocation = 'editor', name?: string, cwd?: string): Promise<void> => {
-		// TODO@rebornix should be set by CLI
-		const terminalName = name || process.env.COPILOTCLI_TERMINAL_TITLE || l10n.t('Copilot CLI');
-		await terminalIntegration.openTerminal(terminalName, [], cwd, location);
-	};
-
-	disposableStore.add(vscode.commands.registerCommand('github.copilot.cli.newSession', async () => {
-		await createCopilotCLITerminal('editor', l10n.t('Copilot CLI'));
-	}));
-	disposableStore.add(vscode.commands.registerCommand('github.copilot.cli.newSessionToSide', async () => {
-		await createCopilotCLITerminal('editorBeside', l10n.t('Copilot CLI'));
-	}));
-	disposableStore.add(vscode.commands.registerCommand(OPEN_IN_COPILOT_CLI_COMMAND_ID, async (sourceControlContext?: unknown) => {
-		const rootUri = getSourceControlRootUri(sourceControlContext);
-		await createCopilotCLITerminal('editor', l10n.t('Copilot CLI'), rootUri?.fsPath);
-	}));
 	disposableStore.add(vscode.commands.registerCommand('github.copilot.cli.sessions.openWorktreeInNewWindow', async (sessionItem?: vscode.ChatSessionItem) => {
 		if (!sessionItem?.resource) {
 			return;
@@ -1283,44 +1218,6 @@ export function registerCLIChatCommands(
 		});
 
 		return folderUris && folderUris.length > 0 ? folderUris[0] : undefined;
-	}
-
-	function getSourceControlRootUri(sourceControlContext?: unknown): vscode.Uri | undefined {
-		if (!sourceControlContext) {
-			return undefined;
-		}
-
-		if (Array.isArray(sourceControlContext)) {
-			return getSourceControlRootUri(sourceControlContext[0]);
-		}
-
-		if (isUri(sourceControlContext)) {
-			return sourceControlContext;
-		}
-
-		if (typeof sourceControlContext !== 'object') {
-			return undefined;
-		}
-
-		const candidate = sourceControlContext as {
-			rootUri?: unknown;
-			sourceControl?: { rootUri?: unknown };
-			repository?: { rootUri?: unknown };
-		};
-
-		if (isUri(candidate.rootUri)) {
-			return candidate.rootUri;
-		}
-
-		if (isUri(candidate.sourceControl?.rootUri)) {
-			return candidate.sourceControl.rootUri;
-		}
-
-		if (isUri(candidate.repository?.rootUri)) {
-			return candidate.repository.rootUri;
-		}
-
-		return undefined;
 	}
 
 	// Command handler receives `{ inputState, sessionResource }` context args (new API)

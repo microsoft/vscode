@@ -9,7 +9,7 @@ import { ToolBar } from '../../../base/browser/ui/toolbar/toolbar.js';
 import { Button } from '../../../base/browser/ui/button/button.js';
 import { CountBadge } from '../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
-import { disposableTimeout } from '../../../base/common/async.js';
+import { disposableTimeout, Sequencer } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, dispose } from '../../../base/common/lifecycle.js';
@@ -45,9 +45,11 @@ const $ = dom.$;
 
 const VIEWSTATE_STORAGE_KEY = 'workbench.quickInput.viewState';
 const QUICK_INPUT_MOTION_CLOSING_CLASS = 'quick-input-widget-closing';
+const QUICK_INPUT_MOTION_SETTLED_CLASS = 'quick-input-widget-motion-settled';
+const QUICK_INPUT_MOTION_OPEN_ANIMATION = 'quick-input-widget-open';
 const QUICK_INPUT_OVERLAY_CLASS = 'quick-input-widget-overlay';
 const QUICK_INPUT_CLOSE_ANIMATION_DURATION = 150;
-const QUICK_INPUT_MOTION_ANCESTOR_CLASSES = ['style-override', 'monaco-enable-motion'];
+const QUICK_INPUT_MOTION_ANCESTOR_CLASSES = ['modern-ui', 'monaco-enable-motion'];
 
 type QuickInputViewState = {
 	readonly top?: number;
@@ -79,6 +81,8 @@ export class QuickInputController extends Disposable {
 
 	private controller: IQuickInput | null = null;
 	get currentQuickInput() { return this.controller ?? undefined; }
+	private readonly quickInputAnchorSequencer = new Sequencer();
+	private quickInputAnchorScope: { readonly anchor: IQuickInput['anchor']; readonly anchorPosition: IQuickInput['anchorPosition']; consumed: boolean } | undefined;
 
 	private _container: HTMLElement;
 	get container() { return this._container; }
@@ -164,6 +168,11 @@ export class QuickInputController extends Disposable {
 		const container = dom.append(this._container, $('.quick-input-widget.show-file-icons'));
 		container.tabIndex = -1;
 		container.style.display = 'none';
+		this._register(dom.addDisposableListener(container, 'animationend', (e: AnimationEvent) => {
+			if (e.target === container && e.animationName === QUICK_INPUT_MOTION_OPEN_ANIMATION) {
+				this.settleOpenAnimation(container);
+			}
+		}));
 
 		const styleSheet = domStylesheetsJs.createStyleSheet(container);
 
@@ -252,6 +261,9 @@ export class QuickInputController extends Disposable {
 		// List
 		const listId = this.idPrefix + 'list';
 		const list = this._register(this.instantiationService.createInstance(QuickInputList, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId, this.styles));
+		// The item hover is positioned relative to the viewport, which requires that the
+		// widget is not a containing block for it when it is measured
+		this._register(list.onWillShowItemHover(() => this.settleOpenAnimation(container)));
 		inputBox.setAttribute('aria-controls', listId);
 		this._register(list.onDidChangeFocus(() => {
 			if (inputBox.hasFocus()) {
@@ -567,6 +579,7 @@ export class QuickInputController extends Disposable {
 			input.matchOnLabel = (options.matchOnLabel === undefined) || options.matchOnLabel; // default to true
 			input.quickNavigate = options.quickNavigate;
 			input.hideInput = !!options.hideInput;
+			input.useNeutralSelection = !!options.useNeutralSelection;
 			input.contextKey = options.contextKey;
 			input.anchor = options.anchor;
 			input.anchorPosition = options.anchorPosition;
@@ -662,6 +675,8 @@ export class QuickInputController extends Disposable {
 			input.placeholder = options.placeHolder;
 			input.password = !!options.password;
 			input.ignoreFocusOut = !!options.ignoreFocusLost;
+			input.anchor = options.anchor;
+			input.anchorPosition = options.anchorPosition;
 			input.show();
 		});
 	}
@@ -673,6 +688,20 @@ export class QuickInputController extends Disposable {
 	createQuickPick<T extends IQuickPickItem>(options: { useSeparators: boolean } = { useSeparators: false }): IQuickPick<T, { useSeparators: boolean }> {
 		const ui = this.getUI(true);
 		return new QuickPick<T, typeof options>(ui);
+	}
+
+	async withQuickInputAnchor<T>(anchor: IQuickInput['anchor'], anchorPosition: IQuickInput['anchorPosition'], operation: () => Promise<T>): Promise<T> {
+		return this.quickInputAnchorSequencer.queue(async () => {
+			const scope = { anchor, anchorPosition, consumed: false };
+			this.quickInputAnchorScope = scope;
+			try {
+				return await operation();
+			} finally {
+				if (this.quickInputAnchorScope === scope) {
+					this.quickInputAnchorScope = undefined;
+				}
+			}
+		});
 	}
 
 	createInputBox(): IInputBox {
@@ -699,7 +728,18 @@ export class QuickInputController extends Disposable {
 
 	private show(controller: IQuickInput) {
 		this.completeCloseAnimation();
+		const anchorScope = this.quickInputAnchorScope;
+		if (controller.type === QuickInputType.QuickPick && controller.anchor === undefined && anchorScope && !anchorScope.consumed) {
+			anchorScope.consumed = true;
+			controller.anchor = anchorScope.anchor;
+			controller.anchorPosition = anchorScope.anchorPosition;
+		}
 		const ui = this.getUI(true);
+		// Only a hidden widget plays the entrance animation when shown, a visible widget whose
+		// controller is replaced stays settled so the animation does not replay
+		if (ui.container.style.display === 'none') {
+			ui.container.classList.remove(QUICK_INPUT_MOTION_SETTLED_CLASS);
+		}
 		const oldController = this.controller;
 		this.controller = controller;
 		oldController?.didHide();
@@ -774,6 +814,7 @@ export class QuickInputController extends Disposable {
 
 	private setVisibilities(visibilities: Visibilities) {
 		const ui = this.getUI();
+		ui.titleBar.style.display = visibilities.title ? '' : 'none';
 		ui.title.style.display = visibilities.title ? '' : 'none';
 		ui.description1.style.display = visibilities.description && (visibilities.inputBox || visibilities.checkAll) ? '' : 'none';
 		ui.description2.style.display = visibilities.description && !(visibilities.inputBox || visibilities.checkAll) ? '' : 'none';
@@ -836,7 +877,18 @@ export class QuickInputController extends Disposable {
 			if (!container.classList.contains(QUICK_INPUT_OVERLAY_CLASS) && dom.hasParentWithClass(container, QUICK_INPUT_MOTION_ANCESTOR_CLASSES)) {
 				container.inert = true;
 				container.classList.add(QUICK_INPUT_MOTION_CLOSING_CLASS);
-				this.closeAnimation.value = disposableTimeout(() => this.completeCloseAnimation(), QUICK_INPUT_CLOSE_ANIMATION_DURATION);
+				const animationDisposables = new DisposableStore();
+				this.closeAnimation.value = animationDisposables;
+				// CSS can suppress motion independently of the workbench classes.
+				const [animation] = container.getAnimations();
+				if (animation) {
+					for (const event of ['finish', 'cancel']) {
+						animationDisposables.add(dom.addDisposableListener(animation, event, () => this.completeCloseAnimation()));
+					}
+					animationDisposables.add(disposableTimeout(() => this.completeCloseAnimation(), QUICK_INPUT_CLOSE_ANIMATION_DURATION));
+				} else {
+					this.completeCloseAnimation();
+				}
 			} else {
 				container.style.display = 'none';
 			}
@@ -868,6 +920,14 @@ export class QuickInputController extends Disposable {
 			container.classList.remove(QUICK_INPUT_MOTION_CLOSING_CLASS);
 			container.style.display = 'none';
 		}
+	}
+
+	/**
+	 * Ends the entrance animation of the widget early (or marks it as ended), so that the widget
+	 * no longer establishes a containing block for fixed-position descendants such as item hovers.
+	 */
+	private settleOpenAnimation(container: HTMLElement): void {
+		container.classList.add(QUICK_INPUT_MOTION_SETTLED_CLASS);
 	}
 
 	override dispose(): void {
@@ -971,13 +1031,15 @@ export class QuickInputController extends Disposable {
 					preferredAnchorPosition = AnchorPosition.BELOW;
 				} else {
 					width = 380;
+					preferredAnchorPosition = this.controller.anchorPosition === 'below' ? AnchorPosition.BELOW : AnchorPosition.ABOVE;
 				}
 
 				listHeight = this.dimension ? Math.min(this.dimension.height * listHeightRatio, maxListHeight) : maxListHeight;
 
 				// Beware:
 				// We need to add some extra pixels to the height to account for the input and padding.
-				const containerHeight = Math.floor(listHeight) + verticalPadding;
+				const anchorGap = this.controller.anchorPosition === 'overlay' ? 0 : 4;
+				const containerHeight = Math.floor(listHeight) + verticalPadding + anchorGap;
 				const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor, { anchorPosition: preferredAnchorPosition });
 
 				if (anchorAlignment === AnchorAlignment.RIGHT) {
@@ -989,10 +1051,10 @@ export class QuickInputController extends Disposable {
 				}
 
 				if (anchorPosition === AnchorPosition.ABOVE) {
-					style.bottom = `${bottom}px`;
+					style.bottom = `${bottom + anchorGap}px`;
 					style.top = 'initial';
 				} else {
-					style.top = `${top}px`;
+					style.top = `${top + anchorGap}px`;
 					style.bottom = 'initial';
 				}
 

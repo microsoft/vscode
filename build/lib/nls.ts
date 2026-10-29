@@ -11,6 +11,7 @@ import sm from 'source-map';
 import path from 'path';
 import { sort } from './gulp/facade.ts';
 import { type ISpan, analyzeLocalizeCalls, TextModel, parseLocalizeKeyOrValue } from './nls-analysis.ts';
+import { serializeNlsData } from './nlsMessages.ts';
 
 type FileWithSourcemap = File & { sourceMap: sm.RawSourceMap };
 
@@ -68,7 +69,7 @@ export function nls(options: { preserveEnglish: boolean }): NodeJS.ReadWriteStre
 					contents: Buffer.from(`/*---------------------------------------------------------
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
-globalThis._VSCODE_NLS_MESSAGES=${JSON.stringify(_nls.allNLSMessages)};`),
+globalThis._VSCODE_NLS_MESSAGES=${serializeNlsData(_nls.allNLSMessages)};`),
 					base,
 					path: `${base}/nls.messages.js`
 				})

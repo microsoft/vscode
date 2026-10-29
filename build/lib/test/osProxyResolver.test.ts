@@ -38,6 +38,43 @@ suite('osProxyResolver', () => {
 		]);
 	});
 
+	test('excludes the musl packages from the glibc linux targets', () => {
+		assert.deepStrictEqual(getOSProxyResolverExcludeFilter('linux', 'x64'), [
+			'**',
+			'!**/node_modules/@vscode/os-proxy-resolver-darwin-arm64/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-darwin-x64/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-linux-arm-gnueabihf/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-linux-arm64-gnu/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-linux-arm64-musl/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-linux-x64-musl/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-win32-arm64-msvc/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-win32-x64-msvc/**',
+		]);
+		assert.deepStrictEqual(getOSProxyResolverExcludeFilter('linux', 'arm64'), [
+			'**',
+			'!**/node_modules/@vscode/os-proxy-resolver-darwin-arm64/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-darwin-x64/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-linux-arm-gnueabihf/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-linux-arm64-musl/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-linux-x64-gnu/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-linux-x64-musl/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-win32-arm64-msvc/**',
+			'!**/node_modules/@vscode/os-proxy-resolver-win32-x64-msvc/**',
+		]);
+	});
+
+	// Fails when a version bump adds a platform package, which is how the musl binaries first leaked into the RPM.
+	test('accounts for every platform package in the lockfile', () => {
+		const lockFilePath = path.join(import.meta.dirname, '..', '..', '..', 'package-lock.json');
+		const lockFile = JSON.parse(fs.readFileSync(lockFilePath, 'utf8'));
+		const lockedPlatforms = Object.keys(lockFile.packages)
+			.map(key => /(?:^|\/)node_modules\/@vscode\/os-proxy-resolver-(?<platform>.+)$/.exec(key)?.groups?.platform)
+			.filter(platform => platform !== undefined)
+			.sort();
+
+		assert.deepStrictEqual(lockedPlatforms, [...osProxyResolverPlatforms].sort());
+	});
+
 	test('materializes a missing target platform package', () => {
 		const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-os-proxy-resolver-platform-test-'));
 		const nodeModulesRoot = path.join(repoRoot, 'node_modules');

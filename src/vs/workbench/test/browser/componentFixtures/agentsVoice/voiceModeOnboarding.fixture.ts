@@ -8,6 +8,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { VoiceModeOnboardingBanner } from '../../../../contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { IVoiceSessionController, VoiceState } from '../../../../contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { chatInputStackSlotClass } from '../../../../contrib/chat/browser/widget/input/chatInputStack.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
 function renderVoiceModeOnboarding(width: string) {
@@ -32,7 +33,9 @@ function renderVoiceModeOnboarding(width: string) {
 			},
 		});
 		const host = document.createElement('div');
-		host.className = 'voice-mode-onboarding-container has-voice-mode-onboarding';
+		// Matches production: the host is a stack slot, visible because a card is
+		// attached, i.e. the slot is standalone.
+		host.className = `voice-mode-onboarding-container ${chatInputStackSlotClass} chat-input-stack-standalone`;
 		container.append(host);
 
 		disposableStore.add(instantiationService.createInstance(VoiceModeOnboardingBanner, {

@@ -4,25 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { append, DisposableResizeObserver, getWindow, h } from '../../../../../../../base/browser/dom.js';
-import { HoverStyle } from '../../../../../../../base/browser/ui/hover/hover.js';
-import { HoverPosition } from '../../../../../../../base/browser/ui/hover/hoverWidget.js';
+import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { Separator } from '../../../../../../../base/common/actions.js';
 import { asArray } from '../../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../../../../base/common/errorMessage.js';
 import { ErrorNoTelemetry, onUnexpectedError } from '../../../../../../../base/common/errors.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
 import { createCommandUri, escapeMarkdownSyntaxTokens, MarkdownString, type IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import Severity from '../../../../../../../base/common/severity.js';
 import { isObject } from '../../../../../../../base/common/types.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
 import { localize } from '../../../../../../../nls.js';
+import { ConfirmationOption, ConfirmationOptionKind } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
-import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { IPreferencesService } from '../../../../../../services/preferences/common/preferences.js';
 import { ITerminalChatService } from '../../../../../terminal/browser/terminal.js';
@@ -30,7 +32,9 @@ import { TerminalContribCommandId, TerminalContribSettingId } from '../../../../
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../../common/chat.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
+import { IChatSideChatService } from '../../../../common/chatSideChatService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
+import { isResponseVM } from '../../../../common/model/chatViewModel.js';
 import { IChatToolInvocation, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
 import { AcceptToolConfirmationActionId, SkipToolConfirmationActionId } from '../../../actions/chatToolActions.js';
@@ -42,6 +46,7 @@ import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart } from '../chatMarkdownContentPart.js';
 import { CodeBlockPart, ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { buildCustomOptionButtons } from './abstractToolConfirmationSubPart.js';
 import { createApprovalReasonBadge, createToolRiskBadge } from './toolRiskBadgeHelper.js';
 
 export const enum TerminalToolConfirmationStorageKeys {
@@ -65,12 +70,18 @@ export type TerminalNewAutoApproveButtonData = (
 	{ type: 'sessionApproval' }
 );
 
+type TerminalConfirmationButtonData = boolean | TerminalNewAutoApproveButtonData | { type: 'custom'; option: ConfirmationOption } | { type: 'explain' };
+
 export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
 	public readonly codeblocks: IChatCodeBlockInfo[] = [];
 
+	private readonly _canExplain: boolean;
+	private _isExplaining = false;
+	private readonly _onDidChangeExplainDisablement = this._register(new Emitter<boolean>());
+
 	constructor(
-		toolInvocation: IChatToolInvocation,
+		protected override readonly toolInvocation: IChatToolInvocation,
 		terminalData: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData,
 		private readonly context: IChatContentPartRenderContext,
 		private readonly renderer: IMarkdownRenderer,
@@ -87,9 +98,10 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITerminalChatService private readonly terminalChatService: ITerminalChatService,
-		@IHoverService hoverService: IHoverService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IChatToolRiskAssessmentService private readonly riskAssessmentService: IChatToolRiskAssessmentService,
+		@IChatSideChatService private readonly sideChatService: IChatSideChatService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(toolInvocation);
 
@@ -99,18 +111,29 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		}
 
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
+		this._canExplain = this.sideChatService.canAskInSideChat(this.context.element.sessionResource);
 
 		const { title, message, disclaimer, terminalCustomActions } = state.confirmationMessages;
+		const titleText = typeof title === 'string' ? title : renderAsPlaintext(title).trim();
+		const messageText = typeof message === 'string' ? message : message ? renderAsPlaintext(message).trim() : undefined;
 
-		// Use pre-computed confirmation data from runInTerminalTool (cd prefix extraction happens there for localization)
-		// Use presentationOverrides for display if available (e.g., extracted Python code)
-		const initialContent = terminalData.presentationOverrides?.commandLine ?? terminalData.confirmation?.commandLine ?? (terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
 		const cdPrefix = terminalData.confirmation?.cdPrefix ?? '';
+		const originalContent = terminalData.confirmation?.commandLine ?? (terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
+		const userEdited = terminalData.commandLine.userEdited;
+		const initialContent = terminalData.presentationOverrides?.commandLine
+			?? (userEdited?.startsWith(cdPrefix) ? userEdited.slice(cdPrefix.length) : userEdited)
+			?? originalContent;
+		const hasDistinctMessage = !!messageText?.trim() && messageText.trim() !== initialContent.trim()
+			// Agent Host titles name the command's intention, which is also sent as the message.
+			&& !titleText.includes(messageText.replace(/\s+/g, ' ').trim());
 		// When presentationOverrides is set, the editor should be read-only since the displayed content
-		// differs from the actual command (e.g., extracted Python code vs full python -c command)
-		const isReadOnly = !!terminalData.presentationOverrides;
+		// differs from the actual command (e.g., extracted Python code vs full python -c command).
+		// A producer that cannot apply an edited command opts out the same way.
+		const isReadOnly = !!terminalData.presentationOverrides || terminalData.editable === false;
 
-		const autoApproveEnabled = this.configurationService.getValue(TerminalContribSettingId.EnableAutoApprove) === true;
+		const hasCustomOptions = !!state.confirmationMessages.customOptions?.length;
+		const autoApproveEnabled = this.configurationService.getValue(TerminalContribSettingId.EnableAutoApprove) === true
+			&& (!hasCustomOptions || terminalData.autoApproveRuleResolvable === true);
 		// Custom actions typically come pre-computed from the run in terminal tool, but they can
 		// also be generated asynchronously for confirmations that arrive without them (eg. agent
 		// host sessions), so track them in a mutable local shared by the builder below and the
@@ -152,7 +175,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				wordWrap: 'on',
 				readOnly: isReadOnly,
 				tabFocusMode: true,
-				ariaLabel: typeof title === 'string' ? title : title.value
+				ariaLabel: hasDistinctMessage ? localize('chat.terminal.confirmation.ariaLabel', "{0}\n{1}", titleText, messageText) : titleText
 			}
 		};
 		const languageId = this.languageService.getLanguageIdByLanguageName(terminalData.presentationOverrides?.language ?? terminalData.language ?? 'sh') ?? 'shellscript';
@@ -176,21 +199,28 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			uri: model.uri,
 			chatSessionResource: this.context.element.sessionResource
 		});
-		this._register(model.onDidChangeContent(() => {
-			const currentValue = model.getValue();
-			// Only set userEdited if the content actually differs from the initial value
-			// Prepend cd prefix back if it was extracted for display
-			if (currentValue !== initialContent) {
-				terminalData.commandLine.userEdited = cdPrefix + currentValue;
-			} else {
-				terminalData.commandLine.userEdited = undefined;
-			}
-		}));
+		if (!isReadOnly) {
+			this._register(model.onDidChangeContent(() => {
+				const currentValue = model.getValue();
+				// Compare with the original command, not a restored user edit.
+				if (currentValue !== originalContent) {
+					terminalData.commandLine.userEdited = cdPrefix + currentValue;
+				} else {
+					terminalData.commandLine.userEdited = undefined;
+				}
+			}));
+		}
 		const elements = h('.chat-confirmation-message-terminal', [
 			h('.chat-confirmation-message-terminal-editor@editor'),
+			h('.chat-confirmation-message-terminal-reason@reason'),
 			h('.chat-confirmation-message-terminal-disclaimer@disclaimer'),
 		]);
 		append(elements.editor, editor.object.element);
+		if (message && hasDistinctMessage) {
+			this._appendMarkdownPart(elements.reason, typeof message === 'string' ? new MarkdownString().appendText(message) : message, codeBlockRenderOptions);
+		} else {
+			elements.reason.remove();
+		}
 		const editorResizeObserver = this._register(new DisposableResizeObserver('ChatTerminalToolConfirmationSubPart.editor', entries => {
 			const width = entries[0]?.contentRect.width;
 			if (width) {
@@ -198,17 +228,11 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			}
 		}, getWindow(this.context.container)));
 		this._register(editorResizeObserver.observe(elements.editor));
-		this._register(hoverService.setupDelayedHover(elements.editor, {
-			content: message || '',
-			style: HoverStyle.Pointer,
-			position: { hoverPosition: HoverPosition.LEFT },
-		}));
-
 		const riskBadge = createApprovalReasonBadge(this._store, this.instantiationService, state.confirmationMessages.approvalReason)
 			?? createToolRiskBadge(this._store, this.instantiationService, this.riskAssessmentService, this.languageModelToolsService, this.toolInvocation.toolId, state.parameters, 'terminal');
 
 		const confirmWidget = this._register(this.instantiationService.createInstance(
-			ChatCustomConfirmationWidget<TerminalNewAutoApproveButtonData | boolean>,
+			ChatCustomConfirmationWidget<TerminalConfirmationButtonData>,
 			this.context,
 			{
 				title,
@@ -218,6 +242,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				buttons: this._createButtons(buildMoreActions())
 			},
 		));
+		this.primaryAction = () => confirmWidget.runPrimaryAction();
 
 		// Agent Host Copilot confirmations need client-generated persistent rule actions.
 		if (autoApproveEnabled && !customActions && terminalData.autoApproveRuleResolvable && getChatSessionType(this.context.element.sessionResource) === SessionType.AgentHostCopilot) {
@@ -330,6 +355,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			let doComplete = true;
 			const data = button.data;
 			let toolConfirmKind: ToolConfirmKind = ToolConfirmKind.Denied;
+			let selectedOption: ConfirmationOption | undefined;
 			if (typeof data === 'boolean') {
 				if (data) {
 					toolConfirmKind = ToolConfirmKind.UserAction;
@@ -341,6 +367,11 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				}
 			} else if (typeof data !== 'boolean') {
 				switch (data.type) {
+					case 'custom': {
+						selectedOption = data.option;
+						toolConfirmKind = ToolConfirmKind.UserAction;
+						break;
+					}
 					case 'enable': {
 						const optedIn = await this._showAutoApproveWarning();
 						if (optedIn) {
@@ -471,6 +502,12 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 						doComplete = false;
 						break;
 					}
+					case 'explain': {
+						// Explaining leaves the confirmation pending so it can still be allowed or skipped.
+						doComplete = false;
+						await this._explainInSideChat(terminalData.commandLine);
+						break;
+					}
 					case 'sessionApproval': {
 						const sessionResource = this.context.element.sessionResource;
 						this.terminalChatService.setChatSessionAutoApproval(sessionResource, true);
@@ -488,7 +525,11 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			}
 
 			if (doComplete) {
-				IChatToolInvocation.confirmWith(toolInvocation, { type: toolConfirmKind });
+				IChatToolInvocation.confirmWith(toolInvocation, {
+					type: toolConfirmKind,
+					...(toolConfirmKind === ToolConfirmKind.Denied || toolConfirmKind === ToolConfirmKind.Skipped ? { source: 'user' as const } : {}),
+					...(selectedOption ? { selectedButton: selectedOption.id, selectedButtonKind: selectedOption.kind } : {}),
+				});
 				if (!isTouchClick) {
 					this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
 				}
@@ -498,7 +539,33 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		this.domNode = confirmWidget.domNode;
 	}
 
-	private _createButtons(moreActions: (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] | undefined): IChatConfirmationButton<boolean | TerminalNewAutoApproveButtonData>[] {
+	private _createButtons(moreActions: (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] | undefined): IChatConfirmationButton<TerminalConfirmationButtonData>[] {
+		const buttons = this._createDecisionButtons(moreActions);
+		if (this._canExplain) {
+			buttons.push({
+				label: localize('tool.explain', "Explain"),
+				tooltip: localize('tool.explain.detail', "Explain this command in a side chat"),
+				data: { type: 'explain' },
+				isSecondary: true,
+				disabled: this._isExplaining,
+				onDidChangeDisablement: this._onDidChangeExplainDisablement.event,
+			});
+		}
+		return buttons;
+	}
+
+	private _createDecisionButtons(moreActions: (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] | undefined): IChatConfirmationButton<TerminalConfirmationButtonData>[] {
+		const state = this.toolInvocation.state.get();
+		const customOptions = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages?.customOptions : undefined;
+		if (customOptions?.length) {
+			const buttons = buildCustomOptionButtons<TerminalConfirmationButtonData>(customOptions, option => ({ type: 'custom', option }));
+			if (moreActions?.length && customOptions.some(option => option.kind !== ConfirmationOptionKind.Deny)) {
+				const primary = buttons[0];
+				primary.moreActions = [...(primary.moreActions ?? []), new Separator(), ...moreActions];
+			}
+			return buttons;
+		}
+
 		const getLabelAndTooltip = (label: string, actionId: string, tooltipDetail: string = label): { label: string; tooltip: string } => {
 			const tooltip = this.keybindingService.appendKeybinding(tooltipDetail, actionId);
 			return { label, tooltip };
@@ -518,6 +585,39 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		];
 	}
 
+	/**
+	 * Asks a side chat (like `/btw`) what the command will do, anchored to the
+	 * command the user would approve, including any edits they made to it.
+	 */
+	private async _explainInSideChat(commandLine: IChatTerminalToolInvocationData['commandLine']): Promise<void> {
+		if (this._isExplaining) {
+			return;
+		}
+		const element = this.context.element;
+		const command = (commandLine.userEdited ?? commandLine.forDisplay ?? commandLine.toolEdited ?? commandLine.original).trim();
+		this._setExplaining(true);
+		try {
+			await this.sideChatService.askInSideChat(
+				element.sessionResource,
+				localize('tool.explain.query', "Explain what this terminal command will do."),
+				{ text: command },
+				{ sourceTurnId: isResponseVM(element) ? element.requestId : undefined },
+			);
+		} catch (error) {
+			this.notificationService.error(localize('tool.explain.failed', "The side chat could not be started: {0}", toErrorMessage(error)));
+		} finally {
+			this._setExplaining(false);
+		}
+	}
+
+	private _setExplaining(isExplaining: boolean): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		this._isExplaining = isExplaining;
+		this._onDidChangeExplainDisablement.fire(isExplaining);
+	}
+
 	private async _showAutoApproveWarning(): Promise<boolean> {
 		const promptResult = await this.dialogService.prompt({
 			type: Severity.Info,
@@ -532,7 +632,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				markdownDetails: [{
 					markdown: new MarkdownString(localize('autoApprove.markdown', 'This will enable a configurable subset of commands to run in the terminal autonomously. It provides *best effort protections* and assumes the agent is not acting maliciously.')),
 				}, {
-					markdown: new MarkdownString(`[${localize('autoApprove.markdown2', 'Learn more about the potential risks and how to avoid them.')}](https://code.visualstudio.com/docs/agents/security?referrer=in-product#_security-risks-to-be-aware-of)`)
+					markdown: new MarkdownString(`[${localize('autoApprove.markdown2', 'Learn more about the potential risks and how to avoid them.')}](https://code.visualstudio.com/docs/agents/run/security?referrer=in-product#_security-risks-to-be-aware-of)`)
 				}],
 			}
 		});
@@ -548,12 +648,13 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			this.context,
 			this.editorPool,
 			false,
-			this.codeBlockStartIndex,
+			this.codeBlockStartIndex + this.codeblocks.length,
 			this.renderer,
 			undefined,
-			this.currentWidthDelegate(),
+			this.currentWidthDelegate,
 			{ codeBlockRenderOptions },
 		));
+		this.codeblocks.push(...part.codeblocks);
 		append(container, part.domNode);
 	}
 }

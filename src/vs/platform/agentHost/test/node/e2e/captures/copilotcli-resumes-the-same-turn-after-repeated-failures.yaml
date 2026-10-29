@@ -1,0 +1,26 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - method: POST
+    path: /v1/messages
+    response:
+      status: 400
+      headers:
+        content-type: application/json
+      body: '{"error":{"message":"Injected recoverable E2E failure.","type":"invalid_request_error","code":"invalid_request_error"}}'
+  - method: POST
+    path: /v1/messages
+    response:
+      status: 400
+      headers:
+        content-type: application/json
+      body: '{"error":{"message":"Injected second recoverable E2E failure.","type":"invalid_request_error","code":"invalid_request_error"}}'
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: $error
+    response:
+      content: It looks like your message came through empty (just a placeholder "$error" with no actual content). Could you let me know what task or issue you'd like help with?
+      stopReason: end_turn

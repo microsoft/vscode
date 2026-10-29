@@ -15,11 +15,13 @@ import { ElementSizeObserver } from '../../../../../../../editor/browser/config/
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
 import { localize } from '../../../../../../../nls.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../../platform/markers/common/markers.js';
+import { isAutoApprovePolicyRestricted } from '../../../../common/agentHostConfigPolicy.js';
 import { IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { createToolSchemaUri, ILanguageModelToolsService, IToolConfirmationMessages } from '../../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../../../common/tools/languageModelToolsConfirmationService.js';
@@ -60,6 +62,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@ILanguageModelToolsConfirmationService private readonly confirmationService: ILanguageModelToolsConfirmationService,
 		@IChatToolRiskAssessmentService riskAssessmentService: IChatToolRiskAssessmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		const state = toolInvocation.state.get();
 		if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation || !state.confirmationMessages?.title) {
@@ -86,7 +89,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 			return actions;
 		}
 
-		if (state.confirmationMessages?.allowAutoConfirm !== false) {
+		if (state.confirmationMessages?.allowAutoConfirm !== false || isAutoApprovePolicyRestricted(this.configurationService)) {
 			// Get combination label and precomputed key if present
 			const approveCombination = state.confirmationMessages?.approveCombination;
 			const combination = approveCombination
@@ -154,9 +157,12 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		}
 		const { message, disclaimer } = state.confirmationMessages!;
 		const toolInvocation = this.toolInvocation as IChatToolInvocation;
+		const inputData = toolInvocation.toolSpecificData?.kind === 'input'
+			&& toolInvocation.toolSpecificData.rawInput && !isEmptyObject(toolInvocation.toolSpecificData.rawInput)
+			? toolInvocation.toolSpecificData : undefined;
 
-		if (typeof message === 'string' && !disclaimer) {
-			return message;
+		if (typeof message === 'string' && !disclaimer && !inputData) {
+			return dom.$('.message-wrapper', undefined, message);
 		} else {
 			const codeBlockRenderOptions: ICodeBlockRenderOptions = {
 				hideToolbar: true,
@@ -179,13 +185,14 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 				dom.h('.disclaimer@disclaimer'),
 			]);
 
-			if (toolInvocation.toolSpecificData?.kind === 'input' && toolInvocation.toolSpecificData.rawInput && !isEmptyObject(toolInvocation.toolSpecificData.rawInput)) {
+			if (inputData) {
 
 				const titleEl = document.createElement('h3');
 				titleEl.textContent = localize('chat.input', "Input");
 				elements.editor.appendChild(titleEl);
 
-				const inputData = toolInvocation.toolSpecificData;
+				// Editable unless a producer opts out, so tools that predate the flag are unchanged.
+				const isEditable = inputData.editable ?? true;
 
 				const codeBlockRenderOptions: ICodeBlockRenderOptions = {
 					hideToolbar: true,
@@ -194,7 +201,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 					verticalPadding: 5,
 					editorOptions: {
 						wordWrap: 'off',
-						readOnly: false,
+						readOnly: !isEditable,
 						ariaLabel: this.getTitle(),
 					}
 				};
@@ -262,13 +269,15 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 					uri: model.uri,
 					chatSessionResource: this.context.element.sessionResource
 				});
-				this._register(model.onDidChangeContent(e => {
-					try {
-						inputData.rawInput = JSON.parse(model.getValue());
-					} catch {
-						// ignore
-					}
-				}));
+				if (isEditable) {
+					this._register(model.onDidChangeContent(e => {
+						try {
+							inputData.rawInput = JSON.parse(model.getValue());
+						} catch {
+							// ignore
+						}
+					}));
+				}
 
 				elements.editor.append(editor.object.element);
 
@@ -290,7 +299,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 				}
 			}
 
-			const mdPart = this._makeMarkdownPart(elements.message, message!, codeBlockRenderOptions);
+			const mdPart = this._makeMarkdownPart(elements.message, typeof message === 'string' ? new MarkdownString().appendText(message) : message!, codeBlockRenderOptions);
 
 			const messageSeeMoreObserver = this._register(new ElementSizeObserver(mdPart.domNode, undefined));
 			const updateSeeMoreDisplayed = () => {
@@ -343,7 +352,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 			this.codeBlockStartIndex,
 			this.renderer,
 			undefined,
-			this.currentWidthDelegate(),
+			this.currentWidthDelegate,
 			{ codeBlockRenderOptions },
 		));
 		renderFileWidgets(part.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store, this.openedEditors.fileWidgetOptions);

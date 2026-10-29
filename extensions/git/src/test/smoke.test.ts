@@ -12,6 +12,7 @@ import * as path from 'path';
 import type { GitExtension, API, Repository } from '../api/git';
 import { Status } from '../api/git.constants';
 import { eventToPromise } from '../util';
+import { Git, findGit } from '../git';
 
 suite('git smoke test', function () {
 	const cwd = workspace.workspaceFolders![0].uri.fsPath;
@@ -145,6 +146,95 @@ suite('git smoke test', function () {
 
 		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
 		assert.strictEqual(repository.state.indexChanges.length, 0);
+	});
+
+	test('reads non-UTF-8 encoded commit messages as UTF-8', async function () {
+		const expectCommitMessage = 'テスト';
+		const commitMessage = Buffer.from('a5c6a5b9a5c8', 'hex'); // Encoded in EUC-JP
+		const commitMessageFile = file('commit-message.txt');
+		const trackedFileName = 'tracked-file.txt';
+		const trackedFile = file(trackedFileName);
+
+		let previousCommitEncoding: string | undefined;
+		try {
+			previousCommitEncoding = cp.execSync('git config i18n.commitEncoding', { cwd, encoding: 'utf8' }).trim();
+		} catch {
+			previousCommitEncoding = undefined;
+		}
+
+		let previousLogOutputEncoding: string | undefined;
+		try {
+			previousLogOutputEncoding = cp.execSync('git config i18n.logOutputEncoding', { cwd, encoding: 'utf8' }).trim();
+		} catch {
+			previousLogOutputEncoding = undefined;
+		}
+
+		try {
+			fs.writeFileSync(commitMessageFile, commitMessage);
+			fs.writeFileSync(trackedFile, 'hello\n');
+			cp.execSync(`git add ${trackedFileName}`, { cwd });
+			cp.execSync('git config i18n.commitEncoding EUC-JP', { cwd });
+			cp.execSync('git config i18n.logOutputEncoding EUC-JP', { cwd });
+			cp.execSync(`git commit --file "${commitMessageFile}"`, { cwd });
+
+			const [commitLog] = await repository.log({ maxEntries: 1 });
+
+			assert.strictEqual(commitLog.message, expectCommitMessage);
+
+			const commit = await repository.getCommit(commitLog.hash);
+			assert.strictEqual(commit.message, expectCommitMessage);
+
+			// Test internal Git/Repository methods that aren't exposed in the public API.
+			const testId = 'git-utf8-encoding-test';
+			const logger = window.createOutputChannel(testId, { log: true });
+			try {
+				const iGit = await findGit(['git'], () => true, logger);
+				const internalGit = new Git({ gitPath: iGit.path, userAgent: testId, version: iGit.version });
+				const dotGit = await internalGit.getRepositoryDotGit(cwd);
+				const internalRepository = internalGit.open(cwd, undefined, dotGit, logger);
+
+				const blame = await internalRepository.blame2(trackedFile);
+				assert.strictEqual(blame?.length, 1);
+				assert.strictEqual(blame[0].subject, expectCommitMessage);
+
+				const fileLog = await internalRepository.logFile(Uri.file(trackedFile));
+				assert.strictEqual(fileLog.length, 1);
+				assert.strictEqual(fileLog[0].message, expectCommitMessage);
+
+				const changes = await internalRepository.showChanges(commitLog.hash);
+				assert(changes.includes(expectCommitMessage));
+
+				const changesBetween = await internalRepository.showChangesBetween(`${commitLog.hash}^`, commitLog.hash);
+				assert(changesBetween.includes(expectCommitMessage));
+			} finally {
+				logger.dispose();
+			}
+		} finally {
+			// Clean up without masking the original failure
+			if (fs.existsSync(commitMessageFile)) {
+				fs.unlinkSync(commitMessageFile);
+			}
+
+			try {
+				if (previousCommitEncoding) {
+					cp.execSync(`git config i18n.commitEncoding ${previousCommitEncoding}`, { cwd });
+				} else {
+					cp.execSync('git config --unset i18n.commitEncoding', { cwd });
+				}
+			} catch {
+				// Ignore cleanup errors if the config was never set or already unset.
+			}
+
+			try {
+				if (previousLogOutputEncoding) {
+					cp.execSync(`git config i18n.logOutputEncoding ${previousLogOutputEncoding}`, { cwd });
+				} else {
+					cp.execSync('git config --unset i18n.logOutputEncoding', { cwd });
+				}
+			} catch {
+				// Ignore cleanup errors if the config was never set or already unset.
+			}
+		}
 	});
 
 	// diabled because of https://github.com/microsoft/vscode/issues/327142

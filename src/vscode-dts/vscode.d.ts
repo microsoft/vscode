@@ -5634,6 +5634,9 @@ declare module 'vscode' {
 
 		/**
 		 * The position of this hint.
+		 *
+		 * If multiple hints have the same position, they will be shown in the order
+		 * they appear in the results.
 		 */
 		position: Position;
 
@@ -14983,9 +14986,11 @@ declare module 'vscode' {
 		/**
 		 * Register a document highlight provider.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are sorted
+		 * By default, multiple providers can be registered for a language. In that case providers are sorted
 		 * by their {@link languages.match score} and groups sequentially asked for document highlights.
 		 * The process stops when a provider returns a `non-falsy` or `non-failure` result.
+		 * When `editor.occurrencesHighlightFromAllProviders` is enabled, matching providers are asked in parallel
+		 * and their results are merged, preserving the highest-priority provider's kind for duplicate ranges.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A document highlight provider.
@@ -18390,7 +18395,7 @@ declare module 'vscode' {
 		 * until the cancellation is requested on the `token`.
 		 *
 		 * @param request Request information for the test run.
-		 * @param cancellationToken Token that signals the used asked to abort the
+		 * @param token Token that signals the used asked to abort the
 		 * test run. If cancellation is requested on this token, all {@link TestRun}
 		 * instances associated with the request will be
 		 * automatically cancelled as well.
@@ -20481,7 +20486,8 @@ declare module 'vscode' {
 		uri: Uri;
 
 		/**
-		 * Optional additional heads included with each request to the server.
+		 * Optional additional headers included with requests to the server's origin.
+		 * These headers are not sent to a different origin, including across redirects.
 		 */
 		headers: Record<string, string>;
 
@@ -20494,7 +20500,7 @@ declare module 'vscode' {
 		/**
 		 * @param label The human-readable name of the server.
 		 * @param uri The URI of the server.
-		 * @param headers Optional additional heads included with each request to the server.
+		 * @param headers Optional additional headers included with requests to the server's origin.
 		 */
 		constructor(label: string, uri: Uri, headers?: Record<string, string>, version?: string);
 	}

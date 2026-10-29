@@ -8,6 +8,7 @@ import { ConfigKey, ExperimentBasedConfig, ExperimentBasedConfigType } from '../
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { AggressivenessLevel, AggressivenessSetting, DEFAULT_USER_HAPPINESS_SCORE_CONFIGURATION, UserHappinessScoreConfiguration } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { NullInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IExperimentationService, NullExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
@@ -98,7 +99,7 @@ describe('UserInteractionMonitor', () => {
 		experimentationService = new NullExperimentationService();
 		logService = new TestLogService();
 		telemetryService = new NullTelemetryService();
-		monitor = new TestUserInteractionMonitor(configurationService, experimentationService, logService, telemetryService);
+		monitor = new TestUserInteractionMonitor(configurationService, experimentationService, logService, telemetryService, new NullInlineEditsModelService());
 	});
 
 	describe('history logging', () => {
@@ -277,7 +278,7 @@ describe('UserInteractionMonitor', () => {
 			const levelRejectionsRecent = monitor.getAggressivenessLevel().aggressivenessLevel;
 
 			// Reset and do opposite order
-			monitor = new TestUserInteractionMonitor(configurationService, experimentationService, logService, telemetryService);
+			monitor = new TestUserInteractionMonitor(configurationService, experimentationService, logService, telemetryService, new NullInlineEditsModelService());
 			for (let i = 0; i < 5; i++) {
 				monitor.handleRejection();
 			}
@@ -356,7 +357,7 @@ describe('UserInteractionMonitor', () => {
 		beforeEach(() => {
 			configurationService.useAdaptiveAggressiveness();
 			mockTelemetryService = new MockTelemetryService();
-			monitor = new TestUserInteractionMonitor(configurationService, experimentationService, logService, mockTelemetryService);
+			monitor = new TestUserInteractionMonitor(configurationService, experimentationService, logService, mockTelemetryService, new NullInlineEditsModelService());
 		});
 
 		test('emits telemetry event when config is invalid JSON', () => {

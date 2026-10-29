@@ -7,6 +7,7 @@
 // `src/vs/platform/agentHost/common/state/protocol/`. Run via:
 //
 //   npx tsx scripts/sync-agent-host-protocol.ts
+// Set AHP_PROTOCOL_REF to sync a fetched revision without changing its checkout.
 //
 // Source layout is preserved verbatim: every `.ts` file under
 // `agent-host-protocol/types/` (notably the `common/` and `channels-*` folders)
@@ -24,11 +25,12 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import * as ts from 'typescript';
 
 const ROOT = path.resolve(__dirname, '..');
-const PROTOCOL_REPO = path.resolve(ROOT, '../agent-host-protocol');
+const PROTOCOL_REPO = process.env['AHP_PROTOCOL_REPO'] ?? path.resolve(ROOT, '../agent-host-protocol');
+const PROTOCOL_REF = process.env['AHP_PROTOCOL_REF'];
 const TYPES_DIR = path.join(PROTOCOL_REPO, 'types');
 const DEST_DIR = path.join(ROOT, 'src/vs/platform/agentHost/common/state/protocol');
 
@@ -93,6 +95,16 @@ const EXCLUDE_FILE_NAMES = new Set([
  * skipped. Yields a stable order so the output is reproducible.
  */
 function discoverSourceFiles(): { src: string; dest: string }[] {
+	if (PROTOCOL_REF) {
+		return execFileSync('git', ['ls-tree', '-r', '--name-only', PROTOCOL_REF, '--', 'types'], { cwd: PROTOCOL_REPO, encoding: 'utf-8' })
+			.trim().split('\n')
+			.map(file => file.slice('types/'.length))
+			.filter(file => file.endsWith('.ts') && !file.endsWith('.test.ts')
+				&& !EXCLUDE_FILE_NAMES.has(path.basename(file))
+				&& !file.split('/').some(part => EXCLUDE_DIR_NAMES.has(part)))
+			.sort((a, b) => a.localeCompare(b))
+			.map(file => ({ src: file, dest: file }));
+	}
 	const results: { src: string; dest: string }[] = [];
 
 	function walk(dir: string, relBase: string): void {
@@ -125,8 +137,11 @@ function discoverSourceFiles(): { src: string; dest: string }[] {
 }
 
 function getSourceCommitHash(): string {
+	if (PROTOCOL_REF) {
+		return execFileSync('git', ['rev-parse', '--short', PROTOCOL_REF], { cwd: PROTOCOL_REPO, encoding: 'utf-8' }).trim();
+	}
 	try {
-		return execSync('git rev-parse --short HEAD', { cwd: PROTOCOL_REPO, encoding: 'utf-8' }).trim();
+		return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: PROTOCOL_REPO, encoding: 'utf-8' }).trim();
 	} catch {
 		return 'unknown';
 	}
@@ -219,12 +234,10 @@ function mergeDuplicateImports(content: string): string {
 	}).join('\n');
 }
 
-
-
-
-
 function processFile(src: string, dest: string): void {
-	let content = fs.readFileSync(src, 'utf-8');
+	let content = PROTOCOL_REF
+		? execFileSync('git', ['show', `${PROTOCOL_REF}:types/${dest}`], { cwd: PROTOCOL_REPO, encoding: 'utf-8' })
+		: fs.readFileSync(src, 'utf-8');
 	content = stripExistingHeader(content);
 
 	// Merge duplicate imports from the same module

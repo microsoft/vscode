@@ -21,13 +21,20 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { IEditorPane } from '../../../../common/editor.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatProgress, IChatWorkspaceEdit } from '../chatService/chatService.js';
-import { ChatModel, IChatRequestDisablement, IChatResponseModel } from '../model/chatModel.js';
+import { ChatModel, IChatEditMetadata, IChatRequestDisablement, IChatResponseModel } from '../model/chatModel.js';
 import { IChatAgentResult } from '../participants/chatAgents.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
 export interface IChatEditingSessionProvider {
-	createEditingSession(chatSessionResource: URI): IChatEditingSession;
+	/**
+	 * Creates the editing session of a chat. The chat model may not be
+	 * registered with the chat service yet.
+	 *
+	 * @param isGlobalEditingSession Whether the session is the long lived one of
+	 * a chat in the chat view or an editor, rather than a short lived one.
+	 */
+	createEditingSession(chatSessionResource: URI, isGlobalEditingSession: boolean): IChatEditingSession;
 }
 
 export interface IChatEditingService {
@@ -41,12 +48,18 @@ export interface IChatEditingService {
 	/**
 	 * All editing sessions, sorted by recency, e.g the last created session comes first.
 	 */
-	readonly editingSessionsObs: IObservable<readonly IChatEditingSession[]>;
+	readonly editingSessionsObs: IObservable<readonly IChatEditReviewSession[]>;
 
 	/**
 	 * Creates a new short lived editing session
 	 */
 	createEditingSession(chatModel: ChatModel): IChatEditingSession;
+
+	/**
+	 * Registers a review session that was not created via {@link createEditingSession},
+	 * so editor-level review UI can discover its entries. Disposing the result removes it.
+	 */
+	registerEditReviewSession(session: IChatEditReviewSession): IDisposable;
 
 	/**
 	 * Creates an editing session with state transferred from the provided session.
@@ -68,9 +81,9 @@ export interface WorkingSetDisplayMetadata {
 }
 
 export interface IStreamingEdits {
-	pushText(edits: TextEdit[], isLastEdits: boolean): void;
-	pushNotebookCellText(cell: URI, edits: TextEdit[], isLastEdits: boolean): void;
-	pushNotebook(edits: ICellEditOperation[], isLastEdits: boolean): void;
+	pushText(edits: TextEdit[], isLastEdits: boolean, metadata: IChatEditMetadata): void;
+	pushNotebookCellText(cell: URI, edits: TextEdit[], isLastEdits: boolean, metadata: IChatEditMetadata): void;
+	pushNotebook(edits: ICellEditOperation[], isLastEdits: boolean, metadata: IChatEditMetadata): void;
 	/** Marks edits as done, idempotent */
 	complete(): void;
 }
@@ -99,22 +112,46 @@ export interface ISnapshotEntry {
 	readonly isDeleted?: boolean;
 }
 
-export interface IChatEditingSession extends IDisposable {
-	readonly isGlobalEditingSession: boolean;
-	readonly supportsKeepUndo: boolean;
+/**
+ * A reviewable set of file changes: entries with editor decorations that can
+ * be kept or undone. This is the minimal surface that editor-level review UI
+ * (decorations, hunk navigation, keep/undo actions) depends on. Full chat
+ * editing sessions additionally support checkpoints, streaming edits, storage
+ * and multi-diff via {@link IChatEditingSession}.
+ */
+export interface IChatEditReviewSession extends IDisposable {
+	readonly isGlobalEditingSession: IObservable<boolean>;
 	readonly chatSessionResource: URI;
 	readonly onDidDispose: Event<void>;
-	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
+	getEntry(uri: URI): IModifiedFileEntry | undefined;
+	readEntry(uri: URI, reader: IReader): IModifiedFileEntry | undefined;
+	accept(...uris: URI[]): Promise<void>;
+	reject(...uris: URI[]): Promise<void>;
+}
+
+/** Finds the pending review for a file, without letting a settled entry in another session hide it. */
+export function findChatEditingSessionEntry(sessions: readonly IChatEditReviewSession[], uri: URI, reader?: IReader): { session: IChatEditReviewSession; entry: IModifiedFileEntry } | undefined {
+	for (const session of sessions) {
+		const entry = reader ? session.readEntry(uri, reader) : session.getEntry(uri);
+		if (entry?.state.read(reader) === ModifiedFileEntryState.Modified) {
+			return { session, entry };
+		}
+	}
+	return undefined;
+}
+
+export interface IChatEditingSession extends IChatEditReviewSession {
+	readonly supportsKeepUndo: IObservable<boolean>;
+	/** Provider-owned review files without editor entries, such as deleted or binary files. */
+	readonly additionalReviewFiles?: IObservable<readonly IEditSessionEntryDiff[]>;
+	/** Waits for provider-owned entries to catch up before opening a review editor. */
+	resolveEntry?(uri: URI): Promise<IModifiedFileEntry | undefined>;
+	readonly state: IObservable<ChatEditingSessionState>;
 	/** Requests disabled by undo/redo in the session */
 	readonly requestDisablement: IObservable<IChatRequestDisablement[]>;
 
 	show(previousChanges?: boolean): Promise<void>;
-	accept(...uris: URI[]): Promise<void>;
-	reject(...uris: URI[]): Promise<void>;
-	getEntry(uri: URI): IModifiedFileEntry | undefined;
-	readEntry(uri: URI, reader: IReader): IModifiedFileEntry | undefined;
-
 	restoreSnapshot(requestId: string, stopId: string | undefined): Promise<void>;
 
 	/**
@@ -305,6 +342,12 @@ export interface IEditSessionEntryDiff extends IEditSessionDiffStats {
 	 */
 	modifiedSnapshotURI?: URI;
 
+	/** Whether the modified resource was created by this edit. */
+	isCreated?: boolean;
+
+	/** Whether the modified resource was deleted by this edit. */
+	isDeleted?: boolean;
+
 	/** Diff state information: */
 	quitEarly: boolean;
 	identical: boolean;
@@ -400,7 +443,11 @@ export interface IModifiedFileEntry {
 	readonly lastModifyingRequestId: string;
 
 	readonly state: IObservable<ModifiedFileEntryState>;
-	readonly isCurrentlyBeingModifiedBy: IObservable<{ responseModel: IChatResponseModel; undoStopId: string | undefined } | undefined>;
+	/**
+	 * Set while an agent writes the file. The response is unknown when the
+	 * agent runs elsewhere, like an agent host's, which only reports the file.
+	 */
+	readonly isCurrentlyBeingModifiedBy: IObservable<{ responseModel: IChatResponseModel | undefined; undoStopId: string | undefined } | undefined>;
 	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;
 

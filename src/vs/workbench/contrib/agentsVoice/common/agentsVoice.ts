@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { Event } from '../../../../base/common/event.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 
 import './agentsVoiceColors.js'; // Register custom voice theme colors
 
@@ -16,7 +18,37 @@ import './agentsVoiceColors.js'; // Register custom voice theme colors
  */
 export const AGENTS_VOICE_CONNECTED = new RawContextKey<boolean>('agentsVoiceConnected', false);
 export const AGENTS_VOICE_CONNECTING = new RawContextKey<boolean>('agentsVoiceConnecting', false);
+export const AGENTS_VOICE_RECONNECTING = new RawContextKey<boolean>('agentsVoiceReconnecting', false);
 export const AGENTS_VOICE_LISTENING = new RawContextKey<boolean>('agentsVoiceListening', false);
+export const AGENTS_VOICE_MUTED = new RawContextKey<boolean>('agentsVoiceMuted', false);
+export const AGENTS_VOICE_TOGGLE_MUTE_COMMAND_ID = 'agentsVoice.toggleMute';
+/**
+ * True when the current Copilot entitlement permits Voice Mode. This is a single
+ * key set imperatively from `IChatEntitlementService` (see
+ * `AgentsVoiceEntitlementKeyContribution`) rather than an OR-of-plans context-key
+ * expression: negating such a disjunction — as `SegmentedVoiceInputModePillInactive`
+ * does — distributes it combinatorially into thousands of terms, which is
+ * prohibitively expensive to build and evaluate on every menu/keybinding update.
+ */
+export const AGENTS_VOICE_ENTITLED = new RawContextKey<boolean>('agentsVoiceEntitled', false);
+export const AGENTS_VOICE_ENABLED = ContextKeyExpr.and(
+	ChatContextKeys.enabled,
+	ContextKeyExpr.equals('config.agents.voice.enabled', true),
+	ContextKeyExpr.or(
+		AGENTS_VOICE_ENTITLED,
+		ContextKeyExpr.regex('config.agents.voice.useBYOKVoiceModel', /\S/),
+	),
+)!;
+
+export function getAgentsVoicePolicyValue(policyData: IPolicyData): false | undefined {
+	return policyData.chat_preview_features_enabled === false ? false : undefined;
+}
+
+export const enum AgentsVoiceSettingId {
+	ShowButton = 'agents.voice.showButton',
+	UseBYOKVoiceModel = 'agents.voice.useBYOKVoiceModel',
+	SessionAwareness = 'agents.voice.sessionAwareness',
+}
 
 /**
  * Default dimensions for the Agents Voice floating window.
@@ -25,13 +57,14 @@ export const AGENTS_VOICE_WINDOW_DEFAULT_WIDTH = 400;
 export const AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT = 70;
 
 /**
- * Storage keys for persisting window state across restarts.
+ * Storage keys for persisting Voice Mode state across restarts.
  */
 export const enum AgentsVoiceStorageKeys {
 	WindowOpen = 'agentsVoice.windowOpen',
 	WindowBounds = 'agentsVoice.windowBounds',
 	TranscriptIndex = 'agentsVoice.transcriptIndex',
 	OnboardingCompleted = 'agentsVoice.onboardingCompleted',
+	GptLiveNoticeShown = 'agentsVoice.gptLiveNoticeShown',
 	/**
 	 * First-run introduction shown above the chat input. Distinct from
 	 * {@link OnboardingCompleted}, which tracks the Voice Mode window's own

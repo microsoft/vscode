@@ -1,0 +1,16 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Write a very long essay about the history of computing
+        - role: assistant
+          content: No response requested.
+        - role: user
+          content: Reply with exactly "after-abort".
+    response:
+      content: after-abort
+      stopReason: end_turn

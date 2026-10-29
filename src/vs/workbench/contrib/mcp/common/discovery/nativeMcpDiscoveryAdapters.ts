@@ -8,20 +8,21 @@ import { Platform } from '../../../../../base/common/platform.js';
 import { Mutable } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { INativeMcpDiscoveryData } from '../../../../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
-import { DiscoverySource } from '../mcpConfiguration.js';
+import { getCopilotGlobalMcpConfigurationResource } from '../../../../../platform/mcp/common/mcpCopilotGlobalConfiguration.js';
+import { ExternalDiscoverySource } from '../mcpConfiguration.js';
 import { McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../mcpTypes.js';
 
 export interface NativeMpcDiscoveryAdapter {
 	readonly remoteAuthority: string | null;
 	readonly id: string;
 	readonly order: number;
-	readonly discoverySource: DiscoverySource;
+	readonly discoverySource: ExternalDiscoverySource;
 
 	getFilePath(details: INativeMcpDiscoveryData): URI | undefined;
 	adaptFile(contents: VSBuffer, details: INativeMcpDiscoveryData): Promise<McpServerDefinition[] | undefined>;
 }
 
-export async function claudeConfigToServerDefinition(idPrefix: string, contents: VSBuffer, cwd?: URI) {
+export async function claudeConfigToServerDefinition(idPrefix: string, contents: VSBuffer, options?: { cwd?: URI; defaultCwd?: URI; expandEnvironmentVariables?: boolean }) {
 	let parsed: {
 		mcpServers: Record<string, {
 			command: string;
@@ -29,6 +30,8 @@ export async function claudeConfigToServerDefinition(idPrefix: string, contents:
 			env?: Record<string, string>;
 			url?: string;
 			headers?: Record<string, string>;
+			oauthClientId?: unknown;
+			oauth?: { clientId?: unknown } | null;
 		}>;
 	};
 
@@ -39,33 +42,48 @@ export async function claudeConfigToServerDefinition(idPrefix: string, contents:
 	}
 
 	return Promise.all(Object.entries(parsed.mcpServers).map(async ([name, server]): Promise<Mutable<McpServerDefinition>> => {
+		const oauthClientId = server.url ? getOAuthClientId(server) : undefined;
 		const launch: McpServerLaunch = server.url ? {
 			type: McpServerTransportType.HTTP,
 			uri: URI.parse(server.url),
 			headers: Object.entries(server.headers ?? {}),
+			...(oauthClientId ? { oauth: { clientId: oauthClientId } } : {}),
 		} : {
 			type: McpServerTransportType.Stdio,
 			args: server.args || [],
 			command: server.command,
 			env: server.env || {},
 			envFile: undefined,
-			cwd: cwd?.fsPath,
+			cwd: options?.cwd?.fsPath,
 			sandbox: undefined
 		};
+		const defaultCwd = launch.type === McpServerTransportType.Stdio ? options?.defaultCwd : undefined;
+		// Keep the legacy fsPath-based nonce so existing trust decisions survive this URI-preservation change.
+		const nonceLaunch = defaultCwd && launch.type === McpServerTransportType.Stdio ? { ...launch, cwd: defaultCwd.fsPath } : launch;
 
 		return {
 			id: `${idPrefix}.${name}`,
 			label: name,
 			launch,
-			cacheNonce: await McpServerLaunch.hash(launch),
+			defaultCwd,
+			cacheNonce: await McpServerLaunch.hash(nonceLaunch),
+			// Keep the raw URL, since `URI` normalization would encode the references.
+			...(options?.expandEnvironmentVariables ? { environmentVariableExpansion: server.url ? { url: server.url } : {} } : {}),
 		};
 	}));
+}
+
+/** Reads the OAuth client ID of a remote server, written as `oauthClientId` by the Copilot CLI, or as VS Code's nested `oauth.clientId`. */
+function getOAuthClientId(server: { readonly oauthClientId?: unknown; readonly oauth?: { readonly clientId?: unknown } | null }): string | undefined {
+	const nested = server.oauth?.clientId;
+	const clientId = typeof nested === 'string' && nested ? nested : server.oauthClientId;
+	return typeof clientId === 'string' && clientId ? clientId : undefined;
 }
 
 export class ClaudeDesktopMpcDiscoveryAdapter implements NativeMpcDiscoveryAdapter {
 	public id: string;
 	public readonly order = McpCollectionSortOrder.Filesystem;
-	public readonly discoverySource: DiscoverySource = DiscoverySource.ClaudeDesktop;
+	public readonly discoverySource: ExternalDiscoverySource = ExternalDiscoverySource.ClaudeDesktop;
 
 	constructor(public readonly remoteAuthority: string | null) {
 		this.id = `claude-desktop.${this.remoteAuthority}`;
@@ -84,12 +102,30 @@ export class ClaudeDesktopMpcDiscoveryAdapter implements NativeMpcDiscoveryAdapt
 	}
 
 	adaptFile(contents: VSBuffer, { homedir }: INativeMcpDiscoveryData): Promise<McpServerDefinition[] | undefined> {
-		return claudeConfigToServerDefinition(this.id, contents, homedir);
+		return claudeConfigToServerDefinition(this.id, contents, { cwd: homedir });
+	}
+}
+
+export class CopilotMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscoveryAdapter {
+	public override readonly discoverySource: ExternalDiscoverySource = ExternalDiscoverySource.Copilot;
+
+	constructor(remoteAuthority: string | null) {
+		super(remoteAuthority);
+		this.id = `copilot.${this.remoteAuthority}`;
+	}
+
+	override getFilePath(details: INativeMcpDiscoveryData): URI | undefined {
+		return getCopilotGlobalMcpConfigurationResource(details);
+	}
+
+	/** Expands `${VAR}` references like the Copilot runtime, including those written when servers are migrated from the user `mcp.json`. */
+	override adaptFile(contents: VSBuffer, { homedir }: INativeMcpDiscoveryData): Promise<McpServerDefinition[] | undefined> {
+		return claudeConfigToServerDefinition(this.id, contents, { cwd: homedir, expandEnvironmentVariables: true });
 	}
 }
 
 export class WindsurfDesktopMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscoveryAdapter {
-	public override readonly discoverySource: DiscoverySource = DiscoverySource.Windsurf;
+	public override readonly discoverySource: ExternalDiscoverySource = ExternalDiscoverySource.Windsurf;
 
 	constructor(remoteAuthority: string | null) {
 		super(remoteAuthority);
@@ -102,7 +138,7 @@ export class WindsurfDesktopMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscover
 }
 
 export class CursorDesktopMpcDiscoveryAdapter extends ClaudeDesktopMpcDiscoveryAdapter {
-	public override readonly discoverySource: DiscoverySource = DiscoverySource.CursorGlobal;
+	public override readonly discoverySource: ExternalDiscoverySource = ExternalDiscoverySource.CursorGlobal;
 
 	constructor(remoteAuthority: string | null) {
 		super(remoteAuthority);

@@ -5,10 +5,11 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { deriveGitHubEndpoints, IGitHubEndpoints } from '../../github/common/githubEndpoints.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../common/agentHostCustomizationConfig.js';
-import { deriveGitHubEndpoints, gitHubCopilotResource, gitHubRepoResource, IGitHubEndpoints } from '../common/githubEndpoints.js';
+import { gitHubCopilotResource, gitHubRepoResource } from '../common/githubEndpoints.js';
 import { ProtectedResourceMetadata } from '../common/state/protocol/state.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 

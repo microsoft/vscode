@@ -7,45 +7,14 @@ import * as pathLib from 'path';
 import { AgentTaskGetResponse, AgentTaskSession, AgentTaskSessionEvent, AgentTaskState } from '@vscode/copilot-api';
 import type { SessionEvent } from '@github/copilot/sdk';
 import * as vscode from 'vscode';
-import { ChatRequestTurn, ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseMultiDiffPart, ChatResponseProgressPart, ChatResponseThinkingProgressPart, ChatResponseTurn2, ChatResult, ChatToolInvocationPart, MarkdownString, Uri } from 'vscode';
+import { ChatRequestTurn, ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseProgressPart, ChatResponseThinkingProgressPart, ChatResponseTurn2, ChatToolInvocationPart, MarkdownString, Uri } from 'vscode';
 import { IGitService } from '../../../platform/git/common/gitService';
-import { PullRequestSearchItem, SessionInfo } from '../../../platform/github/common/githubAPI';
+import { PullRequestSearchItem } from '../../../platform/github/common/githubAPI';
 import { ILogService } from '../../../platform/log/common/logService';
 import { findLast } from '../../../util/vs/base/common/arraysFind';
 import { appendResponsePartsForEvent, createResponseEventRenderContext, flushPendingAssistantMessage, ResponseEventRenderContext } from '../common/sessionEventRenderer';
 import { CLI_TOOL_EVENT_HANDLERS } from '../copilotcli/common/copilotCLITools';
 import { getAuthorDisplayName, isFailedTaskState } from '../vscode/copilotCodingAgentUtils';
-
-export interface SessionResponseLogChunk {
-	choices: Array<{
-		finish_reason?: 'tool_calls' | 'null' | (string & {});
-		delta: {
-			content?: string;
-			role: 'assistant' | (string & {});
-			tool_calls?: Array<{
-				function: {
-					arguments: string;
-					name: string;
-				};
-				id: string;
-				type: string;
-				index: number;
-			}>;
-		};
-	}>;
-	created: number;
-	id: string;
-	usage: {
-		completion_tokens: number;
-		prompt_tokens: number;
-		prompt_tokens_details: {
-			cached_tokens: number;
-		};
-		total_tokens: number;
-	};
-	model: string;
-	object: string;
-}
 
 export interface ToolCall {
 	function: {
@@ -55,21 +24,6 @@ export interface ToolCall {
 	id: string;
 	type: string;
 	index: number;
-}
-
-export interface AssistantDelta {
-	content?: string;
-	role: 'assistant' | (string & {});
-	tool_calls?: ToolCall[];
-}
-
-export interface Choice {
-	finish_reason?: 'tool_calls' | (string & {});
-	delta: {
-		content?: string;
-		role: 'assistant' | (string & {});
-		tool_calls?: ToolCall[];
-	};
 }
 
 export interface StrReplaceEditorToolData {
@@ -102,7 +56,7 @@ export interface ParsedToolCallDetails {
 }
 
 /**
- * Best-effort human-readable error detail for a terminally-failed task (v2). Prefers the last
+ * Best-effort human-readable error detail for a terminally-failed task. Prefers the last
  * non-dismissed `session.error` event (`(errorType) message`), falling back to a `session.shutdown`
  * event's `errorReason`. Returns undefined when no detail is available — e.g. an agent that failed
  * to launch before emitting any error event, where the failure is only reflected in the task state.
@@ -130,7 +84,7 @@ export function extractTaskErrorDetail(events: readonly AgentTaskSessionEvent[])
 }
 
 /**
- * The notice shown for a terminally-stopped task (v2): `Copilot stopped: <reason>`. The reason is
+ * The notice shown for a terminally-stopped task: `Copilot stopped: <reason>`. The reason is
  * the concrete error detail when one is available (`session.error`/`session.shutdown`), otherwise a
  * word derived from the terminal task state — "cancelled" for a user/agent cancellation and "timed
  * out" for a timeout, neither of which emits an error event. Failed tasks with no detail fall back
@@ -160,66 +114,10 @@ export class ChatSessionContentBuilder {
 	) {
 	}
 
-	public async buildSessionHistory(
-		problemStatementPromise: Promise<string | undefined>,
-		sessions: SessionInfo[],
-		pullRequest: PullRequestSearchItem,
-		getLogsForSession: (id: string) => Promise<string>,
-		initialReferences: Promise<vscode.ChatPromptReference[]>,
-	): Promise<Array<ChatRequestTurn | ChatResponseTurn2>> {
-		const history: Array<ChatRequestTurn | ChatResponseTurn2> = [];
-
-		// Process all sessions concurrently and assemble results in order
-		const sessionResults = await Promise.all(
-			sessions.map(async (session, sessionIndex) => {
-				const [logs, problemStatement] = await Promise.all([getLogsForSession(session.id), sessionIndex === 0 ? problemStatementPromise : Promise.resolve(undefined)]);
-
-				const turns: Array<ChatRequestTurn | ChatResponseTurn2> = [];
-
-				// Create request turn with references for the first session
-				const references = sessionIndex === 0 ? Array.from(await initialReferences) : [];
-				turns.push(new ChatRequestTurn2(
-					problemStatement || session.name,
-					undefined, // command
-					references, // references
-					this.type,
-					[], // toolReferences
-					[],
-					undefined,
-					undefined,
-					undefined
-				));
-
-				// Create the PR card right after problem statement for first session
-				if (sessionIndex === 0 && pullRequest.author && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-					const plaintextBody = pullRequest.body;
-
-					const card = new vscode.ChatResponsePullRequestPart({ command: 'github.copilot.chat.openPullRequestReroute', title: vscode.l10n.t('View Pull Request {0}', `#${pullRequest.number}`), arguments: [pullRequest.number] }, pullRequest.title, plaintextBody, getAuthorDisplayName(pullRequest.author), `#${pullRequest.number}`);
-					const cardTurn = new vscode.ChatResponseTurn2([card], {}, this.type);
-					turns.push(cardTurn);
-				}
-
-				const response = await this.createResponseTurn(pullRequest, logs, session);
-				if (response) {
-					turns.push(response);
-				}
-
-				return { sessionIndex, turns };
-			})
-		);
-
-		// Assemble results in correct order
-		sessionResults
-			.sort((a, b) => a.sessionIndex - b.sessionIndex)
-			.forEach(result => history.push(...result.turns));
-
-		return history;
-	}
-
 	/**
 	 * Render a Task API task as chat history. Each entry in `task.sessions[]` is one turn
 	 * (request = the turn prompt; response = a markdown summary derived from events scoped
-	 * to that turn). This does NOT call the SSE log parser — events are typed.
+	 * to that turn). The events are typed.
 	 *
 	 * `pullRequest` is shown as a header card only when the task happens to have a PR.
 	 */
@@ -403,7 +301,7 @@ export class ChatSessionContentBuilder {
 			index: 0,
 		};
 		try {
-			return this.createToolInvocationPart(undefined, toolCall);
+			return this.createToolInvocationPart(toolCall);
 		} catch (e) {
 			this._logService.warn(`[ChatSessionContentBuilder] Failed to render tool request ${req.name}: ${e}`);
 			return undefined;
@@ -423,146 +321,7 @@ export class ChatSessionContentBuilder {
 		appendResponsePartsForEvent(remapCustomAgentEventType(event) as unknown as SessionEvent, ctx);
 	}
 
-	private async createResponseTurn(pullRequest: PullRequestSearchItem, logs: string, session: SessionInfo): Promise<ChatResponseTurn2 | undefined> {
-		if (logs.trim().length > 0) {
-			return await this.parseSessionLogsIntoResponseTurn(pullRequest, logs, session);
-		} else if (session.state === 'in_progress' || session.state === 'queued') {
-			// For in-progress sessions without logs, create a placeholder response
-			const placeholderParts = [new ChatResponseProgressPart('Session is initializing...')];
-			const responseResult: ChatResult = {};
-			return new ChatResponseTurn2(placeholderParts, responseResult, this.type);
-		} else {
-			// For completed sessions without logs, add an empty response to maintain pairing
-			const emptyParts = [new ChatResponseMarkdownPart('_No logs available for this session_')];
-			const responseResult: ChatResult = {};
-			return new ChatResponseTurn2(emptyParts, responseResult, this.type);
-		}
-	}
-
-	private async parseSessionLogsIntoResponseTurn(pullRequest: PullRequestSearchItem, logs: string, session: SessionInfo): Promise<ChatResponseTurn2 | undefined> {
-		try {
-			const logChunks = this.parseSessionLogs(logs);
-			const responseParts: Array<ChatResponseMarkdownPart | ChatToolInvocationPart | ChatResponseMultiDiffPart> = [];
-
-			for (const chunk of logChunks) {
-				if (!chunk.choices || !Array.isArray(chunk.choices)) {
-					continue;
-				}
-
-				for (const choice of chunk.choices) {
-					const delta = choice.delta;
-					if (delta.role === 'assistant') {
-						this.processAssistantDelta(delta, choice, pullRequest, responseParts);
-					}
-
-				}
-			}
-
-			if (responseParts.length > 0) {
-				const responseResult: ChatResult = {};
-				return new ChatResponseTurn2(responseParts, responseResult, this.type);
-			}
-
-			return undefined;
-		} catch (error) {
-			return undefined;
-		}
-	}
-
-	public parseSessionLogs(rawText: string): SessionResponseLogChunk[] {
-		const parts = rawText
-			.split(/\r?\n/)
-			.filter(part => part.startsWith('data: '))
-			.map(part => part.slice('data: '.length).trim())
-			.map(part => JSON.parse(part));
-
-		return parts as SessionResponseLogChunk[];
-	}
-
-	private processAssistantDelta(
-		delta: AssistantDelta,
-		choice: Choice,
-		pullRequest: PullRequestSearchItem,
-		responseParts: Array<ChatResponseMarkdownPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart>,
-	): string {
-		let currentResponseContent = '';
-		if (delta.role === 'assistant') {
-			const toolCalls = Array.isArray(delta.tool_calls) ? delta.tool_calls : undefined;
-			// Handle special case for run_custom_setup_step
-			if (
-				choice.finish_reason === 'tool_calls' &&
-				toolCalls?.length &&
-				(toolCalls[0].function.name === 'run_custom_setup_step' || toolCalls[0].function.name === 'run_setup')
-			) {
-				const toolCall = toolCalls[0];
-				let args: { name?: string } = {};
-				try {
-					args = JSON.parse(toolCall.function.arguments);
-				} catch {
-					// fallback to empty args
-				}
-
-				if (delta.content && delta.content.trim()) {
-					const toolPart = this.createToolInvocationPart(pullRequest, toolCall, args.name || delta.content);
-					if (toolPart) {
-						responseParts.push(toolPart);
-						if (toolPart instanceof ChatResponseThinkingProgressPart) {
-							responseParts.push(new ChatResponseThinkingProgressPart('', '', { vscodeReasoningDone: true }));
-						}
-					}
-				}
-				// Skip if content is empty (running state)
-			} else {
-				if (delta.content) {
-					if (!delta.content.startsWith('<pr_title>') && !delta.content.startsWith('<error>')) {
-						currentResponseContent += delta.content;
-					}
-				}
-
-				const isError = delta.content?.startsWith('<error>');
-				if (toolCalls) {
-					// Add any accumulated content as markdown first
-					if (currentResponseContent.trim()) {
-						responseParts.push(new ChatResponseMarkdownPart(currentResponseContent.trim()));
-						currentResponseContent = '';
-					}
-
-					for (const toolCall of toolCalls) {
-						const toolPart = this.createToolInvocationPart(pullRequest, toolCall, delta.content || '');
-						if (toolPart) {
-							responseParts.push(toolPart);
-							if (toolPart instanceof ChatResponseThinkingProgressPart) {
-								responseParts.push(new ChatResponseThinkingProgressPart('', '', { vscodeReasoningDone: true }));
-							}
-						}
-					}
-
-					if (isError) {
-						const toolPart = new ChatToolInvocationPart('Command', 'command');
-						// Remove <error> at the start and </error> at the end
-						const cleaned = (delta.content ?? '').replace(/^\s*<error>\s*/i, '').replace(/\s*<\/error>\s*$/i, '');
-						toolPart.invocationMessage = cleaned;
-						toolPart.isError = true;
-						responseParts.push(toolPart);
-					}
-				} else {
-					const trimmedContent = currentResponseContent.trim();
-					if (trimmedContent) {
-						// TODO@rebornix @osortega validate if this is the only finish_reason for session end.
-						if (choice.finish_reason === 'stop') {
-							responseParts.push(new ChatResponseMarkdownPart(trimmedContent));
-						} else {
-							responseParts.push(new ChatResponseThinkingProgressPart(trimmedContent, '', { vscodeReasoningDone: true }));
-						}
-						currentResponseContent = '';
-					}
-				}
-			}
-		}
-		return currentResponseContent;
-	}
-
-	public createToolInvocationPart(pullRequest: PullRequestSearchItem | undefined, toolCall: ToolCall, deltaContent: string = ''): ChatToolInvocationPart | ChatResponseThinkingProgressPart | undefined {
+	private createToolInvocationPart(toolCall: ToolCall, deltaContent: string = ''): ChatToolInvocationPart | ChatResponseThinkingProgressPart | undefined {
 		if (!toolCall.function?.name || !toolCall.id) {
 			return undefined;
 		}
@@ -622,16 +381,14 @@ export class ChatSessionContentBuilder {
 	/**
 	 * Convert an absolute agent-host file path to a workspace-relative label.
 	 *
-	 * Agent-host paths all follow `<workspace-root>/<owner>/<repo>/<path>`, only the
-	 * root differs:
-	 * - Jobs API (v1): `/home/runner/work/<owner>/<repo>/<path>`
-	 * - Task API (v2): `/tmp/workspace/<owner>/<repo>/<path>` (or `/workspace/...`)
+	 * Task paths follow `<workspace-root>/<owner>/<repo>/<path>`, where the root is
+	 * `/tmp/workspace` or `/workspace`.
 	 *
 	 * If none of the known roots match, fall back to the basename — better to show
 	 * just the filename than to render a bare "Edit"/"Read" card.
 	 */
 	private toFileLabel(file: string): string {
-		const stripped = file.replace(/^\/(?:home\/runner\/work|tmp\/workspace|workspace)\/[^/]+\/[^/]+\//, '');
+		const stripped = file.replace(/^\/(?:tmp\/workspace|workspace)\/[^/]+\/[^/]+\//, '');
 		return stripped !== file ? stripped : pathLib.basename(file);
 	}
 

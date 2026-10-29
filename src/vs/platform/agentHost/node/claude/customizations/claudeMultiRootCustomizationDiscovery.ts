@@ -53,16 +53,23 @@ export async function discoverClaudeMultiRootCustomizations(
 		]);
 		return { workingDirectories: roots, discovered, nativePlugins };
 	}
-	const [scopes, nativePlugins] = await Promise.all([
-		Promise.all([
-			...roots.map((root, index) => scanClaudeCustomizationScope(root, fileService, index === 0)),
-			scanClaudeCustomizationScope(userHome, fileService),
-		]),
+	const [rootScopes, userScope, nativePlugins] = await Promise.all([
+		Promise.all(roots.map((root, index) => scanClaudeCustomizationScope(root, fileService, index === 0))),
+		scanClaudeCustomizationScope(userHome, fileService),
 		scanClaudeNativePluginsForRoots(roots, userHome, fileService, logService),
 	]);
+	const scopes = [...rootScopes, userScope];
+	// User-scope overrides are expected precedence; only warn on cross-workspace-folder collisions.
+	const userScopeItems = new Set<IParsedAgent | IParsedSkill>(userScope);
+	const logShadowedAcrossRoots = (kind: string) => (shadowed: IParsedAgent | IParsedSkill, winner: IParsedAgent | IParsedSkill): void => {
+		if (userScopeItems.has(shadowed)) {
+			return;
+		}
+		logService.warn(`[claudeMultiRootCustomizationDiscovery] ${kind} '${shadowed.name}' at '${shadowed.uri.toString()}' is shadowed by '${winner.uri.toString()}' from another workspace folder and is unreachable by name`);
+	};
 	const discovered = [
-		...selectFirstClaudeCustomizationByKey(scopes.map(items => items.filter(isParsedAgent)), item => item.name),
-		...selectFirstClaudeCustomizationByKey(scopes.map(items => items.filter(isParsedSkill)), item => item.name),
+		...selectFirstClaudeCustomizationByKey(scopes.map(items => items.filter(isParsedAgent)), item => item.name, logShadowedAcrossRoots('agent')),
+		...selectFirstClaudeCustomizationByKey(scopes.map(items => items.filter(isParsedSkill)), item => item.name, logShadowedAcrossRoots('skill')),
 	];
 	return {
 		workingDirectories: roots,

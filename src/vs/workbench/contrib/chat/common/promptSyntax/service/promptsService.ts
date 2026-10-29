@@ -11,6 +11,7 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
+import { ChatModeKind } from '../../constants.js';
 import { PromptFileSource, PromptsType, Target } from '../promptTypes.js';
 import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
@@ -29,6 +30,7 @@ export interface InstructionsCollectionDebugEntry {
 }
 
 export type InstructionsCollectionEvent = {
+	provider?: string;
 	applyingInstructionsCount: number;
 	referencedInstructionsCount: number;
 	agentInstructionsCount: number;
@@ -118,6 +120,10 @@ export enum PromptsStorage {
 	extension = 'extension',
 	plugin = 'plugin',
 	builtIn = 'builtin',
+}
+
+export function isUserToggleableCustomization(type: PromptsType, storage: PromptsStorage): boolean {
+	return type === PromptsType.skill && storage === PromptsStorage.builtIn;
 }
 
 /**
@@ -212,7 +218,7 @@ export function isBuiltinPromptPath(obj: IPromptPath): obj is IBuiltinPromptPath
 	return obj.storage === PromptsStorage.builtIn;
 }
 
-export type IAgentSource = {
+export type IAgentSource = ({
 	readonly storage: PromptsStorage.extension;
 	readonly extensionId: ExtensionIdentifier;
 } | {
@@ -220,6 +226,8 @@ export type IAgentSource = {
 } | {
 	readonly storage: PromptsStorage.plugin;
 	readonly pluginUri: URI;
+}) & {
+	readonly label?: string;
 };
 
 export namespace IAgentSource {
@@ -240,7 +248,7 @@ export namespace IAgentSource {
 		if (!a || !b) {
 			return false;
 		}
-		if (a.storage !== b.storage) {
+		if (a.storage !== b.storage || a.label !== b.label) {
 			return false;
 		}
 		if (a.storage === PromptsStorage.extension && b.storage === PromptsStorage.extension) {
@@ -275,6 +283,8 @@ export function isCustomAgentVisibility(obj: unknown): obj is ICustomAgentVisibi
 export interface ICustomAgent {
 
 	readonly id: string;
+	/** Optional Ask semantics for a host-provided read-only agent. */
+	readonly kind?: ChatModeKind.Ask;
 	/**
 	 * URI of a custom agent file.
 	 */
@@ -378,7 +388,7 @@ export interface IChatPromptSlashCommand {
 }
 
 export interface IResolvedChatPromptSlashCommand extends IChatPromptSlashCommand {
-	readonly parsedPromptFile: ParsedPromptFile;
+	readonly parsedPromptFile?: ParsedPromptFile;
 }
 
 
@@ -615,9 +625,9 @@ export interface IPromptsService extends IDisposable {
 	listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]>;
 
 	/**
-	 * List all available prompt files.
+	 * Lists all available prompt files from a storage location. For local storage, root scopes relative locations; it is ignored for other storages, and without it the current workspace folders are used.
 	 */
-	listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]>;
+	listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken, root?: URI): Promise<readonly IPromptPath[]>;
 
 	/**
 	 * Get a list of prompt source folders based on the provided prompt type.

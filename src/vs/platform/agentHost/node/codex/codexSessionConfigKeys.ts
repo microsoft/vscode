@@ -8,19 +8,52 @@ import type { ReasoningSummary } from './protocol/generated/ReasoningSummary.js'
 import type { Personality } from './protocol/generated/Personality.js';
 import type { WebSearchMode } from './protocol/generated/WebSearchMode.js';
 import type { ModeKind } from './protocol/generated/ModeKind.js';
+import type { AskForApproval } from './protocol/generated/v2/AskForApproval.js';
+import type { ApprovalsReviewer } from './protocol/generated/v2/ApprovalsReviewer.js';
 import type { SandboxMode } from './protocol/generated/v2/SandboxMode.js';
-import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, narrowCodexPermissionsPreset, presetForResolvedPermissions, resolveCodexPermissionsPreset, type CodexApprovalPolicy, type ICodexResolvedPermissions } from '../../common/codexSessionConfigKeys.js';
+import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESETS, narrowCodexPermissionsPreset, type CodexPermissionsPreset } from '../../common/codexSessionConfigKeys.js';
 
 // Re-export the shared, protocol-free config-key surface so node callers can
 // keep importing everything from this module.
-export { CodexSessionConfigKey, resolveCodexPermissionsPreset, presetForResolvedPermissions, narrowCodexPermissionsPreset, CODEX_PERMISSIONS_PRESETS, CODEX_DEFAULT_PERMISSIONS_PRESET } from '../../common/codexSessionConfigKeys.js';
-export type { CodexApprovalPolicy, CodexPermissionsPreset, CodexSandboxMode, CodexApprovalsReviewer, ICodexResolvedPermissions } from '../../common/codexSessionConfigKeys.js';
+export { CodexSessionConfigKey, narrowCodexPermissionsPreset, getCodexAutonomousSessionConfig, CODEX_PERMISSIONS_PRESETS, CODEX_PERMISSIONS_PRESET_LABELS, CODEX_DEFAULT_PERMISSIONS_PRESET } from '../../common/codexSessionConfigKeys.js';
+export type { CodexPermissionsPreset } from '../../common/codexSessionConfigKeys.js';
+
+export type CodexApprovalPolicy = Extract<AskForApproval, string>;
+
+export interface ICodexResolvedPermissions {
+	readonly approvalPolicy: CodexApprovalPolicy;
+	readonly sandboxMode: SandboxMode;
+	readonly approvalsReviewer: ApprovalsReviewer;
+}
+
+export function resolveCodexPermissionsPreset(preset: CodexPermissionsPreset): ICodexResolvedPermissions {
+	switch (preset) {
+		case 'auto-review':
+			// Same workspace-write sandbox as `default`, but on-request approvals
+			// are routed through the auto-reviewer instead of a UI prompt.
+			return { approvalPolicy: 'on-request', sandboxMode: 'workspace-write', approvalsReviewer: 'auto_review' };
+		case 'full-access':
+			return { approvalPolicy: 'never', sandboxMode: 'danger-full-access', approvalsReviewer: 'user' };
+		case 'default':
+		default:
+			return { approvalPolicy: 'on-request', sandboxMode: 'workspace-write', approvalsReviewer: 'user' };
+	}
+}
+
+export function presetForResolvedPermissions(resolved: ICodexResolvedPermissions): CodexPermissionsPreset | undefined {
+	for (const preset of CODEX_PERMISSIONS_PRESETS) {
+		const axes = resolveCodexPermissionsPreset(preset);
+		if (axes.approvalPolicy === resolved.approvalPolicy && axes.sandboxMode === resolved.sandboxMode && axes.approvalsReviewer === resolved.approvalsReviewer) {
+			return preset;
+		}
+	}
+	return undefined;
+}
 
 export function narrowApprovalPolicy(value: unknown): CodexApprovalPolicy | undefined {
 	switch (value) {
 		case 'never':
 		case 'on-request':
-		case 'on-failure':
 		case 'untrusted':
 			return value;
 		default:
@@ -158,6 +191,8 @@ export function narrowReasoningEffort(value: unknown): ReasoningEffort | undefin
 		case 'medium':
 		case 'high':
 		case 'xhigh':
+		case 'max':
+		case 'ultra':
 			return value;
 		default:
 			return undefined;

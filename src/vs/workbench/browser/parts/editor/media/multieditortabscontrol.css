@@ -123,6 +123,27 @@
 	outline-offset: -2px;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-connected-edge {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-divider {
+	display: none;
+	position: absolute;
+	top: 50%;
+	left: 0;
+	z-index: 9;
+	width: var(--vscode-strokeThickness);
+	height: var(--vscode-spacing-size160);
+	background-color: var(--vscode-tab-divider, transparent);
+	pointer-events: none;
+	transform: translateY(-50%);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element > .tab-connected-overflow-edge {
+	display: none;
+}
+
 /* Tab Background Color in/active group/tab */
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
 	background-color: var(--vscode-tab-unfocusedInactiveBackground);
@@ -168,8 +189,12 @@
 	box-shadow: var(--vscode-shadow-sm);
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab:last-child {
-	margin-right: var(--last-tab-margin-right); /* when tabs wrap, we need a margin away from the absolute positioned editor actions */
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > :is(.tab.last-tab, .tabs-bar-add-tab) {
+	margin-inline-end: var(--last-tab-margin-right); /* Reserve the trailing toolbar region on the final flex item. */
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping.has-add-tab .tabs-container > .tab.last-tab {
+	margin-inline-end: 0;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab.last-in-row:not(:last-child) {
@@ -270,6 +295,11 @@
 	display: none;
 }
 
+/* Intentionally low specificity so the Modern UI treatment, which renders this as a pill background, wins without !important. */
+.tabs-container > .tab > .tab-fill {
+	display: none;
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-left .tab-fade-hider,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.close-action-off .tab-fade-hider,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.tab-actions-left .tab-fade-hider,
@@ -303,7 +333,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title:not(.two-tab-bars) .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container,
 .monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars .tabs-and-actions-container:not(:first-child) .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top > .tab-border-top-container {
-	display: block;
+	display: var(--editor-tab-border-indicator-display, block);
 	position: absolute;
 	left: 0;
 	pointer-events: none;
@@ -534,12 +564,18 @@
 	margin-right: 4px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .editor-actions {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-toolbars {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .editor-toolbars {
 
 	/* When tabs are wrapped, position the editor actions at the end of the very last row */
 	position: absolute;
 	bottom: 0;
-	right: 0;
+	inset-inline-end: 0;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions-separator {
@@ -550,7 +586,7 @@
 	display: none;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars > .tabs-and-actions-container:first-child .editor-actions {
+.monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars > .tabs-and-actions-container:first-child .editor-toolbars {
 
 	/* When multiple tab bars are visible, only show editor actions for the last tab bar */
 	display: none;

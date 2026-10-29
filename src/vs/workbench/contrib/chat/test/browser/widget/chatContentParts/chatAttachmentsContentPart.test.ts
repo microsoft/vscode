@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import * as dom from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestFileService, workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../../browser/labels.js';
 import { getEffectiveImageOmittedState, ImageAttachmentWidget } from '../../../../browser/attachments/chatAttachmentWidgets.js';
@@ -75,6 +78,33 @@ suite('ChatAttachmentsContentPart', () => {
 		} as ILanguageModelsService);
 	}
 
+	test('should keep the image preview in thumbnail hovers by default', () => {
+		const imageHoverContents: HTMLElement[] = [];
+		instantiationService.stub(IHoverService, {
+			...NullHoverService,
+			setupDelayedHover: (target, hoverOptions) => {
+				const options = typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions;
+				if (target.classList.contains('image-attachment') && dom.isHTMLElement(options.content)) {
+					imageHoverContents.push(options.content);
+				}
+				return Disposable.None;
+			},
+		});
+
+		disposables.add(instantiationService.createInstance(
+			ChatAttachmentsContentPart,
+			{ variables: [createImageEntry('image.png', new Uint8Array([0x89, 0x50, 0x4E, 0x47]))], sessionResource: undefined }
+		));
+
+		assert.deepStrictEqual({
+			imageHovers: imageHoverContents.length,
+			imageHoverPreviews: imageHoverContents.reduce((count, content) => count + content.querySelectorAll('.chat-attached-context-image').length, 0),
+		}, {
+			imageHovers: 1,
+			imageHoverPreviews: 1,
+		});
+	});
+
 	suite('updateVariables', () => {
 		test('should update variables and re-render', () => {
 			const initialVariables: IChatRequestVariableEntry[] = [
@@ -84,7 +114,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables: initialVariables }
+				{ variables: initialVariables, sessionResource: undefined }
 			));
 
 			mainWindow.document.body.appendChild(part.domNode!);
@@ -115,7 +145,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables: initialVariables }
+				{ variables: initialVariables, sessionResource: undefined }
 			));
 
 			mainWindow.document.body.appendChild(part.domNode!);
@@ -145,7 +175,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables: initialVariables }
+				{ variables: initialVariables, sessionResource: undefined }
 			));
 
 			const handler = () => { /* handler logic */ };
@@ -173,7 +203,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables: initialVariables }
+				{ variables: initialVariables, sessionResource: undefined }
 			));
 
 			mainWindow.document.body.appendChild(part.domNode!);
@@ -197,7 +227,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables }
+				{ variables, sessionResource: undefined }
 			));
 
 			mainWindow.document.body.appendChild(part.domNode!);
@@ -221,7 +251,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables }
+				{ variables, sessionResource: undefined }
 			));
 
 			mainWindow.document.body.appendChild(part.domNode!);
@@ -240,7 +270,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables }
+				{ variables, sessionResource: undefined }
 			));
 
 			mainWindow.document.body.appendChild(part.domNode!);
@@ -260,7 +290,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables, limit: 1 }
+				{ variables, sessionResource: undefined, limit: 1 }
 			));
 
 			mainWindow.document.body.appendChild(part.domNode!);
@@ -275,7 +305,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables }
+				{ variables, sessionResource: undefined }
 			));
 
 			assert.ok(part.domNode!.classList.contains('chat-attached-context'), 'Should have chat-attached-context class');
@@ -291,7 +321,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables: [image], modelId: 'copilot/auto', resolvedModelId: 'test-non-vision' }
+				{ variables: [image], sessionResource: undefined, modelId: 'copilot/auto', resolvedModelId: 'test-non-vision' }
 			));
 
 			const attachment = part.domNode!.querySelector<HTMLElement>('.image-attachment');
@@ -312,7 +342,7 @@ suite('ChatAttachmentsContentPart', () => {
 
 			const part = store.add(instantiationService.createInstance(
 				ChatAttachmentsContentPart,
-				{ variables: [image], modelId: 'copilot/auto' }
+				{ variables: [image], sessionResource: undefined, modelId: 'copilot/auto' }
 			));
 
 			const attachment = part.domNode!.querySelector<HTMLElement>('.image-attachment');
@@ -355,7 +385,7 @@ suite('ChatAttachmentsContentPart', () => {
 				const fileService = instantiationService.get(IFileService) as TestFileService;
 				const part = store.add(instantiationService.createInstance(
 					ChatAttachmentsContentPart,
-					{ variables: [image] }
+					{ variables: [image], sessionResource: undefined }
 				));
 
 				mainWindow.document.body.appendChild(part.domNode!);
@@ -423,7 +453,13 @@ suite('ChatAttachmentsContentPart', () => {
 
 				await new Promise<void>(resolve => setTimeout(resolve, 0));
 
-				assert.strictEqual(widget.element.ariaLabel, 'Attached image, pasted-image.png (Delete)');
+				assert.deepStrictEqual({
+					ariaLabel: widget.element.ariaLabel,
+					clearButtonClass: widget.element.querySelector('.monaco-button')?.className,
+				}, {
+					ariaLabel: 'Attached image, pasted-image.png (Delete)',
+					clearButtonClass: 'monaco-button codicon codicon-close-compact',
+				});
 			});
 		});
 	});

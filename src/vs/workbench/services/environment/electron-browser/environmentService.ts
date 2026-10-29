@@ -14,7 +14,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { joinPath } from '../../../../base/common/resources.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 
 export const INativeWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, INativeWorkbenchEnvironmentService>(IEnvironmentService);
 
@@ -153,6 +153,12 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get isSessionsWindow(): boolean { return !!this.configuration.isSessionsWindow; }
+
+	@memoize
+	get sessionTitle(): string | undefined {
+		const encodedSessionTitle = this.configuration['session-title-base64'];
+		return encodedSessionTitle ? decodeBase64(encodedSessionTitle).toString() : undefined;
+	}
 
 	constructor(
 		private readonly configuration: INativeWindowConfiguration,

@@ -13,9 +13,13 @@ import { IObservable, observableValue } from '../../../../base/common/observable
  *
  * When a session's pending action is approved, {@link approvedCount} briefly
  * reflects how many sessions were approved within a rolling window; each new
- * approval increments the count and restarts the window. The sessions titlebar
- * widget owns an instance and surfaces this as a transient "Approved N sessions"
- * message.
+ * approval increments the count and restarts the window. The sessions title bar
+ * surfaces this as a transient "Approved N sessions" message.
+ *
+ * The instance is owned by `SessionsTitleBarContribution` rather than the title
+ * bar widget it is rendered by: the command center disposes and re-creates its
+ * action view items whenever its context keys change, which would otherwise cut
+ * the confirmation short.
  */
 export class SessionActionFeedback extends Disposable {
 

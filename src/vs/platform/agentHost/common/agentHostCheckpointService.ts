@@ -18,9 +18,22 @@ export function buildCheckpointRefName(sanitizedSessionId: string, turnNumber: n
 }
 
 /**
+ * Builds the ref of a turn checkpoint of a peer chat. `chatKey` is an opaque key
+ * of the chat (the first 16 hex characters of the SHA-1 of its stored URI) and
+ * `turnNumber` counts the chat's own checkpoints; the default chat keeps
+ * {@link buildCheckpointRefName}.
+ */
+export function buildChatCheckpointRefName(chatKey: string, turnNumber: number): string {
+	return `refs/agents/chats/${chatKey}/checkpoints/turn/${turnNumber}`;
+}
+
+/**
  * Captures per-turn git **checkpoint refs** for Agent Host sessions so
  * end-of-turn diffs reflect the entire working-tree delta (including
  * terminal-tool edits that are invisible to the FileEditTracker pipeline).
+ * Each capture processes a checkout root once after success. Additional folders
+ * in that checkout can retry failed work; later captures take fresh snapshots.
+ * Linked worktrees and roots with different path casing remain separate on all platforms.
  *
  * Each checkpoint is a parentless or parent-chained commit (commit-tree)
  * pointing at a tree captured via the temp-index trick, anchored under
@@ -28,9 +41,11 @@ export function buildCheckpointRefName(sanitizedSessionId: string, turnNumber: n
  * namespace means the commits stay reachable for the lifetime of the
  * session and survive process restarts (refs live on disk in
  * `<repo>/.git/refs/`), while never appearing as branches/tags to the
- * user. Cleanup is driven by `ISessionDataService.onWillDeleteSessionData`
- * — the service deletes every ref it created for the destroyed session
- * before the data directory is removed.
+ * user. Peer chats' turn refs are chat-only, see {@link buildChatCheckpointRefName}.
+ * A turn's ref is recorded in its chat's own database, with the repositories
+ * the chat captured in. Cleanup is driven by `ISessionDataService.onWillDeleteSessionData`
+ * — before a chat's or session's data directory is removed, the service deletes
+ * the refs its database records.
  */
 export interface IAgentHostCheckpointService {
 	readonly _serviceBrand: undefined;
@@ -55,8 +70,18 @@ export interface IAgentHostCheckpointService {
 	captureBaselineCheckpoint(sessionUri: URI, workingDirectories: readonly URI[] | undefined): Promise<void>;
 
 	/**
+	 * Captures the working trees immediately before a turn is sent to the agent.
+	 * The corresponding end checkpoint uses these trees as its parents so
+	 * changes made between turns are not attributed to the new turn. Overlapping
+	 * turns in one session are excluded from Git attribution because their
+	 * shared working-tree edits cannot be separated; those turns use tracked
+	 * file edits instead.
+	 */
+	captureTurnStartCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void>;
+
+	/**
 	 * Captures an end-of-turn checkpoint in each of `workingDirectories`,
-	 * chained to the previous turn's checkpoint (or the baseline for turn 1).
+	 * chained to the matching turn-start checkpoint when available.
 	 * Persists the ref against the turn via `ISessionDatabase.setTurnCheckpointRef`
 	 * once at least one repository captured successfully. A directory that is
 	 * not git-backed, or has no baseline, is skipped.
@@ -73,14 +98,22 @@ export interface IAgentHostCheckpointService {
 	 * so that every checkpoint operation is explicit about the repositories
 	 * it acts on rather than depending on live session state.
 	 */
-	captureTurnCheckpoint(sessionUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void>;
+	captureTurnCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void>;
+
+	/** Discards a pending turn-start checkpoint when a turn does not complete. */
+	discardTurnStartCheckpoint(sessionUri: URI, chatUri: URI, turnId: string): Promise<void>;
+
+	/** Discards all pending turn-start checkpoints for a chat after truncation. */
+	discardChatTurnStartCheckpoints(sessionUri: URI, chatUri: URI): Promise<void>;
 
 	/**
 	 * Returns the `{ parent, current }` checkpoint refs for a turn, or
 	 * `undefined` when either is missing. Used by the changeset service
 	 * to decide whether to take the git-diff fast path for per-turn diffs.
+	 * `chat` is the chat the turn belongs to, whose own database holds the
+	 * turn's checkpoint row; `undefined` stands for the session's default chat.
 	 */
-	getTurnCheckpointPair(sessionUri: URI, turnId: string, workingDirectory?: URI): Promise<{ parent: string; current: string } | undefined>;
+	getTurnCheckpointPair(sessionUri: URI, chat: URI | undefined, turnId: string, workingDirectory?: URI): Promise<{ parent: string; current: string } | undefined>;
 
 	/**
 	 * Returns the session's baseline checkpoint ref, or `undefined` when
@@ -91,20 +124,33 @@ export interface IAgentHostCheckpointService {
 	getBaselineCheckpoint(sessionUri: URI, workingDirectory?: URI): Promise<string | undefined>;
 
 	/**
-	 * Deletes every checkpoint ref this service created for the session
-	 * (baseline + all turn refs), reading the precise list from the
-	 * session database. Tolerates missing refs.
+	 * Deletes the checkpoint refs the database at `sessionUri` (a session's or
+	 * a chat's) records: every turn ref of its rows, in the repositories its
+	 * captures recorded. Tolerates missing refs.
 	 *
 	 * Called from a subscriber to `ISessionDataService.onWillDeleteSessionData`
-	 * before the session's data directory is removed.
+	 * before the data directory is removed.
 	 *
-	 * `workingDirectories` identifies the repositories holding the refs.
-	 * There is deliberately no fallback to the session's live state: by
-	 * the time this runs the session has typically already been removed
-	 * from the state manager, so omitting them is a silent no-op that
-	 * leaks the refs.
+	 * `workingDirectories` are a session's current directories: the repositories
+	 * they resolve to that hold the session's baseline lose the baseline and the
+	 * database's turn refs too. There is deliberately no fallback to the
+	 * session's live state: by the time this runs the session has typically
+	 * already been removed from the state manager.
 	 */
 	deleteCheckpoints(sessionUri: URI, workingDirectories?: readonly string[]): Promise<void>;
+
+	/**
+	 * Adopts the legacy extension-host Copilot CLI checkpoint refs
+	 * (`refs/sessions/<rawSessionId>/checkpoints/turn/<N>`) for a migrated session:
+	 * re-points each commit under this service's
+	 * `refs/agents/<sid>/checkpoints/turn/<N>` namespace (same OIDs), seeds the
+	 * session database per-turn checkpoint index keyed by the supplied ordered
+	 * {@link turnIds} (the baseline and per-turn commits stay discoverable by the
+	 * ref-name convention), and drops the legacy refs. Best-effort and idempotent;
+	 * a no-op when the working directory is not git-backed or no legacy refs exist.
+	 * Optional so fixtures that don't exercise migration can omit it.
+	 */
+	adoptLegacyCheckpoints?(sessionUri: URI, workingDirectory: URI, rawSessionId: string, turnIds: readonly string[]): Promise<void>;
 }
 
 /**
@@ -114,7 +160,10 @@ export interface IAgentHostCheckpointService {
 export const NULL_CHECKPOINT_SERVICE: IAgentHostCheckpointService = {
 	_serviceBrand: undefined,
 	captureBaselineCheckpoint: async () => { },
+	captureTurnStartCheckpoint: async () => { },
 	captureTurnCheckpoint: async () => { },
+	discardTurnStartCheckpoint: async () => { },
+	discardChatTurnStartCheckpoints: async () => { },
 	getTurnCheckpointPair: async () => undefined,
 	getBaselineCheckpoint: async () => undefined,
 	deleteCheckpoints: async () => { },

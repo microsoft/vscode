@@ -3,19 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import assert from 'assert';
+import * as sinon from 'sinon';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { AgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
-import { ActionType } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ResponsePart, type SessionSummary, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { AgentHostGitHubService, IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AgentHostPeerChatStore } from '../../node/agentHostPeerChatStore.js';
+import { AgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
+import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
+import { ActionType, NotificationType } from '../../common/state/sessionActions.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ResponsePart, type SessionSummary, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
+import { IGitHubAccountClient } from '../../../github/common/account/account.js';
+import { ApiRequestOptions } from '../../../github/common/client/request.js';
+import { RepositoryRef } from '../../../github/common/client/types.js';
+import { IIssuesClient, Issue } from '../../../github/common/core/issues.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
+import { AgentHostUtilityModelUnavailableError, AgentHostUtilityModelUnavailableReason, type IAgentHostUtilityModelContext, type IAgentHostUtilityModelService } from '../../node/agentHostUtilityModelService.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { sessionServerToolDefinitions } from '../../node/shared/sessionServerTools.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createTestGitHubIssue } from './testGitHubService.js';
+import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+import { createLiveChatOwnership, createTestChatOwnershipService, noOlderBuildCopyParticipant } from './chatOwnershipTestUtils.js';
 
 class TestCopilotApiService implements ICopilotApiService {
 	declare readonly _serviceBrand: undefined;
@@ -24,6 +45,10 @@ class TestCopilotApiService implements ICopilotApiService {
 	response = 'Generated title';
 	responsePromise: Promise<string> | undefined;
 	error: Error | undefined;
+
+	private readonly _onDidRequestUtility = new Emitter<void>();
+	/** Fires after each recorded {@link utilityCalls} entry. */
+	readonly onDidRequestUtility = this._onDidRequestUtility.event;
 
 	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsStreaming, _options?: ICopilotApiServiceRequestOptions): AsyncGenerator<Anthropic.MessageStreamEvent>;
 	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsNonStreaming, _options?: ICopilotApiServiceRequestOptions): Promise<Anthropic.Message>;
@@ -37,6 +62,7 @@ class TestCopilotApiService implements ICopilotApiService {
 	async resolveApiEndpoint() { return undefined; }
 	async utilityChatCompletion(githubToken: string, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
 		this.utilityCalls.push({ token: githubToken, request, options });
+		this._onDidRequestUtility.fire();
 		if (this.error) {
 			throw this.error;
 		}
@@ -47,13 +73,68 @@ class TestCopilotApiService implements ICopilotApiService {
 	}
 }
 
+function createUtilityModelService(copilotApiService: TestCopilotApiService, getGitHubCopilotToken: () => string | undefined): IAgentHostUtilityModelService {
+	return {
+		_serviceBrand: undefined,
+		chatCompletion: (_context, request, options) => {
+			const token = getGitHubCopilotToken();
+			return token
+				? copilotApiService.utilityChatCompletion(token, request, options)
+				: Promise.reject(new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.CopilotSignInRequired));
+		},
+	};
+}
+
+class TestGitHubQuery extends mock<IIssuesClient>() {
+	readonly calls: { owner: string; repo: string; number: number; options?: ApiRequestOptions; signal: AbortSignal }[] = [];
+	readonly responses = new Map<string, Pick<Issue, 'title' | 'body'> | Error>();
+	readonly pendingResponses = new Set<string>();
+
+	override async get({ owner, repo }: RepositoryRef, number: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<Issue> {
+		this.calls.push({ owner, repo, number, options, signal });
+		const key = `${owner}/${repo}#${number}`;
+		if (this.pendingResponses.has(key)) {
+			return new Promise((_resolve, reject) => {
+				if (signal.aborted) {
+					reject(signal.reason);
+					return;
+				}
+				signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+			});
+		}
+		const response = this.responses.get(key);
+		if (response instanceof Error) {
+			throw response;
+		}
+		if (!response) {
+			throw new Error('missing test response');
+		}
+		return createTestGitHubIssue(number, { ...response, body: response.body });
+	}
+
+}
+
+/** Reads session values straight from `db`, standing in for a session that has no central state. */
+function readDatabaseValues(db: TestSessionDatabase): (session: URI, keys: readonly string[]) => Promise<ReadonlyMap<string, string>> {
+	return async (_session, keys) => {
+		const values = await db.getMetadataObject(Object.fromEntries(keys.map(key => [key, true])));
+		return new Map(Object.entries(values).filter((entry): entry is [string, string] => entry[1] !== undefined));
+	};
+}
+
 suite('AgentHostSessionTitleController', () => {
 	const disposables = new DisposableStore();
+	/** Events after which a {@link waitForCondition} predicate may hold; reset after each test. */
+	let observedChanges: Event<unknown>[] = [];
 
-	teardown(() => disposables.clear());
+	teardown(() => {
+		sinon.restore();
+		disposables.clear();
+		observedChanges = [];
+	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSummary(session: URI, title = ''): SessionSummary {
+	function createSummary(session: URI, title = '', isEphemeral = false): SessionSummary & { readonly defaultChat: string } {
 		return {
 			resource: session.toString(),
 			provider: 'copilot',
@@ -61,44 +142,943 @@ suite('AgentHostSessionTitleController', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
+			...(isEphemeral ? { _meta: withEphemeralSessionMeta(undefined, true) } : {}),
+			defaultChat: buildDefaultChatUri(session.toString()),
 		};
 	}
 
-	async function waitForCondition(predicate: () => boolean | Promise<boolean>, message: string): Promise<void> {
-		for (let i = 0; i < 20; i++) {
-			if (await predicate()) {
-				return;
-			}
-			await new Promise(resolve => setTimeout(resolve, 5));
-		}
-		assert.ok(await predicate(), message);
+	/** Lets {@link waitForCondition} re-evaluate its predicate whenever one of `changes` fires. */
+	function observe(...changes: Event<unknown>[]): void {
+		observedChanges.push(...changes);
 	}
 
-	function setup(copilotApiService = new TestCopilotApiService(), title = '', getGitHubCopilotToken = () => 'gh-token'): {
+	/**
+	 * Resolves once `predicate` holds. It is evaluated now and again after each {@link observe}d change, subscribing
+	 * before every evaluation so that no change is missed. A condition that never holds fails by Mocha's timeout;
+	 * `message` describes the condition at the call site.
+	 */
+	async function waitForCondition(predicate: () => boolean | Promise<boolean>, message: string): Promise<void> {
+		while (true) {
+			const changed = Event.toPromise(Event.any(...observedChanges));
+			if (await predicate()) {
+				changed.cancel();
+				return;
+			}
+			await changed;
+		}
+	}
+
+	function setup(
+		copilotApiService = new TestCopilotApiService(),
+		title = '',
+		getGitHubCopilotToken = () => 'gh-token',
+		query = new TestGitHubQuery(),
+		getGitHubToken: (session: string) => string | undefined = () => 'github-token',
+		gitHubContextRequestTimeout?: number,
+		getGitHubHost = () => 'github.com',
+		initialTitleGenerationStrategy: AutomaticTitleGenerationStrategy = 'utility',
+		isEphemeral = false,
+	): {
 		controller: AgentHostSessionTitleController;
 		stateManager: AgentHostStateManager;
 		session: URI;
 		db: TestSessionDatabase;
 		titleActions: string[];
+		catalogSyncs: { session: string; metadataOverrides: Readonly<Record<string, string>> }[];
 		copilotApiService: TestCopilotApiService;
+		query: TestGitHubQuery;
+		clientDisposals: () => number;
+		logService: NullLogService;
 	} {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const db = new TestSessionDatabase();
 		const session = URI.parse('agenthost-session://copilot/session-title-test');
-		stateManager.createSession(createSummary(session, title));
+		stateManager.createSession(createSummary(session, title, isEphemeral));
 		const titleActions: string[] = [];
+		const catalogSyncs: { session: string; metadataOverrides: Readonly<Record<string, string>> }[] = [];
 		disposables.add(stateManager.onDidEmitEnvelope(e => {
 			if (e.action.type === ActionType.SessionTitleChanged) {
 				titleActions.push(e.action.title);
 			}
 		}));
+		observe(stateManager.onDidEmitEnvelope, db.onDidChangeMetadata, copilotApiService.onDidRequestUtility);
+		let clientDisposals = 0;
+		const logService = disposables.add(new NullLogService());
 		const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
 			sessionDataService: createSessionDataService(db),
-			getGitHubCopilotToken,
-			copilotApiService,
-		}, new NullLogService()));
-		return { controller, stateManager, session, db, titleActions, copilotApiService };
+			queueCatalogSync: (session, metadataOverrides) => catalogSyncs.push({ session, metadataOverrides }),
+			getGitHubToken,
+			getGitHubHost,
+			gitHubContextRequestTimeout,
+			gitHubService: new class extends mock<IAgentHostGitHubService>() {
+				override acquireRepositoryApiClient(signal: AbortSignal): IGitHubAccountClient {
+					signal.throwIfAborted();
+					return new class extends mock<IGitHubAccountClient>() {
+						override readonly issues = query;
+						override dispose(): void { clientDisposals++; }
+					}();
+				}
+			}(),
+			utilityModelService: createUtilityModelService(copilotApiService, getGitHubCopilotToken),
+			getInitialTitleGenerationStrategy: () => initialTitleGenerationStrategy,
+		}, logService, createTestChatOwnershipService(stateManager)));
+		return { controller, stateManager, session, db, titleActions, catalogSyncs, copilotApiService, query, clientDisposals: () => clientDisposals, logService };
 	}
+
+	test('queues matching parent catalog overrides for automatic and manual peer titles', () => {
+		const { controller, stateManager, session, catalogSyncs } = setup();
+		const chat = buildChatUri(session.toString(), 'peer-catalog-title');
+		stateManager.addChat(session.toString(), chat, creationTimeChatStorageResource(session.toString(), chat, buildDefaultChatUri(session.toString())), {});
+
+		controller.markTitleAuto(session.toString(), chat, 'Automatic title');
+		controller.markTitleRenamed(session.toString(), chat, 'Manual title');
+
+		assert.deepStrictEqual(catalogSyncs, [{
+			session: session.toString(),
+			metadataOverrides: {
+				[customChatTitleMetadataKey(chat)]: 'Automatic title',
+				[customChatTitleSourceMetadataKey(chat)]: AGENT_HOST_TITLE_SOURCE_AUTO,
+			},
+		}, {
+			session: session.toString(),
+			metadataOverrides: {
+				[customChatTitleMetadataKey(chat)]: 'Manual title',
+				[customChatTitleSourceMetadataKey(chat)]: AGENT_HOST_TITLE_SOURCE_USER,
+			},
+		}]);
+	});
+
+	function setupDeferred(getToken = () => 'gh-token', isEphemeral = false) {
+		return setup(undefined, '', getToken, undefined, undefined, undefined, undefined, 'deferred', isEphemeral);
+	}
+
+	test('deferred mode persists its seed without utility requests or foreground naming instructions', async () => {
+		const { controller, session, db, titleActions, copilotApiService, query } = setupDeferred();
+		controller.seedTitleFromFirstMessage(session.toString(), 'Fix https://github.com/microsoft/vscode/issues/123');
+
+		assert.deepStrictEqual({
+			titleActions,
+			title: await db.getMetadata('customTitle'),
+			source: await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
+			strategy: await db.getMetadata('titleGenerationStrategy'),
+			instruction: await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)),
+			utilityCalls: copilotApiService.utilityCalls.length,
+			githubCalls: query.calls.length,
+		}, {
+			titleActions: ['Fix https://github.com/microsoft/vscode/issues/123'],
+			title: 'Fix https://github.com/microsoft/vscode/issues/123',
+			source: AGENT_HOST_TITLE_SOURCE_AUTO,
+			strategy: 'deferred',
+			instruction: undefined,
+			utilityCalls: 0,
+			githubCalls: 0,
+		});
+	});
+
+	test('deferred refinement is nonblocking and starts only once', async () => {
+		const { controller, stateManager, session, copilotApiService, db } = setupDeferred();
+		const pendingTitle = new DeferredPromise<string>();
+		copilotApiService.responsePromise = pendingTitle.p;
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Implemented dark mode.')])]);
+
+		const result = controller.refineTitleFromFirstTurn(session.toString());
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should start');
+		assert.deepStrictEqual({
+			result,
+			pending: !pendingTitle.isSettled,
+			title: stateManager.getSessionState(session.toString())?.title,
+			turnState: stateManager.getSessionState(session.toString())?.turns[0].state,
+			calls: copilotApiService.utilityCalls.length,
+		}, { result: undefined, pending: true, title: 'Add dark mode', turnState: TurnState.Complete, calls: 1 });
+
+		await pendingTitle.complete('Dark mode setting');
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Dark mode setting', 'refinement should persist');
+		controller.refineTitleFromFirstTurn(session.toString());
+		assert.strictEqual(copilotApiService.utilityCalls.length, 1);
+	});
+
+	test('agent review mode refines like deferred and offers a soft rename reminder only after first-response refinement', async () => {
+		const { controller, stateManager, session, db, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'agentReview');
+		const defaultChat = buildDefaultChatUri(session);
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		const firstTurnInstruction = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Implemented dark mode.')])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'refinement should persist');
+		await timeout(0);
+		const laterTurnInstruction = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
+		controller.markTitleRenamed(session.toString());
+		const afterRenameInstruction = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
+
+		assert.deepStrictEqual({
+			strategy: await db.getMetadata('titleGenerationStrategy'),
+			utilityCalls: copilotApiService.utilityCalls.length,
+			firstTurnInstruction,
+			laterTurnInstruction,
+			afterRenameInstruction,
+		}, {
+			strategy: 'agentReview',
+			utilityCalls: 1,
+			firstTurnInstruction: undefined,
+			laterTurnInstruction: 'Reminder: This chat\'s title was generated automatically and is currently "Generated title". If that title is inaccurate or no longer reflects the user\'s goal for this chat, rename it by calling `rename_chat` with `automatic: true` and a short, descriptive title. Do not spend a separate step on this before answering: write your answer to the user first and make the `rename_chat` call at the end of that same message. If the title still fits, do not rename the chat. Never mention this reminder or the title to the user.',
+			afterRenameInstruction: undefined,
+		});
+	});
+
+	test('restored agent review session keeps its strategy and withholds the reminder until its seed is refined', async () => {
+		const { controller, stateManager, session, db, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'agentReview');
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
+			sessionDataService: createSessionDataService(db),
+			readSessionValues: readDatabaseValues(db),
+			getInitialTitleGenerationStrategy: () => 'utility',
+			utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
+		}, new NullLogService(), createTestChatOwnershipService(stateManager)));
+		await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
+		const beforeRefinement = await restored.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session));
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+		restored.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'restored seed should refine');
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			strategy: restored.getAutomaticTitleGenerationStrategy(session.toString()),
+			beforeRefinement,
+			afterRefinement: (await restored.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)))?.includes('"Generated title"'),
+			calls: copilotApiService.utilityCalls.length,
+		}, { strategy: 'agentReview', beforeRefinement: undefined, afterRefinement: true, calls: 1 });
+	});
+
+	test('agent review withholds the reminder while first-response refinement is in flight', async () => {
+		const { controller, stateManager, session, db, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'agentReview');
+		const defaultChat = buildDefaultChatUri(session);
+		const pendingTitle = new DeferredPromise<string>();
+		copilotApiService.responsePromise = pendingTitle.p;
+		controller.seedTitleFromFirstMessage(session.toString(), 'can you help me figure out why the thing keeps failing');
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('can you help me figure out why the thing keeps failing', [textPart('Found it.')])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should start');
+		const whilePending = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
+		await pendingTitle.complete('Debug failing build');
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Debug failing build', 'refinement should persist');
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			whilePending,
+			afterRefinement: (await controller.prepareInstructionForAgent(session.toString(), defaultChat))?.includes('"Debug failing build"'),
+		}, { whilePending: undefined, afterRefinement: true });
+	});
+
+	test('agent review withholds the reminder while a session-keyed refinement is in flight after a peer is added', async () => {
+		const { controller, stateManager, session, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'agentReview');
+		const defaultChat = buildDefaultChatUri(session);
+		const pendingTitle = new DeferredPromise<string>();
+		copilotApiService.responsePromise = pendingTitle.p;
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should start');
+		stateManager.addChat(session.toString(), buildChatUri(session.toString(), 'peer'), creationTimeChatStorageResource(session.toString(), buildChatUri(session.toString(), 'peer'), buildDefaultChatUri(session.toString())), {});
+		controller.markTitleAuto(session.toString(), defaultChat, 'Add dark mode');
+		const whilePending = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
+		await pendingTitle.complete('Dark mode setting');
+		await timeout(0);
+
+		assert.strictEqual(whilePending, undefined);
+	});
+
+	test('agent review offers the reminder when first-response refinement never starts', async () => {
+		const { controller, stateManager, session, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'agentReview');
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		stateManager.seedDefaultChatTurns(session.toString(), [
+			firstTurn('Add dark mode', [textPart('Done')]),
+			{ ...firstTurn('Also add a toggle', [textPart('Done')]), id: 'turn-2' },
+		]);
+		controller.refineTitleFromFirstTurn(session.toString());
+
+		assert.deepStrictEqual({
+			calls: copilotApiService.utilityCalls.length,
+			instruction: (await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)))?.includes('"Add dark mode"'),
+		}, { calls: 0, instruction: true });
+	});
+
+	test('agent review withholds the reminder on the first turn of an auto-titled chat without a seed', async () => {
+		const { controller, stateManager, session } = setup(undefined, 'Given title', undefined, undefined, undefined, undefined, undefined, 'agentReview');
+		const defaultChat = buildDefaultChatUri(session);
+		controller.markTitleAuto(session.toString(), undefined, 'Given title');
+		const firstTurnInstruction = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Investigate flaky test', [textPart('Done')])]);
+
+		assert.deepStrictEqual({
+			firstTurnInstruction,
+			secondTurnInstruction: (await controller.prepareInstructionForAgent(session.toString(), defaultChat))?.includes('"Given title"'),
+		}, { firstTurnInstruction: undefined, secondTurnInstruction: true });
+	});
+
+	test('agent review offers at most three reminders per chat', async () => {
+		const { controller, stateManager, session } = setup(undefined, 'Given title', undefined, undefined, undefined, undefined, undefined, 'agentReview');
+		const defaultChat = buildDefaultChatUri(session);
+		controller.markTitleAuto(session.toString(), undefined, 'Given title');
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Investigate flaky test', [textPart('Done')])]);
+		const offered: boolean[] = [];
+		for (let i = 0; i < 4; i++) {
+			offered.push(await controller.prepareInstructionForAgent(session.toString(), defaultChat) !== undefined);
+		}
+		assert.deepStrictEqual(offered, [true, true, true, false]);
+	});
+
+	test('agent review keeps the reminder cap when a peer makes the default chat independent', async () => {
+		const { controller, stateManager, session } = setup(undefined, 'Given title', undefined, undefined, undefined, undefined, undefined, 'agentReview');
+		const defaultChat = buildDefaultChatUri(session);
+		controller.markTitleAuto(session.toString(), undefined, 'Given title');
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Investigate flaky test', [textPart('Done')])]);
+		const offered: boolean[] = [];
+		for (let i = 0; i < 3; i++) {
+			offered.push(await controller.prepareInstructionForAgent(session.toString(), defaultChat) !== undefined);
+		}
+		stateManager.addChat(session.toString(), buildChatUri(session.toString(), 'peer'), creationTimeChatStorageResource(session.toString(), buildChatUri(session.toString(), 'peer'), buildDefaultChatUri(session.toString())), {});
+		controller.markTitleAuto(session.toString(), defaultChat, 'Given title');
+		offered.push(await controller.prepareInstructionForAgent(session.toString(), defaultChat) !== undefined);
+		assert.deepStrictEqual(offered, [true, true, true, false]);
+	});
+
+	test('agent review keeps the reminder cap when the last peer is removed', async () => {
+		const { controller, stateManager, session } = setup(undefined, 'Given title', undefined, undefined, undefined, undefined, undefined, 'agentReview');
+		const defaultChat = buildDefaultChatUri(session);
+		const peer = buildChatUri(session.toString(), 'peer');
+		controller.markTitleAuto(session.toString(), undefined, 'Given title');
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Investigate flaky test', [textPart('Done')])]);
+		const offered: boolean[] = [];
+		offered.push(await controller.prepareInstructionForAgent(session.toString(), defaultChat) !== undefined);
+		stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), {});
+		controller.markTitleAuto(session.toString(), defaultChat, 'Given title');
+		for (let i = 0; i < 2; i++) {
+			offered.push(await controller.prepareInstructionForAgent(session.toString(), defaultChat) !== undefined);
+		}
+		stateManager.removeChat(session.toString(), peer);
+		offered.push(await controller.prepareInstructionForAgent(session.toString(), defaultChat) !== undefined);
+		assert.deepStrictEqual(offered, [true, true, true, false]);
+	});
+
+	test('agent review offers the reminder after a cancelled first response, which settles refinement without refining', async () => {
+		const { controller, stateManager, session, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'agentReview');
+		const defaultChat = buildDefaultChatUri(session);
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		const beforeResponse = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
+		stateManager.seedDefaultChatTurns(session.toString(), [{ ...firstTurn('Add dark mode', []), state: TurnState.Cancelled }]);
+		controller.refineTitleFromFirstTurn(session.toString(), undefined, false);
+
+		assert.deepStrictEqual({
+			beforeResponse,
+			calls: copilotApiService.utilityCalls.length,
+			afterCancelled: (await controller.prepareInstructionForAgent(session.toString(), defaultChat))?.includes('"Add dark mode"'),
+		}, { beforeResponse: undefined, calls: 0, afterCancelled: true });
+	});
+
+	for (const { rename, generated } of [
+		{ rename: undefined, generated: 'Dark mode setting' },
+		{ rename: undefined, generated: 'Add dark mode' },
+		{ rename: 'Manual title', generated: 'Dark mode setting' },
+		{ rename: 'Add dark mode', generated: 'Dark mode setting' },
+	]) {
+		test(`pending deferred refinement follows the default chat when a peer is added (rename: ${rename}, generated: ${generated})`, async () => {
+			const { stateManager, session, copilotApiService, db } = setupDeferred();
+			const sessionData = createSessionDataService(db);
+			const chatDb = new TestSessionDatabase();
+			const chatData = createSessionDataService(chatDb);
+			const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
+				sessionDataService: {
+					...sessionData,
+					openDatabase: resource => (resource.toString() === session.toString() ? sessionData : chatData).openDatabase(resource),
+					tryOpenDatabase: resource => (resource.toString() === session.toString() ? sessionData : chatData).tryOpenDatabase(resource),
+				},
+				getInitialTitleGenerationStrategy: () => 'deferred',
+				utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
+			}, new NullLogService(), createTestChatOwnershipService(stateManager)));
+			const defaultChat = buildDefaultChatUri(session);
+			const pendingTitle = new DeferredPromise<string>();
+			copilotApiService.responsePromise = pendingTitle.p;
+			controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+			stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+			controller.refineTitleFromFirstTurn(session.toString());
+			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should start');
+
+			stateManager.addChat(session.toString(), buildChatUri(session.toString(), 'peer'), creationTimeChatStorageResource(session.toString(), buildChatUri(session.toString(), 'peer'), buildDefaultChatUri(session.toString())), {});
+			if (rename !== undefined) {
+				stateManager.updateChatTitle(session.toString(), defaultChat, rename);
+				controller.markTitleRenamed(session.toString(), defaultChat, rename);
+			}
+			await pendingTitle.complete(generated);
+			await timeout(0);
+			controller.refineTitleFromFirstTurn(session.toString(), defaultChat);
+			await timeout(0);
+			assert.deepStrictEqual({
+				sessionTitle: stateManager.getSessionState(session.toString())?.title,
+				chatTitle: stateManager.getChatState(defaultChat)?.title,
+				persistedSessionTitle: await db.getMetadata('customTitle'),
+				persistedChatTitle: await db.getMetadata(customChatTitleMetadataKey(defaultChat)),
+				chatDatabaseTitle: await chatDb.getMetadata('customTitle'),
+				calls: copilotApiService.utilityCalls.length,
+			}, {
+				sessionTitle: 'Add dark mode',
+				chatTitle: rename ?? generated,
+				persistedSessionTitle: 'Add dark mode',
+				persistedChatTitle: rename === undefined ? generated : undefined,
+				chatDatabaseTitle: rename === undefined ? generated : 'Add dark mode',
+				calls: 1,
+			});
+		});
+	}
+
+	for (const initial of ['activeAgent', 'utility', 'deferred', 'agentReview'] as const) {
+		test(`snapshots ${initial} before session state exists and persists only after registration`, async () => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const db = new TestSessionDatabase();
+			const session = URI.parse('agenthost-session://copilot/creating');
+			let strategy: AutomaticTitleGenerationStrategy = initial;
+			const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
+				sessionDataService: createSessionDataService(db),
+				getInitialTitleGenerationStrategy: () => strategy,
+			}, new NullLogService(), createTestChatOwnershipService(stateManager)));
+			const first = controller.getAutomaticTitleGenerationStrategy(session.toString());
+			const beforeRegistration = await db.getMetadata('titleGenerationStrategy');
+			strategy = initial === 'utility' ? 'deferred' : 'utility';
+			const duringCreation = controller.getAutomaticTitleGenerationStrategy(session.toString());
+			stateManager.createSession(createSummary(session));
+			const registered = controller.getAutomaticTitleGenerationStrategy(session.toString());
+			assert.deepStrictEqual({
+				first, beforeRegistration, duringCreation, registered,
+				persisted: await db.getMetadata('titleGenerationStrategy'),
+			}, { first: initial, beforeRegistration: undefined, duringCreation: initial, registered: initial, persisted: initial });
+		});
+	}
+
+	test('defaults new sessions to utility naming without a configured strategy', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
+			sessionDataService: createSessionDataService(),
+		}, new NullLogService(), createTestChatOwnershipService(stateManager)));
+
+		assert.strictEqual(controller.getAutomaticTitleGenerationStrategy(), 'utility');
+	});
+
+	test('clears an unregistered strategy snapshot after failed creation', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const session = URI.parse('agenthost-session://copilot/creating');
+		let strategy: AutomaticTitleGenerationStrategy = 'deferred';
+		const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
+			sessionDataService: createSessionDataService(),
+			getInitialTitleGenerationStrategy: () => strategy,
+		}, new NullLogService(), createTestChatOwnershipService(stateManager)));
+		const first = controller.getAutomaticTitleGenerationStrategy(session.toString());
+		controller.clearSession(session.toString(), []);
+		strategy = 'utility';
+		assert.deepStrictEqual({ first, retry: controller.getAutomaticTitleGenerationStrategy(session.toString()) }, { first: 'deferred', retry: 'utility' });
+	});
+
+	for (const state of [TurnState.Cancelled, TurnState.Error]) {
+		test(`deferred mode keeps its seed after ${state}`, async () => {
+			const { controller, stateManager, session, copilotApiService, db } = setupDeferred();
+			controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+			stateManager.seedDefaultChatTurns(session.toString(), [{ ...firstTurn('Add dark mode', [textPart('Partial response')]), state }]);
+			controller.refineTitleFromFirstTurn(session.toString());
+			assert.deepStrictEqual({ calls: copilotApiService.utilityCalls.length, title: await db.getMetadata('customTitle') }, { calls: 0, title: 'Add dark mode' });
+		});
+	}
+
+	test('deferred mode retains the fallback with no response text or credentials', async () => {
+		for (const hasText of [false, true]) {
+			const { controller, stateManager, session, copilotApiService, db } = setupDeferred(() => hasText ? '' : 'gh-token');
+			controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+			stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart(hasText ? 'Done' : '  \n')])]);
+			controller.refineTitleFromFirstTurn(session.toString());
+			assert.deepStrictEqual({ calls: copilotApiService.utilityCalls.length, title: await db.getMetadata('customTitle') }, { calls: 0, title: 'Add dark mode' });
+		}
+	});
+
+	test('deferred utility failure keeps the persisted fallback and is not retried', async () => {
+		const { controller, stateManager, session, copilotApiService, db } = setupDeferred();
+		copilotApiService.error = new Error('Utility unavailable');
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should be attempted');
+		controller.refineTitleFromFirstTurn(session.toString());
+		assert.deepStrictEqual({ calls: copilotApiService.utilityCalls.length, title: await db.getMetadata('customTitle') }, { calls: 1, title: 'Add dark mode' });
+	});
+
+	for (const phase of ['before', 'during', 'after'] as const) {
+		test(`manual rename wins ${phase} deferred refinement even when it matches the seed`, async () => {
+			const { controller, stateManager, session, copilotApiService } = setupDeferred();
+			const pendingTitle = new DeferredPromise<string>();
+			copilotApiService.responsePromise = pendingTitle.p;
+			controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+			stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+			if (phase === 'before') {
+				controller.markTitleRenamed(session.toString());
+			}
+			controller.refineTitleFromFirstTurn(session.toString());
+			if (phase === 'during') {
+				await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should start');
+				controller.markTitleRenamed(session.toString());
+			}
+			await pendingTitle.complete('Generated title');
+			if (phase === 'after') {
+				await waitForCondition(() => stateManager.getSessionState(session.toString())?.title === 'Generated title', 'refinement should finish');
+				controller.markTitleRenamed(session.toString());
+				stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Add dark mode' });
+			}
+			controller.refineTitleFromFirstTurn(session.toString());
+			assert.deepStrictEqual({
+				title: stateManager.getSessionState(session.toString())?.title,
+				calls: copilotApiService.utilityCalls.length,
+				abortedDuring: phase === 'during' ? copilotApiService.utilityCalls[0]?.options?.signal?.aborted : undefined,
+			}, { title: 'Add dark mode', calls: phase === 'before' ? 0 : 1, abortedDuring: phase === 'during' ? true : undefined });
+		});
+	}
+
+	for (const target of ['peer', 'default', 'defaultBeforePeer'] as const) {
+		test(`deferred refinement targets the seeded ${target} title in multi-chat sessions`, async () => {
+			const { controller, stateManager, session, copilotApiService, db } = setupDeferred();
+			const defaultChat = buildDefaultChatUri(session);
+			const peer = buildChatUri(session.toString(), 'peer');
+			const chat = target === 'peer' ? peer : defaultChat;
+			if (target !== 'defaultBeforePeer') {
+				stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), {});
+			}
+			controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode', chat);
+			if (target === 'defaultBeforePeer') {
+				stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), {});
+			}
+			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2026-01-01T00:00:00Z', message: { text: 'Add dark mode', origin: { kind: MessageKind.User } } });
+			stateManager.dispatchServerAction(chat, { type: ActionType.ChatResponsePart, turnId: 'turn-1', part: textPart('Done') });
+			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 });
+			controller.refineTitleFromFirstTurn(session.toString(), chat);
+			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should start');
+			const key = customChatTitleMetadataKey(chat);
+			await waitForCondition(async () => await db.getMetadata(key) === 'Generated title', 'correct title should persist');
+			assert.deepStrictEqual({
+				chatTitle: stateManager.getChatState(chat)?.title,
+				sessionTitle: stateManager.getSessionState(session.toString())?.title,
+			}, { chatTitle: 'Generated title', sessionTitle: target === 'defaultBeforePeer' ? 'Add dark mode' : '' });
+		});
+	}
+
+	test('deferred forks wait for their first new successful response', async () => {
+		const { controller, stateManager, session, copilotApiService, db } = setupDeferred();
+		const inherited = firstTurn('Original request', [textPart('Original answer')]);
+		stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Forked: Original' });
+		stateManager.seedDefaultChatTurns(session.toString(), [inherited]);
+		controller.generateForkedTitle(session.toString(), undefined, [inherited], 'Forked: Original', 'Original');
+		controller.refineTitleFromFirstTurn(session.toString());
+		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
+		stateManager.seedDefaultChatTurns(session.toString(), [inherited, { ...firstTurn('Fix dark mode', [textPart('Fixed')]), id: 'turn-2' }]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'fork should refine after its own response');
+	});
+
+	test('deferred seed following a local command refines the first provider response', async () => {
+		const { controller, stateManager, session, db } = setupDeferred();
+		controller.seedProvisionalTitle(session.toString(), 'List files');
+		const localTurn = firstTurn('!ls', []);
+		stateManager.seedDefaultChatTurns(session.toString(), [localTurn]);
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		stateManager.seedDefaultChatTurns(session.toString(), [localTurn, { ...firstTurn('Add dark mode', [textPart('Done')]), id: 'turn-2' }]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'first real response should refine');
+	});
+
+	test('restored deferred auto seed refines only after its first successful response', async () => {
+		const { controller, stateManager, session, db, copilotApiService } = setupDeferred();
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
+			sessionDataService: createSessionDataService(db),
+			readSessionValues: readDatabaseValues(db),
+			getInitialTitleGenerationStrategy: () => 'utility',
+			utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
+		}, new NullLogService(), createTestChatOwnershipService(stateManager)));
+		await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
+		assert.deepStrictEqual({
+			strategy: restored.getAutomaticTitleGenerationStrategy(session.toString()),
+			instruction: await restored.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)),
+			calls: copilotApiService.utilityCalls.length,
+		}, { strategy: 'deferred', instruction: undefined, calls: 0 });
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+		restored.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'restored seed should refine');
+		assert.deepStrictEqual({
+			calls: copilotApiService.utilityCalls.length,
+			pendingSeed: await db.getMetadata('deferredTitleSeed'),
+		}, { calls: 1, pendingSeed: '' });
+	});
+
+	test('normalized deferred peer fork restores its inherited-turn boundary without importing legacy titles', async () => {
+		const { stateManager, session, db, copilotApiService } = setupDeferred();
+		const chat = buildChatUri(session, 'deferred-peer');
+		const inherited = firstTurn('Inherited request', [textPart('Inherited answer')]);
+		stateManager.addChat(session.toString(), chat, creationTimeChatStorageResource(session.toString(), chat, buildDefaultChatUri(session.toString())), { title: 'Fork seed', turns: [inherited] });
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		await database.registerRuntimeSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: buildDefaultChatUri(session), order: 0 },
+			peers: [{ chat, order: 1 }],
+			privateDescendants: [],
+		});
+		const store = new AgentHostPeerChatStore(database, createSessionDataService(db), new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(database, createSessionDataService(db)), noOlderBuildCopyParticipant);
+		const persisted = disposables.add(new Emitter<void>());
+		observe(persisted.event);
+		const options = {
+			sessionDataService: createSessionDataService(db),
+			getInitialTitleGenerationStrategy: () => 'deferred' as const,
+			utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
+			persistMetadata: async (resource: string, values: Readonly<Record<string, string>>) => {
+				await store.persistMetadata(session, URI.parse(resource), values);
+				persisted.fire();
+			},
+			readNormalizedChat: (owner: URI, resource: URI) => store.readNormalizedChat(owner, resource),
+		};
+		const original = disposables.add(new AgentHostSessionTitleController(stateManager, options, new NullLogService(), createTestChatOwnershipService(stateManager)));
+		original.generateForkedTitle(session.toString(), chat, [inherited], 'Fork seed');
+		await store.whenIdle();
+		await db.setMetadata(customChatTitleMetadataKey(chat), 'Stale legacy title');
+		await db.setMetadata(customChatTitleSourceMetadataKey(chat), 'user');
+
+		const freshState = disposables.add(new AgentHostStateManager(new NullLogService()));
+		freshState.createSession(createSummary(session, 'Owner header'));
+		freshState.addChat(session.toString(), chat, creationTimeChatStorageResource(session.toString(), chat, buildDefaultChatUri(session.toString())), { title: 'Fork seed', turns: [inherited] });
+		const restored = disposables.add(new AgentHostSessionTitleController(freshState, options, new NullLogService(), createTestChatOwnershipService(freshState)));
+		await restored.restoreTitleGenerationStrategy(session.toString(), chat);
+		restored.refineTitleFromFirstTurn(session.toString(), chat);
+		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
+		freshState.dispatchServerAction(chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'new-turn', startedAt: '2026-01-01T00:00:00Z',
+			message: { text: 'Continue the fork', origin: { kind: MessageKind.User } },
+		});
+		freshState.dispatchServerAction(chat, {
+			type: ActionType.ChatResponsePart, turnId: 'new-turn', part: textPart('New answer'),
+		});
+		freshState.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'new-turn', duration: 10 });
+		restored.refineTitleFromFirstTurn(session.toString(), chat);
+		await waitForCondition(async () => (await store.readNormalizedChat(session, URI.parse(chat))).chat?.metadata?.summary === 'Generated title', 'restored normalized fork should refine');
+		// The stale legacy key is never imported and, as on main, a normalized chat's title is not rendered into it.
+		assert.deepStrictEqual({
+			calls: copilotApiService.utilityCalls.length,
+			title: freshState.getChatState(chat)?.title,
+			seed: await db.getMetadata(`deferredTitleSeed:${chat}`),
+			legacyTitle: await db.getMetadata(customChatTitleMetadataKey(chat)),
+		}, { calls: 1, title: 'Generated title', seed: '', legacyTitle: 'Stale legacy title' });
+	});
+
+	for (const rawSeed of ['', 'null', 'true', '42', '"seed"', '[]', '{}', '{"title":42,"turnIndex":0}', '{"title":"Add dark mode","turnIndex":"0"}', '{"title":"Add dark mode","turnIndex":-1}', '{"title":"Add dark mode","turnIndex":0.5}', '{"title":"Add dark mode","turnIndex":0,"sourceTitle":null}', '{"title":"Add dark mode","turnIndex":0,"initialPrompt":{}}']) {
+		test(`ignores invalid persisted deferred title seed ${JSON.stringify(rawSeed)}`, async () => {
+			const { controller, stateManager, session, db, copilotApiService } = setupDeferred();
+			controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+			await db.setMetadata('deferredTitleSeed', rawSeed);
+			const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
+				sessionDataService: createSessionDataService(db),
+				readSessionValues: readDatabaseValues(db),
+				utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
+			}, new NullLogService(), createTestChatOwnershipService(stateManager)));
+			await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
+			stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+			restored.refineTitleFromFirstTurn(session.toString());
+			assert.deepStrictEqual({
+				calls: copilotApiService.utilityCalls.length,
+				title: stateManager.getSessionState(session.toString())?.title,
+			}, { calls: 0, title: 'Add dark mode' });
+		});
+	}
+
+	test('restores deferred fork title context when optional seed fields are valid strings', async () => {
+		const { controller, stateManager, session, db, copilotApiService } = setupDeferred();
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		await db.setMetadata('deferredTitleSeed', JSON.stringify({
+			title: 'Add dark mode',
+			turnIndex: 0,
+			sourceTitle: 'Source title',
+			initialPrompt: 'Continue with the requested change',
+		}));
+		const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
+			sessionDataService: createSessionDataService(db),
+			readSessionValues: readDatabaseValues(db),
+			utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
+		}, new NullLogService(), createTestChatOwnershipService(stateManager)));
+
+		await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Continue with the requested change', [textPart('Done')])]);
+		restored.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'restored deferred fork should refine');
+
+		const prompt = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.ok(prompt.includes('Source title'));
+		assert.ok(prompt.includes('Continue with the requested change'));
+	});
+
+	for (const source of [AGENT_HOST_TITLE_SOURCE_USER, AGENT_HOST_TITLE_SOURCE_AGENT]) {
+		test(`restored deferred seed never overrides ${source} rename provenance`, async () => {
+			const { controller, stateManager, session, db, copilotApiService } = setupDeferred();
+			controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+			await db.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, source);
+			const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
+				sessionDataService: createSessionDataService(db),
+				readSessionValues: readDatabaseValues(db),
+				utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
+			}, new NullLogService(), createTestChatOwnershipService(stateManager)));
+			await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
+			stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+			restored.refineTitleFromFirstTurn(session.toString());
+			assert.deepStrictEqual({
+				calls: copilotApiService.utilityCalls.length,
+				title: stateManager.getSessionState(session.toString())?.title,
+				source: await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
+			}, { calls: 0, title: 'Add dark mode', source });
+		});
+	}
+
+	for (const outcome of ['failed', 'empty', 'refined'] as const) {
+		test(`restored deferred seed does not retry a ${outcome} first turn`, async () => {
+			const { controller, stateManager, session, db, copilotApiService } = setupDeferred();
+			copilotApiService.response = 'Add dark mode';
+			controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+			stateManager.seedDefaultChatTurns(session.toString(), [{
+				...firstTurn('Add dark mode', outcome === 'empty' ? [] : [textPart('Done')]),
+				state: outcome === 'failed' ? TurnState.Error : TurnState.Complete,
+			}]);
+			controller.refineTitleFromFirstTurn(session.toString(), undefined, outcome !== 'failed');
+			await waitForCondition(async () => await db.getMetadata('deferredTitleSeed') === '', 'terminal outcome should consume eligibility');
+			if (outcome === 'refined') {
+				await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'first refinement should run');
+			}
+			const callsBeforeRestore = copilotApiService.utilityCalls.length;
+			const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
+				sessionDataService: createSessionDataService(db),
+				readSessionValues: readDatabaseValues(db),
+				utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
+			}, new NullLogService(), createTestChatOwnershipService(stateManager)));
+			await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
+			stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+			restored.refineTitleFromFirstTurn(session.toString());
+			assert.deepStrictEqual({
+				calls: copilotApiService.utilityCalls.length,
+				title: stateManager.getSessionState(session.toString())?.title,
+			}, { calls: callsBeforeRestore, title: 'Add dark mode' });
+		});
+	}
+
+	test('legacy restored sessions do not opt into deferred naming', async () => {
+		const { controller, session } = setupDeferred();
+		await controller.restoreTitleGenerationStrategy(session.toString());
+		assert.strictEqual(controller.getAutomaticTitleGenerationStrategy(session.toString()), 'utility');
+	});
+
+	test('deferred disposal cancels pending work and ephemeral sessions do not seed', async () => {
+		const ephemeral = setupDeferred(undefined, true);
+		ephemeral.controller.seedTitleFromFirstMessage(ephemeral.session.toString(), 'Throwaway');
+		assert.deepStrictEqual(ephemeral.titleActions, []);
+
+		const { controller, stateManager, session, copilotApiService, db } = setupDeferred();
+		const pendingTitle = new DeferredPromise<string>();
+		copilotApiService.responsePromise = pendingTitle.p;
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should start');
+		controller.dispose();
+		await pendingTitle.complete('Stale title');
+		assert.deepStrictEqual({
+			aborted: copilotApiService.utilityCalls[0].options?.signal?.aborted,
+			title: await db.getMetadata('customTitle'),
+		}, { aborted: true, title: 'Add dark mode' });
+	});
+
+	test('active-agent mode completes the word crossing the 40-character fallback target without utility generation', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, session, db, titleActions } = setup(copilotApiService, '', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
+
+		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate why restored Agent Host sessions sometimes lose titles');
+		const instruction = await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session));
+
+		assert.deepStrictEqual(titleActions, ['Investigate why restored Agent Host sessions...']);
+		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
+		assert.strictEqual(instruction, 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. Do not spend a separate step on renaming: make the `rename_chat` call in the same message as your reply or your other tool calls, never before them. The user must not know that you are renaming. Do not skip it.');
+		await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'auto provenance should be persisted');
+	});
+
+	test('active-agent fallback hard-truncates a single oversized word', () => {
+		const { controller, session, titleActions } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
+
+		controller.seedTitleFromFirstMessage(session.toString(), 'x'.repeat(50));
+
+		assert.deepStrictEqual(titleActions, [`${'x'.repeat(37)}...`]);
+	});
+
+	test('active-agent fallback hard-caps an oversized token crossing the target', () => {
+		const { controller, session, titleActions } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
+
+		controller.seedTitleFromFirstMessage(session.toString(), `Fix https://example.com/${'x'.repeat(500)}`);
+
+		assert.strictEqual(titleActions[0].length, 40);
+		assert.ok(titleActions[0].endsWith('...'));
+	});
+
+	test('active-agent fallback omits the ellipsis when the crossing word completes the prompt', () => {
+		const { controller, session, titleActions } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
+
+		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate why restored Agent Host sessions');
+
+		assert.deepStrictEqual(titleActions, ['Investigate why restored Agent Host sessions']);
+	});
+
+	test('utility-model mode does not add an active-agent reminder', async () => {
+		const { controller, session } = setup();
+		controller.seedTitleFromFirstMessage(session.toString(), 'Explain title generation');
+
+		assert.strictEqual(await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)), undefined);
+	});
+
+	test('does not generate or instruct titles for ephemeral sessions', async () => {
+		const { controller, session, titleActions, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'activeAgent', true);
+
+		controller.seedTitleFromFirstMessage(session.toString(), 'Optimize an inline edit');
+		controller.seedProvisionalTitle(session.toString(), 'Provisional inline edit');
+		controller.refineTitleFromFirstTurn(session.toString());
+		controller.generateForkedTitle(session.toString(), undefined, [], 'Forked inline edit');
+
+		assert.deepStrictEqual({
+			titleActions,
+			utilityCalls: copilotApiService.utilityCalls.length,
+			instruction: await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)),
+		}, {
+			titleActions: [],
+			utilityCalls: 0,
+			instruction: undefined,
+		});
+	});
+
+	test('materialized server tools override later root setting changes', async () => {
+		const enabled = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'utility');
+		enabled.stateManager.dispatchServerAction(enabled.session.toString(), {
+			type: ActionType.SessionServerToolsChanged,
+			tools: sessionServerToolDefinitions,
+		});
+		enabled.controller.seedTitleFromFirstMessage(enabled.session.toString(), 'Use advertised rename tool');
+
+		const disabled = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
+		disabled.stateManager.dispatchServerAction(disabled.session.toString(), {
+			type: ActionType.SessionServerToolsChanged,
+			tools: [],
+		});
+		disabled.controller.seedTitleFromFirstMessage(disabled.session.toString(), 'Do not use missing rename tool');
+
+		assert.ok((await enabled.controller.prepareInstructionForAgent(enabled.session.toString(), buildDefaultChatUri(enabled.session)))?.includes('`rename_chat`'));
+		assert.strictEqual(await disabled.controller.prepareInstructionForAgent(disabled.session.toString(), buildDefaultChatUri(disabled.session)), undefined);
+		assert.strictEqual(disabled.copilotApiService.utilityCalls.length, 1);
+	});
+
+	test('active-agent mode reminds peer chats and keeps deterministic fork provenance without utility calls', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, stateManager, session, db } = setup(copilotApiService, 'Session title', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
+		const chat = buildChatUri(session.toString(), 'peer-1');
+		stateManager.addChat(session.toString(), chat, creationTimeChatStorageResource(session.toString(), chat, buildDefaultChatUri(session.toString())), {});
+		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate peer chat', chat);
+
+		const instruction = await controller.prepareInstructionForAgent(session.toString(), chat);
+		assert.strictEqual(instruction, 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. Do not spend a separate step on renaming: make the `rename_chat` call in the same message as your reply or your other tool calls, never before them. The user must not know that you are renaming. Do not skip it.');
+
+		controller.generateForkedTitle(session.toString(), undefined, [], 'Forked: Session title', 'Session title');
+		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
+		await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'fork auto provenance should be persisted');
+		await waitForCondition(async () => await db.getMetadata(customChatTitleSourceMetadataKey(chat)) === AGENT_HOST_TITLE_SOURCE_AUTO, 'peer auto provenance should be persisted');
+	});
+
+	test('multi-chat default uses its own persisted title provenance after controller recreation', async () => {
+		const independentlyRenamed = setup(undefined, 'Session title', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
+		const defaultChat = buildDefaultChatUri(independentlyRenamed.session);
+		independentlyRenamed.stateManager.addChat(independentlyRenamed.session.toString(), buildChatUri(independentlyRenamed.session.toString(), 'peer'), creationTimeChatStorageResource(independentlyRenamed.session.toString(), buildChatUri(independentlyRenamed.session.toString(), 'peer'), buildDefaultChatUri(independentlyRenamed.session.toString())), {});
+		await independentlyRenamed.db.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
+		await independentlyRenamed.db.setMetadata(customChatTitleSourceMetadataKey(defaultChat), AGENT_HOST_TITLE_SOURCE_AGENT);
+
+		const independentRenameInstruction = await independentlyRenamed.controller.prepareInstructionForAgent(independentlyRenamed.session.toString(), defaultChat);
+
+		const independentlyAutomatic = setup(undefined, 'Session title', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
+		independentlyAutomatic.stateManager.addChat(independentlyAutomatic.session.toString(), buildChatUri(independentlyAutomatic.session.toString(), 'peer'), creationTimeChatStorageResource(independentlyAutomatic.session.toString(), buildChatUri(independentlyAutomatic.session.toString(), 'peer'), buildDefaultChatUri(independentlyAutomatic.session.toString())), {});
+		await independentlyAutomatic.db.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AGENT);
+		await independentlyAutomatic.db.setMetadata(customChatTitleSourceMetadataKey(defaultChat), AGENT_HOST_TITLE_SOURCE_AUTO);
+		const independentAutoInstruction = await independentlyAutomatic.controller.prepareInstructionForAgent(independentlyAutomatic.session.toString(), defaultChat);
+
+		assert.deepStrictEqual({
+			independentRenameInstruction,
+			independentAutoInstruction,
+		}, {
+			independentRenameInstruction: undefined,
+			independentAutoInstruction: 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. Do not spend a separate step on renaming: make the `rename_chat` call in the same message as your reply or your other tool calls, never before them. The user must not know that you are renaming. Do not skip it.',
+		});
+	});
+
+	test('clearSession releases session and peer-chat rename state', async () => {
+		const { controller, stateManager, session, db } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'activeAgent');
+		const defaultChat = buildDefaultChatUri(session);
+		const chat = buildChatUri(session.toString(), 'peer-clear');
+		stateManager.addChat(session.toString(), chat, creationTimeChatStorageResource(session.toString(), chat, buildDefaultChatUri(session.toString())), {});
+		controller.markTitleAuto(session.toString(), defaultChat, 'Default fallback');
+		controller.markTitleAuto(session.toString(), chat, 'Chat fallback');
+		await waitForCondition(async () =>
+			await db.getMetadata(customChatTitleSourceMetadataKey(defaultChat)) === AGENT_HOST_TITLE_SOURCE_AUTO
+			&& await db.getMetadata(customChatTitleSourceMetadataKey(chat)) === AGENT_HOST_TITLE_SOURCE_AUTO,
+			'auto provenance should be persisted');
+		controller.markTitleRenamed(session.toString(), defaultChat);
+		controller.markTitleRenamed(session.toString(), chat);
+		assert.strictEqual(await controller.prepareInstructionForAgent(session.toString(), defaultChat), undefined);
+		assert.strictEqual(await controller.prepareInstructionForAgent(session.toString(), chat), undefined);
+
+		controller.clearSession(session.toString(), [defaultChat, chat]);
+
+		assert.ok((await controller.prepareInstructionForAgent(session.toString(), defaultChat))?.includes('`rename_chat`'));
+		assert.ok((await controller.prepareInstructionForAgent(session.toString(), chat))?.includes('`rename_chat`'));
+	});
+
+	test('clearSession cancels generation and clears every title-state collection', () => {
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.responsePromise = new Promise(() => { });
+		const { controller, stateManager, session } = setup(copilotApiService);
+		const provisionalChat = buildChatUri(session.toString(), 'peer-provisional');
+		const renamedChat = buildChatUri(session.toString(), 'peer-renamed');
+		stateManager.addChat(session.toString(), provisionalChat, creationTimeChatStorageResource(session.toString(), provisionalChat, buildDefaultChatUri(session.toString())), {});
+		stateManager.addChat(session.toString(), renamedChat, creationTimeChatStorageResource(session.toString(), renamedChat, buildDefaultChatUri(session.toString())), {});
+		controller.seedTitleFromFirstMessage(session.toString(), 'Generate a title');
+		controller.seedProvisionalTitle(session.toString(), 'Provisional', provisionalChat);
+		controller.markTitleAuto(session.toString(), renamedChat, 'Automatic');
+		controller.markTitleRenamed(session.toString(), renamedChat);
+
+		controller.clearSession(session.toString(), [provisionalChat, renamedChat]);
+
+		assert.deepStrictEqual({
+			cancellations: controller['_titleGenerationCancellationSources'].size,
+			lastApplied: controller['_lastAppliedTitle'].size,
+			provisional: controller['_provisionalTitles'].size,
+			auto: controller['_autoTitles'].size,
+			renamed: controller['_renamedTitles'].size,
+		}, {
+			cancellations: 0,
+			lastApplied: 0,
+			provisional: 0,
+			auto: 0,
+			renamed: 0,
+		});
+	});
+
+	test('GitHub title enrichment requests credentials for the authoritative session', async () => {
+		const sessions: string[] = [];
+		const { controller, session, db, query } = setup(undefined, undefined, undefined, undefined, key => {
+			sessions.push(key);
+			return undefined;
+		});
+		controller.seedTitleFromFirstMessage(session.toString(), 'Explain https://github.com/microsoft/vscode/issues/42');
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'generated title should be persisted');
+		assert.deepStrictEqual({ sessions, githubRequests: query.calls }, { sessions: [session.toString()], githubRequests: [] });
+	});
 
 	test('seedTitleFromFirstMessage applies fallback and persists generated title', async () => {
 		const copilotApiService = new TestCopilotApiService();
@@ -120,6 +1100,328 @@ suite('AgentHostSessionTitleController', () => {
 			maxTokens: 32,
 			promptIncludesUserText: true,
 			persistedTitle: 'Generated title',
+		});
+	});
+
+	test('seedTitleFromFirstMessage appends every unique GitHub issue and pull request', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const query = new TestGitHubQuery();
+		query.responses.set('microsoft/vscode#123', { title: 'Issue title', body: 'Issue body' });
+		query.responses.set('microsoft/vscode#456', { title: 'Pull request title', body: 'Pull request body' });
+		const { controller, session, db, clientDisposals } = setup(copilotApiService, '', () => 'gh-token', query);
+		const prompt = 'Fix https://github.com/microsoft/vscode/issues/123 and review https://github.com/microsoft/vscode/pull/456. Duplicate: https://www.github.com/microsoft/vscode/issues/123#issuecomment-1';
+
+		controller.seedTitleFromFirstMessage(session.toString(), prompt);
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'generated title should be persisted');
+
+		const userMessage = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content;
+		assert.deepStrictEqual({
+			calls: query.calls.map(({ signal, ...call }) => call),
+			clientDisposals: clientDisposals(),
+			userMessage,
+		}, {
+			calls: [
+				{ owner: 'microsoft', repo: 'vscode', number: 123, options: { caller: 'agentHost.sessionTitle', priority: 'background' } },
+				{ owner: 'microsoft', repo: 'vscode', number: 456, options: { caller: 'agentHost.sessionTitle', priority: 'background' } },
+			],
+			clientDisposals: 1,
+			userMessage: [
+				'Please write a brief title for the following request:',
+				'',
+				prompt,
+				'',
+				'GitHub issue and pull request context:',
+				'',
+				'GitHub issue microsoft/vscode#123:',
+				'The title of the issue is: Issue title',
+				'The body of the issue is:',
+				'Issue body',
+				'',
+				'GitHub pull request microsoft/vscode#456:',
+				'The title of the pull request is: Pull request title',
+				'The body of the pull request is:',
+				'Pull request body',
+			].join('\n'),
+		});
+	});
+
+	for (const body of [null, undefined]) {
+		test(`seedTitleFromFirstMessage ${body === null ? 'normalizes a null issue body' : 'omits a representation without its issue body'}`, async () => {
+			const query = new TestGitHubQuery();
+			query.responses.set('microsoft/vscode#123', { title: 'Issue title', body });
+			const { controller, session, db, copilotApiService, clientDisposals, logService } = setup(undefined, '', undefined, query);
+			const warnings = sinon.spy(logService, 'warn');
+			controller.seedTitleFromFirstMessage(session.toString(), 'Fix https://github.com/microsoft/vscode/issues/123');
+			await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'generated title should be persisted');
+			const content = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content ?? '';
+			assert.deepStrictEqual({
+				hasContext: content.includes('The title of the issue is: Issue title'),
+				hasMissingBodyText: content.includes('undefined') || content.includes('null'),
+				disposed: clientDisposals(),
+				warnings: warnings.callCount,
+			}, { hasContext: body === null, hasMissingBodyText: false, disposed: 1, warnings: 0 });
+		});
+	}
+
+	test('seedTitleFromFirstMessage only fetches links from the configured GitHub host', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const query = new TestGitHubQuery();
+		query.responses.set('microsoft/vscode#456', { title: 'Enterprise issue', body: 'Enterprise body' });
+		const { controller, session, db } = setup(copilotApiService, '', () => 'gh-token', query, () => 'github-token', undefined, () => 'github.enterprise.test');
+		const prompt = 'Compare https://github.com/microsoft/vscode/issues/123 with https://github.enterprise.test/microsoft/vscode/issues/456';
+
+		controller.seedTitleFromFirstMessage(session.toString(), prompt);
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'generated title should be persisted');
+
+		const userMessage = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.deepStrictEqual({
+			calls: query.calls.map(call => call.number),
+			hasGitHubIssue: userMessage.includes('microsoft/vscode#123'),
+			hasEnterpriseIssue: userMessage.includes('The title of the issue is: Enterprise issue'),
+		}, {
+			calls: [456],
+			hasGitHubIssue: false,
+			hasEnterpriseIssue: true,
+		});
+	});
+
+	test('seedTitleFromFirstMessage fetches at most ten GitHub references', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const query = new TestGitHubQuery();
+		const links: string[] = [];
+		for (let number = 1; number <= 11; number++) {
+			query.responses.set(`microsoft/vscode#${number}`, { title: `Issue ${number}`, body: `Body ${number}` });
+			links.push(`https://github.com/microsoft/vscode/issues/${number}`);
+		}
+		const { controller, session, db } = setup(copilotApiService, '', () => 'gh-token', query);
+
+		controller.seedTitleFromFirstMessage(session.toString(), links.join(' '));
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'generated title should be persisted');
+
+		const userMessage = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.deepStrictEqual({
+			calls: query.calls.map(call => call.number),
+			hasTenthContext: userMessage.includes('The title of the issue is: Issue 10'),
+			hasEleventhContext: userMessage.includes('The title of the issue is: Issue 11'),
+		}, {
+			calls: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+			hasTenthContext: true,
+			hasEleventhContext: false,
+		});
+	});
+
+	for (const cancelFirst of [false, true]) {
+		test(`concurrent title enrichment uses the engine queue${cancelFirst ? ' and preserves shared reads when one title is cancelled' : ''}`, async () => {
+			const maximumCallerConcurrency = 8;
+			const started = new DeferredPromise<AbortSignal>();
+			const release = new DeferredPromise<void>();
+			const requests: string[] = [];
+			let activeRequests = 0;
+			let maximumActiveRequests = 0;
+			const reads: sinon.SinonSpy<Parameters<IIssuesClient['get']>, ReturnType<IIssuesClient['get']>>[] = [];
+			const progressed = disposables.add(new Emitter<void>());
+			observe(progressed.event);
+			const authentication = new class extends mock<IAgentHostAuthenticationService>() {
+				override readonly onDidChangeAuthToken = Event.None;
+				override getAuthAccount() { return undefined; }
+				override getAuthToken() { return 'test-token'; }
+				override getSessionCredentialSource() { return undefined; }
+				override getSessionCredentialPrincipal() { return undefined; }
+			}();
+			const gitHubService = disposables.add(new class extends AgentHostGitHubService {
+				override acquireRepositoryApiClient(signal: AbortSignal): IGitHubAccountClient {
+					const client = super.acquireRepositoryApiClient(signal);
+					const read = sinon.stub(client.issues, 'get').callsFake(function (this: IIssuesClient, ...args) {
+						progressed.fire();
+						return read.wrappedMethod.apply(this, args);
+					});
+					reads.push(read);
+					return client;
+				}
+			}({
+				fetch: async (input, init) => {
+					const path = new URL(String(input)).pathname;
+					requests.push(path);
+					activeRequests++;
+					maximumActiveRequests = Math.max(maximumActiveRequests, activeRequests);
+					progressed.fire();
+					try {
+						if (path === '/user') {
+							return new Response('{"id":101}');
+						}
+						const number = Number(path.split('/').pop());
+						if (number === 1) {
+							assert.ok(init?.signal);
+							await started.complete(init.signal);
+						}
+						await release.p;
+						return Response.json(createTestGitHubIssue(number, { title: `Issue ${number}`, body: `Body ${number}` }));
+					} finally {
+						activeRequests--;
+					}
+				},
+			}, authentication, createTestGitHubEndpointService(), new NullLogService(), NullTelemetryService));
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const copilotApiService = new TestCopilotApiService();
+			const persistedTitles: string[] = [];
+			const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
+				sessionDataService: createSessionDataService(new TestSessionDatabase()),
+				getGitHubToken: () => 'test-token',
+				gitHubService,
+				utilityModelService: createUtilityModelService(copilotApiService, () => 'copilot-token'),
+				persistSurfacedSessionTitle: async session => { persistedTitles.push(session); },
+			}, new NullLogService(), createTestChatOwnershipService(stateManager)));
+			const sessions = [URI.parse('agenthost-session://copilot/first'), URI.parse('agenthost-session://copilot/second')];
+			for (const session of sessions) {
+				stateManager.announceSurfacedSession(createSummary(session));
+			}
+			const prompt = Array.from({ length: 11 }, (_, index) => `https://github.com/microsoft/vscode/issues/${index + 1}`).join(' ');
+			const generations = sessions.map(session => controller.generateExternalSessionTitle(session.toString(), prompt));
+			try {
+				const wireSignal = await started.p;
+				await waitForCondition(
+					() => reads.reduce((count, read) => count + read.callCount, 0) === 20 && activeRequests === maximumCallerConcurrency,
+					'both bounded context batches should be submitted and saturate the engine caller lane',
+				);
+				const beforeRelease = [...requests];
+				if (cancelFirst) {
+					controller.cancelTitleGeneration(sessions[0].toString());
+					await generations[0];
+				}
+				await release.complete();
+				await Promise.all(generations);
+
+				assert.deepStrictEqual({
+					beforeRelease,
+					requests,
+					maximumActiveRequests,
+					wireAborted: wireSignal.aborted,
+					persistedTitles,
+					contexts: copilotApiService.utilityCalls.map(call => {
+						const message = call.request.messages.find(message => message.role === 'user')?.content ?? '';
+						return [...message.matchAll(/The title of the issue is: Issue (?<number>\d+)/g)].map(match => Number(match.groups?.number));
+					}),
+				}, {
+					beforeRelease: ['/user', ...Array.from({ length: maximumCallerConcurrency }, (_, index) => `/repos/microsoft/vscode/issues/${index + 1}`)],
+					requests: ['/user', ...Array.from({ length: 10 }, (_, index) => `/repos/microsoft/vscode/issues/${index + 1}`)],
+					maximumActiveRequests: maximumCallerConcurrency,
+					wireAborted: false,
+					persistedTitles: sessions.slice(cancelFirst ? 1 : 0).map(session => session.toString()),
+					contexts: Array.from({ length: cancelFirst ? 1 : 2 }, () => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+				});
+			} finally {
+				await release.complete();
+				await Promise.all(generations);
+			}
+		});
+	}
+
+	test('seedTitleFromFirstMessage omits GitHub context when the request fails', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const query = new TestGitHubQuery();
+		query.responses.set('microsoft/vscode#123', new Error('Not found'));
+		const { controller, session, db } = setup(copilotApiService, '', () => 'gh-token', query);
+		const prompt = 'Fix https://github.com/microsoft/vscode/issues/123';
+
+		controller.seedTitleFromFirstMessage(session.toString(), prompt);
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'generated title should be persisted');
+
+		const userMessage = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content;
+		assert.strictEqual(userMessage, `Please write a brief title for the following request:\n\n${prompt}`);
+	});
+
+	test('seedTitleFromFirstMessage keeps successful GitHub context when another request fails', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const query = new TestGitHubQuery();
+		query.responses.set('microsoft/vscode#123', { title: 'Issue title', body: 'Issue body' });
+		query.responses.set('microsoft/vscode#456', new Error('Not found'));
+		const { controller, session, db } = setup(copilotApiService, '', () => 'gh-token', query);
+		const prompt = 'Fix https://github.com/microsoft/vscode/issues/123 and https://github.com/microsoft/vscode/pull/456';
+
+		controller.seedTitleFromFirstMessage(session.toString(), prompt);
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'generated title should be persisted');
+
+		const userMessage = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.deepStrictEqual({
+			hasIssue: userMessage.includes('The title of the issue is: Issue title'),
+			hasPullRequest: userMessage.includes('GitHub pull request microsoft/vscode#456'),
+		}, {
+			hasIssue: true,
+			hasPullRequest: false,
+		});
+	});
+
+	test('seedTitleFromFirstMessage times out GitHub context requests', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const query = new TestGitHubQuery();
+		query.pendingResponses.add('microsoft/vscode#123');
+		const { controller, session, db } = setup(copilotApiService, '', () => 'gh-token', query, () => 'github-token', 1);
+		const prompt = 'Fix https://github.com/microsoft/vscode/issues/123';
+
+		controller.seedTitleFromFirstMessage(session.toString(), prompt);
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'generated title should be persisted after the GitHub request times out');
+
+		const userMessage = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content;
+		assert.deepStrictEqual({
+			requestAborted: query.calls[0].signal.aborted,
+			userMessage,
+		}, {
+			requestAborted: true,
+			userMessage: `Please write a brief title for the following request:\n\n${prompt}`,
+		});
+	});
+
+	test('seedTitleFromFirstMessage caps each appended GitHub body at 4000 characters', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const query = new TestGitHubQuery();
+		query.responses.set('microsoft/vscode#123', { title: 'Issue title', body: `start\n${'x'.repeat(30_000)}\nend` });
+		const { controller, session, db } = setup(copilotApiService, '', () => 'gh-token', query);
+
+		controller.seedTitleFromFirstMessage(session.toString(), 'Fix https://github.com/microsoft/vscode/issues/123');
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'generated title should be persisted');
+
+		const userMessage = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content ?? '';
+		const context = userMessage.slice(userMessage.indexOf('GitHub issue and pull request context:'));
+		const bodyMarker = 'The body of the issue is:\n';
+		const body = context.slice(context.indexOf(bodyMarker) + bodyMarker.length);
+		assert.deepStrictEqual({
+			bodyLength: body.length,
+			hasStart: body.includes('start'),
+			hasTruncationMarker: body.includes('\n...\n'),
+			hasEnd: body.includes('end'),
+		}, {
+			bodyLength: 4_000,
+			hasStart: true,
+			hasTruncationMarker: true,
+			hasEnd: true,
+		});
+	});
+
+	test('seedTitleFromFirstMessage caps the combined prompt and GitHub context', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const query = new TestGitHubQuery();
+		query.responses.set('microsoft/vscode#123', { title: `start${'x'.repeat(30_000)}end`, body: '' });
+		const { controller, session, db } = setup(copilotApiService, '', () => 'gh-token', query);
+		const prompt = 'Fix https://github.com/microsoft/vscode/issues/123';
+
+		controller.seedTitleFromFirstMessage(session.toString(), prompt);
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'generated title should be persisted');
+
+		const userMessage = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content ?? '';
+		const promptContent = userMessage.slice(userMessage.indexOf(prompt));
+		const context = userMessage.slice(userMessage.indexOf('GitHub issue and pull request context:'));
+		assert.deepStrictEqual({
+			promptContentLength: promptContent.length,
+			keepsRequest: promptContent.startsWith(prompt),
+			hasStart: context.includes('start'),
+			hasTruncationMarker: context.includes('\n...\n'),
+			hasEnd: context.includes('end'),
+		}, {
+			promptContentLength: 20_000,
+			keepsRequest: true,
+			hasStart: true,
+			hasTruncationMarker: true,
+			hasEnd: true,
 		});
 	});
 
@@ -371,6 +1673,30 @@ suite('AgentHostSessionTitleController', () => {
 		return { kind: ResponsePartKind.ToolCall, toolCall };
 	}
 
+	test('passes the session, chat, and turn model to the utility model service', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const session = URI.parse('agenthost-session://copilot/utility-model-context');
+		stateManager.createSession(createSummary(session));
+		const contexts: IAgentHostUtilityModelContext[] = [];
+		const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
+			sessionDataService: createSessionDataService(new TestSessionDatabase()),
+			utilityModelService: {
+				_serviceBrand: undefined,
+				chatCompletion: async context => {
+					contexts.push(context);
+					return 'Generated title';
+				},
+			},
+			getInitialTitleGenerationStrategy: () => 'utility',
+		}, new NullLogService(), createTestChatOwnershipService(stateManager)));
+		const chat = buildDefaultChatUri(session);
+		observe(stateManager.onDidEmitEnvelope);
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode', chat, { id: 'azure/work/gpt-5' });
+		await waitForCondition(() => stateManager.getSessionState(session.toString())?.title === 'Generated title', 'title should be generated');
+
+		assert.deepStrictEqual(contexts, [{ session: session.toString(), chat, model: { id: 'azure/work/gpt-5' } }]);
+	});
+
 	function firstTurn(text: string, responseParts: ResponsePart[]): Turn {
 		return {
 			id: 'turn-1',
@@ -487,6 +1813,91 @@ suite('AgentHostSessionTitleController', () => {
 		});
 	});
 
+	test('refineTitleFromFirstTurn appends GitHub context from the request and offers the current title', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const query = new TestGitHubQuery();
+		query.responses.set('microsoft/vscode#123', { title: 'Agent Host logs an error when a local commit is not on GitHub', body: 'Issue body' });
+		const { controller, stateManager, session, db } = setup(copilotApiService, '', () => 'gh-token', query);
+		const request = 'Tackle this issue: https://github.com/microsoft/vscode/issues/123';
+		await seedFirstTitle(controller, copilotApiService, db, session, request, 'First title');
+
+		copilotApiService.response = 'Missing commit lookup error';
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn(request, [textPart('Fixed the pull request lookup.')])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Missing commit lookup error', 'refined title should be persisted');
+
+		const lastCall = copilotApiService.utilityCalls[copilotApiService.utilityCalls.length - 1];
+		const userMessage = lastCall.request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.deepStrictEqual({
+			fetched: query.calls.map(call => call.number),
+			includesIssueTitle: userMessage.includes('The title of the issue is: Agent Host logs an error when a local commit is not on GitHub'),
+			includesResponse: userMessage.includes('Fixed the pull request lookup.'),
+			includesCurrentTitle: userMessage.includes('Its current title is: First title'),
+		}, {
+			fetched: [123, 123],
+			includesIssueTitle: true,
+			includesResponse: true,
+			includesCurrentTitle: true,
+		});
+	});
+
+	test('refineTitleFromFirstTurn ignores GitHub links the agent only mentioned in its response', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const query = new TestGitHubQuery();
+		query.responses.set('microsoft/vscode#123', { title: 'Requested issue', body: 'Issue body' });
+		query.responses.set('microsoft/vscode#456', { title: 'Mentioned issue', body: 'Other body' });
+		const { controller, stateManager, session, db } = setup(copilotApiService, '', () => 'gh-token', query);
+		const request = 'Tackle this issue: https://github.com/microsoft/vscode/issues/123';
+		await seedFirstTitle(controller, copilotApiService, db, session, request, 'First title');
+
+		copilotApiService.response = 'Refined title';
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn(request, [textPart('This also affects https://github.com/microsoft/vscode/issues/456')])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Refined title', 'refined title should be persisted');
+
+		const lastCall = copilotApiService.utilityCalls[copilotApiService.utilityCalls.length - 1];
+		const userMessage = lastCall.request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.deepStrictEqual({
+			fetched: query.calls.map(call => call.number),
+			includesMentionedIssueContext: userMessage.includes('The title of the issue is: Mentioned issue'),
+		}, {
+			fetched: [123, 123],
+			includesMentionedIssueContext: false,
+		});
+	});
+
+	test('refineTitleFromFirstTurn keeps the issue title within budget despite an oversized response', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const query = new TestGitHubQuery();
+		query.responses.set('microsoft/vscode#123', { title: 'Local commit lookup fails', body: 'C'.repeat(30_000) });
+		const { controller, stateManager, session, db } = setup(copilotApiService, '', () => 'gh-token', query);
+		const request = 'Tackle this issue: https://github.com/microsoft/vscode/issues/123';
+		await seedFirstTitle(controller, copilotApiService, db, session, request, 'First title');
+
+		copilotApiService.response = 'Refined title';
+		const hugeResponse = 'A'.repeat(15_000) + ' MIDDLE_MARKER ' + 'B'.repeat(15_000);
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn(request, [textPart(hugeResponse)])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Refined title', 'refined title should be persisted');
+
+		const lastCall = copilotApiService.utilityCalls[copilotApiService.utilityCalls.length - 1];
+		const userMessage = lastCall.request.messages.find(message => message.role === 'user')?.content ?? '';
+		const promptContent = userMessage.slice(userMessage.indexOf('User request:'), userMessage.indexOf('\n\nIts current title is:'));
+		assert.deepStrictEqual({
+			promptContentLength: promptContent.length,
+			includesUserRequest: promptContent.includes(request),
+			includesIssueTitle: promptContent.includes('The title of the issue is: Local commit lookup fails'),
+			keepsResponseHeadAndTail: promptContent.includes('AAAA') && promptContent.includes('BBBB'),
+			middleTruncated: !promptContent.includes('MIDDLE_MARKER'),
+		}, {
+			promptContentLength: 20_000,
+			includesUserRequest: true,
+			includesIssueTitle: true,
+			keepsResponseHeadAndTail: true,
+			middleTruncated: true,
+		});
+	});
+
 	function turn(id: string, text: string, responseParts: ResponsePart[]): Turn {
 		return {
 			id,
@@ -547,6 +1958,136 @@ suite('AgentHostSessionTitleController', () => {
 		}, {
 			title: 'Manual title',
 			persistedTitle: undefined,
+		});
+	});
+
+	test('fork utility title includes the source title and initial request exactly once', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, stateManager, session } = setup(copilotApiService);
+		const inherited = firstTurn('Original request', [textPart('Original answer')]);
+
+		stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Forked: Source title' });
+		controller.generateForkedTitle(session.toString(), undefined, [inherited], 'Forked: Source title', 'Source title', 'Implement the follow-up request');
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'fork title generation should start');
+
+		const prompt = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.deepStrictEqual({
+			calls: copilotApiService.utilityCalls.length,
+			hasSourceTitle: prompt.includes('Source title'),
+			hasInitialRequest: prompt.includes('Implement the follow-up request'),
+		}, {
+			calls: 1,
+			hasSourceTitle: true,
+			hasInitialRequest: true,
+		});
+	});
+
+	test('prompt-aware fork naming does not overwrite a target renamed before generation starts', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, stateManager, session, db } = setup(copilotApiService);
+		const chat = buildChatUri(session.toString(), 'renamed-fork');
+		const inherited = firstTurn('Original request', [textPart('Original answer')]);
+		stateManager.addChat(session.toString(), chat, creationTimeChatStorageResource(session.toString(), chat, buildDefaultChatUri(session.toString())), { title: 'Manual title', turns: [inherited] });
+		controller.markTitleRenamed(session.toString(), chat, 'Manual title');
+
+		controller.generateForkedTitle(session.toString(), chat, [inherited], 'Forked: Source title', 'Source title', 'Continue the work');
+
+		assert.deepStrictEqual({
+			utilityCalls: copilotApiService.utilityCalls.length,
+			title: stateManager.getChatState(chat)?.title,
+			autoSource: await db.getMetadata(customChatTitleSourceMetadataKey(chat)),
+		}, {
+			utilityCalls: 0,
+			title: 'Manual title',
+			autoSource: undefined,
+		});
+	});
+
+	test('prompt-aware fork context preserves new request intent within the title context budget', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, stateManager, session } = setup(copilotApiService);
+		const inherited = firstTurn('Original request', [textPart('Original answer')]);
+		const sourceTitle = `source-start-${'s'.repeat(30_000)}-source-end`;
+		const initialPrompt = `prompt-start-${'p'.repeat(30_000)}-prompt-end`;
+
+		stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Forked: Source title' });
+		controller.generateForkedTitle(session.toString(), undefined, [inherited], 'Forked: Source title', sourceTitle, initialPrompt);
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'prompt-aware title generation should start');
+
+		const prompt = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.ok(prompt.includes('prompt-start-'));
+		assert.ok(prompt.includes('-prompt-end'));
+		assert.ok(prompt.length <= 20_000 + 'Please write a brief title for the following conversation:\n\n'.length);
+	});
+
+	test('generateExternalSessionTitle titles a surfaced external session from its first prompt', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.response = 'Flaky renderer test';
+		const { controller, stateManager, db } = setup(copilotApiService);
+		const external = URI.parse('agenthost-session://claude/external-session');
+		const summaryTitles: (string | undefined)[] = [];
+		disposables.add(stateManager.onDidEmitNotification(n => {
+			if (n.type === NotificationType.SessionSummaryChanged && n.session === external.toString()) {
+				summaryTitles.push(n.changes.title);
+			}
+		}));
+
+		stateManager.announceSurfacedSession(createSummary(external));
+		await controller.generateExternalSessionTitle(external.toString(), 'Fix the flaky renderer test');
+		// No polling: awaiting the call must mean the title is applied and persisted.
+
+		assert.deepStrictEqual({
+			summaryTitles,
+			persistedTitle: await db.getMetadata('customTitle'),
+			persistedSource: await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
+			isLive: !!stateManager.getSessionState(external.toString()),
+		}, {
+			summaryTitles: ['Flaky renderer test'],
+			persistedTitle: 'Flaky renderer test',
+			persistedSource: AGENT_HOST_TITLE_SOURCE_AUTO,
+			isLive: false,
+		});
+	});
+
+	test('generateExternalSessionTitle does not clobber a rename during generation', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		let resolveTitle!: (title: string) => void;
+		copilotApiService.responsePromise = new Promise(resolve => { resolveTitle = resolve; });
+		const { controller, stateManager, db } = setup(copilotApiService);
+		const external = URI.parse('agenthost-session://claude/external-session');
+
+		stateManager.announceSurfacedSession(createSummary(external));
+		const generation = controller.generateExternalSessionTitle(external.toString(), 'Fix the flaky renderer test');
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should start');
+		controller.markTitleRenamed(external.toString());
+		resolveTitle('Flaky renderer test');
+		// Also proves a cancelled generation settles rather than hanging its caller.
+		await generation;
+
+		assert.deepStrictEqual({
+			aborted: copilotApiService.utilityCalls[0].options?.signal?.aborted,
+			persistedTitle: await db.getMetadata('customTitle'),
+		}, {
+			aborted: true,
+			persistedTitle: undefined,
+		});
+	});
+
+	test('generateExternalSessionTitle keeps an already persisted title', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, stateManager, db } = setup(copilotApiService);
+		const external = URI.parse('agenthost-session://claude/external-session');
+		await db.setMetadata('customTitle', 'Renamed by the user');
+
+		stateManager.announceSurfacedSession(createSummary(external));
+		await controller.generateExternalSessionTitle(external.toString(), 'Fix the flaky renderer test');
+
+		assert.deepStrictEqual({
+			utilityCalls: copilotApiService.utilityCalls.length,
+			persistedTitle: await db.getMetadata('customTitle'),
+		}, {
+			utilityCalls: 0,
+			persistedTitle: 'Renamed by the user',
 		});
 	});
 });

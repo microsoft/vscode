@@ -9,6 +9,7 @@ import { Readable } from 'stream';
 import vfs from 'vinyl-fs';
 import { filter, jsonEditor } from './gulp/facade.ts';
 import * as util from './util.ts';
+import { getElectronVersion } from './electronVersion.ts';
 import { getVersion } from './getVersion.ts';
 import { downloadFeedPackage } from './azureFeed.ts';
 import electron from '@vscode/gulp-electron';
@@ -102,7 +103,7 @@ function darwinBundleDocumentTypes(types: { [name: string]: string | string[] },
 	});
 }
 
-const { electronVersion, msBuildId } = util.getElectronVersion();
+const { electronVersion, msBuildId } = getElectronVersion();
 
 // In product builds, `@vscode/gulp-electron` is given an asset resolver (via the
 // `repo` option) that fetches the prebuilt Electron archives on demand from the

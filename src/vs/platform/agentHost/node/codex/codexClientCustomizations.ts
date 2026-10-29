@@ -3,11 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname } from '../../../../base/common/path.js';
-import type { IMcpServerDefinition, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { basename, extUri, joinPath, relativePath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { parseFrontMatter } from '../../../../base/common/yaml.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
+import { IFileService } from '../../../files/common/files.js';
+import { parseRuleFile, resolveAgentDisableModelInvocation, type IMcpServerDefinition, type IParsedAgent, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { type ChildCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { CustomizationEnablementKind, type AgentSelection } from '../../common/state/protocol/state.js';
+import { CustomizationType, type ChildCustomization, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
+import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
+import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../shared/fileLinkInstructions.js';
 import { toCodexMcpServerJson, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
+
+export const CODEX_FILE_LINK_INSTRUCTIONS = [
+	AGENT_HOST_FILE_LINK_INSTRUCTIONS,
+	'',
+	'<file_link_path_format>',
+	'- Use the actual filesystem path. Example prefixes such as `/path/to` or `/abs/path` are placeholders, not text to prepend to a path.',
+	'- On Windows, drive-letter paths are already absolute: [foo.ts](C:/project/foo.ts). Do not add a leading `/` or prepend the working directory.',
+	'- For UNC paths, preserve the server and share: [foo.ts](//server/share/foo.ts).',
+	'</file_link_path_format>',
+].join('\n');
 
 /**
  * Codex ingests **client-pushed** plugin customizations (the "Open Plugins"
@@ -15,23 +33,37 @@ import { toCodexMcpServerJson, type ICodexMcpServerConfigJson } from './codexMcp
  * from the `.agents`/`.codex` files it discovers itself. This module holds the
  * per-session store for those synced+parsed plugins plus the pure mappers that
  * project them into (a) the AHP {@link PluginCustomization} surface, (b) codex
- * per-thread `thread/start.config.mcp_servers`, and (c) process-global
- * `skills/extraRoots/set` roots.
+ * per-thread `thread/start.config.mcp_servers`, and (c) per-turn
+ * application context containing the client skill catalog.
  *
  * Feeding strategy (see the phase investigation):
  *  - MCP servers are attached **per session** via `thread/start.config`
  *    (verified: codex starts the server for that thread only), so a plugin's
  *    server only runs for sessions that enable it.
- *  - Skills are process-global in codex (`skills/extraRoots/set` replaces a
- *    single shared root list), so the store exposes the union of enabled skill
- *    roots and the agent sets it across all live sessions. This matches the
- *    semantics of client customizations, which are global user choices.
+ *  - Skills are advertised **per session** through `turn/start.additionalContext`,
+ *    so additions and removals also apply to an existing thread.
+ *    Registering the synced copies as process-global extra roots would expose
+ *    other sessions' bundles and revisions and duplicate the native catalog.
  */
 
 /** A single client-pushed plugin: its sync result plus the parsed components (when the sync succeeded). */
 export interface ICodexClientPlugin {
 	readonly synced: ISyncedCustomization;
 	readonly parsed: IParsedPlugin | undefined;
+	readonly input?: ClientPluginCustomization;
+	readonly customization?: PluginCustomization;
+}
+
+export interface ICodexAgentRoleSource {
+	readonly name: string;
+	readonly description: string;
+	readonly instructions: string;
+	readonly model?: string;
+}
+
+export interface ICodexCustomizationConfig {
+	readonly agentRoles: readonly ICodexAgentRoleSource[];
+	readonly developerInstructions: string;
 }
 
 /**
@@ -56,21 +88,12 @@ export class CodexClientCustomizationStore {
 		return this._byClient.delete(clientId);
 	}
 
-	/**
-	 * Toggle a client-pushed customization on/off. Returns whether the
-	 * enablement actually changed (so callers can skip a no-op refresh).
-	 */
 	setEnabled(id: string, enabled: boolean): boolean {
-		const current = this._enablement.get(id);
-		const effective = current !== false; // absent counts as enabled
-		if (effective === enabled) {
+		const current = this._enablement.get(id) !== false;
+		if (current === enabled) {
 			return false;
 		}
-		if (enabled) {
-			this._enablement.delete(id);
-		} else {
-			this._enablement.set(id, false);
-		}
+		this._enablement.set(id, enabled);
 		return true;
 	}
 
@@ -101,13 +124,22 @@ export class CodexClientCustomizationStore {
 		return out;
 	}
 
-	private _isEnabled(id: string): boolean {
-		return this._enablement.get(id) !== false;
+	private _isEnabled(plugin: ICodexClientPlugin): boolean {
+		return this._enablement.get(plugin.synced.customization.id) ?? isCustomizationEnabled(plugin.customization ?? plugin.synced.customization);
+	}
+
+	/** Every client plugin, deduplicated by customization id. */
+	plugins(): readonly ICodexClientPlugin[] {
+		return this._merged();
+	}
+
+	isEnabled(plugin: ICodexClientPlugin): boolean {
+		return this._isEnabled(plugin);
 	}
 
 	/** The merged plugins that are currently enabled and successfully parsed. */
 	enabledPlugins(): readonly ICodexClientPlugin[] {
-		return this._merged().filter(p => p.parsed !== undefined && this._isEnabled(p.synced.customization.id));
+		return this._merged().filter(p => p.parsed !== undefined && this._isEnabled(p));
 	}
 
 	/**
@@ -117,11 +149,11 @@ export class CodexClientCustomizationStore {
 	 */
 	toCustomizations(): PluginCustomization[] {
 		return this._merged().map(plugin => {
-			const base = plugin.synced.customization;
-			const children = plugin.parsed ? parsedPluginChildren(plugin.parsed) : base.children;
+			const base = plugin.customization ?? plugin.synced.customization;
+			const children = base.children ?? (plugin.parsed ? parsedPluginChildren(plugin.parsed) : undefined);
 			return {
 				...base,
-				enabled: this._isEnabled(base.id),
+				...(this._enablement.has(base.id) ? { enablement: [{ kind: CustomizationEnablementKind.Session, enabled: this._enablement.get(base.id)! }] } : {}),
 				...(children ? { children } : {}),
 			};
 		});
@@ -129,7 +161,7 @@ export class CodexClientCustomizationStore {
 }
 
 /** Collects every child customization a parsed plugin exposes, deduped by id. */
-function parsedPluginChildren(parsed: IParsedPlugin): ChildCustomization[] {
+export function parsedPluginChildren(parsed: IParsedPlugin): ChildCustomization[] {
 	const byId = new Map<string, ChildCustomization>();
 	const add = (c: ChildCustomization) => { if (!byId.has(c.id)) { byId.set(c.id, c); } };
 	for (const a of parsed.agents) { add(a.customization); }
@@ -146,34 +178,204 @@ function parsedPluginChildren(parsed: IParsedPlugin): ChildCustomization[] {
  * definition of a given name wins), matching the dedupe used elsewhere.
  * Returns an empty object when the plugins declare no MCP servers.
  */
-export function codexMcpServersFromPlugins(plugins: readonly ICodexClientPlugin[]): Record<string, ICodexMcpServerConfigJson> {
+export function codexMcpServersFromPlugins(plugins: readonly ICodexClientPlugin[], primaryCwd?: URI): Record<string, ICodexMcpServerConfigJson> {
 	const out: Record<string, ICodexMcpServerConfigJson> = {};
 	for (const plugin of plugins) {
 		for (const def of plugin.parsed?.mcpServers ?? emptyMcpDefs) {
+			const child = plugin.customization?.children?.find((candidate): candidate is McpServerCustomization => candidate.type === CustomizationType.McpServer && candidate.name === def.name);
+			if (child && !isCustomizationEnabled(child)) {
+				continue;
+			}
 			if (!Object.prototype.hasOwnProperty.call(out, def.name)) {
-				out[def.name] = toCodexMcpServerJson(def.configuration);
+				const defaultCwd = readClientPluginMcpDefaultCwd(plugin.synced.customization, def.name, primaryCwd) ?? def.defaultCwd;
+				out[def.name] = toCodexMcpServerJson(def.configuration, defaultCwd);
 			}
 		}
 	}
 	return out;
 }
 
-const emptyMcpDefs: readonly IMcpServerDefinition[] = [];
-
-/**
- * Derives the codex skill roots (absolute fsPaths) for a set of client
- * plugins: the parent directory of each skill's `<name>/SKILL.md`, i.e. the
- * plugin's `skills` root, which codex scans for `<name>/SKILL.md` entries.
- * De-duplicated and sorted for a stable `skills/extraRoots/set` payload.
- */
-export function codexSkillRootsFromPlugins(plugins: readonly ICodexClientPlugin[]): string[] {
-	const roots = new Set<string>();
+/** Maps each plugin-provided MCP server name to the URI of its owning plugin. */
+export function codexPluginMcpServerSources(plugins: readonly ICodexClientPlugin[]): ReadonlyMap<string, string> {
+	const sources = new Map<string, string>();
 	for (const plugin of plugins) {
-		for (const skill of plugin.parsed?.skills ?? []) {
-			// skill.uri === <pluginDir>/<skillsDir>/<name>/SKILL.md
-			// dirname twice === <pluginDir>/<skillsDir> (the root codex scans).
-			roots.add(dirname(dirname(skill.uri.fsPath)));
+		for (const server of plugin.parsed?.mcpServers ?? emptyMcpDefs) {
+			if (!sources.has(server.name)) {
+				sources.set(server.name, plugin.synced.customization.uri);
+			}
 		}
 	}
-	return [...roots].sort();
+	return sources;
+}
+
+const emptyMcpDefs: readonly IMcpServerDefinition[] = [];
+
+export function codexMcpServersFromDefinitions(definitions: readonly IMcpServerDefinition[]): Record<string, ICodexMcpServerConfigJson> {
+	const out: Record<string, ICodexMcpServerConfigJson> = {};
+	for (const definition of definitions) {
+		if (!Object.hasOwn(out, definition.name)) {
+			out[definition.name] = toCodexMcpServerJson(definition.configuration, definition.defaultCwd);
+		}
+	}
+	return out;
+}
+
+/**
+ * Builds Codex's launch-time roles and developer instructions. Workspace
+ * agents are processed first so the session's own repository wins a role-name
+ * collision with a global client plugin.
+ */
+export async function codexCustomizationConfig(
+	workspaceAgents: readonly IParsedAgent[],
+	plugins: readonly ICodexClientPlugin[],
+	selectedAgent: AgentSelection | undefined,
+	fileService: IFileService,
+): Promise<ICodexCustomizationConfig> {
+	const agentRoles = new Map<string, ICodexAgentRoleSource>();
+	const pluginInstructions: string[] = [];
+	let selectedAgentInstructions: string | undefined;
+	let selectedAgentMatch = SelectedAgentMatch.None;
+	const selectedAgentUri = selectedAgent?.uri;
+
+	const addAgent = async (agent: IParsedAgent, match: SelectedAgentMatch): Promise<void> => {
+		try {
+			const content = (await fileService.readFile(agent.uri)).value.toString();
+			const frontmatter = parseFrontMatter(content);
+			const name = frontmatter?.getStringValue('name')?.trim() || agent.name;
+			const description = frontmatter?.getStringValue('description')?.trim() || agent.description || name;
+			const instructions = frontmatter?.body ?? content;
+			const model = frontmatter?.getStringArrayValue('model')?.map(value => value.trim()).find(Boolean) || agent.model;
+			const infer = frontmatter?.getBooleanValue('infer');
+			const disableModelInvocation = resolveAgentDisableModelInvocation(infer, frontmatter?.getBooleanValue('disable-model-invocation'), agent.disableModelInvocation);
+			if (!disableModelInvocation && !agentRoles.has(name)) {
+				agentRoles.set(name, {
+					name,
+					description,
+					instructions,
+					...(model ? { model } : {}),
+				});
+			}
+			if (match > selectedAgentMatch) {
+				selectedAgentInstructions = instructions;
+				selectedAgentMatch = match;
+			}
+		} catch { }
+	};
+
+	for (const agent of workspaceAgents) {
+		const match = selectedAgentUri && extUri.isEqual(agent.uri, URI.parse(selectedAgentUri))
+			? SelectedAgentMatch.Exact
+			: SelectedAgentMatch.None;
+		await addAgent(agent, match);
+	}
+
+	for (const plugin of plugins) {
+		for (const agent of plugin.parsed?.agents ?? []) {
+			const match = selectedAgentUri ? matchSelectedAgent(plugin, agent.uri, selectedAgentUri) : SelectedAgentMatch.None;
+			await addAgent(agent, match);
+		}
+
+		for (const instruction of plugin.parsed?.instructions ?? []) {
+			try {
+				const rule = await parseRuleFile(instruction.uri, fileService);
+				if (!isAlwaysOnRule(rule.globs, rule.alwaysApply)) {
+					continue;
+				}
+				const content = (await fileService.readFile(instruction.uri)).value.toString();
+				const frontmatter = parseFrontMatter(content);
+				const body = frontmatter?.body ?? content;
+				if (body.trim()) {
+					pluginInstructions.push(body.trim());
+				}
+			} catch { }
+		}
+	}
+
+	const developerInstructions = [
+		...pluginInstructions,
+		...(selectedAgentInstructions ? [selectedAgentInstructions.trim()] : []),
+		CODEX_FILE_LINK_INSTRUCTIONS,
+	].filter(Boolean).join('\n\n');
+
+	return {
+		agentRoles: [...agentRoles.values()],
+		developerInstructions,
+	};
+}
+
+function isAlwaysOnRule(globs: readonly string[] | undefined, alwaysApply: boolean | undefined): boolean {
+	if (!globs?.length) {
+		return alwaysApply !== false;
+	}
+	return globs.some(glob => glob.trim() === '**' || glob.trim() === '**/*');
+}
+
+const enum SelectedAgentMatch {
+	None,
+	SyntheticBundleSource,
+	Exact,
+}
+
+function matchSelectedAgent(plugin: ICodexClientPlugin, agentUri: URI, selectedAgentUri: string): SelectedAgentMatch {
+	const selectedUri = URI.parse(selectedAgentUri);
+	if (extUri.isEqual(agentUri, selectedUri)) {
+		return SelectedAgentMatch.Exact;
+	}
+	const pluginDir = plugin.synced.pluginDir;
+	if (!pluginDir) {
+		return SelectedAgentMatch.None;
+	}
+	const relativeAgentPath = relativePath(pluginDir, agentUri);
+	if (relativeAgentPath === undefined) {
+		return SelectedAgentMatch.None;
+	}
+	const sourcePluginUri = URI.parse(plugin.synced.customization.uri);
+	const sourceAgentUri = relativeAgentPath ? joinPath(sourcePluginUri, relativeAgentPath) : sourcePluginUri;
+	if (extUri.isEqual(sourceAgentUri, selectedUri)) {
+		return SelectedAgentMatch.Exact;
+	}
+
+	// The workbench's synthetic bundle flattens loose custom agents into its
+	// `agents/` directory, while the Agents window intentionally exposes each
+	// agent's original workspace/user URI. The host cannot reconstruct that
+	// original parent path, but the filename remains stable and is unique in
+	// the flattened bundle. Keep this as a lower-priority fallback so an exact
+	// match from another plugin always wins.
+	if (sourcePluginUri.scheme === SYNCED_CUSTOMIZATION_SCHEME
+		&& relativeAgentPath.startsWith('agents/')
+		&& basename(agentUri) === basename(selectedUri)) {
+		return SelectedAgentMatch.SyntheticBundleSource;
+	}
+
+	return SelectedAgentMatch.None;
+}
+
+export function codexAgentRoleToml(role: ICodexAgentRoleSource): string {
+	return [
+		`name = ${JSON.stringify(role.name)}`,
+		`description = ${JSON.stringify(role.description)}`,
+		`developer_instructions = ${JSON.stringify(role.instructions)}`,
+		...(role.model ? [`model = ${JSON.stringify(role.model)}`] : []),
+		'',
+	].join('\n');
+}
+
+export function codexClientSkillInstructions(plugins: readonly ICodexClientPlugin[]): string {
+	const skillDescriptions = new Map<string, string>();
+	for (const plugin of plugins) {
+		for (const skill of plugin.parsed?.skills ?? []) {
+			if (!skill.disableModelInvocation) {
+				skillDescriptions.set(skill.uri.toString(), `- ${skill.name}: ${skill.description ?? skill.name} (file: ${skill.uri.fsPath})`);
+			}
+		}
+	}
+	return [
+		'<client_skills>',
+		'This is the current client skill catalog for this session and replaces any earlier client skill catalog. Native skills are separate.',
+		...(skillDescriptions.size > 0 ? [
+			'When a task matches a skill, read its SKILL.md using file-reading tools before following its instructions. Resolve relative references from the skill directory.',
+			...skillDescriptions.values(),
+		] : ['No client skills are currently available.']),
+		'</client_skills>',
+	].join('\n');
 }

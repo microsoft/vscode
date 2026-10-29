@@ -12,10 +12,11 @@ import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IColorTheme, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
+import { inputBackground } from '../../../../../platform/theme/common/colors/inputColors.js';
 import { chatDictationActiveMicGlow } from '../../common/widget/chatColors.js';
 import { readVoiceGlowIntensity } from '../voiceClient/voiceGlow.js';
 import { createVoiceRimLight, IVoiceRimLight } from '../voiceClient/voiceGlowController.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService } from './chatSpeechToTextService.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService, isDictationActiveOnSurface } from './chatSpeechToTextService.js';
 
 export type DictationMicGlowPhase = 'off' | 'live' | 'settling';
 
@@ -126,14 +127,16 @@ export function setupDictationMicGlow(
 			return;
 		}
 		const kind = isDark(theme.type) ? 'dark' : 'light';
+		const background = theme.getColor(inputBackground);
 		if (rim.value) {
-			rim.value.refresh(accent, kind);
+			rim.value.refresh(accent, kind, background);
 		} else {
-			rim.value = createVoiceRimLight(target, accent, kind);
+			rim.value = createVoiceRimLight(target, accent, kind, 'cool', background);
 		}
 	};
 
 	const update = (active = isActive?.get() !== false) => {
+		active = active && isDictationActiveOnSurface(service, 'chat');
 		const phase = active ? getDictationMicGlowPhase(service.state, service.isPreparingModel) : 'off';
 		target.classList.toggle('dictation-mic-active', phase !== 'off');
 		target.classList.toggle('dictation-mic-settling', phase === 'settling');

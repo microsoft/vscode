@@ -10,6 +10,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { TextEdit as EditorTextEdit } from '../../../../../editor/common/core/edits/textEdit.js';
 import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
 import { IDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
@@ -31,10 +32,11 @@ import { IEditorPane, SaveReason } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ITextFileService, isTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
-import { IChatResponseModel } from '../../common/model/chatModel.js';
+import { IChatEditMetadata, IChatResponseModel } from '../../common/model/chatModel.js';
 import { ChatEditingCodeEditorIntegration } from './chatEditingCodeEditorIntegration.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingTextModelChangeService } from './chatEditingTextModelChangeService.js';
@@ -103,6 +105,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAiEditTelemetryService aiEditTelemetryService: IAiEditTelemetryService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@IAgentHostConnectionsService agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 		super(
 			resourceRef.object.textEditorModel.uri,
@@ -115,6 +118,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			undoRedoService,
 			instantiationService,
 			aiEditTelemetryService,
+			agentHostConnectionsService,
 		);
 
 		this._docFileEditorModel = this._register(resourceRef).object;
@@ -223,6 +227,16 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		await this._textModelChangeService.resetDocumentValues(this.initialContent, undefined);
 	}
 
+	/** Compares the document with `content` from now on, as when another component records what was kept. */
+	protected async _resetOriginalContent(content: string): Promise<void> {
+		await this._textModelChangeService.resetDocumentValues(content, undefined);
+	}
+
+	/** Until the next diff is computed, a user edit applies to the original through `edit`, which turns the original into the document. */
+	protected _mapOriginalToModified(edit: StringEdit): void {
+		this._textModelChangeService.setOriginalToModifiedEdit(edit);
+	}
+
 	protected override async _areOriginalAndModifiedIdentical(): Promise<boolean> {
 		return this._textModelChangeService.areOriginalAndModifiedIdentical();
 	}
@@ -238,9 +252,9 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		return new SingleModelEditStackElement(label, 'chat.edit', this.modifiedModel, null);
 	}
 
-	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined): Promise<void> {
+	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined, metadata: IChatEditMetadata): Promise<void> {
 
-		const result = await this._textModelChangeService.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
+		const result = await this._textModelChangeService.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel, metadata);
 
 		transaction((tx) => {
 			this._waitsForLastEdits.set(!isLastEdits, tx);
@@ -306,7 +320,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		const codeEditor = getCodeEditor(editor.getControl());
 		assertType(codeEditor);
 
-		const diffInfo = this._textModelChangeService.diffInfo;
+		const diffInfo = this.diffInfo;
 
 		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, this, codeEditor, diffInfo, false);
 	}

@@ -8,6 +8,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import type * as http from 'http';
 import * as net from 'net';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import {
@@ -16,7 +17,7 @@ import {
 	type ICopilotApiService,
 	type ICopilotApiServiceRequestOptions,
 } from '../../node/shared/copilotApiService.js';
-import { PROXY_ERROR_PREFIX, tryParseForwardedChatError } from '../../node/shared/forwardedChatError.js';
+import { PROXY_ERROR_PREFIX, tryParseForwardedChatError } from '../../node/shared/proxyChatError.js';
 import { ClaudeProxyService } from '../../node/claude/claudeProxyService.js';
 
 /**
@@ -934,6 +935,21 @@ suite('ClaudeProxyService', () => {
 			assert.strictEqual(headers?.['anthropic-beta'], 'interleaved-thinking-2025-05-14');
 		});
 
+		test('omits anthropic-beta when the inbound header is absent', async () => {
+			const headers = await postAndCaptureHeaders(undefined, undefined);
+			assert.strictEqual(headers?.['anthropic-beta'], undefined);
+		});
+
+		test('omits anthropic-beta when the inbound header is empty', async () => {
+			const headers = await postAndCaptureHeaders('', undefined);
+			assert.strictEqual(headers?.['anthropic-beta'], undefined);
+		});
+
+		test('forwards SDK per-turn control without adding a compatibility beta', async () => {
+			const headers = await postAndCaptureHeaders('interleaved-thinking-2025-05-14, per-turn-control-2026-07-01,foo', undefined);
+			assert.strictEqual(headers?.['anthropic-beta'], 'interleaved-thinking-2025-05-14,per-turn-control-2026-07-01');
+		});
+
 		test('filters out unsupported betas', async () => {
 			const headers = await postAndCaptureHeaders('foo,bar,baz', undefined);
 			assert.strictEqual(headers?.['anthropic-beta'], undefined);
@@ -1308,6 +1324,7 @@ suite('ClaudeProxyService', () => {
 		test('dispose() with in-flight non-streaming aborts the upstream call', async () => {
 			const fake = new FakeCopilotApiService();
 			let signalSeen: AbortSignal | undefined;
+			const upstreamCalled = new DeferredPromise<void>();
 			let releaseUpstream: () => void = () => { };
 			const upstream = new Promise<Anthropic.Message>((_resolve, reject) => {
 				releaseUpstream = () => reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
@@ -1316,6 +1333,7 @@ suite('ClaudeProxyService', () => {
 				_serviceBrand: undefined,
 				messages: ((token, body, options) => {
 					signalSeen = options?.signal;
+					upstreamCalled.complete();
 					if (body.stream) {
 						return fake.messages(token, body as Anthropic.MessageCreateParamsStreaming, options);
 					}
@@ -1342,11 +1360,7 @@ suite('ClaudeProxyService', () => {
 			}).catch(err => ({ aborted: true, err: err as Error }));
 
 			// Wait until upstream has been called.
-			await new Promise<void>(resolve => {
-				const i = setInterval(() => {
-					if (signalSeen) { clearInterval(i); resolve(); }
-				}, 10);
-			});
+			await upstreamCalled.p;
 
 			handle.dispose();
 			service.dispose();

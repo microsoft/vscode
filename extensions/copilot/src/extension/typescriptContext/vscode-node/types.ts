@@ -8,6 +8,28 @@ import * as vscode from 'vscode';
 import { ContextKind, type ContextItem, type ILanguageContextService } from '../../../platform/languageServer/common/languageContextService';
 import * as protocol from '../common/serverProtocol';
 
+export enum ErrorLocation {
+	Client = 'client',
+	Server = 'server'
+}
+
+export enum ErrorPart {
+	ServerPlugin = 'server-plugin',
+	TypescriptPlugin = 'typescript-plugin',
+	CopilotExtension = 'copilot-extension'
+}
+
+export type CacheInfo = {
+	version: number;
+	state: CacheState;
+};
+
+export enum CacheState {
+	NotPopulated = 'NotPopulated',
+	PartiallyPopulated = 'PartiallyPopulated',
+	FullyPopulated = 'FullyPopulated'
+}
+
 export type ResolvedRunnableResult = {
 	id: protocol.ContextRunnableResultId;
 	state: protocol.ContextRunnableState;
@@ -16,6 +38,7 @@ export type ResolvedRunnableResult = {
 	cache?: protocol.CacheInfo;
 	debugPath?: protocol.ContextRunnableResultId | undefined;
 };
+
 export namespace ResolvedRunnableResult {
 	export function from(result: protocol.ContextRunnableResult, items: protocol.FullContextItem[]): ResolvedRunnableResult {
 		return {
@@ -26,6 +49,25 @@ export namespace ResolvedRunnableResult {
 			cache: result.cache,
 			debugPath: result.debugPath
 		};
+	}
+}
+
+export enum ContextItemUsageMode {
+	minimal = 'minimal',
+	double = 'double',
+	fillHalf = 'fillHalf',
+	fill = 'fill'
+}
+
+export namespace ContextItemUsageMode {
+	export function fromString(value: string): ContextItemUsageMode {
+		switch (value) {
+			case 'minimal': return ContextItemUsageMode.minimal;
+			case 'double': return ContextItemUsageMode.double;
+			case 'fillHalf': return ContextItemUsageMode.fillHalf;
+			case 'fill': return ContextItemUsageMode.fill;
+			default: return ContextItemUsageMode.minimal;
+		}
 	}
 }
 
@@ -105,6 +147,7 @@ export interface ContextItemSummary {
 	contextComputeTime: number;
 	totalTime: number;
 }
+
 export namespace ContextItemSummary {
 	export const DefaultExhausted: ContextItemSummary = Object.freeze<ContextItemSummary>({
 		path: [0],

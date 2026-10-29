@@ -12,10 +12,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { TestEnvironmentService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ChatEditingSessionStorage, IChatEditingSessionStop, StoredSessionState } from '../../../browser/chatEditing/chatEditingSessionStorage.js';
 import { ChatEditingSnapshotTextModelContentProvider } from '../../../browser/chatEditing/chatEditingTextModelContentProviders.js';
 import { ISnapshotEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
+import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 
 suite('ChatEditingSessionStorage', () => {
@@ -23,6 +25,7 @@ suite('ChatEditingSessionStorage', () => {
 	const sessionResource = URI.parse('chat://test-session');
 	let fs: FileService;
 	let storage: TestChatEditingSessionStorage;
+	let workspaceContextService: IWorkspaceContextService;
 
 	class TestChatEditingSessionStorage extends ChatEditingSessionStorage {
 		public get storageLocation() {
@@ -33,14 +36,15 @@ suite('ChatEditingSessionStorage', () => {
 	setup(() => {
 		fs = ds.add(new FileService(new NullLogService()));
 		ds.add(fs.registerProvider(TestEnvironmentService.workspaceStorageHome.scheme, ds.add(new InMemoryFileSystemProvider())));
+		// eslint-disable-next-line local/code-no-any-casts
+		workspaceContextService = { getWorkspace: () => ({ id: 'workspaceId' }) } as any;
 
 		storage = new TestChatEditingSessionStorage(
 			sessionResource,
 			fs,
 			TestEnvironmentService,
 			new NullLogService(),
-			// eslint-disable-next-line local/code-no-any-casts
-			{ getWorkspace: () => ({ id: 'workspaceId' }) } as any,
+			workspaceContextService,
 		);
 	});
 
@@ -69,6 +73,18 @@ suite('ChatEditingSessionStorage', () => {
 	test('state is empty initially', async () => {
 		const s = await storage.restoreState();
 		assert.strictEqual(s, undefined);
+	});
+
+	test('rejects session IDs that escape the storage root', () => {
+		const maliciousStorage = new TestChatEditingSessionStorage(
+			LocalChatSessionUri.forSession('../../../outside'),
+			fs,
+			TestEnvironmentService,
+			new NullLogService(),
+			workspaceContextService,
+		);
+
+		assert.throws(() => maliciousStorage.storageLocation, /Invalid chat session ID/);
 	});
 
 	test('round trips state', async () => {

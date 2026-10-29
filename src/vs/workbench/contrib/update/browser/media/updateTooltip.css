@@ -8,8 +8,8 @@
 	flex-direction: column;
 	gap: 12px;
 	padding: 6px 6px;
-	min-width: 300px;
-	max-width: 350px;
+	width: 300px;
+	max-width: calc(100% - var(--vscode-spacing-size120));
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-bodyFontSize-small);
 }
@@ -97,7 +97,7 @@
 .update-tooltip .release-notes-button {
 	background-color: var(--vscode-button-secondaryBackground);
 	color: var(--vscode-button-secondaryForeground);
-	border: 1px solid var(--vscode-button-border, transparent);
+	border: 1px solid var(--vscode-button-secondaryBorder, var(--vscode-button-border, transparent));
 }
 
 .update-tooltip .release-notes-button:hover {

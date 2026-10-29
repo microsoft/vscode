@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { ImportChanges } from '../../common/dataTypes/importFilteringOptions';
-import { applyStrategyConfig, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PromptingStrategy } from '../../common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, applyStrategyConfig, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, isEagernessPrompt, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PatchModelPrediction, PromptingStrategy, RejectedEditsCacheScope, RejectedEditsMemoryMode, RejectedEditsPlacement, ResponseFormat } from '../../common/dataTypes/xtabPromptOptions';
 
 function baseConfig(overrides: Partial<ModelConfiguration> = {}): ModelConfiguration {
 	return {
@@ -53,6 +53,40 @@ describe('applyStrategyConfig', () => {
 			recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace, maxTokens: 99 },
 			supportsNextCursorLinePrediction: false,
 		});
+		// The additional client/latency knobs are only baked into PatchBased02Unified.
+		expect(result.patchModelPredictionKind).toBeUndefined();
+		expect(result.cacheDelay).toBeUndefined();
+		expect(result.debounce).toBeUndefined();
+		expect(result.supportsUnifiedCompletions).toBeUndefined();
+	});
+
+	it('forces baked-in fields for PatchBased02Unified', () => {
+		const result = applyStrategyConfig(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02Unified,
+			includeTagsInCurrentFile: true,
+			includePostScript: false,
+			currentFile: { includeLineNumbers: IncludeLineNumbersOption.None, maxTokens: 42 },
+			recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.None, maxTokens: 99 },
+			supportsNextCursorLinePrediction: true,
+			allowImportChanges: ImportChanges.None,
+		}));
+		expect(result).toMatchObject({
+			includeTagsInCurrentFile: false,
+			includePostScript: true,
+			currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace, maxTokens: 42 },
+			recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace, maxTokens: 99 },
+			supportsNextCursorLinePrediction: false,
+			allowImportChanges: ImportChanges.All,
+			patchModelPredictionKind: PatchModelPrediction.CurrentLineCompleted,
+			splitPatchOnDiff: true,
+			patchFastYieldLineWithCursor: true,
+			extraDebounceEndOfLine: 0,
+			nesMimicGhostTextBehavior: true,
+			cacheDelay: 200,
+			rebasedCacheDelay: 0,
+			debounce: 0,
+			supportsUnifiedCompletions: true,
+		});
 	});
 
 	it('forces recentlyViewedDocuments.includeLineNumbers=None for PatchBased02WithoutRecentLineNumbers', () => {
@@ -62,6 +96,36 @@ describe('applyStrategyConfig', () => {
 		}));
 		expect(result.recentlyViewedDocuments?.includeLineNumbers).toBe(IncludeLineNumbersOption.None);
 		expect(result.currentFile?.includeLineNumbers).toBe(IncludeLineNumbersOption.WithoutSpace);
+	});
+
+	it('matches PatchBased02Unified config except for the eagerness prompt', () => {
+		const unified = applyStrategyConfig(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02Unified,
+		}));
+		const eagerness = applyStrategyConfig(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagerness,
+		}));
+
+		expect(eagerness).toEqual({
+			...unified,
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagerness,
+			eagernessPrompt: 'aggressionHighLow',
+		});
+	});
+
+	it('matches unified eagerness config except for the low/medium prompt option', () => {
+		const eagerness = applyStrategyConfig(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagerness,
+		}));
+		const lowMedium = applyStrategyConfig(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagernessLowMedium,
+			eagernessPrompt: 'aggressionHighLow',
+		}));
+		expect(lowMedium).toEqual({
+			...eagerness,
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagernessLowMedium,
+			eagernessPrompt: 'aggressionLowMedium',
+		});
 	});
 
 	it('preserves undefined for option bags neither side specifies', () => {
@@ -85,6 +149,95 @@ describe('applyStrategyConfig', () => {
 
 describe('MODEL_CONFIGURATION_VALIDATOR', () => {
 
+	it.each(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const)('accepts reasoningEffort=%s', reasoningEffort => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ reasoningEffort, maxCompletionTokens: 8192 }));
+		expect({
+			error: result.error,
+			reasoningEffort: result.content?.reasoningEffort,
+			maxCompletionTokens: result.content?.maxCompletionTokens,
+		}).toEqual({ error: undefined, reasoningEffort, maxCompletionTokens: 8192 });
+	});
+
+	it('leaves request arguments unset by default', () => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig());
+		expect({
+			error: result.error,
+			reasoningEffort: result.content?.reasoningEffort,
+			maxCompletionTokens: result.content?.maxCompletionTokens,
+		}).toEqual({ error: undefined, reasoningEffort: undefined, maxCompletionTokens: undefined });
+	});
+
+	it.each(['', 'invalid', 'HIGH', null, 1])('rejects reasoningEffort=%s', reasoningEffort => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate({ ...baseConfig(), reasoningEffort });
+		expect(result.error).toBeDefined();
+	});
+
+	it.each([0, -1, 1.5, NaN, Infinity, -Infinity, '8192', null])('rejects maxCompletionTokens=%s', maxCompletionTokens => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate({ ...baseConfig(), maxCompletionTokens });
+		expect(result.error).toBeDefined();
+	});
+
+	it('accepts the minimum completion token budget', () => {
+		expect(MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ maxCompletionTokens: 1 })).content?.maxCompletionTokens).toBe(1);
+	});
+
+	it.each(['aggressionHighLow', 'aggressionLowMedium'] as const)('accepts a config with eagernessPrompt=%s', eagernessPrompt => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ eagernessPrompt }));
+		expect(result.error).toBeUndefined();
+		expect(result.content?.eagernessPrompt).toBe(eagernessPrompt);
+	});
+
+	it('accepts the low/medium eagerness strategy and uses patch responses', () => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagernessLowMedium,
+		}));
+		expect({
+			error: result.error,
+			strategy: result.content?.promptingStrategy,
+			format: ResponseFormat.fromPromptingStrategy(result.content?.promptingStrategy),
+		}).toEqual({
+			error: undefined,
+			strategy: PromptingStrategy.PatchBased02UnifiedEagernessLowMedium,
+			format: ResponseFormat.CustomDiffPatch,
+		});
+	});
+
+	it('keeps rejected-edit memory off by default', () => {
+		expect(DEFAULT_OPTIONS.memory).toBeUndefined();
+		expect(MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig()).content?.memory).toBeUndefined();
+	});
+
+	it('accepts default rejected-edit memory in the model configuration', () => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ memory: { rejectedEdits: RejectedEditsMemoryMode.DiffWithTags } }));
+		expect(result.error).toBeUndefined();
+		expect(result.content?.memory?.rejectedEdits).toBe(RejectedEditsMemoryMode.DiffWithTags);
+	});
+
+	it('accepts applied-then-undone rejected-edit memory in the model configuration', () => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ memory: { rejectedEdits: RejectedEditsMemoryMode.AppliedThenUndone } }));
+		expect(result.error).toBeUndefined();
+		expect(result.content?.memory?.rejectedEdits).toBe(RejectedEditsMemoryMode.AppliedThenUndone);
+	});
+
+	it('accepts the rejected-edit experiment options in the model configuration', () => {
+		const memory = { rejectedEdits: RejectedEditsMemoryMode.AppliedThenUndone, rejectedEditsMaxEditsAfter: 6, rejectedEditsPlacement: RejectedEditsPlacement.Newest, rejectedEditsRepetitions: 2, rejectedEditsMaxCount: 1, rejectedEditsCacheScope: RejectedEditsCacheScope.Edit, rejectedEditsOnlyFullyVisible: true };
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ memory }));
+		expect(result.error).toBeUndefined();
+		expect(result.content?.memory).toEqual(memory);
+	});
+
+	it('accepts cache scope none', () => {
+		const memory = { rejectedEdits: RejectedEditsMemoryMode.AppliedThenUndone, rejectedEditsCacheScope: RejectedEditsCacheScope.None };
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ memory }));
+		expect(result.error).toBeUndefined();
+		expect(result.content?.memory?.rejectedEditsCacheScope).toBe('none');
+	});
+
+	it('rejects an unknown rejected-edit placement', () => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ memory: { rejectedEdits: RejectedEditsMemoryMode.AppliedThenUndone, rejectedEditsPlacement: 'later' } as never }));
+		expect(result.error).toBeDefined();
+	});
+
 	it('accepts a config with allowImportChanges', () => {
 		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ allowImportChanges: ImportChanges.All }));
 		expect(result.error).toBeUndefined();
@@ -100,6 +253,55 @@ describe('MODEL_CONFIGURATION_VALIDATOR', () => {
 	it('rejects an invalid allowImportChanges value', () => {
 		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ allowImportChanges: 'sometimes' as ImportChanges }));
 		expect(result.error).toBeDefined();
+	});
+});
+
+describe('isEagernessPrompt', () => {
+	it('recognizes the PatchBased02 aggression prompt option', () => {
+		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02, eagernessPrompt: 'aggressionHighLow' }, AggressivenessLevel.High)).toBe(true);
+		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02 }, AggressivenessLevel.High)).toBe(false);
+	});
+
+	it('recognizes the optimized PatchBased02 aggression prompt option', () => {
+		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02Unified, eagernessPrompt: 'aggressionHighLow' }, AggressivenessLevel.High)).toBe(true);
+		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02Unified }, AggressivenessLevel.High)).toBe(false);
+	});
+
+	it('does not recognize eagerness for an unrelated strategy', () => {
+		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.CopilotNesXtab, eagernessPrompt: 'aggressionHighLow' }, AggressivenessLevel.Low)).toBe(false);
+	});
+
+	it('recognizes the standalone eagerness strategy after strategy config is applied', () => {
+		const config = applyStrategyConfig(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagerness,
+		}));
+		const options = {
+			...DEFAULT_OPTIONS,
+			promptingStrategy: config.promptingStrategy,
+			eagernessPrompt: config.eagernessPrompt,
+		};
+		expect(isEagernessPrompt(options, AggressivenessLevel.High)).toBe(true);
+	});
+
+	it.each([
+		PromptingStrategy.PatchBased02,
+		PromptingStrategy.PatchBased02WithRecentLineNumbers,
+		PromptingStrategy.PatchBased02Unified,
+		PromptingStrategy.PatchBased02UnifiedEagernessLowMedium,
+		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
+	])('uses low/medium prompting and high timing for %s', promptingStrategy => {
+		const options = { ...DEFAULT_OPTIONS, promptingStrategy, eagernessPrompt: 'aggressionLowMedium' as const };
+		expect(Object.values(AggressivenessLevel).map(level => isEagernessPrompt(options, level))).toEqual([true, true, false]);
+	});
+
+	it.each([
+		PromptingStrategy.XtabAggressiveness,
+		PromptingStrategy.Xtab275Aggressiveness,
+		PromptingStrategy.Xtab275AggressivenessHighLow,
+		PromptingStrategy.Xtab275EditIntent,
+		PromptingStrategy.Xtab275EditIntentShort,
+	])('preserves first-class eagerness behavior for %s', promptingStrategy => {
+		expect(Object.values(AggressivenessLevel).map(level => isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy }, level))).toEqual([true, true, true]);
 	});
 });
 
