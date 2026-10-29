@@ -2347,6 +2347,109 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('conservatively combines duplicate extension identities', async () => {
+		const client = new TestCopilotClient([]);
+		const installed = {
+			id: 'plugin:foundry:canvas',
+			name: 'canvas',
+			path: '/plugins/foundry/canvas/extension.mjs',
+			source: 'plugin' as const,
+			enabled: true,
+			plugin: { name: 'foundry' },
+		};
+		client.extensionInventory = { mode: 'load_and_augment', extensions: [installed, installed] };
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const session = AgentSession.uri('copilotcli', 'duplicate-extensions');
+		setDefaultSessionStub(agent, 'duplicate-extensions', {
+			listExtensions: async () => [
+				{ id: installed.id, name: 'foundry:canvas', source: 'plugin', status: 'disabled' },
+				{ id: installed.id, name: 'foundry:canvas', source: 'plugin', status: 'disabled' },
+				{ id: 'user:preview', name: 'Preview', source: 'user', status: 'running' },
+				{ id: 'user:preview', name: 'Preview', source: 'user', status: 'disabled' },
+				{ id: 'plugin:failed', name: 'Failed', source: 'plugin', status: 'running' },
+				{ id: 'plugin:failed', name: 'Failed', source: 'plugin', status: 'failed' },
+				{ id: 'plugin:starting', name: 'Starting', source: 'plugin', status: 'running' },
+				{ id: 'plugin:starting', name: 'Starting', source: 'plugin', status: 'starting' },
+			],
+		});
+		try {
+			const cold = await agent.listAgentExtensions();
+			const active = await agent.listAgentExtensions(session);
+			assert.deepStrictEqual({
+				cold: cold.extensions.map(extension => [extension.id, extension.status]),
+				active: active.extensions.map(extension => [extension.id, extension.status, extension.resource?.toString(), extension.pluginName]),
+			}, {
+				cold: [[installed.id, 'unknown']],
+				active: [
+					[installed.id, 'disabled', URI.file(installed.path).toString(), 'foundry'],
+					['user:preview', 'unknown', undefined, undefined],
+					['plugin:failed', 'failed', undefined, undefined],
+					['plugin:starting', 'starting', undefined, undefined],
+				],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	for (const scenario of [
+		{ name: 'disabled target and unrelated failure', enabled: false, statuses: ['disabled'], succeeds: false },
+		{ name: 'running target and unrelated failure', enabled: true, statuses: ['running'], succeeds: true },
+		{ name: 'target still running', enabled: false, statuses: ['running'], succeeds: false },
+		{ name: 'target still starting', enabled: true, statuses: ['starting'], succeeds: false },
+		{ name: 'target absent', enabled: false, statuses: [], succeeds: false },
+		{ name: 'conflicting duplicate target states', enabled: false, statuses: ['disabled', 'running'], succeeds: false },
+		{ name: 'verification unavailable', enabled: false, statuses: ['disabled'], succeeds: false },
+		{ name: 'disposed session', enabled: false, statuses: ['disabled'], succeeds: false },
+	] as const) {
+		test(`verifies extension enablement after reconciliation failure: ${scenario.name}`, async () => {
+			const client = new TestCopilotClient([]);
+			client.extensionInventory = {
+				mode: 'load_and_augment',
+				extensions: [{ id: 'user:preview', name: 'preview', path: '/extensions/preview.mjs', source: 'user', enabled: !scenario.enabled }],
+			};
+			const logService = new NullLogService();
+			const warnings = spy(logService, 'warn');
+			const agent = createTestAgent(disposables, { copilotClient: client, logService });
+			const session = AgentSession.uri('copilotcli', 'partial-extension-reconcile');
+			let reconciled = false;
+			setDefaultSessionStub(agent, 'partial-extension-reconcile', {
+				get isDisposed() { return reconciled && scenario.name === 'disposed session'; },
+				reconcileExtensions: async () => {
+					reconciled = true;
+					throw new Error('unrelated extension did not become ready');
+				},
+				listExtensions: async () => {
+					if (reconciled && scenario.name === 'verification unavailable') {
+						throw new Error('inventory unavailable');
+					}
+					return [
+						...scenario.statuses.map(status => ({ id: 'user:preview', name: 'preview', source: 'user', status })),
+						{ id: 'plugin:other', name: 'other', source: 'plugin', status: 'failed' },
+					];
+				},
+			});
+			try {
+				const mutation = agent.setAgentExtensionEnabled('user:preview', scenario.enabled, session);
+				if (scenario.succeeds) {
+					await mutation;
+				} else {
+					await assert.rejects(mutation, /Canvas extension 'preview' was (?:enabled|disabled) in settings/);
+				}
+				assert.deepStrictEqual({
+					persisted: scenario.enabled ? client.extensionEnableRequests : client.extensionDisableRequests,
+					warned: warnings.calledOnce,
+				}, {
+					persisted: [{ ids: ['user:preview'] }],
+					warned: scenario.succeeds,
+				});
+			} finally {
+				warnings.restore();
+				await disposeAgent(agent);
+			}
+		});
+	}
+
 	test('handles cold and forward-compatible extension inventory', async () => {
 		const client = new TestCopilotClient([]);
 		client.extensionInventory = {
@@ -2544,7 +2647,7 @@ suite('CopilotAgent', () => {
 				originalReconcileCalls,
 				replacementReconcileCalls,
 			}, {
-				errorMessage: 'The extension preference was saved, but the selected chat could not be updated: The selected chat stopped or was replaced before its extension state could be updated.',
+				errorMessage: 'Canvas extension \'Preview\' was disabled in settings, but couldn\'t be stopped in this chat. The selected chat stopped or was replaced before its extension state could be updated.',
 				disableRequests: [{ ids: ['user:preview'] }],
 				originalReconcileCalls: 0,
 				replacementReconcileCalls: 0,
