@@ -178,15 +178,17 @@ suite('Agent Host PR test selection', () => {
 				integrationTests: job.env?.INTEGRATION_TESTS,
 				shard: job.env?.AGENT_HOST_E2E_SHARD_INDEX === undefined ? undefined : `${job.env.AGENT_HOST_E2E_SHARD_INDEX}/${job.env.AGENT_HOST_E2E_SHARD_TOTAL}`,
 			});
+			// The job that runs the node.js integration tests: Linux runs them apart from the extension host tests.
+			const nodeIntegration = jobs.electron ?? jobs['electron-node'];
 			return {
 				needs: caller.needs,
 				if: caller.if,
 				profile: caller.with?.agent_host_test_profile,
 				reason: caller.with?.agent_host_test_profile_reason,
 				// The jobs that run Agent Host E2E without the integration tests, by their names.
-				agentHost: Object.fromEntries(Object.values(jobs).filter(job => job.env?.AGENT_HOST_E2E_TESTS !== undefined && job !== jobs.electron).map(job => [job.name, describe(job)])),
+				agentHost: Object.fromEntries(Object.values(jobs).filter(job => job.env?.AGENT_HOST_E2E_TESTS !== undefined && job !== nodeIntegration).map(job => [job.name, describe(job)])),
 				// Provider integration tests in the serial node.js run also read the profile.
-				integration: describe(jobs.electron),
+				integration: describe(nodeIntegration),
 			};
 		});
 		const platforms = ['linux', 'darwin', 'win32'].map(platform => {
@@ -309,10 +311,11 @@ suite('Agent Host PR test selection', () => {
 						reason: '${{ inputs.agent_host_test_profile_reason }}',
 						skip: undefined,
 					},
-					// Runs after an Agent Host E2E failure in the same job, so that one does not hide the other.
+					// Runs after an Agent Host E2E failure in the same job, so that one does not hide the other. Linux
+					// runs the node.js integration tests and the extension host tests in separate jobs.
 					integration: {
 						id: 'node-integration-tests',
-						if: `\${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && ${planned ? 'env.NODE_INTEGRATION_TESTS == \'true\' && ' : ''}!cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}`,
+						if: `\${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && ${planned ? 'env.NODE_INTEGRATION_TESTS == \'true\'' : 'env.INTEGRATION_TEST_SUITE != \'extension-host\''} && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}`,
 						runsScript: true,
 						runList: planned,
 						profile: '${{ inputs.agent_host_test_profile }}',
@@ -320,7 +323,7 @@ suite('Agent Host PR test selection', () => {
 					},
 					// Runs after a node.js integration test or Agent Host E2E failure in the same job.
 					extensionHost: {
-						if: '${{ env.ELECTRON_TESTS == \'true\' && env.INTEGRATION_TESTS == \'true\' && !cancelled() && (success() || steps.agent-host-e2e.outcome == \'failure\' || steps.node-integration-tests.outcome == \'failure\') }}',
+						if: `\${{ env.ELECTRON_TESTS == 'true' && env.INTEGRATION_TESTS == 'true' && ${planned ? '' : 'env.INTEGRATION_TEST_SUITE != \'node\' && '}!cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure' || steps.node-integration-tests.outcome == 'failure') }}`,
 						runsScript: true,
 					},
 				};
