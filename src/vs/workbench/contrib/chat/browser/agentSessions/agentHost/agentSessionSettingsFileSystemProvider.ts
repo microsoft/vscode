@@ -195,7 +195,7 @@ export class AgentSessionSettingsFileSystemProvider extends AbstractAgentHostCon
 		if (this._getProvider(ctx) === undefined) {
 			return createFileSystemProviderError(localize('chatAgentSessionSettings.pending', "Session settings are not available yet."), FileSystemProviderErrorCode.Unavailable);
 		}
-		return createFileSystemProviderError(localize('chatAgentSessionSettings.disabledByPolicy', "Session settings are unavailable because this agent is disabled by your organization's policy."), FileSystemProviderErrorCode.NoPermissions);
+		return createFileSystemProviderError(localize('chatAgentSessionSettings.disabledByPolicy', "Session settings are unavailable because this agent is disabled by your organization."), FileSystemProviderErrorCode.NoPermissions);
 	}
 
 	private _getProvider(ctx: ISessionSettingsContext): string | undefined {

@@ -77,7 +77,7 @@ suite('Extension Blocked Message', () => {
 			[ExtensionBlockingOrigin.Policy, ExtensionBlockingOrigin.Service]
 				.map(origin => getExtensionBlockedMessage({ origin }).value),
 			[
-				'This extension is not permitted by your organization\'s policy.',
+				'This extension is not allowed by your organization.',
 				'This extension has been blocked by the Extension Marketplace and must not be used.'
 			]);
 	});
@@ -87,7 +87,7 @@ suite('Extension Blocked Message', () => {
 
 		const result = await service.canInstall(aGalleryExtension({ origin: ExtensionBlockingOrigin.Policy }));
 
-		assert.strictEqual(result === true ? result : result.value, 'This extension is not permitted by your organization\'s policy.');
+		assert.strictEqual(result === true ? result : result.value, 'This extension is not allowed by your organization.');
 	});
 
 	test('installFromGallery reports a blocked extension as not allowed', async () => {
@@ -97,7 +97,7 @@ suite('Extension Blocked Message', () => {
 			() => service.installFromGallery(aGalleryExtension({ origin: ExtensionBlockingOrigin.Policy })),
 			error => error instanceof ExtensionManagementError
 				&& error.code === ExtensionManagementErrorCode.NotAllowed
-				&& error.message === 'This extension is not permitted by your organization\'s policy.'
+				&& error.message === 'This extension is not allowed by your organization.'
 		);
 	});
 

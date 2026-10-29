@@ -1203,7 +1203,7 @@ suite('CustomizationMigrationService', () => {
 			id: `mcp.config.usrlocal.${name}`,
 			name,
 			source: { ...workspaceServer.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: sourceUri },
-			// User servers are forwarded with their variables unresolved.
+			delivery: AgentHostMcpServerDelivery.NotDelivered,
 			compatibility: { kind: 'unsupported' as const, reasons: [AgentHostMcpSupportReason.UnresolvedConfiguration] },
 			projectedConfiguration,
 		});
@@ -1280,7 +1280,7 @@ suite('CustomizationMigrationService', () => {
 				id: `mcp.config.usrlocal.${name}`,
 				name,
 				source: { ...workspaceServer.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: sourceUri },
-				// User servers are forwarded with their variables unresolved.
+				delivery: AgentHostMcpServerDelivery.NotDelivered,
 				compatibility: { kind: 'unsupported' as const, reasons: [AgentHostMcpSupportReason.RequiresUserInteraction] },
 				projectedConfiguration: { type: McpServerType.LOCAL, ...server },
 			})),
@@ -1364,7 +1364,7 @@ suite('CustomizationMigrationService', () => {
 				id: `mcp.config.usrlocal.${name}`,
 				name,
 				source: { ...workspaceServer.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: sourceUri },
-				// User servers are forwarded with their variables unresolved.
+				delivery: AgentHostMcpServerDelivery.NotDelivered,
 				compatibility: { kind: 'unsupported' as const, reasons: [AgentHostMcpSupportReason.UnresolvedConfiguration] },
 				projectedConfiguration: name === 'remote' || name === 'brace'
 					? { type: McpServerType.REMOTE, url: 'https://example.com/mcp', headers: (server as { headers: Record<string, string> }).headers }

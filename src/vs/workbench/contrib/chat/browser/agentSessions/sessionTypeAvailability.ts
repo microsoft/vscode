@@ -170,7 +170,7 @@ export function getSessionTypeUnavailableDescription(availability: SessionTypeAv
 		case SessionTypeAvailability.NoModels:
 			return new MarkdownString(localize('chat.sessionType.noModels', "No models available"));
 		case SessionTypeAvailability.DisabledByPolicy:
-			return new MarkdownString('$(briefcase) ', { supportThemeIcons: true }).appendMarkdown(localize('chat.sessionType.disabledByPolicyLink', "Disabled by policy · [Learn why]({0})", copilotHarnessPolicyUrl));
+			return new MarkdownString('$(briefcase) ', { supportThemeIcons: true }).appendMarkdown(localize('chat.sessionType.disabledByPolicyLink', "Disabled by your organization · [Learn why]({0})", copilotHarnessPolicyUrl));
 		default:
 			return undefined;
 	}
@@ -196,7 +196,7 @@ export function getSessionTypeUnavailableHover(availability: SessionTypeAvailabi
 		case SessionTypeAvailability.NoModels:
 			return new MarkdownString(localize('chat.sessionType.noModelsHover', "No models are available for this agent."));
 		case SessionTypeAvailability.DisabledByPolicy:
-			return new MarkdownString(localize('chat.sessionType.disabledByPolicyHover', "Your organization's managed settings require the Copilot harness. [Learn why Local is disabled]({0}).", copilotHarnessPolicyUrl));
+			return new MarkdownString(localize('chat.sessionType.disabledByPolicyHover', "Your organization requires the Copilot harness. [Learn why Local is disabled]({0}).", copilotHarnessPolicyUrl));
 		default:
 			return undefined;
 	}
@@ -215,7 +215,7 @@ export function getSessionTypeUnavailableLabel(availability: SessionTypeAvailabi
 		case SessionTypeAvailability.NoModels:
 			return localize('chat.sessionType.noModels', "No models available");
 		case SessionTypeAvailability.DisabledByPolicy:
-			return localize('chat.sessionType.disabledByPolicy', "Disabled by enterprise policy");
+			return localize('chat.sessionType.disabledByPolicy', "Disabled by your organization");
 		default:
 			return undefined;
 	}

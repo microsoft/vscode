@@ -9,10 +9,10 @@ Find and display logs from the most recent Code OSS or Agents app dev run.
 
 ## Log Root Directories
 
-| App | Default User Data Dir | Logs Path |
+| Launch | Default User Data Dir | Logs Path |
 |-----|-----------------------|-----------|
-| Code OSS | `$HOME/.vscode-oss-dev` | `$HOME/.vscode-oss-dev/logs/` |
-| Agents app | `$HOME/.vscode-oss-dev` | `$HOME/.vscode-oss-dev/logs/` |
+| `scripts/code.sh` | `code-oss-dev` in the platform app-data dir (`~/Library/Application Support` on macOS, `~/.config` on Linux, `%APPDATA%` on Windows) | `<dir>/logs/` |
+| `.vscode/launch.json` | `$HOME/.vscode-oss-dev` | `$HOME/.vscode-oss-dev/logs/` |
 
 If Code OSS was launched with `--user-data-dir=<dir>`, use `<dir>/logs/` instead of the defaults above. Launch and debugging helpers often create temporary user data dirs under `.build/`; always prefer the exact user data dir from the launch command when it is known.
 
@@ -23,8 +23,6 @@ Each run creates a timestamped folder like `20260330T163430`. The most recent fo
 1. **Identify which app** the user is asking about: Code OSS or Agents app. If unclear, check both.
 2. **Find the most recent log folder**:
     ```bash
-    ls -lt "$HOME/.vscode-oss-dev/logs" | head -5
-    # or for a custom user data dir:
     ls -lt "<user-data-dir>/logs" | head -5
     ```
 3. **Navigate into the most recent folder** and list contents.

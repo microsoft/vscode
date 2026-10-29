@@ -2480,7 +2480,7 @@ export class McpListWidget extends Disposable {
 			DOM.clearNode(this.disabledMessage);
 			this.disabledLinkListener.clear();
 			if (policyLocked) {
-				this.disabledMessage.textContent = localize('mcpAccessDisabledByPolicy', "Access to MCP servers is disabled by your organization. Contact your organization administrator for more information.");
+				this.disabledMessage.textContent = localize('mcpAccessDisabledByPolicy', "Access to MCP servers is disabled by your organization. Contact your administrator for more information.");
 			} else {
 				this.disabledMessage.appendChild(document.createTextNode(localize('mcpAccessDisabledBySettingPrefix', "MCP servers are disabled in settings. ")));
 				const link = DOM.append(this.disabledMessage, $('a.mcp-disabled-settings-link')) as HTMLAnchorElement;

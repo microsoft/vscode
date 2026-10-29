@@ -412,6 +412,14 @@ suite('AhpJsonlLogger', () => {
 		}, { bytesWithinBudget: true, fileCount: 1, latest: 2 });
 	});
 
+	test('redacts client certificate responses without modifying the live result', () => {
+		const response = { jsonrpc: '2.0', id: 1, result: { certificates: ['PRIVATE CLIENT CA'] } };
+		assert.deepStrictEqual({
+			logged: JSON.parse(stringifyAhpLogEntry(response)).result.certificates,
+			live: response.result.certificates,
+		}, { logged: '<redacted>', live: ['PRIVATE CLIENT CA'] });
+	});
+
 	test('preserves existing authentication redaction markers', () => {
 		assert.deepStrictEqual(['<redacted>', '[REDACTED]'].map(token => JSON.parse(stringifyAhpLogEntry({
 			method: 'authenticate', params: { token },
