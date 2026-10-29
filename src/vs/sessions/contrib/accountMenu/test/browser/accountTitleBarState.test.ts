@@ -26,7 +26,6 @@ suite('Sessions - Account Title Bar State', () => {
 			entitlement: ChatEntitlement.Pro,
 			sentiment: {},
 			quotas: {},
-
 			...overrides,
 		};
 	}
@@ -138,7 +137,6 @@ suite('Sessions - Account Title Bar State', () => {
 			accountName: undefined,
 			accountProviderLabel: undefined,
 			entitlement: ChatEntitlement.Unknown,
-
 		}));
 
 		assert.deepStrictEqual({

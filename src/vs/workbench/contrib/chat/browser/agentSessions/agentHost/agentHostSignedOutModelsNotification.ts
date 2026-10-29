@@ -138,7 +138,6 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 
 	private _update(): void {
 		// Local BYOK readiness is shared by both harnesses; the Agent Host's own bridged catalog is covered by the grace period.
-
 		const entitlement = this._chatEntitlementService.entitlement;
 		const entitlementResolved = entitlement !== ChatEntitlement.Unresolved;
 		const signedIn = this._defaultAccountService.currentDefaultAccount !== null

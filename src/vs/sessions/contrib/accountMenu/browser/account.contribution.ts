@@ -213,7 +213,6 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 	private readonly clickPanelDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly avatarLoadDisposable = this._register(new MutableDisposable());
 	private readonly codexAvatarLoadDisposable = this._register(new MutableDisposable());
-	/** Whether the conditional-auth opt-in permits signed-out operation. */
 
 	constructor(
 		action: IAction,
@@ -231,13 +230,11 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 	) {
 		super(undefined, action, options);
 		this.lastCodexAccount = this.codexAccountService.account;
-
 		this.lastState = getAccountTitleBarState({
 			isAccountLoading: true,
 			entitlement: this.chatEntitlementService.entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
-
 		});
 
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.refreshAccount()));
@@ -264,10 +261,6 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 				this.refreshCodexAvatar();
 			}
 		}));
-		// A signed-out user sees either a quiet "Sign In" (the opt-in is on, so signing
-		// in is optional) or a prominent "Agents Signed Out". Re-render so toggling the
-		// setting switches between them while the window is open.
-
 		this.refreshAccount();
 		this.refreshCodexAvatar();
 	}
@@ -339,7 +332,6 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 			entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
-
 		});
 		this.lastState = state;
 

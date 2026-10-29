@@ -366,7 +366,6 @@ suite('SessionTypePickerActionItem', () => {
 	test('a harness whose agent advertises setup stays selectable, so demand-driven discovery can start', () => {
 		const claude = (setupAgents: readonly string[]) => getAvailability({
 			type: SessionType.AgentHostClaude,
-
 			requiresCopilotSignIn: false,
 			setupAgents,
 		});
@@ -383,7 +382,6 @@ suite('SessionTypePickerActionItem', () => {
 	test('another agent\'s setup does not unlock this harness', () => {
 		assert.strictEqual(getAvailability({
 			type: SessionType.AgentHostCodex,
-
 			requiresCopilotSignIn: false,
 			setupAgents: ['claude'],
 		}), SessionTypeAvailability.NoModels);
@@ -392,7 +390,6 @@ suite('SessionTypePickerActionItem', () => {
 	test('a Copilot Free account can initialize Codex without GitHub', () => {
 		assert.strictEqual(getAvailability({
 			type: SessionType.AgentHostCodex,
-
 			requiresCopilotSignIn: false,
 			entitlement: ChatEntitlement.Free,
 			setupAgents: ['codex'],

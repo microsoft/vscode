@@ -694,7 +694,7 @@ suite('CodexAgent model refresh', () => {
 		assert.strictEqual(catalogueReads, 0);
 	});
 
-	test('does not enumerate at startup while signed-out use is disabled', async () => {
+	test('does not enumerate models before activation while signed out', async () => {
 		const agent = createAgent(disposables, async () => []);
 		const requests: string[] = [];
 		agent['_ensureConnection'] = async () => createChatGPTConnection(undefined, requests) as never;

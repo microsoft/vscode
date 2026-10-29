@@ -38,6 +38,11 @@ suite('AgentHostSignedOutCompatibilityContribution', () => {
 			};
 			override dispatch(...args: Parameters<IAgentConnection['dispatch']>): void {
 				dispatched.push(args);
+				const [, action] = args;
+				if (action.type === ActionType.RootConfigChanged) {
+					Object.assign(root.config!.values, action.config);
+					changed.fire(root);
+				}
 			}
 		}();
 		return { connection, root, changed, dispatched };
@@ -103,9 +108,14 @@ suite('AgentHostSignedOutCompatibilityContribution', () => {
 		const beforeEnable = host.dispatched.length;
 		fixture.enabled.set(true, undefined);
 		fixture.enabled.set(false, undefined);
+		host.root.config!.values[key] = false;
 		host.changed.fire(host.root);
+		const afterDisable = host.dispatched.length;
+		fixture.enabled.set(true, undefined);
 		fixture.contribution.dispose();
+		host.root.config!.values[key] = false;
+		host.changed.fire(host.root);
 		fixture.changed.fire();
-		assert.deepStrictEqual([beforeEnable, host.dispatched.length], [0, 1]);
+		assert.deepStrictEqual([beforeEnable, afterDisable, host.dispatched.length], [0, 1, 2]);
 	});
 });

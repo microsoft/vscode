@@ -369,7 +369,6 @@ export class MobileTitlebarPart extends Disposable {
 			entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
-
 		});
 
 		// Avatar
@@ -458,7 +457,6 @@ export class MobileTitlebarPart extends Disposable {
 			entitlement: this.chatEntitlementService.entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
-
 		}));
 		if (badgeKey) {
 			this.dismissedBadgeKey = badgeKey;
