@@ -632,16 +632,35 @@ function pushIncludeAndExcludeGlobs(args: string[], options: RipgrepTextSearchOp
 
 /**
  * Returns the ripgrep globs of a run that lists only the paths that `!`-prefixed exclude exceptions re-include,
- * because ripgrep does not descend into excluded folders. The run ignores everything except the exceptions and
- * the folders leading to them, and skips the folders of {@link getFoldersSkippedByExcludeExceptions}.
+ * because ripgrep does not descend into excluded folders. The run skips the folders of {@link getFoldersSkippedByExcludeExceptions}.
  */
 export function getExcludeExceptionGlobs(excludeExceptions: readonly string[]): string[] {
-	return [
-		'!*',
-		...excludeExceptions.flatMap(exception => spreadGlobComponents(`${exception}/**`)).map(anchorGlob),
-		// Later globs take precedence
-		...getFoldersSkippedByExcludeExceptions(excludeExceptions).map(folder => `!**/${folder}`),
-	];
+	const exceptions = excludeExceptions.flatMap(performBraceExpansionForRipgrep);
+	const globs = new Set<string>();
+
+	// Unless an exception can match at any depth, which needs the whole folder anyway,
+	// only walk the folders that lead to the exceptions
+	if (!exceptions.some(exception => exception.startsWith('**'))) {
+		globs.add('!*');
+		for (const exception of exceptions) {
+			const segments = splitGlobAware(exception, '/');
+			for (let i = 1; i < segments.length; i++) {
+				globs.add(`${anchorGlob(segments.slice(0, i).join('/'))}/`); // a trailing slash only matches folders
+			}
+		}
+	}
+
+	for (const exception of exceptions) {
+		globs.add(anchorGlob(exception));
+		globs.add(anchorGlob(`${exception}/**`));
+	}
+
+	// Later globs take precedence
+	for (const folder of getFoldersSkippedByExcludeExceptions(excludeExceptions)) {
+		globs.add(`!**/${folder}`);
+	}
+
+	return [...globs];
 }
 
 /**
