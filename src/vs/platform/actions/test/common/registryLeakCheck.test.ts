@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../commands/common/commands.js';
-import { MenuId, MenuRegistry } from '../../common/actions.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../common/actions.js';
 import { diffRegistrySnapshots, takeRegistrySnapshot } from './registryLeakCheck.js';
 
 suite('Registry leak check', () => {
@@ -17,7 +17,7 @@ suite('Registry leak check', () => {
 		const registrations = store.add(new DisposableStore());
 		registrations.add(MenuRegistry.addCommand({ id: 'registryLeakCheck.test.implicit', title: 'Implicit' }));
 		const before = takeRegistrySnapshot();
-		assert.ok(MenuRegistry.getMenuItems(MenuId.CommandPalette).some(item => 'command' in item && item.command.id === 'registryLeakCheck.test.implicit'));
+		assert.ok(MenuRegistry.getMenuItems(MenuId.CommandPalette).some(item => isIMenuItem(item) && item.command.id === 'registryLeakCheck.test.implicit'));
 		assert.deepStrictEqual(diffRegistrySnapshots(before, takeRegistrySnapshot()), []);
 		registrations.dispose();
 	});
