@@ -92,6 +92,8 @@ suite('UnattendedRestartScheduler', () => {
 		readonly windowBlockers?: string[][];
 		/** A restart that the previous instance remembered when it shut down. */
 		readonly previousRestart?: unknown;
+		/** An update that a previous unattended restart did not install. */
+		readonly failedUpdate?: unknown;
 		readonly commit?: string;
 	}
 
@@ -106,6 +108,9 @@ suite('UnattendedRestartScheduler', () => {
 		const onWillShutdown = store.add(new Emitter<ShutdownEvent>());
 
 		const stateItems = new Map<string, unknown>();
+		if (options.failedUpdate !== undefined) {
+			stateItems.set('update.unattendedRestartFailedUpdate', options.failedUpdate);
+		}
 		if (options.previousRestart !== undefined) {
 			stateItems.set('update.unattendedRestart', options.previousRestart);
 		}
@@ -121,7 +126,7 @@ suite('UnattendedRestartScheduler', () => {
 			get state() { return state; },
 			onStateChange: onStateChange.event,
 			quitAndInstall: async (quitAndInstallOptions?: IQuitAndInstallOptions) => {
-				log.push(`quitAndInstall(${quitAndInstallOptions?.relaunchInBackground ? 'background' : 'foreground'})`);
+				log.push(`quitAndInstall(${quitAndInstallOptions?.relaunchInBackground ? 'background' : 'foreground'}${quitAndInstallOptions?.unattended ? '' : ', explicit'})`);
 				state = State.Restarting(readyUpdate);
 			},
 		});
@@ -207,7 +212,7 @@ suite('UnattendedRestartScheduler', () => {
 	}
 
 	function pendingRestart(attempts: number, lockedMinutes: number, inBackground = false) {
-		return { fromCommit: 'current', inBackground, attempts, lockedMinutes };
+		return { fromCommit: 'current', toVersion: update.version, inBackground, attempts, lockedMinutes };
 	}
 
 	test('restarts once the screen has been locked long enough', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -348,6 +353,32 @@ suite('UnattendedRestartScheduler', () => {
 			malformed: { log: [], remembered: 0 },
 		});
 	});
+
+	test('does not restart again for an update that the last unattended restart did not install', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const notInstalled = { fromCommit: 'current', toVersion: update.version, inBackground: false, attempts: 1, lockedMinutes: 2 };
+		const sameUpdate = createFixture({ previousRestart: notInstalled });
+		const newerUpdate = createFixture({ previousRestart: notInstalled, updateVersion: 'fedcba9876543210fedcba9876543210fedcba98' });
+		const updatedSince = createFixture({ failedUpdate: { commit: 'previous', version: update.version } });
+
+		for (const fixture of [sameUpdate, newerUpdate, updatedSince]) {
+			fixture.lock();
+		}
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 20 * SECOND);
+		sameUpdate.unlock();
+
+		assert.deepStrictEqual({
+			sameUpdate: { log: sameUpdate.log, failedUpdate: sameUpdate.stateItems.get('update.unattendedRestartFailedUpdate') },
+			newerUpdate: newerUpdate.log,
+			updatedSince: { log: updatedSince.log, failedUpdate: updatedSince.stateItems.get('update.unattendedRestartFailedUpdate') },
+		}, {
+			sameUpdate: {
+				log: [outcome('restartedWithoutUpdate', 1, 2), outcome('blocked', 1, 2, 'update.installFailed')],
+				failedUpdate: { commit: 'current', version: update.version },
+			},
+			newerUpdate: [outcome('restartedWithoutUpdate', 1, 2), 'quitAndInstall(foreground)'],
+			updatedSince: { log: ['quitAndInstall(foreground)'], failedUpdate: undefined },
+		});
+	}));
 
 	test('restarts the clock when the machine resumes while locked', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fixture = createFixture();

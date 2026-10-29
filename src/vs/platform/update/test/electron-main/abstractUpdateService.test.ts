@@ -501,6 +501,30 @@ suite('AbstractUpdateService', () => {
 		}
 	});
 
+	test('unattended restarts do not download a newer update on a metered connection', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const results: Record<string, { checkCount: number; state: StateType }> = {};
+			for (const unattended of [true, false]) {
+				const service = createService('default', { isConnectionMetered: true, supportsUpdateOverwrite: true });
+				await service.whenInitialized;
+				service.setLatestVersionResult(Promise.resolve(false));
+				service.forceState(State.Ready({ version: 'pending' }, false, false));
+
+				await service.quitAndInstall({ unattended });
+				await clock.tickAsync(0);
+				results[unattended ? 'unattended' : 'explicit'] = { checkCount: service.checkCount, state: service.state.type };
+			}
+
+			assert.deepStrictEqual(results, {
+				unattended: { checkCount: 0, state: StateType.Restarting },
+				explicit: { checkCount: 1, state: StateType.Overwriting },
+			});
+		} finally {
+			clock.restore();
+		}
+	});
+
 	test('permanent disablement ignores runtime mode changes', async () => {
 		const service = createService('default', { isBuilt: false });
 		await service.whenInitialized;

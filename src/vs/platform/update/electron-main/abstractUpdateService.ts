@@ -540,7 +540,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 
 		if (this.supportsUpdateOverwrite && !this._hasCheckedForOverwriteOnQuit) {
 			this._hasCheckedForOverwriteOnQuit = true;
-			const didOverwrite = await this.checkForOverwriteUpdates(true);
+			const didOverwrite = await this.checkForOverwriteUpdates(!options?.unattended);
 
 			if (didOverwrite) {
 				this.logService.info('update#quitAndInstall(): overwrite update detected, postponing quitAndInstall');

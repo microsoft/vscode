@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindows } from '../../../../base/browser/dom.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { isTemporaryWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
@@ -42,8 +44,11 @@ export class WorkbenchUnattendedRestartParticipants extends Disposable implement
 		this._register(dialogService.onWillShowDialog(() => this.openDialogs++));
 		this._register(dialogService.onDidShowDialog(() => this.openDialogs = Math.max(0, this.openDialogs - 1)));
 
+		// Participants register up to the `AfterRestored` phase, whose contributions are created when idle
+		let restoredContributionsCreated = false;
+		Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).whenRestored.then(() => restoredContributionsCreated = true);
 		this._register(unattendedRestartService.registerParticipant({
-			check: () => lifecycleService.phase < LifecyclePhase.Eventually ? 'workbench.starting' : undefined // not all participants are registered yet
+			check: () => lifecycleService.phase < LifecyclePhase.Eventually || !restoredContributionsCreated ? 'workbench.starting' : undefined
 		}));
 		this._register(unattendedRestartService.registerParticipant({
 			check: () => this.openDialogs > 0 ? 'workbench.dialogOpen' : undefined
@@ -56,6 +61,9 @@ export class WorkbenchUnattendedRestartParticipants extends Disposable implement
 		}));
 		this._register(unattendedRestartService.registerParticipant({
 			check: () => this.getEditorsBlocker()
+		}));
+		this._register(unattendedRestartService.registerParticipant({
+			check: () => hasNonEditorWindow(Iterable.map(getWindows(), ({ window }) => window.vscodeWindowId), this.editorGroupsService.parts) ? 'workbench.floatingWindowNotRestorable' : undefined
 		}));
 	}
 
@@ -93,4 +101,14 @@ export class WorkbenchUnattendedRestartParticipants extends Disposable implement
  */
 export function isRestorableEditor(editor: EditorInput, serializer: IEditorSerializer | undefined): boolean {
 	return !!serializer?.canSerialize(editor) && typeof serializer.serialize(editor) === 'string';
+}
+
+/**
+ * Whether one of the windows shows something other than editors, such as the issue reporter.
+ * Of the floating windows, only those showing editors are restored after a restart.
+ */
+export function hasNonEditorWindow(windowIds: Iterable<number>, editorParts: readonly Pick<IEditorPart, 'windowId'>[]): boolean {
+	const editorWindowIds = new Set(editorParts.map(part => part.windowId));
+
+	return Iterable.some(windowIds, windowId => !editorWindowIds.has(windowId));
 }

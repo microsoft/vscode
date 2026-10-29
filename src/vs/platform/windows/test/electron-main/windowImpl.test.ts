@@ -14,14 +14,25 @@ import { IEnvironmentMainService } from '../../../environment/electron-main/envi
 import { NullLogService } from '../../../log/common/log.js';
 import { InMemoryTestStateMainService } from '../../../test/electron-main/workbenchTestServices.js';
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getMacOSWindowControlsPosition } from '../../../window/common/window.js';
+import { IBackgroundShowOptions, IWindowState, WindowMode } from '../../../window/electron-main/window.js';
 import { release } from 'os';
 import { BaseWindow } from '../../electron-main/windowImpl.js';
 
 class TestWindow extends BaseWindow {
 	readonly id = 1;
 
+	onDidRequestFullScreen: ((fullscreen: boolean) => void) | undefined;
+
 	override setWin(win: BrowserWindow, options?: BrowserWindowConstructorOptions): void {
 		super.setWin(win, options);
+	}
+
+	override applyState(state: IWindowState, hasMultipleDisplays?: boolean, showInBackground?: IBackgroundShowOptions, minimized?: boolean): void {
+		super.applyState(state, hasMultipleDisplays, showInBackground, minimized);
+	}
+
+	protected override setFullScreen(fullscreen: boolean): void {
+		this.onDidRequestFullScreen?.(fullscreen);
 	}
 
 	matches(_webContents: WebContents): boolean {
@@ -111,5 +122,76 @@ suite('BaseWindow - window controls overlay', () => {
 			x: horizontalInset,
 			y: getMacOSWindowControlsPosition(height, release())!.y,
 		}]));
+	});
+});
+
+suite('BaseWindow - restoring a window state', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/**
+	 * Applies the state to a window that was created hidden and returns the calls to
+	 * the native window before and once the window gets focus for the first time.
+	 */
+	function restore(mode: WindowMode, options: { readonly inBackground?: boolean; readonly minimized?: boolean }): { beforeFocus: string[]; onFocus: string[] } {
+		const configurationService = new TestConfigurationService({ window: { titleBarStyle: 'custom' } });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const window = store.add(new TestWindow(
+			configurationService,
+			new InMemoryTestStateMainService(),
+			upcastPartial<IEnvironmentMainService>({ args: { _: [] } }),
+			store.add(new NullLogService())
+		));
+
+		const calls: string[] = [];
+		const on = sinon.stub();
+		const removeListener = sinon.stub();
+		const setSheetOffset = sinon.stub();
+		window.setWin(upcastPartial<BrowserWindow>({
+			on,
+			removeListener,
+			setSheetOffset,
+			isVisible: () => false,
+			show: () => calls.push('show'),
+			showInactive: () => calls.push('showInactive'),
+			blur: () => calls.push('blur'),
+			maximize: () => calls.push('maximize'),
+			minimize: () => calls.push('minimize'),
+		}));
+		window.onDidRequestFullScreen = fullscreen => calls.push(`setFullScreen(${fullscreen})`);
+
+		window.applyState({ mode }, false, options.inBackground ? { hideApplication: false } : undefined, options.minimized);
+		const beforeFocus = calls.splice(0);
+		for (const [event, listener] of on.args) {
+			if (event === 'focus') {
+				listener();
+			}
+		}
+
+		return { beforeFocus, onFocus: calls };
+	}
+
+	test('shows windows without taking focus, and maximizes or enters full screen in the background once focused', () => {
+		assert.deepStrictEqual({
+			foregroundMaximized: restore(WindowMode.Maximized, {}),
+			foregroundMinimized: restore(WindowMode.Normal, { minimized: true }),
+			background: restore(WindowMode.Normal, { inBackground: true }),
+			backgroundMaximized: restore(WindowMode.Maximized, { inBackground: true }),
+			backgroundFullScreen: restore(WindowMode.Fullscreen, { inBackground: true }),
+			backgroundMinimized: restore(WindowMode.Normal, { inBackground: true, minimized: true }),
+		}, isMacintosh ? {
+			foregroundMaximized: { beforeFocus: ['maximize', 'show'], onFocus: [] },
+			foregroundMinimized: { beforeFocus: ['showInactive', 'minimize'], onFocus: [] },
+			background: { beforeFocus: ['showInactive', 'blur'], onFocus: [] },
+			backgroundMaximized: { beforeFocus: ['maximize', 'showInactive', 'blur'], onFocus: [] }, // maximizing a hidden window does not activate it on macOS
+			backgroundFullScreen: { beforeFocus: ['maximize', 'showInactive', 'blur'], onFocus: ['setFullScreen(true)'] },
+			backgroundMinimized: { beforeFocus: ['showInactive', 'blur', 'minimize'], onFocus: [] },
+		} : {
+			foregroundMaximized: { beforeFocus: ['maximize', 'show'], onFocus: [] },
+			foregroundMinimized: { beforeFocus: ['showInactive', 'minimize'], onFocus: [] },
+			background: { beforeFocus: ['showInactive'], onFocus: [] },
+			backgroundMaximized: { beforeFocus: ['showInactive'], onFocus: ['maximize'] },
+			backgroundFullScreen: { beforeFocus: ['showInactive'], onFocus: ['maximize', 'setFullScreen(true)'] },
+			backgroundMinimized: { beforeFocus: ['showInactive', 'minimize'], onFocus: [] },
+		});
 	});
 });

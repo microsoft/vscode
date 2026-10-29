@@ -8,7 +8,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IEditorSerializer } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { isRestorableEditor } from '../../browser/unattendedRestartParticipants.js';
+import { hasNonEditorWindow, isRestorableEditor } from '../../browser/unattendedRestartParticipants.js';
 
 suite('isRestorableEditor', () => {
 
@@ -35,6 +35,28 @@ suite('isRestorableEditor', () => {
 			cannotSerialize: false,
 			serializesNothing: false,
 			serializes: true,
+		});
+	});
+});
+
+suite('hasNonEditorWindow', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('only windows with an editor part are restored', () => {
+		const mainWindow = 1;
+		const editorWindow = 2;
+		const issueReporterWindow = 3;
+		const parts = [{ windowId: mainWindow }, { windowId: editorWindow }];
+
+		assert.deepStrictEqual({
+			mainWindowOnly: hasNonEditorWindow([mainWindow], parts),
+			withEditorWindow: hasNonEditorWindow([mainWindow, editorWindow], parts),
+			withIssueReporter: hasNonEditorWindow([mainWindow, editorWindow, issueReporterWindow], parts),
+		}, {
+			mainWindowOnly: false,
+			withEditorWindow: false,
+			withIssueReporter: true,
 		});
 	});
 });
