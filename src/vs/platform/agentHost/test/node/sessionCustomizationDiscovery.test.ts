@@ -64,6 +64,18 @@ suite('SessionCustomizationDiscovery', () => {
 	// on Windows too, where `URI.fsPath` yields backslashes.
 	const inMemoryPathToUri = (path: string) => URI.from({ scheme: Schemas.inMemory, path: path.replace(/\\/g, '/') });
 
+	function hookDiscoveryClient(discover: CopilotClient['rpc']['hooks']['discover']): CopilotClient {
+		return {
+			rpc: {
+				hooks: { discover },
+				mcp: { discover: async () => ({ servers: [] }) },
+				agents: { getDiscoveryPaths: async () => ({ paths: [] }), discover: async () => ({ agents: [] }) },
+				instructions: { getDiscoveryPaths: async () => ({ paths: [] }), discover: async () => ({ sources: [] }) },
+				skills: { getDiscoveryPaths: async () => ({ paths: [] }), discover: async () => ({ skills: [] }) },
+			},
+		} as unknown as CopilotClient;
+	}
+
 	test('groups discovered customizations by parent folder', async () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		const client = {
@@ -348,6 +360,95 @@ suite('SessionCustomizationDiscovery', () => {
 			{ uri: '/home/.copilot/hooks', children: [] },
 			{ uri: '/workspace/.github/hooks', children: [] },
 		]);
+	});
+
+	for (const nativeRepositoryHook of [false, true]) {
+		test(`workspace hook fallback preserves SDK identities and disabled state (native repository hook: ${nativeRepositoryHook})`, async () => {
+			await seed('/workspace/.github/hooks/test.json', 'must be parsed by the SDK, not the host');
+			await seed('/workspace2/.github/hooks/secondary.json');
+			const secondWorkspace = inMemoryPathToUri('/workspace2');
+			const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace, secondWorkspace], userHome, inMemoryPathToUri));
+			const requests: Parameters<CopilotClient['rpc']['hooks']['discover']>[0][] = [];
+			const client = hookDiscoveryClient(async request => {
+				requests.push(request);
+				const hooks: Awaited<ReturnType<CopilotClient['rpc']['hooks']['discover']>>['hooks'] = [
+					{ id: 'opaque-plugin', hookType: 'sessionStart', origin: 'plugin', enabled: false },
+					{ id: 'opaque-user', hookType: 'sessionStart', origin: 'user', enabled: false },
+				];
+				if (nativeRepositoryHook || request.hookDirectories) {
+					hooks.push({ id: 'opaque-workspace', hookType: 'preToolUse', origin: nativeRepositoryHook ? 'repository' : 'user', enabled: false });
+				}
+				if (request.hookDirectories) {
+					hooks.push({ id: 'opaque-workspace', hookType: 'preToolUse', origin: 'user', enabled: true });
+				}
+				return { hooks, warnings: ['SDK warning'], errors: ['SDK partial error'] };
+			});
+			const result = await discovery.discover(client, CancellationToken.None);
+			const hooks = result.find(item => item.contents === CustomizationType.Hook && item.children?.length);
+			assert.deepStrictEqual({
+				hooks: hooks?.children?.map(hook => ({
+					id: hook.id, source: readCustomizationDiscoveryMeta(hook)?.source,
+					enabled: hook.type === CustomizationType.Hook ? hook.enabled : undefined,
+					readable: hasReadableCustomizationContent(URI.parse(hook.uri)),
+				})),
+				load: hooks?.type === CustomizationType.Directory ? hooks.load : undefined,
+				requests,
+			}, {
+				hooks: [
+					{ id: 'opaque-plugin', source: 'plugin', enabled: false, readable: false },
+					{ id: 'opaque-user', source: 'user', enabled: false, readable: false },
+					{ id: 'opaque-workspace', source: 'repository', enabled: false, readable: false },
+				],
+				load: { kind: CustomizationLoadStatus.Degraded, message: 'SDK partial error\nSDK warning' },
+				requests: [
+					{ projectPaths: [workspace.fsPath] },
+					...nativeRepositoryHook ? [] : [{ projectPaths: [workspace.fsPath], hookDirectories: [inMemoryPathToUri('/workspace/.github/hooks').fsPath] }],
+				],
+			});
+		});
+	}
+
+	test('workspace hook fallback failure preserves successful native discovery', async () => {
+		await seed('/workspace/.github/hooks/test.json');
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = hookDiscoveryClient(async request => {
+			if (request.hookDirectories) {
+				throw new Error('SDK fallback unavailable');
+			}
+			return { hooks: [{ id: 'native', hookType: 'sessionStart', origin: 'plugin', enabled: true }], errors: [], warnings: [] };
+		});
+		const result = await discovery.discover(client, CancellationToken.None);
+		const hooks = result.find(item => item.contents === CustomizationType.Hook && item.children?.length);
+		assert.deepStrictEqual({
+			ids: hooks?.children?.map(hook => hook.id),
+			load: hooks?.type === CustomizationType.Directory ? hooks.load : undefined,
+		}, {
+			ids: ['native'],
+			load: { kind: CustomizationLoadStatus.Degraded, message: 'Workspace hook discovery failed: SDK fallback unavailable' },
+		});
+	});
+
+	test('workspace hook fallback propagates cancellation', async () => {
+		await seed('/workspace/.github/hooks/test.json');
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const enteredFallback = new DeferredPromise<void>();
+		const pendingFallback = new DeferredPromise<Awaited<ReturnType<CopilotClient['rpc']['hooks']['discover']>>>();
+		const client = hookDiscoveryClient(async request => {
+			if (request.hookDirectories) {
+				await enteredFallback.complete();
+				return pendingFallback.p;
+			}
+			return { hooks: [], errors: [], warnings: [] };
+		});
+		const result = discovery.discover(client, cancellation.token);
+		await enteredFallback.p;
+		cancellation.cancel();
+		try {
+			await assert.rejects(result, CancellationError);
+		} finally {
+			await pendingFallback.complete({ hooks: [], errors: [], warnings: [] });
+		}
 	});
 
 	test('publishes hooks-only and MCP-only native contributions with SDK provenance and partial diagnostics', async () => {
@@ -960,7 +1061,10 @@ suite('SessionCustomizationDiscovery', () => {
 			return { hooks: [], warnings: [], errors: [] };
 		};
 		await discovery.discover(client, CancellationToken.None);
-		assert.deepStrictEqual(requests, [{ projectPaths: [workspace.fsPath] }]);
+		assert.deepStrictEqual(requests, [
+			{ projectPaths: [workspace.fsPath] },
+			{ projectPaths: [workspace.fsPath], hookDirectories: [inMemoryPathToUri('/workspace/.github/hooks').fsPath] },
+		]);
 	});
 
 	test('discover resolves relative instructions against their attributed project root and groups per root', async () => {

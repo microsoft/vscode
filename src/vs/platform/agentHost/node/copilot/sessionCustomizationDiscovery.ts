@@ -29,6 +29,7 @@ import { readCustomizationDiscoveryMeta, withCustomizationDiscoveryMeta } from '
 import { withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
 
 type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover']>[0];
+type HooksDiscoveryResult = Awaited<ReturnType<CopilotClient['rpc']['hooks']['discover']>>;
 type InstructionSource = Awaited<ReturnType<CopilotClient['rpc']['instructions']['discover']>>['sources'][number];
 export type SessionDiscoveredCustomization = DirectoryCustomization | ((PluginCustomization | McpServerCustomization) & {
 	readonly contents?: undefined;
@@ -808,9 +809,10 @@ export class SessionCustomizationDiscovery extends Disposable {
 	private async discoverHooks(client: CopilotClient, token: CancellationToken): Promise<DirectoryCustomization | undefined> {
 		const uri = URI.from({ scheme: AGENT_DISCOVERY_CUSTOMIZATION_SCHEME, authority: 'copilot', path: '/hooks' });
 		try {
-			const result = await raceCancellationError(client.rpc.hooks.discover({
+			const discovered = await raceCancellationError(client.rpc.hooks.discover({
 				projectPaths: this._hookWorkingDirectories.map(directory => directory.fsPath),
 			}), token);
+			const result = await this.discoverWorkspaceHooksFallback(client, discovered, token);
 			for (const warning of result.warnings) {
 				this._logService.warn(`[SessionCustomizationDiscovery] Hook discovery: ${warning}`);
 			}
@@ -846,6 +848,56 @@ export class SessionCustomizationDiscovery extends Disposable {
 				name: localize('copilot.discoveredHooks', "Copilot hooks"), contents: CustomizationType.Hook,
 				enabled: true, writable: false, load: { kind: CustomizationLoadStatus.Error, message }, children: [],
 			};
+		}
+	}
+
+	/** TODO: Remove when https://github.com/github/copilot-agent-runtime/issues/30644 is fixed. */
+	private async discoverWorkspaceHooksFallback(client: CopilotClient, discovered: HooksDiscoveryResult, token: CancellationToken): Promise<HooksDiscoveryResult> {
+		if (discovered.hooks.some(hook => hook.origin === 'repository')) {
+			return discovered;
+		}
+		try {
+			const hookDirectories: string[] = [];
+			for (const directory of this._hookWorkingDirectories) {
+				for (const root of searchRoots.workspace.filter(root => root.type === DiscoveredType.Hook)) {
+					throwIfCancelled(token);
+					const uri = joinPath(directory, ...root.path);
+					try {
+						if ((await raceCancellationError(this._fileService.resolve(uri), token)).isDirectory) {
+							hookDirectories.push(uri.fsPath);
+						}
+					} catch (error) {
+						if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+							throw error;
+						}
+					}
+				}
+			}
+			if (hookDirectories.length === 0) {
+				return discovered;
+			}
+			const fallback = await raceCancellationError(client.rpc.hooks.discover({
+				projectPaths: this._hookWorkingDirectories.map(directory => directory.fsPath),
+				hookDirectories,
+			}), token);
+			const seen = new Set(discovered.hooks.map(hook => hook.id));
+			return {
+				hooks: [...discovered.hooks, ...fallback.hooks.filter(hook => {
+					if (hook.origin !== 'user' || seen.has(hook.id)) {
+						return false;
+					}
+					seen.add(hook.id);
+					return true;
+				}).map(hook => ({ ...hook, origin: 'repository' as const }))],
+				warnings: [...new Set([...discovered.warnings, ...fallback.warnings])],
+				errors: [...new Set([...discovered.errors, ...fallback.errors])],
+			};
+		} catch (error) {
+			if (error instanceof CancellationError) {
+				throw error;
+			}
+			const message = error instanceof Error ? error.message : String(error);
+			return { ...discovered, errors: [...discovered.errors, localize('copilot.workspaceHooksFallbackFailed', "Workspace hook discovery failed: {0}", message)] };
 		}
 	}
 

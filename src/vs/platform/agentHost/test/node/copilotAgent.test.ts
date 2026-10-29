@@ -3358,7 +3358,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		for (const operation of ['catalog', 'legacy'] as const) {
+		for (const operation of ['catalog', 'legacy', 'enablement'] as const) {
 			test(`${operation} plugin mutations refresh and publish every session and chat anchor`, async () => {
 				const fileService = disposables.add(new FileService(new NullLogService()));
 				disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
@@ -3392,6 +3392,11 @@ suite('CopilotAgent', () => {
 				const uninstall = stub(client.rpc.plugins, 'uninstall').callsFake(async () => {
 					installed = false;
 				});
+				const list = stub(client.rpc.plugins, 'list').callsFake(async () => ({
+					plugins: [{ name: 'session-timeline', marketplace: 'test', version: '1.0.0', enabled: installed }],
+				}));
+				const enable = stub(client.rpc.plugins, 'enable').callsFake(async () => { installed = true; });
+				const disable = stub(client.rpc.plugins, 'disable').callsFake(async () => { installed = false; });
 				try {
 					await agent.authenticate('https://api.github.com', 'token');
 					const sessions = ['first', 'second'].map(id => AgentSession.uri('copilotcli', `plugin-refresh-${id}`));
@@ -3413,6 +3418,8 @@ suite('CopilotAgent', () => {
 						published.clear();
 						if (operation === 'catalog') {
 							await agent.applyCustomizationInstallation(action);
+						} else if (operation === 'enablement') {
+							await agent.setPluginEnabled('session-timeline@test', action === 'install');
 						} else if (action === 'uninstall') {
 							await agent.uninstallPlugin({ name: 'session-timeline', marketplace: 'test' });
 						} else {
@@ -3428,6 +3435,9 @@ suite('CopilotAgent', () => {
 					apply.restore();
 					install.restore();
 					uninstall.restore();
+					list.restore();
+					enable.restore();
+					disable.restore();
 					await disposeAgent(agent);
 				}
 			});

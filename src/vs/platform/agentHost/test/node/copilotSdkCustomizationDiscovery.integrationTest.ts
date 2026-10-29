@@ -21,11 +21,59 @@ import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationD
 import { CustomizationType, McpServerStatus } from '../../common/state/protocol/state.js';
 import { createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { SessionCustomizationDiscovery } from '../../node/copilot/sessionCustomizationDiscovery.js';
+import { initTestGitRepo } from './e2e/harness/agentHostE2ETestHarness.js';
 import { createIsolatedProviderEnvironment } from './providerTestEnvironment.js';
 
 suite('Copilot SDK - customization discovery', function () {
 	this.timeout(60_000);
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('fills the standalone SDK workspace hook discovery gap without starting a session', async () => {
+		const store = disposables.add(new DisposableStore());
+		const home = await realpath(await mkdtemp(join(tmpdir(), 'copilot-workspace-hooks-')));
+		const workspace = join(home, 'workspace');
+		const client = new CopilotClient({
+			mode: 'copilot-cli', baseDirectory: home, useLoggedInUser: false,
+			env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
+				PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
+				COPILOT_TELEMETRY_ENABLED: 'false',
+			})),
+		});
+		try {
+			await mkdir(join(workspace, '.github', 'hooks'), { recursive: true });
+			initTestGitRepo(workspace);
+			await writeFile(join(workspace, '.github', 'hooks', 'test.json'), JSON.stringify({
+				version: 1, hooks: { preToolUse: [{ type: 'command', bash: 'exit 1', powershell: 'exit 1' }] },
+			}));
+			await client.start();
+			const native = await client.rpc.hooks.discover({ projectPaths: [workspace] });
+			const log = new NullLogService();
+			const files = store.add(new FileService(log));
+			store.add(files.registerProvider(Schemas.file, store.add(new class extends DiskFileSystemProvider {
+				override watch(): IDisposable { return Disposable.None; }
+			}(log))));
+			const discovery = store.add(new SessionCustomizationDiscovery([URI.file(workspace)], URI.file(home), URI.file, files, log));
+			const result = await discovery.discover(client, CancellationToken.None);
+			// Remove the native-gap assertion with the workaround when runtime #30644 is fixed.
+			assert.deepStrictEqual({
+				native: native.hooks.map(hook => hook.hookType),
+				published: result.flatMap(item => item.children ?? []).filter(item => item.type === CustomizationType.Hook).map(hook => ({
+					name: hook.name, enabled: hook.enabled, source: readCustomizationDiscoveryMeta(hook)?.source,
+					readable: hasReadableCustomizationContent(URI.parse(hook.uri)),
+				})),
+			}, {
+				native: [],
+				published: [{ name: 'preToolUse', enabled: true, source: 'repository', readable: false }],
+			});
+		} finally {
+			store.clear();
+			try {
+				await client.stop();
+			} finally {
+				await rm(home, { recursive: true, force: true });
+			}
+		}
+	});
 
 	test('publishes hooks-only and MCP-only installations without starting a session', async () => {
 		const store = disposables.add(new DisposableStore());
