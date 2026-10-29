@@ -143,6 +143,10 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 			?? (sessionId !== undefined ? this._getWindowView(candidate => candidate.sessionId === sessionId) : undefined);
 	}
 
+	getMainWindowSessionView(sessionId: string | undefined): SessionView | undefined {
+		return this._mainPart.getSessionView(sessionId);
+	}
+
 	getFocusedSessionView(): SessionView | undefined {
 		return this._mainPart.getFocusedSessionView()
 			?? [...this._windowViews.keys()].find(view => isAncestorOfActiveElement(view.element));
