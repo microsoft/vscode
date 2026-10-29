@@ -34,6 +34,7 @@ import {
 	toParsedAgent,
 	toParsedSkill,
 	parsePlugin,
+	readAgentComponents,
 	readSkills,
 	PluginFormat,
 } from '../../common/pluginParsers.js';
@@ -381,6 +382,34 @@ suite('pluginParsers', () => {
 			const result = convertBareEnvVarsToVsCodeSyntax(def);
 			assert.strictEqual((result.configuration as { command: string }).command, '${lowercase}');
 		});
+	});
+
+	suite('readAgentComponents', () => {
+		const store = new DisposableStore();
+		let fileService: FileService;
+
+		setup(() => {
+			fileService = store.add(new FileService(new NullLogService()));
+			store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		});
+		teardown(() => store.clear());
+
+		for (const sameFilename of [true, false]) {
+			test(`deduplicates ${sameFilename ? 'file-derived' : 'authored'} names unless the caller opts out`, async () => {
+				const root = URI.from({ scheme: Schemas.inMemory, path: '/plugin' });
+				const resources = ['first', 'second'].map(name => URI.joinPath(root, name, sameFilename ? 'reviewer.agent.md' : `${name}.agent.md`));
+				await Promise.all(resources.map(resource => fileService.writeFile(resource, VSBuffer.fromString(sameFilename ? 'Review code.' : '---\nname: Reviewer\n---\nReview code.'))));
+				const defaults = await readAgentComponents(resources, fileService);
+				const allAgents = await readAgentComponents([...resources, resources[0]], fileService, { deduplicateByName: false });
+				assert.deepStrictEqual({
+					defaultNames: defaults.map(agent => agent.name),
+					allAgents: allAgents.map(agent => ({ name: agent.name, uri: agent.uri.toString() })),
+				}, {
+					defaultNames: [sameFilename ? 'reviewer' : 'Reviewer'],
+					allAgents: resources.map(resource => ({ name: sameFilename ? 'reviewer' : 'Reviewer', uri: resource.toString() })),
+				});
+			});
+		}
 	});
 
 	suite('readSkills', () => {

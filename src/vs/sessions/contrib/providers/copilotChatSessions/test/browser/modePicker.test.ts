@@ -170,6 +170,61 @@ suite('ScopedModePickerModelCache', () => {
 suite('ModePicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('distinguishes duplicate labels visibly and accessibly without changing selection IDs', () => {
+		const custom = ['VS Code', 'Plugin: review-tools', 'VS Code'].map((source, index) => new CustomChatMode({
+			id: `client-agent:/${index}`, uri: URI.parse(`client-agent:/${index}`),
+			name: index === 2 ? 'Other' : 'Reviewer',
+			source: { storage: PromptsStorage.local, label: source },
+			agentInstructions: { content: '', toolReferences: [] }, target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true }, enabled: true,
+		}));
+		const modes = upcastPartial<IChatModes & IDisposable>({
+			onDidChange: Event.None, builtin: [ChatMode.Agent], custom,
+			findModeById: id => custom.find(mode => mode.id === id),
+			waitForPendingUpdates: async () => { }, dispose: () => { },
+		});
+		const model = store.add(new ModePickerModel(
+			upcastPartial<IChatSessionsService>({ getCustomAgentTargetForSessionType: () => Target.Undefined }),
+			upcastPartial<IChatModeService>({ createModes: () => modes }),
+		));
+		model.setSession(upcastPartial<ISession>({ resource: URI.parse('agent-host-copilotcli:/session') }), custom[0].id);
+		let rows: { label: string | undefined; source: string | undefined; aria: string | null | undefined }[] = [];
+		const picker = store.add(new ModePicker(
+			model, observableValue<IActiveSession | undefined>('session', undefined),
+			upcastPartial<IActionWidgetService>({
+				isVisible: false, hide: () => { },
+				show: (_id, _preview, items, delegate, _anchor, _container, _actions, accessibilityProvider) => {
+					rows = items.filter(item => item.label === 'Reviewer' || item.label === 'Other').map(item => {
+						const aria = accessibilityProvider?.getAriaLabel?.(item);
+						return {
+							label: item.label,
+							source: typeof item.description === 'string' ? item.description : undefined,
+							aria: typeof aria === 'string' || aria === null || aria === undefined ? aria : aria.get(),
+						};
+					});
+					const selected = items.find(item => item.description === 'Plugin: review-tools');
+					assert.ok(selected?.item);
+					delegate.onSelect(selected.item);
+				},
+			}),
+			upcastPartial<ICommandService>({}), new TestTelemetryService(),
+			upcastPartial<IChatService>({}), new MockChatSessionsService(),
+		));
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		picker.render(container);
+		picker.showPicker();
+		assert.deepStrictEqual({ rows, selected: model.selectedMode.id }, {
+			rows: [
+				{ label: 'Reviewer', source: 'VS Code', aria: 'Reviewer, VS Code' },
+				{ label: 'Reviewer', source: 'Plugin: review-tools', aria: 'Reviewer, Plugin: review-tools' },
+				{ label: 'Other', source: undefined, aria: 'Other' },
+			],
+			selected: custom[1].id,
+		});
+	});
+
 	test('reports chat.modeChange for the scoped active chat', () => {
 		const telemetryService = new TestTelemetryService();
 		const sessionResource = URI.parse('agent-host-copilotcli:/session-1');
