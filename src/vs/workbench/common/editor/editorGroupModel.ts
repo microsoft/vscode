@@ -1230,6 +1230,9 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			this.locked = true;
 		}
 
+		const oldToNewEditorIndex = new Map<number, number>(); // old index to new index for editors that did deserialize
+
+		let newEditorIndex = 0;
 		this.editors = coalesce(data.editors.map((e, index) => {
 			let editor: EditorInput | undefined;
 
@@ -1239,6 +1242,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 				if (deserializedEditor instanceof EditorInput) {
 					editor = deserializedEditor;
 					this.registerEditorListeners(editor);
+					oldToNewEditorIndex.set(index, newEditorIndex++);
 				}
 			}
 
@@ -1249,12 +1253,19 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			return editor;
 		}));
 
-		this.mru = coalesce(data.mru.map(i => this.editors[i]));
+		this.mru = coalesce(data.mru.map(i => {
+			const mappedIndex = oldToNewEditorIndex.get(i);
+
+			return typeof mappedIndex === 'number' ? this.editors[mappedIndex] : undefined;
+		}));
 
 		this.selection = this.mru.length > 0 ? [this.mru[0]] : [];
 
 		if (typeof data.preview === 'number') {
-			this.preview = this.editors[data.preview];
+			const previewIndex = oldToNewEditorIndex.get(data.preview);
+			if (typeof previewIndex === 'number') {
+				this.preview = this.editors[previewIndex];
+			}
 		}
 
 		if (typeof data.sticky === 'number') {
