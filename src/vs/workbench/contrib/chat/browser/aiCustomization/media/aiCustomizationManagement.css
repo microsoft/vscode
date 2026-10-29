@@ -3475,13 +3475,15 @@ per-word capitalization does not survive translation. */
 	border: 0;
 }
 
-.ai-customization-group-header .plugin-card-split-button > .plugin-card-icon-button.monaco-button:hover {
+.ai-customization-group-header .plugin-card-split-button > .plugin-card-icon-button.monaco-button:hover:not(:focus) {
 	background: var(--vscode-toolbar-hoverBackground);
 	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
 	outline-offset: -1px;
 }
 
 .ai-customization-group-header .plugin-card-split-button > .monaco-dropdown-button.codicon-chevron-down-compact {
+	width: var(--vscode-spacing-size200);
+	min-width: var(--vscode-spacing-size200);
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
