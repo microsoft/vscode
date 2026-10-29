@@ -17,6 +17,7 @@ import { ClaudeMapperState, mapSDKMessageToAgentSignals } from '../../node/claud
 import { CLAUDE_USER_DECLINED_MESSAGE } from '../../node/claude/claudeToolDenial.js';
 import { encodeForwardedChatError, PROXY_ERROR_PREFIX } from '../../node/shared/proxyChatError.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
+import { SessionClientToolsModel } from '../../node/claude/clientTools/claudeSessionClientToolsModel.js';
 import {
 	makeAssistantMessage,
 	makeContentBlockStartText,
@@ -289,6 +290,8 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		const log = new CapturingLogService();
 		const state = new ClaudeMapperState();
 		const CLIENT_ID = 'client-abc';
+		const clientTools = new SessionClientToolsModel();
+		clientTools.setTools(CLIENT_ID, [{ name: 'problems', inputSchema: { type: 'object' } }]);
 
 		const signals = mapSDKMessageToAgentSignals(
 			makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_c', 'mcp__client__problems')),
@@ -297,7 +300,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			state,
 			log,
 			r(),
-			() => CLIENT_ID,
+			clientTools,
 		);
 
 		assert.deepStrictEqual(signals, [{
@@ -485,6 +488,8 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 	test('client tools with Claude built-in names preserve client semantics throughout the lifecycle', () => {
 		const state = new ClaudeMapperState();
 		const resolver = r();
+		const clientTools = new SessionClientToolsModel();
+		clientTools.setTools('client-1', [{ name: 'Write', inputSchema: { type: 'object' } }]);
 		const start = mapSDKMessageToAgentSignals(
 			makeStreamEvent(SESSION_ID, makeContentBlockStartToolUse(0, 'tu_client_write', 'mcp__client__Write')),
 			SESSION,
@@ -492,7 +497,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			state,
 			new NullLogService(),
 			resolver,
-			() => 'client-1',
+			clientTools,
 		);
 
 		const delta = mapSDKMessageToAgentSignals(

@@ -693,7 +693,7 @@ export class ClaudeAgentSession extends Disposable {
 				this.abortController,
 				dbRef,
 				this.subagents,
-				(toolName: string) => this.toolDiff.model.ownerOf(toolName),
+				this.toolDiff.model,
 			));
 		} catch (err) {
 			dbRef.dispose();
