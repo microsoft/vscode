@@ -38,8 +38,8 @@ export interface IPendingSdkMessage {
  *
  * Invariants:
  *   • Pushing wakes the iterable's parked `next()`.
- *   • The iterable returns `done` when the bound abort signal is
- *     aborted, waking any parked `next()` immediately.
+ *   • Each iterator returns `done` when its signal is aborted or
+ *     replaced, waking any parked `next()` immediately.
  *   • {@link settleHead} pops the head of the yielded list (called by
  *     the consumer loop on every `result` message).
  *   • {@link failAll} rejects every pending deferred and clears both
@@ -67,29 +67,32 @@ export class ClaudePromptQueue extends Disposable {
 	private _pendingPromptDeferred = new DeferredPromise<void>();
 
 	readonly iterable: AsyncIterable<SDKUserMessage> = {
-		[Symbol.asyncIterator]: () => ({
-			next: async () => {
-				while (true) {
-					if (this._store.isDisposed || this._abortSignal.aborted) {
-						return { done: true, value: undefined };
-					}
-					if (this._toYield.length > 0) {
-						const entry = this._toYield.shift()!;
-						this._yielded.push(entry);
-						this._logService.info(`[Claude:${this._sessionId}] queue yielded sdkUuid=${entry.sdkUuid} turnId=${entry.turnId}${entry.steeringPendingId ? ` steeringPendingId=${entry.steeringPendingId}` : ''}`);
-						if (entry.steeringPendingId) {
-							this._onDidYieldSteering.fire(entry.steeringPendingId);
+		[Symbol.asyncIterator]: () => {
+			const signal = this._abortSignal;
+			return {
+				next: async () => {
+					while (true) {
+						if (this._store.isDisposed || signal !== this._abortSignal || signal.aborted) {
+							return { done: true, value: undefined };
 						}
-						return { done: false, value: entry.sdkMessage };
+						if (this._toYield.length > 0) {
+							const entry = this._toYield.shift()!;
+							this._yielded.push(entry);
+							this._logService.info(`[Claude:${this._sessionId}] queue yielded sdkUuid=${entry.sdkUuid} turnId=${entry.turnId}${entry.steeringPendingId ? ` steeringPendingId=${entry.steeringPendingId}` : ''}`);
+							if (entry.steeringPendingId) {
+								this._onDidYieldSteering.fire(entry.steeringPendingId);
+							}
+							return { done: false, value: entry.sdkMessage };
+						}
+						const pending = this._pendingPromptDeferred;
+						await pending.p;
+						if (this._pendingPromptDeferred === pending) {
+							this._pendingPromptDeferred = new DeferredPromise<void>();
+						}
 					}
-					const pending = this._pendingPromptDeferred;
-					await pending.p;
-					if (this._pendingPromptDeferred === pending) {
-						this._pendingPromptDeferred = new DeferredPromise<void>();
-					}
-				}
-			},
-		}),
+				},
+			};
+		},
 	};
 
 	constructor(
@@ -104,11 +107,13 @@ export class ClaudePromptQueue extends Disposable {
 
 	/** Binds the queue to the current SDK subprocess's abort signal. */
 	bindAbortSignal(signal: AbortSignal): void {
+		const signalChanged = this._abortSignal !== signal;
 		this._abortListener.clear();
 		this._abortSignal = signal;
-		if (signal.aborted) {
+		if (signalChanged || signal.aborted) {
 			this._pendingPromptDeferred.complete();
-		} else {
+		}
+		if (!signal.aborted) {
 			this._abortListener.value = Event.once(Event.fromDOMEventEmitter(signal, 'abort'))(() => {
 				this._abortListener.clear();
 				this._pendingPromptDeferred.complete();

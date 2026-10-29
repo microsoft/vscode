@@ -181,6 +181,48 @@ suite('ClaudePromptQueue', () => {
 		});
 	});
 
+	for (const parked of [false, true]) {
+		test(`rebind prevents a ${parked ? 'parked' : 'not-yet-started'} iterator from consuming the replacement prompt`, async () => {
+			const { queue, controller, steeringYielded } = createQueue(disposables);
+			const originalIterator = queue.iterable[Symbol.asyncIterator]();
+			const originalRead = parked ? originalIterator.next() : undefined;
+			const replacement = new AbortController();
+			queue.bindAbortSignal(replacement.signal);
+			queue.resetForRebind();
+			const oldRead = originalRead ?? originalIterator.next();
+			const newRead = queue.iterable[Symbol.asyncIterator]().next();
+			const yielded = new DeferredPromise<void>();
+			disposables.add(queue.onDidYieldSteering(() => yielded.complete()));
+			const sent = queue.push(makeEntry('replacement', { steeringPendingId: 'pending-rebind' }));
+			await yielded.p;
+			queue.settleHead();
+			await sent;
+			replacement.abort();
+			const [oldResult, newResult] = await Promise.all([oldRead, newRead]);
+			assert.deepStrictEqual({
+				old: { done: oldResult.done, uuid: oldResult.value?.uuid },
+				replacement: { done: newResult.done, uuid: newResult.value?.uuid },
+				originalAborted: controller.signal.aborted,
+				steeringYielded,
+			}, {
+				old: { done: true, uuid: undefined },
+				replacement: { done: false, uuid: makeUuid('replacement') },
+				originalAborted: false,
+				steeringYielded: ['pending-rebind'],
+			});
+		});
+	}
+
+	test('rebinding retires a parked iterator without waiting for reset or abort', async () => {
+		const { queue, controller } = createQueue(disposables);
+		const originalRead = queue.iterable[Symbol.asyncIterator]().next();
+		queue.bindAbortSignal(new AbortController().signal);
+		assert.deepStrictEqual({ done: (await originalRead).done, originalAborted: controller.signal.aborted }, {
+			done: true,
+			originalAborted: false,
+		});
+	});
+
 	test('binding an already-aborted signal wakes a parked next() without registering a listener', async () => {
 		const { queue } = createQueue(disposables);
 		const parked = queue.iterable[Symbol.asyncIterator]().next();
