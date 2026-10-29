@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname } from '../../../../base/common/path.js';
+import * as fs from 'fs';
+import { dirname, join } from '../../../../base/common/path.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { AgentHostCodexAgentSdkRootEnvVar } from '../../common/agentService.js';
 import type { IAgentSdkPackage } from '../agentSdkDownloader.js';
 
@@ -49,12 +51,48 @@ export function codexBinaryTriple(sdkTarget: string): string | undefined {
 }
 
 /**
+ * Resolve platform dependencies from the selected Codex package, including
+ * installs where they aren't hoisted to the SDK root. Like the Codex CLI,
+ * fall back to the main package's vendor directory when the platform package
+ * can't be found.
+ */
+export async function resolveCodexBinaryPath(sdkRoot: string, sdkTarget: string): Promise<string> {
+	const triple = codexBinaryTriple(sdkTarget);
+	if (!triple) {
+		throw new Error(`Codex: no binary triple known for sdkTarget '${sdkTarget}'`);
+	}
+
+	// The renderer test harness maps unprefixed Node builtins through its import map.
+	const { createRequire } = await import('module');
+	const packageJsonPath = await fs.promises.realpath(join(sdkRoot, 'node_modules', '@openai', 'codex', 'package.json'));
+	let vendorRoot: string;
+	try {
+		const platformPackageJsonPath = createRequire(packageJsonPath).resolve(`@openai/codex-${sdkTarget}/package.json`);
+		vendorRoot = join(dirname(platformPackageJsonPath), 'vendor');
+	} catch (error) {
+		if (!error || typeof error !== 'object' || !hasKey(error, { code: true }) || error.code !== 'MODULE_NOT_FOUND') {
+			throw error;
+		}
+		vendorRoot = join(dirname(packageJsonPath), 'vendor');
+	}
+
+	const binaryName = sdkTarget.startsWith('win32-') ? 'codex.exe' : 'codex';
+	const binaryPath = join(vendorRoot, triple, 'bin', binaryName);
+	try {
+		await fs.promises.access(binaryPath, fs.constants.X_OK);
+	} catch (err) {
+		throw new Error(`Codex binary not executable: ${binaryPath} (${err instanceof Error ? err.message : String(err)})`);
+	}
+	return binaryPath;
+}
+
+/**
  * Locate the SDK root for the dev (running-from-source) fallback by resolving
  * `@openai/codex` — a devDependency in source checkouts — out of this repo's
  * `node_modules`. Returns the directory that *contains* that `node_modules`
- * (i.e. the value `_startConnection` joins `node_modules/@openai/codex-<target>`
- * onto), or undefined when the package can't be resolved (e.g. a built product
- * where it isn't shipped). `@openai/codex` declares no `exports` map, so its
+ * (i.e. the root passed to `resolveCodexBinaryPath`), or undefined when the
+ * package can't be resolved (e.g. a built product where it isn't shipped).
+ * `@openai/codex` declares no `exports` map, so its
  * `package.json` is resolvable.
  *
  * `resolvePackageJsonPath` is a seam for tests; production resolves the path

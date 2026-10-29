@@ -90,7 +90,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { CodexAppServerClient, JsonRpcError, JsonRpcErrorCode, JsonRpcResponseError, transportFromChildProcess, type ICodexAppServerClient, type ServerRequestHandlerResult } from './codexAppServerClient.js';
 import { decodeCodexChat, encodeCodexChat, type ICodexPersistedChat } from './codexChatBacking.js';
-import { CodexSdkPackage, codexPackageSuffix, codexBinaryTriple, resolveCodexDevSdkRoot } from './codexSdk.js';
+import { CodexSdkPackage, codexPackageSuffix, resolveCodexBinaryPath, resolveCodexDevSdkRoot } from './codexSdk.js';
 import { CODEX_PORTABLE_HISTORY_HEADER, ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
@@ -2601,8 +2601,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Resolve the Codex SDK root — the directory whose
-	 * `node_modules/@openai/codex-<target>/…` holds the native binary.
+	 * Resolve the Codex SDK root — the directory containing
+	 * `node_modules/@openai/codex`.
 	 *
 	 * Mirrors the three-tier resolution in `ClaudeAgentSdkService._loadSdk`:
 	 *   1. dev override / product download, via the downloader, when the SDK
@@ -2654,17 +2654,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!codexTarget) {
 			throw new Error(`Codex: unsupported platform ${process.platform}-${process.arch}`);
 		}
-		const triple = codexBinaryTriple(codexTarget);
-		if (!triple) {
-			throw new Error(`Codex: no binary triple known for sdkTarget '${codexTarget}'`);
-		}
-		const binaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';
-		const binaryPath = join(root, 'node_modules', `@openai/codex-${codexTarget}`, 'vendor', triple, 'bin', binaryName);
-		try {
-			await fs.promises.access(binaryPath, fs.constants.X_OK);
-		} catch (err) {
-			throw new Error(`Codex binary not executable: ${binaryPath} (${err instanceof Error ? err.message : String(err)})`);
-		}
+		const binaryPath = await resolveCodexBinaryPath(root, codexTarget);
 
 		const proxyStart = this._codexProxyService.start(this._githubToken ?? '');
 		let proxyHandle: ICodexProxyHandle;
