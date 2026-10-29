@@ -7,6 +7,7 @@ import './media/sessionCanvas.css';
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { $, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -38,6 +39,9 @@ import { CanvasInput, ICanvasService } from '../common/canvas.js';
 
 export const SessionCanvasFocusedContext = new RawContextKey<boolean>('sessionCanvasFocused', false);
 
+/** How long a canvas whose provider dropped is presented as reconnecting before it is reported unavailable. */
+const PROVIDER_RECONNECT_TIMEOUT_MS = 30_000;
+
 type CanvasLoadEvent = {
 	schemaVersion: number;
 	outcome: 'loaded' | 'error' | 'cancelled' | 'interrupted';
@@ -57,12 +61,14 @@ export class CanvasEditor extends EditorPane {
 	static readonly ID = CanvasInput.EDITOR_ID;
 
 	private wrapper!: HTMLElement;
+	private root!: HTMLElement;
 	private container!: HTMLElement;
 	private message!: HTMLElement;
 	private host!: WebContentsViewHost;
 	private model: IBrowserViewModel | undefined;
 	private readonly modelLifetime = this._register(new DisposableStore());
 	private readonly pendingVisibleLayout = this._register(new MutableDisposable());
+	private readonly reconnectTimeout = this._register(new MutableDisposable());
 	private readonly currentInput = observableValue<CanvasInput | undefined>(this, undefined);
 	private readonly editorVisible = observableValue(this, false);
 	private readonly presentationVisible = observableValue(this, false);
@@ -71,6 +77,7 @@ export class CanvasEditor extends EditorPane {
 	private layoutSequence = 0;
 	private loadingKey: string | undefined;
 	private loadedKey: string | undefined;
+	private reconnecting = false;
 	private semanticSequence = 0;
 	private semanticText = '';
 	private helpAnnounced = false;
@@ -97,7 +104,7 @@ export class CanvasEditor extends EditorPane {
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
 		SessionCanvasFocusedContext.bindTo(scopedContextKeyService).set(true);
 
-		const root = $('.browser-root.session-canvas-editor');
+		const root = this.root = $('.browser-root.session-canvas-editor');
 		this.wrapper = $('.browser-container-wrapper');
 		this.container = $('.browser-container');
 		this.container.tabIndex = 0;
@@ -128,16 +135,19 @@ export class CanvasEditor extends EditorPane {
 				return;
 			}
 			const canvas = input.canvas.read(reader);
-			if (input.membershipPending.read(reader)) {
-				this._detach(localize('canvas.pending', "Waiting for this canvas to become available."));
-				return;
-			}
-			if (!canvas) {
+			const membershipPending = input.membershipPending.read(reader);
+			if (!membershipPending && !canvas) {
 				this._detach(localize('canvas.closed', "This canvas is no longer available."));
 				return;
 			}
-			if (canvas.source === undefined) {
-				this._detach(localize('canvas.unavailable', "The canvas provider is temporarily unavailable."));
+			if (membershipPending || canvas?.source === undefined) {
+				if (this.model) {
+					// Freeze the last frame while the provider reconnects; the next source loads into the same page in place.
+					this._invalidateLoad();
+					this._setReconnecting(true);
+				} else {
+					this._detachUnavailable(membershipPending);
+				}
 				return;
 			}
 			const key = `${canvas.resource.toString()}\u0000${canvas.source.toString()}`;
@@ -163,7 +173,10 @@ export class CanvasEditor extends EditorPane {
 		if (canvas === undefined || canvas.source === undefined) {
 			return;
 		}
-		this._detach(localize('canvas.loading', "Loading canvas…"));
+		// An attached page stays presented while the new source loads into it in place.
+		if (!this.model) {
+			this._detach(localize('canvas.loading', "Loading canvas…"));
+		}
 		const sequence = ++this.loadSequence;
 		this.loadingKey = key;
 		const stopwatch = StopWatch.create();
@@ -181,6 +194,7 @@ export class CanvasEditor extends EditorPane {
 			this._setModel(model);
 			this.message.textContent = localize('canvas.pageLoading', "Loading canvas page…");
 			this.loadedKey = key;
+			this._setReconnecting(false);
 			this.message.textContent = model.error ? localize('canvas.pageFailed', "The canvas page failed to load.") : '';
 			outcome = model.error ? 'error' : 'loaded';
 		} catch (error) {
@@ -264,6 +278,9 @@ export class CanvasEditor extends EditorPane {
 			const canvas = input?.canvas.get();
 			if (input && canvas?.source && this.canvasService.isOwnerPresentable(input.reference)) {
 				void this._load(input, `${canvas.resource.toString()}\u0000${canvas.source.toString()}`);
+			} else if (input && this.canvasService.isOwnerPresentable(input.reference)) {
+				// The page kept while its provider was unavailable is gone.
+				this._detachUnavailable(input.membershipPending.get());
 			}
 		}));
 		this.layout();
@@ -284,12 +301,44 @@ export class CanvasEditor extends EditorPane {
 		}
 	}
 
-	private _detach(message: string): void {
+	private _invalidateLoad(): void {
 		this.loadSequence++;
 		this.loadingKey = undefined;
 		this.loadedKey = undefined;
+	}
+
+	private _detach(message: string): void {
+		this._invalidateLoad();
 		this._setModel(undefined);
+		this._setReconnecting(false);
 		this.message.textContent = message;
+	}
+
+	private _detachUnavailable(membershipPending: boolean): void {
+		this._detach(membershipPending
+			? localize('canvas.pending', "Waiting for this canvas to become available.")
+			: localize('canvas.unavailable', "The canvas provider is temporarily unavailable."));
+	}
+
+	/**
+	 * Hides the attached page behind its last frame while its provider reconnects, so the dead page
+	 * cannot be used or mistaken for a live one. Only a successful load or a detach ends it.
+	 */
+	private _setReconnecting(reconnecting: boolean): void {
+		if (this.reconnecting === reconnecting) {
+			return;
+		}
+		this.reconnecting = reconnecting;
+		this.root.classList.toggle('provider-reconnecting', reconnecting);
+		if (reconnecting) {
+			this.message.textContent = localize('canvas.reconnecting', "Reconnecting to the canvas provider…");
+			this.reconnectTimeout.value = disposableTimeout(() => {
+				this.message.textContent = localize('canvas.providerUnavailable', "The canvas provider is unavailable.");
+			}, PROVIDER_RECONNECT_TIMEOUT_MS);
+		} else {
+			this.reconnectTimeout.clear();
+		}
+		this.layout();
 	}
 
 	override layout(): void {
@@ -349,6 +398,7 @@ export class CanvasEditor extends EditorPane {
 		const cornerRadius = parseFloat(this.window.getComputedStyle(this.container).borderTopLeftRadius) || 0;
 		const bounds = { x: snap(rect.left), y: snap(rect.top), width: snap(rect.width), height: snap(rect.height), windowId: this.group.windowId, zoomFactor, cornerRadius };
 		const visible = this.editorVisible.get()
+			&& !this.reconnecting
 			&& bounds.width > 0
 			&& bounds.height > 0
 			&& rect.right > 0

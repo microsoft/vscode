@@ -33,6 +33,7 @@ interface ICanvasPresentation {
 	requestId: string | undefined;
 	canvas: ICanvas | undefined;
 	model: IBrowserViewModel | undefined;
+	/** The live source `model` presents, or `undefined` once its provider became unavailable. */
 	modelSource: URI | undefined;
 	modelPromise: { readonly source: URI; readonly value: Promise<IBrowserViewModel> } | undefined;
 	modelDisposeListener: IDisposable | undefined;
@@ -263,11 +264,14 @@ export class CanvasService extends Disposable implements ICanvasService {
 		if (this._store.isDisposed || !presentation || !isEqual(presentation.canvas?.source, source)) {
 			return Promise.reject(new CancellationError());
 		}
+		if (presentation.modelPromise && isEqual(presentation.modelPromise.source, source)) {
+			return presentation.modelPromise.value.then(model => ({ model, reused: true }));
+		}
 		if (presentation.model && isEqual(presentation.modelSource, source)) {
 			return Promise.resolve({ model: presentation.model, reused: true });
 		}
-		if (presentation.modelPromise && isEqual(presentation.modelPromise.source, source)) {
-			return presentation.modelPromise.value.then(model => ({ model, reused: true }));
+		if (presentation.model) {
+			return this.navigatePresentationModel(presentation, presentation.model, source).then(model => ({ model, reused: false }));
 		}
 		this.disposePresentationModel(presentation);
 		const generation = ++presentation.modelGeneration;
@@ -298,6 +302,24 @@ export class CanvasService extends Disposable implements ICanvasService {
 		});
 		presentation.modelPromise = { source, value };
 		return value.then(model => ({ model, reused: false }));
+	}
+
+	/** Loads a new source into the retained page, so it is replaced in place without detaching its view or moving focus. */
+	private navigatePresentationModel(presentation: ICanvasPresentation, model: IBrowserViewModel, source: URI): Promise<IBrowserViewModel> {
+		const generation = ++presentation.modelGeneration;
+		const value = model.loadURL(source.toString(true)).then(() => {
+			if (presentation.model !== model || presentation.modelGeneration !== generation || !isEqual(presentation.canvas?.source, source)) {
+				throw new CancellationError();
+			}
+			presentation.modelSource = source;
+			return model;
+		}).finally(() => {
+			if (presentation.modelPromise?.value === value) {
+				presentation.modelPromise = undefined;
+			}
+		});
+		presentation.modelPromise = { source, value };
+		return value;
 	}
 
 	private async waitForWorkingSetRestore(): Promise<boolean> {
@@ -589,10 +611,12 @@ export class CanvasService extends Disposable implements ICanvasService {
 	}
 
 	private setPresentationCanvas(presentation: ICanvasPresentation, canvas: ICanvas): void {
-		const disposeModel = !canvas.source || presentation.modelSource && !isEqual(presentation.modelSource, canvas.source);
 		presentation.canvas = canvas;
-		if (disposeModel) {
-			this.disposePresentationModel(presentation);
+		if (!canvas.source) {
+			// Keep the last page while the provider is unavailable; the next source loads into it in place.
+			presentation.modelSource = undefined;
+			presentation.modelPromise = undefined;
+			presentation.modelGeneration++;
 		}
 	}
 

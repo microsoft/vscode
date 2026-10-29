@@ -300,7 +300,7 @@ suite('SessionCanvasService', () => {
 		returning.dispose();
 	});
 
-	test('disposes the retained browser model on user dismissal and known source loss', async () => {
+	test('disposes the retained browser model on user dismissal', async () => {
 		const dismissed = createHarness();
 		await dismissed.openSettled[0];
 		await Promise.resolve();
@@ -325,40 +325,66 @@ suite('SessionCanvasService', () => {
 		});
 		await assert.rejects(dismissed.canvasService.resolveCanvasModel(dismissedInput.reference, dismissed.canvas.source!), CancellationError);
 
-		const unavailable = createHarness();
-		await unavailable.openSettled[0];
-		await Promise.resolve();
-		const unavailableInput = unavailable.opened[0];
-		let unavailableModelDisposed = false;
-		const unavailableWillDispose = store.add(new Emitter<void>());
-		unavailable.setCreateBrowserModelHandler(async () => upcastPartial<IBrowserViewModel>({
-			onWillDispose: unavailableWillDispose.event,
-			dispose: () => {
-				if (!unavailableModelDisposed) {
-					unavailableModelDisposed = true;
-					unavailableWillDispose.fire();
-				}
-			},
-		}));
-		await unavailable.canvasService.resolveCanvasModel(unavailableInput.reference, unavailable.canvas.source!);
-		unavailable.canvases.set([{ ...unavailable.canvas, source: undefined }], undefined);
-		let staleUnavailableCreates = 0;
-		unavailable.setCreateBrowserModelHandler(async () => {
-			staleUnavailableCreates++;
-			return upcastPartial<IBrowserViewModel>({ onWillDispose: Event.None, dispose: () => { } });
-		});
-		await assert.rejects(unavailable.canvasService.resolveCanvasModel(unavailableInput.reference, unavailable.canvas.source!), CancellationError);
-
 		assert.deepStrictEqual({
 			dismissedModelDisposed,
-			unavailableModelDisposed,
 			staleDismissedCreates,
-			staleUnavailableCreates,
 		}, {
 			dismissedModelDisposed: true,
-			unavailableModelDisposed: true,
 			staleDismissedCreates: 0,
-			staleUnavailableCreates: 0,
+		});
+	});
+
+	test('keeps the browser model while its provider is unavailable and loads returning sources into it in place', async () => {
+		const harness = createHarness();
+		await harness.openSettled[0];
+		await Promise.resolve();
+		const input = harness.opened[0];
+		let creates = 0;
+		let disposed = false;
+		const loads: string[] = [];
+		const onWillDispose = store.add(new Emitter<void>());
+		const model = upcastPartial<IBrowserViewModel>({
+			onWillDispose: onWillDispose.event,
+			loadURL: async url => { loads.push(url); },
+			dispose: () => {
+				if (!disposed) {
+					disposed = true;
+					onWillDispose.fire();
+				}
+			},
+		});
+		harness.setCreateBrowserModelHandler(async () => {
+			creates++;
+			return model;
+		});
+		const initial = await harness.canvasService.resolveCanvasModel(input.reference, harness.canvas.source!);
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+		await assert.rejects(harness.canvasService.resolveCanvasModel(input.reference, harness.canvas.source!), CancellationError);
+		const disposedWhileUnavailable = disposed;
+		harness.canvases.set([harness.canvas], undefined);
+		const sameSource = await harness.canvasService.resolveCanvasModel(input.reference, harness.canvas.source!);
+		const freshSource = URI.parse('http://127.0.0.1:54321/?token=fresh');
+		harness.canvases.set([{ ...harness.canvas, source: freshSource }], undefined);
+		const fresh = await harness.canvasService.resolveCanvasModel(input.reference, freshSource);
+		const settled = await harness.canvasService.resolveCanvasModel(input.reference, freshSource);
+		harness.canvases.set([], undefined);
+
+		assert.deepStrictEqual({
+			creates,
+			disposedWhileUnavailable,
+			loads,
+			sameModel: [sameSource, fresh, settled].every(resolution => resolution.model === initial.model),
+			reused: [initial.reused, sameSource.reused, fresh.reused, settled.reused],
+			opened: harness.opened.length,
+			disposedAfterRemoval: disposed,
+		}, {
+			creates: 1,
+			disposedWhileUnavailable: false,
+			loads: ['https://example.test/preview', 'http://127.0.0.1:54321/?token=fresh'],
+			sameModel: true,
+			reused: [false, false, false, true],
+			opened: 1,
+			disposedAfterRemoval: true,
 		});
 	});
 
