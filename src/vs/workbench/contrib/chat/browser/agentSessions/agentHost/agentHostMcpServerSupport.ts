@@ -679,6 +679,7 @@ function projectMcpServerConfiguration(launch: McpServerLaunch): IMcpServerConfi
 				transport: launch.transport === 'sse' ? 'sse' : 'http',
 				url: launch.uri.toString(),
 				headers: launch.headers.length > 0 ? Object.fromEntries(launch.headers) : undefined,
+				oauth: launch.oauth?.clientId ? { clientId: launch.oauth.clientId } : undefined,
 			};
 	}
 }
