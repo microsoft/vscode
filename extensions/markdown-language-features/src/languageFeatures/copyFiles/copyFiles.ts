@@ -42,7 +42,23 @@ export function parseGlob(rawGlob: string): Iterable<string> {
 	return [rawGlob];
 }
 
-type GetWorkspaceFolder = (documentUri: vscode.Uri) => vscode.Uri | undefined;
+export type GetWorkspaceFolder = (documentUri: vscode.Uri) => vscode.Uri | undefined;
+
+/**
+ * Checks that a copy destination stays inside the workspace folder of the document,
+ * or inside the document's directory if the document is not part of a workspace.
+ */
+export function isCopyDestinationInsideWorkspace(documentUri: vscode.Uri, destination: vscode.Uri, getWorkspaceFolder: GetWorkspaceFolder): boolean {
+	const root = getWorkspaceFolder(documentUri) ?? Utils.dirname(documentUri);
+	if (root.scheme !== destination.scheme || root.authority !== destination.authority) {
+		return false;
+	}
+
+	// Treat `\` as a separator too, since it is one on Windows file systems
+	const normalize = (p: string) => path.posix.normalize(p.replaceAll('\\', '/'));
+	const rootPath = normalize(root.path).replace(/\/?$/, '/');
+	return normalize(destination.path).startsWith(rootPath);
+}
 
 export function resolveCopyDestination(documentUri: vscode.Uri, fileName: string, dest: string, getWorkspaceFolder: GetWorkspaceFolder): vscode.Uri {
 	const resolvedDest = resolveCopyDestinationSetting(documentUri, fileName, dest, getWorkspaceFolder);

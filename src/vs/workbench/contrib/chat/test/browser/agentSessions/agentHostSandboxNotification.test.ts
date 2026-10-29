@@ -1467,6 +1467,80 @@ suite('AgentHostSandboxNotification', () => {
 		}]);
 	});
 
+	function snapshotWarning(service: NotificationService) {
+		return [...service.notifications.values()].map(notification => ({
+			message: notification.message,
+			description: notification.description,
+			actions: notification.actions.map(action => action.label),
+		}));
+	}
+
+	const unavailableReason = 'The sandbox failed to start because its required Linux namespaces are unavailable.';
+	const mayNotWork = {
+		message: 'Sandboxing might not work as expected',
+		description: unavailableReason,
+		actions: ['Troubleshooting Guide', 'Disable Sandboxing'],
+	};
+	const requiredUnavailable = {
+		message: 'Sandboxing is required by your organization but isn\'t available on this machine',
+		description: `Terminal commands can't run until this machine meets the sandbox requirements or your admin changes the policy. ${unavailableReason}`,
+		actions: ['Troubleshooting Guide'],
+	};
+
+	for (const scenario of [
+		{ name: 'is not managed', managed: undefined, allowBypass: undefined, failClosed: undefined, expected: mayNotWork },
+		{ name: 'is managed with bypass allowed', managed: true, allowBypass: true, failClosed: undefined, expected: mayNotWork },
+		{ name: 'has an undetermined fail-closed policy', managed: true, allowBypass: false, failClosed: true, expected: mayNotWork },
+		{ name: 'is required by the organization without bypass', managed: true, allowBypass: false, failClosed: undefined, expected: requiredUnavailable },
+	]) {
+		test(`explains unavailable sandboxing when it ${scenario.name}`, () => {
+			const subscription = store.add(new TestSubscription());
+			subscription.setValue([unavailableReason], scenario.managed, scenario.allowBypass, scenario.failClosed);
+			const service = new NotificationService();
+			createNotification(resource, subscription, service);
+			assert.deepStrictEqual(snapshotWarning(service), [scenario.expected]);
+		});
+	}
+
+	test('updates the required-by-organization explanation when the policy changes', () => {
+		const subscription = store.add(new TestSubscription());
+		subscription.setValue([unavailableReason]);
+		const service = new NotificationService();
+		createNotification(resource, subscription, service);
+		const snapshots = [snapshotWarning(service)];
+		subscription.setValue([unavailableReason], true);
+		snapshots.push(snapshotWarning(service));
+		subscription.setValue([unavailableReason], true, true);
+		snapshots.push(snapshotWarning(service));
+		assert.deepStrictEqual(snapshots, [[mayNotWork], [requiredUnavailable], [mayNotWork]]);
+	});
+
+	test('uses local renderer policy to explain required sandboxing on the local desktop host', () => {
+		assert.ok(resolution);
+		resolution = { ...resolution, connection: localHost };
+		const subscription = store.add(new TestSubscription());
+		subscription.setValue([unavailableReason]);
+		const service = new NotificationService();
+		createNotification(resource, subscription, service);
+		const snapshots = [snapshotWarning(service)];
+		managedSandboxEnforced.set(true, undefined);
+		snapshots.push(snapshotWarning(service));
+		managedSandboxAllowsBypass.set(true, undefined);
+		snapshots.push(snapshotWarning(service));
+		assert.deepStrictEqual(snapshots, [[mayNotWork], [isWeb ? mayNotWork : requiredUnavailable], [mayNotWork]]);
+	});
+
+	test('does not treat the legacy setting policy as an organization requirement', () => {
+		const subscription = store.add(new TestSubscription());
+		subscription.setValue([unavailableReason]);
+		const service = new NotificationService();
+		stub(configurationService, 'inspect').returns({
+			policyValue: AgentSandboxEnabledValue.On,
+		});
+		createNotification(resource, subscription, service);
+		assert.deepStrictEqual(snapshotWarning(service), [{ ...mayNotWork, actions: ['Troubleshooting Guide'] }]);
+	});
+
 	test('updates and removes the notice as host diagnostics change', () => {
 		const subscription = store.add(new TestSubscription());
 		subscription.setValue();

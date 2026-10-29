@@ -16,6 +16,18 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
+### Copilot empty-mode native plugin agent selection
+
+A user selects an agent supplied by a plugin for a chat backed by the SDK's `empty` client mode. This mode is used by storage-scoped Copilot clients. The native plugin agent is absent from the session catalog even when its directory is supplied and configuration discovery is enabled, so the requested agent cannot be selected. Retrying as the default agent would silently change the user's request.
+
+- Tests: `empty create`, `empty resume`, and `empty recover` in `../copilotSdkNativeAgents.integrationTest.ts`.
+- Scope: bundled SDK `1.0.27-unstable.40031404408.gba6c003`; reproduced locally on macOS without credentials or model requests. Cross-platform Azure validation remains required before merge.
+- Expected: construct without an initial agent, await `agent.list()`, select the native SDK ID, and retain existing history on resume.
+- Observed: `copilot-cli` supports this sequence; `empty` reports `Custom agent 'review-native:reviewer' not found`. An explicit `customAgentsLocalOnly: false` also failed in the isolated SDK reproduction.
+- Gate: the empty-mode cases currently assert explicit launch rejection, not successful support. When the SDK supports native plugin catalogs in this mode, replace these assertions with the same success contract as `copilot-cli`. The PR remains blocked meanwhile; no client-mode or discovery-ownership workaround is applied.
+- Tracking: [microsoft/vscode#344780](https://github.com/microsoft/vscode/pull/344780#issuecomment-6477591086).
+- Reproduce: `./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/copilotSdkNativeAgents.integrationTest.ts`.
+
 ### Copilot sandboxed MCP servers restart at the start of the first turn
 
 A user with the sandbox enabled starts a session that has a stdio MCP server, then sends a first message. The server should start once inside the sandbox. Instead, the runtime first starts it with the settings it had before the sandbox update, then cancels it and starts it again inside the sandbox while the first turn is being prepared. Users with several MCP servers see the turn wait for every server to start twice, one after another, before the first response.

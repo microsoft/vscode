@@ -16686,7 +16686,7 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 		}));
 
-		test('local agent contribution advertises target-only delegation and image attachments', () => {
+		test('agent contribution advertises target-only delegation and file and image attachments', () => {
 			const { instantiationService, agentHostService, chatSessionContributions, chatSessionItemControllers } = createTestServices(disposables);
 			disposables.add(instantiationService.createInstance(AgentHostContribution));
 
@@ -16699,12 +16699,14 @@ suite('AgentHostChatContribution', () => {
 				type: c.type,
 				canDelegate: c.canDelegate,
 				supportsDelegation: c.supportsDelegation,
+				supportsFileAttachments: c.capabilities?.supportsFileAttachments,
 				supportsImageAttachments: c.capabilities?.supportsImageAttachments
 			})), [
 				{
 					type: 'agent-host-copilot',
 					canDelegate: true,
 					supportsDelegation: false,
+					supportsFileAttachments: true,
 					supportsImageAttachments: true
 				},
 			]);

@@ -62,7 +62,6 @@ export enum ChatConfiguration {
 	MigrateLegacyCopilotCliSessions = 'chat.agentSessions.migrateLegacyCopilotCli',
 	ShowExternalAgentSessions = 'chat.agentSessions.showExternal',
 	OpenSessionsInEditor = 'chat.agentSessions.openInEditor',
-	UnifiedWorkspacePicker = 'sessions.chat.unifiedWorkspacePicker.enabled',
 	AutoMarkAsDoneMergedSessionsAfterDays = 'chat.agentSessions.autoMarkAsDoneMergedSessionsAfterDays',
 	AutoDeleteMarkedAsDoneMergedSessionsAfterDays = 'chat.agentSessions.autoDeleteMarkedAsDoneMergedSessionsAfterDays',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',

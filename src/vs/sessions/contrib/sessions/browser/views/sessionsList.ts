@@ -107,7 +107,7 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfers } from '../../../../browser/dnd.js';
-import { getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, isChatMoveDndEnabled, isCrossAgentChatMoveEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListMoveNotice, SessionsListSessionDrop } from './sessionsListChatMove.js';
+import { getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, isChatMoveDndEnabled, isCrossAgentChatMoveEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListSessionDrop } from './sessionsListChatMove.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
@@ -3519,7 +3519,7 @@ interface ISessionsListDndDelegate {
 	moveChat(session: ISession, chat: IChat, drop: SessionsListChatDrop): void;
 	/** Move `session` under `target`, after its chat `after` (`undefined`: first). */
 	moveSessionUnder(session: ISession, target: ISession, after: IChat | undefined): void;
-	/** Whether the session is in a section the user orders by hand: Pinned or a custom group. */
+	/** Whether the session is in a section the user orders by hand: Pinned, a custom group, or a workspace, repository or environment section. */
 	isInManuallyOrderedSection(session: ISession): boolean;
 	/**
 	 * Whether the row is the last one its section shows (under a find filter, the last one that matches): its last
@@ -4046,12 +4046,6 @@ interface ISessionsListControlBaseOptions {
 	 * so tests and fixtures can supply pending approvals without a live chat model.
 	 */
 	readonly approvalModel?: AgentSessionApprovalModel;
-
-	/**
-	 * The notice at the bottom of the sessions list when it shows, to report the moves the list makes (their progress,
-	 * result and Undo). Without it, a move that fails is a notification.
-	 */
-	getMoveNotice?(): SessionsListMoveNotice | undefined;
 }
 
 export type ISessionsListControlOptions = ISessionsListControlBaseOptions;
@@ -4701,7 +4695,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					canMoveSessionUnder: session => this.isChatMoveDndEnabled() && this._sessionsManagementService.canMoveSessionUnder(session),
 					moveChat: (session, chat, drop) => this.moveChatByDrop(session, chat, drop),
 					moveSessionUnder: (session, target, after) => this.moveSessionUnderByDrop(session, target, after),
-					isInManuallyOrderedSection: session => this.isSessionPinned(session) || this._sessionGroupsService.getGroupOfSession(session.sessionId) !== undefined,
+					isInManuallyOrderedSection: session => this.isSessionPinned(session) || this._sessionGroupsService.getGroupOfSession(session.sessionId) !== undefined || isSessionGroupingSection(this.getUngroupedSectionIds(session)[0]),
 					isLastRowOfSection: element => this.isLastRowOfSection(element),
 					setMoveDropFeedback: kind => {
 						this.listContainer.classList.toggle('move-drag', kind !== 'none');
@@ -6438,9 +6432,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private runMove(move: SessionsListMove): void {
 		runSessionsListMove(move, this._sessionsManagementService, this.notificationService, this.logService, {
-			notice: this.options.getMoveNotice?.(),
 			watch: watched => this.watchMoveForReveal(watched),
-			placementServices: { sessionsListModelService: this._sessionsListModelService, sessionGroupsService: this._sessionGroupsService },
 		}).catch(onUnexpectedError);
 	}
 

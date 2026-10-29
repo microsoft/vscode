@@ -35,11 +35,11 @@ import { raceCancellation, raceTimeout } from '../../../../base/common/async.js'
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { SharedChatInputComposer } from './sharedChatInputComposer.js';
-import { isExperimentalSessionComposerLayoutEnabled } from './newChatWidget.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING } from '../common/constants.js';
 import { getStoredSessionOptionsExpanded, SessionOptionsRow } from './sessionOptionsRow.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { IChatViewOptions } from '../../../browser/parts/chatView.js';
+import { ISessionsChatViewStateService } from './chatViewStateService.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatInputNoticeLane } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
@@ -86,6 +86,7 @@ export class NewChatInSessionWidget extends Disposable {
 	private readonly _newChatInput: SharedChatInputComposer;
 	/** The harness switch in flight; a send waits for it so it reaches the chat of the picked harness. */
 	private _harnessSwitch: Promise<void> | undefined;
+	private _harnessSwitchTarget: string | undefined;
 	private readonly _tipDisposable = this._register(new MutableDisposable());
 	private readonly _session: IObservable<IActiveSession | undefined>;
 	/**
@@ -93,17 +94,11 @@ export class NewChatInSessionWidget extends Disposable {
 	 * be another one, which this composer must neither bind to nor send to.
 	 */
 	private readonly _chat = observableValue<IChat | undefined>(this, undefined);
-	/**
-	 * When the experimental composer layout is enabled, the in-session input mirrors the
-	 * new-session composer: the mode/permissions control moves into the input row and the model
-	 * picker is right-aligned, keeping both surfaces consistent.
-	 */
-	private readonly _useExperimentalComposerLayout: IObservable<boolean>;
 	private readonly _screenReaderOptimized: IObservable<boolean>;
 	private readonly _collapsedSessionOptionsShowIcons: IObservable<boolean>;
 	/**
 	 * Whether the session options are shown. Starts from the user's New Session choice, but a choice
-	 * made here is kept apart: New Session applies its experiment's default until the user chooses there.
+	 * made here is kept apart: New Session applies its options default until the user chooses there.
 	 */
 	private readonly _sessionOptionsExpanded: ISettableObservable<boolean>;
 	private readonly _workspaceSupport: IObservable<INestedChatWorkspaceSupport | undefined>;
@@ -128,16 +123,9 @@ export class NewChatInSessionWidget extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IFileService private readonly fileService: IFileService,
+		@ISessionsChatViewStateService private readonly viewStateService: ISessionsChatViewStateService,
 	) {
 		super();
-
-		this._useExperimentalComposerLayout = observableFromEvent(
-			this,
-			Event.filter(this.configurationService.onDidChangeConfiguration, event =>
-				event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)
-				|| event.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)),
-			() => isExperimentalSessionComposerLayoutEnabled(this.configurationService),
-		);
 
 		this._screenReaderOptimized = observableFromEvent(
 			this,
@@ -179,7 +167,7 @@ export class NewChatInSessionWidget extends Disposable {
 			getFolderSources: () => this._getFolderSources(),
 			describeNoWorkspace: () => {
 				const session = this._session.get();
-				return getNoWorkspaceChoicePresentation(this.configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING), session && this.sessionsProvidersService.getProvider(session.providerId));
+				return getNoWorkspaceChoicePresentation(session && this.sessionsProvidersService.getProvider(session.providerId));
 			},
 			describeFolder: folder => {
 				const session = this._session.get();
@@ -234,7 +222,6 @@ export class NewChatInSessionWidget extends Disposable {
 			renderRepositoryControls: (container, hoverDelegate) => this._workspaceControls.renderRepositoryControls(container, hoverDelegate),
 			supportsBackground: true,
 			voiceRoutesWhileSessionActive: true,
-			useExperimentalLayout: this._useExperimentalComposerLayout,
 			sessionTypePickerOptions: {
 				telemetrySource: NEW_CHAT_IN_SESSION_HARNESS_PICKER_TELEMETRY_SOURCE,
 				peerChat: {
@@ -248,7 +235,40 @@ export class NewChatInSessionWidget extends Disposable {
 	// --- Rendering ---
 
 	setChat(chat: IChat): void {
+		const previous = this._chat.get();
+		if (previous && isEqual(previous.resource, chat.resource)) {
+			this._chat.set(chat, undefined);
+			return;
+		}
+		if (previous) {
+			this._saveDraft(previous);
+		}
 		this._chat.set(chat, undefined);
+		const draft = this.viewStateService.getDraft(chat.resource);
+		if (!this._consumeHarnessSwitchResult(chat) && (previous || draft)) {
+			this._newChatInput.setDraft(draft);
+		}
+	}
+
+	private _consumeHarnessSwitchResult(chat: IChat): boolean {
+		const session = this._session.get();
+		if (!session || this._harnessSwitchTarget === undefined || getChatHarness(session, chat) !== this._harnessSwitchTarget) {
+			return false;
+		}
+		this._harnessSwitchTarget = undefined;
+		return true;
+	}
+
+	private _saveDraft(chat: IChat): void {
+		this.viewStateService.setDraft(chat.resource, this._newChatInput.getDraft());
+	}
+
+	override dispose(): void {
+		const chat = this._chat.get();
+		if (chat) {
+			this._saveDraft(chat);
+		}
+		super.dispose();
 	}
 
 	render(parent: HTMLElement): void {
@@ -267,7 +287,6 @@ export class NewChatInSessionWidget extends Disposable {
 		const sessionOptionsRow = this._register(new SessionOptionsRow(row, workspacePickerContainer, {
 			user: 'NewChatInSessionWidget.sessionOptions',
 			hoverDelegate: this._newChatInput.pickerHoverDelegate,
-			useExperimentalLayout: this._useExperimentalComposerLayout,
 			screenReaderOptimized: this._screenReaderOptimized,
 			expanded: this._sessionOptionsExpanded,
 			collapsedShowIcons: this._collapsedSessionOptionsShowIcons,
@@ -294,12 +313,9 @@ export class NewChatInSessionWidget extends Disposable {
 		}));
 
 		this._newChatInput.render(chatWidgetContent, parent);
-		this._register(autorun(reader => {
-			const useExperimentalLayout = this._useExperimentalComposerLayout.read(reader);
-			chatWidgetContent.classList.toggle('experimental-new-session-composer', useExperimentalLayout);
-			this._newChatInput.placeRepositoryControls(useExperimentalLayout ? sessionOptionsRow.repositoryControlsHost : undefined);
-			sessionOptionsRow.layout();
-		}));
+		chatWidgetContent.classList.add('experimental-new-session-composer');
+		this._newChatInput.placeRepositoryControls(sessionOptionsRow.repositoryControlsHost);
+		sessionOptionsRow.layout();
 		// Rendered after the composer: the tip docks inside the composer's stack,
 		// so the pet stands on it rather than on the composer boundary.
 		this._renderSubSessionTip();
@@ -320,10 +336,12 @@ export class NewChatInSessionWidget extends Disposable {
 		}
 		const switched = this._switchHarness(session, draft, harness);
 		this._harnessSwitch = switched;
+		this._harnessSwitchTarget = harness;
 		try {
 			await switched;
 		} finally {
 			this._harnessSwitch = undefined;
+			this._harnessSwitchTarget = undefined;
 		}
 	}
 

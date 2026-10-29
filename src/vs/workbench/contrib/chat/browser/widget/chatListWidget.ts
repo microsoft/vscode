@@ -13,9 +13,10 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableMap, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { clamp } from '../../../../../base/common/numbers.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -45,7 +46,7 @@ import { resolveResponseSelection } from '../responseSelectionResolver.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
-import { getLinkTarget, sanitizeChatClipboardFragment } from './chatClipboard.js';
+import { cloneVisibleSelection, getLinkTarget, sanitizeChatClipboardFragment } from './chatClipboard.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 
@@ -240,6 +241,9 @@ export interface IChatListWidgetOptions {
 	 */
 	readonly rendererOptions?: IChatListItemRendererOptions;
 
+	/** Keeps persistent working progress visible when its inline position leaves the transcript viewport. */
+	readonly stickyProgress?: boolean;
+
 	/**
 	 * Default height for list elements.
 	 */
@@ -392,6 +396,8 @@ export class ChatListWidget extends Disposable {
 	private readonly _container: HTMLElement;
 	private _overlayClippingContainer: HTMLElement | undefined;
 	private readonly _scrollDownButton: Button;
+	private readonly _workingProgressContainer: HTMLElement | undefined;
+	private readonly _stickyProgressLayout = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _lastItemIdContextKey: IContextKey<string[]>;
 
 	private readonly _location: ChatAgentLocation | undefined;
@@ -659,6 +665,32 @@ export class ChatListWidget extends Disposable {
 				}
 			}
 		));
+		if (options.stickyProgress) {
+			const progress = this._workingProgressContainer = dom.append(this._container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress.hidden'));
+			this._register(toDisposable(() => progress.remove()));
+			this._renderer.setWorkingProgressContainer(progress, (response, anchor) => {
+				if (!this._visible || this._tree.renderHeight <= 0 || !progress.isConnected || !this._tree.hasElement(response)) {
+					return false;
+				}
+				const viewport = this._tree.getHTMLElement().getBoundingClientRect();
+				const stickyHeader = this._tree.stickyScrollDomNode?.getBoundingClientRect();
+				const top = stickyHeader?.height ? Math.max(viewport.top, stickyHeader.bottom) : viewport.top;
+				const bottom = Math.min(viewport.bottom, progress.getBoundingClientRect().bottom);
+				if (bottom <= viewport.top) {
+					return false;
+				}
+				if (anchor) {
+					const bounds = anchor.getBoundingClientRect();
+					return bounds.bottom > bottom || bounds.top < top;
+				}
+				const responseTop = this._tree.getElementTop(response);
+				if (responseTop === undefined) {
+					return false;
+				}
+				const responseBottom = responseTop + (response.currentRenderedHeight ?? this._delegate.getHeight(response)) - this._tree.scrollTop + viewport.top;
+				return responseBottom > bottom || responseBottom <= top;
+			});
+		}
 		if (options.tabIndex !== undefined) {
 			this._tree.getHTMLElement().tabIndex = options.tabIndex;
 		}
@@ -695,6 +727,7 @@ export class ChatListWidget extends Disposable {
 
 		// Handle content height changes (fires high-level event, internal scroll handling)
 		this._register(this._tree.onDidChangeContentHeight(() => {
+			this.updateStickyProgress();
 			this._onDidChangeContentHeight.fire();
 		}));
 
@@ -717,6 +750,7 @@ export class ChatListWidget extends Disposable {
 
 		// Handle scroll events (fire public event and manage scroll-down button)
 		this._register(this._tree.onDidScroll((e) => {
+			this._renderer.updateStickyProgress();
 			this._onDidScroll.fire(e);
 			this.updateScrollDownButtonVisibility();
 		}));
@@ -763,6 +797,7 @@ export class ChatListWidget extends Disposable {
 			if (e.affectsConfiguration(ChatConfiguration.EditRequests)
 				|| e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)
 				|| e.affectsConfiguration(ChatConfiguration.RichLinks)
+				|| e.affectsConfiguration(ChatConfiguration.ProgressBorder)
 				|| e.affectsConfiguration(ChatConfiguration.PersistentProgress)
 				|| e.affectsConfiguration(ChatConfiguration.PersistentProgressVerbosity)) {
 				this._settingChangeCounter++;
@@ -822,7 +857,7 @@ export class ChatListWidget extends Disposable {
 			ranges.push(range);
 		}
 
-		const fragments = ranges.map(range => this.cloneSelectedContents(range));
+		const fragments = ranges.map(range => cloneVisibleSelection(range, this._container));
 		if (!fragments.map(fragment => sanitizeChatClipboardFragment(fragment)).some(Boolean)) {
 			return;
 		}
@@ -838,55 +873,50 @@ export class ChatListWidget extends Disposable {
 	}
 
 	/**
-	 * Clones a range along with the elements it sits inside. `cloneContents` returns only what
-	 * lies between the range boundaries, which drops both the heading or list item giving the
-	 * text its shape and, for a partly selected link, the rest of its label.
-	 */
-	private cloneSelectedContents(range: Range): DocumentFragment {
-		let content: Node = range.cloneContents();
-
-		for (
-			let ancestor = range.commonAncestorContainer;
-			ancestor && ancestor !== this._container;
-			ancestor = ancestor.parentNode as Node
-		) {
-			if (!dom.isHTMLElement(ancestor)) {
-				continue;
-			}
-
-			// A link is one unit: selecting part of `foo.ts:42` should still copy the whole
-			// reference rather than a fragment of its label.
-			if (ancestor.tagName === 'A') {
-				content = ancestor.cloneNode(true);
-				continue;
-			}
-
-			const wrapper = ancestor.cloneNode(false);
-			wrapper.appendChild(content);
-			content = wrapper;
-		}
-
-		if (content.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
-			return content as DocumentFragment;
-		}
-
-		const fragment = this._container.ownerDocument.createDocumentFragment();
-		fragment.appendChild(content);
-		return fragment;
-	}
-
-	/**
 	 * Update scroll-down button visibility based on scroll position and scroll lock.
 	 */
 	private updateScrollDownButtonVisibility(): void {
 		const isScrolledToBottom = this.isScrolledToBottom;
 		const { showButton, atBottom } = computeScrollDownState(isScrolledToBottom, this._scrollLock);
+		const button = this._scrollDownButton.element;
+		const wasShown = button.style.display !== 'none';
 		// Use an explicit `flex` (the `.monaco-button` default) rather than '' when showing: the
 		// stylesheet applies `display: none` to `.interactive-session .chat-scroll-down`, so clearing
 		// the inline style would let that rule win and keep the button hidden.
-		this._scrollDownButton.element.style.display = showButton ? 'flex' : 'none';
+		button.style.display = showButton ? 'flex' : 'none';
 		this._container.classList.toggle('chat-list-at-bottom', atBottom);
 		this._container.classList.toggle('chat-list-scrolled-to-bottom', isScrolledToBottom);
+		// Scrolling cannot move the progress row; layout and its resize observer reposition a shown button.
+		if (showButton !== wasShown) {
+			this.updateScrollDownButtonPosition();
+		}
+	}
+
+	private updateStickyProgress(): void {
+		this._renderer.updateStickyProgress();
+		this.updateScrollDownButtonPosition();
+	}
+
+	/**
+	 * Centers the scroll-down button on the sticky progress row, which keeps its slot above the
+	 * input even while no progress is shown.
+	 */
+	private updateScrollDownButtonPosition(): void {
+		const button = this._scrollDownButton.element;
+		const progress = this._workingProgressContainer;
+		let bottom = '';
+		if (this._visible && progress?.isConnected && button.style.display !== 'none') {
+			const bounds = progress.getBoundingClientRect();
+			if (bounds.height > 0) {
+				const viewport = this._container.getBoundingClientRect();
+				const buttonHeight = button.offsetHeight;
+				const centeredBottom = viewport.bottom - (bounds.top + bounds.bottom) / 2 - buttonHeight / 2;
+				bottom = `${clamp(centeredBottom, 0, Math.max(0, viewport.height - buttonHeight))}px`;
+			}
+		}
+		if (button.style.bottom !== bottom) {
+			button.style.bottom = bottom;
+		}
 	}
 
 	/**
@@ -1308,12 +1338,8 @@ export class ChatListWidget extends Disposable {
 		if (lastElement) {
 			const offset = Math.max(lastElement.currentRenderedHeight ?? 0, 1e6);
 			this._tree.reveal(lastElement, offset);
-			if (this._effectivePaddingBottom) {
-				// `reveal` stops at the last item's edge, leaving the padding
-				// unscrolled - which would keep the list from ever reporting that
-				// it is at the bottom. Overshoot is clamped.
-				this._tree.scrollTop += this._effectivePaddingBottom;
-			}
+			// Revealing can remeasure offscreen rows; include their updated heights and bottom padding.
+			this._tree.scrollTop = this._tree.scrollHeight;
 		}
 	}
 
@@ -1431,6 +1457,25 @@ export class ChatListWidget extends Disposable {
 		}
 	}
 
+	setStickyProgressContainer(container: HTMLElement): void {
+		const progress = this._workingProgressContainer;
+		if (!progress || progress.parentElement === container) {
+			return;
+		}
+		const activeElement = dom.getActiveElement();
+		const focusedElement = dom.isHTMLElement(activeElement) && progress.contains(activeElement) ? activeElement : undefined;
+		container.prepend(progress);
+		if (focusedElement) {
+			focusedElement.focus({ preventScroll: true });
+		}
+		const store = new DisposableStore();
+		this._stickyProgressLayout.value = store;
+		const observer = store.add(new dom.DisposableResizeObserver('ChatListWidget.stickyProgress', () => this.updateStickyProgress(), dom.getWindow(container)));
+		store.add(observer.observe(container));
+		store.add(observer.observe(progress));
+		this.updateStickyProgress();
+	}
+
 	setPaddingBottom(paddingBottom: number): void {
 		const value = Math.max(0, paddingBottom);
 		if (value === this._paddingBottom) {
@@ -1439,6 +1484,7 @@ export class ChatListWidget extends Disposable {
 		const wasScrolledToBottom = this.isScrolledToBottom;
 		this._paddingBottom = value;
 		this.updateBottomPadding();
+		this.updateStickyProgress();
 		if (wasScrolledToBottom) {
 			this.revealLastItem();
 		}
@@ -1478,6 +1524,7 @@ export class ChatListWidget extends Disposable {
 	setVisible(visible: boolean): void {
 		this._visible = visible;
 		this._renderer.setVisible(visible);
+		this.updateStickyProgress();
 	}
 
 	/**
@@ -1487,6 +1534,7 @@ export class ChatListWidget extends Disposable {
 		this._tree.layout(height, width);
 		this._renderer.layout(width ?? this._container.clientWidth);
 		this.updateBottomPadding();
+		this.updateStickyProgress();
 		this._tree.refreshStickyScroll();
 	}
 

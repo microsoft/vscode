@@ -24,6 +24,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { defaultMenuStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariableName } from '../../../../../platform/theme/common/colorUtils.js';
 import { descriptionForeground, errorForeground, focusBorder, foreground, textLinkForeground } from '../../../../../platform/theme/common/colors/baseColors.js';
@@ -191,6 +192,7 @@ suite('Sessions Chat Background Tint', () => {
 			themeService,
 			disposables.add(new MockContextKeyService()),
 			disposables.add(new InMemoryStorageService()),
+			NullTelemetryService,
 		));
 		const requests: { uri: URI; store: DisposableStore; result: DeferredPromise<Color | undefined> }[] = [];
 		const warnings: string[] = [];

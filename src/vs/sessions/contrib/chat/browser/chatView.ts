@@ -14,7 +14,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -57,7 +57,7 @@ import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOpt
 import { IsPhoneLayoutContext, SessionUsesExperimentalComposerLayoutContext } from '../../../common/contextkeys.js';
 import { ChatInteractivity, getChatHarness, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
-import { isExperimentalSessionComposerLayoutEnabled, NewChatWidget } from './newChatWidget.js';
+import { NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
 import { SessionInputBanners } from '../../sessionInputBanners/browser/sessionInputBanners.js';
 import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from './sessionChatInputToolbar.js';
@@ -72,7 +72,7 @@ import { INewChatVoiceTargetService } from './newChatVoice.js';
 import { ISessionsChatViewStateService } from './chatViewStateService.js';
 import { ExternalSessionBanner } from './externalSessionBanner.js';
 import { ISessionOpenTelemetryService } from '../../../services/sessions/browser/sessionOpenTelemetryService.js';
-import { SessionArchiveNudge } from './sessionArchiveNudge.js';
+import { ISessionArchiveNudgeTarget, SessionArchiveNudge } from './sessionArchiveNudge.js';
 import { SessionsChatBackgroundReplica } from '../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
 import { SessionComparisonResult } from './sessionComparisonResult.js';
@@ -80,7 +80,7 @@ import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../se
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstants.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../common/constants.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
 // 14px icon + 6px padding + 4px gap + breathing room. The percentage label expands over the editor on hover.
@@ -96,10 +96,6 @@ export function getSessionChatItemHorizontalPadding(hasBackground: boolean): num
 
 export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefined): boolean {
 	return sessionStatus === undefined || !isActiveSessionStatus(sessionStatus);
-}
-
-export function isExperimentalRunningSessionComposerLayoutEnabled(configurationService: IConfigurationService, layoutService: IWorkbenchLayoutService): boolean {
-	return isExperimentalSessionComposerLayoutEnabled(configurationService) && !isPhoneLayout(layoutService);
 }
 
 export function shouldRenderRunningSessionSecondaryToolbar(usesExperimentalComposerLayout: boolean): boolean {
@@ -436,7 +432,7 @@ export class ChatView extends AbstractChatView {
 
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const usesExperimentalComposerLayout = SessionUsesExperimentalComposerLayoutContext.bindTo(scopedContextKeyService);
-		const initiallyUsesExperimentalComposerLayout = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService, this.layoutService);
+		const initiallyUsesExperimentalComposerLayout = !isPhoneLayout(this.layoutService);
 		usesExperimentalComposerLayout.set(initiallyUsesExperimentalComposerLayout);
 		this.element.classList.toggle('experimental-session-composer', initiallyUsesExperimentalComposerLayout);
 		const scopedInstantiationService = this._register(instantiationService.createChild(
@@ -489,7 +485,7 @@ export class ChatView extends AbstractChatView {
 		this._widget.setMaximumWidth(AGENTS_CENTERED_CONTENT_MAX_WIDTH);
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
 		const updateExperimentalComposerLayout = () => {
-			const enabled = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService, this.layoutService);
+			const enabled = !isPhoneLayout(this.layoutService);
 			usesExperimentalComposerLayout.set(enabled);
 			this.element.classList.toggle('experimental-session-composer', enabled);
 			this._widget.inputPart.placeContextUsageWidget(enabled ? this._widget.inputPart.inputContainerElement : undefined);
@@ -560,17 +556,21 @@ export class ChatView extends AbstractChatView {
 			scopedInstantiationService.createInstance(ChatContentMarkdownRenderer),
 		));
 
-		const archiveNudge = this._register(instantiationService.createInstance(SessionArchiveNudge, derived(this, reader => {
+		const archiveNudge = this._register(instantiationService.createInstance(SessionArchiveNudge, derivedOpts<ISessionArchiveNudgeTarget | undefined>({
+			owner: this,
+			equalsFn: (a, b) => a?.session === b?.session && a?.chat === b?.chat,
+		}, reader => {
 			if (!this._isVisibleObs.read(reader) || !this._isPrimaryObs.read(reader) || this.isLoadingTranscript.read(reader)) {
 				return undefined;
 			}
 			const session = this._currentSessionObs.read(reader);
 			const resource = this._currentChatResourceObs.read(reader);
-			if (!isEqual(chatModel.read(reader)?.sessionResource, resource)) {
+			if (!session || !isEqual(chatModel.read(reader)?.sessionResource, resource)) {
 				return undefined;
 			}
-			const chat = session?.chats.read(reader).find(chat => isEqual(chat.resource, resource));
-			return chat?.interactivity.read(reader) === ChatInteractivity.Full ? session : undefined;
+			// The suggestion covers the pull requests of the chat it appears in.
+			const chat = session.chats.read(reader).find(chat => isEqual(chat.resource, resource));
+			return chat?.interactivity.read(reader) === ChatInteractivity.Full ? { session, chat } : undefined;
 		})));
 		this._register(autorun(reader => {
 			const options = archiveNudge.options.read(reader);
@@ -610,10 +610,6 @@ export class ChatView extends AbstractChatView {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING)) {
 				this._applyHistoryKey();
-			}
-			if (e.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)
-				|| e.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)) {
-				updateExperimentalComposerLayout();
 			}
 		}));
 
@@ -1211,8 +1207,8 @@ export class ChatView extends AbstractChatView {
 		this._chatPills.setInputElement(this._widget.inputPart.inputContainerElement);
 		const bannersNode = this._banners.domNode;
 		const comparisonResultNode = this._comparisonResult.domNode;
-		if (persistentContentContainer.firstChild !== pillsNode) {
-			persistentContentContainer.insertBefore(pillsNode, persistentContentContainer.firstChild);
+		if (pillsNode.parentElement !== persistentContentContainer) {
+			persistentContentContainer.appendChild(pillsNode);
 		}
 		if (persistentContentContainer.nextSibling !== bannersNode) {
 			inputPartElement.insertBefore(bannersNode, persistentContentContainer.nextSibling);

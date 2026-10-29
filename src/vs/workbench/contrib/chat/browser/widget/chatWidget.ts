@@ -2387,6 +2387,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						backgroundShells: derived(reader => this.backgroundActivityPillSections.read(reader)?.backgroundShells?.read(reader) ?? []),
 					},
 				},
+				stickyProgress: !this.viewOptions.renderInputOnTop && options.renderStyle !== 'minimal',
 				defaultElementHeight: this.viewOptions.defaultElementHeight ?? 200,
 				overflowWidgetsDomNode: overflowWidgetsContainer,
 				styles: {
@@ -2406,6 +2407,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				tabIndex: this.viewOptions.transcriptTabIndex,
 			}
 		));
+		this.listWidget.setStickyProgressContainer(this.inputPart.persistentContentContainerElement);
 
 		// Wire up ChatWidget-specific list widget events
 		this._register(this.listWidget.onDidClickRequest(item => this.handleRequestClick(item)));
@@ -2820,6 +2822,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		input.render(container, '', this);
+		if (!isInlineEdit) {
+			this.listWidget?.setStickyProgressContainer(input.persistentContentContainerElement);
+		}
 		if (!isInlineEdit && this.viewOptions.inputPlaceholder) {
 			input.inputEditor.updateOptions({ placeholder: this.viewOptions.inputPlaceholder });
 		}

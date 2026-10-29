@@ -32,15 +32,9 @@ export function getNoWorkspaceDescription(): string {
 	return localize('newSessionWorkspacePicker.noWorkspaceDescription', "Start without a backing workspace");
 }
 
-/**
- * How New Session's workspace picker presents choosing no workspace. With the unified workspace picker it
- * is the provider's quick chat, otherwise the plain "No workspace" choice.
- */
-export function getNoWorkspaceChoicePresentation(unifiedWorkspacePicker: boolean, provider: Pick<ISessionsProvider, 'id' | 'label' | 'icon'> | undefined): INoWorkspaceChoicePresentation {
+/** How New Session's workspace picker presents a provider's quick chat. */
+export function getNoWorkspaceChoicePresentation(provider: Pick<ISessionsProvider, 'id' | 'label' | 'icon'> | undefined): INoWorkspaceChoicePresentation {
 	const description = getNoWorkspaceDescription();
-	if (!unifiedWorkspacePicker) {
-		return { label: localize('workspacePicker.noWorkspace', "No workspace"), icon: Codicon.commentDiscussion, description };
-	}
 	if (!provider) {
 		return { label: localize('workspacePicker.chat', "Chat"), icon: Codicon.comment, description };
 	}

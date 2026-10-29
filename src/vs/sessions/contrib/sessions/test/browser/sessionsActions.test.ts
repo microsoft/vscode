@@ -54,7 +54,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { NewSessionActionViewItem, type NewSessionButtonStyle, PROMOTE_CHAT_TO_SESSION_ACTION_ID, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
 import '../../../chat/browser/chat.contribution.js';
-import { NEW_SESSION_ACTION_ID, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
+import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 import { ArchiveChatAction, ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
 import { createTestSession, TestCommandService } from './sessionsListTestUtils.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
@@ -914,11 +914,11 @@ suite('Sessions - Actions', () => {
 		}
 	});
 
-	test('routes New Quick Chat through the new-session composer when remote workspaces are consolidated', async () => {
+	test('routes New Quick Chat through the new-session composer', async () => {
 		const handler = CommandsRegistry.getCommand('sessionsView.newQuickChat')?.handler;
 		assert.ok(handler);
 
-		const run = async (consolidatedRemoteWorkspaces: boolean, quickChatAvailable = true) => {
+		const run = async (quickChatAvailable = true) => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
 			const quickChat = upcastPartial<IActiveSession>({ sessionId: 'quick-chat' });
@@ -929,9 +929,6 @@ suite('Sessions - Actions', () => {
 			let selectNoWorkspaceCalls = 0;
 			let focusedSessionId: string | undefined;
 
-			instantiationService.stub(IConfigurationService, new TestConfigurationService({
-				[UNIFIED_WORKSPACE_PICKER_SETTING]: consolidatedRemoteWorkspaces,
-			}));
 			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override isQuickChatTargetAvailable(): boolean {
 					return quickChatAvailable;
@@ -971,13 +968,11 @@ suite('Sessions - Actions', () => {
 		};
 
 		assert.deepStrictEqual({
-			enabled: await run(true),
-			enabledUnavailable: await run(true, false),
-			disabled: await run(false),
+			available: await run(),
+			unavailable: await run(false),
 		}, {
-			enabled: { unsetNewSessionCalls: 1, openQuickChatCalls: 0, selectNoWorkspaceCalls: 1, focusedSessionId: 'quick-chat' },
-			enabledUnavailable: { unsetNewSessionCalls: 0, openQuickChatCalls: 0, selectNoWorkspaceCalls: 0, focusedSessionId: 'existing-session' },
-			disabled: { unsetNewSessionCalls: 0, openQuickChatCalls: 1, selectNoWorkspaceCalls: 0, focusedSessionId: 'quick-chat' },
+			available: { unsetNewSessionCalls: 1, openQuickChatCalls: 0, selectNoWorkspaceCalls: 1, focusedSessionId: 'quick-chat' },
+			unavailable: { unsetNewSessionCalls: 0, openQuickChatCalls: 0, selectNoWorkspaceCalls: 0, focusedSessionId: 'existing-session' },
 		});
 	});
 
@@ -1920,13 +1915,10 @@ suite('Sessions - Actions', () => {
 	}
 
 	test('New Session leaves an uncreated quick chat and opens the workspace picker', async () => {
-		const run = async (unifiedWorkspacePicker: boolean, toSide: boolean | undefined, noWorkspaceChecked: boolean) => {
+		const run = async (toSide: boolean | undefined, noWorkspaceChecked: boolean) => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const composerService = disposables.add(new NewSessionComposerService());
 			instantiationService.stub(INewSessionComposerService, composerService);
-			instantiationService.stub(IConfigurationService, new TestConfigurationService({
-				[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedWorkspacePicker,
-			}));
 			const { session } = createTestSession('quick-chat-draft');
 			const activeSession = observableValue<IActiveSession | undefined>('activeSession', upcastPartial<IActiveSession>({
 				...session,
@@ -1973,19 +1965,11 @@ suite('Sessions - Actions', () => {
 		};
 		const toSide = { navigationVersion: 1, events: ['open'], requests: [{ folderUri: undefined, toSide: true }] };
 		assert.deepStrictEqual({
-			disabled: {
-				primaryChecked: await run(false, undefined, true),
-				primaryUnchecked: await run(false, undefined, false),
-				toSide: await run(false, true, true),
-			},
-			enabled: {
-				primaryChecked: await run(true, undefined, true),
-				primaryUnchecked: await run(true, undefined, false),
-				toSide: await run(true, true, true),
-			},
+			primaryChecked: await run(undefined, true),
+			primaryUnchecked: await run(undefined, false),
+			toSide: await run(true, true),
 		}, {
-			disabled: { primaryChecked: primary.checked, primaryUnchecked: primary.unchecked, toSide },
-			enabled: { primaryChecked: primary.checked, primaryUnchecked: primary.unchecked, toSide },
+			primaryChecked: primary.checked, primaryUnchecked: primary.unchecked, toSide,
 		});
 	});
 

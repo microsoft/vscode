@@ -1868,12 +1868,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				} else {
 					matcher = ProblemMatcherRegistry.get(value);
 				}
+				if (!matcher) {
+					this._appendOutput(nls.localize('unknownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored', value));
+					continue;
+				}
 			} else {
 				matcher = value;
-			}
-			if (!matcher) {
-				this._appendOutput(nls.localize('unknownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
-				continue;
 			}
 			const taskSystemInfo: ITaskSystemInfo | undefined = resolver.taskSystemInfo;
 			const hasFilePrefix = matcher.filePrefix !== undefined;

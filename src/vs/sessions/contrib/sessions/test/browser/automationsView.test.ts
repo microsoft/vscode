@@ -45,7 +45,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -57,6 +57,7 @@ import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } fr
 import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderConfiguration, IAutomationProviderDescriptor, IAutomationRefreshOptions, IAutomationService, ICreateAutomationOptions, IDeleteAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { openOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -71,7 +72,7 @@ import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
 import { automationRunWithLocalProgress } from '../../browser/views/automationRunProgress.js';
 import { AUTOMATION_TEMPLATES } from '../../browser/views/automationTemplates.js';
-import { AutomationsCardsWidget, AutomationsCustomViewContribution, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY } from '../../browser/views/automationsView.js';
+import { AutomationsCardsWidget, AutomationsCustomViewContribution, DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY } from '../../browser/views/automationsView.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -821,6 +822,102 @@ suite('AutomationsCardsWidget', () => {
 		return { toolbar, button: container.querySelector<HTMLElement>('.monaco-button')! };
 	}
 
+	test('disabled cards are grouped under the warning area and above templates', () => {
+		const { widget, automationService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
+		const items = [automation({ id: 'disabled', enabled: false }), automation({ id: 'enabled' })];
+		automationService.setAutomations(items);
+		automationService.setRuns([run({ status: 'running' })]);
+		const history = widget.element.querySelector('.automations-history');
+		const section = widget.element.querySelector<HTMLDetailsElement>('.automations-disabled-section')!;
+		const order = (selector: string) => [...widget.element.querySelectorAll('.automations-cards-partial-state, .automations-disabled-section, .automations-templates')].findIndex(element => element.matches(selector));
+		for (const state of ['ready', 'loading', 'error', 'unavailable'] as const) {
+			automationService.setCatalogueState(state);
+			assert.deepStrictEqual({
+				enabled: [...widget.element.querySelectorAll('.automations-cards-grid .automations-card-wrapper')].length,
+				disabled: section.querySelectorAll('.automations-card-wrapper').length,
+				title: section.querySelector('.automations-ownership-title')?.textContent,
+				open: section.open, history: widget.element.querySelector('.automations-history'),
+				order: [order('.automations-cards-partial-state'), order('.automations-disabled-section'), order('.automations-templates')],
+			}, { enabled: 1, disabled: 1, title: 'Disabled automations', open: false, history, order: [0, 1, 2] });
+		}
+		automationService.setAutomations([items[0]]);
+		assert.deepStrictEqual({
+			empty: widget.element.querySelector<HTMLElement>('.automations-cards-empty')!.style.display,
+			templatesOpen: widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates')!.open,
+			groupVisible: section.style.display,
+		}, { empty: 'none', templatesOpen: false, groupVisible: '' });
+		automationService.setAutomations([items[1]]);
+		assert.strictEqual(section.style.display, 'none');
+	});
+
+	test('template onboarding opens templates without expanding disabled automations', async () => {
+		const { widget, automationService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
+		automationService.setAutomations([automation({ enabled: false })]);
+		const templates = widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates')!;
+		const disabled = widget.element.querySelector<HTMLDetailsElement>('.automations-disabled-section')!;
+		const before = [templates.open, disabled.open];
+
+		await openOnboardingTarget(widget.element.querySelector<HTMLElement>('[data-onboarding-id="sessions.automations.templates"]')!);
+
+		assert.deepStrictEqual({ before, after: [templates.open, disabled.open] }, { before: [false, false], after: [true, false] });
+	});
+
+	test('disabled section remembers expansion through recreation and empty/refill', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const first = setup('archive', NullHoverService, undefined, storage);
+		first.automationService.setAutomations([automation({ enabled: false })]);
+		const section = first.widget.element.querySelector<HTMLDetailsElement>('.automations-disabled-section')!;
+		const toggled = new Promise(resolve => section.addEventListener('toggle', resolve, { once: true }));
+		section.open = true;
+		await toggled;
+		assert.strictEqual(storage.getBoolean(DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY, StorageScope.PROFILE), true);
+		first.widget.dispose();
+		const { widget, automationService } = setup('archive', NullHoverService, undefined, storage);
+		for (const items of [[], [automation({ enabled: false })]]) {
+			automationService.setAutomations(items);
+			const restored = widget.element.querySelector<HTMLDetailsElement>('.automations-disabled-section')!;
+			assert.deepStrictEqual([restored.open, restored.style.display !== 'none'], [true, items.length > 0]);
+		}
+	});
+
+	for (const expanded of [false, true]) {
+		test(`disabled card transitions preserve visible focus (expanded=${expanded})`, () => {
+			const storage = disposables.add(new InMemoryStorageService());
+			const { widget, automationService } = setup('archive', NullHoverService, undefined, storage);
+			storage.store(DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY, expanded, StorageScope.PROFILE, StorageTarget.MACHINE);
+			automationService.setAutomations([automation()]);
+			const main = widget.element.querySelector<HTMLButtonElement>('.automations-card-main')!;
+			main.focus();
+			automationService.setAutomations([automation({ enabled: false })]);
+			const summary = widget.element.querySelector('.automations-disabled-section > summary')!;
+			assert.strictEqual(document.activeElement, expanded ? main : summary);
+			storage.store(DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+			main.focus();
+			automationService.setAutomations([automation()]);
+			assert.strictEqual(document.activeElement, main);
+		});
+	}
+
+	test('removing the disabled group moves focus to the first displayed card', () => {
+		const { widget, automationService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
+		automationService.setAutomations([automation({ id: 'a', name: 'A' }), automation({ id: 'b', name: 'B', enabled: false })]);
+		widget.element.querySelector<HTMLElement>('.automations-disabled-section > summary')!.focus();
+		automationService.setAutomations([automation({ id: 'b', name: 'B' }), automation({ id: 'a', name: 'A' })]);
+		assert.strictEqual(document.activeElement, widget.element.querySelector('.automations-card-main'));
+	});
+
+	test('editing a card into a collapsed group repairs failed dialog focus restoration', async () => {
+		const { widget, automationService, automationDialogService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
+		const item = automation();
+		automationService.setAutomations([item]);
+		automationDialogService.result = { kind: 'update', id: item.id, value: { enabled: false } };
+		automationDialogService.beforeReturn = () => (document.activeElement as HTMLElement).blur();
+		const main = widget.element.querySelector<HTMLButtonElement>('.automations-card-main')!;
+		main.focus();
+		main.click();
+		await timeout(0);
+		assert.strictEqual(document.activeElement, widget.element.querySelector('.automations-disabled-section > summary'));
+	});
 	test('native cloud actions retain GitHub opening and remote Stop while Mark as Done is local', async () => {
 		const { widget, automationService, sessionsManagementService, opened, contextMenuService } = setup('done');
 		const external = run({ status: 'running', externalResource: URI.parse('https://github.com/owner/private/tasks/exact') });
@@ -1589,7 +1686,7 @@ suite('AutomationsCardsWidget', () => {
 			tooltips,
 			accessibleGroups: ['Your automations', 'Shared automations', 'These automations are visible to anyone with repository access, and can be edited by anyone with write access.'].map(label => accessible.includes(label)),
 			accessibleOrder: accessible.indexOf('Legacy review') < accessible.indexOf('Repository review'),
-			remaining: Array.from(widget.element.querySelectorAll('.automations-ownership-title'), element => element.textContent),
+			remaining: Array.from(widget.element.querySelectorAll('.automations-ownership-section .automations-ownership-title'), element => element.textContent),
 			emptyPersonal: {
 				title: widget.element.querySelector('.automations-ownership-empty .automations-cards-empty-title')?.textContent,
 				description: widget.element.querySelector('.automations-ownership-empty .automations-cards-empty-description')?.textContent,
@@ -2857,6 +2954,17 @@ suite('AutomationsCardsWidget', () => {
 			templateVisible: '',
 			builtInOpen: false,
 		});
+	});
+
+	test('disabled template creation focuses its collapsed disclosure', async () => {
+		const { widget, automationService, automationDialogService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
+		automationService.setCatalogueState('ready');
+		automationDialogService.result = { kind: 'create', value: { ...automation(), enabled: false } };
+		const template = widget.element.querySelector<HTMLButtonElement>('.automations-template-card')!;
+		template.focus();
+		template.click();
+		await timeout(0);
+		assert.strictEqual(document.activeElement, widget.element.querySelector('.automations-disabled-section > summary'));
 	});
 
 	for (const catalogueState of ['loading', 'unavailable', 'error'] as const) {
@@ -4876,6 +4984,7 @@ suite('AutomationsCustomViewContribution — context key', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IAutomationService, automationService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
 			override readonly activeCustomView = constObservable(undefined);

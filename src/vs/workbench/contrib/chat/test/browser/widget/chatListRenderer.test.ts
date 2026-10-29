@@ -126,7 +126,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput, IUntypedEditorInput } from '../../../../../common/editor.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { ChatSideChatService, IChatSideChatOrigin, IChatSideChatService } from '../../../common/chatSideChatService.js';
+import { ChatSideChatService, IChatSideChatOrigin, IChatSideChatSelection, IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatWorkingProgressContentPart, pickWorkingLabel } from '../../../browser/widget/chatContentParts/chatProgressContentPart.js';
 import { IChatContentPartDiffData, IChatContentPartRenderContext } from '../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -2338,6 +2338,156 @@ suite('ChatListRenderer', () => {
 			assert.deepStrictEqual({ oldNotified: elementIds.includes(response.id), newNotified: elementIds.includes(nextResponse.id) }, {
 				oldNotified: false, newNotified: true,
 			});
+		});
+	});
+
+	test('sticky progress preserves provider updates before the response is mounted', async () => {
+		const { model, request, container, renderer } = createPersistentProgressRenderer();
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		renderer.setWorkingProgressContainer(sticky, () => true);
+		const progress = sticky.querySelector('.chat-working-progress');
+		assert.ok(progress);
+		model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Connecting to the workspace') });
+		await timeout(0);
+		assert.deepStrictEqual({
+			sameComponent: sticky.querySelector('.chat-working-progress') === progress,
+			label: progress.querySelector('.progress-step')?.textContent,
+			copies: container.querySelectorAll('.chat-working-progress').length,
+		}, {
+			sameComponent: true,
+			label: 'Connecting to the workspace',
+			copies: 1,
+		});
+	});
+
+	test('sticky progress replaces a stale anchor when a hidden completed turn resumes', async () => {
+		const { request, container, renderer, template, node } = createPersistentProgressRenderer();
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		renderer.setWorkingProgressContainer(sticky, () => false);
+		renderer.renderElement(node, 0, template);
+		const initial = template.value.querySelector('.chat-working-progress');
+		assert.ok(initial);
+
+		renderer.setVisible(false);
+		renderer.updateStickyProgress();
+		request.response!.complete();
+		await timeout(0);
+		request.response!.reopen();
+		await timeout(0);
+		renderer.setVisible(true);
+		renderer.renderElement(node, 0, template);
+		const resumed = template.value.querySelector<HTMLElement>('.chat-working-progress');
+		assert.deepStrictEqual({
+			oldProgressConnected: initial.isConnected,
+			resumedLabel: resumed?.textContent?.trim(),
+			resumedVisibility: resumed ? dom.getWindow(resumed).getComputedStyle(resumed).visibility : undefined,
+			inlineCopies: template.value.querySelectorAll('.chat-working-progress-anchor > .chat-working-progress').length,
+			stickyCopies: sticky.childElementCount,
+		}, {
+			oldProgressConnected: false,
+			resumedLabel: 'Working',
+			resumedVisibility: 'visible',
+			inlineCopies: 1,
+			stickyCopies: 0,
+		});
+	});
+
+	for (const interaction of ['question', 'plan review'] as const) {
+		test(`sticky progress keeps authoritative ${interaction} status while markdown is buffered`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { disposables, configurationService, model, request, response, container, renderer, template, node } = createPersistentProgressRenderer();
+			try {
+				const announcements = dom.$('div');
+				setARIAContainer(announcements);
+				disposables.add(toDisposable(() => announcements.remove()));
+				configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+				const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+				renderer.setWorkingProgressContainer(sticky, () => false);
+				renderer.renderElement(node, 0, template);
+				const progress = template.value.querySelector('.chat-working-progress');
+				assert.ok(progress);
+
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Buffered words. '.repeat(200)) });
+				model.acceptResponseProgress(request, interaction === 'question'
+					? new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true)
+					: new ChatPlanReviewData('Review plan', 'Check the changes.', [{ label: 'Implement' }], false));
+				await timeout(1);
+				const label = interaction === 'question' ? 'Waiting for your response' : 'Plan review required';
+				const readAnnouncements = () => [...announcements.querySelectorAll('.monaco-alert')].map(alert => alert.textContent);
+				const initiallyAnnounced = readAnnouncements();
+				assert.ok(initiallyAnnounced.includes(label));
+
+				response.renderData = { lastRenderTime: Date.now(), renderedWordCount: 1, renderedParts: [] };
+				renderer.renderElement(node, 0, template);
+				await timeout(50);
+				const whileBuffered = {
+					status: progress.textContent?.replace(/\u00a0/g, ' ').trim(),
+					stillBuffered: (response.renderData?.renderedWordCount ?? 0) < 400,
+				};
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\nMore details.') });
+				await timeout(0);
+				assert.deepStrictEqual({
+					whileBuffered,
+					announcements: readAnnouncements(),
+					sameComponent: template.value.querySelector('.chat-working-progress') === progress,
+				}, {
+					whileBuffered: { status: label, stillBuffered: true },
+					announcements: initiallyAnnounced,
+					sameComponent: true,
+				});
+			} finally {
+				disposables.dispose();
+			}
+		}));
+	}
+
+	for (const progressBorder of [false, true]) {
+		test(`sticky progress respects the initial progress border setting (${progressBorder})`, () => {
+			const { configurationService, container, renderer, template, node } = createPersistentProgressRenderer();
+			configurationService.setUserConfiguration(ChatConfiguration.ProgressBorder, progressBorder);
+			const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+			renderer.setWorkingProgressContainer(sticky, () => true);
+			renderer.renderElement(node, 0, template);
+			assert.deepStrictEqual({
+				sticky: sticky.querySelectorAll('.chat-working-progress').length,
+				inline: template.value.querySelectorAll('.chat-working-progress').length,
+				copies: container.querySelectorAll('.chat-working-progress').length,
+			}, { sticky: progressBorder ? 0 : 1, inline: progressBorder ? 1 : 0, copies: 1 });
+		});
+	}
+
+	test('sticky progress relocation does not reannounce or recreate the working status', () => {
+		const { disposables, configurationService, container, renderer, template, node } = createPersistentProgressRenderer();
+		const announcements = dom.$('div');
+		setARIAContainer(announcements);
+		disposables.add(toDisposable(() => announcements.remove()));
+		configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		let outside = false;
+		renderer.setWorkingProgressContainer(sticky, () => outside);
+		renderer.renderElement(node, 0, template);
+		const progress = template.value.querySelector('.chat-working-progress');
+		assert.ok(progress);
+		const initialAnnouncements = [...announcements.querySelectorAll('.monaco-alert')].map(alert => alert.textContent);
+		outside = true;
+		renderer.updateStickyProgress();
+		const pinned = sticky.contains(progress);
+		const pinnedAnnouncements = [...announcements.querySelectorAll('.monaco-alert')].map(alert => alert.textContent);
+		outside = false;
+		renderer.updateStickyProgress();
+		assert.deepStrictEqual({
+			pinned,
+			restored: template.value.contains(progress),
+			copies: container.querySelectorAll('.chat-working-progress').length,
+			initialAnnouncements,
+			pinnedAnnouncements,
+			returnedAnnouncements: [...announcements.querySelectorAll('.monaco-alert')].map(alert => alert.textContent),
+		}, {
+			pinned: true,
+			restored: true,
+			copies: 1,
+			initialAnnouncements: ['Working', ''],
+			pinnedAnnouncements: ['Working', ''],
+			returnedAnnouncements: ['Working', ''],
 		});
 	});
 
@@ -6567,9 +6717,12 @@ suite('ChatListRenderer', () => {
 		]);
 		const showAll = observableValue('showAll', true);
 		const data = createSessionSubagentsPillData(subagents, { showAll, setShowAll: value => showAll.set(value, undefined) });
-		const { disposables, instantiationService, model, request, renderer, template, node } = createPersistentProgressRenderer({
+		const { disposables, instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer({
 			rendererOptions: { backgroundActivityPillSections: { subagents: data.inProgressSections } },
 		});
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		let pinned = false;
+		renderer.setWorkingProgressContainer(sticky, () => pinned);
 		let visible = false;
 		let onHide = () => { };
 		let selectFirst = () => { };
@@ -6613,12 +6766,15 @@ suite('ChatListRenderer', () => {
 		const activations = [];
 		for (const keyCode of [undefined, 13, 32]) {
 			button.focus();
+			pinned = keyCode !== undefined;
+			renderer.updateStickyProgress();
 			if (keyCode === undefined) {
 				button.click();
 			} else {
 				button.dispatchEvent(new KeyboardEvent('keydown', { keyCode, bubbles: true }));
 			}
 			activations.push({
+				inExpectedHost: (pinned ? sticky : template.value).contains(button),
 				sameWidget: menu?.id === pillMenu?.id,
 				labels: menu?.labels,
 				anchoredToStatus: menu?.anchor === button,
@@ -6659,7 +6815,7 @@ suite('ChatListRenderer', () => {
 			popup: 'listbox',
 			expanded: 'false',
 			activations: Array.from({ length: 3 }, () => ({
-				sameWidget: true, labels: ['Subagents: In Progress', 'Background review', 'Foreground review'], anchoredToStatus: true, expanded: 'true',
+				inExpectedHost: true, sameWidget: true, labels: ['Subagents: In Progress', 'Background review', 'Foreground review'], anchoredToStatus: true, expanded: 'true',
 			})),
 			pillLabels: ['Subagents: In Progress', 'Background review', 'Foreground review', '', 'Subagents: Completed', 'Finished review'],
 			filteredLabels: ['Subagents: In Progress', 'Background review', 'Foreground review'],
@@ -14396,12 +14552,13 @@ suite('ChatListRenderer', () => {
 					}());
 					const command = 'git switch -c DileepY/sandbox_sessionPicker; if ($LASTEXITCODE -eq 0) { git --no-pager status --short --branch }';
 					const title = 'Run in terminal outside the sandbox?';
+					const message = 'Create branch and verify working tree status';
 					const tool = toolCallStateToInvocation({
 						status: ToolCallStatus.PendingConfirmation,
 						toolCallId: 'sandbox-terminal',
 						toolName: 'powershell',
 						displayName: 'PowerShell',
-						invocationMessage: 'Create branch and verify working tree status',
+						invocationMessage: message,
 						toolInput: command,
 						confirmationTitle: title,
 						_meta: { toolKind: 'terminal', language: 'powershell', 'agentHost.sandboxBypass': true },
@@ -14420,6 +14577,7 @@ suite('ChatListRenderer', () => {
 					assert.ok(editor);
 					const displayed = {
 						terminal: !!container.querySelector('.chat-confirmation-message-terminal'),
+						reason: container.querySelector('.chat-confirmation-message-terminal-reason')?.textContent?.replaceAll('\u00a0', ' ').trim(),
 						command: editor.getValue(),
 						readOnly: editor.getRawOptions().readOnly,
 						ariaLabel: editor.getRawOptions().ariaLabel,
@@ -14443,7 +14601,7 @@ suite('ChatListRenderer', () => {
 						...displayed, labels, moreLabels,
 						confirmed: IChatToolInvocation.executionConfirmedOrDenied(tool),
 					}, {
-						terminal: true, command, readOnly: true, ariaLabel: title,
+						terminal: true, reason: message, command, readOnly: true, ariaLabel: `${title}\n${message}`,
 						labels: ['Allow in this Session', 'Skip'],
 						moreLabels: ['Allow Once'],
 						confirmed: {
@@ -14549,6 +14707,121 @@ suite('ChatListRenderer', () => {
 				});
 			});
 		}
+
+		/** Routes Explain to a side chat provider that records each question and answers when `response` completes. */
+		function stubSideChat(context: ReturnType<typeof createConfirmationRenderer>, supported: boolean) {
+			const asked: { sessionResource: string; query: string; selection: IChatSideChatSelection | undefined; sourceTurnId: string | undefined }[] = [];
+			const response = new DeferredPromise<void>();
+			const sideChatService = context.disposables.add(new ChatSideChatService());
+			context.disposables.add(sideChatService.registerProvider({
+				canAskInSideChat: () => supported,
+				askInSideChat: (sessionResource, query, selection, options) => {
+					asked.push({ sessionResource: sessionResource.toString(), query, selection, sourceTurnId: options?.sourceTurnId });
+					return response.p;
+				},
+				observeSideChatOrigin: () => constObservable(undefined),
+				revealSideChatSource: async () => { },
+			}));
+			context.instantiationService.stub(IChatSideChatService, sideChatService);
+			return { asked, response };
+		}
+
+		for (const carousel of [true, false]) {
+			for (const sideChatSupported of [true, false]) {
+				test(`names the intention in the title without repeating it ${sideChatSupported ? 'and explains the command in one side chat' : 'or offering Explain without side chats'} ${carousel ? 'in the carousel' : 'inline'}`, async () => {
+					const context = createConfirmationRenderer();
+					configureTerminalProgressRenderer(context);
+					context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, carousel);
+					const sideChat = stubSideChat(context, sideChatSupported);
+					// The Agent Host escapes the model-authored intention in a markdown title and also sends it as the message.
+					const intention = 'Find *.ts files outside node_modules';
+					const command = 'find . -name "*.ts" -not -path "./node_modules/*"';
+					const tool = toolCallStateToInvocation({
+						status: ToolCallStatus.PendingConfirmation,
+						toolCallId: 'explain-terminal',
+						toolName: 'bash',
+						displayName: 'Bash',
+						intention,
+						invocationMessage: intention,
+						toolInput: command,
+						confirmationTitle: { markdown: 'Run in terminal: Find \\*.ts files outside node\\_modules' },
+						_meta: { toolKind: 'terminal', language: 'shellscript' },
+						options: [
+							{ id: 'allow-once', label: 'Allow Once', kind: ConfirmationOptionKind.Approve },
+							{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny },
+						],
+					}, undefined, context.model.sessionResource, 'local');
+					context.model.acceptResponseProgress(context.request, tool);
+					context.render();
+
+					const container = carousel ? context.confirmationContainer : context.template.value;
+					const editor = context.instantiationService.get(ICodeEditorService).listCodeEditors().find(editor => container.contains(editor.getDomNode()));
+					const buttons = Array.from(container.querySelectorAll<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button'));
+					const explain = buttons.find(button => button.textContent === 'Explain');
+					explain?.click();
+					explain?.click();
+					const disabledWhileAsking = explain?.classList.contains('disabled');
+					sideChat.response.complete();
+					await timeout(0);
+
+					assert.deepStrictEqual({
+						title: carousel
+							? container.querySelector('.chat-tool-carousel-collapsed-title')?.textContent
+							: container.querySelector('.chat-confirmation-widget-title .chat-title')?.textContent?.trim(),
+						editorAriaLabel: editor?.getRawOptions().ariaLabel,
+						repeatedBelowCommand: !!container.querySelector('.chat-confirmation-message-terminal-reason'),
+						labels: buttons.map(button => button.textContent?.replaceAll('\u00a0', ' ')),
+						asked: sideChat.asked,
+						disabledWhileAsking,
+						disabledAfterAsking: explain?.classList.contains('disabled'),
+						state: tool.state.get().type,
+					}, {
+						title: 'Run in terminal: Find *.ts files outside node_modules',
+						editorAriaLabel: 'Run in terminal: Find *.ts files outside node_modules',
+						repeatedBelowCommand: false,
+						labels: sideChatSupported ? ['Allow Once', 'Skip', 'Explain'] : ['Allow Once', 'Skip'],
+						asked: sideChatSupported ? [{
+							sessionResource: context.model.sessionResource.toString(),
+							query: 'Explain what this terminal command will do.',
+							selection: { text: command },
+							sourceTurnId: context.request.id,
+						}] : [],
+						disabledWhileAsking: sideChatSupported ? true : undefined,
+						disabledAfterAsking: sideChatSupported ? false : undefined,
+						state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+					});
+				});
+			}
+		}
+
+		test('explains the edited command with its directory prefix', async () => {
+			const context = createConfirmationRenderer();
+			const sideChat = stubSideChat(context, true);
+			const tool = createPendingTool('edited-explain');
+			tool.toolSpecificData = {
+				kind: 'terminal',
+				commandLine: { original: 'cd packages/server && npm install', forDisplay: 'cd packages/server && npm install' },
+				confirmation: { commandLine: 'npm install', cdPrefix: 'cd packages/server && ' },
+				language: 'shellscript',
+			};
+			context.model.acceptResponseProgress(context.request, tool);
+			await timeout(0);
+			context.getConfirmationEditor().setValue('npm ci');
+			const explain = Array.from(context.confirmationContainer.querySelectorAll<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button'))
+				.find(button => button.textContent === 'Explain');
+			assert.ok(explain);
+			explain.click();
+			sideChat.response.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				explained: sideChat.asked.map(call => call.selection?.text),
+				state: tool.state.get().type,
+			}, {
+				explained: ['cd packages/server && npm ci'],
+				state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			});
+		});
 
 		test('Accept and Skip commands target the selected historical approval rather than the latest response', () => {
 			const context = createConfirmationRenderer();

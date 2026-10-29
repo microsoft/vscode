@@ -16,7 +16,6 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../platform
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
-import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from '../../../../workbench/browser/editor.js';
@@ -61,7 +60,7 @@ import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SE
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_ACTION_ID, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_ACTION_ID, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
 import { DesktopLayoutContext, IsPhoneLayoutContext, SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../common/contextkeys.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
 import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID } from '../../../browser/layoutActions.js';
@@ -71,7 +70,6 @@ import { SessionsChatResponseFileChangesService } from './sessionTurnChanges.js'
 import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { SessionsChatPetAchievementContribution } from './chatPetAchievements.js';
 import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageExtensions, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
-import { LEGACY_UNIFIED_WORKSPACE_PICKER_SETTING, unifiedWorkspacePickerConfigurationMigration } from './unifiedWorkspacePickerConfiguration.js';
 import { ISessionArchiveNudgeService, SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudgeContribution, SessionArchiveNudgeService } from './sessionArchiveNudge.js';
 import { NewChatInSessionsWindowAction } from './newSessionAction.js';
 import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../sessionComparison/common/sessionComparison.js';
@@ -491,17 +489,17 @@ class SetChatBackgroundAction extends Action2 {
 			return;
 		}
 		if (backgroundType.kind === 'none') {
-			await backgroundService.clearBackground();
+			await backgroundService.clearBackground('backgroundPicker');
 			status(localize('chat.agentSessions.clearBackground.cleared', "Chat background cleared."));
 			return;
 		}
 		if (backgroundType.kind === 'codicons') {
-			await backgroundService.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET);
+			await backgroundService.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, 'backgroundPicker');
 			status(localize('chat.agentSessions.setBackground.codicons', "Chat background set to Codicons."));
 			return;
 		}
 		if (backgroundType.kind === 'recentImage') {
-			await backgroundService.setBackground(backgroundType.image);
+			await backgroundService.setBackground(backgroundType.image, 'backgroundPicker');
 			status(localize('chat.agentSessions.setBackground.recentImage', "Chat background image set to {0}.", backgroundType.label));
 			return;
 		}
@@ -534,7 +532,7 @@ class SetChatBackgroundAction extends Action2 {
 			return;
 		}
 
-		await backgroundService.setBackground(image);
+		await backgroundService.setBackground(image, 'backgroundPicker');
 		status(localize('chat.agentSessions.setBackground.image', "Chat background image set."));
 	}
 }
@@ -575,10 +573,10 @@ class ChangeChatBackgroundLayoutAction extends Action2 {
 				title: localize('chat.agentSessions.changeBackgroundLayout.title', "Change Chat Background Layout"),
 				placeHolder: localize('chat.agentSessions.changeBackgroundLayout.placeholder', "Select how the background image is displayed"),
 				activeItem: chatBackgroundImageLayoutItems.find(item => item.layout === currentLayout),
-				onDidFocus: item => void backgroundService.setBackgroundImageLayout(item.layout, false),
+				onDidFocus: item => void backgroundService.setBackgroundImageLayout(item.layout, 'layoutPicker', false),
 			});
 		} finally {
-			await backgroundService.setBackgroundImageLayout(selected?.layout ?? currentLayout, selected !== undefined);
+			await backgroundService.setBackgroundImageLayout(selected?.layout ?? currentLayout, 'layoutPicker', selected !== undefined);
 		}
 		if (selected && selected.layout !== currentLayout) {
 			status(localize('chat.agentSessions.changeBackgroundLayout.changed', "Chat background layout changed to {0}.", selected.label));
@@ -715,7 +713,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('chat.agentSessions.archiveNudge.enabled', "Suggests archiving an inactive session when all GitHub pull requests associated with the session have merged. Dismissing the suggestion hides it for that session until it is archived or deleted."),
+			description: localize('chat.agentSessions.archiveNudge.enabled', "Suggests archiving an inactive session in a chat when all GitHub pull requests associated with that chat have merged. Dismissing the suggestion hides it for that session until it is archived or deleted."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
@@ -726,12 +724,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 			description: localize('chat.agentSessions.sessionStorageCleanupSuggestion', "Controls whether the Agents Window suggests cleaning up session storage when inactive worktrees reach the count or reclaimable-storage threshold, or a local worktree's disk has less than 5 GB available."),
-		},
-		[LEGACY_UNIFIED_WORKSPACE_PICKER_SETTING]: {
-			type: 'boolean',
-			default: product.quality !== 'stable',
-			scope: ConfigurationScope.APPLICATION,
-			deprecationMessage: localize('chat.agentSessions.consolidatedRemoteWorkspaces.deprecated', "Deprecated. Use the unified workspace picker setting instead."),
 		},
 		[COMPARE_AGENTS_ENABLED_SETTING]: {
 			type: 'boolean',
@@ -774,18 +766,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('chat.agentSessions.scopedInputHistory', "Controls whether chat input history in the Agents Window is scoped to the current session. Disable this to use shared input history across sessions."),
 		},
-		[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.WINDOW,
-			description: localize('sessions.chat.experimental.newSessionComposerLayout', "Controls whether the new-session composer groups workspace, repository, and harness controls above the chat input. This setting only applies when the unified workspace picker is enabled."),
-			tags: ['experimental'],
-		},
 		[WORKSPACE_OPT_OUT_SETTING]: {
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.WINDOW,
-			description: localize('sessions.chat.experimental.workspaceOptOut', "Controls whether hovering over or focusing the workspace picker shows a button to chat without a workspace. Requires the unified workspace picker, experimental new-session composer layout, and a compatible harness and environment. Chat remains available in the workspace list when this setting is disabled."),
+			description: localize('sessions.chat.experimental.workspaceOptOut', "Controls whether hovering over or focusing the workspace picker shows a button to chat without a workspace. Requires a compatible harness and environment. Chat remains available in the workspace list when this setting is disabled."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
@@ -793,7 +778,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.WINDOW,
-			description: localize('sessions.chat.experimental.environmentPicker', "Controls whether a separate Environment picker chooses where new sessions run in the desktop Agents Window. Requires the unified workspace picker and experimental new-session composer layout. When disabled, environment choices remain in the workspace and harness pickers."),
+			description: localize('sessions.chat.experimental.environmentPicker', "Controls whether a separate Environment picker chooses where new sessions run in the desktop Agents Window. When disabled, environment choices remain in the workspace and harness pickers."),
 			experiment: { mode: 'auto' },
 		},
 		[ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: {
@@ -808,7 +793,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('sessions.chat.experimental.newSessionComposerOptionsExpanded', "Controls whether session options are expanded before you first expand or collapse them. Your last choice takes precedence afterward. This setting only applies when the new-session composer layout is enabled."),
+			description: localize('sessions.chat.experimental.newSessionComposerOptionsExpanded', "Controls whether session options are expanded before you first expand or collapse them. Your last choice takes precedence afterward."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
@@ -816,7 +801,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('sessions.chat.experimental.collapsedSessionOptionsShowIcons', "Controls whether the collapsed session options above the new-session input keep the repository and harness pickers as icons, so they stay accessible without their labels. When disabled, collapsing hides these controls entirely. This setting only applies when the new-session composer layout is enabled."),
+			description: localize('sessions.chat.experimental.collapsedSessionOptionsShowIcons', "Controls whether the collapsed session options above the new-session input keep the repository and harness pickers as icons, so they stay accessible without their labels. When disabled, collapsing hides these controls entirely."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
@@ -923,6 +908,5 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 });
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration).registerConfigurationMigrations([
-	unifiedWorkspacePickerConfigurationMigration,
 	sessionStorageCleanupSuggestionConfigurationMigration,
 ]);
