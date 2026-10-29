@@ -56,6 +56,7 @@ import { ChatProvidersConfigKey, ChatProvidersSettingId, toAgentHostChatHarness 
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
+import { readAgentCustomizationMeta } from '../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
 import { readAgentHeadBranchPullRequest, toAgentHeadBranchPullRequestMeta } from '../../../../../platform/agentHost/common/meta/agentSessionGitHubReferences.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin, type IRemoteSessionOrigin } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { getLegacySessionInitiator, readSessionInitiator, withSessionInitiator, SESSION_INITIATOR_METADATA_KEY } from '../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
@@ -65,7 +66,7 @@ import { readSessionSandboxPolicy, type ISessionSandboxPolicy } from '../../../.
 import { readChatSandboxState, readChatSandboxStates, readSessionSandboxState, type ISessionSandboxState } from '../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema, type SessionConfigSchema, type SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, ChangesSummary, type ChatConfigState, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type CanvasState, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, McpServerStatus, MessageKind, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, ChangesSummary, type ChatConfigState, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type CanvasState, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, type CustomizationEnablement, McpServerStatus, MessageKind, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionOriginKind, type SessionOrigin } from '../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { isActionKnownToVersion } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -3404,6 +3405,10 @@ class NewSession extends Disposable {
 		return this._activeClientScope.customAgents.get();
 	}
 
+	getClientAgentSourceUri(uri: URI): URI {
+		return this._activeClientScope.getSyncedUri(uri) ?? uri;
+	}
+
 	/**
 	 * Latest resolved config. Replaces what used to live in `_newSessionConfigs`.
 	 * `undefined` indicates the most recent {@link resolveConfig} failed and no
@@ -5725,6 +5730,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._unpublishedDraftSessions.add(newSession.session.resource);
 		this._onDidChangeDraftSessions.fire();
 		newSession.observeClientCustomAgents(activeClientScope.customAgents, () => {
+			this._reconcileNewSessionAgent(newSession);
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
 		});
@@ -7162,9 +7168,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
 			newSession.setSelectedAgent(agent);
-			// The selection is forwarded to the host at first-message time
-			// via `sendOptions.agentHostSessionAgent` (see `sendRequest`),
-			// mirroring how `userSelectedModelId` flows.
+			this._reconcileNewSessionAgent(newSession);
+			// _sendNewSessionRequest forwards the reconciled selection in modeInstructions.
 			return;
 		}
 
@@ -7190,11 +7195,47 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (clientAgents.length === 0) {
 			return stateAgents;
 		}
-		const agentsByUri = new Map(stateAgents.map(agent => [agent.uri.toString(), agent]));
+		const agentsByUri = new ResourceMap<AgentCustomization>(stateAgents.map(agent => [URI.parse(agent.uri), agent] as const));
 		for (const agent of clientAgents) {
-			agentsByUri.set(agent.uri.toString(), agent);
+			if (!this._resolvePublishedDraftAgent(newSession, agent, stateAgents)) {
+				agentsByUri.set(URI.parse(agent.uri), agent);
+			}
 		}
 		return [...agentsByUri.values()].sort((a, b) => a.name.localeCompare(b.name) || a.uri.toString().localeCompare(b.uri.toString()));
+	}
+
+	private _resolvePublishedDraftAgent(newSession: NewSession, agent: ISessionAgentRef, published: readonly AgentCustomization[]): AgentCustomization | undefined {
+		const uri = URI.parse(agent.uri);
+		const exact = published.find(candidate => isEqual(URI.parse(candidate.uri), uri));
+		if (exact) {
+			return exact;
+		}
+		const source = newSession.getClientAgentSourceUri(uri);
+		const matches = published.filter(candidate => {
+			const sourceUri = readAgentCustomizationMeta(candidate)['vscode.sourceUri'];
+			return sourceUri !== undefined && isEqual(URI.parse(sourceUri), source);
+		});
+		return matches.length === 1 ? matches[0] : undefined;
+	}
+
+	resolveCustomAgent(sessionId: string, uri: string): AgentCustomization | undefined {
+		const published = getEffectiveAgents(this._lastSessionStates.get(sessionId)?.customizations);
+		const newSession = this._newSessions.get(sessionId);
+		return newSession
+			? this._resolvePublishedDraftAgent(newSession, { uri, name: '' }, published)
+			: published.find(agent => isEqual(URI.parse(agent.uri), URI.parse(uri)));
+	}
+
+	private _reconcileNewSessionAgent(newSession: NewSession): void {
+		const selected = newSession.getSelectedAgent();
+		if (!selected) {
+			return;
+		}
+		const published = getEffectiveAgents(this._lastSessionStates.get(newSession.sessionId)?.customizations);
+		const resolved = this._resolvePublishedDraftAgent(newSession, selected, published);
+		if (resolved && !isEqual(URI.parse(resolved.uri), URI.parse(selected.uri))) {
+			newSession.setSelectedAgent({ uri: resolved.uri, name: resolved.name });
+		}
 	}
 
 	getCustomizations(sessionId: string): Customization[] {
@@ -8549,10 +8590,34 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._refreshSettingsDerivedNewSessionConfig(newSession);
 
+		// A picked client file is not a host identity until its containing plugin has finished loading.
+		await waitForState(derived(this, reader => {
+			this._backendSessionsChanged.read(reader);
+			const selectedUri = newSession.session.mode.read(reader)?.id;
+			if (!selectedUri || !newSession.getClientCustomAgents().some(agent => isEqual(URI.parse(agent.uri), URI.parse(selectedUri)))) {
+				return false;
+			}
+			const source = newSession.getClientAgentSourceUri(URI.parse(selectedUri));
+			return this.getCustomizations(newSession.sessionId).some(customization =>
+				customization.type === CustomizationType.Plugin
+				&& isCustomizationEnabled(customization)
+				&& customization.load?.kind === CustomizationLoadStatus.Loading
+				&& isEqualOrParent(source, URI.parse(customization.uri)));
+		}), loading => !loading, undefined, newSession.cancellationToken);
+		this._reconcileNewSessionAgent(newSession);
 		const selectedModelId = this._resolveSendModelId(chatId, newSession.getSelectedModelId());
 		const selectedModelSource = newSession.session.mainChat.get().modelSource.get() ?? ChatModelSource.Chosen;
 		const selectedModelConfiguration = newSession.modelConfiguration.getModelConfigurationForRequest(selectedModelId);
 		const selectedAgent = newSession.getSelectedAgent();
+		if (selectedAgent) {
+			const source = newSession.getClientAgentSourceUri(URI.parse(selectedAgent.uri));
+			if (this.getCustomizations(newSession.sessionId).some(customization =>
+				customization.type === CustomizationType.Plugin
+				&& customization.load?.kind === CustomizationLoadStatus.Error
+				&& isEqualOrParent(source, URI.parse(customization.uri)))) {
+				throw new Error(localize('agentHost.selectedAgentUnavailable', "The selected agent could not be loaded. Fix its customization or select another agent before sending."));
+			}
+		}
 
 		const { query, attachedContext } = options;
 
@@ -9281,6 +9346,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeSessionConfig.fire(sessionId);
 		}
 		if (!previous || customizationsChanged(previous, state)) {
+			if (newSession) {
+				this._reconcileNewSessionAgent(newSession);
+			}
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
 		}
