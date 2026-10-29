@@ -161,11 +161,13 @@ suite('VoiceLiveInputRouter', () => {
 			router.updateContext(context('chat-session:/a', approval, locale));
 			const guidance = router.getApprovalReplyGuidance();
 			const phrases = [...guidance.matchAll(/"(?<phrase>[^"]+)"/g)].map(match => match.groups!.phrase);
-			return { guidance, responses: phrases.map(phrase => {
-				const result = router.resolve(phrase, phrase, router.captureTarget());
-				router.handleResult(phrase, { ok: false, reason: 'stale_pending' });
-				return result.toolCall?.args.response;
-			}) };
+			return {
+				guidance, responses: phrases.map(phrase => {
+					const result = router.resolve(phrase, phrase, router.captureTarget());
+					router.handleResult(phrase, { ok: false, reason: 'stale_pending' });
+					return result.toolCall?.args.response;
+				})
+			};
 		}), [
 			{ guidance: 'Please say "sí" to approve or "no" to reject, or use the controls in chat.', responses: [{ type: 'approve' }, { type: 'reject' }] },
 			{ guidance: 'Please say "ja" to approve or "nein" to reject, or use the controls in chat.', responses: [{ type: 'approve' }, { type: 'reject' }] },
