@@ -10,7 +10,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
-import { CLAUDE_AGENT_PROVIDER_ID } from '../../common/agent.js';
+import { CLAUDE_AGENT_PROVIDER_ID, type IAgentChatOwnerRef } from '../../common/agent.js';
 import type { ClaudeMapperState } from './claudeMapSessionEvents.js';
 import { getClaudeToolPath, isClaudeFileEditTool } from './claudeToolDisplay.js';
 
@@ -61,7 +61,7 @@ export class ClaudeFileEditObserver extends Disposable {
 	constructor(
 		sessionUri: string,
 		/** The session that owns the chat, read when an edit is attributed. */
-		owner: () => string,
+		owner: IAgentChatOwnerRef,
 		dbRef: IReference<ISessionDatabase>,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -72,7 +72,7 @@ export class ClaudeFileEditObserver extends Disposable {
 		this._editTracker = this._register(instantiationService.createInstance(
 			FileEditTracker,
 			sessionUri,
-			owner,
+			() => owner.get().toString(),
 			CLAUDE_AGENT_PROVIDER_ID,
 		));
 	}
