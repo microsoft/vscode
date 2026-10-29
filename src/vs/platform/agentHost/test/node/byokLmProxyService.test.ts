@@ -11,6 +11,7 @@ import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IB
 import { ByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, type IByokLmProxyHandle, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
 import { BYOK_MAX_TOOLS } from '../../node/copilot/byokResponsesTranslation.js';
+import { RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 
 /**
  * Exercises the inference path end-to-end without the Copilot SDK runtime:
@@ -149,13 +150,14 @@ suite('ByokLmProxyService', () => {
 		});
 	});
 
-	test('does not cap tools for a model that declares tool search', async () => {
+	test('does not cap tools for a tool-search model whose request defers tools', async () => {
 		const bridgeToolCounts: (number | undefined)[] = [];
 		const capEvents: IByokLmToolsCappedEvent[] = [];
 		const tools = (count: number) => Array.from({ length: count }, (_, i) => ({ type: 'function', name: `tool_${i}`, parameters: { type: 'object' } }));
 		const registry = new ByokLmBridgeRegistry();
 		// The serving window advertises the requested model with `supportsToolSearch: true`,
-		// so the runtime defers tools and the request must pass through uncapped.
+		// and the request carries the runtime's tool-search tool, so the tool list is the
+		// deferred subset and must pass through uncapped.
 		const registration = registry.register('client-1', servingConnection(
 			async (request) => {
 				bridgeToolCounts.push(request.tools?.length);
@@ -171,7 +173,7 @@ suite('ByokLmProxyService', () => {
 				const response = await fetch(responsesUrl(handle, 'acme'), {
 					method: 'POST',
 					headers: authHeaders(handle),
-					body: JSON.stringify({ model: 'm', input: 'hi', tools: tools(BYOK_MAX_TOOLS + 72) }),
+					body: JSON.stringify({ model: 'm', input: 'hi', tools: [...tools(BYOK_MAX_TOOLS + 71), { type: 'function', name: RUNTIME_TOOL_SEARCH_TOOL_NAME, parameters: { type: 'object' } }] }),
 				});
 				assert.strictEqual(response.status, 200);
 				await response.text();
@@ -186,6 +188,93 @@ suite('ByokLmProxyService', () => {
 		assert.deepStrictEqual({ bridgeToolCounts, capEvents }, {
 			bridgeToolCounts: [BYOK_MAX_TOOLS + 72],
 			capEvents: [],
+		});
+	});
+
+	test('still caps tools for a tool-search model whose request does not defer tools', async () => {
+		const bridgeToolCounts: (number | undefined)[] = [];
+		const capEvents: IByokLmToolsCappedEvent[] = [];
+		const tools = (count: number) => Array.from({ length: count }, (_, i) => ({ type: 'function', name: `tool_${i}`, parameters: { type: 'object' } }));
+		const registry = new ByokLmBridgeRegistry();
+		// The model declares tool search, but the request carries no tool-search tool:
+		// deferral is inactive (tool search disabled or the threshold unmet), so the
+		// eager tool list must still be capped.
+		const registration = registry.register('client-1', servingConnection(
+			async (request) => {
+				bridgeToolCounts.push(request.tools?.length);
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'ok' }] }] };
+			},
+			[{ vendor: 'acme', id: 'm', supportsToolSearch: true }],
+		));
+		const service = new ByokLmProxyService(new NullLogService(), registry);
+		const handle = await service.start();
+		try {
+			const listener = service.onDidCapTools(e => capEvents.push(e));
+			try {
+				const response = await fetch(responsesUrl(handle, 'acme'), {
+					method: 'POST',
+					headers: authHeaders(handle),
+					body: JSON.stringify({ model: 'm', input: 'hi', tools: tools(200) }),
+				});
+				assert.strictEqual(response.status, 200);
+				await response.text();
+			} finally {
+				listener.dispose();
+			}
+		} finally {
+			handle.dispose();
+			registration.dispose();
+			service.dispose();
+		}
+		assert.deepStrictEqual({ bridgeToolCounts, capEvents }, {
+			bridgeToolCounts: [BYOK_MAX_TOOLS],
+			capEvents: [{ sessionId, requestedToolCount: 200, sentToolCount: BYOK_MAX_TOOLS }],
+		});
+	});
+
+	test('a grouped tool-search model does not lend the capability to its ungrouped twin', async () => {
+		const bridgeToolCounts: (number | undefined)[] = [];
+		const capEvents: IByokLmToolsCappedEvent[] = [];
+		const tools = (count: number) => Array.from({ length: count }, (_, i) => ({ type: 'function', name: `tool_${i}`, parameters: { type: 'object' } }));
+		const registry = new ByokLmBridgeRegistry();
+		// The grouped `Search/m` declares tool search; the ungrouped `m` declares
+		// it off. A request for `m` must not inherit the grouped twin's
+		// declaration through the provider-local id fallback.
+		const registration = registry.register('client-1', servingConnection(
+			async (request) => {
+				bridgeToolCounts.push(request.tools?.length);
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'ok' }] }] };
+			},
+			[
+				{ vendor: 'acme', id: 'm', modelIdentifier: 'acme/Search/m', supportsToolSearch: true },
+				{ vendor: 'acme', id: 'm', modelIdentifier: 'acme/m', supportsToolSearch: false },
+			],
+		));
+		const service = new ByokLmProxyService(new NullLogService(), registry);
+		const handle = await service.start();
+		try {
+			const listener = service.onDidCapTools(e => capEvents.push(e));
+			try {
+				for (const model of ['m', 'Search/m']) {
+					const response = await fetch(responsesUrl(handle, 'acme'), {
+						method: 'POST',
+						headers: authHeaders(handle),
+						body: JSON.stringify({ model, input: 'hi', tools: [...tools(200), { type: 'function', name: RUNTIME_TOOL_SEARCH_TOOL_NAME, parameters: { type: 'object' } }] }),
+					});
+					assert.strictEqual(response.status, 200);
+					await response.text();
+				}
+			} finally {
+				listener.dispose();
+			}
+		} finally {
+			handle.dispose();
+			registration.dispose();
+			service.dispose();
+		}
+		assert.deepStrictEqual({ bridgeToolCounts, capEvents }, {
+			bridgeToolCounts: [BYOK_MAX_TOOLS, 201],
+			capEvents: [{ sessionId, requestedToolCount: 201, sentToolCount: BYOK_MAX_TOOLS }],
 		});
 	});
 

@@ -20,7 +20,7 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession, type IAgentModelInfo } from '../../common/agent.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
-import { getByokLmSelectionModelId, isByokLmAgentModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import { byokLmModelToolSearchDeclaration, getByokLmSelectionModelId, isByokLmAgentModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema, type AgentHostMcpServers, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
 import { isAgentHostWorkspaceTrusted } from '../../common/agentHostWorkspaceTrust.js';
@@ -1335,22 +1335,18 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	}
 
 	/**
-	 * Whether the renderer's model metadata declares tool search for a BYOK
-	 * selection id (`vendor/[group/]id`). Non-BYOK ids never match — the registry
-	 * only holds renderer BYOK models — so this only widens the gate for models
-	 * the id heuristic cannot recognize.
+	 * The renderer's explicit tool-search declaration for a BYOK selection id
+	 * (`vendor/[group/]id`), or `undefined` when no matching model declares it.
+	 * Non-BYOK ids never match — the registry only holds renderer BYOK models —
+	 * so this only refines the gate for models the id heuristic cannot recognize.
 	 */
-	private _byokModelSupportsToolSearch(modelId: string | undefined): boolean {
+	private _byokModelToolSearchDeclaration(modelId: string | undefined): boolean | undefined {
 		if (!modelId || !isByokLmAgentModelId(modelId)) {
-			return false;
+			return undefined;
 		}
 		const vendor = modelId.slice(0, modelId.indexOf('/'));
 		const selectionId = modelId.slice(vendor.length + 1);
-		return this._byokLmBridgeRegistry.getModels().some(model =>
-			model.vendor === vendor
-			&& (getByokLmSelectionModelId(model) === selectionId || model.id === selectionId)
-			&& model.supportsToolSearch === true,
-		);
+		return byokLmModelToolSearchDeclaration(this._byokLmBridgeRegistry.getModels(), vendor, selectionId);
 	}
 
 	/**
@@ -1508,8 +1504,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (modelFamily) {
 			this._logService.info(`[Copilot:${plan.sessionId}] Model capability override: routing prompt for '${describeModelId(model)}' as family '${modelFamily}'`);
 		}
+		// The BYOK declaration is resolved from the selected model's own id: a
+		// family override aliases the heuristic's prompt/tool profile, but the
+		// alias id is not a BYOK selection id, and an explicit declaration must
+		// win over the aliased family's heuristic either way.
+		const byokToolSearchDeclaration = this._byokModelToolSearchDeclaration(model?.id);
 		const toolSearchEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchEnabled) === true
-			&& (agentHostModelSupportsToolSearch(effectiveModel?.id) || this._byokModelSupportsToolSearch(effectiveModel?.id));
+			&& (byokToolSearchDeclaration ?? agentHostModelSupportsToolSearch(effectiveModel?.id));
 		const toolSearchDeferThreshold = normalizeToolSearchDeferThreshold(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchDeferThreshold));
 		const resolveToolSearch = (names: ReadonlySet<string>): NonNullable<SessionConfig['toolSearch']> =>
 			toolSearchEnabled && names.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME) ? { enabled: true, deferThreshold: toolSearchDeferThreshold } : { enabled: false };

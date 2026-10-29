@@ -7,7 +7,8 @@ import type * as http from 'http';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import { getByokLmSelectionModelId, type IByokLmChatResult } from '../../common/agentHostByokLm.js';
+import { byokLmModelToolSearchDeclaration, type IByokLmChatResult } from '../../common/agentHostByokLm.js';
+import { RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { parseProxyBearer } from '../claude/claudeProxyAuth.js';
 import {
@@ -269,11 +270,14 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		};
 
 		// A model that supports tool search defers its tools behind the runtime's
-		// tool-search tool, so the request's tool list is already the deferred
-		// subset and must not be capped — the renderer's model metadata is the
-		// source of truth for the capability (an explicit declaration overrides
-		// the id heuristic there).
-		if (!this._modelSupportsToolSearch(vendor, bridgeRequest.modelId)) {
+		// tool-search tool, so a request that carries that tool is already the
+		// deferred subset and must not be capped. The capability alone is not
+		// enough: when deferral is inactive (tool search disabled or the
+		// threshold unmet) the request is the eager list and still needs the
+		// cap. The renderer's model metadata is the source of truth for the
+		// capability (an explicit declaration overrides the id heuristic there).
+		const requestDefersTools = bridgeRequest.tools?.some(tool => tool.name === RUNTIME_TOOL_SEARCH_TOOL_NAME) === true;
+		if (!requestDefersTools || !this._modelSupportsToolSearch(vendor, bridgeRequest.modelId)) {
 			const capped = capBridgeTools(bridgeRequest);
 			if (capped.droppedToolNames.length > 0) {
 				const requestedToolCount = bridgeRequest.tools?.length ?? 0;
@@ -368,11 +372,7 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 	 * left the snapshot (e.g. the renderer disconnected) simply caps as before.
 	 */
 	private _modelSupportsToolSearch(vendor: string, modelId: string): boolean {
-		return this._bridgeRegistry.getModels().some(model =>
-			model.vendor === vendor
-			&& (getByokLmSelectionModelId(model) === modelId || model.id === modelId)
-			&& model.supportsToolSearch === true,
-		);
+		return byokLmModelToolSearchDeclaration(this._bridgeRegistry.getModels(), vendor, modelId) === true;
 	}
 
 	private _findToolContinuation(state: ByokLmProxyState, scope: string, input: IResponsesRequest['input']): { readonly pending: IPendingToolContinuation; readonly input: IResponsesRequest['input'] } | undefined {

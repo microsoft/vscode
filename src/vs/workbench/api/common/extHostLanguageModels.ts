@@ -511,6 +511,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				editToolsHint: model.metadata.capabilities?.editTools,
 				apiType: model.metadata.capabilities?.apiType === undefined ? undefined : apiTypesToApi[model.metadata.capabilities.apiType],
 				supportsAdaptiveThinking: model.metadata.capabilities?.adaptiveThinking,
+				toolSearch: model.metadata.capabilities?.toolSearch,
 			},
 			maxInputTokens: model.metadata.maxInputTokens,
 			countTokens(text, token) {
