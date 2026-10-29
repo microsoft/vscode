@@ -8,7 +8,9 @@ import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { createCommandUri } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import * as strings from '../../../../base/common/strings.js';
-import { IActiveCodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { trimTrailingWhitespace } from '../../../../editor/common/commands/trimTrailingWhitespaceCommand.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
@@ -40,13 +42,17 @@ export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		// Nothing
 	}
 
 	async participate(model: ITextFileEditorModel, context: ITextFileSaveParticipantContext): Promise<void> {
 		if (!model.textEditorModel) {
+			return;
+		}
+		if (context.reason === SaveReason.AUTO && isVisibleInNonCodeEditor(model.resource, this.editorService)) {
 			return;
 		}
 
@@ -104,6 +110,20 @@ function findEditor(model: ITextModel, codeEditorService: ICodeEditorService): I
 	return candidate;
 }
 
+/**
+ * Auto save must not trim the lines the user is typing on. Editors that are not code editors,
+ * such as custom text editors, do not expose their cursors, so those lines cannot be spared.
+ */
+function isVisibleInNonCodeEditor(resource: URI, editorService: IEditorService): boolean {
+	return editorService.visibleEditorPanes.some(pane => {
+		if (!isEqual(pane.input.resource, resource)) {
+			return false;
+		}
+		const control = pane.getControl();
+		return !isCodeEditor(control) && !isDiffEditor(control);
+	});
+}
+
 export class FinalNewLineParticipant implements ITextFileSaveParticipant {
 
 	constructor(
@@ -146,13 +166,17 @@ export class TrimFinalNewLinesParticipant implements ITextFileSaveParticipant {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		// Nothing
 	}
 
 	async participate(model: ITextFileEditorModel, context: ITextFileSaveParticipantContext): Promise<void> {
 		if (!model.textEditorModel) {
+			return;
+		}
+		if (context.reason === SaveReason.AUTO && isVisibleInNonCodeEditor(model.resource, this.editorService)) {
 			return;
 		}
 

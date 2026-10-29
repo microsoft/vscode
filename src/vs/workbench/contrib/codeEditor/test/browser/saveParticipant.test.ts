@@ -16,6 +16,7 @@ import { IResolvedTextFileEditorModel, snapshotToString } from '../../../../serv
 import { SaveReason } from '../../../../common/editor.js';
 import { TextFileEditorModelManager } from '../../../../services/textfile/common/textFileEditorModelManager.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 suite('Save Participants', function () {
 
@@ -72,7 +73,7 @@ suite('Save Participants', function () {
 		await model.resolve();
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
-		const participant = new TrimFinalNewLinesParticipant(configService, undefined!);
+		const participant = new TrimFinalNewLinesParticipant(configService, undefined!, undefined!);
 		const textContent = 'Trim New Line';
 		const eol = `${model.textEditorModel.getEOL()}`;
 
@@ -107,7 +108,7 @@ suite('Save Participants', function () {
 		await model.resolve();
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
-		const participant = new TrimFinalNewLinesParticipant(configService, undefined!);
+		const participant = new TrimFinalNewLinesParticipant(configService, undefined!, undefined!);
 		const textContent = 'Trim New Line';
 
 		// single line
@@ -134,7 +135,7 @@ suite('Save Participants', function () {
 		await model.resolve();
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
-		const participant = new TrimFinalNewLinesParticipant(configService, undefined!);
+		const participant = new TrimFinalNewLinesParticipant(configService, undefined!, undefined!);
 		const textContent = 'Test';
 		const eol = `${model.textEditorModel.getEOL()}`;
 		const content = `${textContent}${eol}${eol}`;
@@ -161,7 +162,7 @@ suite('Save Participants', function () {
 		await model.resolve();
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'trimTrailingWhitespace': true });
-		const participant = new TrimWhitespaceParticipant(configService, undefined!);
+		const participant = new TrimWhitespaceParticipant(configService, undefined!, undefined!);
 		const textContent = 'Test';
 		const content = `${textContent} 	`;
 		model.textEditorModel.setValue(content);
@@ -173,6 +174,28 @@ suite('Save Participants', function () {
 
 		// confirm trimming
 		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${textContent}`);
+	});
+
+	test('auto save does not trim while the model is shown in a non-code editor', async function () {
+		const model: IResolvedTextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/custom_editor.md'), 'utf8', undefined) as IResolvedTextFileEditorModel);
+
+		await model.resolve();
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('files', { 'trimTrailingWhitespace': true, 'trimFinalNewlines': true });
+		const editorService = { visibleEditorPanes: [{ input: { resource: model.resource }, getControl: () => undefined }] } as unknown as IEditorService;
+		const trimWhitespace = new TrimWhitespaceParticipant(configService, undefined!, editorService);
+		const trimFinalNewLines = new TrimFinalNewLinesParticipant(configService, undefined!, editorService);
+		const eol = model.textEditorModel.getEOL();
+		const content = `Hello ${eol}${eol}${eol}`;
+		model.textEditorModel.setValue(content);
+
+		await trimWhitespace.participate(model, { reason: SaveReason.AUTO });
+		await trimFinalNewLines.participate(model, { reason: SaveReason.AUTO });
+		assert.strictEqual(snapshotToString(model.createSnapshot()!), content);
+
+		await trimWhitespace.participate(model, { reason: SaveReason.EXPLICIT });
+		await trimFinalNewLines.participate(model, { reason: SaveReason.EXPLICIT });
+		assert.strictEqual(snapshotToString(model.createSnapshot()!), `Hello${eol}`);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
