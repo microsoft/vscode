@@ -48,6 +48,11 @@ suite('CopilotCliSessionLinkOpener', () => {
 	}
 
 	async function open(id: string, options: IOpenOptions = {}) {
+		const { errors, ...result } = await openCollectingErrors(id, options);
+		return { ...result, errors: errors.length };
+	}
+
+	async function openCollectingErrors(id: string, options: IOpenOptions = {}) {
 		const imported: string[] = [];
 		const opened: { resource: string; backend: string | undefined; inChatView: boolean }[] = [];
 		const errors: string[] = [];
@@ -119,7 +124,7 @@ suite('CopilotCliSessionLinkOpener', () => {
 
 		await instantiationService.createInstance(CopilotCliSessionLinkOpener).open(id);
 
-		return { imported, opened, errors: errors.length, ...(takeOverPrompts ? { takeOverPrompts } : {}) };
+		return { imported, opened, errors, ...(takeOverPrompts ? { takeOverPrompts } : {}) };
 	}
 
 	test('imports the session into the agent host and opens it in the Chat view', async () => {
@@ -171,6 +176,16 @@ suite('CopilotCliSessionLinkOpener', () => {
 			copilotSessionsUnavailable: { imported: [], ...notOpened },
 			importUnsupported: { imported: [], ...notOpened },
 			importFailed: { imported: [`copilotcli:/${sessionId}`], ...notOpened },
+		});
+	});
+
+	test('explains a session the agent host cannot find without its internal reason', async () => {
+		assert.deepStrictEqual({
+			notFound: (await openCollectingErrors(sessionId, { importError: new ProtocolError(AhpErrorCodes.SessionNotFound, `Session is not an adoptable legacy chat (reason=settingDisabled): copilotcli:/${sessionId}`) })).errors,
+			otherFailure: (await openCollectingErrors(sessionId, { importError: new Error('Disk full') })).errors,
+		}, {
+			notFound: ['Couldn\'t open the Copilot CLI session because it couldn\'t be found. It may have been deleted, or it was created by another app.'],
+			otherFailure: ['Couldn\'t open the Copilot CLI session: Disk full'],
 		});
 	});
 
