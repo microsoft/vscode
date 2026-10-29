@@ -3013,7 +3013,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return this._reconcileExtensionEnablement(currentSession, extensionId, enabled);
 			});
 		} catch (error) {
-			throw new Error(localize('copilot.extensionReconcileFailed', "The extension preference was saved, but the selected chat could not be updated: {0}", getErrorMessage(error)));
+			throw new Error(localize('copilot.extensionReconcileFailed', "The preference was saved. {0}", getErrorMessage(error)));
 		}
 	}
 

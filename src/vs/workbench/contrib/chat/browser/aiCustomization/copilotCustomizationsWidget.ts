@@ -1108,8 +1108,8 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		} catch (error) {
 			mutationFailed = true;
 			this.notificationService.error(enabled
-				? localize('copilotCanvases.extensionEnableFailed', "Could not enable canvas extension '{0}'. {1}", currentItem.extensionName, getErrorMessage(error))
-				: localize('copilotCanvases.extensionDisableFailed', "Could not disable canvas extension '{0}'. {1}", currentItem.extensionName, getErrorMessage(error)));
+				? localize('copilotCanvases.extensionEnableFailed', "Canvas extension '{0}' couldn't start in this chat. {1}", currentItem.extensionName, getErrorMessage(error))
+				: localize('copilotCanvases.extensionDisableFailed', "Canvas extension '{0}' couldn't stop in this chat. {1}", currentItem.extensionName, getErrorMessage(error)));
 		} finally {
 			const shouldRestoreFocus = DOM.getActiveElement() === focusedMutationAction;
 			this.pendingExtensionMutations.delete(mutationKey);
