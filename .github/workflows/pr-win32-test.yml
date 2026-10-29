@@ -333,6 +333,8 @@ jobs:
       - name: 🧪 Agent Host E2E storage experiment (Electron)
         if: ${{ env.ELECTRON_TESTS == 'true' && env.AGENT_HOST_E2E_TESTS == 'true' && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
         timeout-minutes: 90
+        # Diagnostic only: a timeout or a setup error must not fail the shard either.
+        continue-on-error: true
         shell: pwsh
         run: |
           $mount = Split-Path $env:GITHUB_WORKSPACE -Parent
