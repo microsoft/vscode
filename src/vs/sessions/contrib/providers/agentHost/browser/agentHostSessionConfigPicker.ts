@@ -126,7 +126,7 @@ export interface IConfigPickerItem {
 export function getConfigIcon(property: string, value: unknown | undefined, hasUncommittedChanges = false): ThemeIcon | undefined {
 	if (property === SessionConfigKey.Isolation) {
 		if (value === 'folder' || value === 'workspace') {
-			return Codicon.folder;
+			return Codicon.gitCommit;
 		}
 		if (value === 'worktree') {
 			return Codicon.worktree;
@@ -841,7 +841,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			// `_trackWorktreeSuggestion` for the same reason.
 			const tracksWorktreeSuggestion = presentation === SessionConfigKey.Isolation && isNewSession && !isReadOnly && !isLoading;
 			const tooltip = presentation !== SessionConfigKey.Branch
-				? (schema.description ?? schema.title)
+				? presentation === SessionConfigKey.Isolation
+					? localize('agentHostSessionConfig.isolationTooltip', "Working copy for the session")
+					: (schema.description ?? schema.title)
 				: undefined;
 			if (tooltip && !tracksWorktreeSuggestion) {
 				const content = () => presentation === SessionConfigKey.Isolation && isNewSession && !isReadOnly
