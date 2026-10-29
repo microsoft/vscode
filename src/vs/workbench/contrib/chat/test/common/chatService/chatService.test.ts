@@ -1565,6 +1565,47 @@ suite('ChatService', () => {
 		await response.data.responseCompletePromise;
 	});
 
+	test('clears a forwarded yield request when the request ends', async () => {
+		const firstStarted = new DeferredPromise<void>();
+		const completeFirst = new DeferredPromise<void>();
+		const messagesByRequestId = new Map<string, string>();
+		const forwarded: { requestId: string; value: boolean }[] = [];
+		testDisposables.add(chatAgentService.registerAgent('yieldAgent', { ...getAgentData('yieldAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('yieldAgent', {
+			async invoke(request) {
+				messagesByRequestId.set(request.requestId, request.message);
+				if (messagesByRequestId.size === 1) {
+					firstStarted.complete();
+					await completeFirst.p;
+				}
+				return {};
+			},
+			setYieldRequested(requestId, value) {
+				forwarded.push({ requestId, value });
+			},
+		}));
+
+		const testService = createChatService();
+		const model = testDisposables.add(startSessionModel(testService)).object;
+		const first = await testService.sendRequest(model.sessionResource, 'first request', { agentId: 'yieldAgent' });
+		ChatSendResult.assertSent(first);
+		await firstStarted.p;
+		const steering = await testService.sendRequest(model.sessionResource, 'steering message', { agentIdSilent: 'yieldAgent', queue: ChatRequestQueueKind.Steering });
+		assert.ok(ChatSendResult.isQueued(steering));
+		completeFirst.complete();
+		await first.data.responseCompletePromise;
+		const sent = await steering.deferred;
+		ChatSendResult.assertSent(sent);
+		await sent.data.responseCompletePromise;
+
+		assert.deepStrictEqual(forwarded.map(({ requestId, value }) => ({ message: messagesByRequestId.get(requestId), value })), [
+			{ message: 'first request', value: false },
+			{ message: 'first request', value: true },
+			{ message: 'first request', value: false },
+			{ message: 'steering message', value: false },
+		]);
+	});
+
 	for (const duringActiveRequest of [true, false]) {
 		test(`system notifications retain their provenance after ${duringActiveRequest ? 'steering an active' : 'resuming an idle'} task`, async () => {
 			const started = new DeferredPromise<void>();
@@ -1626,25 +1667,33 @@ suite('ChatService', () => {
 		});
 	}
 
-	for (const { name, firstIsSystem, secondIsSystem, expectSystem } of [
-		{ name: 'two notifications', firstIsSystem: true, secondIsSystem: true, expectSystem: true },
-		{ name: 'notification then user input', firstIsSystem: true, secondIsSystem: false, expectSystem: false },
-		{ name: 'user input then notification', firstIsSystem: false, secondIsSystem: true, expectSystem: false },
+	for (const { name, firstIsSystem, secondIsSystem, expectedInvocations, expectedYields, expectedLabel } of [
+		{ name: 'two notifications', firstIsSystem: true, secondIsSystem: true, expectedInvocations: [{ message: 'message 1\n\nmessage 2', isSystemInitiated: true }], expectedYields: ['task'], expectedLabel: 'Terminal completed' },
+		{ name: 'notification then user input', firstIsSystem: true, secondIsSystem: false, expectedInvocations: [{ message: 'message 1', isSystemInitiated: true }, { message: 'message 2', isSystemInitiated: false }], expectedYields: ['task', 'message 1'], expectedLabel: undefined },
+		{ name: 'user input then notification', firstIsSystem: false, secondIsSystem: true, expectedInvocations: [{ message: 'message 1', isSystemInitiated: false }, { message: 'message 2', isSystemInitiated: true }], expectedYields: ['task', 'message 1'], expectedLabel: 'Terminal completed' },
 	]) {
 		test(`steering batches preserve user turn boundaries: ${name}`, async () => {
 			const started = new DeferredPromise<void>();
 			const complete = new DeferredPromise<void>();
 			const invoked: { message: string; isSystemInitiated: boolean }[] = [];
+			const messagesByRequestId = new Map<string, string>();
+			const yieldedRequestIds: string[] = [];
 			const agentId = 'notificationAgent';
 			testDisposables.add(chatAgentService.registerAgent(agentId, { ...getAgentData(agentId), isDefault: true }));
 			testDisposables.add(chatAgentService.registerAgentImplementation(agentId, {
 				async invoke(request) {
+					messagesByRequestId.set(request.requestId, request.message);
 					invoked.push({ message: request.message, isSystemInitiated: !!request.isSystemInitiated });
 					if (invoked.length === 1) {
 						started.complete();
 						await complete.p;
 					}
 					return {};
+				},
+				setYieldRequested(requestId, value) {
+					if (value) {
+						yieldedRequestIds.push(requestId);
+					}
 				},
 			}));
 			const service = createChatService();
@@ -1670,9 +1719,10 @@ suite('ChatService', () => {
 				ChatSendResult.assertSent(result);
 				await result.data.responseCompletePromise;
 			}
-			assert.deepStrictEqual({ invoked, label: model.lastRequest?.systemInitiatedLabel, pending: model.getPendingRequests().length }, {
-				invoked: [{ message: 'task', isSystemInitiated: false }, { message: 'message 1\n\nmessage 2', isSystemInitiated: expectSystem }],
-				label: expectSystem ? 'Terminal completed' : undefined,
+			assert.deepStrictEqual({ invoked, yields: yieldedRequestIds.map(id => messagesByRequestId.get(id)), label: model.lastRequest?.systemInitiatedLabel, pending: model.getPendingRequests().length }, {
+				invoked: [{ message: 'task', isSystemInitiated: false }, ...expectedInvocations],
+				yields: expectedYields,
+				label: expectedLabel,
 				pending: 0,
 			});
 		});
@@ -2328,6 +2378,53 @@ suite('ChatService', () => {
 		assert.strictEqual(invokedMessages.length, 2);
 		assert.ok(invokedMessages[1].includes('queued message'));
 		assert.strictEqual(model.getPendingRequests().length, 0);
+	});
+
+	test('sendPendingRequestImmediately does not ask a queued message to yield to steering behind it', async () => {
+		const firstStarted = new DeferredPromise<void>();
+		const invokedMessages: string[] = [];
+		const messagesByRequestId = new Map<string, string>();
+		const yieldedRequestIds: string[] = [];
+		testDisposables.add(chatAgentService.registerAgent('sendNowAgent', { ...getAgentData('sendNowAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('sendNowAgent', {
+			async invoke(request, _progress, _history, token) {
+				messagesByRequestId.set(request.requestId, request.message);
+				invokedMessages.push(request.message);
+				if (invokedMessages.length === 1) {
+					firstStarted.complete();
+					await new Promise<void>(resolve => {
+						const listener = token.onCancellationRequested(() => { listener.dispose(); resolve(); });
+					});
+				}
+				return {};
+			},
+			setYieldRequested(requestId, value) {
+				if (value) {
+					yieldedRequestIds.push(requestId);
+				}
+			},
+		}));
+
+		const testService = createChatService();
+		const model = testDisposables.add(startSessionModel(testService)).object;
+		const first = await testService.sendRequest(model.sessionResource, 'first request', { agentId: 'sendNowAgent' });
+		ChatSendResult.assertSent(first);
+		await firstStarted.p;
+
+		const steering = await testService.sendRequest(model.sessionResource, 'steering message', { agentIdSilent: 'sendNowAgent', queue: ChatRequestQueueKind.Steering });
+		const queued = await testService.sendRequest(model.sessionResource, 'queued message', { agentIdSilent: 'sendNowAgent', queue: ChatRequestQueueKind.Queued });
+		assert.ok(ChatSendResult.isQueued(steering) && ChatSendResult.isQueued(queued));
+		await testService.sendPendingRequestImmediately(model.sessionResource, model.getPendingRequests()[1].request.id);
+		for (const pending of [queued, steering]) {
+			const result = await pending.deferred;
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+		}
+
+		assert.deepStrictEqual({ invokedMessages, yields: yieldedRequestIds.map(id => messagesByRequestId.get(id)) }, {
+			invokedMessages: ['first request', 'queued message', 'steering message'],
+			yields: ['first request'],
+		});
 	});
 
 	test('does not locally dequeue pending requests for remote agent host sessions', async () => {
@@ -3952,6 +4049,7 @@ suite('ChatService', () => {
 		const remoteScheme = 'remote-streaming-test';
 
 		interface IProvidedSessionOptions {
+			readonly agent?: IChatAgentImplementation;
 			readonly progressObs?: ISettableObservable<IChatProgress[]>;
 			readonly isCompleteObs?: ISettableObservable<boolean>;
 			readonly isReadOnly?: ISettableObservable<boolean>;
@@ -3974,7 +4072,7 @@ suite('ChatService', () => {
 			instantiationService.stub(IChatSessionsService, mockSessionsService);
 
 			testDisposables.add(chatAgentService.registerAgent(remoteScheme, { ...getAgentData(remoteScheme), isDefault: true }));
-			testDisposables.add(chatAgentService.registerAgentImplementation(remoteScheme, { async invoke() { return {}; } }));
+			testDisposables.add(chatAgentService.registerAgentImplementation(remoteScheme, opts.agent ?? { async invoke() { return {}; } }));
 
 			let history = opts.history ?? [{ type: 'request', prompt: 'hello', participant: remoteScheme }];
 			const onDidChangeHistory = opts.onDidChangeHistory;
@@ -5464,6 +5562,67 @@ suite('ChatService', () => {
 			});
 		});
 
+		for (const draft of ['', 'A newer draft']) {
+			test(`a rejected request retains its prompt and error across history refresh without replacing ${draft ? 'a newer' : 'an empty'} draft`, async () => {
+				const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+				const invoked = new DeferredPromise<void>();
+				const rejection = new DeferredPromise<never>();
+				const history: IChatSessionHistoryItem[] = [
+					{ type: 'request', id: 'accepted', prompt: 'Accepted request', participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Original response') }], participant: remoteScheme },
+				];
+				const { resource } = setupRemoteProvider({
+					history,
+					onDidChangeHistory: changes.event,
+					agent: {
+						invoke: () => {
+							invoked.complete();
+							return rejection.p;
+						},
+					},
+				});
+				const service = createChatServiceWithFrozenHistoryClock();
+				instantiationService.stub(IChatService, service);
+				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+				assert.ok(ref);
+				testDisposables.add(ref);
+				const model = ref.object;
+				const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+				const sent = await service.sendRequest(resource, 'Keep this rejected prompt', { agentIdSilent: remoteScheme });
+				assert.ok(ChatSendResult.isSent(sent));
+				await invoked.p;
+				const response = await sent.data.responseCreatedPromise;
+				const attachments: IChatRequestVariableEntry[] = draft
+					? [{ kind: 'file', id: 'new-draft-file', name: 'draft.ts', value: URI.file('/workspace/draft.ts') }]
+					: [];
+				model.inputModel.setState({ inputText: draft, attachments });
+				const message = 'Your message could not be sent: The host cannot accept this request.';
+				await rejection.error(new Error(message));
+				await sent.data.responseCompletePromise;
+				changes.fire([
+					history[0],
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Refreshed response') }], participant: remoteScheme },
+				]);
+				await waitForResponse(model, 'accepted', 'Refreshed response');
+
+				assert.deepStrictEqual({
+					items: viewModel.getItems().map(item => isRequestVM(item) ? item.messageText : isResponseVM(item) ? item.errorDetails?.message ?? item.response.toString() : 'pending'),
+					responsePreserved: model.getRequests().at(-1)?.response === response,
+					complete: response?.isComplete,
+					active: model.hasActiveRequest.get(),
+					draft: model.inputModel.state.get()?.inputText,
+					attachments: model.inputModel.state.get()?.attachments,
+				}, {
+					items: ['Accepted request', 'Refreshed response', 'Keep this rejected prompt', message],
+					responsePreserved: true,
+					complete: true,
+					active: false,
+					draft,
+					attachments,
+				});
+			});
+		}
+
 		test('passive history removes absent restored turns without removing local turns', async () => {
 			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
 			const first: IChatSessionHistoryItem[] = [
@@ -6132,6 +6291,37 @@ suite('ChatService', () => {
 				requests: expected,
 				viewModels: expected,
 				serialized: expected,
+			});
+		});
+
+		test('a live server-initiated request removes the earlier request it replaces', async () => {
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ id: 'user', type: 'request', prompt: 'hello', participant: remoteScheme },
+					{ id: 'notice-1', type: 'request', prompt: 'first notice', participant: remoteScheme, isSystemInitiated: true },
+				],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				isCompleteObs: observableValue<boolean>('isComplete', true),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			// Billing reported only as a session aggregate is kept when a notice without usage is replaced.
+			ref.object.setSessionCost({ credits: 2, status: 'complete' });
+			onDidStartServerRequest.fire({ id: 'notice-2', prompt: 'merged notice', isSystemInitiated: true, replacesRequestId: 'notice-1' });
+			onDidStartServerRequest.fire({ id: 'notice-3', prompt: 'merged again', isSystemInitiated: true, replacesRequestId: 'notice-2' });
+			onDidStartServerRequest.fire({ id: 'notice-4', prompt: 'unknown replacement', isSystemInitiated: true, replacesRequestId: 'missing' });
+
+			assert.deepStrictEqual({
+				requests: ref.object.getRequests().map(request => request.id),
+				sessionCost: ref.object.sessionCostInfo,
+			}, {
+				requests: ['user', 'notice-3', 'notice-4'],
+				sessionCost: { credits: 2, status: 'complete' },
 			});
 		});
 

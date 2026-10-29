@@ -11,8 +11,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { ITunnelConnectFn, TunnelProxy } from '../../node/tunnelProxy.js';
 import { ITunnelProxyInfo } from '../../common/tunnelProxy.js';
+import { createTunnelStream, ITunnelByteStream, ITunnelStream, takeRemoteTunnelStream } from '../../node/tunnelStream.js';
 import { NodeSocket } from '../../../../base/parts/ipc/node/ipc.net.js';
 import { ISocket, SocketCloseEvent, SocketCloseEventType } from '../../../../base/parts/ipc/common/ipc.net.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -27,11 +29,11 @@ import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
  * rejects instead.
  */
 function mockTunnelProtocol(socket: import('net').Socket) {
-	return {
+	return takeRemoteTunnelStream({
 		getSocket: () => new NodeSocket(socket),
 		readEntireBuffer: () => VSBuffer.alloc(0),
 		dispose: () => { /* NodeSocket owns the underlying socket */ },
-	};
+	});
 }
 
 /**
@@ -108,12 +110,62 @@ function createManagedConnectFn(targetPort: number, onSocket?: (socket: ManagedT
 		});
 		const managed = new ManagedTestSocket(socket);
 		onSocket?.(managed);
-		return {
+		return takeRemoteTunnelStream({
 			getSocket: () => managed,
 			readEntireBuffer: () => VSBuffer.alloc(0),
 			dispose: () => { /* the adapter owns and disposes the managed socket */ },
-		};
+		});
 	};
+}
+
+/**
+ * Present a raw `net.Socket` as a pull-based {@link ITunnelByteStream} (the
+ * shape of an agent host TCP connection): data is only read from the socket
+ * when the consumer asks for it.
+ */
+function pullByteStream(socket: import('net').Socket): ITunnelByteStream {
+	const chunks: Buffer[] = [];
+	let ended = false;
+	let waiter: DeferredPromise<void> | undefined;
+	socket.on('data', chunk => {
+		chunks.push(chunk);
+		socket.pause();
+		waiter?.complete();
+	});
+	socket.on('end', () => {
+		ended = true;
+		waiter?.complete();
+	});
+	return {
+		async read() {
+			while (!chunks.length && !ended) {
+				waiter = new DeferredPromise<void>();
+				socket.resume();
+				await waiter.p;
+			}
+			const chunk = chunks.shift();
+			return chunk ? VSBuffer.wrap(chunk) : undefined;
+		},
+		write: data => new Promise<void>((resolve, reject) => socket.write(data.buffer, err => err ? reject(err) : resolve())),
+		end: async () => { socket.end(); },
+		dispose: () => socket.destroy(),
+	};
+}
+
+/** Sends a CONNECT to the proxy and returns the socket without waiting for the response. */
+async function proxyConnectSocket(info: ITunnelProxyInfo, target: string, auth: boolean): Promise<TLSSocket> {
+	const tls = await import('tls');
+	return new Promise((resolve, reject) => {
+		const socket = tls.connect({ host: '127.0.0.1', port: info.port, rejectUnauthorized: false }, () => {
+			let request = `CONNECT ${target} HTTP/1.1\r\nHost: ${target}\r\n`;
+			if (auth) {
+				request += `Proxy-Authorization: Basic ${Buffer.from(`${info.credentials.username}:${info.credentials.password}`).toString('base64')}\r\n`;
+			}
+			socket.write(request + '\r\n');
+			resolve(socket);
+		});
+		socket.on('error', reject);
+	});
 }
 
 /**
@@ -164,37 +216,20 @@ async function proxyConnect(
 	target: string,
 	auth: boolean,
 ): Promise<{ statusCode: number; socket: TLSSocket }> {
-	const tls = await import('tls');
+	const socket = await proxyConnectSocket(info, target, auth);
 	return new Promise((resolve, reject) => {
-		const socket = tls.connect({
-			host: '127.0.0.1',
-			port: info.port,
-			rejectUnauthorized: false,
-		}, () => {
-			const authHeader = auth
-				? 'Basic ' + Buffer.from(`${info.credentials.username}:${info.credentials.password}`).toString('base64')
-				: undefined;
-
-			let request = `CONNECT ${target} HTTP/1.1\r\nHost: ${target}\r\n`;
-			if (authHeader) {
-				request += `Proxy-Authorization: ${authHeader}\r\n`;
+		let data = '';
+		const onData = (chunk: Buffer) => {
+			data += chunk.toString();
+			const headerEnd = data.indexOf('\r\n\r\n');
+			if (headerEnd !== -1) {
+				socket.removeListener('data', onData);
+				const statusLine = data.substring(0, data.indexOf('\r\n'));
+				const statusCode = parseInt(statusLine.split(' ')[1], 10);
+				resolve({ statusCode, socket });
 			}
-			request += '\r\n';
-			socket.write(request);
-
-			let data = '';
-			const onData = (chunk: Buffer) => {
-				data += chunk.toString();
-				const headerEnd = data.indexOf('\r\n\r\n');
-				if (headerEnd !== -1) {
-					socket.removeListener('data', onData);
-					const statusLine = data.substring(0, data.indexOf('\r\n'));
-					const statusCode = parseInt(statusLine.split(' ')[1], 10);
-					resolve({ statusCode, socket });
-				}
-			};
-			socket.on('data', onData);
-		});
+		};
+		socket.on('data', onData);
 		socket.on('error', reject);
 	});
 }
@@ -483,6 +518,225 @@ suite('TunnelProxy', () => {
 			socket.on('error', reject);
 		});
 		assert.ok(body.includes('ECHO GET /tunneled'), `Expected tunneled echo, got: ${body}`);
+	});
+
+	test('forwards HTTP and CONNECT through pull-based tunnel streams', async () => {
+		const net = await import('net');
+		const pullProxy = ds.add(new TunnelProxy(async () => {
+			const socket = net.createConnection({ host: '127.0.0.1', port: targetPort });
+			await new Promise<void>((resolve, reject) => {
+				socket.once('connect', resolve);
+				socket.once('error', reject);
+			});
+			return createTunnelStream(pullByteStream(socket));
+		}, new NullLogService()));
+		const info = await pullProxy.start();
+
+		const http = await proxyRequest(info, { path: `http://127.0.0.1:${targetPort}/pull`, auth: true });
+		const { statusCode, socket } = await proxyConnect(info, `127.0.0.1:${targetPort}`, true);
+		socket.write(`GET /tunneled HTTP/1.1\r\nHost: 127.0.0.1:${targetPort}\r\nConnection: close\r\n\r\n`);
+		const tunneled = await new Promise<string>((resolve, reject) => {
+			const chunks: Buffer[] = [];
+			socket.on('data', c => chunks.push(c));
+			socket.on('end', () => resolve(Buffer.concat(chunks).toString()));
+			socket.on('error', reject);
+		});
+		pullProxy.dispose();
+
+		assert.deepStrictEqual(
+			{ http: [http.statusCode, http.body], connect: statusCode, tunneled: tunneled.includes('ECHO GET /tunneled') },
+			{ http: [200, 'ECHO GET /pull'], connect: 200, tunneled: true },
+		);
+	});
+
+	test('drops a pooled HTTP tunnel once its destination closes it', async () => {
+		const http = await import('http');
+		const net = await import('net');
+		const serverSockets: import('net').Socket[] = [];
+		const server = http.createServer((req, res) => res.end(`OK ${req.url}`));
+		server.on('connection', socket => serverSockets.push(socket));
+		server.listen(0, '127.0.0.1');
+		await new Promise<void>(resolve => server.once('listening', resolve));
+		const port = (server.address() as AddressInfo).port;
+		let connects = 0;
+		const upstreamClosed = new DeferredPromise<void>();
+		const pullProxy = ds.add(new TunnelProxy(async () => {
+			connects++;
+			const socket = net.createConnection({ host: '127.0.0.1', port });
+			await new Promise<void>((resolve, reject) => {
+				socket.once('connect', resolve);
+				socket.once('error', reject);
+			});
+			const stream = pullByteStream(socket);
+			return createTunnelStream({ ...stream, dispose: () => { stream.dispose(); upstreamClosed.complete(); } });
+		}, new NullLogService()));
+		const info = await pullProxy.start();
+
+		const first = await proxyRequest(info, { path: `http://127.0.0.1:${port}/first`, auth: true });
+		// The destination closes the idle keep-alive connection, as its idle timeout would.
+		for (const socket of serverSockets) {
+			socket.end();
+		}
+		const closed = await raceTimeout(upstreamClosed.p.then(() => true), 2000) ?? false;
+		const second = await proxyRequest(info, { path: `http://127.0.0.1:${port}/second`, auth: true });
+		pullProxy.dispose();
+		server.close();
+
+		assert.deepStrictEqual(
+			{ first: [first.statusCode, first.body], closed, second: [second.statusCode, second.body], connects },
+			{ first: [200, 'OK /first'], closed: true, second: [200, 'OK /second'], connects: 2 },
+		);
+	});
+
+	test('forwards HTTP requests to IPv6 literals without brackets in the destination host', async () => {
+		const http = await import('http');
+		const net = await import('net');
+		const server = http.createServer((req, res) => res.end(`OK ${req.url}`));
+		server.listen(0, '::1');
+		await new Promise<void>(resolve => server.once('listening', resolve));
+		const port = (server.address() as AddressInfo).port;
+		const hosts: string[] = [];
+		const ipv6Proxy = ds.add(new TunnelProxy(async (host, destinationPort) => {
+			hosts.push(host);
+			const socket = net.createConnection({ host, port: destinationPort });
+			await new Promise<void>((resolve, reject) => {
+				socket.once('connect', resolve);
+				socket.once('error', reject);
+			});
+			return { stream: socket, leftover: VSBuffer.alloc(0) };
+		}, new NullLogService()));
+		const info = await ipv6Proxy.start();
+
+		const response = await proxyRequest(info, { path: `http://[::1]:${port}/ipv6`, auth: true });
+		ipv6Proxy.dispose();
+		server.close();
+
+		assert.deepStrictEqual({ status: response.statusCode, body: response.body, hosts }, { status: 200, body: 'OK /ipv6', hosts: ['::1'] });
+	});
+
+	test('delivers a CONNECT client\'s final bytes before closing the upstream stream', async () => {
+		const net = await import('net');
+		const received = new DeferredPromise<string>();
+		const server = net.createServer({ allowHalfOpen: true }, socket => {
+			const chunks: Buffer[] = [];
+			socket.on('data', chunk => chunks.push(chunk));
+			socket.on('end', () => received.complete(Buffer.concat(chunks).toString()));
+			socket.on('close', () => received.complete(Buffer.concat(chunks).toString()));
+			socket.on('error', () => { });
+		});
+		server.listen(0, '127.0.0.1');
+		await new Promise<void>(resolve => server.once('listening', resolve));
+		const port = (server.address() as AddressInfo).port;
+		const pullProxy = ds.add(new TunnelProxy(async () => {
+			const socket = net.createConnection({ host: '127.0.0.1', port });
+			await new Promise<void>((resolve, reject) => {
+				socket.once('connect', resolve);
+				socket.once('error', reject);
+			});
+			const stream = pullByteStream(socket);
+			// An upstream that takes a moment to accept each write, like a remote connection.
+			return createTunnelStream({ ...stream, write: async data => { await timeout(50); await stream.write(data); } });
+		}, new NullLogService()));
+		const info = await pullProxy.start();
+
+		const { statusCode, socket } = await proxyConnect(info, `127.0.0.1:${port}`, true);
+		socket.end('final bytes');
+		const data = await raceTimeout(received.p, 2000);
+		pullProxy.dispose();
+		server.close();
+
+		assert.deepStrictEqual({ statusCode, data }, { statusCode: 200, data: 'final bytes' });
+	});
+
+	test('closes the upstream stream of a CONNECT tunnel whose client disconnects', async () => {
+		const net = await import('net');
+		// A destination that keeps its side open after the client half-closes, as long-lived servers do.
+		const sockets = new Set<import('net').Socket>();
+		const server = net.createServer({ allowHalfOpen: true }, socket => {
+			sockets.add(socket);
+			socket.on('error', () => { });
+		});
+		server.listen(0, '127.0.0.1');
+		await new Promise<void>(resolve => server.once('listening', resolve));
+		const port = (server.address() as AddressInfo).port;
+		const upstreamClosed = new DeferredPromise<void>();
+		const pullProxy = ds.add(new TunnelProxy(async () => {
+			const socket = net.createConnection({ host: '127.0.0.1', port });
+			await new Promise<void>((resolve, reject) => {
+				socket.once('connect', resolve);
+				socket.once('error', reject);
+			});
+			const stream = pullByteStream(socket);
+			return createTunnelStream({ ...stream, dispose: () => { stream.dispose(); upstreamClosed.complete(); } });
+		}, new NullLogService()));
+		const info = await pullProxy.start();
+
+		const { statusCode, socket } = await proxyConnect(info, `127.0.0.1:${port}`, true);
+		socket.destroy();
+		const closed = await raceTimeout(upstreamClosed.p.then(() => true), 2000) ?? false;
+		pullProxy.dispose();
+		for (const s of sockets) {
+			s.destroy();
+		}
+		server.close();
+
+		assert.deepStrictEqual({ statusCode, closed }, { statusCode: 200, closed: true });
+	});
+
+	test('connects as many tunnels at once as the connector allows', async () => {
+		const calls: Record<number, number> = {};
+		for (const maxConcurrentConnects of [2, 64]) {
+			calls[maxConcurrentConnects] = 0;
+			// The proxy logs each CONNECT right before queueing its connect, which starts at once while below the limit.
+			const queued = new DeferredPromise<void>();
+			let connects = 0;
+			const logService = new class extends NullLogService {
+				override trace(message: string): void {
+					if (message.startsWith('[TunnelProxy] CONNECT') && ++connects === 3) {
+						queued.complete();
+					}
+				}
+			};
+			const proxy = ds.add(new TunnelProxy(() => {
+				calls[maxConcurrentConnects]++;
+				return new Promise(() => { }); // a destination that never connects
+			}, logService, { maxConcurrentConnects }));
+			const info = await proxy.start();
+			const sockets = await Promise.all(Array.from({ length: 3 }, () => proxyConnectSocket(info, 'stalled.test:443', true)));
+			await queued.p;
+			for (const socket of sockets) {
+				socket.destroy();
+			}
+			proxy.dispose();
+		}
+
+		assert.deepStrictEqual(calls, { 2: 2, 64: 3 });
+	});
+
+	test('destroys a tunnel that connects after its client is gone', async () => {
+		const stream = await import('stream');
+		const connecting = new DeferredPromise<void>();
+		const connected = new DeferredPromise<ITunnelStream>();
+		const proxy = ds.add(new TunnelProxy(() => {
+			connecting.complete();
+			return connected.p;
+		}, new NullLogService()));
+		const info = await proxy.start();
+		const socket = await proxyConnectSocket(info, '127.0.0.1:443', true);
+		socket.on('error', () => { });
+		const clientClosed = new Promise(resolve => socket.once('close', resolve));
+		await connecting.p;
+		// Disposing the proxy closes its clients while the tunnel is still connecting. Once the client sees that,
+		// the proxy's side has already emitted its 'close'.
+		proxy.dispose();
+		await clientClosed;
+		// Half-open like an agent host stream: ending it leaves its incoming side open, so only destroying it closes it.
+		const tunnel = new stream.Duplex({ allowHalfOpen: true, read() { }, write: (_chunk, _encoding, callback) => callback() });
+		const destroyed = new Promise<boolean>(resolve => tunnel.once('close', () => resolve(true)));
+		connected.complete({ stream: tunnel, leftover: VSBuffer.alloc(0) });
+		const result = await raceTimeout(destroyed, 1000) ?? false;
+
+		assert.strictEqual(result, true);
 	});
 
 	test('CONNECT rejects invalid port 0', async () => {

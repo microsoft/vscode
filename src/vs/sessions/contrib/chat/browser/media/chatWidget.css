@@ -177,10 +177,6 @@
 	transition: width 180ms ease-out, margin-left 180ms ease-out, opacity 180ms ease-out, display 180ms allow-discrete;
 }
 
-.new-chat-session-options-details.legacy-session-options-details {
-	display: contents;
-}
-
 .new-chat-session-options .new-chat-session-options-details[hidden] {
 	display: none;
 	width: 0;
@@ -410,13 +406,6 @@
 }
 
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container {
-	overflow: hidden;
-}
-
-.new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container {
-	display: flex;
-	gap: var(--vscode-spacing-size20);
-	min-width: 0;
 	overflow: hidden;
 }
 
@@ -702,6 +691,13 @@
 	margin-left: 0;
 }
 
+.experimental-new-session-composer .sessions-workspace-category-picker .action-label > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
+}
+
 .new-chat-repository-controls-host {
 	display: contents;
 }
@@ -818,16 +814,17 @@
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
-.sessions-workspace-picker-trigger > .sessions-workspace-clear-button[hidden] {
+.sessions-workspace-picker-trigger > .sessions-workspace-clear-button[hidden],
+.sessions-workspace-picker-trigger.compact-picker > .sessions-workspace-clear-button {
 	display: none;
 }
 
-.sessions-workspace-picker-trigger.workspace-clearable:is(:hover, :focus-within) > .sessions-workspace-clear-button {
+.sessions-workspace-picker-trigger.workspace-clearable:is(:hover, .workspace-focus-visible, .workspace-picker-open) > .sessions-workspace-clear-button {
 	opacity: 1;
 	pointer-events: auto;
 }
 
-.sessions-workspace-picker-trigger.workspace-clearable:is(:hover, :focus-within) .action-label > .codicon:first-child {
+.sessions-workspace-picker-trigger.workspace-clearable:not(.compact-picker):is(:hover, .workspace-focus-visible, .workspace-picker-open) .action-label > .codicon:first-child {
 	opacity: 0;
 }
 
@@ -911,6 +908,7 @@
 	overflow: hidden;
 }
 
+.sessions-chat-picker-slot[hidden],
 .sessions-chat-picker-slot .action-label.hidden {
 	display: none;
 }
@@ -1026,12 +1024,7 @@
 	color: var(--vscode-problemsInfoIcon-foreground) !important;
 }
 
-/* Tab bar styles live with the platform widget
- * (`platform/actionWidget/browser/tabbedActionListWidget.css`). The
- * `sessions-workspace-picker-tabbar` class is applied alongside the
- * generic class so picker-specific overrides can be added here if needed. */
-
-/* Inline browse actions (e.g. "Select Folders…" entries in the Remote tab):
+/* Inline browse actions (e.g. "Select Folders…" entries in the Remote group):
  * show the host name as the primary label and only reveal the secondary
  * "Select Folders…" description on hover/focus to reduce repetition. */
 .action-widget .monaco-list-row.action.sessions-browse-inline-item .description {

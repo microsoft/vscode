@@ -12,7 +12,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { COMPUTER_USE_REQUEST_KEY, type IComputerUseRequest, type IComputerUseSetupActionV1, type IComputerUseStatusV1 } from '../../../../../../platform/agentHost/common/computerUse.js';
-import { readComputerUseStatusFromRootState } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
+import { getComputerUseActivationMessage, readComputerUseStatusFromRootState } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ROOT_STATE_URI, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -28,8 +28,8 @@ export const IComputerUseSetupService = createDecorator<IComputerUseSetupService
 export interface IComputerUseSetupService extends IComputerUseSetupModel {
 	readonly _serviceBrand: undefined;
 
-	/** Opens the setup modal for setup `setupId`, or for the latest setup that waits; an open modal switches to it instead. */
-	open(setupId?: string): void;
+	/** Opens the setup modal for setup `setupId`, or brings the open modal to it, while that setup waits; does nothing otherwise. */
+	open(setupId: string): void;
 
 	/** Lets the setup modal hand Copilot Computer Use to System Settings by hand; desktop clients register it. */
 	registerHelperAppSupport(support: IComputerUseHelperAppSupport): IDisposable;
@@ -45,6 +45,14 @@ export function getComputerUseSetupCardText(): { readonly title: string; readonl
 	return {
 		title: localize('computerUseSetup.card.title', "Computer Use needs permission to control apps and capture their windows."),
 		message: localize('computerUseSetup.card.message', "Copilot continues your task once macOS confirms both permissions."),
+	};
+}
+
+/** The text of the chat card that asks to turn on Computer Use, live or restored. The message is Markdown source. */
+export function getComputerUseActivationCardText(reason: string | undefined): { readonly title: string; readonly message: string } {
+	return {
+		title: localize('computerUseActivation.card.title', "Turn on Computer Use?"),
+		message: getComputerUseActivationMessage(reason),
 	};
 }
 
@@ -103,8 +111,13 @@ export class ComputerUseSetupService extends Disposable implements IComputerUseS
 		});
 	}
 
-	open(setupId?: string): void {
+	open(setupId: string): void {
 		if (!isComputerUseSetupPlatform()) {
+			return;
+		}
+		const state = this.status.get()?.setups.find(candidate => candidate.id === setupId)?.state;
+		if (state !== 'needsPermissions' && state !== 'working') {
+			this._logService.trace(`[ComputerUse] Not opening setup ${setupId}: it doesn't wait for the user`);
 			return;
 		}
 		const open = this._dialog.value;

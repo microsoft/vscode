@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { CanvasInput, canvasOwnerKey, ICanvasContext, ICanvasContextService, ICanvasOwner, ICanvasService, ICanvasWorkingSets } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasInput, canvasOwnerKey, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasOwner, ICanvasService, ICanvasWorkingSets } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../../workbench/contrib/canvases/common/canvasDefinitionStore.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -30,7 +31,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 
 	constructor(
 		@ISessionsService private readonly sessionsService: ISessionsService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@ISessionEditorWorkingSetService editorWorkingSetService: ISessionEditorWorkingSetService,
 		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
@@ -52,15 +53,22 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			this.knownOwners.set(canvasOwnerKey(owner), owner);
 			chatService.chatModels.read(reader);
 			const openRequests = chatService.getSession(chat.resource)?.canvasContext?.read(reader)?.openRequests;
-			return [{ owner, canvases: session.capabilities.read(reader).supportsCanvases ? chat.canvases ?? constObservable(undefined) : constObservable([]), openRequests }];
+			const supportsCanvases = session.capabilities.read(reader).supportsCanvases === true;
+			const canvases = supportsCanvases ? chat.canvases ?? constObservable(undefined) : constObservable([]);
+			const definitionProvider = supportsCanvases ? {
+				onDidChangeDefinitions: Event.fromObservableLight(canvases),
+				listCanvases: () => this.sessionsManagementService.listCanvases(session, chat),
+				openCanvas: (canvas: ICanvasDefinition, instanceId: string) => this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId),
+			} : undefined;
+			return [{ owner, canvases, openRequests, definitionProvider }];
 		});
-		this._register(sessionsManagementService.onDidChangeSessions(event => {
+		this._register(this.sessionsManagementService.onDidChangeSessions(event => {
 			const archived = event.changed.filter(session => session.isArchived.read(undefined));
 			for (const session of [...event.removed, ...archived]) {
 				this.removeOwners(owner => ownsSession(owner, session));
 			}
 		}));
-		this._register(sessionsManagementService.onDidDeleteChat(({ session, chatResource }) => {
+		this._register(this.sessionsManagementService.onDidDeleteChat(({ session, chatResource }) => {
 			this.removeOwners(owner => ownsSession(owner, session) && isEqual(owner.chat, chatResource));
 		}));
 	}
@@ -83,6 +91,11 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			? activeChat
 			: session.chats.read(reader).find(candidate => isEqual(candidate.resource, owner.chat));
 		return { owner, canvases: chat?.canvases ?? constObservable(undefined) };
+	}
+
+	getFrontendSessionResource(owner: ICanvasOwner, reader?: IReader): URI | undefined {
+		const session = this.sessionsService.activeSession.read(reader);
+		return session && ownsSession(owner, session) ? session.resource : undefined;
 	}
 
 	getEditorGroup(_owner: ICanvasOwner, input: CanvasInput, restore: boolean): IEditorGroup | undefined {

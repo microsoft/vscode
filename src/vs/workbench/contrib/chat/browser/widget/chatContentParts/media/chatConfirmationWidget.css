@@ -261,7 +261,7 @@
 	display: flex;
 	gap: 8px;
 	align-items: center;
-	margin-bottom: 8px !important;
+	margin-bottom: 8px;
 
 	.chat-collapsible-io-resource-items {
 		display: flex;
@@ -545,6 +545,18 @@
 
 .chat-confirmation-widget2 .chat-confirmation-message-terminal .chat-confirmation-message-terminal-editor .interactive-result-code-block {
 	border: none !important;
+}
+
+.chat-confirmation-message-terminal-reason {
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+
+	.chat-markdown-part > :first-child {
+		margin-top: 0;
+	}
+
+	.chat-markdown-part > :last-child {
+		margin-bottom: 0;
+	}
 }
 
 .chat-confirmation-message-terminal .chat-confirmation-message-terminal-disclaimer p:last-child {

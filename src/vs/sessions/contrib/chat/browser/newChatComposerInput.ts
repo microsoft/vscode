@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import * as dom from '../../../../base/browser/dom.js';
@@ -119,20 +120,26 @@ export interface INewChatComposerInputOptions {
 	readonly onDidChangeWorkspaceSelection?: Event<void>;
 	readonly canApplyWorkspaceDefault?: () => boolean;
 	readonly sendRequest: (request: INewChatInputSendRequest) => Promise<boolean>;
+	/**
+	 * Asks the host about a request before it is sent. Answering is not part of the request's latency,
+	 * so it runs before the request is measured. Resolves `false` to cancel the send.
+	 */
+	readonly confirmSend?: (query: string) => Promise<boolean>;
 	readonly inputVisible?: IObservable<boolean>;
 	readonly hostVisible?: IObservable<boolean>;
 	readonly canSendRequest: IObservable<boolean>;
 	readonly canSubmitWithoutSession?: IObservable<boolean>;
 	readonly hasAdditionalSendContent?: IObservable<boolean>;
 	readonly loading: IObservable<boolean>;
-	readonly useExperimentalLayout?: IObservable<boolean>;
 	readonly placeholder?: string;
+	/** Marks the input box as this onboarding spotlight target. */
+	readonly onboardingTargetId?: string;
 	/**
 	 * The repository controls (such as isolation and branch). By default the session provider
 	 * contributes them; `false` renders none, and a function renders the host's own controls in
 	 * their place, so they are positioned like the provider's.
 	 */
-	readonly renderRepositoryControls?: boolean | ((container: HTMLElement) => IComposerRepositoryControls);
+	readonly renderRepositoryControls?: boolean | ((container: HTMLElement, hoverDelegate: IHoverDelegate) => IComposerRepositoryControls);
 	readonly sessionTypePickerOptions?: ISessionTypePickerOptions;
 	readonly supportsBackground?: boolean;
 	readonly sendButtonLabel?: IObservable<string | undefined>;
@@ -141,6 +148,7 @@ export interface INewChatComposerInputOptions {
 	readonly petHostPreferred?: IObservable<boolean>;
 	readonly getChatPetPlatformElements?: () => readonly HTMLElement[];
 	readonly getChatPetBasePlatformElement?: () => HTMLElement | undefined;
+	readonly getChatPetJumpGameElement?: () => HTMLElement | undefined;
 	readonly onDidChangeChatPetPlatform?: Event<void>;
 	readonly setChatPetPlatformOccupation?: (occupation: IChatPetPlatformOccupation | undefined) => void;
 	/**

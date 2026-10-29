@@ -6,7 +6,7 @@
 import { Limiter, Sequencer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
-import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage, isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../base/common/map.js';
 import { constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -17,12 +17,12 @@ import { IDefaultAccountService } from '../../../../../platform/defaultAccount/c
 import { RepositoryRef } from '../../../../../platform/github/common/client/types.js';
 import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
 import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
-import { AutomationDetail, AutomationToolGroup, CreateAutomationRequest, EditAutomationRequest, IAutomationsClient } from '../../../../../platform/github/common/missionControl/automations.js';
+import { AutomationDetail, AutomationRepositoryConfiguration, AutomationToolGroup, CreateAutomationRequest, EditAutomationRequest, IAutomationsClient } from '../../../../../platform/github/common/missionControl/automations.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { Task } from '../../../../../platform/github/common/missionControl/tasks.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { AutomationCatalogueState, AutomationMutationUncertainError, AutomationTriggerCatalog, AutomationUnavailableError, IAutomationRefreshOptions, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationUncertainError, AutomationRepositoryOwnershipUnavailableError, AutomationTriggerCatalog, AutomationUnavailableError, IAutomationRefreshOptions, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
@@ -64,7 +64,9 @@ export class GitHubCloudAutomationStore extends Disposable {
 	readonly mutationUncertain: IObservable<boolean> = this.uncertain;
 	private readonly targetEligibility = new Map<string, ReturnType<typeof observableValue<IAutomationWorkspaceTarget>>>();
 	private readonly targetRepositories = new Map<string, RepositoryRef>();
-	private readonly repositoryManageability = new Map<string, boolean>();
+	private readonly repositoryPrivacy = new Map<string, boolean>();
+	private readonly repositoryConfigurations = new Map<string, AutomationRepositoryConfiguration>();
+	private readonly repositoryPrivacyFailures = new LRUCache<string, number>(MAX_REPOSITORY_CAPABILITY_FAILURES);
 	private readonly repositoryManageabilityFailures = new LRUCache<string, number>(MAX_REPOSITORY_CAPABILITY_FAILURES);
 	private readonly targetEligibilityLimiter = this._register(new Limiter<void>(5));
 	private readonly cachedTools = observableValue<CloudAutomationToolCatalog | undefined>(this, undefined);
@@ -109,24 +111,39 @@ export class GitHubCloudAutomationStore extends Disposable {
 				const resolvedRepository = await this.resolveRepository(workspace);
 				repository = resolvedRepository;
 				signal.throwIfAborted();
-				const canManage = resolvedRepository && (await this.withClient(signal, (client, signal) => client.automations.getConfiguration(resolvedRepository, signal))).can_manage_automations;
+				const repositoryState = resolvedRepository
+					? await this.withClient(signal, async (client, signal) => {
+						const metadata = await client.repositories.get(resolvedRepository, signal);
+						const configuration = metadata.private
+							? await client.automations.getConfiguration(resolvedRepository, signal)
+							: undefined;
+						return { isPrivate: metadata.private, configuration };
+					})
+					: undefined;
 				signal.throwIfAborted();
 				if (this.targetEligibility.get(key) !== result) {
 					return;
 				}
 				if (repository) {
+					this.setRepositoryPrivacy(repositoryKey(repository), repositoryState?.isPrivate === true);
+					if (repositoryState?.configuration) {
+						this.setRepositoryConfiguration(repositoryKey(repository), repositoryState.configuration);
+					}
 					this.targetRepositories.set(key, repository);
-					this.setRepositoryManageability(repositoryKey(repository), canManage === true);
 				}
-				result.set(repository && canManage ? {
+				const configuration = repository ? this.repositoryConfigurations.get(repositoryKey(repository)) : undefined;
+				result.set(repository && repositoryState?.isPrivate && repositoryState.configuration?.can_manage_automations ? {
 					workspace: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.repo}/HEAD` }),
 					repositoryLabel: repositoryDisplayName(repository),
+					allowReadAccessTriggers: repositoryState.configuration.allow_read_access_triggers,
 				} : {
 					disabledReason: repository
 						? localize('cloudAutomations.manageabilityRequired', "Cloud automations cannot be managed for this repository.")
 						: required,
 					isRepository: repository !== undefined,
+					...(repositoryState?.isPrivate === false ? { isPrivateRepository: false } : {}),
 					repositoryLabel: repository ? repositoryDisplayName(repository) : undefined,
+					...(configuration ? { allowReadAccessTriggers: configuration.allow_read_access_triggers } : {}),
 				}, undefined);
 			} catch (error) {
 				if (!isCancellationError(error)) {
@@ -144,10 +161,69 @@ export class GitHubCloudAutomationStore extends Disposable {
 		return result;
 	}
 
+	async isRepositorySelectable(repository: RepositoryRef, token: CancellationToken): Promise<boolean> {
+		const key = repositoryKey(repository);
+		const knownPrivate = this.repositoryPrivacy.get(key);
+		const knownManageability = this.repositoryConfigurations.get(key)?.can_manage_automations;
+		if (knownPrivate === false) {
+			return false;
+		}
+		if (knownPrivate === true && knownManageability !== undefined) {
+			return knownManageability;
+		}
+		if (knownManageability === false) {
+			return false;
+		}
+		const privacyRetryAfter = this.repositoryPrivacyFailures.get(key);
+		const manageabilityRetryAfter = this.repositoryManageabilityFailures.get(key);
+		if ((privacyRetryAfter !== undefined && privacyRetryAfter > Date.now())
+			|| (manageabilityRetryAfter !== undefined && manageabilityRetryAfter > Date.now())) {
+			return false;
+		}
+		if (privacyRetryAfter !== undefined) {
+			this.repositoryPrivacyFailures.delete(key);
+		}
+		if (manageabilityRetryAfter !== undefined) {
+			this.repositoryManageabilityFailures.delete(key);
+		}
+		const resources = new DisposableStore();
+		const signal = AbortSignal.any([this.lifetime.signal, CancellationToken.toAbortSignal(token, resources)]);
+		try {
+			this.requireAccount();
+			const { isPrivate, configuration } = await this.withClient(signal, async (client, signal) => {
+				const metadata = await client.repositories.get(repository, signal);
+				const configuration = metadata.private
+					? await client.automations.getConfiguration(repository, signal)
+					: undefined;
+				return { isPrivate: metadata.private, configuration };
+			});
+			signal.throwIfAborted();
+			this.setRepositoryPrivacy(key, isPrivate);
+			if (configuration) {
+				this.setRepositoryConfiguration(key, configuration);
+			}
+			this.repositoryPrivacyFailures.delete(key);
+			this.repositoryManageabilityFailures.delete(key);
+			return isPrivate && configuration?.can_manage_automations === true;
+		} catch (error) {
+			signal.throwIfAborted();
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			const retryAfter = Date.now() + REPOSITORY_CAPABILITY_FAILURE_RETRY_DELAY;
+			this.repositoryPrivacyFailures.set(key, retryAfter);
+			this.repositoryManageabilityFailures.set(key, retryAfter);
+			this.logService.warn(`[CloudAutomations] Failed to verify ${key}`, error);
+			return false;
+		} finally {
+			resources.dispose();
+		}
+	}
+
 	async isRepositoryManageable(repository: RepositoryRef, token: CancellationToken): Promise<boolean> {
 		const key = repositoryKey(repository);
-		if (this.repositoryManageability.has(key)) {
-			return this.repositoryManageability.get(key) === true;
+		if (this.repositoryConfigurations.has(key)) {
+			return this.repositoryConfigurations.get(key)?.can_manage_automations === true;
 		}
 		const retryAfter = this.repositoryManageabilityFailures.get(key);
 		if (retryAfter !== undefined) {
@@ -160,11 +236,11 @@ export class GitHubCloudAutomationStore extends Disposable {
 		const signal = AbortSignal.any([this.lifetime.signal, CancellationToken.toAbortSignal(token, resources)]);
 		try {
 			this.requireAccount();
-			const canManage = (await this.withClient(signal, (client, signal) => client.automations.getConfiguration(repository, signal))).can_manage_automations;
+			const configuration = await this.withClient(signal, (client, signal) => client.automations.getConfiguration(repository, signal));
 			signal.throwIfAborted();
 			this.repositoryManageabilityFailures.delete(key);
-			this.setRepositoryManageability(key, canManage);
-			return canManage;
+			this.setRepositoryConfiguration(key, configuration);
+			return configuration.can_manage_automations;
 		} catch (error) {
 			signal.throwIfAborted();
 			if (isCancellationError(error)) {
@@ -179,7 +255,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 	}
 
 	canManageRepository(repository: RepositoryRef): boolean {
-		return this.repositoryManageability.get(repositoryKey(repository)) === true;
+		return this.repositoryConfigurations.get(repositoryKey(repository))?.can_manage_automations === true;
 	}
 
 	/** Loads the account's tool catalog once per account lifetime; a failed load can be retried. */
@@ -247,6 +323,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		}
 		if (!options?.background) {
 			this.clearTargetEligibility();
+			this.repositoryPrivacyFailures.clear();
 			this.repositoryManageabilityFailures.clear();
 		}
 		const signal = this.lifetime.signal;
@@ -315,12 +392,19 @@ export class GitHubCloudAutomationStore extends Disposable {
 		if (!repository) {
 			throw new Error(localize('cloudAutomations.repositoryRequired', "Select a GitHub.com repository for this cloud automation."));
 		}
-		return this.mutate(repository, async (client, ref, signal) => {
-			this.rememberRepositories(account.accountName, [repository], signal);
-			guard?.();
-			const definition = await client.automations.create(ref, value, signal);
-			return this.publish(repository, definition, signal);
-		}, CancellationToken.None, signal);
+		try {
+			return await this.mutate(repository, async (client, ref, signal) => {
+				this.rememberRepositories(account.accountName, [repository], signal);
+				guard?.();
+				const definition = await client.automations.create(ref, value, signal);
+				return this.publish(repository, definition, signal);
+			}, CancellationToken.None, signal);
+		} catch (error) {
+			if (value.ownership === 'repository' && isRepositoryOwnershipUnsupportedError(error)) {
+				throw new AutomationRepositoryOwnershipUnavailableError(repositoryOwnershipUnsupportedMessage(), { cause: error });
+			}
+			throw error;
+		}
 	}
 
 	/** The preflight callback may decline an update after comparing the latest authoritative definition. */
@@ -438,10 +522,10 @@ export class GitHubCloudAutomationStore extends Disposable {
 			try {
 				const signal = AbortSignal.any([lifetime, CancellationToken.toAbortSignal(token, resources)]);
 				return await this.withClient(signal, async (client, signal) => {
-					const canManage = (await client.automations.getConfiguration(repository, signal)).can_manage_automations;
+					const configuration = await client.automations.getConfiguration(repository, signal);
 					signal.throwIfAborted();
-					this.setRepositoryManageability(repositoryKey(repository), canManage);
-					if (!canManage) {
+					this.setRepositoryConfiguration(repositoryKey(repository), configuration);
+					if (!configuration.can_manage_automations) {
 						throw new AutomationUnavailableError(localize('cloudAutomations.manageabilityRequired', "Cloud automations cannot be managed for this repository."));
 					}
 					return operation(client, repository, signal);
@@ -507,10 +591,10 @@ export class GitHubCloudAutomationStore extends Disposable {
 		const eligible: RepositoryRef[] = [];
 		for (const [key, repository] of repositories) {
 			try {
-				const canManage = (await client.automations.getConfiguration(repository, signal, options)).can_manage_automations;
+				const configuration = await client.automations.getConfiguration(repository, signal, options);
 				signal.throwIfAborted();
-				this.setRepositoryManageability(key, canManage);
-				if (!canManage) {
+				this.setRepositoryConfiguration(key, configuration);
+				if (!configuration.can_manage_automations) {
 					snapshot.delete(key);
 					continue;
 				}
@@ -561,7 +645,9 @@ export class GitHubCloudAutomationStore extends Disposable {
 	private reset(): void {
 		this.lifetime.abort(new CancellationError());
 		this.clearTargetEligibility();
-		this.repositoryManageability.clear();
+		this.repositoryConfigurations.clear();
+		this.repositoryPrivacy.clear();
+		this.repositoryPrivacyFailures.clear();
 		this.repositoryManageabilityFailures.clear();
 		this.lifetime = new AbortController();
 		this.clientPromise = undefined;
@@ -579,24 +665,46 @@ export class GitHubCloudAutomationStore extends Disposable {
 		});
 	}
 
-	private setRepositoryManageability(key: string, canManage: boolean): void {
+	private setRepositoryConfiguration(key: string, configuration: AutomationRepositoryConfiguration): void {
 		this.repositoryManageabilityFailures.delete(key);
-		const changed = this.repositoryManageability.has(key) && this.repositoryManageability.get(key) !== canManage;
-		this.repositoryManageability.set(key, canManage);
-		if (changed) {
+		const previous = this.repositoryConfigurations.get(key);
+		this.repositoryConfigurations.set(key, configuration);
+		if (previous && previous.can_manage_automations !== configuration.can_manage_automations) {
 			this.cachedEntries.set([...this.cachedEntries.get()], undefined);
-			for (const [targetKey, repository] of this.targetRepositories) {
-				if (repositoryKey(repository) === key) {
-					this.targetEligibility.get(targetKey)?.set(canManage ? {
-						workspace: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.repo}/HEAD` }),
-						repositoryLabel: repositoryDisplayName(repository),
-					} : {
-						disabledReason: localize('cloudAutomations.manageabilityRequired', "Cloud automations cannot be managed for this repository."),
-						isRepository: true,
-						repositoryLabel: repositoryDisplayName(repository),
-					}, undefined);
-				}
+		}
+		if (!previous || previous.can_manage_automations !== configuration.can_manage_automations
+			|| previous.allow_read_access_triggers !== configuration.allow_read_access_triggers) {
+			this.updateRepositoryTargets(key);
+		}
+	}
+
+	private setRepositoryPrivacy(key: string, isPrivate: boolean): void {
+		const changed = this.repositoryPrivacy.get(key) !== isPrivate;
+		this.repositoryPrivacy.set(key, isPrivate);
+		if (changed) {
+			this.updateRepositoryTargets(key);
+		}
+	}
+
+	private updateRepositoryTargets(key: string): void {
+		for (const [targetKey, repository] of this.targetRepositories) {
+			if (repositoryKey(repository) !== key) {
+				continue;
 			}
+			const isPrivate = this.repositoryPrivacy.get(key);
+			const configuration = this.repositoryConfigurations.get(key);
+			const canSelect = isPrivate === true && configuration?.can_manage_automations === true;
+			this.targetEligibility.get(targetKey)?.set(canSelect ? {
+				workspace: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.repo}/HEAD` }),
+				repositoryLabel: repositoryDisplayName(repository),
+				allowReadAccessTriggers: configuration.allow_read_access_triggers,
+			} : {
+				disabledReason: localize('cloudAutomations.manageabilityRequired', "Cloud automations cannot be managed for this repository."),
+				isRepository: true,
+				...(isPrivate === false ? { isPrivateRepository: false } : {}),
+				repositoryLabel: repositoryDisplayName(repository),
+				...(configuration ? { allowReadAccessTriggers: configuration.allow_read_access_triggers } : {}),
+			}, undefined);
 		}
 	}
 
@@ -665,6 +773,15 @@ export class GitHubCloudAutomationStore extends Disposable {
 
 function repositoryKey(repository: RepositoryRef): string {
 	return `${repository.owner}/${repository.repo}`.toLowerCase();
+}
+
+function repositoryOwnershipUnsupportedMessage(): string {
+	return localize('cloudAutomations.repositoryOwnershipUnavailable', "Repository owned automations are only supported for private repositories.");
+}
+
+function isRepositoryOwnershipUnsupportedError(error: unknown): boolean {
+	const message = error instanceof ApiRequestError ? error.response?.message : getErrorMessage(error);
+	return message?.toLowerCase().includes('ownership "repository" is not currently available for this repository') === true;
 }
 
 function repositoryDisplayName(repository: RepositoryRef): string {

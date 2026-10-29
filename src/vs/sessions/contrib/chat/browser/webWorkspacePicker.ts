@@ -123,12 +123,6 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		}));
 	}
 
-	protected override _showTabs(): boolean {
-		// Scoped picker is already filtered to a single host — the categorical
-		// tab bar would be redundant.
-		return false;
-	}
-
 	override showPicker(force = false, anchor?: HTMLElement, preferredGroup?: string, attachesContext?: boolean): void {
 		const trigger = anchor ?? this._triggerElement;
 		if (!trigger) {
@@ -155,7 +149,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			items,
 			item => this._dispatchPickerItem(item),
 			this._getAllBrowseActions(),
-			this._useConsolidatedRemoteWorkspaces() && attachesContext !== true,
+			attachesContext !== true,
 			cancellation.token,
 		).finally(() => {
 			if (this._mobilePicker.value === resources) {
@@ -200,8 +194,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		}
 
 		// 1. Recent workspaces across every provider the entry scopes to.
-		const isConsolidatedWorkspacePicker = this._useConsolidatedRemoteWorkspaces()
-			&& this._directPickerGroup === undefined
+		const isConsolidatedWorkspacePicker = this._directPickerGroup === undefined
 			&& this._directPickerAttachesContext !== true;
 		const includeGitHub = !!scoped.sessionCreationProviderId || this._directPickerGroup === SESSION_WORKSPACE_GROUP_GITHUB || isConsolidatedWorkspacePicker;
 		const gitHubGroupAction = isConsolidatedWorkspacePicker && !scoped.sessionCreationProviderId

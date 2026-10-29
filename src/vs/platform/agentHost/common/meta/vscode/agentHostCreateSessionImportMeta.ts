@@ -691,4 +691,3 @@ export function withCreateSessionImportMeta(meta: Readonly<Record<string, unknow
 export function withStagedCreateSessionImportMeta(meta: Readonly<Record<string, unknown>> | undefined, transferId: string): Record<string, unknown> {
 	return { ...meta, [AgentHostCreateSessionImportMetaKey]: { transferId } };
 }
-

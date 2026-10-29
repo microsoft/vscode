@@ -83,6 +83,30 @@ const targetArtifacts: Readonly<Record<string, string>> = {
 };
 
 /**
+ * The VS Code process logs that {@link TestContext.captureLogs} copies, most useful first. Extension
+ * output logs are left out, since they are not needed to diagnose the workbench and may contain
+ * more varied content.
+ */
+const capturedLogNames: readonly string[] = [
+	'main.log',
+	'sharedprocess.log',
+	'renderer.log',
+	'exthost.log',
+	'ptyhost.log',
+	'agenthost.log',
+	'network-shared.log',
+	'network.log',
+];
+
+const capturedLogRanks: ReadonlyMap<string, number> = new Map(capturedLogNames.map((name, rank) => [name, rank]));
+
+/** How much of each captured log file {@link TestContext.captureLogs} keeps, from its end. */
+const maxCapturedLogFileBytes = 2 * 1024 * 1024;
+
+/** How many bytes of logs {@link TestContext.captureLogs} copies at most per capture. */
+const maxCapturedLogBytes = 10 * 1024 * 1024;
+
+/**
  * Provides context and utilities for VS Code sanity tests.
  */
 export class TestContext {
@@ -1428,6 +1452,88 @@ export class TestContext {
 			this.log(`Screenshot saved to: ${screenshotPath}`);
 		} catch (e) {
 			this.warn(`Failed to capture screenshot: ${e instanceof Error ? e.message : String(e)}`);
+		}
+	}
+
+	/**
+	 * Copies VS Code's own process logs ({@link capturedLogNames}) from `logsDir` into the screenshots
+	 * directory, so they are uploaded with the screenshots. Extension output logs are not copied. Overwrites an
+	 * earlier copy for the same test. Each file keeps at most its last `maxFileBytes` bytes, and
+	 * copying stops once `maxTotalBytes` are copied.
+	 */
+	public captureLogs(logsDir: string, maxFileBytes = maxCapturedLogFileBytes, maxTotalBytes = maxCapturedLogBytes) {
+		if (!this.currentTestName) {
+			return;
+		}
+
+		try {
+			if (!fs.existsSync(logsDir)) {
+				this.warn(`No logs to capture in ${logsDir}`);
+				return;
+			}
+			const screenshotDir = this.options.screenshotsDir ?? path.join(this.osTempDir, 'vscode-sanity-screenshots');
+			const sanitizedName = this.currentTestName.replace(/[^a-zA-Z0-9_-]/g, '_');
+			const targetDir = path.join(screenshotDir, `${sanitizedName}-logs`);
+			fs.rmSync(targetDir, { recursive: true, force: true });
+
+			// Collect first, then copy in allowlist order (most useful logs first), so the size cap is deterministic.
+			const sources: string[] = [];
+			const pending = [logsDir];
+			for (let dir = pending.pop(); dir !== undefined; dir = pending.pop()) {
+				for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+					// Dirent types do not follow symlinks, so a symlink is neither a directory nor a file here and is skipped.
+					const source = path.join(dir, entry.name);
+					if (entry.isDirectory()) {
+						pending.push(source);
+					} else if (entry.isFile() && capturedLogRanks.has(entry.name)) {
+						sources.push(source);
+					}
+				}
+			}
+			sources.sort((a, b) => capturedLogRanks.get(path.basename(a))! - capturedLogRanks.get(path.basename(b))! || a.localeCompare(b));
+
+			let totalBytes = 0;
+			let fileCount = 0;
+			for (const source of sources) {
+				const size = fs.statSync(source).size;
+				if (size === 0) {
+					continue;
+				}
+				if (totalBytes >= maxTotalBytes) {
+					this.warn(`Stopped capturing logs after ${totalBytes} bytes`);
+					break;
+				}
+				const bytes = Math.min(size, maxFileBytes, maxTotalBytes - totalBytes);
+				const buffer = Buffer.alloc(bytes);
+				let bytesRead = 0;
+				const fd = fs.openSync(source, 'r');
+				try {
+					while (bytesRead < bytes) {
+						const read = fs.readSync(fd, buffer, bytesRead, bytes - bytesRead, size - bytes + bytesRead);
+						if (read === 0) {
+							break;
+						}
+						bytesRead += read;
+					}
+				} finally {
+					fs.closeSync(fd);
+				}
+				if (bytesRead === 0) {
+					continue;
+				}
+				const target = path.join(targetDir, path.relative(logsDir, source));
+				fs.mkdirSync(path.dirname(target), { recursive: true });
+				fs.writeFileSync(target, buffer.subarray(0, bytesRead));
+				totalBytes += bytesRead;
+				fileCount++;
+			}
+			if (fileCount === 0) {
+				this.log(`No non-empty log files to capture in ${logsDir}`);
+			} else {
+				this.log(`Captured ${fileCount} log files (${totalBytes} bytes) to: ${targetDir}`);
+			}
+		} catch (e) {
+			this.warn(`Failed to capture logs: ${e instanceof Error ? e.message : String(e)}`);
 		}
 	}
 

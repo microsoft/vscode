@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IGitHubChangedFile, IGitHubPullRequestContext, IGitHubPullRequestSummary, IGitHubPullRequestsPage, IGitHubRepository } from '../common/types.js';
+import { IGitHubChangedFile, IGitHubPullRequestChanges, IGitHubPullRequestContext, IGitHubPullRequestSummary, IGitHubPullRequestsPage, IGitHubRepository } from '../common/types.js';
 import { GitHubApiClient } from './githubApiClient.js';
 import { GitHubPullRequestModel, GitHubPullRequestModelReferenceCollection } from './models/githubPullRequestModel.js';
 import { GitHubPullRequestReviewThreadsModel, GitHubPullRequestReviewThreadsModelReferenceCollection } from './models/githubPullRequestReviewThreadsModel.js';
@@ -19,6 +19,7 @@ import { GitHubRecentUserWorkFetcher, IGitHubRecentIssue, IGitHubRecentPullReque
 import { GitHubPullRequestsFetcher } from './fetchers/githubPullRequestsFetcher.js';
 import { GitHubPullRequestContextFetcher } from './fetchers/githubPullRequestContextFetcher.js';
 import { GitHubRepositoryFetcher } from './fetchers/githubRepositoryFetcher.js';
+import { PullRequestChecksSource } from './fetchers/githubPRChecksSource.js';
 import { getPullRequestKey } from '../common/utils.js';
 import { derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
@@ -81,6 +82,11 @@ export interface IGitHubService {
 	 */
 	getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]>;
 	getPullRequestChangedFiles(owner: string, repo: string, pullRequestNumber: number): Promise<readonly IGitHubChangedFile[]>;
+	/**
+	 * List the files a pull request changes along with its current title and
+	 * the merge base and head commits that bound its diff.
+	 */
+	getPullRequestChanges(owner: string, repo: string, pullRequestNumber: number): Promise<IGitHubPullRequestChanges>;
 	getFileContent(owner: string, repo: string, path: string, ref: string): Promise<string>;
 
 	/** List one page of open pull requests, ordered by most recently updated. */
@@ -160,7 +166,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 		this._pullRequestReferences = instantiationService.createInstance(GitHubPullRequestModelReferenceCollection, apiClient);
 		this._pullRequestReviewThreadsReferences = instantiationService.createInstance(GitHubPullRequestReviewThreadsModelReferenceCollection, apiClient);
-		this._pullRequestCIReferences = instantiationService.createInstance(GitHubPullRequestCIModelReferenceCollection, apiClient);
+		this._pullRequestCIReferences = instantiationService.createInstance(GitHubPullRequestCIModelReferenceCollection, apiClient, instantiationService.createInstance(PullRequestChecksSource));
 		this._issueReferences = this._register(instantiationService.createInstance(GitHubIssueModelReferenceCollection, apiClient));
 		this._register(apiClient.onDidChange(() => this._findPRByBranchCache.clear()));
 
@@ -296,6 +302,10 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 	getPullRequestChangedFiles(owner: string, repo: string, pullRequestNumber: number): Promise<readonly IGitHubChangedFile[]> {
 		return this._pullRequestFetcher.getChangedFiles(owner, repo, pullRequestNumber);
+	}
+
+	getPullRequestChanges(owner: string, repo: string, pullRequestNumber: number): Promise<IGitHubPullRequestChanges> {
+		return this._pullRequestFetcher.getChanges(owner, repo, pullRequestNumber);
 	}
 
 	async getFileContent(owner: string, repo: string, path: string, ref: string): Promise<string> {

@@ -17,6 +17,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenuEntryActionViewItemOptions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -255,8 +256,9 @@ class ChangesActivityBarActionViewItem extends SessionActivityBarActionViewItem 
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ISessionActivityBarActivityService activityService: ISessionActivityBarActivityService,
+		@ICommandService commandService: ICommandService,
 	) {
-		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService, activityService);
+		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService, activityService, commandService);
 
 		this._register(autorun(reader => {
 			this.stats.read(reader);

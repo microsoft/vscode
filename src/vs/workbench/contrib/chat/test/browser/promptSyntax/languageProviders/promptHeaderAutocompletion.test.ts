@@ -28,9 +28,10 @@ import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
-import { createVSCodeHarnessDescriptor, ICustomizationHarnessService, type IAgentFileToolInventoryEntry } from '../../../../common/customizationHarnessService.js';
+import { createVSCodeHarnessDescriptor, ICustomizationHarnessService, type IAgentFileToolInventoryEntry, type ICustomizationItem } from '../../../../common/customizationHarnessService.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
 import { Event } from '../../../../../../../base/common/event.js';
+import { AICustomizationSources } from '../../../../common/aiCustomizationWorkspaceService.js';
 
 suite('PromptHeaderAutocompletion', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,11 +41,15 @@ suite('PromptHeaderAutocompletion', () => {
 	let activeTarget: Target;
 	let copilotToolInventory: readonly IAgentFileToolInventoryEntry[];
 	let otherCopilotToolInventory: readonly IAgentFileToolInventoryEntry[];
+	let copilotSkillInventory: ICustomizationItem[];
+	let otherCopilotSkillInventory: ICustomizationItem[];
 
 	setup(async () => {
 		activeTarget = Target.Undefined;
 		copilotToolInventory = [];
 		otherCopilotToolInventory = [];
+		copilotSkillInventory = [];
+		otherCopilotSkillInventory = [];
 		const testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 		instaService = workbenchInstantiationService({
@@ -116,7 +121,7 @@ suite('PromptHeaderAutocompletion', () => {
 			customAgentTarget: Target.GitHubCopilot,
 			itemProvider: {
 				onDidChange: Event.None,
-				provideChatSessionCustomizations: async () => [],
+				provideChatSessionCustomizations: async () => copilotSkillInventory,
 				provideAgentFileTools: async () => copilotToolInventory,
 			},
 		};
@@ -126,7 +131,7 @@ suite('PromptHeaderAutocompletion', () => {
 			customAgentTarget: Target.GitHubCopilot,
 			itemProvider: {
 				onDidChange: Event.None,
-				provideChatSessionCustomizations: async () => [],
+				provideChatSessionCustomizations: async () => otherCopilotSkillInventory,
 				provideAgentFileTools: async () => otherCopilotToolInventory,
 			},
 		};
@@ -466,6 +471,25 @@ suite('PromptHeaderAutocompletion', () => {
 			assert.deepStrictEqual(labels, ['execute', 'read', 'edit', 'search', 'agent', 'web', 'todo', '*', 'publisher.extension/clientTool', 'github/*', 'disabled/*', 'other.extension/remoteClientTool', 'playwright/*']);
 		});
 
+		test('complete github-copilot skills from all matching harness inventories', async () => {
+			copilotSkillInventory = [
+				createSkill('review', { description: 'Review changes' }),
+				createSkill('disabled-skill', { enabled: false }),
+			];
+			otherCopilotSkillInventory = [createSkill('testing', { source: AICustomizationSources.plugin })];
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'skills: [|]',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
+
+			assert.deepStrictEqual(labels, ['review', 'disabled-skill', 'testing']);
+		});
+
 		test('complete github-copilot github properties', async () => {
 			const content = [
 				'---',
@@ -481,6 +505,19 @@ suite('PromptHeaderAutocompletion', () => {
 
 			assert.deepStrictEqual(labels, ['permissions']);
 		});
+
+		function createSkill(name: string, overrides: Partial<ICustomizationItem> = {}): ICustomizationItem {
+			return {
+				uri: URI.parse(`test:/skills/${name}/SKILL.md`),
+				type: PromptsType.skill,
+				name,
+				source: AICustomizationSources.local,
+				extensionId: undefined,
+				pluginUri: undefined,
+				enabled: true,
+				...overrides,
+			};
+		}
 
 		test('complete first github-copilot github property', async () => {
 			const content = [

@@ -222,7 +222,7 @@ export async function toSdkCustomAgents(
 					...(description ? { description } : {}),
 					...(model ? { model } : {}),
 					...(isCustomAgentReasoningEffort(reasoningEffort) ? { reasoningEffort } : {}),
-					tools: tools && tools.length > 0 ? tools.map(tool => clientToolNames?.get(tool) ?? tool) : null,
+					tools: tools && tools.length > 0 ? tools : null,
 					...(skills !== undefined ? { skills } : {}),
 					...(hooks ? { hooks } : {}),
 					...(infer !== undefined ? { infer } : {}),
@@ -234,7 +234,15 @@ export async function toSdkCustomAgents(
 			// Skip agents whose file cannot be read
 		}
 	}
-	return configs;
+	return clientToolNames ? mapCopilotCustomAgentTools(configs, clientToolNames) : configs;
+}
+
+/** Projects authored tool references without rereading or mutating the parsed agent configurations. */
+export function mapCopilotCustomAgentTools<T extends CustomAgentConfig>(agents: readonly T[], clientToolNames: ReadonlyMap<string, string>): T[] {
+	return agents.map(agent => agent.tools ? {
+		...agent,
+		tools: agent.tools.map(tool => clientToolNames.get(tool) ?? tool),
+	} : agent);
 }
 
 /** The agents contributed by a plugin. */

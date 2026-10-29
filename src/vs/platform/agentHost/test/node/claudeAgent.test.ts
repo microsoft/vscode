@@ -33,6 +33,7 @@ import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
@@ -532,6 +533,23 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 	accountInfoResult: AccountInfo = { tokenSource: 'none', apiProvider: 'firstParty' };
 	accountInfoCallCount = 0;
 
+	private readonly _onDidRecordCall = new Emitter<void>();
+
+	/** Called by {@link FakeQuery} after it counts a `supportedModels` or `accountInfo` call. */
+	fireDidRecordCall(): void {
+		this._onDidRecordCall.fire();
+	}
+
+	/**
+	 * Resolves once `condition` holds. It is checked now and again after each
+	 * counted `supportedModels` and `accountInfo` call.
+	 */
+	async waitForCalls(condition: () => boolean): Promise<void> {
+		if (!condition()) {
+			await Event.toPromise(Event.filter(this._onDidRecordCall.event, () => condition()));
+		}
+	}
+
 	/**
 	 * Optional gate awaited by {@link FakeQuery.supportedModels} before it
 	 * resolves. Lets a test park the native half of a merged refresh mid-flight
@@ -919,6 +937,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	}
 	supportedModels(): Promise<ModelInfo[]> {
 		this._sdk.supportedModelsCallCount++;
+		this._sdk.fireDidRecordCall();
 		if (this._sdk.supportedModelsRejection) {
 			return Promise.reject(this._sdk.supportedModelsRejection);
 		}
@@ -953,6 +972,7 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	}
 	accountInfo(): Promise<AccountInfo> {
 		this._sdk.accountInfoCallCount++;
+		this._sdk.fireDidRecordCall();
 		return Promise.resolve(this._sdk.accountInfoResult);
 	}
 	rewindFiles(): never { throw new Error('FakeQuery: rewindFiles not modeled'); }
@@ -1243,6 +1263,16 @@ function createTestContext(
 /** Drains the microtask queue so awaited refresh writes settle. */
 function tick(): Promise<void> {
 	return new Promise(resolve => setImmediate(resolve));
+}
+
+/**
+ * Waits until the model refresh that the constructor queues has published. Its
+ * `accountInfo` call shows that it has started; it is then either the agent's
+ * in-flight refresh or has already published.
+ */
+async function bootstrapModelRefresh(agent: ClaudeAgent, sdk: FakeClaudeAgentSdkService): Promise<void> {
+	await sdk.waitForCalls(() => sdk.accountInfoCallCount > 0);
+	await agent['_modelRefreshInFlight'];
 }
 
 /**
@@ -1685,9 +1715,7 @@ suite('ClaudeAgent', () => {
 			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '', supportedEffortLevels: ['high'] },
 		];
 		// The constructor's bootstrap refresh publishes native-only (no token yet).
-		for (let i = 0; i < 100 && agent.models.get().length === 0; i++) {
-			await tick();
-		}
+		await waitForState(agent.models, models => models.length > 0);
 		const bootstrap = agent.models.get().map(model => model.name);
 
 		// Hold the CAPI enumeration open so the post-sign-in refresh is still in
@@ -1722,12 +1750,8 @@ suite('ClaudeAgent', () => {
 		sdk.supportedModelsResult = [
 			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '', supportedEffortLevels: ['high'] },
 		];
-		// The constructor kicks off an initial native refresh; `_fetchNativeModels`
-		// awaits a real `mkdtemp` before enumerating, so poll until it lands.
-		for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
-			await tick();
-		}
-		await tick();
+		// The constructor kicks off an initial native refresh; wait for it to publish.
+		await bootstrapModelRefresh(agent, sdk);
 		assert.deepStrictEqual({
 			models: agent.models.get().map(m => ({ id: m.id, name: m.name })),
 			proxyStarts: proxy.startCalls.length,
@@ -1752,10 +1776,7 @@ suite('ClaudeAgent', () => {
 			{ value: 'default', resolvedModel: 'claude-sonnet-4-5-20250929', displayName: 'Default (recommended)', description: '' },
 			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
 		];
-		for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
-			await tick();
-		}
-		await tick();
+		await bootstrapModelRefresh(agent, sdk);
 		assert.deepStrictEqual(agent.models.get().map(m => ({ id: m.id, name: m.name })), [
 			{ id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929'), name: 'Claude Sonnet 4.5' },
 		]);
@@ -1772,10 +1793,7 @@ suite('ClaudeAgent', () => {
 		sdk.supportedModelsResult = [
 			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
 		];
-		for (let i = 0; i < 100 && sdk.accountInfoCallCount === 0; i++) {
-			await tick();
-		}
-		await tick();
+		await bootstrapModelRefresh(agent, sdk);
 		assert.deepStrictEqual({
 			models: agent.models.get(),
 			accountInfoCalls: sdk.accountInfoCallCount,
@@ -1788,15 +1806,12 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('native model enumeration closes the throwaway query (no leaked subprocess)', async () => {
-		const { sdk } = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
+		const { agent, sdk } = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
 		sdk.supportedModelsResult = [
 			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
 		];
 		// The constructor kicks off the initial native enumeration; wait for it.
-		for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
-			await tick();
-		}
-		await tick();
+		await bootstrapModelRefresh(agent, sdk);
 		assert.deepStrictEqual({
 			queries: sdk.enumerationQueries.length,
 			closed: sdk.enumerationQueries[0]?.closeCount,
@@ -4438,11 +4453,11 @@ suite('ClaudeAgent', () => {
 		//  - `onDidMaterializeChat` never fires
 		//  - the WarmQuery is asyncDisposed (no orphan subprocess)
 		const persistGate = new DeferredPromise<void>();
-		let persistEntered = false;
+		const persistEntered = new DeferredPromise<void>();
 		const blockingDb = new TestSessionDatabase();
 		const originalSetMetadata = blockingDb.setMetadata.bind(blockingDb);
 		blockingDb.setMetadata = async (key, value) => {
-			persistEntered = true;
+			persistEntered.complete();
 			await persistGate.p;
 			await originalSetMetadata(key, value);
 		};
@@ -4498,9 +4513,7 @@ suite('ClaudeAgent', () => {
 		// Wait until the persist step has actually been entered. This is
 		// the deterministic gate — without it we'd be racing the materialize
 		// progress against our dispose call.
-		while (!persistEntered) {
-			await new Promise<void>(resolve => setImmediate(resolve));
-		}
+		await persistEntered.p;
 
 		// Now tear down while persist is parked. The dispose-sequencer is
 		// independent of the send-sequencer, so this runs immediately:
@@ -5822,11 +5835,11 @@ suite('ClaudeAgent', () => {
 		// `super.dispose()` so the post-customization-write abort gate
 		// catches the race and asyncDisposes the WarmQuery.
 		const persistGate = new DeferredPromise<void>();
-		let persistEntered = false;
+		const persistEntered = new DeferredPromise<void>();
 		const blockingDb = new TestSessionDatabase();
 		const originalSetMetadata = blockingDb.setMetadata.bind(blockingDb);
 		blockingDb.setMetadata = async (key, value) => {
-			persistEntered = true;
+			persistEntered.complete();
 			await persistGate.p;
 			await originalSetMetadata(key, value);
 		};
@@ -5875,9 +5888,7 @@ suite('ClaudeAgent', () => {
 		const settle: { rejected?: unknown } = {};
 		const sendDone = send.then(() => { settle.rejected = false; }, err => { settle.rejected = err; });
 
-		while (!persistEntered) {
-			await new Promise<void>(resolve => setImmediate(resolve));
-		}
+		await persistEntered.p;
 
 		// Now dispose the WHOLE AGENT while persist is parked. This is
 		// the path the reviewer flagged: provisional AbortController
@@ -5962,10 +5973,14 @@ suite('ClaudeAgent', () => {
 			startupCount: sdk.startupCallCount,
 			firstMcp: !!sdk.capturedStartupOptions[0].mcpServers,
 			secondMcpToolNames: lastBuild?.toolNames,
+			rebuildResume: sdk.capturedStartupOptions[1]?.resume,
+			rebuildSessionId: sdk.capturedStartupOptions[1]?.sessionId,
 		}, {
 			startupCount: 2,
 			firstMcp: true,
 			secondMcpToolNames: ['echo'],
+			rebuildResume: sessionId,
+			rebuildSessionId: undefined,
 		});
 	});
 
@@ -6204,10 +6219,14 @@ suite('ClaudeAgent', () => {
 			startupCount: sdk.startupCallCount,
 			firstSnapshot: sdk.createSdkMcpServerCalls[0]?.toolNames,
 			lastSnapshot: sdk.createSdkMcpServerCalls.at(-1)?.toolNames,
+			rebuildResume: sdk.capturedStartupOptions[1]?.resume,
+			rebuildSessionId: sdk.capturedStartupOptions[1]?.sessionId,
 		}, {
 			startupCount: 2,
 			firstSnapshot: ['first'],
 			lastSnapshot: ['second'],
+			rebuildResume: undefined,
+			rebuildSessionId: sessionId,
 		});
 	});
 
@@ -6248,9 +6267,13 @@ suite('ClaudeAgent', () => {
 		assert.deepStrictEqual({
 			startupCount: sdk.startupCallCount,
 			lastSnapshot: sdk.createSdkMcpServerCalls.at(-1)?.toolNames,
+			rebuildResume: sdk.capturedStartupOptions[1]?.resume,
+			rebuildSessionId: sdk.capturedStartupOptions[1]?.sessionId,
 		}, {
 			startupCount: 2,
 			lastSnapshot: ['resumed'],
+			rebuildResume: sessionId,
+			rebuildSessionId: undefined,
 		});
 	});
 
@@ -6381,11 +6404,9 @@ suite('ClaudeAgent — agent SDK setup channel', () => {
 
 	test('a download that lands stays `downloading` until the catalog does, so the banner never flashes "no account"', async () => {
 		const ctx = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
-		// Let the constructor's own refresh reach enumeration before the gate below
-		// goes up, so the only blocked enumeration is the download's.
-		for (let i = 0; i < 100 && ctx.sdk.supportedModelsCallCount === 0; i++) {
-			await tick();
-		}
+		// Let the constructor's own refresh publish before the gate below goes up,
+		// so the only blocked enumeration is the download's.
+		await bootstrapModelRefresh(ctx.agent, ctx.sdk);
 		ctx.sdk.canLoadWithoutDownloadResult = false;
 		await ctx.agent.refreshModels();
 		await settle();
@@ -6400,15 +6421,11 @@ suite('ClaudeAgent — agent SDK setup channel', () => {
 		const enumerationsBefore = ctx.sdk.supportedModelsCallCount;
 
 		dispatchDownload(ctx);
-		for (let i = 0; i < 100 && ctx.sdk.supportedModelsCallCount === enumerationsBefore; i++) {
-			await tick();
-		}
+		await ctx.sdk.waitForCalls(() => ctx.sdk.supportedModelsCallCount > enumerationsBefore);
 		const enumerating = { download: readSetup(ctx)?.download, models: ctx.agent.models.get().length };
 
 		releaseEnumeration();
-		for (let i = 0; i < 100 && ctx.agent.models.get().length === 0; i++) {
-			await tick();
-		}
+		await waitForState(ctx.agent.models, models => models.length > 0);
 		await settle();
 
 		assert.deepStrictEqual({ enumerating, after: readSetup(ctx)?.download, models: ctx.agent.models.get().length }, {
@@ -6966,10 +6983,7 @@ suite('ClaudeAgent — per-session provider', () => {
 			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
 		];
 		// The constructor kicks off the initial merged enumeration; wait for it.
-		for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
-			await tick();
-		}
-		await tick();
+		await bootstrapModelRefresh(agent, sdk);
 
 		// Signed out → the proxy half contributes nothing; only the native
 		// models appear, provider-qualified.
@@ -8325,41 +8339,49 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 	});
 
 
-	test('abortSession on a materialized session cancels the in-flight turn and leaves the session reusable', async () => {
-		const ctx = createTestContext(disposables);
-		await ctx.agent.authenticate('https://api.github.com', 'tok');
-		await tick();
-		const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/workspace')], model: { id: 'claude-opus-4.6' } });
-		const sid = created.sdkSessionId;
+	for (const initialized of [false, true]) {
+		test(`abortSession ${initialized ? 'after' : 'before'} SDK initialization cancels the turn and leaves the session reusable`, async () => {
+			const ctx = createTestContext(disposables);
+			await ctx.agent.authenticate('https://api.github.com', 'tok');
+			const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/workspace')], model: { id: 'claude-opus-4.6' } });
+			const sid = created.sdkSessionId;
 
-		// Block the FakeQuery at index 0 so the first turn never completes.
-		const stall = new DeferredPromise<void>();
-		ctx.sdk.queryAdvance = async (i) => { if (i === 0) { await stall.p; } };
-		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid)];
+			const reached = new DeferredPromise<void>();
+			const stall = new DeferredPromise<void>();
+			ctx.sdk.queryAdvance = async i => {
+				if (i === (initialized ? 1 : 0)) {
+					reached.complete();
+					await stall.p;
+				}
+			};
+			ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid)];
 
-		const inFlight = ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
-		await tick();
+			const inFlight = ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+			await reached.p;
 
-		await ctx.agent.chats.abort(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)));
-		await assert.rejects(inFlight, (err: unknown) => isCancellationError(err));
+			await ctx.agent.chats.abort(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)));
+			await assert.rejects(inFlight, (err: unknown) => isCancellationError(err));
 
-		// Unblock the (now-aborted) iterator so it terminates cleanly.
-		ctx.sdk.queryAdvance = undefined;
-		stall.complete();
-		await tick();
+			ctx.sdk.queryAdvance = undefined;
+			stall.complete();
+			await tick();
 
-		// Next sendMessage rebuilds via resume mode.
-		const startupBefore = ctx.sdk.startupCallCount;
-		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid)];
-		await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'next', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
+			const startupBefore = ctx.sdk.startupCallCount;
+			ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid)];
+			await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'next', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
-		assert.strictEqual(ctx.sdk.startupCallCount, startupBefore + 1, 'rebind called startup again');
-		const resumeOpts = ctx.sdk.capturedStartupOptions[ctx.sdk.startupCallCount - 1];
-		assert.deepStrictEqual({
-			resume: resumeOpts.resume,
-			sessionId: resumeOpts.sessionId,
-		}, { resume: sid, sessionId: undefined });
-	});
+			const options = ctx.sdk.capturedStartupOptions.at(-1);
+			assert.deepStrictEqual({
+				startups: ctx.sdk.startupCallCount - startupBefore,
+				resume: options?.resume,
+				sessionId: options?.sessionId,
+			}, {
+				startups: 1,
+				resume: initialized ? sid : undefined,
+				sessionId: initialized ? undefined : sid,
+			});
+		});
+	}
 
 	test('abortSession denies any parked permission requests so the SDK canUseTool callback unwinds with deny instead of leaving stale UI behind', async () => {
 		const ctx = createTestContext(disposables);

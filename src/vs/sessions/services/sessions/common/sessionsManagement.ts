@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from '../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
+
 import { IReference } from '../../../../base/common/lifecycle.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IObservable } from '../../../../base/common/observable.js';
@@ -12,7 +14,11 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from './session.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionCreationTarget, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason, ICreateNewChatOptions } from './sessionsProvider.js';
+
+export interface IManagedSessionWorktree extends IAgentHostManagedWorktree {
+	readonly providerId: string;
+}
 
 /** Raised when unattended session creation targets a workspace that requires trust. */
 export class WorkspaceNotTrustedError extends Error {
@@ -142,7 +148,7 @@ export interface ICreateNewSessionOptions {
 /**
  * Options for {@link ISessionsManagementService.createNewChatInSession}.
  */
-export interface ICreateNewChatInSessionOptions {
+export interface ICreateNewChatInSessionOptions extends ICreateNewChatOptions {
 	/**
 	 * Always create a fresh chat instead of reusing an existing untitled one.
 	 * Used to reset the composer right after a background send, where the
@@ -328,6 +334,9 @@ export interface ISessionsManagementService {
 
 	/** Whether the requested workspace session target is currently advertised. */
 	isNewSessionTargetAvailable(folderUri: URI, options?: ICreateNewSessionOptions): boolean;
+
+	/** Resolves the provider-owned creation context for an existing session. */
+	getNewSessionTarget(providerId: string, sessionResource: URI): ISessionCreationTarget | undefined;
 
 	/** Whether the requested quick-chat target is currently advertised. */
 	isQuickChatTargetAvailable(options?: ICreateNewSessionOptions): boolean;
@@ -580,8 +589,17 @@ export interface ISessionsManagementService {
 	/** Permanently imports an external session through its provider without sending a message. */
 	importSession(session: ISession): Promise<void>;
 
-	/** Returns the current on-disk size of the session's isolated worktree. */
+	/** Returns the current on-disk size, zero for confirmed absent storage, or undefined when measurement is unavailable. */
 	getSessionWorktreeDiskUsage?(session: ISession, token?: CancellationToken): Promise<number | undefined>;
+
+	/** Cheaply checks the owning host's worktrees. False confirms all roots are absent; undefined means unavailable. */
+	sessionWorktreeExists?(session: ISession, token?: CancellationToken): Promise<boolean | undefined>;
+
+	/** Reports cleanup status, optionally retrying removal without restoring or deleting session history. */
+	sessionWorktreeCleanup?(session: ISession, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	listManagedWorktrees?(knownWorktrees?: readonly IManagedSessionWorktree[]): Promise<IManagedSessionWorktree[]>;
+	cleanupManagedWorktree?(worktree: IManagedSessionWorktree): Promise<void>;
+	managedWorktreeExists?(worktree: IManagedSessionWorktree): Promise<boolean | undefined>;
 
 	/** Unarchive a session. */
 	unarchiveSession(session: ISession): Promise<void>;
@@ -671,26 +689,18 @@ export interface ISessionsManagementService {
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');
 
-/**
- * The `providerId`/`sessionTypeId` to seed a new session with when carrying the
- * harness over from an existing session, or an empty object when it should not
- * be carried over. Designed to be spread into a {@link ICreateNewSessionOptions}
- * literal alongside the caller's own `folderUri`.
- *
- * "New Session" gestures default to the harness the user is currently working
- * in, but a harness can stop being advertised while one of its sessions is
- * still open. Inheriting it then makes session creation fail (the provider no
- * longer offers the type), which drops the folder and leaves the composer on
- * an agent the harness picker doesn't list. Contributing nothing lets the
- * folder's preferred harness serve the new session instead.
- */
+/** Returns an available creation target to inherit, including the provider's alternate workspace when supplied. */
 export function inheritableSessionTarget(
 	sessionsManagementService: ISessionsManagementService,
-	session: Pick<ISession, 'providerId' | 'sessionType'> | undefined,
+	session: (Pick<ISession, 'providerId' | 'sessionType'> & { readonly resource?: URI }) | undefined,
 	folderUri: URI | undefined,
-): Pick<ICreateNewSessionOptions, 'providerId' | 'sessionTypeId'> {
+): Partial<ISessionCreationTarget> {
 	if (!session || !folderUri) {
 		return {};
+	}
+	const creationTarget = session.resource && sessionsManagementService.getNewSessionTarget(session.providerId, session.resource);
+	if (creationTarget && sessionsManagementService.isNewSessionTargetAvailable(creationTarget.folderUri, creationTarget)) {
+		return creationTarget;
 	}
 	const target = { providerId: session.providerId, sessionTypeId: session.sessionType };
 	return sessionsManagementService.isNewSessionTargetAvailable(folderUri, target) ? target : {};

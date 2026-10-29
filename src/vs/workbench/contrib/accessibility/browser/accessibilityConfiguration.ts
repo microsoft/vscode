@@ -55,6 +55,7 @@ export const enum AccessibilityVerbositySettingId {
 	CustomizationMigrations = 'accessibility.verbosity.customizationMigrations',
 	McpServerConfiguration = 'accessibility.verbosity.mcpServerConfiguration',
 	CustomizationDiscovery = 'accessibility.verbosity.customizationDiscovery',
+	Remotes = 'accessibility.verbosity.remotes',
 	InlineChat = 'accessibility.verbosity.inlineChat',
 	TerminalInlineChat = 'accessibility.verbosity.terminalChat',
 	TerminalChatOutput = 'accessibility.verbosity.terminalChatOutput',
@@ -79,6 +80,7 @@ export const enum AccessibilityVerbositySettingId {
 	SessionsChanges = 'accessibility.verbosity.sessionsChanges',
 	EmptyFileEditorSearch = 'accessibility.verbosity.emptyFileEditorSearch',
 	SessionsListNotification = 'accessibility.verbosity.sessionsListNotification',
+	SessionsGetStarted = 'accessibility.verbosity.sessionsGetStarted',
 	SessionCanvas = 'accessibility.verbosity.sessionCanvas',
 	ChatQuestionCarousel = 'accessibility.verbosity.chatQuestionCarousel',
 	Survey = 'accessibility.verbosity.survey',
@@ -86,7 +88,8 @@ export const enum AccessibilityVerbositySettingId {
 	AgentsWindowExtensions = 'accessibility.verbosity.agentsWindowExtensions',
 	ConnectionDiagnostics = 'accessibility.verbosity.connectionDiagnostics',
 	BrowserElementCommenting = 'accessibility.verbosity.browserElementCommenting',
-	ChatPetAchievements = 'accessibility.verbosity.chatPetAchievements'
+	ChatPetAchievements = 'accessibility.verbosity.chatPetAchievements',
+	ChatPetJumpGame = 'accessibility.verbosity.chatPetJumpGame'
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -173,6 +176,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.CustomizationDiscovery]: {
 			description: localize('verbosity.customizationDiscovery.description', "Provide information about how to access accessibility help when discovering customizations."),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.Remotes]: {
+			description: localize('verbosity.remotes.description', "Provide information about how to access accessibility help when managing remotes."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.InlineChat]: {
@@ -268,6 +275,10 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.sessionsListNotification', "Provide information about how to access accessibility help for the Undo notice in the sessions list."),
 			...baseVerbosityProperty
 		},
+		[AccessibilityVerbositySettingId.SessionsGetStarted]: {
+			description: localize('verbosity.sessionsGetStarted', "Provide information about how to access accessibility help for the Get Started checklist in the Sessions view."),
+			...baseVerbosityProperty
+		},
 		[AccessibilityVerbositySettingId.SessionCanvas]: {
 			description: localize('verbosity.sessionCanvas', 'Provide information about how to access canvas accessibility help when a canvas is focused.'),
 			...baseVerbosityProperty
@@ -298,6 +309,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.ChatPetAchievements]: {
 			description: localize('verbosity.chatPetAchievements', 'Provide information about how to access chat pet achievements accessibility help when the Achievements modal is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.ChatPetJumpGame]: {
+			description: localize('verbosity.chatPetJumpGame', "Provide information about how to access accessibility help when Blobby's jump game is focused."),
 			...baseVerbosityProperty
 		},
 		'accessibility.signalOptions.volume': {

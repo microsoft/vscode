@@ -39,6 +39,7 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, IsQuickChatSessionContext, DesktopLayoutContext, SessionActivityBarLayoutActionsContext } from '../../../common/contextkeys.js';
+import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { logSidePanelToggle } from '../../../common/sessionsTelemetry.js';
 import { ChatLayoutContext } from '../../../common/chatLayout.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
@@ -744,7 +745,7 @@ export abstract class BaseLayoutController extends Disposable {
 		return registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.action.agentToggleSidePanel',
+					id: TOGGLE_SIDE_PANEL_COMMAND_ID,
 					title: {
 						...localize2('toggleSecondarySidebar', 'Toggle Side Panel'),
 						mnemonicTitle: localize({ key: 'miSidePanel', comment: ['&& denotes a mnemonic'] }, "Side Pa&&nel"),
