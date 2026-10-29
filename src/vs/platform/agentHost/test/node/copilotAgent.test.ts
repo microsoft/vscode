@@ -2347,7 +2347,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('deduplicates persisted and live extension identities while retaining live status', async () => {
+	test('conservatively combines duplicate extension identities', async () => {
 		const client = new TestCopilotClient([]);
 		const installed = {
 			id: 'plugin:foundry:canvas',
@@ -2360,33 +2360,10 @@ suite('CopilotAgent', () => {
 		client.extensionInventory = { mode: 'load_and_augment', extensions: [installed, installed] };
 		const agent = createTestAgent(disposables, { copilotClient: client });
 		const session = AgentSession.uri('copilotcli', 'duplicate-extensions');
-		const live = { id: installed.id, name: 'foundry:canvas', source: 'plugin' as const, status: 'disabled' as const };
-		setDefaultSessionStub(agent, 'duplicate-extensions', { listExtensions: async () => [live, live] });
-		try {
-			const cold = await agent.listAgentExtensions();
-			const active = await agent.listAgentExtensions(session);
-			assert.deepStrictEqual({
-				cold: cold.extensions.map(extension => [extension.id, extension.status]),
-				active: active.extensions.map(extension => [extension.id, extension.status, extension.resource?.toString(), extension.pluginName]),
-			}, {
-				cold: [[installed.id, 'unknown']],
-				active: [[installed.id, 'disabled', URI.file(installed.path).toString(), 'foundry']],
-			});
-		} finally {
-			await disposeAgent(agent);
-		}
-	});
-
-	test('conservatively combines conflicting live extension statuses', async () => {
-		const client = new TestCopilotClient([]);
-		client.extensionInventory = {
-			mode: 'load_and_augment',
-			extensions: [{ id: 'user:preview', name: 'Preview', path: '/extensions/preview.mjs', source: 'user', enabled: true }],
-		};
-		const agent = createTestAgent(disposables, { copilotClient: client });
-		const session = AgentSession.uri('copilotcli', 'conflicting-extension-statuses');
-		setDefaultSessionStub(agent, 'conflicting-extension-statuses', {
+		setDefaultSessionStub(agent, 'duplicate-extensions', {
 			listExtensions: async () => [
+				{ id: installed.id, name: 'foundry:canvas', source: 'plugin', status: 'disabled' },
+				{ id: installed.id, name: 'foundry:canvas', source: 'plugin', status: 'disabled' },
 				{ id: 'user:preview', name: 'Preview', source: 'user', status: 'running' },
 				{ id: 'user:preview', name: 'Preview', source: 'user', status: 'disabled' },
 				{ id: 'plugin:failed', name: 'Failed', source: 'plugin', status: 'running' },
@@ -2396,12 +2373,20 @@ suite('CopilotAgent', () => {
 			],
 		});
 		try {
-			const inventory = await agent.listAgentExtensions(session);
-			assert.deepStrictEqual(inventory.extensions.map(extension => [extension.id, extension.status]), [
-				['user:preview', 'unknown'],
-				['plugin:failed', 'failed'],
-				['plugin:starting', 'starting'],
-			]);
+			const cold = await agent.listAgentExtensions();
+			const active = await agent.listAgentExtensions(session);
+			assert.deepStrictEqual({
+				cold: cold.extensions.map(extension => [extension.id, extension.status]),
+				active: active.extensions.map(extension => [extension.id, extension.status, extension.resource?.toString(), extension.pluginName]),
+			}, {
+				cold: [[installed.id, 'unknown']],
+				active: [
+					[installed.id, 'disabled', URI.file(installed.path).toString(), 'foundry'],
+					['user:preview', 'unknown', undefined, undefined],
+					['plugin:failed', 'failed', undefined, undefined],
+					['plugin:starting', 'starting', undefined, undefined],
+				],
+			});
 		} finally {
 			await disposeAgent(agent);
 		}
