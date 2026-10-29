@@ -16,15 +16,16 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { ArtifactIntegrationsSettingId } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import type { IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
@@ -33,6 +34,7 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { IChat, IGitHubPullRequestRef, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ActiveSessionScope, ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService, ISubmitFeedbackOptions } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -49,6 +51,90 @@ suite('SessionInputBanners', () => {
 	for (const isDraft of [false, true]) {
 		test(`groups actionable ${isDraft ? 'draft' : 'ready'} PRs, hides merged PR comments, scopes the combined request, and dismisses one carousel item`, () => testActionablePullRequests(isDraft));
 	}
+
+	test('shows the pull requests of the session of its window, not of the globally active session', () => {
+		// One failing check per pull request: each session's pull request has its own number of failing checks.
+		const sessionOf = (id: string, prNumber: number) => {
+			const chat = upcastPartial<IChat>({
+				resource: URI.parse(`local-agent-host-chat:/${id}/main`),
+				workspace: observableValue<ISessionWorkspace | undefined>('workspace', workspaceWithPullRequests(`/${id}`, [pullRequest(prNumber)])),
+			});
+			return new class extends mock<IActiveSession>() {
+				override readonly sessionId = id;
+				override readonly resource = URI.parse(`local-agent-host:/${id}`);
+				override readonly providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
+				override readonly status = observableValue('status', SessionStatus.Completed);
+				override readonly mainChat = observableValue<IChat>('mainChat', chat);
+				override readonly activeChat = observableValue<IChat>('activeChat', chat);
+			}();
+		};
+		const windowA = sessionOf('window-a', 1);
+		const windowB = sessionOf('window-b', 2);
+		const main = sessionOf('main', 3);
+		const ciModels = new Map([
+			[1, ciModel([failedCheck(1)])],
+			[2, ciModel([failedCheck(1), failedCheck(2)])],
+			[3, ciModel([failedCheck(1), failedCheck(2), failedCheck(3)])],
+		]);
+
+		const instantiationService = store.add(new TestInstantiationService());
+		// The chat window of session A has focus: it is the globally active session.
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', windowA);
+			override readonly mainWindowActiveSession = observableValue<IActiveSession | undefined>('mainWindowActiveSession', main);
+		}());
+		const agentHostProvider = new class extends mock<IAgentHostSessionsProvider>() {
+			override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+			override getAgentMergeClientStateObservable() { return observableValue<AgentMergeSessionState>('agentMergeState', { enabled: false }); }
+		}();
+		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override getProvider<T extends ISessionsProvider>(): T | undefined {
+				return agentHostProvider as unknown as T;
+			}
+		}());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
+			override createPullRequestModelReference(_owner: string, _repo: string, prNumber: number): IReference<GitHubPullRequestModel> {
+				return new ImmortalReference(pullRequestModel(prNumber, `Pull request ${prNumber}`, false));
+			}
+			override createPullRequestCIModelReference(_owner: string, _repo: string, prNumber: number): IReference<GitHubPullRequestCIModel> {
+				return new ImmortalReference(ciModels.get(prNumber)!);
+			}
+		}());
+		instantiationService.stub(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
+			override readonly onDidChangeFeedback = Event.None;
+			override getFeedback(): readonly IAgentFeedback[] { return []; }
+		}());
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
+		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() {
+			override readonly onDidAddWidget = Event.None;
+		}());
+		instantiationService.stub(IHoverService, upcastPartial<IHoverService>({
+			setupManagedHover: () => upcastPartial<IManagedHover>({ dispose() { } }),
+		}));
+		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({ showContextMenu() { } }));
+
+		// Each chat window scopes its views to its own session; the main window to the session it shows.
+		const bannersIn = (scope: ISessionScope) => {
+			const banners = store.add(instantiationService.createChild(new ServiceCollection([ISessionScope, scope])).createInstance(SessionInputBanners));
+			// Every chat window's session view is active, as is the main window's.
+			banners.setActive(true);
+			return currentBanner(banners).text;
+		};
+		assert.deepStrictEqual({
+			windowA: bannersIn({ _serviceBrand: undefined, session: constObservable(windowA) }),
+			windowB: bannersIn({ _serviceBrand: undefined, session: constObservable(windowB) }),
+			main: bannersIn(instantiationService.createInstance(ActiveSessionScope)),
+		}, {
+			windowA: '1 check failed',
+			windowB: '2 out of 2 checks failed',
+			main: '3 out of 3 checks failed',
+		});
+	});
 
 	async function testActionablePullRequests(isDraft: boolean): Promise<void> {
 		const sessionResource = URI.parse('local-agent-host:/session-1');
@@ -178,7 +264,7 @@ suite('SessionInputBanners', () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const banners = store.add(new SessionInputBanners(
-			sessionsService,
+			new ActiveSessionScope(sessionsService),
 			sessionsProvidersService,
 			configuration,
 			gitHubService,
