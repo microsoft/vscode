@@ -7,6 +7,7 @@ import * as ts from '@typescript/native/ast';
 import * as vscode from 'vscode';
 import { CancellationError } from '../../../../util/vs/base/common/errors';
 import { basename } from '../../../../util/vs/base/common/path';
+import tss from './typescripts';
 
 interface Span {
 	readonly start: number;
@@ -232,7 +233,7 @@ function getEntityInfo(node: ts.Node, file: ts.SourceFile): EntityInfo | undefin
 			&& node.parent.declarations.length === 1 && ts.isVariableStatement(node.parent.parent)) {
 			rangeNode = node.parent.parent;
 		}
-		const initializer = node.initializer;
+		const initializer = node.initializer && tss.Nodes.skipOuterExpressions(node.initializer);
 		const base = { name: node.name.getText(file), nameNode: node.name, rangeNode };
 		if (initializer !== undefined) {
 			if (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) {

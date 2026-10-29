@@ -18,7 +18,8 @@ import { TS7StructuralDiffProvider } from '../structuralDiffProvider';
 
 suite('TypeScript 7 structural diff', () => {
 	const store = new DisposableStore();
-	const fileName = path.join(__dirname, '../../../serverPlugin/fixtures/context/p14/source/f1.ts');
+	const fixtureDirectory = path.join(__dirname, '../fixtures/structuralDiff/source');
+	const fileName = path.join(fixtureDirectory, 'example.ts');
 	const uri = vscode.Uri.file(fileName);
 	let api: API;
 	let native: TestTypeScript7Api;
@@ -520,7 +521,7 @@ suite('TypeScript 7 structural diff', () => {
 		const modified = original.replace('1', '2');
 		const result = await compute(original, modified, [{ originalRange: rangeOf(original, '1'), modifiedRange: rangeOf(modified, '2') }]);
 		assert.deepStrictEqual(result.root.children[0].modifiedChanges.map(change => change.tags), [[vscode.StructuralDiffTag.Test]]);
-		const testUri = uri.with({ path: uri.path.replace(/f1\.ts$/, 'structuralDiff.spec.ts') });
+		const testUri = vscode.Uri.file(path.join(fixtureDirectory, 'example.spec.ts'));
 		const fileResult = await compute('const value = 1;', 'const value = 2;', undefined, testUri);
 		assert.deepStrictEqual(fileResult.root.children[0].modifiedChanges.map(change => [change.classification, change.tags]), [
 			[vscode.StructuralDiffClassification.Header, [vscode.StructuralDiffTag.Test]],
@@ -532,7 +533,7 @@ suite('TypeScript 7 structural diff', () => {
 	test('supports TypeScript React snapshots and JSX expression bodies', async () => {
 		const original = 'export const Component = () => <div>old text</div>;';
 		const modified = original.replace('old text', 'new text');
-		const tsxUri = uri.with({ path: uri.path.replace(/f1\.ts$/, 'component.tsx') });
+		const tsxUri = vscode.Uri.file(path.join(fixtureDirectory, 'component.tsx'));
 		const result = await compute(original, modified, [{
 			originalRange: rangeOf(original, 'old text'), modifiedRange: rangeOf(modified, 'new text'),
 		}], tsxUri, 'typescriptreact');
