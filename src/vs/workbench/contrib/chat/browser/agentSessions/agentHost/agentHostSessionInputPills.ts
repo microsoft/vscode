@@ -25,7 +25,7 @@ import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { isCopilotAgentHostProvider } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
-import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { branchChangesetLabel, ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, sessionChangesetLabel, uncommittedChangesetLabel, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { affectsAgentHostProviderPreference, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
@@ -74,7 +74,7 @@ import { createSessionPullRequestPillData, type IChatPullRequestPillEntry } from
 import { SessionCustomizations } from '../../sessionCustomizations.js';
 import { createSessionSubagentsPillData, type IChatSubagentPillEntry } from '../../sessionSubagentsPill.js';
 import { AgentHostBackgroundShellOutputs } from './agentHostBackgroundShells.js';
-import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
+import { agentHostChangesetFileToEntryDiff, getAgentHostResourceAuthority } from './agentHostResponseFileChanges.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { GitHubCommitResolver } from '../../../../github/browser/githubCommitResolver.js';
 import { createCommitResourceHover, createIssueResourceHover, createPullRequestResourceHover, getIssueResourceStatus, getPullRequestChecksStatusLabel, getPullRequestResourceStatus, type GitHubChecksStatus, type IGitHubIssueHoverModel, type IGitHubPullRequestHoverModel } from '../../../../github/browser/githubResourceHover.js';
@@ -256,16 +256,6 @@ function parseUri(value: string | undefined): URI | undefined {
 	} catch {
 		return undefined;
 	}
-}
-
-/**
- * The authority of the agent host URIs handed out by the session's connection. The ambient
- * host always resolves with the `local` authority, even in a remote window where it runs on
- * the remote, so host files would otherwise be opened as paths on this machine.
- */
-function resourceAuthority(resolution: IAgentHostSessionResolution): string {
-	const root = resolution.connection.resourceUris.fromAgentHost(URI.file('/'));
-	return root.scheme === AGENT_HOST_SCHEME ? root.authority : resolution.connectionAuthority;
 }
 
 function referenceLabel(link: string, kind: 'pullRequest' | 'issue', title?: string): string {
@@ -769,9 +759,10 @@ export class AgentHostSessionInputPills extends Disposable {
 			if (!currentResolution || !files) {
 				return [];
 			}
+			const authority = getAgentHostResourceAuthority(currentResolution);
 			return files
 				.map(file => {
-					const diff = agentHostChangesetFileToEntryDiff(file, currentResolution.connectionAuthority);
+					const diff = agentHostChangesetFileToEntryDiff(file, authority);
 					if (diff && file.nonce !== undefined) {
 						this._fileChangeNonces.set(diff, file.nonce);
 					}
@@ -1238,7 +1229,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				return undefined;
 			}
 			const resource = artifact.type === SessionArtifactType.File
-				? toAgentHostUri(artifactResource, resourceAuthority(resolution))
+				? toAgentHostUri(artifactResource, getAgentHostResourceAuthority(resolution))
 				: artifactResource;
 			const label = artifact.type === SessionArtifactType.File ? basename(resource) : artifact.label;
 			const imageMimeType = artifact.type === SessionArtifactType.File && !artifact.isArtifact ? getMediaMime(resource.path) : undefined;
@@ -1496,7 +1487,8 @@ export class AgentHostSessionInputPills extends Disposable {
 	}
 
 	private async _doInvokeFileOperation(resolution: IAgentHostSessionResolution, channel: URI, operation: ChangesetOperation, diffs: readonly IEditSessionEntryDiff[], messages: { readonly unverified: string; changed(fileName: string): string; failed(fileNames: string, messages: string): string }): Promise<boolean> {
-		const { connection, connectionAuthority } = resolution;
+		const { connection } = resolution;
+		const authority = getAgentHostResourceAuthority(resolution);
 		const channelKey = channel.toString();
 		// Each file is checked against the channel's latest state, which outlasts a switch to another session.
 		const changeset = connection.getSubscription(StateComponents.Changeset, channel, 'AgentHostSessionInputPills.fileOperation');
@@ -1514,10 +1506,10 @@ export class AgentHostSessionInputPills extends Disposable {
 					break;
 				}
 				const currentFile = state.files.find(file => {
-					const candidate = agentHostChangesetFileToEntryDiff(file, connectionAuthority);
+					const candidate = agentHostChangesetFileToEntryDiff(file, authority);
 					return candidate && isEqual(candidate.modifiedURI, diff.modifiedURI);
 				});
-				const current = currentFile && agentHostChangesetFileToEntryDiff(currentFile, connectionAuthority);
+				const current = currentFile && agentHostChangesetFileToEntryDiff(currentFile, authority);
 				if (!current) {
 					// The file's changes are already gone.
 					continue;

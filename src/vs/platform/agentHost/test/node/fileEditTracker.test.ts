@@ -188,6 +188,55 @@ suite('FileEditTracker', () => {
 		}
 	});
 
+	/** The contents an edit recorded, as `before -> after`. */
+	async function readRecordedEdit(toolCallId: string, filePath: string): Promise<string> {
+		const content = await db.readFileEditContent(toolCallId, filePath);
+		const decoder = new TextDecoder();
+		return content ? `${decoder.decode(content.beforeContent)} -> ${decoder.decode(content.afterContent)}` : 'not recorded';
+	}
+
+	for (const withToolInput of [true, false]) {
+		test(`records each edit of a file in a batch of tool calls, which all start before any runs (tool input: ${withToolInput})`, async () => {
+			const resource = URI.file('/workspace/batch.txt');
+			await fileService.writeFile(resource, VSBuffer.fromString('original'));
+			const calls = ['a', 'b', 'c'].map(id => ({ id, input: withToolInput ? { path: resource.fsPath, new_str: id } : undefined }));
+			await Promise.all(calls.map(call => tracker.trackEditStart(resource.fsPath, undefined, call.input)));
+			const recorded: string[] = [];
+			for (const call of calls) {
+				await fileService.writeFile(resource, VSBuffer.fromString(`after ${call.id}`));
+				await tracker.completeEdit(resource.fsPath, call.input);
+				await tracker.takeCompletedEdit('turn-1', call.id, resource.fsPath, 'edit', call.input, 'model', false);
+				recorded.push(await readRecordedEdit(call.id, resource.fsPath));
+			}
+
+			assert.deepStrictEqual({ recorded, editing: fileEditCoordinator.isEditing(resource) }, {
+				recorded: ['original -> after a', 'after a -> after b', 'after b -> after c'],
+				editing: false,
+			});
+		});
+	}
+
+	test('starts an edit of a batch from what its last completed edit wrote, and releases edits whose completion was missed', async () => {
+		const resource = URI.file('/workspace/batch.txt');
+		await fileService.writeFile(resource, VSBuffer.fromString('original'));
+		const [completed, failed, missed, last] = ['completed', 'failed', 'missed', 'last'].map(id => ({ path: resource.fsPath, new_str: id }));
+		await Promise.all([completed, failed, missed, last].map(input => tracker.trackEditStart(resource.fsPath, undefined, input)));
+		await fileService.writeFile(resource, VSBuffer.fromString('first'));
+		await tracker.completeEdit(resource.fsPath, completed);
+		await tracker.takeCompletedEdit('turn-1', 'completed', resource.fsPath, 'edit', completed, 'model', false);
+		// A tool that fails is taken without completing, and the completion of `missed` never arrives.
+		const failedEdit = await tracker.takeCompletedEdit('turn-1', 'failed', resource.fsPath, 'edit', failed, 'model', false);
+		await fileService.writeFile(resource, VSBuffer.fromString('last'));
+		await tracker.completeEdit(resource.fsPath, last);
+		await tracker.takeCompletedEdit('turn-1', 'last', resource.fsPath, 'edit', last, 'model', false);
+
+		assert.deepStrictEqual({ failedEdit, last: await readRecordedEdit('last', resource.fsPath), editing: fileEditCoordinator.isEditing(resource) }, {
+			failedEdit: undefined,
+			last: 'first -> last',
+			editing: false,
+		});
+	});
+
 	test('tracks edit start and complete for existing file', async () => {
 		await fileService.writeFile(URI.file('/workspace/test.txt'), VSBuffer.fromString('original content\nline 2'));
 

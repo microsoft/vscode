@@ -1226,7 +1226,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		disposables.add(provider.onDidChangeSessionTypes(() => changes++));
 
 		const initialization = () => provider.sessionTypes[0]?.initializationOnSelection;
-		const windowGate = () => resolveSignedOutWindowGate(false, provider.sessionTypes.map(type => type.authRequirement), initialization()?.canInitializeWithoutGitHub);
+		const windowGate = () => resolveSignedOutWindowGate(provider.sessionTypes.map(type => type.authRequirement), initialization()?.canInitializeWithoutGitHub);
 		const states = [initialization()];
 		const windowGates = [windowGate()];
 		agentHost.setRootState(rootState('signedIn'));
@@ -3359,6 +3359,43 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		assert.strictEqual(lastStates.get(session.sessionId), state, 'subscription opens and applies the state once the marker clears');
+	}));
+
+	test('listed legacy sessions retain one row through adoption, repeated notifications and reconnect', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const active = createSession('legacy-active', { summary: 'Active Legacy', adoptable: true });
+		const archived = createSession('legacy-archived', { summary: 'Archived Legacy', adoptable: true, status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsArchived });
+		agentHost.addSession(active);
+		agentHost.addSession(archived);
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		const initialSessions = provider.getSessions();
+		const rows = () => provider.getSessions().map(session => ({
+			resource: session.resource.toString(),
+			archived: session.isArchived.get(),
+		})).sort((a, b) => a.resource.localeCompare(b.resource));
+		const initial = rows();
+
+		agentHost.addSession({ ...active, _meta: undefined });
+		fireSessionSummaryChanged(agentHost, 'legacy-active', { _meta: undefined });
+		fireSessionAdded(agentHost, 'legacy-active', { title: 'Active Legacy' });
+		fireSessionAdded(agentHost, 'legacy-active', { title: 'Active Legacy' });
+		await timeout(0);
+		const adopted = rows();
+
+		agentHost.fireAgentHostExit();
+		agentHost.fireAgentHostStart();
+		await timeout(100);
+
+		const expected = [
+			{ resource: 'agent-host-copilotcli:/legacy-active', archived: false },
+			{ resource: 'agent-host-copilotcli:/legacy-archived', archived: true },
+		];
+		assert.deepStrictEqual({
+			initial, adopted, reconnected: rows(),
+			identitiesPreserved: initialSessions.every(session => provider.getSessions().includes(session)),
+		}, {
+			initial: expected, adopted: expected, reconnected: expected, identitiesPreserved: true,
+		});
 	}));
 
 	test('resolveSessionResource seeds the twin in cache when the legacy provider is absent and refresh produces no row', async () => {
@@ -12463,6 +12500,29 @@ suite('LocalAgentHostSessionsProvider', () => {
 				session: true,
 				main: true,
 				actions: [{ channel: defaultChat.toString(), isRead: true }],
+			});
+		});
+
+		test('explicit session read works before the default chat is advertised', async () => {
+			const rawId = 'session-read-before-chat-catalog';
+			const sessionUri = AgentSession.uri('copilotcli', rawId);
+			agentHost.addSession(createSession(rawId, { status: ProtocolSessionStatus.Idle }));
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			const session = provider.getSessions().find(session => AgentSession.id(session.resource.toString()) === rawId)!;
+
+			await provider.setSessionReadState(session.sessionId, true);
+
+			assert.deepStrictEqual({
+				isRead: session.isRead.get(),
+				actions: agentHost.dispatchedActions.map(dispatch => ({
+					channel: dispatch.channel,
+					type: dispatch.action.type,
+					isRead: dispatch.action.type === ActionType.SessionIsReadChanged ? dispatch.action.isRead : undefined,
+				})),
+			}, {
+				isRead: true,
+				actions: [{ channel: sessionUri.toString(), type: ActionType.SessionIsReadChanged, isRead: true }],
 			});
 		});
 

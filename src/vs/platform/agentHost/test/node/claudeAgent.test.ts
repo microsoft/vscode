@@ -1164,7 +1164,7 @@ class CapturingLogService extends NullLogService {
 
 function createTestContext(
 	disposables: Pick<DisposableStore, 'add'>,
-	overrides?: { logService?: ILogService; database?: TestSessionDatabase; sessionDataService?: ISessionDataService; rootConfig?: Record<string, unknown>; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService; copilotApiService?: ICopilotApiService; claudeProxyService?: IClaudeProxyService; checkpointService?: IAgentHostCheckpointService; nativeAccount?: AccountInfo; startupPerformance?: IAgentHostStartupPerformance },
+	overrides?: { logService?: ILogService; database?: TestSessionDatabase; sessionDataService?: ISessionDataService; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService; copilotApiService?: ICopilotApiService; claudeProxyService?: IClaudeProxyService; checkpointService?: IAgentHostCheckpointService; nativeAccount?: AccountInfo; startupPerformance?: IAgentHostStartupPerformance },
 ): ITestContext {
 	const proxy = new FakeClaudeProxyService();
 	const api = new FakeCopilotApiService();
@@ -1216,11 +1216,6 @@ function createTestContext(
 		[IAgentHostAuthenticationService, authenticationService],
 	);
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
-	// Seed root config (e.g. `allowSignedOutWhenUsable`) BEFORE the agent
-	// resolves its transport mode in the constructor.
-	if (overrides?.rootConfig) {
-		configService.updateRootConfig(overrides.rootConfig);
-	}
 	const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 	connectAuthentication(agent, authenticationService);
 	// Mirrors exactly what Agent Host stamps on every addressed chat
@@ -1566,8 +1561,8 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('signed-in probe flips inferred-native to proxy (allowSignedOutWhenUsable)', async () => {
-		// The fix for the startup catch-22: with the exp flag on and the SDK
+	test('signed-in probe flips inferred-native to proxy', async () => {
+		// The fix for the startup catch-22: with the SDK
 		// reporting a Claude account, a signed-OUT user resolves to native — which
 		// still advertises the Copilot resource as not-required so the host can
 		// probe. If the host then silently forwards a GitHub token (the user was
@@ -1575,7 +1570,6 @@ suite('ClaudeAgent', () => {
 		// (rule 2: signed in ⇒ proxy) and flips the transport to proxy, starting
 		// the proxy.
 		const { agent, proxy } = createTestContext(disposables, {
-			rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
 			nativeAccount: NATIVE_ACCOUNT,
 		});
 		// Signed out at startup ⇒ native, Copilot advertised as not-required.
@@ -1704,10 +1698,7 @@ suite('ClaudeAgent', () => {
 
 	test('first sign-in keeps the native catalog published while the proxy catalog enumerates', async () => {
 		// The window gate reads an agent with no models as `Unusable`, so a *first*
-		// sign-in must never blank the bootstrap native catalog: it has no
-		// superseded account to drop, and blanking would close the
-		// `allowSignedOutWhenUsable` gate mid-startup and force the sign-in dialog
-		// on a user who is already signing in.
+		// First sign-in has no superseded account and must preserve usable native models.
 		const { agent, api, sdk } = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
 		sdk.supportedModelsResult = [
 			{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '', supportedEffortLevels: ['high'] },
@@ -1826,7 +1817,6 @@ suite('ClaudeAgent', () => {
 		// to run against — even though the model-less default
 		// (`_defaultTransportMode`) was native right up to this call.
 		const { agent, proxy } = createTestContext(disposables, {
-			rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
 			nativeAccount: NATIVE_ACCOUNT,
 		});
 		const accepted = await agent.authenticate('https://api.github.com', 'tok');
@@ -1842,7 +1832,6 @@ suite('ClaudeAgent', () => {
 		// send, where `_ensureAuthenticated` throws `AHP_AUTH_REQUIRED`. Signing in
 		// is the surviving runtime flip lever (native default → proxy default).
 		const { agent } = createTestContext(disposables, {
-			rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
 			nativeAccount: NATIVE_ACCOUNT,
 		});
 		await agent.authenticate('https://api.github.com', 'tok');
@@ -6764,7 +6753,6 @@ suite('ClaudeAgent — per-session provider', () => {
 		// Copilot mid-conversation would silently drag a running native
 		// (BYO-Anthropic) session onto the proxy on its next rebind.
 		const ctx = createTestContext(disposables, {
-			rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
 			nativeAccount: NATIVE_ACCOUNT,
 		});
 		// The host default only becomes native once the SDK has been *asked* about
@@ -6847,40 +6835,21 @@ suite('ClaudeAgent — per-session provider', () => {
 		});
 	});
 
-	test('the Copilot resource is unconditionally optional, whatever the opt-in or the SDK account report says', async () => {
-		// The load-bearing assertion of the whole feature. `required: false` is what
-		// stops `resolveAgentAuthRequirement` answering `GitHub` for this session
-		// type; when *every* type answers `GitHub`, `resolveSignedOutWindowGate`
-		// puts a non-dismissible sign-in wall over the entire Agents window.
-		//
-		// The full 2x2 is asserted because the behavior it replaces was a 2x2 with
-		// three `true`s in it: neither the opt-in nor the account report may bring
-		// the requirement back. Even with no Claude account the type reads as
-		// `Unusable` rather than `GitHub`, which is what opens the window. The flag
-		// is absent by design — it gates this one level up, in
-		// `resolveSignedOutWindowGate`.
-		const advertisedRequirement = async (inputs: { optIn: boolean; account: boolean }) => {
+	test('the Copilot resource is optional regardless of the SDK account report', async () => {
+		const advertisedRequirement = async (account: boolean) => {
 			const { agent } = createTestContext(disposables, {
-				...(inputs.optIn ? { rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true } } : {}),
-				...(inputs.account ? { nativeAccount: NATIVE_ACCOUNT } : {}),
+				...(account ? { nativeAccount: NATIVE_ACCOUNT } : {}),
 			});
-			// Let the account probe land. The old answer keyed on exactly this fact,
-			// so without the wait both halves of the matrix would be asserting the
-			// same pre-probe state and the test would pass vacuously.
 			await agent.refreshModels();
 			return agent.getProtectedResources().find(r => r.resource === 'https://api.github.com')?.required;
 		};
 
 		assert.deepStrictEqual({
-			optInOnWithAccount: await advertisedRequirement({ optIn: true, account: true }),
-			optInOffWithAccount: await advertisedRequirement({ optIn: false, account: true }),
-			optInOnNoAccount: await advertisedRequirement({ optIn: true, account: false }),
-			optInOffNoAccount: await advertisedRequirement({ optIn: false, account: false }),
+			withAccount: await advertisedRequirement(true),
+			withoutAccount: await advertisedRequirement(false),
 		}, {
-			optInOnWithAccount: false,
-			optInOffWithAccount: false,
-			optInOnNoAccount: false,
-			optInOffNoAccount: false,
+			withAccount: false,
+			withoutAccount: false,
 		});
 	});
 
@@ -6888,7 +6857,6 @@ suite('ClaudeAgent — per-session provider', () => {
 		// `authenticateProtectedResources` matches on `resource` and ignores
 		// `required`, so dropping it would break sign-in forwarding.
 		const optional = createTestContext(disposables, {
-			rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
 			nativeAccount: NATIVE_ACCOUNT,
 		}).agent.getProtectedResources();
 		assert.deepStrictEqual(optional.map(r => ({ resource: r.resource, required: r.required })), [
