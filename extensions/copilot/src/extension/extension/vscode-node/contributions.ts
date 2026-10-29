@@ -14,6 +14,7 @@ import { SessionStoreTracker } from '../../chronicle/vscode-node/sessionStoreTra
 import * as sessionSyncContribution from '../../chronicle/vscode-node/sessionSync.contribution';
 import * as chatBlockLanguageContribution from '../../codeBlocks/vscode-node/chatBlockLanguageFeatures.contribution';
 import { IExtensionContributionFactory, asContributionFactory } from '../../common/contributions';
+import { CompletionsCoreContribution } from '../../completions/vscode-node/completionsCoreContribution';
 import { CompletionsUnificationContribution } from '../../completions/vscode-node/completionsUnificationContribution';
 import { ConfigurationMigrationContribution } from '../../configuration/vscode-node/configurationMigration';
 import { InternalConfigurationInformationCommandContribution } from '../../configuration/vscode-node/internalConfigurationInformationCommand';
@@ -28,11 +29,10 @@ import { RemoteAgentContribution } from '../../conversation/vscode-node/remoteAg
 import { DiagnosticsContextContribution } from '../../diagnosticsContext/vscode/diagnosticsContextProvider';
 import { LanguageModelProxyContrib } from '../../externalAgents/vscode-node/lmProxyContrib';
 import { WalkthroughCommandContribution } from '../../getting-started/vscode-node/commands';
-import * as newWorkspaceContribution from '../../getting-started/vscode-node/newWorkspace.contribution';
 import { ScmContextProviderContribution } from '../../git/vscode/scmContextprovider';
 import { GitHubMcpContrib } from '../../githubMcp/vscode-node/githubMcp.contribution';
 import { IgnoredFileProviderContribution } from '../../ignore/vscode-node/ignoreProvider';
-import { JointCompletionsProviderContribution } from '../../inlineEdits/vscode-node/jointInlineCompletionProvider';
+import { InlineEditProviderFeatureContribution } from '../../inlineEdits/vscode-node/inlineEditProviderFeature';
 import { FixTestFailureContribution } from '../../intents/vscode-node/fixTestFailureContributions';
 import { ExtensionStateCommandContribution } from '../../log/vscode-node/extensionStateCommand';
 import { FetcherTelemetryContribution, LoggingActionsContrib } from '../../log/vscode-node/loggingActions';
@@ -81,10 +81,8 @@ export const vscodeNodeContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(DebugCommandsContribution),
 	asContributionFactory(LanguageModelAccess),
 	asContributionFactory(WalkthroughCommandContribution),
-	asContributionFactory(JointCompletionsProviderContribution),
-	// replaced by JointCompletionsProviderContribution
-	// asContributionFactory(InlineEditProviderFeatureContribution),
-	// asContributionFactory(CompletionsCoreContribution),
+	asContributionFactory(InlineEditProviderFeatureContribution),
+	asContributionFactory(CompletionsCoreContribution),
 	asContributionFactory(SettingsSchemaFeature),
 	asContributionFactory(InternalConfigurationInformationCommandContribution),
 	asContributionFactory(WorkspaceRecorderFeature),
@@ -130,7 +128,6 @@ export const vscodeNodeChatContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(McpSetupCommands),
 	asContributionFactory(LanguageModelProxyContrib),
 	asContributionFactory(PromptFileContribution),
-	newWorkspaceContribution,
 	asContributionFactory(OTelChatDebugLogProviderContribution),
 	asContributionFactory(ChatDebugFileLoggerContribution),
 ];

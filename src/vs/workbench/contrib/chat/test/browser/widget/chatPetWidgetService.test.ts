@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -16,8 +17,7 @@ import { ChatPetWidgetCoordinator } from '../../../browser/widget/chatPetWidgetS
 suite('ChatPetWidgetService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHost(): IChatPetWidgetHost {
-		const parent = document.createElement('div');
+	function createHost(parent: HTMLElement = document.createElement('div')): IChatPetWidgetHost {
 		return {
 			parent,
 			dragBounds: parent,
@@ -142,5 +142,49 @@ suite('ChatPetWidgetService', () => {
 		windowCloseEmitter.fire(dom.getWindowId(dom.getWindow(host.parent)));
 
 		assert.deepStrictEqual({ active: registration.active.get(), disposed }, { active: false, disposed: true });
+	});
+
+	test('parks the pet of an auxiliary window host in the main realm', () => {
+		const iframe = document.createElement('iframe');
+		document.body.appendChild(iframe);
+		disposables.add(toDisposable(() => iframe.remove()));
+
+		const auxiliaryDocument = iframe.contentDocument!;
+		const parent = auxiliaryDocument.createElement('div');
+		auxiliaryDocument.body.appendChild(parent);
+		const createElement = auxiliaryDocument.createElement;
+		auxiliaryDocument.createElement = () => {
+			throw new Error('Not allowed to create elements in child window JavaScript context.');
+		};
+		disposables.add(toDisposable(() => auxiliaryDocument.createElement = createElement));
+
+		const widget = new class extends mock<IChatWidget>() { }();
+		const chatWidgetService = new class extends mock<IChatWidgetService>() {
+			override lastFocusedWidget: IChatWidget | undefined = widget;
+			override readonly onDidChangeFocusedWidget = Event.None;
+		}();
+		const hostHistory: IChatPetWidgetHost[] = [];
+		const coordinator = disposables.add(new ChatPetWidgetCoordinator(host => {
+			hostHistory.push(host);
+			return {
+				setHost: (nextHost: IChatPetWidgetHost) => hostHistory.push(nextHost),
+				dispose: () => { },
+			};
+		}, chatWidgetService));
+		const host = createHost(parent);
+		const registration = coordinator.register(widget, host);
+
+		registration.dispose();
+		const dormantParent = hostHistory[1]?.parent;
+
+		assert.deepStrictEqual({
+			hostHistory: hostHistory.map(entry => entry === host),
+			dormantOwnerDocument: dormantParent?.ownerDocument === document,
+			mainRealmDormantParent: dormantParent instanceof HTMLElement,
+		}, {
+			hostHistory: [true, false],
+			dormantOwnerDocument: true,
+			mainRealmDormantParent: true,
+		});
 	});
 });

@@ -4,14 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as fs from 'fs';
+import { tmpdir } from 'os';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import * as glob from '../../../../../base/common/glob.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import * as path from '../../../../../base/common/path.js';
+import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { flakySuite } from '../../../../../base/test/node/testUtils.js';
+import { flakySuite, getRandomTestPath } from '../../../../../base/test/node/testUtils.js';
 import { deserializeSearchError, IFolderQuery, ISearchRange, ISerializedFileMatch, ITextQuery, ITextSearchContext, ITextSearchMatch, QueryType, SearchErrorCode } from '../../common/search.js';
+import { TextSearchCompleteMessageType } from '../../common/searchExtTypes.js';
 import { TextSearchEngineAdapter } from '../../node/textSearchAdapter.js';
+import { createCrossLinkedFolders } from './symlinkLoopFixture.js';
 
 const TEST_FIXTURES = path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath);
 const EXAMPLES_FIXTURES = path.join(TEST_FIXTURES, 'examples');
@@ -352,6 +357,34 @@ flakySuite('TextSearch-integration', function () {
 			assert.strictEqual((<ITextSearchContext>results[0].results![2]).lineNumber, 26);
 			assert.strictEqual((<ITextSearchContext>results[0].results![2]).text, '        compiler.emit();');
 		});
+	});
+
+	// Creating symbolic links requires elevated privileges on Windows
+	(isWindows ? test.skip : test)('Text: stops following symbolic links that form too many loops #143060', async () => {
+		const root = getRandomTestPath(tmpdir(), 'vsctests', 'textsearch-symlink-loops');
+		try {
+			const files = await createCrossLinkedFolders(root, 8, 'needle');
+			const engine = new TextSearchEngineAdapter({
+				type: QueryType.Text,
+				folderQueries: [{ folder: URI.file(root) }],
+				contentPattern: { pattern: 'needle' }
+			});
+
+			const paths: string[] = [];
+			const complete = await engine.search(new CancellationTokenSource().token, matches => paths.push(...matches.map(match => match.path!)), () => { });
+
+			assert.deepStrictEqual({
+				hasDuplicates: new Set(paths).size !== paths.length,
+				missingFiles: files.filter(file => !paths.includes(file)),
+				messageTypes: complete.messages.map(message => message.type)
+			}, {
+				hasDuplicates: false,
+				missingFiles: [],
+				messageTypes: [TextSearchCompleteMessageType.Warning]
+			});
+		} finally {
+			await fs.promises.rm(root, { recursive: true, force: true });
+		}
 	});
 
 	suite('error messages', () => {

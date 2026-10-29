@@ -5,6 +5,7 @@
 
 import { CodeWindow, mainWindow } from './window.js';
 import { Emitter } from '../common/event.js';
+import { isIOS } from '../common/platform.js';
 
 class WindowManager {
 
@@ -125,6 +126,18 @@ if (typeof mainWindow.matchMedia === 'function') {
 }
 export function isStandalone(): boolean {
 	return standalone;
+}
+
+/**
+ * Whether we are an installed web app (PWA) on a phone or tablet.
+ *
+ * These have no browser tab to fall back on, so anything a tab could recover from
+ * — a blocked popup, a navigation that lands somewhere unexpected — is a dead end
+ * here. Desktop installed apps still get real windows and are deliberately not
+ * included.
+ */
+export function isMobileStandalone(): boolean {
+	return isStandalone() && (isIOS || isAndroid);
 }
 
 // Visible means that the feature is enabled, not necessarily being rendered

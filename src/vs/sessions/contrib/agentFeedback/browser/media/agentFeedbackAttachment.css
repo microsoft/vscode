@@ -19,7 +19,7 @@
 }
 
 .agent-feedback-context-view-comment-text {
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;

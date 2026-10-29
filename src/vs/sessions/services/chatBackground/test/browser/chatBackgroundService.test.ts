@@ -11,22 +11,32 @@ import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationOverrides
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundConfiguredContext, SessionsChatBackgroundImageConfiguredContext } from '../../../../common/contextkeys.js';
-import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, ISessionsChatImageBackground, SessionsChatBackgroundService } from '../../browser/chatBackgroundService.js';
+import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, ISessionsChatImageBackground, SessionsChatBackgroundService } from '../../browser/chatBackgroundService.js';
 
 class CapturingConfigurationService extends TestConfigurationService {
 	readonly updates: { key: string; value: unknown; target: ConfigurationTarget | undefined }[] = [];
 	updateError: Error | undefined;
+	/** Reports each update before it resolves, like the workbench configuration service. */
+	fireChangeEvents = false;
 
 	override updateValue(key: string, value: unknown): Promise<void>;
 	override updateValue(key: string, value: unknown, target: ConfigurationTarget): Promise<void>;
 	override updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
 	override updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
-	override updateValue(key: string, value: unknown, arg3?: ConfigurationTarget | IConfigurationOverrides | IConfigurationUpdateOverrides, target?: ConfigurationTarget): Promise<void> {
+	override async updateValue(key: string, value: unknown, arg3?: ConfigurationTarget | IConfigurationOverrides | IConfigurationUpdateOverrides, target?: ConfigurationTarget): Promise<void> {
 		this.updates.push({ key, value, target: typeof arg3 === 'number' ? arg3 : target });
-		return this.updateError ? Promise.reject(this.updateError) : Promise.resolve();
+		if (this.updateError) {
+			throw this.updateError;
+		}
+		await this.setUserConfiguration(key, value);
+		if (this.fireChangeEvents) {
+			fireConfigurationChange(this, key);
+		}
 	}
 }
 
@@ -41,7 +51,7 @@ suite('Sessions Chat Background Service', () => {
 
 	test('does not return a background without a configured image', () => {
 		const contextKeyService = disposables.add(new MockContextKeyService());
-		const service = disposables.add(new SessionsChatBackgroundService(new TestConfigurationService(), new TestThemeService(), contextKeyService, disposables.add(new InMemoryStorageService())));
+		const service = disposables.add(new SessionsChatBackgroundService(new TestConfigurationService(), new TestThemeService(), contextKeyService, disposables.add(new InMemoryStorageService()), NullTelemetryService));
 
 		assert.deepStrictEqual({
 			background: service.getBackground(),
@@ -60,11 +70,12 @@ suite('Sessions Chat Background Service', () => {
 		const configurationService = new TestConfigurationService({
 			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: URI.file('/textures/dark.png').fsPath,
 			[AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING]: URI.file('/textures/light.png').fsPath,
-			[AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: 'center',
+			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: 'center',
+			[AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: 'center',
 		});
 		const themeService = new TestThemeService();
 		const contextKeyService = disposables.add(new MockContextKeyService());
-		const service = disposables.add(new SessionsChatBackgroundService(configurationService, themeService, contextKeyService, disposables.add(new InMemoryStorageService())));
+		const service = disposables.add(new SessionsChatBackgroundService(configurationService, themeService, contextKeyService, disposables.add(new InMemoryStorageService()), NullTelemetryService));
 		let changes = 0;
 		disposables.add(service.onDidChangeBackground(() => changes++));
 
@@ -131,7 +142,7 @@ suite('Sessions Chat Background Service', () => {
 			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET,
 		});
 		const contextKeyService = disposables.add(new MockContextKeyService());
-		const service = disposables.add(new SessionsChatBackgroundService(configurationService, new TestThemeService(), contextKeyService, disposables.add(new InMemoryStorageService())));
+		const service = disposables.add(new SessionsChatBackgroundService(configurationService, new TestThemeService(), contextKeyService, disposables.add(new InMemoryStorageService()), NullTelemetryService));
 
 		assert.deepStrictEqual({
 			background: service.getBackground(),
@@ -149,14 +160,14 @@ suite('Sessions Chat Background Service', () => {
 	test('returns every configured image layout', async () => {
 		const configurationService = new TestConfigurationService({
 			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: URI.file('/textures/kirby.png').fsPath,
-			[AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: 'repeat',
+			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: 'repeat',
 		});
-		const service = disposables.add(new SessionsChatBackgroundService(configurationService, new TestThemeService(), disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService())));
+		const service = disposables.add(new SessionsChatBackgroundService(configurationService, new TestThemeService(), disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService()), NullTelemetryService));
 		const actual: Partial<Record<ChatBackgroundImageLayout, Omit<ISessionsChatImageBackground, 'kind' | 'backgroundImage'> | undefined>> = {};
 
 		for (const layout of chatBackgroundImageLayoutValues) {
-			await configurationService.setUserConfiguration(AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, layout);
-			fireConfigurationChange(configurationService, AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING);
+			await configurationService.setUserConfiguration(AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, layout);
+			fireConfigurationChange(configurationService, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING);
 			const background = service.getBackground();
 			if (background?.kind === 'image') {
 				actual[layout] = {
@@ -182,12 +193,77 @@ suite('Sessions Chat Background Service', () => {
 		});
 	});
 
-	test('updates the image layout without persisting until the final value is committed', async () => {
-		const configurationService = new TestConfigurationService({
-			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: URI.file('/textures/kirby.png').fsPath,
-			[AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: 'center',
+	test('keeps dark and light image layouts independent', async () => {
+		const configurationService = new CapturingConfigurationService();
+		const themeService = new TestThemeService();
+		const service = disposables.add(new SessionsChatBackgroundService(configurationService, themeService, disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService()), NullTelemetryService));
+
+		await service.setBackgroundImageLayout('right', 'layoutPicker');
+		themeService.setTheme(new TestColorTheme({}, ColorScheme.LIGHT));
+		const initialLightLayout = service.getBackgroundImageLayout();
+		await service.setBackgroundImageLayout('left', 'layoutPicker');
+		themeService.setTheme(new TestColorTheme({}, ColorScheme.DARK));
+
+		assert.deepStrictEqual({
+			initialLightLayout,
+			restoredDarkLayout: service.getBackgroundImageLayout(),
+			updates: configurationService.updates,
+		}, {
+			initialLightLayout: 'repeat',
+			restoredDarkLayout: 'right',
+			updates: [{
+				key: AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING,
+				value: 'right',
+				target: ConfigurationTarget.USER,
+			}, {
+				key: AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING,
+				value: 'left',
+				target: ConfigurationTarget.USER,
+			}],
 		});
-		const service = disposables.add(new SessionsChatBackgroundService(configurationService, new TestThemeService(), disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService())));
+	});
+
+	test('reads and writes the image layout for the active color scheme', async () => {
+		const configurationService = new CapturingConfigurationService({
+			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: 'top',
+			[AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: 'bottom',
+		});
+		const themeService = new TestThemeService();
+		const service = disposables.add(new SessionsChatBackgroundService(configurationService, themeService, disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService()), NullTelemetryService));
+
+		const initialDarkLayout = service.getBackgroundImageLayout();
+		await configurationService.setUserConfiguration(AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, 'right');
+		fireConfigurationChange(configurationService, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING);
+		const updatedDarkLayout = service.getBackgroundImageLayout();
+		themeService.setTheme(new TestColorTheme({}, ColorScheme.LIGHT));
+		const initialLightLayout = service.getBackgroundImageLayout();
+		await service.setBackgroundImageLayout('left', 'layoutPicker');
+
+		assert.deepStrictEqual({
+			initialDarkLayout,
+			updatedDarkLayout,
+			initialLightLayout,
+			updatedLightLayout: service.getBackgroundImageLayout(),
+			updates: configurationService.updates,
+		}, {
+			initialDarkLayout: 'top',
+			updatedDarkLayout: 'right',
+			initialLightLayout: 'bottom',
+			updatedLightLayout: 'left',
+			updates: [{
+				key: AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING,
+				value: 'left',
+				target: ConfigurationTarget.USER,
+			}],
+		});
+	});
+
+	test('restores the active color scheme layout when preview is cancelled', async () => {
+		const configurationService = new CapturingConfigurationService({
+			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: URI.file('/textures/kirby.png').fsPath,
+			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: 'center',
+		});
+		const service = disposables.add(new SessionsChatBackgroundService(configurationService, new TestThemeService(), disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService()), NullTelemetryService));
 		let changes = 0;
 		disposables.add(service.onDidChangeBackground(() => changes++));
 		const getPosition = () => {
@@ -196,43 +272,44 @@ suite('Sessions Chat Background Service', () => {
 		};
 
 		const configuredPosition = getPosition();
-		await service.setBackgroundImageLayout('bottom-right', false);
+		await service.setBackgroundImageLayout('bottom-right', 'layoutPicker', false);
 		const previewPosition = getPosition();
-		const persistedDuringPreview = configurationService.getValue(AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING);
-		await service.setBackgroundImageLayout('center', true);
+		await service.setBackgroundImageLayout('center', 'layoutPicker', false);
 
 		assert.deepStrictEqual({
 			configuredPosition,
 			previewPosition,
-			persistedDuringPreview,
 			restoredPosition: getPosition(),
-			persistedLayout: configurationService.getValue(AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING),
+			persistedDarkLayout: configurationService.getValue(AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING),
+			updates: configurationService.updates,
 			changes,
 		}, {
 			configuredPosition: 'center center',
 			previewPosition: 'right bottom',
-			persistedDuringPreview: 'center',
 			restoredPosition: 'center center',
-			persistedLayout: 'center',
+			persistedDarkLayout: 'center',
+			updates: [],
 			changes: 2,
 		});
 	});
 
 	test('restores the configured image layout when persistence fails', async () => {
-		const configurationService = new CapturingConfigurationService();
-		const service = disposables.add(new SessionsChatBackgroundService(configurationService, new TestThemeService(), disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService())));
+		const configurationService = new CapturingConfigurationService({
+			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING]: 'center',
+		});
+		const service = disposables.add(new SessionsChatBackgroundService(configurationService, new TestThemeService(), disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService()), NullTelemetryService));
 		let changes = 0;
 		disposables.add(service.onDidChangeBackground(() => changes++));
-		await service.setBackgroundImageLayout('bottom-right', false);
+		await service.setBackgroundImageLayout('bottom-right', 'layoutPicker', false);
 		configurationService.updateError = new Error('Unable to save layout');
 
-		await assert.rejects(service.setBackgroundImageLayout('bottom-right', true), /Unable to save layout/);
+		await assert.rejects(service.setBackgroundImageLayout('bottom-right', 'layoutPicker', true), /Unable to save layout/);
 
 		assert.deepStrictEqual({
 			layout: service.getBackgroundImageLayout(),
 			changes,
 		}, {
-			layout: 'repeat',
+			layout: 'center',
 			changes: 2,
 		});
 	});
@@ -243,14 +320,14 @@ suite('Sessions Chat Background Service', () => {
 			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: initialImage.toString(),
 		});
 		const storageService = disposables.add(new InMemoryStorageService());
-		const service = disposables.add(new SessionsChatBackgroundService(configurationService, new TestThemeService(), disposables.add(new MockContextKeyService()), storageService));
+		const service = disposables.add(new SessionsChatBackgroundService(configurationService, new TestThemeService(), disposables.add(new MockContextKeyService()), storageService, NullTelemetryService));
 		const selectedImages = Array.from({ length: 6 }, (_, index) => URI.file(`/textures/recent-${index + 1}.png`));
 		const initialRecents = service.getRecentBackgroundImages();
 		for (const image of selectedImages) {
-			await service.setBackground(image);
+			await service.setBackground(image, 'backgroundPicker');
 		}
-		await service.setBackground(selectedImages[2]);
-		const restoredService = disposables.add(new SessionsChatBackgroundService(new TestConfigurationService(), new TestThemeService(), disposables.add(new MockContextKeyService()), storageService));
+		await service.setBackground(selectedImages[2], 'backgroundPicker');
+		const restoredService = disposables.add(new SessionsChatBackgroundService(new TestConfigurationService(), new TestThemeService(), disposables.add(new MockContextKeyService()), storageService, NullTelemetryService));
 
 		assert.deepStrictEqual({
 			initialRecents: initialRecents.map(image => image.path),
@@ -267,22 +344,22 @@ suite('Sessions Chat Background Service', () => {
 		});
 	});
 
-	test('updates the background for the active color theme and the shared layout', async () => {
+	test('updates the background and image layout for the active color theme', async () => {
 		const image = URI.file('/textures/kirby.png');
 		const configurationService = new CapturingConfigurationService();
 		const themeService = new TestThemeService();
-		const service = disposables.add(new SessionsChatBackgroundService(configurationService, themeService, disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService())));
+		const service = disposables.add(new SessionsChatBackgroundService(configurationService, themeService, disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService()), NullTelemetryService));
 
-		await service.setBackground(image);
-		await service.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET);
-		await service.clearBackground();
+		await service.setBackground(image, 'backgroundPicker');
+		await service.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, 'backgroundPicker');
+		await service.clearBackground('backgroundPicker');
 		themeService.setTheme(new TestColorTheme({}, ColorScheme.LIGHT));
-		await service.setBackground(image);
-		await service.setBackgroundImageLayout('bottom-right');
+		await service.setBackground(image, 'backgroundPicker');
+		await service.setBackgroundImageLayout('bottom-right', 'layoutPicker');
 
 		assert.deepStrictEqual(configurationService.updates, [{
 			key: AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING,
-			value: image.toString(),
+			value: image.fsPath,
 			target: ConfigurationTarget.USER,
 		}, {
 			key: AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING,
@@ -294,12 +371,66 @@ suite('Sessions Chat Background Service', () => {
 			target: ConfigurationTarget.USER,
 		}, {
 			key: AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING,
-			value: image.toString(),
+			value: image.fsPath,
 			target: ConfigurationTarget.USER,
 		}, {
-			key: AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING,
+			key: AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING,
 			value: 'bottom-right',
-			target: ConfigurationTarget.APPLICATION,
+			target: ConfigurationTarget.USER,
 		}]);
+	});
+
+	test('reports each background change with its source', async () => {
+		const configurationService = new CapturingConfigurationService();
+		configurationService.fireChangeEvents = true;
+		const telemetryEvents: { name: string; data: unknown }[] = [];
+		const telemetryService = upcastPartial<ITelemetryService>({ publicLog2: (name, data) => telemetryEvents.push({ name, data }) });
+		const service = disposables.add(new SessionsChatBackgroundService(configurationService, new TestThemeService(), disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService()), telemetryService));
+
+		await service.setBackground(URI.file('/textures/kirby.png'), 'backgroundPicker');
+		await service.setBackground(URI.file('/textures/kirby.png'), 'backgroundPicker');
+		await service.setBackgroundImageLayout('repeat', 'layoutPicker');
+		await configurationService.setUserConfiguration(AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, undefined);
+		fireConfigurationChange(configurationService, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING);
+		await service.setBackgroundImageLayout('center', 'layoutPicker', false);
+		await service.setBackgroundImageLayout('center', 'layoutPicker');
+		await service.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, 'agent', ColorScheme.LIGHT);
+		await service.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, 'agent', ColorScheme.LIGHT);
+		await service.clearBackground('agent');
+		await service.clearBackground('backgroundPicker');
+		await configurationService.setUserConfiguration(AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, 'top');
+		fireConfigurationChange(configurationService, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING);
+		await configurationService.setUserConfiguration(AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, URI.file('/textures/light.png').toString());
+		fireConfigurationChange(configurationService, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING);
+		await service.setBackground(URI.file('/textures/light.png'), 'backgroundPicker', ColorScheme.LIGHT);
+
+		// Not reported: selecting the current image, the default layout, the current preset, or no background again,
+		// removing the explicit default layout, the layout preview, a layout without an image, and a path that
+		// replaces a `file` URI of the same image.
+		assert.deepStrictEqual(telemetryEvents, [
+			{ source: 'backgroundPicker', change: 'background', background: 'userImage', layout: 'repeat', colorScheme: 'dark' },
+			{ source: 'layoutPicker', change: 'layout', background: 'userImage', layout: 'center', colorScheme: 'dark' },
+			{ source: 'agent', change: 'background', background: 'builtin', layout: undefined, colorScheme: 'light' },
+			{ source: 'agent', change: 'background', background: 'none', layout: undefined, colorScheme: 'dark' },
+			{ source: 'settings', change: 'background', background: 'userImage', layout: 'repeat', colorScheme: 'light' },
+		].map(data => ({ name: 'vscodeAgents.chatBackground/changed', data })));
+	});
+
+	test('reports overlapping writes of a background with their own sources', async () => {
+		const configurationService = new CapturingConfigurationService();
+		configurationService.fireChangeEvents = true;
+		const telemetryEvents: unknown[] = [];
+		const telemetryService = upcastPartial<ITelemetryService>({ publicLog2: (_name, data) => telemetryEvents.push(data) });
+		const service = disposables.add(new SessionsChatBackgroundService(configurationService, new TestThemeService(), disposables.add(new MockContextKeyService()), disposables.add(new InMemoryStorageService()), telemetryService));
+
+		await Promise.all([
+			service.setBackground(URI.file('/textures/kirby.png'), 'agent'),
+			service.setBackground(AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, 'backgroundPicker'),
+		]);
+
+		assert.deepStrictEqual(telemetryEvents, [
+			{ source: 'agent', change: 'background', background: 'userImage', layout: 'repeat', colorScheme: 'dark' },
+			{ source: 'backgroundPicker', change: 'background', background: 'builtin', layout: undefined, colorScheme: 'dark' },
+		]);
 	});
 });

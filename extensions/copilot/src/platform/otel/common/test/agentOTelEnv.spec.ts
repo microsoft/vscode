@@ -16,6 +16,7 @@ function makeConfig(overrides: Partial<OTelConfig> = {}): OTelConfig {
 		otlpEndpoint: 'http://localhost:4318',
 		otlpProtocol: 'http/json',
 		captureContent: false,
+		captureIdentity: false,
 		maxAttributeSizeChars: 0,
 		dbSpanExporter: false,
 		logLevel: 'info',
@@ -32,6 +33,14 @@ function makeConfig(overrides: Partial<OTelConfig> = {}): OTelConfig {
 const emptyEnv: Record<string, string | undefined> = {};
 
 describe('deriveCopilotCliOTelEnv', () => {
+	it('never treats identity as content or forwards identity and secret headers through env', () => {
+		const result = deriveCopilotCliOTelEnv(makeConfig({
+			captureIdentity: true, captureContent: false,
+			resourceAttributes: { 'host.name': 'private-host' }, headers: { authorization: 'secret' },
+		}), emptyEnv);
+		expect(result).toEqual({ COPILOT_OTEL_ENABLED: 'true', OTEL_EXPORTER_OTLP_ENDPOINT: 'http://localhost:4318' });
+	});
+
 	it('returns empty when disabled', () => {
 		const result = deriveCopilotCliOTelEnv(makeConfig({ enabled: false }), emptyEnv);
 		expect(result).toEqual({});

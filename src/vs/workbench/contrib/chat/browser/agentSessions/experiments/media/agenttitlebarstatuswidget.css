@@ -202,7 +202,7 @@
 .agent-status-text,
 .agent-status-attention-count {
 	font-size: 11px;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .agent-status-keybinding {
@@ -213,7 +213,7 @@
 /* Session title */
 .agent-status-title {
 	flex: 1;
-	font-weight: 500;
+	font-weight: var(--vscode-fontWeight-semiBold);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;

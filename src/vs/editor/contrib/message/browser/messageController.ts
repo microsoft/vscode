@@ -8,7 +8,7 @@ import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import './messageController.css';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
 import { EditorCommand, EditorContributionInstantiation, registerEditorCommand, registerEditorContribution } from '../../../browser/editorExtensions.js';
@@ -119,8 +119,10 @@ export class MessageController implements IEditorContribution {
 	closeMessage(): void {
 		this._visible.reset();
 		this._messageListeners.clear();
-		if (this._messageWidget.value) {
-			this._messageListeners.add(MessageWidget.fadeOut(this._messageWidget.value));
+		// Hand the widget over to the fade out so it isn't retained after it went away
+		const messageWidget = this._messageWidget.clearAndLeak();
+		if (messageWidget) {
+			this._messageListeners.add(MessageWidget.fadeOut(messageWidget));
 		}
 	}
 }
@@ -149,15 +151,15 @@ class MessageWidget implements IContentWidget {
 	private readonly _domNode: HTMLDivElement;
 
 	static fadeOut(messageWidget: MessageWidget): IDisposable {
-		const dispose = () => {
-			messageWidget.dispose();
-			clearTimeout(handle);
-			messageWidget.getDomNode().removeEventListener('animationend', dispose);
-		};
-		const handle = setTimeout(dispose, 110);
-		messageWidget.getDomNode().addEventListener('animationend', dispose);
+		// Everything that references the widget lives in the store, which is emptied once the
+		// fade out completes, so holding on to the returned disposable doesn't keep it alive
+		const store = new DisposableStore();
+		store.add(toDisposable(() => messageWidget.dispose()));
+		store.add(dom.addDisposableListener(messageWidget.getDomNode(), 'animationend', () => store.dispose()));
+		const handle = setTimeout(() => store.dispose(), 110);
+		store.add(toDisposable(() => clearTimeout(handle)));
 		messageWidget.getDomNode().classList.add('fadeOut');
-		return { dispose };
+		return store;
 	}
 
 	constructor(editor: ICodeEditor, { lineNumber, column }: IPosition, text: HTMLElement | string) {

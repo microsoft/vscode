@@ -10,6 +10,7 @@ const CharacterCode = {
 	CarriageReturn: 13,
 	Space: 32,
 	DoubleQuote: 34,
+	Dollar: 36,
 	Ampersand: 38,
 	SingleQuote: 39,
 	LeftParenthesis: 40,
@@ -23,12 +24,15 @@ const CharacterCode = {
 	Colon: 58,
 	Semicolon: 59,
 	LessThan: 60,
+	Equals: 61,
 	GreaterThan: 62,
 	At: 64,
 	LeftSquareBracket: 91,
 	Backslash: 92,
 	RightSquareBracket: 93,
+	Circumflex: 94,
 	LeftCurlyBracket: 123,
+	VerticalBar: 124,
 	RightCurlyBracket: 125,
 	Tilde: 126,
 } as const;
@@ -69,6 +73,152 @@ export function findRootAnchoredHas(css: string): number | undefined {
 		return undefined;
 	}
 	return scanStylesheet(css, 0, css.length, false).rootAnchoredHasOffset;
+}
+
+/**
+ * Returns the offset of the first substring operator used on a `class`
+ * attribute in a stylesheet selector.
+ */
+export function findClassAttributeSubstringSelector(css: string): number | undefined {
+	return scanStylesheetForClassAttributeSubstring(css, 0, css.length).offset;
+}
+
+function scanStylesheetForClassAttributeSubstring(css: string, start: number, end: number): { next: number; offset: number | undefined } {
+	let index = start;
+	while (index < end) {
+		index = skipWhitespaceAndComments(css, index, end);
+		if (css.charCodeAt(index) === CharacterCode.RightCurlyBracket) {
+			return { next: index + 1, offset: undefined };
+		}
+
+		const preludeStart = index;
+		index = findStatementBoundary(css, index, end);
+		const boundary = css.charCodeAt(index);
+		if (boundary === CharacterCode.Semicolon) {
+			index++;
+			continue;
+		}
+		if (boundary === CharacterCode.RightCurlyBracket) {
+			return { next: index + 1, offset: undefined };
+		}
+		if (boundary !== CharacterCode.LeftCurlyBracket) {
+			return { next: index, offset: undefined };
+		}
+
+		const contentStart = skipWhitespaceAndComments(css, preludeStart, index);
+		const isAtRule = css.charCodeAt(contentStart) === CharacterCode.At;
+		const declarationIdentifier = readIdentifier(css, contentStart, index);
+		const isCustomProperty = declarationIdentifier.value.startsWith('--')
+			&& css.charCodeAt(skipWhitespaceAndComments(css, declarationIdentifier.end, index)) === CharacterCode.Colon;
+		if (isCustomProperty) {
+			index = skipCustomPropertyDeclaration(css, index, end);
+			continue;
+		}
+		if (isAtRule) {
+			const atRuleName = readIdentifier(css, contentStart + 1, index);
+			if (atRuleName.value === 'scope') {
+				const offset = findClassAttributeSubstringInSelector(css, atRuleName.end, trimTrailingWhitespace(css, atRuleName.end, index));
+				if (offset !== undefined) {
+					return { next: index, offset };
+				}
+			}
+		} else {
+			const offset = findClassAttributeSubstringInSelector(css, preludeStart, trimTrailingWhitespace(css, preludeStart, index));
+			if (offset !== undefined) {
+				return { next: index, offset };
+			}
+		}
+
+		const blockResult = scanStylesheetForClassAttributeSubstring(css, index + 1, end);
+		if (blockResult.offset !== undefined) {
+			return blockResult;
+		}
+		index = blockResult.next;
+	}
+	return { next: end, offset: undefined };
+}
+
+function findClassAttributeSubstringInSelector(css: string, start: number, end: number): number | undefined {
+	for (let index = start; index < end;) {
+		const character = css.charCodeAt(index);
+		if (character === CharacterCode.LeftSquareBracket) {
+			const bracketEnd = skipBracket(css, index + 1, end);
+			const attribute = readAttributeName(css, index + 1, bracketEnd - 1);
+			const operator = css.charCodeAt(attribute.end);
+			if (attribute.value === 'class'
+				&& (operator === CharacterCode.Asterisk || operator === CharacterCode.Circumflex || operator === CharacterCode.Dollar)
+				&& css.charCodeAt(attribute.end + 1) === CharacterCode.Equals) {
+				if (!isLegacyCodiconClassSubstring(css, operator, attribute.end + 2, bracketEnd - 1)) {
+					return index;
+				}
+			}
+			index = bracketEnd;
+		} else if (character === CharacterCode.SingleQuote || character === CharacterCode.DoubleQuote) {
+			index = skipString(css, index + 1, end, character);
+		} else if (character === CharacterCode.Slash && css.charCodeAt(index + 1) === CharacterCode.Asterisk) {
+			index = skipComment(css, index + 2, end);
+		} else {
+			index++;
+		}
+	}
+	return undefined;
+}
+
+function isLegacyCodiconClassSubstring(css: string, operator: number, start: number, end: number): boolean {
+	if (operator !== CharacterCode.Asterisk) {
+		return false;
+	}
+	let index = skipWhitespaceAndComments(css, start, end);
+	const quote = css.charCodeAt(index);
+	if (quote === CharacterCode.SingleQuote || quote === CharacterCode.DoubleQuote) {
+		index++;
+		let value = '';
+		while (index < end) {
+			const character = css.charCodeAt(index);
+			if (character === quote) {
+				return value.startsWith('codicon-');
+			}
+			if (character === CharacterCode.Backslash) {
+				const escaped = readEscape(css, index + 1, end);
+				if (!escaped) {
+					return false;
+				}
+				value += escaped.value;
+				index = escaped.end;
+			} else {
+				value += css[index++];
+			}
+		}
+		return false;
+	}
+	return css.slice(index, readUnquotedAttributeValueEnd(css, index, end)).startsWith('codicon-');
+}
+
+function readUnquotedAttributeValueEnd(css: string, start: number, end: number): number {
+	let index = start;
+	while (index < end && !isWhitespace(css.charCodeAt(index)) && css.charCodeAt(index) !== CharacterCode.RightSquareBracket) {
+		index++;
+	}
+	return index;
+}
+
+function readAttributeName(css: string, start: number, end: number): Identifier {
+	let index = skipWhitespaceAndComments(css, start, end);
+	let attribute = readIdentifier(css, index, end);
+	index = skipWhitespaceAndComments(css, attribute.end, end);
+
+	if (css.charCodeAt(index) === CharacterCode.Asterisk && css.charCodeAt(index + 1) === CharacterCode.VerticalBar) {
+		index = skipWhitespaceAndComments(css, index + 2, end);
+		attribute = readIdentifier(css, index, end);
+	} else if (css.charCodeAt(index) === CharacterCode.VerticalBar && css.charCodeAt(index + 1) !== CharacterCode.Equals) {
+		index = skipWhitespaceAndComments(css, index + 1, end);
+		attribute = readIdentifier(css, index, end);
+	}
+
+	return {
+		value: attribute.value,
+		end: skipWhitespaceAndComments(css, attribute.end, end),
+	};
 }
 
 function mayContainHasPseudo(css: string): boolean {
@@ -257,10 +407,13 @@ function readEscape(css: string, start: number, end: number): Identifier | undef
 	if (digitCount === 0) {
 		return { end: index + 1, value: css[index] };
 	}
-	if (isWhitespace(css.charCodeAt(index))) {
+	if (css.charCodeAt(index) === CharacterCode.CarriageReturn && css.charCodeAt(index + 1) === CharacterCode.LineFeed) {
+		index += 2;
+	} else if (isWhitespace(css.charCodeAt(index))) {
 		index++;
 	}
-	return { end: index, value: String.fromCodePoint(codePoint || 0xFFFD) };
+	const validCodePoint = codePoint === 0 || codePoint > 0x10FFFF || codePoint >= 0xD800 && codePoint <= 0xDFFF ? 0xFFFD : codePoint;
+	return { end: index, value: String.fromCodePoint(validCodePoint) };
 }
 
 function hexValue(character: number): number {
@@ -300,10 +453,42 @@ function skipBracket(css: string, start: number, end: number): number {
 		if (character === CharacterCode.RightSquareBracket) {
 			return index + 1;
 		}
+
 		if (character === CharacterCode.SingleQuote || character === CharacterCode.DoubleQuote) {
 			index = skipString(css, index + 1, end, character) - 1;
 		} else if (character === CharacterCode.Slash && css.charCodeAt(index + 1) === CharacterCode.Asterisk) {
 			index = skipComment(css, index + 2, end) - 1;
+		}
+	}
+	return end;
+}
+
+function skipCustomPropertyDeclaration(css: string, start: number, end: number): number {
+	let curlyDepth = 0;
+	let parenthesisDepth = 0;
+	for (let index = start; index < end; index++) {
+		const character = css.charCodeAt(index);
+		if (character === CharacterCode.LeftCurlyBracket) {
+			curlyDepth++;
+		} else if (character === CharacterCode.RightCurlyBracket) {
+			if (curlyDepth === 0) {
+				return index;
+			}
+			curlyDepth--;
+		} else if (character === CharacterCode.LeftParenthesis) {
+			parenthesisDepth++;
+		} else if (character === CharacterCode.RightParenthesis && parenthesisDepth > 0) {
+			parenthesisDepth--;
+		} else if (character === CharacterCode.Semicolon && curlyDepth === 0 && parenthesisDepth === 0) {
+			return index + 1;
+		} else if (character === CharacterCode.SingleQuote || character === CharacterCode.DoubleQuote) {
+			index = skipString(css, index + 1, end, character) - 1;
+		} else if (character === CharacterCode.LeftSquareBracket) {
+			index = skipBracket(css, index + 1, end) - 1;
+		} else if (character === CharacterCode.Slash && css.charCodeAt(index + 1) === CharacterCode.Asterisk) {
+			index = skipComment(css, index + 2, end) - 1;
+		} else if (character === CharacterCode.Backslash) {
+			index = (readEscape(css, index + 1, end)?.end ?? index + 1) - 1;
 		}
 	}
 	return end;
@@ -404,6 +589,8 @@ function findStatementBoundary(css: string, start: number, end: number): number 
 			parenthesisDepth++;
 		} else if (character === CharacterCode.RightParenthesis) {
 			parenthesisDepth--;
+		} else if (character === CharacterCode.Backslash) {
+			index = (readEscape(css, index + 1, end)?.end ?? index + 1) - 1;
 		} else if (parenthesisDepth === 0 && (character === CharacterCode.Semicolon || character === CharacterCode.LeftCurlyBracket || character === CharacterCode.RightCurlyBracket)) {
 			return index;
 		}

@@ -9,6 +9,7 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogger, LogLevel } from '../../../../platform/log/common/log.js';
+import { McpServerPolicyValues } from '../../../../platform/mcp/common/allowedMcpServers.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
@@ -33,7 +34,18 @@ export interface IMcpHostDelegate {
 	waitForInitialProviderPromises(): Promise<void>;
 	canStart(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition): boolean;
 	substituteVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch>;
-	start(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition, resolvedLaunch: McpServerLaunch, options?: { errorOnUserInteraction?: boolean }): IMcpMessageTransport;
+	/**
+	 * Applies the definition's {@link McpServerDefinition.environmentVariableExpansion} to
+	 * the launch, using the environment of the host that will run or connect to the server.
+	 */
+	expandEnvironmentVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch>;
+	/** Expands matcher strings against this host's environment without authorizing a server or exposing the whole environment. */
+	resolvePolicyVariables(values: readonly string[]): Promise<McpServerPolicyValues>;
+	start(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition, resolvedLaunch: McpServerLaunch, options?: {
+		errorOnUserInteraction?: boolean;
+		/** Expansions used to authorize this launch, retained for request-destination checks. */
+		policyValues?: McpServerPolicyValues;
+	}): IMcpMessageTransport;
 }
 
 export interface IMcpResolveConnectionOptions {
@@ -95,6 +107,6 @@ export interface IMcpRegistry {
 	setSavedInput(inputId: string, target: ConfigurationTarget, value: string): Promise<void>;
 	/** Gets saved inputs from storage. */
 	getSavedInputs(scope: StorageScope): Promise<{ [id: string]: IResolvedValue }>;
-	/** Creates a connection for the collection and definition. */
+	/** Creates a connection, or returns undefined if startup is cancelled or the collection or definition is no longer registered. */
 	resolveConnection(options: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined>;
 }

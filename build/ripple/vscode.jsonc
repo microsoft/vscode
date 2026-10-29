@@ -1,0 +1,193 @@
+// What ripple needs to know about this repository: pass it with `--config build/ripple/vscode.jsonc`.
+// See README.md.
+//
+// Paths are relative to the repository root. In glob patterns, `*` and `?` match within one path
+// segment, `**` matches any number of segments and `{a,b}` matches either alternative. In a list of
+// patterns, a pattern starting with `!` excludes the paths it matches.
+{
+	// The modules ripple analyzes. Every other file is opaque: changing it affects the modules that
+	// load it or read it by path. Declaration files (`.d.ts`) are never analyzed.
+	"modules": [
+		"src/**/*.ts",
+		"src/**/*.mts"
+	],
+
+	// Non-relative module specifiers that name repository files, by prefix (like `paths` in
+	// tsconfig.json). String literals with such a prefix are also read as module paths, for example
+	// worker entry points.
+	"pathAliases": {
+		"vs/": "src/vs/"
+	},
+
+	// Test files, which must also be modules. `ripple plan` selects the unit and the integration
+	// tests, and so do `ripple affected` and `ripple blame`. Each test runner then runs the selected
+	// files it would run by default (see `--runList` in test/unit/README.md).
+	"tests": {
+		"unit": [
+			"src/**/test/**/*.test.ts"
+		],
+		"integration": [
+			"src/**/*.integrationTest.ts"
+		],
+		// The scripts that run the unit tests. The modules they name by a path alias run in every
+		// test run, or serve requests of the tests, such as `'vs/workbench/test/common/utils'` and
+		// `` `${outDir}/vs/platform/protocol/electron-main/protocolMainService.js` ``: a change that
+		// reaches one of them runs every unit test.
+		"runners": [
+			"test/unit/**/*.js"
+		]
+	},
+
+	// Files outside the module graph that every unit test depends on, by the reason the plan reports:
+	// changing one of them runs every unit test, and every integration test, which the unit test
+	// runners run too.
+	"runEverything": {
+		// remote/.npmrc has the Node.js version that the node.js test runner requires.
+		"runtime version": [
+			".npmrc",
+			".nvmrc",
+			"remote/.npmrc",
+			"build/checksums/electron.txt",
+			"build/lib/electron.ts"
+		],
+		// The test launchers read the application name from product.json.
+		"test launcher": [
+			"scripts/test.sh",
+			"scripts/test.bat",
+			"product.json"
+		],
+		"test runner": [
+			"test/unit/**",
+			"!test/unit/**/*.md"
+		],
+		// `npm run gulp transpile-client-esbuild` runs build/next through these files, with the npm
+		// packages of build/package.json, such as esbuild. gulp loads the root gulpfile.mjs.
+		"transpiler": [
+			"gulpfile.mjs",
+			"build/gulpfile.ts",
+			"build/lib/esbuild.ts",
+			"build/lib/compilation.ts",
+			"build/lib/gulp/**",
+			"build/next/**",
+			// Inputs of the Dev Tunnels web bundle, which packaging builds, not the transpile step.
+			"!build/next/devTunnelsWebEntry.js",
+			"!build/next/devTunnelsShims/**",
+			"build/package.json",
+			"build/package-lock.json"
+		],
+		"compiler options": [
+			"src/tsconfig*"
+		],
+		// How the test jobs install dependencies, and the key of their node_modules cache (see
+		// .github/actions/restore-node-modules).
+		"dependency installation": [
+			"build/npm/**",
+			"build/azure-pipelines/win32/exec.ps1",
+			"build/.npmrc",
+			"build/.cachesalt",
+			"build/azure-pipelines/common/computeNodeModulesCacheKey.ts",
+			"build/azure-pipelines/common/cacheKeys.ts"
+		],
+		// The macOS and Windows unit test jobs and the actions they use.
+		"test job definition": [
+			".github/workflows/pr.yml",
+			".github/workflows/pr-darwin-test.yml",
+			".github/workflows/pr-win32-test.yml",
+			".github/workflows/node_modules_cache/**",
+			".github/actions/setup-electron/**",
+			".github/actions/restore-node-modules/**"
+		],
+		// ripple and this file decide what runs.
+		"test planner": [
+			"build/ripple/**",
+			"!build/ripple/**/*.md"
+		]
+	},
+
+	// Files outside the module graph that only the integration tests depend on, by the reason the
+	// plan reports: changing one of them runs every integration test, but no unit test. As for
+	// `runEverything`, so do the scripts that the listed scripts load through relative imports, and
+	// the npm packages they load. Modules that integration tests load by a path that ripple cannot
+	// resolve can be listed too.
+	"runEveryIntegrationTest": {
+		// The scripts that run the node.js integration tests and the Agent Host E2E suites.
+		"integration test launcher": [
+			"scripts/test-integration.sh",
+			"scripts/test-integration.bat",
+			"scripts/test-agent-host-e2e.sh",
+			"scripts/test-agent-host-e2e.bat",
+			"test/integration/agentHost/**"
+		],
+		// Modules, unlike the files above: integration tests fork src/bootstrap-fork.ts through
+		// `FileAccess.asFileUri('bootstrap-fork')`, which ripple cannot resolve (see README.md), so a
+		// change to it or to the bootstrap files it loads would select none of them.
+		"forked process bootstrap": [
+			"src/bootstrap-*.ts"
+		]
+	},
+
+	"packages": {
+		// Packages of package.json that build or run every test but that no `runEverything` script
+		// above loads, such as a command line tool a test job runs: a version change runs every unit
+		// test. ripple finds the packages that those scripts load itself (such as mocha and the test
+		// runners' web server), with the packages they depend on (such as playwright through
+		// @playwright/test).
+		"toolchain": [],
+		// npm scripts that install, build or run the unit tests in CI, with their `pre` and `post`
+		// hooks: changing one runs every unit test. Changing any other script affects no test.
+		"testScripts": [
+			"install",
+			"prepare",
+			"gulp",
+			"electron",
+			"test-node",
+			"test-browser",
+			"test-browser-no-install"
+		],
+		// package.json fields that no test reads, besides npm metadata and scripts. Changing any other
+		// field affects the code that reads package.json through `injectedGlobals`.
+		"ignoredFields": [
+			"distro"
+		]
+	},
+
+	// Files the test runners inject as globals (`globalThis.<name>`): changing the file affects the
+	// code that reads the global.
+	"injectedGlobals": {
+		"_VSCODE_PACKAGE_JSON": "package.json",
+		"_VSCODE_PRODUCT_JSON": "product.json"
+	},
+
+	// Calls without side effects, besides JavaScript built-ins: functions by name, and the methods of
+	// objects by the object's name. Calling one at module load does not tie a declaration to its
+	// module's evaluation, and the properties of an object literal passed to one are tracked as members.
+	"pure": {
+		"functions": [
+			"localize",
+			"localize2",
+			"createDecorator",
+			"refineServiceDecorator"
+		],
+		"objects": [
+			"URI",
+			"nls",
+			"ThemeIcon",
+			"Codicon",
+			"ContextKeyExpr"
+		]
+	},
+
+	// Methods that code calls without naming them at the call site, besides the JavaScript protocols
+	// (such as `toString`, `then` and iterators): code that reaches a class also reaches these methods.
+	"implicitMethods": [
+		"dispose"
+	],
+
+	// Functions whose first argument names a module or npm package that they load, like `require`:
+	// a call depends on that module, so a version change of the package selects the code calling
+	// them.
+	"moduleLoaders": [
+		"importAMDNodeModule",
+		"resolveAmdNodeModulePath"
+	]
+}

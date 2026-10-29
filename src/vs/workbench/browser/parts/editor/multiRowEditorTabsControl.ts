@@ -30,6 +30,7 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		private readonly model: IReadonlyEditorGroupModel,
 		private readonly menuIds: IEditorGroupMenuIds | undefined,
 		private readonly breadcrumbsInHeader: boolean,
+		private readonly useModernUITabs: boolean,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -37,8 +38,8 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		const stickyModel = this._register(new StickyEditorGroupModel(this.model));
 		const unstickyModel = this._register(new UnstickyEditorGroupModel(this.model));
 
-		this.stickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, editorPartsView, this.groupsView, this.groupView, stickyModel, this.menuIds, this.breadcrumbsInHeader));
-		this.unstickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, editorPartsView, this.groupsView, this.groupView, unstickyModel, this.menuIds, this.breadcrumbsInHeader));
+		this.stickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, editorPartsView, this.groupsView, this.groupView, stickyModel, this.menuIds, this.breadcrumbsInHeader, this.useModernUITabs));
+		this.unstickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, editorPartsView, this.groupsView, this.groupView, unstickyModel, this.menuIds, this.breadcrumbsInHeader, this.useModernUITabs));
 
 		this.handleTabBarsStateChange();
 	}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Standalone agent host server with WebSocket protocol transport.
-// Start with: node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--host <host>] [--connection-token <token>] [--connection-token-file <path>] [--without-connection-token] [--enable-mock-agent] [--claude-sdk-root <path>] [--codex-sdk-root <path>] [--quiet] [--log <level>]
+// Start with: node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--host <host>] [--connection-token <token>] [--connection-token-file <path>] [--without-connection-token] [--enable-mock-agent] [--claude-sdk-root <path>] [--codex-sdk-root <path>] [--shutdown-timeout <ms>] [--quiet] [--log <level>]
 
 import { fileURLToPath } from 'url';
 
@@ -17,7 +17,6 @@ import * as fs from 'fs';
 import * as os from 'os';
 import type { Event } from '../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
@@ -30,6 +29,7 @@ import { LoggerService } from '../../log/node/loggerService.js';
 import { OtlpEmitterLogger, OtlpLogEmitter } from '../common/otlp/otlpLogEmitter.js';
 import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
+import { parseShutdownTimeoutArg, shutdownAgentHostBeforeDispose } from './agentHostShutdown.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { createAgentHostRuntime } from './agentHostBootstrap.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -40,12 +40,14 @@ import { BANG_COMMAND_PREFIX } from './agentHostBangCommand.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeSdkPackage } from './claude/claudeAgentSdkService.js';
-import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
+import { CodexAgent } from './codex/codexAgent.js';
+import { CodexSdkPackage } from './codex/codexSdk.js';
 import { createCodexProviderConfiguration } from './codex/codexProviderConfiguration.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
+import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
-import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
+import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
@@ -80,12 +82,17 @@ interface IServerOptions {
 	 * agent; empty falls through to `product.agentSdks.codex`.
 	 */
 	readonly codexSdkRoot: string;
+	/**
+	 * How long a graceful shutdown may drain requests, providers and
+	 * persistence before the process exits anyway.
+	 */
+	readonly shutdownTimeoutMs: number;
 	readonly quiet: boolean;
 	/** Connection token string, or `undefined` when `--without-connection-token`. */
 	readonly connectionToken: string | undefined;
 }
 
-function parseServerOptions(): IServerOptions {
+async function parseServerOptions(): Promise<IServerOptions> {
 	const argv = process.argv.slice(2);
 	const envPort = parseInt(process.env['VSCODE_AGENT_HOST_PORT'] ?? '8081', 10);
 	const portIdx = argv.indexOf('--port');
@@ -104,6 +111,12 @@ function parseServerOptions(): IServerOptions {
 	const claudeSdkRoot = (claudeSdkRootIdx >= 0 ? argv[claudeSdkRootIdx + 1] : process.env[AgentHostClaudeSdkRootEnvVar]) ?? '';
 	const codexSdkRootIdx = argv.indexOf('--codex-sdk-root');
 	const codexSdkRoot = (codexSdkRootIdx >= 0 ? argv[codexSdkRootIdx + 1] : process.env[AgentHostCodexAgentSdkRootEnvVar]) ?? '';
+	const shutdownTimeout = parseShutdownTimeoutArg(argv);
+	if (shutdownTimeout.error !== undefined) {
+		log(`Error: ${shutdownTimeout.error}`);
+		process.exit(1);
+	}
+	const shutdownTimeoutMs = shutdownTimeout.timeoutMs;
 	const quiet = argv.includes('--quiet');
 
 	// Connection token
@@ -126,7 +139,7 @@ function parseServerOptions(): IServerOptions {
 			process.exit(1);
 		}
 		try {
-			connectionToken = fs.readFileSync(tokenFilePath).toString().replace(/\r?\n$/, '');
+			connectionToken = (await fs.promises.readFile(tokenFilePath, 'utf8')).replace(/\r?\n$/, '');
 		} catch {
 			log(`Error: Unable to read connection token file at '${tokenFilePath}'`);
 			process.exit(1);
@@ -146,13 +159,13 @@ function parseServerOptions(): IServerOptions {
 		connectionToken = generateUuid();
 	}
 
-	return { port, host, enableMockAgent, claudeSdkRoot, codexSdkRoot, quiet, connectionToken };
+	return { port, host, enableMockAgent, claudeSdkRoot, codexSdkRoot, shutdownTimeoutMs, quiet, connectionToken };
 }
 
 // ---- Main -------------------------------------------------------------------
 
 async function main(): Promise<void> {
-	const options = parseServerOptions();
+	const options = await parseServerOptions();
 	const disposables = new DisposableStore();
 	const errorTelemetry = disposables.add(new MutableDisposable<ErrorTelemetry>());
 
@@ -198,7 +211,7 @@ async function main(): Promise<void> {
 		disableTelemetry: options.quiet,
 		transientProxyConfiguration: false,
 		hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
-		providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome)],
+		providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome, process.env[AgentHostCodexAgentCodexHomeEnvVar])],
 		byok: { kind: 'unavailable' },
 	});
 	disposables.add(runtime);
@@ -209,6 +222,7 @@ async function main(): Promise<void> {
 		sessionDataService: accessor.get(ISessionDataService),
 		telemetryService: accessor.get(ITelemetryService),
 		agentSdkDownloader: accessor.get(IAgentSdkDownloader),
+		providerService: accessor.get(IAgentHostProviderService),
 		stateManager: accessor.get(IAgentHostStateManager),
 		completions: accessor.get(IAgentHostCompletions),
 		customizationEnablementService: accessor.get(IAgentHostCustomizationEnablementService),
@@ -218,6 +232,7 @@ async function main(): Promise<void> {
 		fileService,
 		sessionDataService,
 		agentSdkDownloader,
+		providerService,
 		stateManager,
 		completions,
 		customizationEnablementService,
@@ -228,8 +243,7 @@ async function main(): Promise<void> {
 	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
 	if (!options.quiet) {
 		sdkDownloadProgress = runtime.sdkDownloadProgress;
-		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
-		agentService.registerProvider(copilotAgent);
+		providerService.registerProvider(instantiationService.createInstance(CopilotAgent));
 		log('CopilotAgent registered');
 		// Claude and Codex providers are gated on two things:
 		//  1. The user-facing enable toggle (`chat.agentHost.<x>Agent.enabled`,
@@ -245,8 +259,7 @@ async function main(): Promise<void> {
 		//     `node_modules` in dev; built/shipped installs use the env-var
 		//     override or `product.agentSdks.codex`.
 		if (isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(ClaudeSdkPackage))) {
-			const claudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
-			agentService.registerProvider(claudeAgent);
+			providerService.registerProvider(instantiationService.createInstance(ClaudeAgent));
 			log('ClaudeAgent registered');
 		}
 		if (!environmentService.isBuilt || agentSdkDownloader.isAvailable(CodexSdkPackage)) {
@@ -259,8 +272,7 @@ async function main(): Promise<void> {
 				const enabledByRootConfig = agentConfigurationService.getRootValue(platformRootSchema, AgentHostCodexEnabledConfigKey) === true;
 				if (enabledByEnv || enabledByRootConfig) {
 					codexRegistered = true;
-					const codexAgent = disposables.add(instantiationService.createInstance(CodexAgent));
-					agentService.registerProvider(codexAgent);
+					providerService.registerProvider(instantiationService.createInstance(CodexAgent));
 					log('CodexAgent registered');
 				}
 			};
@@ -289,8 +301,7 @@ async function main(): Promise<void> {
 	if (options.enableMockAgent) {
 		// Dynamic import to avoid bundling test code in production
 		import('../test/node/mockAgent.js').then(({ ScriptedMockAgent }) => {
-			const mockAgent = disposables.add(new ScriptedMockAgent());
-			agentService.registerProvider(mockAgent);
+			providerService.registerProvider(new ScriptedMockAgent());
 		}).catch(err => {
 			logService.error('[AgentHostServer] Failed to load mock agent', err);
 		});
@@ -312,13 +323,13 @@ async function main(): Promise<void> {
 		connectionTokenValidate: options.connectionToken
 			? token => token === options.connectionToken
 			: undefined,
-	}, logService, { instantiationService, logsHome: environmentService.logsHome }));
+	}, logService));
 
 
 	const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
 	disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
 	// Wire up protocol handler
-	disposables.add(instantiationService.createInstance(
+	const protocolHandler = disposables.add(instantiationService.createInstance(
 		ProtocolServerHandler,
 		agentService,
 		stateManager,
@@ -340,12 +351,13 @@ async function main(): Promise<void> {
 		agentService.markStartupComplete();
 
 		const urls = resolveServerUrls(options.host, listeningPort);
+		const connectionQuery = options.connectionToken ? `?tkn=${encodeURIComponent(options.connectionToken)}` : '';
 		for (const url of urls.local) {
-			log(`  Local:   ${url}`);
+			log(`  Local:   ${url}${connectionQuery}`);
 			logService.info(`[AgentHostServer] Local:   ${url}`);
 		}
 		for (const url of urls.network) {
-			log(`  Network: ${url}`);
+			log(`  Network: ${url}${connectionQuery}`);
 			logService.info(`[AgentHostServer] Network: ${url}`);
 		}
 		if (urls.network.length === 0 && options.host === undefined) {
@@ -380,18 +392,19 @@ async function main(): Promise<void> {
 		}
 		shuttingDown = true;
 		logService.info('[AgentHostServer] Shutting down...');
-		// Close the WebSocket server first so no further actions can be
-		// dispatched while we wait for in-flight writes to flush — otherwise
-		// a late-arriving action could keep queuing DB writes and either
-		// undermine the flush or push us past the timeout.
+		// Stop protocol ingress before draining requests so no late action can
+		// race provider shutdown or queue persistence after the idle check.
+		protocolHandler.dispose();
 		wsServer.dispose();
-		// Wait for in-flight persistence writes to flush. Without this, a
-		// SIGTERM arriving during a session or agent-host storage write can
-		// drop the latest decision.
-		// Capped so a stuck write cannot hang shutdown indefinitely.
-		await raceTimeout(Promise.all([sessionDataService.whenIdle(), customizationEnablementService.whenIdle()]), 3000, () => {
-			logService.warn('[AgentHostServer] Timed out waiting for persistence writes to flush; exiting anyway.');
-		});
+		// Providers such as Claude finish writing their transcripts during
+		// shutdown, so drain them before waiting for persistence to go idle.
+		await shutdownAgentHostBeforeDispose(
+			() => protocolHandler.whenIdle(),
+			() => agentService.shutdown(),
+			() => [sessionDataService.whenIdle(), customizationEnablementService.whenIdle()],
+			options.shutdownTimeoutMs,
+			logService,
+		);
 		disposables.dispose();
 		loggerService?.dispose();
 		process.exit(0);

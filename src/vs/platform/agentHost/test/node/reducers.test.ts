@@ -107,6 +107,53 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		});
 	});
 
+	test('resumes and completes one turn while preserving durable errors', () => {
+		let state = chatReducer(makeChat(), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatError,
+			turnId: 'turn-1',
+			duration: 100,
+			part: { kind: ResponsePartKind.Error, error: { errorType: 'first', message: 'failed' }, resumable: true },
+		});
+		state = chatReducer(state, { type: ActionType.ChatTurnResume, turnId: 'turn-1' });
+		state = chatReducer(state, {
+			type: ActionType.ChatError,
+			turnId: 'turn-1',
+			duration: 200,
+			part: { kind: ResponsePartKind.Error, error: { errorType: 'second', message: 'failed again' }, resumable: true },
+		});
+		state = chatReducer(state, { type: ActionType.ChatTurnResume, turnId: 'turn-1' });
+		state = chatReducer(state, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 300 });
+
+		assert.deepStrictEqual({
+			activeTurn: state.activeTurn,
+			turns: state.turns.map(turn => ({
+				id: turn.id,
+				message: turn.message.text,
+				state: turn.state,
+				duration: turn.duration,
+				errors: turn.responseParts.filter(part => part.kind === ResponsePartKind.Error),
+			})),
+		}, {
+			activeTurn: undefined,
+			turns: [{
+				id: 'turn-1',
+				message: 'hello',
+				state: TurnState.Complete,
+				duration: 300,
+				errors: [
+					{ kind: ResponsePartKind.Error, error: { errorType: 'first', message: 'failed' }, resumable: true },
+					{ kind: ResponsePartKind.Error, error: { errorType: 'second', message: 'failed again' }, resumable: true },
+				],
+			}],
+		});
+	});
+
 	test('Chat status is InputNeeded when a tool call is PendingConfirmation', () => {
 		let state = withActiveTurnAndToolCall(makeChat());
 
@@ -148,6 +195,45 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		});
 
 		assert.strictEqual(state.status, SessionStatus.InputNeeded);
+	});
+
+	test('result confirmation preserves structured content and result metadata', () => {
+		let state = withActiveTurnAndToolCall(makeChat());
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			invocationMessage: 'Read file',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
+		const structuredContent = { value: 'public' };
+		const resultMetadata = { ui: { private: [null, false, 0, {}] } };
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallComplete,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			requiresResultConfirmation: true,
+			result: {
+				success: true,
+				pastTenseMessage: 'Read file',
+				structuredContent,
+				resultMetadata,
+			},
+		});
+		const pendingPart = state.activeTurn?.responseParts[0];
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallResultConfirmed,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			approved: true,
+		});
+		assert.deepStrictEqual([pendingPart, state.activeTurn?.responseParts[0]].map(part =>
+			part?.kind === ResponsePartKind.ToolCall && (part.toolCall.status === ToolCallStatus.PendingResultConfirmation || part.toolCall.status === ToolCallStatus.Completed)
+				? { status: part.toolCall.status, structuredContent: part.toolCall.structuredContent, resultMetadata: part.toolCall.resultMetadata }
+				: undefined), [
+			{ status: ToolCallStatus.PendingResultConfirmation, structuredContent, resultMetadata },
+			{ status: ToolCallStatus.Completed, structuredContent, resultMetadata },
+		]);
 	});
 
 	test('SessionStatus transitions from InputNeeded to InProgress when tool call is confirmed', () => {
@@ -213,7 +299,7 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		});
 	});
 
-	test('ChatInputRequested replacement preserves purpose and synchronized answers through completion', () => {
+	test('ChatInputRequested replacement preserves synchronized answers through completion', () => {
 		let state = withActiveTurnAndToolCall(makeChat());
 		state = chatReducer(state, {
 			type: ActionType.ChatInputRequested,

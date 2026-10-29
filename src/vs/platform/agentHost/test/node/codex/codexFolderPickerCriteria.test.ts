@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
@@ -17,7 +16,7 @@ import { codexDirectoryHasHooks } from '../../../node/codex/codexFolderPickerCri
 
 suite('codexDirectoryHasHooks', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: IFileService;
 
 	setup(() => {
@@ -25,10 +24,6 @@ suite('codexDirectoryHasHooks', () => {
 		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
 	});
 
-	teardown(() => {
-		disposables.clear();
-	});
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const has = (path: string) => codexDirectoryHasHooks(fileService, URI.from({ scheme: Schemas.inMemory, path }));
 

@@ -62,7 +62,3 @@ export function rangeSpanningDiagnostics(diagnostics: vscode.Diagnostic[]): vsco
 export function isError(diagnostics: vscode.Diagnostic) {
 	return diagnostics.severity === DiagnosticSeverity.Error;
 }
-
-export function getDiagnosticsAtSelection(diagnostics: vscode.Diagnostic[], selection: vscode.Range, severities: DiagnosticSeverity[] = [DiagnosticSeverity.Error, DiagnosticSeverity.Warning]): vscode.Diagnostic | undefined {
-	return diagnostics.find(d => d.range.contains(selection) && severities.includes(d.severity));
-}

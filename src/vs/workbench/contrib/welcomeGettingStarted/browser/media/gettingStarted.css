@@ -5,7 +5,10 @@
 
 .file-icons-enabled .show-file-icons .vscode_getting_started_page-name-file-icon.file-icon::before {
 	content: ' ';
+	background-color: transparent;
 	background-image: url('../../../../browser/media/code-icon.svg');
+	mask: none;
+	-webkit-mask: none;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer {
@@ -74,7 +77,7 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer a:focus {
-	outline: 1px solid -webkit-focus-ring-color;
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
 
@@ -192,7 +195,7 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .category-title {
 	margin: 4px 0 4px;
 	font-size: var(--vscode-bodyFontSize);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	text-align: left;
 	display: inline-block;
 	overflow: hidden;
@@ -900,6 +903,10 @@
 	gap: 8px;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .showOnStartup {
+	padding: var(--vscode-spacing-size40);
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {
 	color: inherit !important;
 	height: 18px;
@@ -908,6 +915,11 @@
 	border-radius: 3px;
 	padding: 0;
 	margin-right: 9px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: 2px;
 }
 
 /* Don't show focus outline on mouse click. Instead only show outline on keyboard focus. */
@@ -931,11 +943,121 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .footer > .agents-banner {
 	display: flex;
+	flex-direction: column;
 	align-items: center;
 	justify-content: center;
 	gap: 8px;
 	margin: 8px;
 	margin-bottom: 12px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .footer > .agents-banner > .agents-window-graphic-container {
+	max-width: 100%;
+}
+
+/* While the Agents window graphic is shown, take space from the page's top margin, tagline and list spacing so that the page doesn't have to scroll. If it still doesn't fit, the graphic is dropped and only the button is shown. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer:not(.width-constrained, .height-constrained) .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown {
+	grid-template-rows: minmax(min-content, 10%) minmax(min-content, auto) min-content;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown > .header > .product-name {
+	/* Without the tagline below it, the title needs its own line height so that it isn't clipped. */
+	padding: 0 0 var(--vscode-spacing-size80);
+	line-height: normal;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown > .header > .subtitle,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-dropped > .footer > .agents-banner > .agents-window-graphic-container {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown > .categories-column > .index-list.start-container {
+	margin-bottom: var(--vscode-spacing-size80);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown > .categories-column > .index-list.getting-started {
+	margin-bottom: var(--vscode-spacing-size160);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown > .footer > .agents-banner {
+	margin-bottom: var(--vscode-spacing-size80);
+}
+
+/* With room to spare, set the Agents window graphic and button apart from the startup checkbox, so that they don't read as one group. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown.agents-window-graphic-spacious > .footer > .agents-banner {
+	margin-bottom: var(--vscode-spacing-size240);
+}
+
+/* Section styles set the Agents window graphic, its captions and button apart from the rest of the page while the graphic is shown (`chat.welcomePage.agentsWindowSectionStyle`). */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown:is([data-agents-window-section-style="card"], [data-agents-window-section-style="outline"], [data-agents-window-section-style="tint"]) > .footer > .agents-banner {
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size240);
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown.agents-window-graphic-spacious:is([data-agents-window-section-style="card"], [data-agents-window-section-style="outline"], [data-agents-window-section-style="tint"]) > .footer > .agents-banner {
+	padding: var(--vscode-spacing-size200) var(--vscode-spacing-size320);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown[data-agents-window-section-style="card"] > .footer > .agents-banner {
+	background-color: var(--vscode-welcomePage-tileBackground);
+	border-color: var(--vscode-welcomePage-tileBorder);
+}
+
+/* The button has the tiles' background, so on a tile surface it takes the page's background instead to stay visible. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown:is([data-agents-window-section-style="card"], [data-agents-window-section-style="band"]) > .footer > .agents-banner > .agents-banner-button:not(:hover) {
+	background: var(--vscode-editor-background);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown[data-agents-window-section-style="outline"] > .footer > .agents-banner {
+	border-color: var(--vscode-welcomePage-tileBorder);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown[data-agents-window-section-style="tint"] > .footer > .agents-banner {
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 8%, transparent);
+}
+
+/* High contrast: no tint, and a border that stays visible. */
+.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown[data-agents-window-section-style="tint"] > .footer > .agents-banner {
+	background-color: transparent;
+	border-color: var(--vscode-contrastBorder);
+}
+
+/* A band and separators span the page's content column. Their surface and lines extend outside the section, so the section's content keeps its width and layout. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown:is([data-agents-window-section-style="band"], [data-agents-window-section-style="separator"]) {
+	overflow-x: clip;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown:is([data-agents-window-section-style="band"], [data-agents-window-section-style="separator"]) > .footer {
+	overflow: visible;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown:is([data-agents-window-section-style="band"], [data-agents-window-section-style="separator"]) > .footer > .agents-banner {
+	position: relative;
+	isolation: isolate;
+	overflow: visible;
+	padding-block: var(--vscode-spacing-size60);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown.agents-window-graphic-spacious:is([data-agents-window-section-style="band"], [data-agents-window-section-style="separator"]) > .footer > .agents-banner {
+	padding-block: var(--vscode-spacing-size200);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown:is([data-agents-window-section-style="band"], [data-agents-window-section-style="separator"]) > .footer > .agents-banner::before {
+	content: '';
+	position: absolute;
+	inset: 0 -100vw;
+	z-index: -1;
+	pointer-events: none;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown[data-agents-window-section-style="band"] > .footer > .agents-banner::before {
+	background-color: var(--vscode-welcomePage-tileBackground);
+	border-block: var(--vscode-strokeThickness) solid var(--vscode-welcomePage-tileBorder);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer.agents-window-graphic-shown[data-agents-window-section-style="separator"] > .footer > .agents-banner::before {
+	border-block: var(--vscode-strokeThickness) solid var(--vscode-welcomePage-tileBorder);
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .footer > .agents-banner .agents-banner-button {
@@ -1105,10 +1227,6 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button.button-link:hover .codicon {
 	color: var(--vscode-textLink-activeForeground);
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.codicon-close):focus {
-	outline-color: var(--vscode-focusBorder);
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button {

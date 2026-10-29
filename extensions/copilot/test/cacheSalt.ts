@@ -58,11 +58,6 @@ export const TS_SERVER_DIAGNOSTICS_PROVIDER_CACHE_SALT = 5;
 export const PYTHON_VALID_SYNTAX_CACHE_SALT = 2;
 
 /**
- * Used by `canExecutePythonCodeWithoutErrors`.
- */
-export const PYTHON_EXECUTES_WITHOUT_ERRORS = 2;
-
-/**
  * Used by `isValidNotebookCell`.
  */
 export const NOTEBOOK_CELL_VALID_CACHE_SALT = 1;

@@ -20,10 +20,11 @@ function draft(text: string, modelId?: string): Message {
 /** Mirrors how `_installDraftSync` builds and sends a draft. */
 function publish(state: DraftSyncState, outgoing: Message, reason: ModelSelectionReason): { published: boolean; model: string | undefined } {
 	let next: Message = outgoing;
-	if (state.remoteModel && !isInConversationModelChoice(reason)) {
+	const chosen = isInConversationModelChoice(reason);
+	if (state.remoteModel && !chosen) {
 		next = { ...next, model: state.remoteModel as ModelSelection };
 	}
-	return { published: state.shouldPublish(next), model: next.model?.id };
+	return { published: state.shouldPublish(next, chosen), model: next.model?.id };
 }
 
 const CHOSE = ModelSelectionReason.UserSelection;
@@ -69,6 +70,31 @@ suite('DraftSyncState', () => {
 			firstLocal: { published: true, model: 'auto' },
 			afterApplyRemote: 'gpt-5.6-sol',
 			echo: { published: false, model: 'gpt-5.6-sol' },
+		});
+	});
+
+	test('a window that publishes its own draft still guards the model it put there', () => {
+		// A window never sees its own draft echo back, so inbound-only tracking left this guard dead
+		// here: the fallback overwrote the user's model and peers adopted it.
+		const state = new DraftSyncState(undefined);
+
+		const actual = {
+			// A stand-in published first must not pin the channel, or no later model could replace it.
+			standIn: publish(state, draft('', 'auto'), FELL_BACK),
+			pinnedByStandIn: state.remoteModel?.id,
+			// The user picks a model and types; this window establishes the channel's model.
+			userPicks: publish(state, draft('working on it', 'gpt-5.6-terra'), CHOSE),
+			// A catalog wave drops that model and the picker falls back.
+			afterFallback: publish(state, draft('working on it', 'byok-opus-5'), FELL_BACK),
+			channelModel: state.remoteModel?.id,
+		};
+
+		assert.deepStrictEqual(actual, {
+			standIn: { published: true, model: 'auto' },
+			pinnedByStandIn: undefined,
+			userPicks: { published: true, model: 'gpt-5.6-terra' },
+			afterFallback: { published: false, model: 'gpt-5.6-terra' },
+			channelModel: 'gpt-5.6-terra',
 		});
 	});
 });

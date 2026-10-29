@@ -281,6 +281,7 @@ export interface IListView<T> extends ISpliceable<T>, IDisposable {
 	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent): void;
 	updateWidth(index: number): void;
 	updateElementHeight(index: number, size: number | undefined, anchorIndex: number | null): void;
+	withScrollAnchorAtBottom(fn: () => void): void;
 	rerender(): void;
 	layout(height?: number, width?: number): void;
 }
@@ -323,6 +324,7 @@ export class ListView<T> implements IListView<T> {
 	private setRowLineHeight: boolean;
 	private setRowHeight: boolean;
 	private supportDynamicHeights: boolean;
+	private scrollAnchorAtBottom = false;
 	private paddingBottom: number;
 	private accessibilityProvider: ListViewAccessibilityProvider<T>;
 	private scrollWidth: number | undefined;
@@ -605,7 +607,15 @@ export class ListView<T> implements IListView<T> {
 		this.rangeMap.splice(index, 1, [{ size: size }]);
 		this.items[index].size = size;
 
-		this.render(lastRenderRange, Math.max(0, this.lastRenderTop + heightDiff), this.lastRenderHeight, undefined, undefined, true);
+		if (this.scrollAnchorAtBottom) {
+			this.eventuallyUpdateScrollDimensions();
+			this.flushScrollHeight();
+		}
+
+		const renderTop = this.scrollAnchorAtBottom
+			? Math.max(0, this.contentHeight + this.paddingBottom + (this.horizontalScrolling ? 10 : 0) - this.lastRenderHeight)
+			: Math.max(0, this.lastRenderTop + heightDiff);
+		this.render(lastRenderRange, renderTop, this.lastRenderHeight, undefined, undefined, true);
 		this.setScrollTop(this.lastRenderTop);
 
 		this.eventuallyUpdateScrollDimensions();
@@ -726,12 +736,16 @@ export class ListView<T> implements IListView<T> {
 		const insertRanges = [elementsRange, ...unrenderedRestRanges].map(r => Range.intersect(renderRange, r)).reverse();
 		const insertedItems: IItem<T>[] = [];
 
-		for (const range of insertRanges) {
+		insert: for (const range of insertRanges) {
 			for (let i = range.end - 1; i >= range.start; i--) {
 				const item = this.items[i];
 				const rows = rowsToDispose.get(item.templateId);
 				const row = rows?.pop();
 				this.insertItemInDOM(i, row);
+				if (!item.row) {
+					// Rendering recycled this row, invalidating the remaining insertion ranges.
+					break insert;
+				}
 				insertedItems.push(item);
 			}
 		}
@@ -821,6 +835,17 @@ export class ListView<T> implements IListView<T> {
 		}
 
 		this._rerender(this.lastRenderTop, this.lastRenderHeight);
+	}
+
+	/** Keeps the viewport at the bottom while row heights are updated or measured. */
+	withScrollAnchorAtBottom(fn: () => void): void {
+		const previous = this.scrollAnchorAtBottom;
+		this.scrollAnchorAtBottom = true;
+		try {
+			fn();
+		} finally {
+			this.scrollAnchorAtBottom = previous;
+		}
 	}
 
 	get length(): number {
@@ -935,19 +960,36 @@ export class ListView<T> implements IListView<T> {
 		}
 
 		const insertedItems: IItem<T>[] = [];
+		const insertRows = () => {
+			for (const range of rangesToInsert) {
+				for (let i = range.end - 1; i >= range.start; i--) {
+					// Dynamic height changes can move an already-rendered row outside previousRenderRange.
+					if (this.items[i].row) {
+						this.updateItemInDOM(this.items[i], i);
+						continue;
+					}
+					this.insertItemInDOM(i);
+					insertedItems.push(this.items[i]);
+				}
+			}
+		};
+		// Measuring new rows can reveal a row that the estimated scroll position would otherwise recycle.
+		const insertBeforeRemove = this.supportDynamicHeights && rangesToInsert.some(range =>
+			this.items.slice(range.start, range.end).some(item => this.shouldProbeDynamicHeight(item)));
 
 		this.cache.transact(() => {
+			if (insertBeforeRemove) {
+				insertRows();
+			}
+
 			for (const range of rangesToRemove) {
 				for (let i = range.start; i < range.end; i++) {
 					this.removeItemFromDOM(i, onScroll);
 				}
 			}
 
-			for (const range of rangesToInsert) {
-				for (let i = range.end - 1; i >= range.start; i--) {
-					this.insertItemInDOM(i);
-					insertedItems.push(this.items[i]);
-				}
+			if (!insertBeforeRemove) {
+				insertRows();
 			}
 		});
 
@@ -1020,6 +1062,11 @@ export class ListView<T> implements IListView<T> {
 
 		if (!alreadyRendered) {
 			renderer.renderElement(item.element, index, item.row.templateData, { height: item.size });
+		}
+
+		// Rendering can synchronously recycle the row, for example when the viewport collapses.
+		if (!item.row) {
+			return;
 		}
 
 		const uri = this.dnd.getDragURI(item.element);
@@ -1111,13 +1158,16 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	setScrollTop(scrollTop: number, reuseAnimation?: boolean): void {
+		this.flushScrollHeight();
+		this.scrollableElement.setScrollPosition({ scrollTop, reuseAnimation });
+	}
+
+	private flushScrollHeight(): void {
 		if (this.scrollableElementUpdateDisposable) {
 			this.scrollableElementUpdateDisposable.dispose();
 			this.scrollableElementUpdateDisposable = null;
 			this.scrollableElement.setScrollDimensions({ scrollHeight: this.scrollHeight });
 		}
-
-		this.scrollableElement.setScrollPosition({ scrollTop, reuseAnimation });
 	}
 
 	getScrollLeft(): number {
@@ -1560,9 +1610,11 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	private getVisibleRange(renderTop: number, renderHeight: number): IRange {
+		const start = this.rangeMap.indexAt(renderTop);
 		return {
-			start: this.rangeMap.indexAt(renderTop),
-			end: this.rangeMap.indexAfter(renderTop + renderHeight - 1)
+			start,
+			// Clamp so a collapsed viewport (renderHeight <= 0) cannot produce an inverted range.
+			end: Math.max(start, this.rangeMap.indexAfter(renderTop + renderHeight - 1))
 		};
 	}
 
@@ -1584,6 +1636,7 @@ export class ListView<T> implements IListView<T> {
 	protected _rerender(renderTop: number, renderHeight: number, inSmoothScrolling?: boolean): void {
 		let previousRenderRange = this.getRenderRange(renderTop, renderHeight);
 		const retainedMeasurements = new Map<number, IDynamicHeightMeasurement<T>>();
+		const anchorAtBottom = this.scrollAnchorAtBottom;
 
 		// Let's remember the second element's position, this helps in scrolling up
 		// and preserving a linear upwards scroll movement
@@ -1644,6 +1697,12 @@ export class ListView<T> implements IListView<T> {
 					didChange = didChange || diff !== 0;
 				}
 
+				if (anchorAtBottom) {
+					const bottom = Math.max(0, this.contentHeight + this.paddingBottom + (this.horizontalScrolling ? 10 : 0) - renderHeight);
+					didChange ||= bottom !== renderTop;
+					renderTop = bottom;
+				}
+
 				if (!didChange) {
 					if (heightDiff !== 0) {
 						this.eventuallyUpdateScrollDimensions();
@@ -1687,7 +1746,9 @@ export class ListView<T> implements IListView<T> {
 						}
 					}
 
-					if (typeof anchorElementIndex === 'number') {
+					if (anchorAtBottom) {
+						this.setScrollTop(renderTop, inSmoothScrolling);
+					} else if (typeof anchorElementIndex === 'number') {
 						// To compute a destination scroll top, we need to take into account the current smooth scrolling
 						// animation, and then reuse it with a new target (to avoid prolonging the scroll)
 						// See https://github.com/microsoft/vscode/issues/104144
@@ -1741,6 +1802,7 @@ export class ListView<T> implements IListView<T> {
 
 		const { row } = this.cache.alloc(item.templateId);
 		row.domNode.style.height = '';
+		row.domNode.dataset.index = String(index);
 		this.rowsContainer.appendChild(row.domNode);
 
 		const renderer = this.renderers.get(item.templateId);
@@ -1765,7 +1827,8 @@ export class ListView<T> implements IListView<T> {
 		const diffs = new Array<number>(range.end - range.start).fill(0);
 		const measurements: IDynamicHeightMeasurement<T>[] = [];
 
-		for (let index = range.start; index < range.end; index++) {
+		// Re-check `this.items.length` each iteration so a reentrant splice that shrinks the model mid-loop cannot read out of bounds.
+		for (let index = range.start; index < range.end && index < this.items.length; index++) {
 			const item = this.items[index];
 			const delegateHeightDiff = this.probeDynamicHeightFromDelegate(item);
 			if (delegateHeightDiff !== undefined) {
@@ -1789,6 +1852,7 @@ export class ListView<T> implements IListView<T> {
 			measurements.push(measurement);
 
 			row.domNode.style.height = '';
+			row.domNode.dataset.index = String(index);
 			this.rowsContainer.appendChild(row.domNode);
 
 			const renderer = this.renderers.get(item.templateId);

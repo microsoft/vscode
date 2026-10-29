@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -26,7 +25,7 @@ import { MockChatWidgetService } from '../widget/mockChatWidget.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 
 suite('RetryChatAction', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	// Register actions once for all tests
@@ -42,12 +41,6 @@ suite('RetryChatAction', () => {
 		instantiationService = store.add(new TestInstantiationService());
 		ensureActionsRegistered();
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createMockResponseVM(sessionResource: URI, requestId: string): IChatResponseViewModel {
 		return {

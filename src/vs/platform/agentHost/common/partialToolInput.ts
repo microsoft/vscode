@@ -4,10 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { parse } from '../../../base/common/json.js';
+import type { ToolInput } from './state/protocol/state.js';
 
 const MAX_PARTIAL_TOOL_INPUT_PARSE_LENGTH = 4 * 1024;
 let lastDisplayInput: string | undefined;
 let lastDisplayValue: Record<string, unknown> | undefined;
+
+/** Returns inline tool input, leaving referenced content to asynchronous consumers. */
+export function getInlineToolInput(toolInput: ToolInput | undefined): string | undefined {
+	return typeof toolInput === 'string' ? toolInput : undefined;
+}
 
 export function parsePartialToolInput(raw: string, maxLength?: number): Record<string, unknown> | undefined {
 	const parsed: unknown = parse(maxLength === undefined ? raw : raw.slice(0, maxLength));

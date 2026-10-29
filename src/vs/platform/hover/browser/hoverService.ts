@@ -248,7 +248,11 @@ export class HoverService extends Disposable implements IHoverService {
 	}
 
 	private _createHover(options: IHoverOptions, skipLastFocusedUpdate?: boolean): ICreateHoverResult | undefined {
-		this._currentDelayedHover?.dispose();
+		const delayedHoverIndex = this._hoverStack.findIndex(entry => entry.hover === this._currentDelayedHover);
+		// Keep a shown delayed hover alive when it owns the target of a nested hover.
+		if (delayedHoverIndex < 0 || delayedHoverIndex > this._getContainingHoverIndex(options.target)) {
+			this._currentDelayedHover?.dispose();
+		}
 		this._currentDelayedHover = undefined;
 
 		if (options.content === '') {
@@ -501,6 +505,12 @@ export class HoverService extends Disposable implements IHoverService {
 		this.doHideHover();
 	}
 
+	getStickyHover(targetElement: HTMLElement): IHoverWidget | undefined {
+		return this._hoverStack.find(({ options }) => options.persistence?.sticky && (isHTMLElement(options.target)
+			? options.target === targetElement
+			: options.target.targetElements.includes(targetElement)))?.hover;
+	}
+
 	private doHideHover(): void {
 		// Pop and dispose the topmost hover
 		const length = this._hoverStack.length;
@@ -612,7 +622,6 @@ export class HoverService extends Disposable implements IHoverService {
 			}
 			if (hadHover) {
 				hoverDelegate.onDidHideHover?.();
-				hoverWidget = undefined;
 			}
 		};
 
@@ -710,7 +719,7 @@ export class HoverService extends Disposable implements IHoverService {
 
 		const hover: IManagedHover = {
 			show: focus => {
-				hideHover(false, true); // terminate a ongoing mouse over preparation
+				hideHover(true, true); // terminate an ongoing mouse over preparation and recreate the hover with the requested focus
 				triggerShowHover(0, focus, undefined, focus); // show hover immediately
 			},
 			hide: () => {
@@ -718,7 +727,10 @@ export class HoverService extends Disposable implements IHoverService {
 			},
 			update: async (newContent, hoverOptions) => {
 				content = newContent;
-				await hoverWidget?.update(content, undefined, hoverOptions);
+				// Keep the options for the next time the hover is shown, so an updated
+				// tooltip does not keep rendering the actions it was created with.
+				options = hoverOptions;
+				await hoverWidget?.update(content, undefined, options);
 			},
 			dispose: () => {
 				this._managedHovers.delete(targetElement);

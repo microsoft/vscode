@@ -14,20 +14,15 @@ import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREVENT_SLEEP, normalize
 import { parseTunnelMachineStatus, TunnelMachineStatus } from '../common/tunnelMachineStatus.js';
 import { CodeTunnelCli, CodeTunnelCliOutput, ICodeTunnelCliRun } from './codeTunnelCliProcess.js';
 import { hostname } from 'os';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { createTunnelServiceCorrelation, ITunnelServiceCorrelation } from '../common/tunnelServiceHeaders.js';
 
 type TunnelCliFactory = (onLog: (message: string) => void) => CodeTunnelCli;
 
-/** The process mode selected from the combined tunnel intents. */
-export type TunnelProcessMode = 'none' | 'agentHost' | 'remoteAccess' | 'service';
+/** The process mode selected from the Remote Tunnel Access intent. */
+export type TunnelProcessMode = 'none' | 'remoteAccess' | 'service';
 /** The connection lifecycle state reported by the coordinator. */
 export type TunnelProcessConnectionState = 'disconnected' | 'connecting' | 'connected';
-
-/** The requested agent-host-only sharing session. */
-export interface IAgentHostSharingRequest {
-	readonly token: string;
-	readonly authProvider: 'github' | 'microsoft';
-	readonly logLevel: LogLevel;
-}
 
 /** Credentials passed to `tunnel user login`. */
 interface ITunnelLoginCredentials {
@@ -66,10 +61,11 @@ export interface ITunnelProcessOutput {
 export interface ITunnelProcessMachineStatus {
 	readonly mode: TunnelProcessMode;
 	readonly status: TunnelMachineStatus;
+	readonly correlation: ITunnelServiceCorrelation | undefined;
 	cancel(): void;
 }
 
-/** The single, resolved tunnel state shared by Remote Tunnel Access and agent host sharing. */
+/** The tunnel process state shared by Remote Tunnel Access consumers. */
 export interface ITunnelProcessStatus {
 	readonly mode: TunnelProcessMode;
 	readonly tunnelName: string | undefined;
@@ -81,7 +77,7 @@ export interface ITunnelProcessStatus {
 /** Service identifier for the shared-process tunnel coordinator. */
 export const ITunnelProcessCoordinator = createDecorator<ITunnelProcessCoordinator>('tunnelProcessCoordinator');
 
-/** Coordinates the one `code tunnel` process used by both shared-process tunnel consumers. */
+/** Coordinates the `code tunnel` process used by Remote Tunnel Access. */
 export interface ITunnelProcessCoordinator {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeStatus: Event<ITunnelProcessStatus>;
@@ -90,17 +86,13 @@ export interface ITunnelProcessCoordinator {
 	getStatus(): ITunnelProcessStatus;
 	getIntendedTunnelName(): string;
 	setRemoteAccess(mode: TunnelMode, logLevel: LogLevel): Promise<void>;
-	setAgentHostSharing(request: IAgentHostSharingRequest | undefined): Promise<void>;
 	restart(): Promise<void>;
 	setRemoteAccessStatus(status: TunnelStatus): void;
 }
 
-/** Resolves the process mode from the two independent tunnel intents. */
-export function resolveTunnelProcessMode(agentHostSharing: boolean, remoteAccess: TunnelMode): TunnelProcessMode {
-	if (remoteAccess.active) {
-		return remoteAccess.asService ? 'service' : 'remoteAccess';
-	}
-	return agentHostSharing ? 'agentHost' : 'none';
+/** Resolves the process mode from the Remote Tunnel Access intent. */
+export function resolveTunnelProcessMode(remoteAccess: TunnelMode): TunnelProcessMode {
+	return remoteAccess.active ? (remoteAccess.asService ? 'service' : 'remoteAccess') : 'none';
 }
 
 /**
@@ -125,7 +117,6 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 
 	private readonly _tunnelCli: CodeTunnelCli;
 	private _remoteAccess: { mode: TunnelMode; logLevel: LogLevel } = { mode: { active: false }, logLevel: LogLevel.Info };
-	private _agentHostSharing: IAgentHostSharingRequest | undefined;
 	private _currentProcess: ICodeTunnelCliRun | undefined;
 	private _queue: Promise<void> = Promise.resolve();
 	private _generation = 0;
@@ -144,6 +135,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IProductService productService: IProductService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this._tunnelCli = tunnelCliFactory?.(() => { }) ?? new CodeTunnelCli({
@@ -172,11 +164,6 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		const wasService = this._remoteAccess.mode.active && this._remoteAccess.mode.asService;
 		this._remoteAccess = { mode, logLevel };
 		return this._schedule(wasService && (!mode.active || !mode.asService));
-	}
-
-	setAgentHostSharing(request: IAgentHostSharingRequest | undefined): Promise<void> {
-		this._agentHostSharing = request;
-		return this._schedule(false);
 	}
 
 	restart(): Promise<void> {
@@ -277,9 +264,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		}
 
 		this._setStatus({ mode: target.mode, tunnelName, tunnelId: undefined, connectionState: 'connecting', serviceInstallFailed: false });
-		const isServiceInstalled = target.mode === 'service' || target.mode === 'remoteAccess'
-			? await this._isServiceInstalled(generation)
-			: false;
+		const isServiceInstalled = await this._isServiceInstalled(generation);
 		if (generation !== this._generation) {
 			return;
 		}
@@ -311,14 +296,9 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		}
 
 		const args = ['tunnel'];
-		if (target.mode === 'agentHost') {
-			args.push('--agent-host-only', '--name', tunnelName!, '--user-data-dir', this.environmentService.userDataPath);
-			args.push('--delegate-to-editor', '--parent-process-id', String(process.pid));
-		} else {
-			args.push('--accept-server-license-terms', '--log', LogLevelToString(target.logLevel));
-			args.push('--user-data-dir', this.environmentService.userDataPath, '--delegate-to-editor', '--name', tunnelName!, '--parent-process-id', String(process.pid));
-		}
-		if (target.mode !== 'agentHost' && this._preventSleep()) {
+		args.push('--accept-server-license-terms', '--log', LogLevelToString(target.logLevel));
+		args.push('--user-data-dir', this.environmentService.userDataPath, '--delegate-to-editor', '--name', tunnelName!, '--parent-process-id', String(process.pid));
+		if (this._preventSleep()) {
 			args.push('--no-sleep');
 		}
 		this._launched = this._describeLaunch(target);
@@ -326,24 +306,15 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 	}
 
 	/**
-	 * The credentials the CLI needs for `tunnel user login`. Deliberately not an
-	 * {@link IRemoteTunnelSession}: agent host sharing has no session, only a
-	 * token, and fabricating one with empty ids would misrepresent that.
+	 * The credentials the CLI needs for `tunnel user login`.
 	 */
 	private _getTarget(): ITunnelTarget {
 		if (this._remoteAccess.mode.active) {
 			const session = this._remoteAccess.mode.session;
 			return {
-				mode: resolveTunnelProcessMode(!!this._agentHostSharing, this._remoteAccess.mode),
+				mode: resolveTunnelProcessMode(this._remoteAccess.mode),
 				login: session.token ? { providerId: session.providerId, token: session.token } : undefined,
 				logLevel: this._remoteAccess.logLevel,
-			};
-		}
-		if (this._agentHostSharing) {
-			return {
-				mode: resolveTunnelProcessMode(true, this._remoteAccess.mode),
-				login: { providerId: this._agentHostSharing.authProvider, token: this._agentHostSharing.token },
-				logLevel: this._agentHostSharing.logLevel,
 			};
 		}
 		return { mode: 'none', login: undefined, logLevel: LogLevel.Info };
@@ -373,7 +344,11 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 	}
 
 	private _startTunnel(args: readonly string[], mode: TunnelProcessMode, generation: number): void {
-		const tunnelRun = this._tunnelCli.run('tunnel', args, (message, isError) => this._fireOutput(mode, message, isError, true, () => tunnelRun.result.cancel(), generation), { VSCODE_CLI_MACHINE_STATUS: '1' });
+		const correlation = createTunnelServiceCorrelation(this.telemetryService, 'host');
+		const tunnelRun = this._tunnelCli.run('tunnel', args, (message, isError) => this._fireOutput(mode, message, isError, true, () => tunnelRun.result.cancel(), generation, correlation), {
+			VSCODE_CLI_MACHINE_STATUS: '1',
+			...this._correlationEnvironment(correlation),
+		});
 		this._currentProcess = tunnelRun;
 		const onSettled = () => {
 			if (this._currentProcess === tunnelRun) {
@@ -388,10 +363,11 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 	}
 
 	private async _runTransient(logLabel: string, args: readonly string[], mode: TunnelProcessMode, generation: number, env?: Record<string, string>, onOutput?: CodeTunnelCliOutput): Promise<number> {
+		const correlation = createTunnelServiceCorrelation(this.telemetryService, undefined);
 		const run = this._tunnelCli.run(logLabel, args, (message, isError) => {
 			onOutput?.(message, isError);
-			this._fireOutput(mode, message, isError, false, () => run.result.cancel());
-		}, env);
+			this._fireOutput(mode, message, isError, false, () => run.result.cancel(), generation, correlation);
+		}, { ...env, ...this._correlationEnvironment(correlation) });
 		this._currentProcess = run;
 		try {
 			return await run.result;
@@ -402,6 +378,10 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 				this._currentProcess = undefined;
 			}
 		}
+	}
+
+	private _correlationEnvironment(correlation: ITunnelServiceCorrelation): Record<string, string> {
+		return { VSCODE_TUNNEL_SESSION_ID: correlation.sessionId, VSCODE_TUNNEL_OPERATION_ID: correlation.operationId };
 	}
 
 	private async _stopCurrentProcess(): Promise<void> {
@@ -416,7 +396,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		}
 	}
 
-	private _fireOutput(mode: TunnelProcessMode, message: string, isError: boolean, isTunnelProcess: boolean, cancel: () => void, generation?: number): void {
+	private _fireOutput(mode: TunnelProcessMode, message: string, isError: boolean, isTunnelProcess: boolean, cancel: () => void, generation: number, correlation: ITunnelServiceCorrelation): void {
 		this._onDidOutput.fire({ mode, message, isError });
 		if (!isError && isTunnelProcess && generation === this._generation) {
 			const status = parseTunnelMachineStatus(message);
@@ -424,7 +404,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 				if (status.type === 'connected' && this._status.mode === mode) {
 					this._setStatus({ ...this._status, tunnelId: status.tunnelId, connectionState: 'connected' });
 				}
-				this._onDidMachineStatus.fire({ mode, status, cancel });
+				this._onDidMachineStatus.fire({ mode, status, cancel, correlation: status.type === 'connected' && status.isAttached ? undefined : correlation });
 			}
 		}
 	}

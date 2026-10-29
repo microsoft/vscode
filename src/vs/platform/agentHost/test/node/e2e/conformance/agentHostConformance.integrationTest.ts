@@ -47,8 +47,9 @@ const REFERENCE_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsWorktreeIsolation: true,
 	supportsHostTerminalTool: true,
 	supportsSubagents: true,
-	supportsPlanMode: true,
+	planModeStyle: 'session-state',
 	supportsMultipleChats: true,
+	supportsInitialTitle: true,
 	supportsChatFork: true,
 	supportsChatForkE2E: true,
 };

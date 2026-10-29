@@ -406,8 +406,7 @@ function slugify(text: string): string {
 		text.trim()
 			.toLowerCase()
 			.replace(/\s+/g, '-') // Replace whitespace with -
-			// allow-any-unicode-next-line
-			.replace(/[\]\[\!\/\'\"\#\$\%\&\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\{\|\}\~\`。，、；：？！…—·ˉ¨‘’“”々～‖∶＂＇｀｜〃〔〕〈〉《》「」『』．〖〗【】（）［］｛｝]/g, '') // Remove known punctuators
+			.replace(/[\]\[\!\/\'\"\#\$\%\&\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\{\|\}\~\`\u3002\uff0c\u3001\uff1b\uff1a\uff1f\uff01\u2026\u2014\u00b7\u02c9\u00a8\u2018\u2019\u201c\u201d\u3005\uff5e\u2016\u2236\uff02\uff07\uff40\uff5c\u3003\u3014\u3015\u3008\u3009\u300a\u300b\u300c\u300d\u300e\u300f\uff0e\u3016\u3017\u3010\u3011\uff08\uff09\uff3b\uff3d\uff5b\uff5d]/g, '') // Remove known punctuators
 			.replace(/^\-+/, '') // Remove leading -
 			.replace(/\-+$/, '') // Remove trailing -
 	);

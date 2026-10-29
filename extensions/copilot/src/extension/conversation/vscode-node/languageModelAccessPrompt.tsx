@@ -10,6 +10,7 @@ import { LanguageModelTextPart } from 'vscode';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
 import { decodeStatefulMarker, StatefulMarkerContainer } from '../../../platform/endpoint/common/statefulMarkerContainer';
 import { ThinkingDataContainer } from '../../../platform/endpoint/common/thinkingDataContainer';
+import { thinkingOriginFromMetadata } from '../../../platform/thinking/common/thinking';
 import { SafetyRules } from '../../prompts/node/base/safetyRules';
 import { EditorIntegrationRules } from '../../prompts/node/panel/editorIntegrationRules';
 import { imageDataPartToTSX, ToolResult } from '../../prompts/node/panel/toolCalling';
@@ -29,13 +30,14 @@ interface IThinkingGroup {
 function groupThinkingParts(parts: readonly vscode.LanguageModelThinkingPart[]): IThinkingGroup[] {
 	const groups = new Map<string, IThinkingGroup>();
 	for (const part of parts) {
-		if (!part.id) {
+		const text = Array.isArray(part.value) ? part.value : [part.value];
+		if (!part.id && !text.some(value => value.length > 0)) {
 			continue;
 		}
-		const previous = groups.get(part.id);
-		const text = Array.isArray(part.value) ? part.value : [part.value];
-		groups.set(part.id, {
-			id: part.id,
+		const id = part.id ?? '';
+		const previous = groups.get(id);
+		groups.set(id, {
+			id,
 			text: [...previous?.text ?? [], ...text],
 			metadata: { ...previous?.metadata, ...part.metadata },
 		});
@@ -69,7 +71,8 @@ export class LanguageModelAccessPrompt extends PromptElement<Props> {
 				const statefulMarkerElement = statefulMarker && <StatefulMarkerContainer statefulMarker={statefulMarker} />;
 				const thinkingElements = thinkingGroups.map(group => {
 					const encrypted = typeof group.metadata.encrypted_content === 'string' ? group.metadata.encrypted_content : undefined;
-					return <ThinkingDataContainer thinking={{ id: group.id, text: group.text, metadata: group.metadata, encrypted }} />;
+					// Read the per-part provenance metadata back onto the envelope.
+					return <ThinkingDataContainer thinking={{ id: group.id, text: group.text, metadata: group.metadata, encrypted }} originApi={thinkingOriginFromMetadata(group.metadata)} />;
 				});
 				chatMessages.push(<AssistantMessage name={message.name} toolCalls={toolCalls.map(tc => ({ id: tc.callId, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.input) } }))}>{statefulMarkerElement}{content}{thinkingElements}</AssistantMessage>);
 			} else if (message.role === vscode.LanguageModelChatMessageRole.User) {

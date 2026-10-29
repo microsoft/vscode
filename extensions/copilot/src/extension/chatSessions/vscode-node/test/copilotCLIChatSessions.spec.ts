@@ -33,12 +33,10 @@ import { ICustomSessionTitleService } from '../../copilotcli/common/customSessio
 import { ICopilotCLISession } from '../../copilotcli/node/copilotcliSession';
 import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../../copilotcli/node/copilotcliSessionService';
 import { ICopilotCLIChatSessionInitializer } from '../../copilotcli/vscode-node/copilotCLIChatSessionInitializer';
-import { ICopilotCLISessionTracker } from '../../copilotcli/vscode-node/copilotCLISessionTracker';
-import { CopilotCLIChatSessionContentProvider, CopilotCLIChatSessionParticipant, resolveBranchLockState, resolveBranchSelection, resolveIsolationSelection, resolveSessionDirsForTerminal } from '../copilotCLIChatSessions';
+import { CopilotCLIChatSessionContentProvider, CopilotCLIChatSessionParticipant, resolveBranchLockState, resolveBranchSelection, resolveIsolationSelection } from '../copilotCLIChatSessions';
 import { PullRequestDetectionService } from '../pullRequestDetectionService';
 import { ISessionOptionGroupBuilder } from '../sessionOptionGroupBuilder';
 import { ISessionRequestLifecycle } from '../sessionRequestLifecycle';
-vi.mock('../copilotCLIShim.ps1', () => ({ default: '# mock powershell script' }));
 
 beforeAll(() => {
 	(vscodeShim as Record<string, unknown>).chat = {
@@ -171,6 +169,7 @@ function createProvider() {
 		override getRequestDetails = vi.fn(async () => []);
 		override getRepositoryProperties = vi.fn(async () => undefined);
 		override getSessionParentId = vi.fn<IChatSessionMetadataStore['getSessionParentId']>(async () => undefined);
+		override getSessionArchived = vi.fn(async () => false);
 	};
 	const gitService = new TestGitService();
 	const folderRepositoryManager = new TestFolderRepositoryManager();
@@ -227,6 +226,7 @@ function createProvider() {
 		worktreeService,
 		gitService,
 		octoKitService,
+		metadataStore,
 	};
 }
 
@@ -458,37 +458,6 @@ describe('re-exported dropdown helpers', () => {
 	});
 });
 
-// ─── resolveSessionDirsForTerminal ──────────────────────────────
-
-describe('resolveSessionDirsForTerminal', () => {
-	it('returns matching terminal sessions before non-matching ones', async () => {
-		const terminal = {} as vscode.Terminal;
-		const otherTerminal = {} as vscode.Terminal;
-		const tracker: ICopilotCLISessionTracker = {
-			_serviceBrand: undefined,
-			getSessionIds: () => ['session-a', 'session-b'],
-			getTerminal: vi.fn(async (id: string) => id === 'session-a' ? terminal : otherTerminal),
-		} as unknown as ICopilotCLISessionTracker;
-
-		const dirs = await resolveSessionDirsForTerminal(tracker, terminal);
-		expect(dirs).toHaveLength(2);
-		// First dir should be for the matching session
-		expect(dirs[0].fsPath).toContain('session-a');
-	});
-
-	it('returns empty array when no sessions exist', async () => {
-		const terminal = {} as vscode.Terminal;
-		const tracker: ICopilotCLISessionTracker = {
-			_serviceBrand: undefined,
-			getSessionIds: () => [],
-			getTerminal: vi.fn(async () => undefined),
-		} as unknown as ICopilotCLISessionTracker;
-
-		const dirs = await resolveSessionDirsForTerminal(tracker, terminal);
-		expect(dirs).toHaveLength(0);
-	});
-});
-
 // ─── Additional CopilotCLIChatSessionContentProvider tests ──────
 
 describe('CopilotCLIChatSessionContentProvider (additional)', () => {
@@ -507,6 +476,20 @@ describe('CopilotCLIChatSessionContentProvider (additional)', () => {
 
 		const item = await provider.toChatSessionItem(sessionItem);
 		expect(item.label).toBe('Test Session');
+	});
+
+	it('toChatSessionItem rehydrates persisted archived state', async () => {
+		const { provider, metadataStore } = createProvider();
+		metadataStore.getSessionArchived.mockResolvedValue(true);
+		const sessionItem: ICopilotCLISessionItem = {
+			id: 'session-1',
+			label: 'Test Session',
+			status: undefined,
+			workingDirectory: undefined,
+		} as unknown as ICopilotCLISessionItem;
+
+		const item = await provider.toChatSessionItem(sessionItem);
+		expect(item.archived).toBe(true);
 	});
 
 	it('only includes cached changes when explicitly requested', async () => {

@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IPreferencesService } from '../../../../../../workbench/services/preferences/common/preferences.js';
 import { IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
@@ -36,11 +40,14 @@ export class MobileAgentHostModePicker extends AgentHostModePicker {
 		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatPetService protected override readonly _chatPetService: IChatPetService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IPreferencesService preferencesService: IPreferencesService,
 	) {
-		super(session, actionWidgetService, sessionsProvidersService, telemetryService, hoverService, _chatPetService);
+		super(session, actionWidgetService, sessionsProvidersService, telemetryService, hoverService, _chatPetService, instantiationService, configurationService, preferencesService);
 	}
 
-	protected override _showPicker(anchor = this._triggerElement, onHide?: () => void): boolean {
+	protected override _showPicker(anchor = this._triggerElement, onHide?: () => void, listOptions?: IActionListOptions): boolean {
 		if (!anchor) {
 			return false;
 		}
@@ -70,6 +77,6 @@ export class MobileAgentHostModePicker extends AgentHostModePicker {
 				});
 			return true;
 		}
-		return super._showPicker(anchor, onHide);
+		return super._showPicker(anchor, onHide, listOptions);
 	}
 }

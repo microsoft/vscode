@@ -22,13 +22,14 @@ import { generateUuid } from '../../../../base/common/uuid.js';
  * standard, with padding) of the serialised inner payload.
  */
 export type ChunkEnvelope =
-	| { readonly kind: 'message'; readonly data: unknown }
+	| { readonly kind: 'message'; readonly data: unknown; readonly generation?: number }
 	| {
 		readonly kind: 'chunk';
 		readonly group_id: string;
 		readonly seq: number;
 		readonly total: number;
 		readonly bytes: string;
+		readonly generation?: number;
 	};
 
 /** Default per-segment ceiling (serialised `ChunkEnvelope` bytes). */
@@ -185,6 +186,7 @@ export interface ReassemblerOptions {
 }
 
 interface ReassemblyBuffer {
+	generation?: number;
 	total: number;
 	received: number;
 	segments: Map<number, Uint8Array>;
@@ -262,6 +264,7 @@ export class Reassembler {
 				);
 			}
 			buffer = {
+				generation: envelope.generation,
 				total,
 				received: 0,
 				segments: new Map<number, Uint8Array>(),
@@ -272,6 +275,9 @@ export class Reassembler {
 		} else if (buffer.total !== total) {
 			this.dropBuffer(groupId);
 			throw new ChunkingError(`total mismatch for group_id '${groupId}': existing ${buffer.total}, incoming ${total}`);
+		} else if (buffer.generation !== envelope.generation) {
+			this.dropBuffer(groupId);
+			throw new ChunkingError(`generation mismatch for group_id '${groupId}'`);
 		}
 
 		if (!Number.isInteger(seq) || seq < 0 || seq >= total) {

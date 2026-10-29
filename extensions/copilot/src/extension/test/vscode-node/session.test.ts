@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { authentication, AuthenticationGetSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, AuthenticationWwwAuthenticateRequest, ConfigurationScope, ConfigurationTarget, workspace, WorkspaceConfiguration } from 'vscode';
+import { authentication, AuthenticationGetSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, AuthenticationWwwAuthenticateRequest, ConfigurationScope, ConfigurationTarget, Uri, workspace, WorkspaceConfiguration } from 'vscode';
 import { GITHUB_SCOPE_ALIGNED, GITHUB_SCOPE_READ_USER, GITHUB_SCOPE_USER_EMAIL } from '../../../platform/authentication/common/authentication';
 import { getAlignedSession, getAnyAuthSession } from '../../../platform/authentication/vscode-node/session';
 import { AuthProviderId, Config, ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -14,6 +14,8 @@ import { InMemoryConfigurationService } from '../../../platform/configuration/te
 import { ITelemetryUserConfig, TelemetryUserConfigImpl } from '../../../platform/telemetry/common/telemetry';
 import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/descriptors';
 import { createExtensionTestingServices } from './services';
+
+const PUBLIC_GITHUB_AUTHORIZATION_SERVER = Uri.parse('https://github.com/login/oauth');
 
 suite('Session tests', function () {
 	const testingServiceCollection = createExtensionTestingServices();
@@ -26,11 +28,15 @@ suite('Session tests', function () {
 	let configurationStub: sinon.SinonStub<[section?: string | undefined, scope?: ConfigurationScope | null | undefined], WorkspaceConfiguration>;
 
 	function seedSessions(sessions: AuthenticationSession[]) {
+		const sessionsWithProvenance = sessions.map(session => ({
+			authorizationServer: PUBLIC_GITHUB_AUTHORIZATION_SERVER,
+			...session,
+		}));
 
-		getAccountsStub.resolves(sessions.map(session => session.account));
+		getAccountsStub.resolves(sessionsWithProvenance.map(session => session.account));
 
 		const sessionsByScope = new Map<string, AuthenticationSession[]>();
-		for (const session of sessions) {
+		for (const session of sessionsWithProvenance) {
 			const scopeKey = session.scopes.join(' ');
 			const sessionsWithScope = sessionsByScope.get(scopeKey) || [];
 			sessionsWithScope.push(session);
@@ -206,6 +212,7 @@ suite('Session tests', function () {
 				accessToken: 'new-token',
 				scopes: GITHUB_SCOPE_READ_USER,
 				account: { id: 'account', label: 'ghe-session-label' },
+				authorizationServer: Uri.parse('https://enterprise.example/login/oauth'),
 			});
 			const ghSessionStub = getSessionStub.withArgs('github', GITHUB_SCOPE_READ_USER, sinon.match.any);
 
