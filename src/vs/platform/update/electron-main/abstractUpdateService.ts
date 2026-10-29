@@ -25,13 +25,19 @@ import { AvailableForDownload, DisablementReason, IQuitAndInstallOptions, IUpdat
 
 const LAST_KNOWN_VERSION_STORAGE_KEY = 'abstractUpdateService/lastKnownVersion';
 
+/**
+ * TEMPORARY, never merge: test builds of the unattended update restart (#344141) only ask the
+ * local update server of `scripts/unattended-update-test.ts`, never the real one.
+ */
+const TEST_UPDATE_URL = 'http://127.0.0.1:8080';
+
 export interface IUpdateURLOptions {
 	readonly background?: boolean;
 	readonly internalOrg?: string;
 }
 
 export function createUpdateURL(baseUpdateUrl: string, platform: string, quality: string, commit: string, options?: IUpdateURLOptions): string {
-	const url = new URL(`${baseUpdateUrl}/api/update/${platform}/${quality}/${commit}`);
+	const url = new URL(`${TEST_UPDATE_URL}/api/update/${platform}/${quality}/${commit}`);
 
 	if (options?.background) {
 		url.searchParams.set('bg', 'true');
@@ -454,8 +460,8 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			.then(() => this.checkForUpdates(false))
 			.then(() => {
 				if (repeat) {
-					// Check again after 1 hour
-					this.scheduleCheckForUpdates(60 * 60 * 1000, true);
+					// TEMPORARY, never merge: check again after 1 minute instead of 1 hour
+					this.scheduleCheckForUpdates(60 * 1000, true);
 				}
 			})
 			.catch(err => {
