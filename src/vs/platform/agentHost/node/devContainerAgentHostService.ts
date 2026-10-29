@@ -54,9 +54,9 @@ import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCo
 import { DevContainerSample, devContainerSamples, devContainerSampleUri, getDevContainerSampleFolder, IDevContainerRepository, IDevContainerSampleSource } from '../common/devContainerSamples.js';
 import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
 import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
+import { buildAddGitSafeDirectoryCommand, buildConfigureGitIdentityCommand, buildDevContainerProbeCommand, IDevContainerGitIdentity, parseConfiguredGitIdentityKeys, parseDevContainerProbeResult } from './devContainerStartupCommands.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
-const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
 const DEV_CONTAINER_LOG_ARGS = ['--log-level', 'debug'] as const;
 const DEV_CONTAINER_RELAY_CONNECTION_TIMEOUT_MS = 30_000;
 
@@ -130,11 +130,6 @@ interface IDevContainerMount {
 	readonly Source: string;
 	readonly Destination: string;
 	readonly Name?: string;
-}
-
-interface IGitIdentity {
-	readonly name: string | undefined;
-	readonly email: string | undefined;
 }
 
 const devContainerUpResultValidator = vObj({
@@ -304,10 +299,17 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 			const sandboxSupported = await this._getSandboxSupported(config.connectionId, upResult.containerId, tokenSource.token);
 			this._onDidChangeSandboxSupport.fire({ connectionId: config.connectionId, supported: sandboxSupported });
-			const exec = this._createExec(config.connectionId, workspaceSelector, tokenSource.token, sandboxEnvironment);
+			// The container ID skips the CLI's container lookup on every exec.
+			const execSelector = [...typeof workspaceSelector === 'string' ? ['--workspace-folder', workspaceSelector] : workspaceSelector, '--container-id', upResult.containerId];
+			const exec = this._createExec(config.connectionId, execSelector, tokenSource.token, sandboxEnvironment);
+			const probe = parseDevContainerProbeResult(await exec(buildDevContainerProbeCommand(upResult.remoteWorkspaceFolder)));
+			const platform = resolveRemotePlatform(probe.os, probe.machine, probe.libc);
+			if (!platform) {
+				throw new Error(localize('devContainerAgentHost.unsupportedPlatform', "Unsupported Dev Container platform: {0} {1}", probe.os.trim(), probe.machine.trim()));
+			}
 			const safeDirectoryStopWatch = StopWatch.create(false);
 			try {
-				await this._configureGitSafeDirectory(config.connectionId, upResult.containerId, upResult.remoteWorkspaceFolder, exec, tokenSource.token);
+				await this._configureGitSafeDirectory(config.connectionId, upResult.containerId, probe.gitRootFolder, exec, tokenSource.token);
 				safeDirectoryStopWatch.stop();
 				this._logService.info(`${LOG_PREFIX} Git safe.directory configuration completed in ${safeDirectoryStopWatch.elapsed()}ms`);
 			} catch (error) {
@@ -323,19 +325,10 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				gitIdentityStopWatch.stop();
 				this._logService.warn(`${LOG_PREFIX} Failed to configure Git identity after ${gitIdentityStopWatch.elapsed()}ms`, error);
 			}
-			const [{ stdout: unameS }, { stdout: unameM }, { stdout: libc }] = await Promise.all([
-				exec('uname -s'),
-				exec('uname -m'),
-				exec(DETECT_MUSL_COMMAND),
-			]);
-			const platform = resolveRemotePlatform(unameS, unameM, libc);
-			if (!platform) {
-				throw new Error(localize('devContainerAgentHost.unsupportedPlatform', "Unsupported Dev Container platform: {0} {1}", unameS.trim(), unameM.trim()));
-			}
 
 			const serverDataFolderName = this._productService.serverDataFolderName ?? '.vscode-server-oss';
 			const quality = this._productService.quality || 'insider';
-			const cliCacheDir = await this._configureCaches(config.connectionId, upResult.containerId, serverDataFolderName, platform, exec, tokenSource.token);
+			const cliCacheDir = await this._configureCaches(config.connectionId, upResult.containerId, serverDataFolderName, platform, probe, exec, tokenSource.token);
 			const cliInstallation = await ensureRemoteAgentHostCliInstalled(exec, platform, {
 				serverDataFolderName,
 				quality,
@@ -389,7 +382,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			const relayCommand = buildAgentRelayCommand(cliBin, cliDataDir, endpoint.instanceId, initial.userDataPath);
 			const relay = await this._createRelay(
 				config.connectionId,
-				workspaceSelector,
+				execSelector,
 				relayCommand,
 				endpoint.endpoint,
 				endpoint.connectionToken,
@@ -495,7 +488,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return [];
 	}
 
-	private async _configureCaches(connectionId: string, containerId: string, serverDataFolderName: string, platform: { os: string; arch: string }, exec: ISshExec, token: CancellationToken): Promise<string | undefined> {
+	private async _configureCaches(connectionId: string, containerId: string, serverDataFolderName: string, platform: { os: string; arch: string }, user: { readonly uid: string; readonly gid: string }, exec: ISshExec, token: CancellationToken): Promise<string | undefined> {
 		const reportError = (kind: string, error: Error) => {
 			this._logService.warn(`${LOG_PREFIX} Shared ${kind} cache unavailable; keeping the existing CLI cache`, error);
 			this._reportOutput(connectionId, `Shared ${kind} cache unavailable; keeping the existing CLI cache: ${getErrorMessage(error)}\n`);
@@ -506,8 +499,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				|| mounts.some(mount => mount.Destination.startsWith('/vscode/'))) {
 				throw new Error('The shared vscode volume is not mounted at /vscode without nested mounts');
 			}
-			const { stdout } = await exec('id -u; id -g');
-			const [uid, gid] = stdout.trim().split(/\r?\n/);
+			const { uid, gid } = user;
 			let cliCacheDir: string | undefined;
 			for (const kind of ['server', 'CLI'] as const) {
 				if (kind === 'CLI' && !this._productService.commit) {
@@ -545,13 +537,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		}
 	}
 
-	private async _configureGitSafeDirectory(connectionId: string, containerId: string, remoteWorkspaceFolder: string, exec: ISshExec, token: CancellationToken): Promise<void> {
-		const rootResult = await exec(
-			`command -v git >/dev/null 2>&1 && ROOT_FOLDER="$(git -C ${shellEscape(remoteWorkspaceFolder)} rev-parse --show-toplevel)" && test "$(stat -c %u "$ROOT_FOLDER")" != "$(id -u)" && printf '%s' "$ROOT_FOLDER"`,
-			{ ignoreExitCode: true },
-		);
-		const rootFolder = rootResult.stdout.trim()
-			|| /dubious ownership in repository at '(?<root>.+)'/.exec(rootResult.stderr)?.groups?.root;
+	private async _configureGitSafeDirectory(connectionId: string, containerId: string, rootFolder: string | undefined, exec: ISshExec, token: CancellationToken): Promise<void> {
 		if (!rootFolder || !posix.isAbsolute(rootFolder)) {
 			return;
 		}
@@ -570,43 +556,24 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			return;
 		}
 
-		const configured = await exec('git config --global --get-all safe.directory', { ignoreExitCode: true });
-		if (configured.stdout.split(/\r?\n/).includes(rootFolder)) {
-			return;
+		const { stdout } = await exec(buildAddGitSafeDirectoryCommand(rootFolder));
+		if (stdout.trim() === 'added') {
+			this._logService.info(`${LOG_PREFIX} Added Git root '${rootFolder}' to the Dev Container user's safe.directory list`);
 		}
-		await exec(`git config --global --add safe.directory ${shellEscape(rootFolder)}`);
-		this._logService.info(`${LOG_PREFIX} Added Git root '${rootFolder}' to the Dev Container user's safe.directory list`);
 	}
 
 	private async _configureGitIdentity(exec: ISshExec, token: CancellationToken): Promise<void> {
-		const identity = await this._getHostGitIdentity(token);
-		if (!identity.name && !identity.email) {
+		const command = buildConfigureGitIdentityCommand(await this._getHostGitIdentity(token));
+		if (!command) {
 			return;
 		}
-
-		const gitAvailable = await exec('command -v git >/dev/null 2>&1', { ignoreExitCode: true });
-		if (gitAvailable.code !== 0) {
-			return;
-		}
-
-		const values: readonly { readonly key: string; readonly value: string | undefined }[] = [
-			{ key: 'user.name', value: identity.name },
-			{ key: 'user.email', value: identity.email },
-		];
-		for (const { key, value } of values) {
-			if (!value) {
-				continue;
-			}
-			const configured = await exec(`git config --get ${key}`, { ignoreExitCode: true });
-			if (configured.code === 0 && configured.stdout.trim()) {
-				continue;
-			}
-			await exec(`git config --global --replace-all ${key} ${shellEscape(value)}`);
+		const { stdout } = await exec(command);
+		for (const key of parseConfiguredGitIdentityKeys(stdout)) {
 			this._logService.info(`${LOG_PREFIX} Configured Git ${key} from the host for the Dev Container user`);
 		}
 	}
 
-	protected async _getHostGitIdentity(token: CancellationToken): Promise<IGitIdentity> {
+	protected async _getHostGitIdentity(token: CancellationToken): Promise<IDevContainerGitIdentity> {
 		const environment = await this._resolveShellEnvironment();
 		const read = async (key: string): Promise<string | undefined> => {
 			const result = await this._runLocalCommand('git', ['config', '--global', '--get', key], environment, token);

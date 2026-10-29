@@ -36,6 +36,7 @@ import { devContainerServerCacheMount } from '../../node/devContainerServerCache
 import { DevContainerSample } from '../../common/devContainerSamples.js';
 import { IPreparedDevContainerSample } from '../../node/devContainerSamples.js';
 import { IDevContainerSandboxConfiguration } from '../../node/devContainerSandbox.js';
+import { buildAddGitSafeDirectoryCommand, buildConfigureGitIdentityCommand, buildDevContainerProbeCommand } from '../../node/devContainerStartupCommands.js';
 
 class TestRelay implements IDevContainerRelay {
 	readonly sent: string[] = [];
@@ -75,6 +76,9 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	readonly devContainerArgs: string[][] = [];
 	readonly devContainerEnvironments: (NodeJS.ProcessEnv | undefined)[] = [];
 	execEnvironment: NodeJS.ProcessEnv | undefined;
+	execSelector: string | readonly string[] | undefined;
+	relaySelector: string | readonly string[] | undefined;
+	unameS = 'Linux';
 	relayEnvironment: NodeJS.ProcessEnv | undefined;
 	sandboxEnvironment: NodeJS.ProcessEnv | undefined;
 	sandboxConfigurationOutput: string | undefined;
@@ -292,42 +296,28 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		return super._createExec(connectionId, workspaceFolder, token, environment);
 	}
 
-	protected override _createExec(_connectionId: string, _workspaceFolder: string | readonly string[], _token: CancellationToken, environment?: NodeJS.ProcessEnv): ISshExec {
+	protected override _createExec(_connectionId: string, workspaceFolder: string | readonly string[], _token: CancellationToken, environment?: NodeJS.ProcessEnv): ISshExec {
 		this.execEnvironment = environment;
+		this.execSelector = workspaceFolder;
 		return async command => {
 			this.execCommands.push(command);
-			if (command === 'id -u; id -g') {
-				return { stdout: '1000\n1000\n', stderr: '', code: 0 };
-			}
 			if (command.includes('ln -sT') && this.cacheSetupError) {
 				throw this.cacheSetupError;
 			}
-			if (command === 'command -v git >/dev/null 2>&1') {
-				return { stdout: '', stderr: '', code: 0 };
-			}
-			if (command.startsWith('command -v git ')) {
+			if (command === buildDevContainerProbeCommand(this.remoteWorkspaceFolder)) {
+				const reportsRoot = this.gitRootFolder && !this.gitRootReportedAsDubiousOwnership;
 				return {
-					stdout: this.gitRootReportedAsDubiousOwnership ? '' : this.gitRootFolder ?? '',
+					stdout: `os=${this.unameS}\nmachine=x86_64\nlibc=${this._libc}\nuid=1000\ngid=1000\n${reportsRoot ? `gitRoot=${this.gitRootFolder}\n` : ''}`,
 					stderr: this.gitRootReportedAsDubiousOwnership && this.gitRootFolder ? `fatal: detected dubious ownership in repository at '${this.gitRootFolder}'` : '',
-					code: this.gitRootReportedAsDubiousOwnership || !this.gitRootFolder ? 128 : 0,
+					code: 0,
 				};
 			}
-			if (command === 'git config --global --get-all safe.directory') {
-				return { stdout: this.safeDirectories.join('\n'), stderr: '', code: this.safeDirectories.length ? 0 : 1 };
+			if (this.gitRootFolder && command === buildAddGitSafeDirectoryCommand(this.gitRootFolder)) {
+				return { stdout: this.safeDirectories.includes(this.gitRootFolder) ? '' : 'added', stderr: '', code: 0 };
 			}
-			const gitIdentityMatch = /^git config --get (?<key>user\.(?:name|email))$/.exec(command);
-			if (gitIdentityMatch?.groups) {
-				const value = this.containerGitConfig.get(gitIdentityMatch.groups.key);
-				return { stdout: value === undefined ? '' : `${value}\n`, stderr: '', code: value === undefined ? 1 : 0 };
-			}
-			if (command === 'uname -s') {
-				return { stdout: 'Linux\n', stderr: '', code: 0 };
-			}
-			if (command === 'uname -m') {
-				return { stdout: 'x86_64\n', stderr: '', code: 0 };
-			}
-			if (command.includes('/etc/alpine-release')) {
-				return { stdout: this._libc, stderr: '', code: 0 };
+			if (command.startsWith('command -v git >/dev/null 2>&1 || exit 0\n')) {
+				const configured = ['user.name', 'user.email'].filter(key => this.hostGitConfig.has(key) && !this.containerGitConfig.has(key));
+				return { stdout: configured.map(key => `${key}\n`).join(''), stderr: '', code: 0 };
 			}
 			if (this._forceCliInstall && command.includes('--version &&')) {
 				return { stdout: '', stderr: '', code: 1 };
@@ -378,7 +368,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 	protected override _createRelay(
 		_connectionId: string,
-		_workspaceFolder: string | readonly string[],
+		workspaceFolder: string | readonly string[],
 		command: string,
 		_endpoint: { readonly type: 'tcp'; readonly host: string; readonly port: number } | { readonly type: 'socket'; readonly path: string },
 		_connectionToken: string | undefined,
@@ -386,6 +376,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		environment?: NodeJS.ProcessEnv,
 	): Promise<IDevContainerRelay> {
 		this.relayCommand = command;
+		this.relaySelector = workspaceFolder;
 		this.relayEnvironment = environment;
 		void this.relayStarted.complete();
 		return this.relayResult ?? Promise.resolve(this.relay);
@@ -994,6 +985,8 @@ suite('Dev Container Agent Host Main Service', () => {
 			assert.strictEqual(service.devContainerEnvironments[service.devContainerArgs.findIndex(args => args[0] === 'up')], environment);
 			assert.strictEqual(service.execEnvironment, environment);
 			assert.strictEqual(service.relayEnvironment, environment);
+			const sandboxSelector = ['--workspace-folder', '/workspace', '--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json', '--container-id', 'container-id'];
+			assert.deepStrictEqual({ exec: service.execSelector, relay: service.relaySelector }, { exec: sandboxSelector, relay: sandboxSelector });
 
 			await service.createDevContainerExec('sandbox', '/workspace', CancellationToken.None, environment)('printf test');
 			assert.strictEqual(service.devContainerEnvironments.at(-1), environment);
@@ -1090,7 +1083,8 @@ suite('Dev Container Agent Host Main Service', () => {
 	});
 
 	test('forwards missing host Git identity without overwriting container identity', async () => {
-		const forwarded = store.add(new TestDevContainerAgentHostMainService());
+		const forwardedLog = new TestLogService();
+		const forwarded = store.add(new TestDevContainerAgentHostMainService('', false, undefined, process.env, true, [], new Set(), '/tmp', forwardedLog));
 		forwarded.hostGitConfig.set('user.name', 'Host User');
 		forwarded.hostGitConfig.set('user.email', 'host@example.com');
 		await forwarded.connect({
@@ -1099,7 +1093,8 @@ suite('Dev Container Agent Host Main Service', () => {
 			name: 'Project Dev Container',
 		});
 
-		const preserved = store.add(new TestDevContainerAgentHostMainService());
+		const preservedLog = new TestLogService();
+		const preserved = store.add(new TestDevContainerAgentHostMainService('', false, undefined, process.env, true, [], new Set(), '/tmp', preservedLog));
 		preserved.hostGitConfig.set('user.name', 'Host User');
 		preserved.hostGitConfig.set('user.email', 'host@example.com');
 		preserved.containerGitConfig.set('user.name', 'Container User');
@@ -1116,27 +1111,27 @@ suite('Dev Container Agent Host Main Service', () => {
 			name: 'Project Dev Container',
 		});
 
+		const identityCommand = buildConfigureGitIdentityCommand({ name: 'Host User', email: 'host@example.com' });
+		const configuredKeys = (log: TestLogService) => log.infoMessages.filter(message => message.includes('from the host'));
 		assert.deepStrictEqual({
 			hostCommands: forwarded.localCommands.filter(command => command.command === 'git'),
 			forwardedCommands: forwarded.execCommands.filter(command => command.includes('user.')),
+			forwardedLogs: configuredKeys(forwardedLog),
 			preservedCommands: preserved.execCommands.filter(command => command.includes('user.')),
+			preservedLogs: configuredKeys(preservedLog),
 			absentCommands: absent.execCommands.filter(command => command.includes('user.')),
 		}, {
 			hostCommands: [
 				{ command: 'git', args: ['config', '--global', '--get', 'user.name'] },
 				{ command: 'git', args: ['config', '--global', '--get', 'user.email'] },
 			],
-			forwardedCommands: [
-				'git config --get user.name',
-				'git config --global --replace-all user.name \'Host User\'',
-				'git config --get user.email',
-				'git config --global --replace-all user.email \'host@example.com\'',
+			forwardedCommands: [identityCommand],
+			forwardedLogs: [
+				'[DevContainerAgentHost] Configured Git user.name from the host for the Dev Container user',
+				'[DevContainerAgentHost] Configured Git user.email from the host for the Dev Container user',
 			],
-			preservedCommands: [
-				'git config --get user.name',
-				'git config --get user.email',
-				'git config --global --replace-all user.email \'host@example.com\'',
-			],
+			preservedCommands: [identityCommand],
+			preservedLogs: ['[DevContainerAgentHost] Configured Git user.email from the host for the Dev Container user'],
 			absentCommands: [],
 		});
 	});
@@ -1181,10 +1176,7 @@ suite('Dev Container Agent Host Main Service', () => {
 			outsideMountCommands: outsideMount.execCommands.filter(command => command.includes('safe.directory')),
 		}, {
 			configuredHostDirectories: [join('/host/workspace', 'project')],
-			configuredCommands: [
-				'git config --global --get-all safe.directory',
-				'git config --global --add safe.directory \'/workspaces/project\'',
-			],
+			configuredCommands: [buildAddGitSafeDirectoryCommand('/workspaces/project')],
 			unownedHostDirectories: [join('/host/workspace', 'project')],
 			unownedCommands: [],
 			outsideMountHostDirectories: [],
@@ -1223,6 +1215,52 @@ suite('Dev Container Agent Host Main Service', () => {
 			warning: '[DevContainerAgentHost] Failed to configure Git safe.directory after <duration>',
 			error: 'Mount inspection failed',
 		});
+	});
+
+	test('runs startup probes and Git setup in one Dev Container exec each against the started container', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.gitRootFolder = '/workspaces/project';
+		service.gitRootReportedAsDubiousOwnership = true;
+		service.containerMounts = [
+			{ Type: 'bind', Source: '/host/workspace', Destination: '/workspaces' },
+			{ Type: 'volume', Source: '/volumes/vscode', Destination: '/vscode', Name: 'vscode' },
+		];
+		service.hostGitConfig.set('user.name', 'Host User');
+		await service.connect({
+			connectionId: 'connection',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+
+		const selector = ['--workspace-folder', '/workspace', '--container-id', 'container-id'];
+		assert.deepStrictEqual({
+			startupCommands: service.execCommands.slice(0, 3),
+			nextIsCacheLink: service.execCommands[3]?.includes('ln -sT'),
+			cacheOwnerFromProbe: service.localCommands.some(command => command.command === 'docker' && command.args.at(-1)?.includes(`chown '1000:1000'`)),
+			execSelector: service.execSelector,
+			relaySelector: service.relaySelector,
+		}, {
+			startupCommands: [
+				buildDevContainerProbeCommand('/workspaces/project'),
+				buildAddGitSafeDirectoryCommand('/workspaces/project'),
+				buildConfigureGitIdentityCommand({ name: 'Host User', email: undefined }),
+			],
+			nextIsCacheLink: true,
+			cacheOwnerFromProbe: true,
+			execSelector: selector,
+			relaySelector: selector,
+		});
+	});
+
+	test('rejects an unsupported platform reported by the startup probe', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.unameS = 'FreeBSD';
+		await assert.rejects(service.connect({
+			connectionId: 'connection',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		}), /Unsupported Dev Container platform: FreeBSD x86_64/);
+		assert.deepStrictEqual(service.execCommands, [buildDevContainerProbeCommand('/workspaces/project')]);
 	});
 
 	test('runs Dev Container exec commands with debug logging', async () => {
