@@ -749,6 +749,12 @@ export class QuickInputList extends Disposable {
 	*/
 	readonly onKeyDown: Event<StandardKeyboardEvent> = this._onKeyDown.event;
 
+	private readonly _onWillShowItemHover = this._register(new Emitter<void>());
+	/**
+	 * Fires synchronously before an item hover is shown and measured.
+	 */
+	readonly onWillShowItemHover: Event<void> = this._onWillShowItemHover.event;
+
 	private readonly _onLeave = this._register(new Emitter<void>());
 	/**
 	 * Event that is fired when the tree would no longer have focus.
@@ -791,6 +797,12 @@ export class QuickInputList extends Disposable {
 	// Elements that apply to the current set of elements
 	private readonly _elementDisposable = this._register(new DisposableStore());
 	private _lastHover: IHoverWidget | undefined;
+	// Viewport position of the list when the item hover was shown, see `layout`
+	private _lastHoverListPosition: { readonly top: number; readonly left: number } | undefined;
+	// Viewport-sized host for the item hover, see `showHover`
+	private _hoverHost: HTMLElement | undefined;
+	// Element that had focus when the item hover was shown, see `hideHoverIfMoved`
+	private _hoverFocusReturn: HTMLElement | undefined;
 	private _lastQueryString: string | undefined;
 
 	constructor(
@@ -1425,6 +1437,31 @@ export class QuickInputList extends Disposable {
 			+ 6
 			}px` : '';
 		this._tree.layout();
+		this.hideHoverIfMoved();
+	}
+
+	/**
+	 * The item hover is positioned relative to the viewport, so it would be left behind when
+	 * the quick input moves (e.g. the window is resized or the alignment changes).
+	 */
+	private hideHoverIfMoved(): void {
+		if (!this._lastHover || this._lastHover.isDisposed || !this._lastHoverListPosition) {
+			return;
+		}
+		const { top, left } = this._container.getBoundingClientRect();
+		if (top !== this._lastHoverListPosition.top || left !== this._lastHoverListPosition.left) {
+			// Removing a focused hover would move focus to the body and could close the picker
+			const hoverHadFocus = !!this._hoverHost && dom.isAncestorOfActiveElement(this._hoverHost);
+			this.hoverDelegate.onDidHideHover?.();
+			this._lastHover.dispose();
+			if (hoverHadFocus) {
+				if (this._hoverFocusReturn?.isConnected) {
+					this._hoverFocusReturn.focus();
+				} else {
+					this._tree.domFocus();
+				}
+			}
+		}
 	}
 
 	filter(query: string): boolean {
@@ -1643,6 +1680,9 @@ export class QuickInputList extends Disposable {
 		if (!element.element || !element.saneTooltip) {
 			return;
 		}
+		this._onWillShowItemHover.fire();
+		const activeElement = dom.getActiveElement();
+		this._hoverFocusReturn = dom.isHTMLElement(activeElement) && !(this._hoverHost && dom.isAncestor(activeElement, this._hoverHost)) ? activeElement : undefined;
 		this._lastHover = this.hoverDelegate.showHover({
 			content: element.saneTooltip,
 			target: element.element,
@@ -1652,11 +1692,15 @@ export class QuickInputList extends Disposable {
 			appearance: {
 				showPointer: true,
 			},
-			container: this._container,
+			// Render inside the list so that focusing the hover does not hide the picker, but in
+			// a viewport-sized host so that the quick input widget neither clips nor sizes it
+			container: this._hoverHost ??= dom.append(this._container, $('.quick-input-list-hover-host')),
 			position: {
 				hoverPosition: HoverPosition.RIGHT
 			}
 		}, false);
+		const { top, left } = this._container.getBoundingClientRect();
+		this._lastHoverListPosition = { top, left };
 	}
 }
 
