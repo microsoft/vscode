@@ -54,6 +54,20 @@ suite('Registry leak check', () => {
 		assert.deepStrictEqual(changes, [`registered command 'registryLeakCheck.test.duplicateCommand'`]);
 	});
 
+	test('reports a command whose registrations change order', () => {
+		const registrations = store.add(new DisposableStore());
+		const a = { id: 'registryLeakCheck.test.order', handler: () => { } };
+		const b = { id: 'registryLeakCheck.test.order', handler: () => { } };
+		const first = registrations.add(CommandsRegistry.registerCommand(a));
+		registrations.add(CommandsRegistry.registerCommand(b));
+		const before = takeRegistrySnapshot();
+		first.dispose();
+		registrations.add(CommandsRegistry.registerCommand(a));
+		const changes = diffRegistrySnapshots(before, takeRegistrySnapshot());
+		registrations.dispose();
+		assert.deepStrictEqual(changes, [`replaced command 'registryLeakCheck.test.order'`]);
+	});
+
 	test('reports a menu item object that is registered again', () => {
 		const registrations = store.add(new DisposableStore());
 		const item = { command: { id: 'registryLeakCheck.test.duplicate', title: 'Duplicate' } };

@@ -10,6 +10,7 @@ import { IMenuItem, isIMenuItem, ISubmenuItem, MenuId, MenuRegistry } from '../.
 
 export interface IRegistrySnapshot {
 	readonly commands: ReadonlyMap<string, ReadonlyMap<ICommand, number>>;
+	readonly activeCommands: ReadonlyMap<string, ICommand>;
 	readonly menuCommands: ReadonlyMap<string, ICommandAction>;
 	readonly menuItems: ReadonlyMap<MenuId, ReadonlyMap<IMenuItem | ISubmenuItem, number>>;
 	readonly keybindings: ReadonlyMap<IKeybindingItem, number>;
@@ -58,6 +59,7 @@ export function takeRegistrySnapshot(): IRegistrySnapshot {
 	}
 	return {
 		commands: new Map(Array.from(getCommandRegistrations(), ([id, registrations]) => [id, countRegistrations(registrations)])),
+		activeCommands: CommandsRegistry.getCommands(),
 		menuCommands: new Map(MenuRegistry.getCommands()),
 		menuItems,
 		keybindings: countRegistrations(KeybindingsRegistry.getDefaultKeybindings()),
@@ -98,6 +100,12 @@ export function diffRegistrySnapshots(before: IRegistrySnapshot, after: IRegistr
 	const changes: string[] = [];
 	for (const id of new Set([...before.commands.keys(), ...after.commands.keys()])) {
 		diffCounts(before.commands.get(id), after.commands.get(id), () => `command '${id}'`, changes);
+	}
+	for (const [id, command] of after.activeCommands) {
+		const previous = before.activeCommands.get(id);
+		if (previous && previous !== command && changes.every(change => !change.endsWith(` command '${id}'`))) {
+			changes.push(`replaced command '${id}'`);
+		}
 	}
 	diffMaps('menu command', before.menuCommands, after.menuCommands, changes);
 	const menus = new Set([...before.menuItems.keys(), ...after.menuItems.keys()]);
