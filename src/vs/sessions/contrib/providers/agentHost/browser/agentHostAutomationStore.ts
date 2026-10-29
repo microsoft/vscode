@@ -17,7 +17,7 @@ import { AgentSession } from '../../../../../platform/agentHost/common/agent.js'
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { getAgentHostAutomationHistoryState, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryReceipts } from '../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { getAgentHostAutomationHistoryState, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts } from '../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
 import { isCustomizationEnabled } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { omitAutomationSessionTemplateConfigValues, pickAutomationDefinitionOwnedConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -174,7 +174,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		const entry = this._findAutomationEntry(id, true);
 		if (entry) {
 			const state = getAgentHostAutomationHistoryState(entry);
-			return state === 'deleting' && !this._deletingResources.has(entry.resource) && entry.operations.includes(AutomationOperation.Remove)
+			return state === 'deleting'
+				&& !this._deletingResources.has(entry.resource)
+				&& (!supportsAgentHostAutomationHistoryDeletionState(this._connection.initializeResult.get()) || entry.operations.includes(AutomationOperation.Remove))
 				? 'interrupted'
 				: state;
 		}

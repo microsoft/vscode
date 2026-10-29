@@ -24,7 +24,7 @@ import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.j
 import { withCreateChatWorkspaceMeta } from '../../common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { AgentHostCreateSessionImportMetaKey, serializeCreateSessionImport, splitCreateSessionImportChunks, StageCreateSessionImportChunkExtensionMethod, supportsAgentHostCreateSessionImport, withCreateSessionImportMeta, withStagedCreateSessionImportMeta } from '../../common/meta/agentHostCreateSessionImportMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
-import { supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryReceipts } from '../../common/meta/agentHostAutomationsMeta.js';
+import { supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts } from '../../common/meta/agentHostAutomationsMeta.js';
 import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
 import { readAgentHostAuthenticationEncryption } from '../../common/meta/agentHostAuthenticationEncryption.js';
 import { supportsAgentHostSessionMove } from '../../common/meta/agentHostSessionMoveMeta.js';
@@ -817,6 +817,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.importSession': true,
 				'vscode.automationHistory': true,
 				'vscode.automationHistoryReceipts': true,
+				'vscode.automationHistoryDeletionState': true,
 				'vscode.devContainers': true,
 				// Offered whether or not moving chats is enabled, so enabling it needs no reconnect.
 				'vscode.sessionMove': true,
@@ -2082,16 +2083,18 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual({
 			supported: supportsAgentHostAutomationHistory(result),
 			receipts: supportsAgentHostAutomationHistoryReceipts(result),
+			deletionState: supportsAgentHostAutomationHistoryDeletionState(result),
 			legacy: supportsAgentHostAutomationHistory({ ...result, _meta: undefined }),
 			legacyClient: {
 				history: supportsAgentHostAutomationHistory({ ...result, _meta: { 'vscode.automationHistory': true } }),
 				receipts: supportsAgentHostAutomationHistoryReceipts({ ...result, _meta: { 'vscode.automationHistory': true } }),
+				deletionState: supportsAgentHostAutomationHistoryDeletionState({ ...result, _meta: { 'vscode.automationHistory': true } }),
 			},
 			response: await response,
 			deleted: agentService.deletedAutomations,
 		}, {
-			supported: true, receipts: true, legacy: false,
-			legacyClient: { history: true, receipts: false },
+			supported: true, receipts: true, deletionState: true, legacy: false,
+			legacyClient: { history: true, receipts: false, deletionState: false },
 			response: { jsonrpc: '2.0', id: 20, result: ['ahp-session://tenant/opaque'] },
 			deleted: [{ resource: 'ahp-automation:/a', deleteHistory: true, legacySessions: ['ahp-session://tenant/opaque'], requestId: 'delete-request' }],
 		});

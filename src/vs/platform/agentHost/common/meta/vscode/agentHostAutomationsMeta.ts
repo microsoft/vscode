@@ -12,10 +12,11 @@ export const AgentHostAutonomousAutomationsCapabilityMetaKey = 'vscode.autonomou
 /** Initialize presence flag for retaining or deleting an Automation's run history when the Automation is removed. */
 export const AgentHostAutomationHistoryCapabilityMetaKey = 'vscode.automationHistory';
 export const AgentHostAutomationHistoryReceiptsCapabilityMetaKey = 'vscode.automationHistoryReceipts';
+export const AgentHostAutomationHistoryDeletionStateCapabilityMetaKey = 'vscode.automationHistoryDeletionState';
 
 const AgentHostAutomationHistoryStateMetaKey = 'vscode.automationHistoryState';
 
-/** `retained` entries are inert owners of preserved run history; `deleting` entries have an interrupted history deletion pending. */
+/** `retained` entries are inert owners of preserved run history; `deleting` entries have a history deletion in progress or pending retry. */
 export type AgentHostAutomationHistoryState = 'retained' | 'deleting';
 
 /** Whether Automation execution is independent of a client activation or migration handshake. */
@@ -31,6 +32,11 @@ export function supportsAgentHostAutomationHistory(result: InitializeResult | un
 /** Whether the host durably receipts history deletion until the client acknowledges it. */
 export function supportsAgentHostAutomationHistoryReceipts(result: InitializeResult | undefined): boolean {
 	return result?._meta?.[AgentHostAutomationHistoryReceiptsCapabilityMetaKey] === true;
+}
+
+/** Whether the host distinguishes active and interrupted history deletion through the Remove operation. */
+export function supportsAgentHostAutomationHistoryDeletionState(result: InitializeResult | undefined): boolean {
+	return result?._meta?.[AgentHostAutomationHistoryDeletionStateCapabilityMetaKey] === true;
 }
 
 /** Reads the namespaced history state of an Automation entry, ignoring unrecognized values. */

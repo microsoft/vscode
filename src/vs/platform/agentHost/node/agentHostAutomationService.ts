@@ -445,17 +445,6 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			if (!deleteHistory) {
 				throw new Error(`Automation history deletion is already in progress: ${resource}`);
 			}
-			const retrying = existing.operations.includes(AutomationOperation.Remove);
-			const nextCatalog = retrying
-				? automationReducer(catalog, {
-					type: ActionType.AutomationSet,
-					automation: {
-						...existing,
-						operations: [],
-						_meta: withAgentHostAutomationHistoryState(existing._meta, 'deleting'),
-					},
-				}, this._log)
-				: catalog;
 			const current = this._historyDeletions.get(resource)!;
 			const sessions = new Map(current.sessions.map(entry => [entry.session, entry]));
 			const deletedSessions = new Set(current.deletedSessions ?? []);
@@ -468,15 +457,11 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			if (requestId) {
 				requestIds.add(requestId);
 			}
-			if (nextCatalog !== catalog || sessions.size !== current.sessions.length || requestIds.size !== this._historyDeletionRequestIds(current).length) {
+			if (sessions.size !== current.sessions.length || requestIds.size !== this._historyDeletionRequestIds(current).length) {
 				const deletions = new Map(this._historyDeletions);
 				const { requestId: _legacyRequestId, ...stored } = current;
 				deletions.set(resource, { ...stored, requestIds: [...requestIds], sessions: [...sessions.values()] });
-				await this._persist(nextCatalog, this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations, deletions);
-			}
-			if (nextCatalog !== catalog) {
-				this._catalog = nextCatalog;
-				this._publishAutomation(nextCatalog, resource);
+				await this._persist(catalog, this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations, deletions);
 			}
 			return undefined;
 		}
@@ -537,12 +522,28 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		if (current) {
 			return current;
 		}
-		const deletion = this._deleteHistory(resource).catch(async error => {
+		const deletion = this._enqueueMutation(() => this._markHistoryDeletionActive(resource)).then(() => this._deleteHistory(resource)).catch(async error => {
 			await this._enqueueMutation(() => this._markHistoryDeletionInterrupted(resource));
 			throw error;
 		}).finally(() => this._historyDeletionPromises.delete(resource));
 		this._historyDeletionPromises.set(resource, deletion);
 		return deletion;
+	}
+
+	private async _markHistoryDeletionActive(resource: string): Promise<void> {
+		const catalog = this._requireCatalog();
+		const existing = catalog.entries.find(automation => automation.resource === resource);
+		if (!existing || !this._historyDeletions.has(resource) || getAgentHostAutomationHistoryState(existing) !== 'deleting' || !existing.operations.includes(AutomationOperation.Remove)) {
+			return;
+		}
+		const automation = {
+			...existing,
+			operations: existing.operations.filter(operation => operation !== AutomationOperation.Remove),
+		};
+		const next = automationReducer(catalog, { type: ActionType.AutomationSet, automation }, this._log);
+		await this._persist(next, this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations);
+		this._catalog = next;
+		this._publishAutomation(next, resource);
 	}
 
 	private async _markHistoryDeletionInterrupted(resource: string): Promise<void> {

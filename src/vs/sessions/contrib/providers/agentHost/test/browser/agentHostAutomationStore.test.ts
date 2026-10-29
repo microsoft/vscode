@@ -1174,6 +1174,38 @@ suite('AgentHostAutomationStore', () => {
 		});
 	});
 
+	test('preserves interrupted deletion retry for older hosts', () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		connection.initializeResult.set({
+			...connection.initializeResult.get()!,
+			_meta: { 'vscode.automationHistory': true },
+		}, undefined);
+		connection.setAutomation({
+			resource: 'ahp-automation:/history',
+			definition: {
+				title: 'History',
+				message: { text: '', origin: { kind: MessageKind.Automation } },
+				session: {},
+				enabled: false,
+				triggers: [],
+			},
+			runs: [],
+			operations: [],
+			createdAt: '2026-01-01T00:00:00Z',
+			modifiedAt: '2026-01-01T00:00:00Z',
+			_meta: withAgentHostAutomationHistoryState(undefined, 'deleting'),
+		});
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), disposables.add(new InMemoryStorageService()), activeClientService));
+
+		assert.deepStrictEqual({
+			state: store.getAutomationHistoryState('local-agent-host:ahp-automation:/history'),
+			canDelete: store.canDeleteAutomationHistory('local-agent-host:ahp-automation:/history'),
+		}, {
+			state: 'interrupted',
+			canDelete: true,
+		});
+	});
+
 	for (const outcome of ['acknowledged', 'unacknowledged', 'failureBeforePublication'] as const) {
 		test(`legacy cleanup requires exact backend acknowledgement (${outcome})`, async () => {
 			const connection = disposables.add(new TestAutomationConnection());
