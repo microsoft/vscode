@@ -124,6 +124,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 export class SessionCanvasRegistryService extends Disposable implements ISessionCanvasRegistryService {
 
 	declare readonly _serviceBrand: undefined;
+	readonly supportsCanvases: IObservable<boolean>;
 	readonly availableCanvases: IObservable<readonly ISessionCanvasDefinition[]>;
 
 	constructor(
@@ -133,12 +134,18 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 		@ILogService logService: ILogService,
 	) {
 		super();
+		this.supportsCanvases = derived(this, reader => {
+			const session = sessionsService.activeSession.read(reader);
+			return !!session?.activeChat.read(reader)
+				&& canvasService.enabled.read(reader)
+				&& session.capabilities.read(reader).supportsCanvases === true;
+		});
 		this.availableCanvases = this._register(new CanvasDefinitionStore(reader => {
 			const session = sessionsService.activeSession.read(reader);
 			const chat = session?.activeChat.read(reader);
 			// Hosts republish canvas membership when their registry changes, so refresh on every emission.
 			chat?.canvases?.read(reader);
-			if (!session || !chat || !canvasService.enabled.read(reader) || session.capabilities.read(reader).supportsCanvases !== true) {
+			if (!session || !chat || !this.supportsCanvases.read(reader)) {
 				return undefined;
 			}
 			return {

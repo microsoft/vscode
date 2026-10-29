@@ -47,6 +47,7 @@ import { ICustomViewDescriptor } from '../../../../services/customView/browser/c
 suite('SessionCanvasService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const emptyRegistryService = upcastPartial<ISessionCanvasRegistryService>({
+		supportsCanvases: constObservable(false),
 		availableCanvases: constObservable([]),
 		openCanvas: async () => { },
 	});
