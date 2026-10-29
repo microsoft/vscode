@@ -789,7 +789,7 @@ export interface IEditorOptions {
 	lineHeight?: number;
 	/**
 	 * Line height and font size multiplier for lines without letters or numbers, including empty and punctuation-only lines, between 0.25 and 1 inclusive (1 disables shrinking); requires variable line heights and variable fonts.
-	 * Inline suggestion text on these lines uses the same font size; continuation lines retain their regular size.
+	 * Empty-editor hint text and inline suggestions on these lines use the same font size; suggestion continuation lines retain their regular size.
 	 */
 	shrinkEmptyLines?: number;
 	/**

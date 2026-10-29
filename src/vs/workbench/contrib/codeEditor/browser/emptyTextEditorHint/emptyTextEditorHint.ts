@@ -154,10 +154,13 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		super();
 
 		this._register(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
-			if (this.domNode && e.hasChanged(EditorOption.fontInfo)) {
-				this.editor.applyFontInfo(this.domNode);
+			if (e.hasChanged(EditorOption.fontInfo)
+				|| e.hasChanged(EditorOption.lineHeight)
+				|| e.hasChanged(EditorOption.effectiveShrinkEmptyLines)) {
+				this.updateFontInfo();
 			}
 		}));
+		this._register(this.editor.onDidChangeLineHeight(() => this.updateFontInfo()));
 		const onDidFocusEditorText = Event.debounce(this.editor.onDidFocusEditorText, () => undefined, 500);
 		this._register(onDidFocusEditorText(() => {
 			if (this.editor.hasTextFocus() && this.isVisible && this.ariaLabel && this.configurationService.getValue(AccessibilityVerbositySettingId.EmptyEditorHint)) {
@@ -276,6 +279,18 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		return { hintElement, ariaLabel };
 	}
 
+	private updateFontInfo(): void {
+		if (!this.domNode) {
+			return;
+		}
+		// Reuse the editor's full font styling, then override only size and line height to match the shrunk first line.
+		this.editor.applyFontInfo(this.domNode);
+		const fontSize = this.editor.getOption(EditorOption.fontInfo).fontSize;
+		const multiplier = this.editor.getOption(EditorOption.effectiveShrinkEmptyLines);
+		this.domNode.style.fontSize = `${fontSize * multiplier}px`;
+		this.domNode.style.lineHeight = `${this.editor.getLineHeightForPosition(new Position(1, 1))}px`;
+	}
+
 	getDomNode(): HTMLElement {
 		if (!this.domNode) {
 			this.domNode = $('.empty-editor-hint');
@@ -290,9 +305,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 				this.editor.focus();
 			}));
 
-			this.editor.applyFontInfo(this.domNode);
-			const lineHeight = this.editor.getLineHeightForPosition(new Position(1, 1));
-			this.domNode.style.lineHeight = lineHeight + 'px';
+			this.updateFontInfo();
 		}
 
 		return this.domNode;
