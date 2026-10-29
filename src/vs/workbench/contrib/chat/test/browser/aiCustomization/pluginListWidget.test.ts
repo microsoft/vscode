@@ -152,7 +152,7 @@ suite('pluginListWidget', () => {
 		}, {
 			bothGroupsPopulated: ['User', 'Workspace'],
 			userEmpty: ['User', 'Workspace'],
-			hostPlugin: ['User', 'Workspace', 'Session'],
+			hostPlugin: ['User', 'Workspace'],
 		});
 	});
 

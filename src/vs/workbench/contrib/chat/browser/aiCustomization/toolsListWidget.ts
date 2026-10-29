@@ -43,16 +43,17 @@ import { ILanguageModelToolsService, IToolData, IToolSet } from '../../common/to
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
-import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
+import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { countEnabledCustomizationTools, getToolSetTriState, IAgentHostToolSetEnablementService, isToolEnabledInSet, IToolEnablementState } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { COPILOT_CLI_BUILTIN_TOOL_SET_ID, getCustomizationToolSets } from '../agentSessions/agentHost/copilotCliBuiltinToolSet.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
-import { authenticateMcpServer, createAgentHostMcpServerDetailInput, createInstalledPluginItem, getActiveSessionServerPresentation, getAgentHostMcpServerSource, getMcpErrorMessage, getMcpStatusPresentation, isPrimaryMcpServerEnabled, renderMcpServerStatusActions, setPrimaryMcpServerEnablement } from './mcpListWidget.js';
+import { authenticateMcpServer, createAgentHostMcpServerDetailInput, createInstalledPluginItem, getAgentHostMcpServerGroup, getActiveSessionServerPresentation, getAgentHostMcpServerSource, getMcpErrorMessage, getMcpStatusPresentation, isPrimaryMcpServerEnabled, renderMcpServerStatusActions, setPrimaryMcpServerEnablement } from './mcpListWidget.js';
 import { IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 import { type AgentHostMcpServer } from './mcpServerCount.js';
 import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
 import { CustomizationToggle } from './customizationToggle.js';
+import { userIcon, workspaceIcon } from './aiCustomizationIcons.js';
 import './media/aiCustomizationManagement.css';
 
 const $ = DOM.$;
@@ -904,23 +905,38 @@ export class ToolsListWidget extends Disposable {
 			return;
 		}
 		const query = this._searchQuery.get().trim();
+		// Like the other customization pages, plugins and MCP servers are grouped by
+		// the scope they apply to, the agent's own tools under the agent, and tools
+		// built into VS Code or contributed by extensions under VS Code Managed.
+		const connected = this._computeConnectedEntriesByScope(query);
+		const agentSets = this._currentModel.filter(vm => vm.toolSet.id === COPILOT_CLI_BUILTIN_TOOL_SET_ID);
+		const vscodeSets = this._currentModel.filter(vm => vm.toolSet.id !== COPILOT_CLI_BUILTIN_TOOL_SET_ID && (vm.toolSet.source.type === 'internal' || vm.toolSet.source.type === 'external'));
+		const extensionSets = this._currentModel.filter(vm => vm.toolSet.source.type === 'extension');
+		const agentLabel = agentSets[0] ? agentSets[0].toolSet.description ?? agentSets[0].toolSet.referenceName : undefined;
+		const scopeDescription = localize('connectedToolsScopeDescription', "Plugins and MCP servers available to the agent.");
 		const groups = [
-			this._createTreeGroup(
-				'builtin',
-				localize('builtInToolsSection', "Built-in Tools"),
-				localize('builtInToolsSectionDescription', "Tools provided by the active agent and VS Code."),
-				localize('builtInToolsSectionEmpty', "No built-in tool sets are available."),
-				this._currentModel.filter(vm => vm.toolSet.source.type === 'internal' || vm.toolSet.source.type === 'external'),
+			this._createConnectedTreeGroup('user', localize('userToolsGroup', "User"), userIcon, scopeDescription, connected.get('user')!, true),
+			this._createConnectedTreeGroup('workspace', localize('workspaceToolsGroup', "Workspace"), workspaceIcon, scopeDescription, connected.get('workspace')!, false),
+			this._createConnectedTreeGroup('account', localize('accountToolsGroup', "Account"), Codicon.organization, scopeDescription, connected.get('account')!, false),
+			...(agentLabel || connected.get('application')!.length > 0 ? [this._createTreeGroupFromEntries(
+				'agent',
+				agentLabel ?? localize('agentToolsGroup', "Agent"),
+				localize('agentToolsGroupDescription', "Tools built into the agent."),
+				localize('agentToolsGroupEmpty', "No agent tools are available."),
+				[...this._computeSectionEntries(agentSets), ...connected.get('application')!],
+				agentSets.length + connected.get('application')!.filter(entry => entry.depth === 0).length,
+				Codicon.copilot,
+			)] : []),
+			this._createTreeGroupFromEntries(
+				'vscode',
+				localize('vscodeManagedToolsGroup', "VS Code Managed"),
+				localize('vscodeManagedToolsGroupDescription', "Tools built into VS Code or contributed by installed extensions."),
+				localize('vscodeManagedToolsGroupEmpty', "No VS Code tools are available."),
+				this._computeSectionEntries([...vscodeSets, ...extensionSets]),
+				vscodeSets.length + extensionSets.length,
+				Codicon.vscode,
 			),
-			this._createConnectedTreeGroup(query),
-			this._createTreeGroup(
-				'extensions',
-				localize('installedToolExtensionsSection', "Extension Tools"),
-				localize('installedToolExtensionsSectionDescription', "Tool sets contributed by installed extensions."),
-				localize('extensionToolsSectionEmpty', "No extension tools are installed."),
-				this._currentModel.filter(vm => vm.toolSet.source.type === 'extension'),
-			),
-		].filter(group => !query || group.count > 0);
+		].filter((group): group is ICustomizationTreeGroup<IToolsTreeEntry> => !!group && (!query || group.count > 0));
 
 		if (groups.length === 0 && query) {
 			this._tree.setChildren(null);
@@ -949,11 +965,7 @@ export class ToolsListWidget extends Disposable {
 		}
 	}
 
-	private _createTreeGroup(id: string, label: string, description: string, emptyMessage: string, setVms: readonly IToolSetViewModel[]): ICustomizationTreeGroup<IToolsTreeEntry> {
-		return this._createTreeGroupFromEntries(id, label, description, emptyMessage, this._computeSectionEntries(setVms), setVms.length);
-	}
-
-	private _createTreeGroupFromEntries(id: string, label: string, description: string, emptyMessage: string, rows: readonly IToolsRowEntry[], count: number): ICustomizationTreeGroup<IToolsTreeEntry> {
+	private _createTreeGroupFromEntries(id: string, label: string, description: string, emptyMessage: string, rows: readonly IToolsRowEntry[], count: number, icon: ThemeIcon): ICustomizationTreeGroup<IToolsTreeEntry> {
 		const entries = rows.length > 0
 			? rows
 			: [{ type: 'empty' as const, id: `empty:${id}`, label: emptyMessage }];
@@ -962,7 +974,7 @@ export class ToolsListWidget extends Disposable {
 			id: `tools-group-${id}`,
 			groupKey: id,
 			label,
-			icon: Codicon.tools,
+			icon,
 			count,
 			isFirst: false,
 			description,
@@ -971,8 +983,32 @@ export class ToolsListWidget extends Disposable {
 		return { id, label, description, count, element, children: entries };
 	}
 
-	private _createConnectedTreeGroup(query: string): ICustomizationTreeGroup<IToolsTreeEntry> {
-		const entries: IToolsConnectedRowEntry[] = [];
+	/**
+	 * Returns a scope group of plugins and MCP servers, or `undefined` for an
+	 * empty group that is only shown when it always is.
+	 */
+	private _createConnectedTreeGroup(id: string, label: string, icon: ThemeIcon, description: string, entries: readonly IToolsConnectedRowEntry[], alwaysShow: boolean): ICustomizationTreeGroup<IToolsTreeEntry> | undefined {
+		if (entries.length === 0 && !alwaysShow) {
+			return undefined;
+		}
+		return this._createTreeGroupFromEntries(
+			id,
+			label,
+			description,
+			localize('connectedToolsSectionEmpty', "No plugins or MCP servers are available."),
+			entries,
+			entries.filter(entry => entry.depth === 0).length,
+			icon,
+		);
+	}
+
+	/**
+	 * Groups plugins and MCP servers by the scope they apply to. A plugin is the
+	 * user's; a standalone server takes the scope the MCP Servers page gives it.
+	 */
+	private _computeConnectedEntriesByScope(query: string): Map<'user' | 'workspace' | 'account' | 'application', IToolsConnectedRowEntry[]> {
+		const grouped = new Map<'user' | 'workspace' | 'account' | 'application', IToolsConnectedRowEntry[]>([['user', []], ['workspace', []], ['account', []], ['application', []]]);
+		const entries = grouped.get('user')!;
 		for (const plugin of this._connectedPlugins) {
 			const servers = this._connectedServers.filter(server => server.pluginId === plugin.id);
 			if (servers.length === 0) {
@@ -993,24 +1029,18 @@ export class ToolsListWidget extends Disposable {
 		}
 		for (const server of this._connectedServers) {
 			if (server.pluginId === undefined || !this._connectedPlugins.some(plugin => plugin.id === server.pluginId)) {
-				entries.push(...this._computeConnectedServerEntries(server, 0, query, !query));
+				grouped.get(getAgentHostMcpServerGroup(server))!.push(...this._computeConnectedServerEntries(server, 0, query, !query));
 			}
 		}
-		return this._createTreeGroupFromEntries(
-			'connected',
-			localize('connectedToolsSection', "Connected Sources"),
-			localize('connectedToolsSectionDescription', "Plugins and MCP servers available to the agent."),
-			localize('connectedToolsSectionEmpty', "No plugins or MCP servers are available."),
-			entries,
-			entries.filter(entry => entry.depth === 0).length,
-		);
+		return grouped;
 	}
 
 	private _computeConnectedServerEntries(server: AgentHostMcpServer, depth: number, query: string, includeAll: boolean): IToolsConnectedRowEntry[] {
 		const id = `connected-server:${server.id}`;
 		const expandable = this._isConnectedServerReady(server);
 		const expanded = expandable && this._expanded.get().has(id);
-		const nameMatches = matchesContiguousSubString(query, server.name) ?? undefined;
+		const serverLabel = getMcpServerDisplayLabel(server);
+		const nameMatches = matchesContiguousSubString(query, serverLabel) ?? undefined;
 		const state = this._connectedTools.get(server.id);
 		const tools = expanded && state?.state === 'loaded' ? state.tools : [];
 		const toolEntries: IToolsConnectedRowEntry[] = [];
@@ -1033,7 +1063,7 @@ export class ToolsListWidget extends Disposable {
 			file => void this._editorService.openEditor({ resource: file.uri, options: { selection: file.range, pinned: true } }),
 		);
 		const description = source ? localize('toolsConnectedServerSource', "MCP server from {0}", source.label) : undefined;
-		const entries: IToolsConnectedRowEntry[] = [{ type: 'connected', id, depth, label: server.name, description, source, server, expandable, nameMatches }];
+		const entries: IToolsConnectedRowEntry[] = [{ type: 'connected', id, depth, label: serverLabel, description, source, server, expandable, nameMatches }];
 		if (expanded) {
 			if (toolEntries.length > 0) {
 				entries.push(...toolEntries);
@@ -1112,7 +1142,7 @@ export class ToolsListWidget extends Disposable {
 	}
 
 	private _renderTreeGroupActions(entry: IToolsGroupEntry, container: HTMLElement, disposables: DisposableStore): void {
-		if (entry.groupKey === 'extensions') {
+		if (entry.groupKey === 'vscode') {
 			this._renderBrowseToolsAction(container, disposables);
 		}
 	}
@@ -1252,15 +1282,13 @@ export class ToolsListWidget extends Disposable {
 	 * description (falling back to a generic "contributed by" label).
 	 */
 	private _resolveSetDetail(ts: IToolSet): string | undefined {
-		if (ts.detail) {
+		if (ts.source.type !== 'extension') {
 			return ts.detail;
 		}
-		if (ts.source.type !== 'extension') {
-			return undefined;
-		}
+		// Extension tools sit beside VS Code's own, so the row names the extension.
 		const source = ts.source;
 		const extension = this._extensionsWorkbenchService.local.find(e => ExtensionIdentifier.equals(e.identifier.id, source.extensionId));
-		return extension?.description || localize('toolsSetExtensionDetail', "Tools contributed by {0}", source.label);
+		return localize('toolsSetExtensionSource', "Extension: {0}", extension?.displayName || source.label);
 	}
 
 	private _toggleCollapsed(toolSetId: string): void {

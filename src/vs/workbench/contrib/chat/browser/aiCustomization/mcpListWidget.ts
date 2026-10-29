@@ -1150,6 +1150,11 @@ export function getMcpEntryGroup(entry: IMcpInstalledEntry): McpEntryGroup {
 	return 'application';
 }
 
+/** Returns the scope group of a server an agent host reports, as on the MCP Servers page. */
+export function getAgentHostMcpServerGroup(server: AgentHostMcpServer): McpEntryGroup {
+	return getMcpEntryGroup({ type: 'session-server-item', server });
+}
+
 /**
  * Returns the origin an installed MCP server is subgrouped under within its
  * scope group, or `undefined` for servers configured directly in the scope.
@@ -1326,6 +1331,15 @@ export function getAgentHostMcpServerSource(server: AgentHostMcpServer, plugin: 
 			label: plugin.name,
 			hover: fileSource ? labelService.getUriLabel(fileSource.uri, { noPrefix: true }) : plugin.name,
 			ariaLabel: openFileSource ? localize('openMcpServerSource', "Open {0}", plugin.name) : undefined,
+			open: openFileSource,
+		};
+	}
+	// A plugin installed only on the agent host is still named, like other plugin servers.
+	if (server.source === 'plugin' && server.sourcePluginName) {
+		return {
+			label: server.sourcePluginName,
+			hover: fileSource ? labelService.getUriLabel(fileSource.uri, { noPrefix: true }) : localize('mcpServerHostPlugin', "Plugin {0} on the agent host", server.sourcePluginName),
+			ariaLabel: openFileSource ? localize('openMcpServerSource', "Open {0}", server.sourcePluginName) : undefined,
 			open: openFileSource,
 		};
 	}

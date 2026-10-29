@@ -41,7 +41,7 @@ import { canvasOwnerKey, type CanvasDefinitionSnapshot, getCanvasDefinitionInsta
 import { CanvasDefinitionStore } from '../../../canvases/common/canvasDefinitionStore.js';
 import { AICustomizationManagementCommands } from '../../common/aiCustomizationWorkspaceService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
-import { extensionIcon, pluginIcon, userIcon, workspaceIcon } from './aiCustomizationIcons.js';
+import { extensionIcon, userIcon, workspaceIcon } from './aiCustomizationIcons.js';
 import { IAICustomizationManagementSectionWidget } from './aiCustomizationManagementSectionRegistry.js';
 import { setVirtualizedRowActionsTabbable } from './customizationCardList.js';
 import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
@@ -76,7 +76,7 @@ interface ICopilotCanvasExtensionItem {
 	readonly canvases: readonly ICopilotCanvasItem[];
 }
 
-type CopilotCanvasGroupKey = 'user' | 'workspace' | 'plugin' | 'other';
+type CopilotCanvasGroupKey = 'user' | 'workspace' | 'other';
 
 interface ICopilotCanvasGroupEntry extends ICustomizationGroupHeaderEntry {
 	readonly groupKey: CopilotCanvasGroupKey;
@@ -1289,7 +1289,9 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 
 	private getExtensionGroups(extensions: readonly ICopilotCanvasExtensionItem[], transient: boolean): readonly ICopilotCanvasTreeGroup[] {
 		const grouped = new Map<CopilotCanvasGroupKey, ICopilotCanvasExtensionEntry[]>();
-		for (const item of extensions) {
+		// As on the other customization pages, a scope's own extensions come before those its plugins supply.
+		const ordered = [...extensions].sort((a, b) => Number(a.extensionSource === 'plugin') - Number(b.extensionSource === 'plugin'));
+		for (const item of ordered) {
 			const key = this.getExtensionGroupKey(item);
 			const group = grouped.get(key) ?? [];
 			group.push({ type: 'extension', item });
@@ -1331,16 +1333,17 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		return [
 			{ key: 'user', label: localize('copilotCanvases.userGroup', "User"), description: localize('copilotCanvases.userGroupDescription', "Canvas extensions available in every workspace."), icon: userIcon, alwaysShow: true },
 			{ key: 'workspace', label: localize('copilotCanvases.workspaceGroup', "Workspace"), description: localize('copilotCanvases.workspaceGroupDescription', "Canvas extensions provided by this workspace."), icon: workspaceIcon, alwaysShow: true },
-			{ key: 'plugin', label: localize('copilotCanvases.pluginGroup', "Plugins"), description: localize('copilotCanvases.pluginGroupDescription', "Canvas extensions provided by installed plugins."), icon: pluginIcon, alwaysShow: false },
 			{ key: 'other', label: localize('copilotCanvases.otherGroup', "Other"), description: localize('copilotCanvases.otherGroupDescription', "Canvas extensions provided by another runtime source."), icon: extensionIcon, alwaysShow: false },
 		];
 	}
 
 	private getExtensionGroupKey(item: ICopilotCanvasExtensionItem): CopilotCanvasGroupKey {
 		switch (item.extensionSource) {
-			case 'user': return 'user';
+			// A plugin's canvas extensions belong to the user who installed it; the
+			// row names the plugin.
+			case 'user':
+			case 'plugin': return 'user';
 			case 'project': return 'workspace';
-			case 'plugin': return 'plugin';
 			default: return 'other';
 		}
 	}

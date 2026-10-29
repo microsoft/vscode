@@ -790,9 +790,12 @@ export class AICustomizationListWidget extends Disposable {
 	private readonly _onDidRequestBrowse = this._register(new Emitter<void>());
 	readonly onDidRequestBrowse: Event<void> = this._onDidRequestBrowse.event;
 
-	private readonly _onDidRequestShowPlugin = this._register(new Emitter<IAgentPlugin>());
-	/** Fires when a row's plugin link is activated. Plugin links are only shown while this has listeners. */
-	readonly onDidRequestShowPlugin: Event<IAgentPlugin> = this._onDidRequestShowPlugin.event;
+	private readonly _onDidRequestShowPlugin = this._register(new Emitter<{ readonly plugin?: IAgentPlugin; readonly name: string }>());
+	/**
+	 * Fires when a row's plugin link is activated, with the plugin when it is
+	 * installed on this computer. Plugin links are only shown while this has listeners.
+	 */
+	readonly onDidRequestShowPlugin: Event<{ readonly plugin?: IAgentPlugin; readonly name: string }> = this._onDidRequestShowPlugin.event;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -1751,9 +1754,15 @@ export class AICustomizationListWidget extends Disposable {
 			case 'plugin': {
 				const plugin = item.pluginUri ? this.agentPluginService.plugins.get().find(plugin => isEqual(plugin.uri, item.pluginUri)) : undefined;
 				const name = plugin?.label ?? origin.label ?? this.getOriginLabel(origin).label;
-				return plugin && this._onDidRequestShowPlugin.hasListeners()
-					? { label: localize('itemSourcePlugin', "Plugin: {0}", name), detail: localize('openItemSourcePlugin', "Open plugin details for {0}", name), open: () => this._onDidRequestShowPlugin.fire(plugin) }
-					: { label: localize('itemSourcePlugin', "Plugin: {0}", name), detail: this.getOriginLabel(origin).detail };
+				const label = localize('itemSourcePlugin', "Plugin: {0}", name);
+				if (!this._onDidRequestShowPlugin.hasListeners()) {
+					return { label, detail: this.getOriginLabel(origin).detail };
+				}
+				// A plugin installed only on the agent host has no details here, but
+				// the Plugins page lists it.
+				return plugin
+					? { label, detail: localize('openItemSourcePlugin', "Open plugin details for {0}", name), open: () => this._onDidRequestShowPlugin.fire({ plugin, name }) }
+					: { label, detail: localize('showItemSourcePlugin', "Show {0} in Plugins", name), open: () => this._onDidRequestShowPlugin.fire({ name }) };
 			}
 			case 'extension': {
 				const name = this.getOriginLabel(origin).label;

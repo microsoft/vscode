@@ -1254,8 +1254,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.add(this.listWidget.onDidRequestBrowse(() => {
 			this.selectSection(AICustomizationManagementSection.Skills, { showMarketplace: true });
 		}));
-		this.editorDisposables.add(this.listWidget.onDidRequestShowPlugin(plugin => {
-			this.showPluginDetail(createInstalledPluginItem(plugin));
+		this.editorDisposables.add(this.listWidget.onDidRequestShowPlugin(({ plugin, name }) => {
+			if (plugin) {
+				this.showPluginDetail(createInstalledPluginItem(plugin));
+			} else {
+				this.selectSection(AICustomizationManagementSection.Plugins);
+				this.pluginListWidget?.setSearchQuery(name);
+			}
 		}));
 
 		// Container for Models content (only in sessions)

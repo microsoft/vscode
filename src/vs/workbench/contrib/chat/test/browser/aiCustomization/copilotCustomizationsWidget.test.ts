@@ -256,7 +256,7 @@ suite('CopilotCanvasesWidget', () => {
 		const pluginSwitchVisible = harness.container.querySelector('[aria-label="Disable canvas extension \'Diagram Plugin\'"]')?.checkVisibility();
 
 		assert.deepStrictEqual({
-			allSourceGroupsAccessible: ['User', 'Workspace', 'Plugins'].every(group => accessible.includes(`${group}. 1 canvas extensions.`)),
+			sourceGroupsAccessible: [accessible.includes('User. 2 canvas extensions.'), accessible.includes('Workspace. 1 canvas extensions.'), accessible.includes('Plugins.')],
 			allExtensionsAccessible: ['Preview Extension', 'Workspace Tools', 'Diagram Plugin'].every(extension => accessible.includes(extension)),
 			allCanvasesAccessible: ['Preview', 'Workspace Board', 'Diagram Board'].every(canvas => accessible.includes(canvas)),
 			userSwitchVisible,
@@ -274,7 +274,7 @@ suite('CopilotCanvasesWidget', () => {
 			listTarget: harness.listRequests.map(request => request.session.toString()),
 			itemCounts: harness.itemCounts,
 		}, {
-			allSourceGroupsAccessible: true,
+			sourceGroupsAccessible: [true, true, false],
 			allExtensionsAccessible: true,
 			allCanvasesAccessible: true,
 			userSwitchVisible: true,
@@ -297,7 +297,7 @@ suite('CopilotCanvasesWidget', () => {
 		const harness = createHarness({
 			definitions: [
 				definition(),
-				definition({ extensionId: 'plugin:diagram', extensionSource: 'plugin', extensionName: 'Diagram Plugin' }),
+				definition({ extensionId: 'project:diagram', extensionSource: 'project', extensionName: 'Diagram Tools' }),
 			],
 		});
 		await timeout(0);
@@ -314,21 +314,21 @@ suite('CopilotCanvasesWidget', () => {
 		};
 
 		const userCollapsed = click('User,', '.group-label');
-		const pluginsCollapsed = click('Plugins,', '.monaco-tl-twistie');
-		const pluginsExpanded = click('Plugins,', '.monaco-tl-twistie');
+		const workspaceCollapsed = click('Workspace,', '.monaco-tl-twistie');
+		const workspaceExpanded = click('Workspace,', '.monaco-tl-twistie');
 		const userStillSelected = row('User,').getAttribute('aria-selected');
-		const pluginsFocused = row('Plugins,').classList.contains('focused');
-		const pluginsSelected = row('Plugins,').getAttribute('aria-selected');
-		const extensionCollapsed = click('Diagram Plugin.', '.copilot-customization-tree-label');
-		const extensionExpanded = click('Diagram Plugin.', '.monaco-tl-twistie');
+		const workspaceFocused = row('Workspace,').classList.contains('focused');
+		const workspaceSelected = row('Workspace,').getAttribute('aria-selected');
+		const extensionCollapsed = click('Diagram Tools.', '.copilot-customization-tree-label');
+		const extensionExpanded = click('Diagram Tools.', '.monaco-tl-twistie');
 
 		assert.deepStrictEqual({
-			userCollapsed, pluginsCollapsed, pluginsExpanded, userStillSelected, pluginsFocused, pluginsSelected,
+			userCollapsed, workspaceCollapsed, workspaceExpanded, userStillSelected, workspaceFocused, workspaceSelected,
 			extensionCollapsed, extensionExpanded,
 			selectedRows: harness.container.querySelectorAll('.monaco-list-row.selected').length,
 		}, {
-			userCollapsed: 'false', pluginsCollapsed: 'false', pluginsExpanded: 'true',
-			userStillSelected: 'false', pluginsFocused: true, pluginsSelected: 'true',
+			userCollapsed: 'false', workspaceCollapsed: 'false', workspaceExpanded: 'true',
+			userStillSelected: 'false', workspaceFocused: true, workspaceSelected: 'true',
 			extensionCollapsed: 'false', extensionExpanded: 'true',
 			selectedRows: 1,
 		});
