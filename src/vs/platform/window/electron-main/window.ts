@@ -89,7 +89,11 @@ export interface ICodeWindow extends IBaseWindow {
 
 	notifyZoomLevel(zoomLevel: number | undefined): void;
 
-	serializeWindowState(): IWindowState;
+	/**
+	 * @param options.exact the windows will be restored exactly as they are, so the state
+	 * also records whether the window is minimized, and if so, whether it is maximized.
+	 */
+	serializeWindowState(options?: { readonly exact?: boolean }): IWindowState;
 }
 
 export const enum LoadReason {
@@ -143,8 +147,8 @@ export interface IWindowState {
 	readonly display?: number;
 
 	/**
-	 * Whether the window is minimized. Only restored when the application
-	 * restores its windows exactly, for example after an update restart.
+	 * Whether the window is minimized. Only recorded and restored when the application
+	 * restores its windows exactly, after an unattended update restart.
 	 */
 	minimized?: boolean;
 }
