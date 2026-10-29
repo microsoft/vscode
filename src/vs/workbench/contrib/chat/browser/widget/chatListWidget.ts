@@ -916,13 +916,18 @@ export class ChatListWidget extends Disposable {
 	private updateScrollDownButtonVisibility(): void {
 		const isScrolledToBottom = this.isScrolledToBottom;
 		const { showButton, atBottom } = computeScrollDownState(isScrolledToBottom, this._scrollLock);
+		const button = this._scrollDownButton.element;
+		const wasShown = button.style.display !== 'none';
 		// Use an explicit `flex` (the `.monaco-button` default) rather than '' when showing: the
 		// stylesheet applies `display: none` to `.interactive-session .chat-scroll-down`, so clearing
 		// the inline style would let that rule win and keep the button hidden.
-		this._scrollDownButton.element.style.display = showButton ? 'flex' : 'none';
+		button.style.display = showButton ? 'flex' : 'none';
 		this._container.classList.toggle('chat-list-at-bottom', atBottom);
 		this._container.classList.toggle('chat-list-scrolled-to-bottom', isScrolledToBottom);
-		this.updateScrollDownButtonPosition();
+		// Scrolling cannot move the progress row; layout and its resize observer reposition a shown button.
+		if (showButton !== wasShown) {
+			this.updateScrollDownButtonPosition();
+		}
 	}
 
 	private updateStickyProgress(): void {
@@ -930,11 +935,15 @@ export class ChatListWidget extends Disposable {
 		this.updateScrollDownButtonPosition();
 	}
 
+	/**
+	 * Centers the scroll-down button on the sticky progress row, which keeps its slot above the
+	 * input even while no progress is shown.
+	 */
 	private updateScrollDownButtonPosition(): void {
 		const button = this._scrollDownButton.element;
 		const progress = this._workingProgressContainer;
 		let bottom = '';
-		if (this._visible && progress?.isConnected && progress.childElementCount > 0 && button.style.display !== 'none') {
+		if (this._visible && progress?.isConnected && button.style.display !== 'none') {
 			const bounds = progress.getBoundingClientRect();
 			if (bounds.height > 0) {
 				const viewport = this._container.getBoundingClientRect();
