@@ -4,32 +4,43 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { revive } from '../../../base/common/marshalling.js';
+import { SerializedError, transformErrorFromSerialization } from '../../../base/common/errors.js';
+import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
-import { DidAddProfileExtensionsEvent, DidRemoveProfileExtensionsEvent, ExtensionsProfileScanningError, ExtensionsProfileScanningErrorCode, IExtensionsProfileScannerService, IProfileExtensionsScanOptions, IScannedProfileExtension, ProfileExtensionsEvent } from '../common/extensionsProfileScannerService.js';
-import { Event } from '../../../base/common/event.js';
 import { IExtension, IExtensionIdentifier } from '../../extensions/common/extensions.js';
+import { DidAddProfileExtensionsEvent, DidRemoveProfileExtensionsEvent, ExtensionsProfileScanningError, ExtensionsProfileScanningErrorCode, IExtensionsProfileScannerService, IProfileExtensionsScanOptions, IScannedProfileExtension, ProfileExtensionsEvent } from '../common/extensionsProfileScannerService.js';
 import { Metadata } from '../common/extensionManagement.js';
+
+type SerializedExtensionsProfileScannerService = Omit<IExtensionsProfileScannerService, 'scanProfileExtensions' | 'onDidAddExtensions' | 'onDidRemoveExtensions'> & {
+	scanProfileExtensions(profileLocation: URI, options?: IProfileExtensionsScanOptions): Promise<IScannedProfileExtension[] | { error: { message: string; code: ExtensionsProfileScanningErrorCode } }>;
+	onDidAddExtensions: Event<Omit<DidAddProfileExtensionsEvent, 'error'> & { error?: SerializedError }>;
+	onDidRemoveExtensions: Event<Omit<DidRemoveProfileExtensionsEvent, 'error'> & { error?: SerializedError }>;
+};
 
 /** Keep profile reads and their migration writes inside the coordinating native backend. */
 export class ExtensionsProfileScannerService implements IExtensionsProfileScannerService {
 	declare readonly _serviceBrand: undefined;
-	private readonly service: Omit<IExtensionsProfileScannerService, 'scanProfileExtensions'> & {
-		scanProfileExtensions(profileLocation: URI, options?: IProfileExtensionsScanOptions): Promise<IScannedProfileExtension[] | { error: { message: string; code: ExtensionsProfileScanningErrorCode } }>;
-	};
+	private readonly service: SerializedExtensionsProfileScannerService;
 	readonly onAddExtensions: Event<ProfileExtensionsEvent>;
 	readonly onDidAddExtensions: Event<DidAddProfileExtensionsEvent>;
 	readonly onRemoveExtensions: Event<ProfileExtensionsEvent>;
 	readonly onDidRemoveExtensions: Event<DidRemoveProfileExtensionsEvent>;
 
 	constructor(@ISharedProcessService sharedProcessService: ISharedProcessService) {
-		this.service = ProxyChannel.toService(sharedProcessService.getChannel('extensionsProfileScanner'));
+		this.service = ProxyChannel.toService<SerializedExtensionsProfileScannerService>(sharedProcessService.getChannel('extensionsProfileScanner'));
 		this.onAddExtensions = Event.map(this.service.onAddExtensions, event => revive(event));
-		this.onDidAddExtensions = Event.map(this.service.onDidAddExtensions, event => revive(event));
+		this.onDidAddExtensions = Event.map(this.service.onDidAddExtensions, event => ({
+			...revive(event),
+			error: event.error ? transformErrorFromSerialization(event.error) : undefined,
+		}));
 		this.onRemoveExtensions = Event.map(this.service.onRemoveExtensions, event => revive(event));
-		this.onDidRemoveExtensions = Event.map(this.service.onDidRemoveExtensions, event => revive(event));
+		this.onDidRemoveExtensions = Event.map(this.service.onDidRemoveExtensions, event => ({
+			...revive(event),
+			error: event.error ? transformErrorFromSerialization(event.error) : undefined,
+		}));
 	}
 
 	async scanProfileExtensions(profileLocation: URI, options?: IProfileExtensionsScanOptions): Promise<IScannedProfileExtension[]> {

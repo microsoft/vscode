@@ -7,7 +7,9 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { cloneAndChange } from '../../../base/common/objects.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { DefaultURITransformer, IURITransformer, transformAndReviveIncomingURIs } from '../../../base/common/uriIpc.js';
-import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { IChannel, IServerChannel, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { transformErrorForSerialization } from '../../../base/common/errors.js';
 import {
 	IExtensionIdentifier, IExtensionTipsService, IGalleryExtension, ILocalExtension, IExtensionsControlManifest, InstallOptions,
 	UninstallOptions, Metadata, IExtensionManagementService, DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult,
@@ -19,6 +21,35 @@ import { IProductService } from '../../product/common/productService.js';
 import { CommontExtensionManagementService } from './abstractExtensionManagementService.js';
 import { language } from '../../../base/common/platform.js';
 import { RemoteAgentConnectionContext } from '../../remote/common/remoteAgentEnvironment.js';
+import { ExtensionsProfileScanningError, IExtensionsProfileScannerService } from './extensionsProfileScannerService.js';
+
+export function createExtensionsProfileScannerChannel(profiles: IExtensionsProfileScannerService, disposables: DisposableStore): IServerChannel {
+	return ProxyChannel.fromService({
+		onAddExtensions: profiles.onAddExtensions,
+		onDidAddExtensions: Event.map(profiles.onDidAddExtensions, event => ({
+			...event,
+			error: event.error ? transformErrorForSerialization(event.error) : undefined,
+		})),
+		onRemoveExtensions: profiles.onRemoveExtensions,
+		onDidRemoveExtensions: Event.map(profiles.onDidRemoveExtensions, event => ({
+			...event,
+			error: event.error ? transformErrorForSerialization(event.error) : undefined,
+		})),
+		scanProfileExtensions: async (...args: Parameters<IExtensionsProfileScannerService['scanProfileExtensions']>) => {
+			try {
+				return await profiles.scanProfileExtensions(...args);
+			} catch (error) {
+				if (error instanceof ExtensionsProfileScanningError) {
+					return { error: { message: error.message, code: error.code } };
+				}
+				throw error;
+			}
+		},
+		addExtensionsToProfile: profiles.addExtensionsToProfile.bind(profiles),
+		updateMetadata: profiles.updateMetadata.bind(profiles),
+		removeExtensionsFromProfile: profiles.removeExtensionsFromProfile.bind(profiles),
+	}, disposables);
+}
 
 function transformIncomingURI(uri: UriComponents, transformer: IURITransformer | null): URI;
 function transformIncomingURI(uri: UriComponents | undefined, transformer: IURITransformer | null): URI | undefined;
