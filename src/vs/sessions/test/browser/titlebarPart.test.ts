@@ -5,9 +5,9 @@
 
 import assert from 'assert';
 import { getZoomFactor, setFullscreen, setZoomFactor } from '../../../base/browser/browser.js';
-import { $, append } from '../../../base/browser/dom.js';
+import { $, append, registerWindow } from '../../../base/browser/dom.js';
 import { Direction, Grid, IView, Sizing } from '../../../base/browser/ui/grid/grid.js';
-import { mainWindow } from '../../../base/browser/window.js';
+import { ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import { mock } from '../../../base/test/common/mock.js';
@@ -349,6 +349,33 @@ suite('Sessions - Titlebar Part', () => {
 		setFullscreen(false, mainWindow);
 
 		assert.deepStrictEqual({ initial, fullscreen, restored: parent.classList.contains('titlebar-fullscreen') }, { initial: false, fullscreen: true, restored: false });
+	});
+
+	test('tracks fullscreen of an auxiliary window independently of the main window', () => {
+		const iframe = mainWindow.document.body.appendChild(mainWindow.document.createElement('iframe'));
+		store.add(toDisposable(() => iframe.remove()));
+		const auxiliaryWindow = iframe.contentWindow!;
+		ensureCodeWindow(auxiliaryWindow, mainWindow.vscodeWindowId + 1000);
+		store.add(registerWindow(auxiliaryWindow));
+		const { part } = createTitlebar();
+		const parent = auxiliaryWindow.document.body.appendChild(auxiliaryWindow.document.createElement('div'));
+		(part as unknown as { createContentArea(parent: HTMLElement): HTMLElement }).createContentArea(parent);
+		store.add(toDisposable(() => {
+			setFullscreen(false, mainWindow);
+			setFullscreen(false, auxiliaryWindow);
+		}));
+		const read = () => parent.classList.contains('titlebar-fullscreen');
+
+		setFullscreen(true, mainWindow);
+		const mainFullscreen = read();
+		setFullscreen(false, mainWindow);
+		setFullscreen(true, auxiliaryWindow);
+		const auxiliaryFullscreen = read();
+		setFullscreen(true, mainWindow);
+		setFullscreen(false, auxiliaryWindow);
+		const auxiliaryRestoredWhileMainFullscreen = read();
+
+		assert.deepStrictEqual({ mainFullscreen, auxiliaryFullscreen, auxiliaryRestoredWhileMainFullscreen }, { mainFullscreen: false, auxiliaryFullscreen: true, auxiliaryRestoredWhileMainFullscreen: false });
 	});
 
 	test('hides optional toolbar groups when a titlebar section overflows', () => {
