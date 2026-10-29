@@ -2996,9 +2996,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (extension.source !== 'user' && extension.source !== 'plugin') {
 			throw new Error(`Extension '${extensionId}' does not have a manageable source.`);
 		}
-		await this._retryAfterClosedConnection('setExtensionEnabled', client => enabled
-			? client.rpc.extensions.enable({ ids: [extensionId] })
-			: client.rpc.extensions.disable({ ids: [extensionId] }));
+		try {
+			await this._retryAfterClosedConnection('setExtensionEnabled', client => enabled
+				? client.rpc.extensions.enable({ ids: [extensionId] })
+				: client.rpc.extensions.disable({ ids: [extensionId] }));
+		} catch (error) {
+			throw new Error(enabled
+				? localize('copilot.extensionEnableFailed', "Couldn't enable canvas extension '{0}'. {1}", extension.name, getErrorMessage(error))
+				: localize('copilot.extensionDisableFailed', "Couldn't disable canvas extension '{0}'. {1}", extension.name, getErrorMessage(error)));
+		}
 		const targetSession = session ? this._findPluginOperationSession(session, chat) : undefined;
 		if (!targetSession) {
 			return;
@@ -3014,8 +3020,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			});
 		} catch (error) {
 			throw new Error(enabled
-				? localize('copilot.extensionEnableReconcileFailed', "The extension is enabled in settings. {0}", getErrorMessage(error))
-				: localize('copilot.extensionDisableReconcileFailed', "The extension is disabled in settings. {0}", getErrorMessage(error)));
+				? localize('copilot.extensionEnableReconcileFailed', "Canvas extension '{0}' was enabled in settings, but couldn't start in this chat. {1}", extension.name, getErrorMessage(error))
+				: localize('copilot.extensionDisableReconcileFailed', "Canvas extension '{0}' was disabled in settings, but couldn't stop in this chat. {1}", extension.name, getErrorMessage(error)));
 		}
 	}
 
