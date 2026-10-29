@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as assert from 'assert';
 import { promises as fs } from 'fs';
 import { isBinaryFile } from 'isbinaryfile';
+import * as os from 'os';
 import * as path from 'path';
 import { beforeAll, describe, it } from 'vitest';
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
@@ -163,6 +165,62 @@ describe('CopilotCLI SDK Upgrade', function () {
 	it('should be able to load the @github/copilot module without errors', async function () {
 		await import('@github/copilot/sdk');
 	});
+
+	// `CopilotCLISessionService` relies on these listing semantics to avoid opening every
+	// session's event log at once (see SESSION_LIST_OPTIONS). Fail loudly if an SDK update changes them.
+	it('lists ids only with metadataLimit 0 and enriches like a full listing', async function () {
+		const originalCopilotHome = process.env.COPILOT_HOME;
+		const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'copilot-sdk-listing-'));
+		process.env.COPILOT_HOME = path.join(tempHome, '.copilot');
+		try {
+			const writeSession = async (sessionId: string, options: { userMessage?: string; name?: string }) => {
+				const sessionDir = path.join(process.env.COPILOT_HOME!, 'session-state', sessionId);
+				await fs.mkdir(sessionDir, { recursive: true });
+				await fs.writeFile(path.join(sessionDir, 'workspace.yaml'), `id: ${sessionId}\ncwd: /work/${sessionId}\n${options.name ? `name: ${options.name}\n` : ''}`);
+				const events = [JSON.stringify({ type: 'session.start', data: { sessionId } })];
+				if (options.userMessage) {
+					events.push(JSON.stringify({ type: 'user.message', data: { content: options.userMessage } }));
+				}
+				await fs.writeFile(path.join(sessionDir, 'events.jsonl'), events.join('\n') + '\n');
+			};
+			await writeSession('00000000-0000-0000-0000-000000000001', { userMessage: 'hello' });
+			await writeSession('00000000-0000-0000-0000-000000000002', {});
+			await writeSession('00000000-0000-0000-0000-000000000003', { name: 'Named' });
+
+			const sdk = await import('@github/copilot/sdk');
+			const sessionManager = new sdk.internal.LocalSessionManager({
+				createFeatureFlagService: sdk.createLocalFeatureFlagServiceCreator(),
+				telemetryService: new sdk.internal.NoopTelemetryService(),
+				autoModeManager: new sdk.AutoModeSessionManager(),
+			}, { flushDebounceMs: undefined, settings: undefined, version: undefined });
+			const summarize = (sessions: readonly { sessionId: string; summary?: string; context?: { cwd?: string } }[]) =>
+				sessions.map(s => ({ id: s.sessionId.slice(-1), summary: s.summary, hasContext: s.context !== undefined })).sort((a, b) => a.id.localeCompare(b.id));
+
+			const listed = await sessionManager.listSessions({ metadataLimit: 0, includeDetached: false });
+			const enriched = await sessionManager.enrichSessionMetadata(listed);
+			const full = await sessionManager.listSessions();
+
+			assert.deepStrictEqual({
+				listed: summarize(listed),
+				enriched: summarize(enriched),
+			}, {
+				listed: [
+					{ id: '1', summary: undefined, hasContext: false },
+					{ id: '2', summary: undefined, hasContext: false },
+					{ id: '3', summary: undefined, hasContext: false },
+				],
+				enriched: summarize(full),
+			});
+			assert.deepStrictEqual(summarize(enriched).map(s => s.id), ['1', '3']);
+		} finally {
+			if (originalCopilotHome === undefined) {
+				delete process.env.COPILOT_HOME;
+			} else {
+				process.env.COPILOT_HOME = originalCopilotHome;
+			}
+			await fs.rm(tempHome, { recursive: true, force: true });
+		}
+	}, 30000);
 });
 
 const copilotPlatformArchs = new Set([
