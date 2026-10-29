@@ -754,7 +754,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	}
 
 	private async checkout(chat: string, core: PullRequestCore): Promise<Checkout> {
-		if (this.stateManager.getChatOwner(chat) !== this.context.session || !this.stateManager.getChatState(chat)) {
+		if (this.stateManager.getChatOwner(chat) !== this.context.session) {
 			throw new Error(localize('prArtifact.chatMismatch', "The repair chat no longer belongs to this artifact's session."));
 		}
 		const directories = this.configuration.getEffectiveWorkingDirectories(chat);

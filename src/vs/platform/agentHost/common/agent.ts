@@ -24,7 +24,7 @@ import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.
 import type { AuthenticateTarget, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 import { subagentChatUri, type ChatUriFormat } from './agentHostChatMinting.js';
-import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
+import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type SessionOrigin, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction, ProgressParams } from './state/sessionActions.js';
 import { AHP_CHAT_SCHEME, ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
@@ -204,6 +204,8 @@ export interface IAgentSessionChatMetadata {
 	readonly kind: 'default' | 'peer';
 	readonly origin?: ChatOrigin;
 	readonly interactivity?: ChatInteractivity;
+	/** The chat's own agent when it differs from its session's; absence means the session's agent. */
+	readonly provider?: string;
 	readonly archived?: boolean;
 	/** Exact chat read state when known; absence means the provider did not supply it. */
 	readonly isRead?: boolean;
@@ -224,6 +226,7 @@ export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> 
 	readonly session: URI;
 	/** Host-advertised agent identity; older cached metadata may omit it. */
 	readonly provider?: string;
+	readonly origin?: SessionOrigin;
 	readonly chats?: readonly IAgentSessionChatMetadata[];
 }
 
@@ -1012,6 +1015,13 @@ export interface IAgentCreateChatRequestOptions extends IAgentCreateChatOptions 
 	 * the provider, while retaining the side-chat provenance itself.
 	 */
 	readonly sideChat?: IAgentCreateChatSideChatSource;
+	/**
+	 * The agent requested for the new chat (`CreateChatParams.provider`). The
+	 * host resolves and validates it and creates the chat in that agent;
+	 * absent means the source chat's agent for a fork or side chat, else the
+	 * session's. Never passed to providers.
+	 */
+	readonly provider?: AgentProvider;
 	/**
 	 * Host-owned workspace requested for a new peer chat. The host prepares it
 	 * (adding the folder to the session, creating a worktree or a scratch

@@ -220,8 +220,8 @@ suite('PermissionPickerActionItem', () => {
 	const policy = {
 		badge: undefined,
 		disabled: true,
-		description: '$(briefcase) Disabled by policy',
-		ariaDescription: 'Disabled by policy. Your organization\'s policy doesn\'t allow this permission level.',
+		description: '$(briefcase) Disabled by your organization',
+		ariaDescription: 'Disabled by your organization. Contact your administrator.',
 	};
 	const enabled = { badge: undefined, disabled: false, description: undefined, ariaDescription: undefined };
 	const unattributed = {
@@ -252,7 +252,7 @@ suite('PermissionPickerActionItem', () => {
 				{ label: 'Assisted permissions', ...enabled, badge: 'New' },
 				{ label: 'Allow all', ...policy },
 			],
-			hover: 'Your organization\'s policy doesn\'t allow this permission level.',
+			hover: 'Your organization doesn\'t allow this permission level. Contact your administrator.',
 			hidesAfterRefresh: 1,
 			withheld: [
 				{ label: 'Default permissions', ...enabled },

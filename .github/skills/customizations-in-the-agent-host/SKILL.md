@@ -111,7 +111,7 @@ Known false alarms:
 - `CustomizationType` and `CustomizationEnablementKind` are `const enum`s. A **type-only import compiles and lints cleanly, then crashes at runtime.** Import them as values.
 - The unit-test runner uses pre-compiled output and does **not** fail on type errors. Always run `npm run typecheck-client` separately.
 - Integration-test servers start with `--quiet`. Wiring that you hoist out of `if (!options.quiet)` in `agentHostServerMain.ts` silently changes their behaviour — hoisting `setWorktreeIsolation` made quiet servers resolve `isolation: 'folder'` and broke seven unrelated tests.
-- Protocol files under `common/state/protocol/` carry a "DO NOT EDIT — auto-generated" banner. Changes there need a matching backport to the `agent-host-protocol` repo.
+- Protocol files under `common/state/protocol/` carry a "DO NOT EDIT — auto-generated" banner. Change the `agent-host-protocol` repo and sync with `scripts/sync-agent-host-protocol.ts` (see `common/state/AGENTS.md`), updating hand-written consumers in the same change.
 - Electron runner setup aborts (`EEXIST`/`EPERM`/`ENOENT`/ReactiveObjC) are environmental. Recover with `rm -rf .build/electron && npm run electron`.
 
 ## Validation

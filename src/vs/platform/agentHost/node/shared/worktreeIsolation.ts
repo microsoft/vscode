@@ -66,6 +66,8 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	resolveForWorkspaceConversion(request: IResolveWorkingDirectoryRequest): Promise<URI | undefined>;
 	createDetachedWorktree(request: Omit<IResolveWorkingDirectoryRequest, 'sessionUri' | 'sessionId'>): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree(handle: string): Promise<void>;
+	/** Worktrees retained by the detached lifecycle, including claims on behalf of another host. */
+	getDetachedWorktreePaths(): Promise<readonly URI[]>;
 	/** Records a detached worktree's archived state on its record. Returns `false` when the record is unavailable. */
 	markDetachedWorktreeArchived(handle: string, archived: boolean): Promise<boolean>;
 	/** Recreates an unarchived detached worktree from its branch when its folder is missing. */
@@ -737,6 +739,28 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		} finally {
 			ref.dispose();
 		}
+	}
+
+	async getDetachedWorktreePaths(): Promise<readonly URI[]> {
+		const paths: URI[] = [];
+		const dataIds = await this._sessionDataService.listSessionDataIds?.(DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX) ?? [];
+		for (const dataId of dataIds) {
+			const handle = dataId.substring(DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX.length);
+			if (isAgentDevContainerWorktreeHandle(handle)) {
+				const ref = await this._sessionDataService.tryOpenDatabase(detachedWorktreeRecordUri(handle));
+				if (ref) {
+					try {
+						const path = (await readWorktreeMetadataFields(ref.object))[WORKTREE_META_PATH];
+						if (path) {
+							paths.push(URI.parse(path));
+						}
+					} finally {
+						ref.dispose();
+					}
+				}
+			}
+		}
+		return paths;
 	}
 
 	async markDetachedWorktreeArchived(handle: string, archived: boolean): Promise<boolean> {
@@ -2182,6 +2206,7 @@ export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolati
 	async resolveForWorkspaceConversion(_request: IResolveWorkingDirectoryRequest): Promise<URI | undefined> { return undefined; }
 	async createDetachedWorktree(_request: Omit<IResolveWorkingDirectoryRequest, 'sessionUri' | 'sessionId'>): Promise<{ handle: string; worktree: URI }> { throw new Error('Worktree isolation is not supported.'); }
 	async claimDetachedWorktree(_handle: string): Promise<void> { }
+	async getDetachedWorktreePaths(): Promise<readonly URI[]> { return []; }
 	async markDetachedWorktreeArchived(_handle: string, _archived: boolean): Promise<boolean> { return false; }
 	async recreateDetachedWorktreeOnUnarchive(_handle: string): Promise<void> { }
 	async canAutomaticallyDeleteDetachedWorktree(_handle: string): Promise<boolean> { return true; }
@@ -2368,8 +2393,8 @@ async function readPersistedWorktreeNotice(source: WorktreeMetadataSource, sessi
 	}
 }
 
-async function readWorktreeMetadataValues(reader: WorktreeMetadataReader, sessionUri: URI, logService: ILogService): Promise<IWorktreeMetadata | undefined> {
-	const values = await reader.getMetadataObject({
+function readWorktreeMetadataFields(reader: WorktreeMetadataReader) {
+	return reader.getMetadataObject({
 		[WORKTREE_META_BRANCH]: true,
 		[WORKTREE_META_PATH]: true,
 		[WORKTREE_META_REPOSITORY_ROOT]: true,
@@ -2377,6 +2402,10 @@ async function readWorktreeMetadataValues(reader: WorktreeMetadataReader, sessio
 		[WORKTREE_META_SYMLINK_SOURCE_ROOT]: true,
 		[LEGACY_WORKTREE_META_WORKING_DIRECTORY]: true,
 	});
+}
+
+async function readWorktreeMetadataValues(reader: WorktreeMetadataReader, sessionUri: URI, logService: ILogService): Promise<IWorktreeMetadata | undefined> {
+	const values = await readWorktreeMetadataFields(reader);
 	const branchName = values[WORKTREE_META_BRANCH];
 	const worktreePathRaw = values[WORKTREE_META_PATH];
 	const repositoryRootRaw = values[WORKTREE_META_REPOSITORY_ROOT];

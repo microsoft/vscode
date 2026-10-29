@@ -49,6 +49,10 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		if (activeSession && isEqual(activeSession.resource, sessionResource)) {
 			return activeSession;
 		}
+		const automationSession = this._sessionsManagementService.automationSession.get();
+		if (automationSession && isEqual(automationSession.resource, sessionResource)) {
+			return automationSession;
+		}
 		return this._sessionsManagementService.getSession(sessionResource);
 	}
 

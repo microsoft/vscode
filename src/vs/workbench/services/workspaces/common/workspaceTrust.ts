@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../../base/common/linkedList.js';
@@ -25,8 +25,13 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { isEqualAuthority } from '../../../../base/common/resources.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { promiseWithResolvers } from '../../../../base/common/async.js';
-import { ResourceMap } from '../../../../base/common/map.js';
+import { promiseWithResolvers, raceTimeout, Sequencer } from '../../../../base/common/async.js';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { ICanonicalUriService } from '../../../../platform/workspace/common/canonicalUri.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { localize } from '../../../../nls.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 
 export const WORKSPACE_TRUST_ENABLED = 'security.workspace.trust.enabled';
 export const WORKSPACE_TRUST_STARTUP_PROMPT = 'security.workspace.trust.startupPrompt';
@@ -113,6 +118,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private _trustStateInfo: IWorkspaceTrustInfo;
 	private _remoteAuthority: ResolverResult | undefined;
 	private readonly _trustedAuthorities = new Set<{ readonly scheme: string; readonly authority: string }>();
+	private readonly _resolvedVirtualUris = new ResourceMap<URI>();
+	private readonly _unresolvedVirtualUris = new ResourceSet();
+	private _canonicalUriProviderVersion = 0;
+	private readonly _workspaceTrustUpdateSequencer = new Sequencer();
 
 	private readonly _storedTrustState: WorkspaceTrustMemento;
 	private readonly _trustTransitionManager: WorkspaceTrustTransitionManager;
@@ -125,7 +134,9 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IWorkspaceTrustEnablementService private readonly workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@ICanonicalUriService private readonly canonicalUriService: ICanonicalUriService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -150,11 +161,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private initializeWorkspaceTrust(): void {
 		// Resolve canonical Uris
-		this.resolveCanonicalUris()
-			.then(async () => {
-				this._canonicalUrisResolved = true;
-				await this.updateWorkspaceTrust();
-			})
+		this.updateWorkspaceTrust()
 			.finally(() => {
 				this._workspaceResolvedPromiseResolve();
 
@@ -191,6 +198,16 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	//#region private interface
 
 	private registerListeners(): void {
+		this._register(this.canonicalUriService.onDidRegisterCanonicalUriProvider(scheme => {
+			if (scheme === 'vscode-vfs') {
+				this._canonicalUriProviderVersion++;
+				for (const resource of this._resolvedVirtualUris.keys()) {
+					this._unresolvedVirtualUris.add(resource);
+				}
+				this._resolvedVirtualUris.clear();
+				this.resolveWorkspaceTrust().catch(onUnexpectedError);
+			}
+		}));
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(async () => await this.updateWorkspaceTrust()));
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION_SHARED, this.storageKey, this._store)(async () => {
 			/* This will only execute if storage was changed by a user action in a separate window */
@@ -212,15 +229,65 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		let canonicalUri = uri;
 		if (this.environmentService.remoteAuthority && uri.scheme === Schemas.vscodeRemote) {
 			canonicalUri = await this.remoteAuthorityResolverService.getCanonicalURI(uri);
-		} else if (uri.scheme === 'vscode-vfs') {
-			const index = uri.authority.indexOf('+');
-			if (index !== -1) {
-				canonicalUri = uri.with({ authority: uri.authority.substr(0, index) });
+		} else if (uri.scheme === 'vscode-vfs' && uri.authority.includes('+')) {
+			const resource = uri.with({ query: null, fragment: null });
+			const resolved = this._resolvedVirtualUris.get(resource);
+			if (resolved) {
+				return resolved;
 			}
+
+			// A ref can contain another repository's files. Resolve its source before inheriting trust.
+			this._unresolvedVirtualUris.add(resource);
+			const cancellation = new CancellationTokenSource();
+			try {
+				const providerVersion = this._canonicalUriProviderVersion;
+				const source = await raceTimeout(this.canonicalUriService.provideCanonicalUri(resource, resource.scheme, cancellation.token), 30_000, () => {
+					cancellation.cancel();
+					this.logService.warn('Timed out resolving the source of a virtual workspace for trust', resource.toString());
+				});
+				if (source && providerVersion === this._canonicalUriProviderVersion) {
+					if (source.scheme !== resource.scheme) {
+						throw new Error(`Unexpected workspace trust URI scheme: ${source.scheme}`);
+					}
+					canonicalUri = source.with({ query: null, fragment: null });
+					this._resolvedVirtualUris.set(resource, canonicalUri);
+					this._unresolvedVirtualUris.delete(resource);
+					if (canonicalUri.authority.includes('+')) {
+						// A verified source is terminal, even when it retains enterprise host metadata.
+						this._resolvedVirtualUris.set(canonicalUri, canonicalUri);
+						this._unresolvedVirtualUris.delete(canonicalUri);
+					}
+				}
+			} catch (error) {
+				this.logService.error('Unable to resolve the source of a virtual workspace for trust', resource.toString(), error);
+			} finally {
+				cancellation.dispose();
+			}
+
+			const currentSource = this._resolvedVirtualUris.get(resource);
+			if (currentSource) {
+				return currentSource;
+			}
+			this._unresolvedVirtualUris.add(resource);
 		}
 
 		// Ignore query and fragment sections of URIs.
 		return this.normalizeTrustUri(canonicalUri).with({ query: null, fragment: null });
+	}
+
+	private isCanonicalUriResolutionCurrent(providerVersion: number, uri: URI): boolean {
+		return providerVersion === this._canonicalUriProviderVersion || uri.scheme !== 'vscode-vfs' || !uri.authority.includes('+');
+	}
+
+	private getStoredTrustUri(uri: URI): URI | undefined {
+		const cleanUri = this.normalizeTrustUri(uri).with({ query: null, fragment: null });
+		const exactMatch = this._trustStateInfo.uriTrustInfo.find(info => this.uriIdentityService.extUri.isEqual(info.uri, cleanUri));
+		if (exactMatch) {
+			return exactMatch.uri;
+		}
+
+		const withoutTrailingSeparator = this.uriIdentityService.extUri.removeTrailingPathSeparator(cleanUri);
+		return this._trustStateInfo.uriTrustInfo.find(info => this.uriIdentityService.extUri.isEqual(info.uri, withoutTrailingSeparator))?.uri;
 	}
 
 	private async resolveCanonicalUris(): Promise<void> {
@@ -242,7 +309,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			const filesToOpenOrCreateUris = filesToOpen.filter(f => !!f.fileUri).map(f => f.fileUri!);
 			const canonicalFilesToOpen = await Promise.all(filesToOpenOrCreateUris.map(uri => this.getCanonicalUri(uri)));
 
-			this._canonicalStartupFiles.push(...canonicalFilesToOpen.filter(uri => this._canonicalStartupFiles.every(u => !this.uriIdentityService.extUri.isEqual(uri, u))));
+			this._canonicalStartupFiles = canonicalFilesToOpen.filter((uri, index) =>
+				canonicalFilesToOpen.findIndex(other => this.uriIdentityService.extUri.isEqual(uri, other)) === index);
 		}
 
 		// Workspace
@@ -290,9 +358,9 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		await this.updateWorkspaceTrust();
 	}
 
-	private getWorkspaceUris(): URI[] {
-		const workspaceUris = this._canonicalWorkspace.folders.map(f => f.uri);
-		const workspaceConfiguration = this._canonicalWorkspace.configuration;
+	private getWorkspaceUris(workspace = this._canonicalWorkspace): URI[] {
+		const workspaceUris = workspace.folders.map(f => f.uri);
+		const workspaceConfiguration = workspace.configuration;
 		if (workspaceConfiguration && isSavedWorkspace(workspaceConfiguration, this.environmentService)) {
 			workspaceUris.push(workspaceConfiguration);
 		}
@@ -335,26 +403,38 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return this.getUrisTrust(this.getWorkspaceUris());
 	}
 
-	private async updateWorkspaceTrust(trusted?: boolean): Promise<void> {
-		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
-			return;
-		}
+	private updateWorkspaceTrust(trusted?: boolean): Promise<void> {
+		return this._workspaceTrustUpdateSequencer.queue(async () => {
+			if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
+				return;
+			}
 
-		if (trusted === undefined) {
-			await this.resolveCanonicalUris();
-			trusted = this.calculateWorkspaceTrust();
-		}
+			if (trusted === undefined) {
+				for (let attempt = 0; attempt < 2; attempt++) {
+					const providerVersion = this._canonicalUriProviderVersion;
+					await this.resolveCanonicalUris();
+					this._canonicalUrisResolved = providerVersion === this._canonicalUriProviderVersion;
+					if (this._canonicalUrisResolved) {
+						break;
+					}
+				}
+				if (!this._canonicalUrisResolved) {
+					this.logService.warn('Unable to verify workspace trust sources because their provider changed');
+				}
+				trusted = this.calculateWorkspaceTrust();
+			}
 
-		if (this.isWorkspaceTrusted() === trusted) { return; }
+			if (this.isWorkspaceTrusted() === trusted) { return; }
 
-		// Update workspace trust
-		this.isTrusted = trusted;
+			// Update workspace trust
+			this.isTrusted = trusted;
 
-		// Run workspace trust transition participants
-		await this._trustTransitionManager.participate(trusted);
+			// Run workspace trust transition participants
+			await this._trustTransitionManager.participate(trusted);
 
-		// Fire workspace trust change event
-		this._onDidChangeTrust.fire(trusted);
+			// Fire workspace trust change event
+			this._onDidChangeTrust.fire(trusted);
+		});
 	}
 
 	private getUrisTrust(uris: URI[]): boolean {
@@ -375,6 +455,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		// Return trusted when workspace trust is disabled
 		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
 			return { trusted: true, uri };
+		}
+
+		if (this._unresolvedVirtualUris.has(uri)) {
+			return { trusted: false, uri };
 		}
 
 		// Agent sessions workspace file is always trusted
@@ -567,6 +651,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return false;
 		}
 
+		if (!this.isWorkspaceTrustSourceResolved()) {
+			return false;
+		}
+
 		// Empty workspace
 		if (this.isEmptyWorkspace()) {
 			return true;
@@ -614,6 +702,13 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	async setWorkspaceTrust(trusted: boolean): Promise<void> {
+		if (trusted && !this.isWorkspaceTrustSourceResolved()) {
+			await this.resolveWorkspaceTrust();
+			if (!this.isWorkspaceTrustSourceResolved()) {
+				throw new Error(localize('unresolvedWorkspaceTrustSource', "The source of this workspace could not be determined. Continue in Restricted Mode until its source can be verified."));
+			}
+		}
+
 		// Empty workspace
 		if (this.isEmptyWorkspace()) {
 			await this.updateWorkspaceTrust(trusted);
@@ -622,6 +717,21 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		const workspaceFolders = this.getWorkspaceUris();
 		await this.setUrisTrust(workspaceFolders, trusted);
+	}
+
+	isWorkspaceTrustSourceResolved(): boolean {
+		return !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled() ||
+			(this._canonicalUrisResolved && !this.getWorkspaceUris(this.workspaceService.getWorkspace())
+				.some(uri => this._unresolvedVirtualUris.has(uri.with({ query: null, fragment: null }))));
+	}
+
+	async resolveWorkspaceTrust(): Promise<void> {
+		await this.workspaceResolved;
+		if (this._store.isDisposed) {
+			return;
+		}
+		await this.updateWorkspaceTrust();
+		this._onDidChangeTrustedFolders.fire();
 	}
 
 	async getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
@@ -635,11 +745,41 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return { trusted: true, uri };
 		}
 
-		return this.doGetUriTrustInfo(await this.getCanonicalUri(uri));
+		for (let attempt = 0; attempt < 2; attempt++) {
+			const providerVersion = this._canonicalUriProviderVersion;
+			const unresolvedWorkspace = this._canonicalUrisResolved && !this.isWorkspaceTrustSourceResolved();
+			const canonicalUri = await this.getCanonicalUri(uri);
+			if (unresolvedWorkspace && this._resolvedVirtualUris.has(uri.with({ query: null, fragment: null }))) {
+				await this.resolveWorkspaceTrust();
+			}
+			if (this.isCanonicalUriResolutionCurrent(providerVersion, uri)) {
+				return this.doGetUriTrustInfo(canonicalUri);
+			}
+		}
+		this.logService.warn('Unable to verify resource trust because its provider changed', uri.toString());
+		return { trusted: false, uri: this.normalizeTrustUri(uri).with({ query: null, fragment: null }) };
 	}
 
 	async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
-		await this.doSetUrisTrust(await Promise.all(uris.map(uri => this.getCanonicalUri(uri))), trusted);
+		const providerVersion = this._canonicalUriProviderVersion;
+		const urisToResolve: URI[] = [];
+		const canonicalUris = await Promise.all(uris.map(async uri => {
+			const existing = uri.scheme === 'vscode-vfs' ? this.getStoredTrustUri(uri) : undefined;
+			if (existing) {
+				return existing;
+			}
+
+			urisToResolve.push(uri);
+			const canonicalUri = await this.getCanonicalUri(uri);
+			if (trusted && this._unresolvedVirtualUris.has(canonicalUri)) {
+				throw new Error(localize('unresolvedWorkspaceTrustSource', "The source of this workspace could not be determined. Continue in Restricted Mode until its source can be verified."));
+			}
+			return canonicalUri;
+		}));
+		if (!urisToResolve.every(uri => this.isCanonicalUriResolutionCurrent(providerVersion, uri))) {
+			throw new Error(localize('workspaceTrustSourceChanged', "The repository source must be verified again before updating trust. Try again."));
+		}
+		await this.doSetUrisTrust(canonicalUris, trusted);
 	}
 
 	registerTrustedAuthority(scheme: string, authority: string): IDisposable {
@@ -662,9 +802,29 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	async setTrustedUris(uris: URI[]): Promise<void> {
-		this._trustStateInfo.uriTrustInfo = [];
-		for (const uri of uris) {
+		const providerVersion = this._canonicalUriProviderVersion;
+		const urisToResolve: URI[] = [];
+		const canonicalUris = await Promise.all(uris.map(async uri => {
+			const existing = this.getStoredTrustUri(uri);
+			if (existing) {
+				// Unchanged approvals are already canonical and do not require a live repository provider.
+				return existing;
+			}
+
+			urisToResolve.push(uri);
 			const canonicalUri = await this.getCanonicalUri(uri);
+			if (this._unresolvedVirtualUris.has(canonicalUri)) {
+				throw new Error(localize('unresolvedWorkspaceTrustSource', "The source of this workspace could not be determined. Continue in Restricted Mode until its source can be verified."));
+			}
+			return canonicalUri;
+		}));
+
+		if (!urisToResolve.every(uri => this.isCanonicalUriResolutionCurrent(providerVersion, uri))) {
+			throw new Error(localize('workspaceTrustSourceChanged', "The repository source must be verified again before updating trust. Try again."));
+		}
+
+		this._trustStateInfo.uriTrustInfo = [];
+		for (const canonicalUri of canonicalUris) {
 			const cleanUri = this.uriIdentityService.extUri.removeTrailingPathSeparator(canonicalUri);
 			let added = false;
 			for (const addedUri of this._trustStateInfo.uriTrustInfo) {
@@ -720,7 +880,8 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 	}
@@ -816,12 +977,16 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		}
 
 		const trusted = result === WorkspaceTrustUriResponse.Open;
-		await this.workspaceTrustManagementService.setUrisTrust([uri], trusted);
-
-		resolver(trusted);
-
-		this._resourcesTrustRequestResolvers.delete(uri);
-		this._resourcesTrustRequestPromises.delete(uri);
+		try {
+			await this.workspaceTrustManagementService.setUrisTrust([uri], trusted);
+			resolver(trusted);
+		} catch (error) {
+			resolver(undefined);
+			this.notificationService.error(error);
+		} finally {
+			this._resourcesTrustRequestResolvers.delete(uri);
+			this._resourcesTrustRequestPromises.delete(uri);
+		}
 	}
 
 	async requestResourcesTrust(options: ResourceTrustRequestOptions): Promise<boolean | undefined> {
@@ -875,11 +1040,13 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 			return;
 		}
 
-		// Register one-time event handler to resolve the promise when workspace trust changed
-		Event.once(this.workspaceTrustManagementService.onDidChangeTrust)(trusted => this.resolveWorkspaceTrustRequest(trusted));
-
-		// Update storage, transition workspace state
-		await this.workspaceTrustManagementService.setWorkspaceTrust(trusted);
+		try {
+			await this.workspaceTrustManagementService.setWorkspaceTrust(trusted);
+			this.resolveWorkspaceTrustRequest();
+		} catch (error) {
+			this.cancelWorkspaceTrustRequest();
+			this.notificationService.error(error);
+		}
 	}
 
 	async requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined> {

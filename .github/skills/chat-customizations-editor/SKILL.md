@@ -121,7 +121,7 @@ These are cross-layer imports from `vs/sessions/` — use `// eslint-disable-nex
 
 Key fixtures have `blocksCi: true` in their labels. The `component-fixtures.yml` GitHub Action captures screenshots on every PR to `main` and **fails the CI status check** if any `blocks-ci`-labeled fixture's screenshot changes. This catches layout regressions automatically.
 
-Currently gated fixtures: `LocalHarness`, `McpServersTab`, `McpServersTabNarrow`, `AgentsTabNarrow`. When adding a new section or layout-critical fixture, add `blocksCi: true`:
+When adding a new section or layout-critical fixture, add `blocksCi: true`:
 
 ```typescript
 MyFixture: defineComponentFixture({
