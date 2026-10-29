@@ -235,7 +235,7 @@ export class GalleryRequestMonitor {
 			const proxy = /^(PROXY|HTTPS)\s+([^\s;]+)/i.exec(await this.resolveProxy?.(request.url()) ?? '');
 			if (proxy) {
 				const proxyUrl = `${proxy[1].toUpperCase() === 'HTTPS' ? 'https' : 'http'}://${proxy[2]}`;
-				routes.push({ via: proxyUrl, proxyArgs: ['--proxy', proxyUrl] });
+				routes.push({ via: proxyUrl, proxyArgs: ['--proxy', proxyUrl, '--noproxy', ''] });
 			}
 		} catch (error) {
 			this.context.warn(`Failed to resolve the app's proxy for ${request.url()}: ${error instanceof Error ? error.message : String(error)}`);
@@ -245,14 +245,14 @@ export class GalleryRequestMonitor {
 			const start = Date.now();
 			const result = await new Promise<Omit<GalleryPreflightProbe, 'via' | 'durationMs'>>(resolve => {
 				execFile('curl', [...args, ...proxyArgs, request.url()], { timeout: 40_000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
-					const response = stdout
+					const fullResponse = stdout
 						.split(/\r?\n/)
 						.filter(line => !/^set-cookie:/i.test(line))
-						.join('\n')
-						.slice(0, maxPreflightResponseChars);
+						.join('\n');
 					// Through a proxy, curl prints the CONNECT response first, so use the last status line.
-					const statuses = [...response.matchAll(/^HTTP\/[\d.]+ (\d{3})/gm)];
+					const statuses = [...fullResponse.matchAll(/^HTTP\/[\d.]+ (\d{3})/gm)];
 					const status = statuses.length ? Number(statuses[statuses.length - 1][1]) : undefined;
+					const response = fullResponse.slice(0, maxPreflightResponseChars);
 					resolve({ status, response: response || undefined, error: error ? `${error.message}${stderr ? `: ${stderr.trim()}` : ''}` : undefined });
 				});
 			});
