@@ -288,6 +288,8 @@ export interface IChatPetHorizontalPlatformProvider {
 export interface IChatInputPartOptions {
 	defaultMode?: IChatMode;
 	renderFollowups: boolean;
+	/** Whether to host input requests, including those routed by another widget. Defaults to true. */
+	renderInputRequests?: boolean;
 	renderStyle?: 'compact';
 	renderInputToolbarBelowInput: boolean;
 	renderSecondaryToolbar?: boolean;
@@ -4897,7 +4899,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._chatArtifactsWidget.value?.setSessionResource(undefined);
 	}
 
-	renderQuestionCarousel(carousel: IChatQuestionCarousel, context: IChatContentPartRenderContext | undefined, options: IChatQuestionCarouselOptions): ChatQuestionCarouselPart {
+	renderQuestionCarousel(carousel: IChatQuestionCarousel, context: IChatContentPartRenderContext | undefined, options: IChatQuestionCarouselOptions): ChatQuestionCarouselPart | undefined {
+		if (this.options.renderInputRequests === false) {
+			return undefined;
+		}
 		if (!context && !carousel.resolveId) {
 			throw new Error('A question carousel without response context must provide a resolveId.');
 		}
@@ -5003,7 +5008,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	// --- Plan Review ---
 
-	renderPlanReview(review: IChatPlanReview, context: IChatContentPartRenderContext, options: IChatPlanReviewPartOptions): ChatPlanReviewPart {
+	renderPlanReview(review: IChatPlanReview, context: IChatContentPartRenderContext, options: IChatPlanReviewPartOptions): ChatPlanReviewPart | undefined {
+		if (this.options.renderInputRequests === false) {
+			return undefined;
+		}
 		const key = review.resolveId ?? `${isResponseVM(context.element) ? context.element.requestId : ''}_${context.contentIndex}`;
 
 		const existing = this._chatPlanReviewWidgets.get(key);
@@ -5067,7 +5075,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return key ? this._chatToolConfirmationCarousels.get(key)?.part : undefined;
 	}
 
-	renderToolConfirmationCarousel(tool: IChatToolInvocation, factory: ToolInvocationPartFactory, subAgentInvocationId?: string, subagentTitle?: string, revealSubagent?: RevealSubagentCallback, revealSubagentLabel?: string, toolPart?: ChatToolInvocationPart): ChatToolConfirmationCarouselPart {
+	renderToolConfirmationCarousel(tool: IChatToolInvocation, factory: ToolInvocationPartFactory, subAgentInvocationId?: string, subagentTitle?: string, revealSubagent?: RevealSubagentCallback, revealSubagentLabel?: string, toolPart?: ChatToolInvocationPart): ChatToolConfirmationCarouselPart | undefined {
+		if (this.options.renderInputRequests === false) {
+			return undefined;
+		}
 		const existing = this._currentToolConfirmationCarousel;
 		if (existing) {
 			existing.addToolInvocation(tool, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel, toolPart, factory);

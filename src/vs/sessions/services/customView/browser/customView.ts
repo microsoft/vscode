@@ -28,6 +28,9 @@ export interface ICustomViewDescriptor {
 	readonly ctor: SyncDescriptor<AbstractCustomView>;
 
 	readonly actions?: ICustomViewActions;
+
+	/** Handle an unparameterized New Session action without leaving this view. */
+	readonly openNewSession?: () => Promise<void> | undefined;
 }
 
 /**

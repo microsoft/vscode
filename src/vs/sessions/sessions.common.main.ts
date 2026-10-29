@@ -513,6 +513,8 @@ import './contrib/aquarium/browser/aquarium.contribution.js';
 import './contrib/policyBlocked/browser/policyBlocked.contribution.js';
 import '../workbench/services/policies/browser/managedSettingsUpdate.contribution.js';
 import './contrib/automations/browser/automations.contribution.js';
+import './contrib/canvases/browser/windowCanvases.contribution.js';
+import './contrib/inboxOne/browser/inboxOne.contribution.js';
 import './contrib/remoteSessions/browser/remoteSessions.contribution.js';
 import './contrib/customViewTest/browser/customViewTest.contribution.js';
 
