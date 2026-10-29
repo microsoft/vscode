@@ -82,20 +82,24 @@ suite('shellInitScript', () => {
 			assert.deepStrictEqual({ shell: result.shell, preludeFirst: result.script.indexOf('$env:PATH') < result.script.indexOf('client') }, { shell: 'powershell', preludeFirst: true });
 		});
 
-		(process.platform === 'win32' ? test.skip : test)('bash adds missing entries once, in order', async () => {
-			const [{ script }] = withAgentTerminalPath([], path, 'bash');
-			const { stdout } = await execFileAsync('bash', ['--norc', '--noprofile', '-c', `${script}\n${script}\nbuiltin echo "$PATH"`], {
-				env: { ...process.env, PATH: '/usr/bin:/bin:/opt/z' },
+		(process.platform === 'win32' ? suite.skip : suite)('bash behavior', () => {
+			test('adds missing entries once, in order', async () => {
+				const [{ script }] = withAgentTerminalPath([], path, 'bash');
+				const { stdout } = await execFileAsync('bash', ['--norc', '--noprofile', '-c', `${script}\n${script}\nbuiltin echo "$PATH"`], {
+					env: { ...process.env, PATH: '/usr/bin:/bin:/opt/z' },
+				});
+				assert.strictEqual(stdout.trim(), `/opt/o'brien:/opt/b:/usr/bin:/bin:/opt/z`);
 			});
-			assert.strictEqual(stdout.trim(), `/opt/o'brien:/opt/b:/usr/bin:/bin:/opt/z`);
 		});
 
-		(process.platform === 'win32' ? test : test.skip)('PowerShell adds missing entries once, in order', async () => {
-			const windowsPath = { prepend: [`C:\\o'brien`, 'C:\\b'], append: ['C:\\z'] };
-			const [{ script }] = withAgentTerminalPath([], windowsPath, 'powershell');
-			const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `$env:PATH = 'C:\\x;C:\\z'\n${script}\n${script}\nWrite-Output $env:PATH`]);
-			assert.strictEqual(stdout.trim(), `C:\\o'brien;C:\\b;C:\\x;C:\\z`);
-		}).timeout(10_000);
+		(process.platform === 'win32' ? suite : suite.skip)('PowerShell behavior', () => {
+			test('adds missing entries once, in order', async () => {
+				const windowsPath = { prepend: [`C:\\o'brien`, 'C:\\b'], append: ['C:\\z'] };
+				const [{ script }] = withAgentTerminalPath([], windowsPath, 'powershell');
+				const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `$env:PATH = 'C:\\x;C:\\z'\n${script}\n${script}\nWrite-Output $env:PATH`]);
+				assert.strictEqual(stdout.trim(), `C:\\o'brien;C:\\b;C:\\x;C:\\z`);
+			}).timeout(10_000);
+		});
 	});
 
 	test('accepts only an empty list or one valid script', () => {
