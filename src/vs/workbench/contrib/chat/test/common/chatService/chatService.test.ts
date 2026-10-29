@@ -1712,6 +1712,49 @@ suite('ChatService', () => {
 		}
 	}
 
+	test('retrying a system notification uses the caller\'s provenance overrides over the original request', async () => {
+		const invocations: { isSystemInitiated?: boolean; hideFromTranscript?: boolean }[] = [];
+		const agentId = 'notificationAgent';
+		testDisposables.add(chatAgentService.registerAgent(agentId, { ...getAgentData(agentId), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(agentId, {
+			async invoke(request) {
+				invocations.push({ isSystemInitiated: request.isSystemInitiated, hideFromTranscript: request.hideFromTranscript });
+				return {};
+			},
+		}));
+		const service = createChatService();
+		const model = testDisposables.add(startSessionModel(service)).object;
+		const sent = await service.sendRequest(model.sessionResource, '[Terminal terminal-1 notification: command completed.]', {
+			agentIdSilent: agentId,
+			isSystemInitiated: true,
+			systemInitiatedLabel: '`npm run build` completed',
+			terminalExecutionId: 'terminal-1',
+			hideFromTranscript: true,
+		});
+		ChatSendResult.assertSent(sent);
+		await sent.data.responseCompletePromise;
+
+		const original = model.getRequests()[0];
+		await service.resendRequest(original, {
+			attempt: original.attempt + 1,
+			isSystemInitiated: false,
+			systemInitiatedLabel: '`npm test` completed',
+			terminalExecutionId: 'terminal-2',
+			hideFromTranscript: false,
+		});
+
+		const retried = model.getRequests()[0];
+		assert.deepStrictEqual({
+			requests: model.getRequests().length,
+			retried: { isSystemInitiated: retried.isSystemInitiated, systemInitiatedLabel: retried.systemInitiatedLabel, terminalExecutionId: retried.terminalExecutionId, isHiddenFromTranscript: retried.isHiddenFromTranscript },
+			invocations,
+		}, {
+			requests: 1,
+			retried: { isSystemInitiated: false, systemInitiatedLabel: '`npm test` completed', terminalExecutionId: 'terminal-2', isHiddenFromTranscript: false },
+			invocations: [{ isSystemInitiated: true, hideFromTranscript: true }, { isSystemInitiated: false, hideFromTranscript: false }],
+		});
+	});
+
 	for (const { name, firstIsSystem, secondIsSystem, expectedInvocations, expectedYields, expectedLabel } of [
 		{ name: 'two notifications', firstIsSystem: true, secondIsSystem: true, expectedInvocations: [{ message: 'message 1\n\nmessage 2', isSystemInitiated: true }], expectedYields: ['task'], expectedLabel: 'Terminal completed' },
 		{ name: 'notification then user input', firstIsSystem: true, secondIsSystem: false, expectedInvocations: [{ message: 'message 1', isSystemInitiated: true }, { message: 'message 2', isSystemInitiated: false }], expectedYields: ['task', 'message 1'], expectedLabel: undefined },
