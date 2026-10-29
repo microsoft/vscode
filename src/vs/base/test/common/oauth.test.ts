@@ -2227,7 +2227,7 @@ suite('OAuth', () => {
 			});
 
 			await assert.rejects(() => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub }));
-			assert.strictEqual(fetchStub.callCount, 0);
+			assert.strictEqual(fetchStub.callCount, 3);
 		});
 
 		test('should handle empty additionalHeaders', async () => {
@@ -2287,6 +2287,22 @@ suite('OAuth', () => {
 		const entraOrigin = 'https://login.microsoftonline.com';
 		const entraTemplate = `${entraOrigin}/{tenantid}/v2.0`;
 		const entraConsumer = `${entraOrigin}/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0`;
+
+		for (const [name, authority, issuer] of [
+			['root slash', 'https://auth.example.com', 'https://auth.example.com/'],
+			['scheme and host case', 'HTTPS://AUTH.EXAMPLE.COM/tenant', 'https://auth.example.com/tenant'],
+			['default HTTPS port', 'https://auth.example.com:443/tenant', 'https://auth.example.com/tenant'],
+			['matching empty query', 'https://auth.example.com/tenant?', 'https://auth.example.com/tenant?'],
+			['matching empty fragment', 'https://auth.example.com/tenant#', 'https://auth.example.com/tenant#'],
+			['Entra alias with matching empty query', `${entraOrigin}/common/v2.0?`, `${entraTemplate}?`],
+			['Entra alias with matching empty fragment', `${entraOrigin}/common/v2.0#`, `${entraTemplate}#`],
+		]) {
+			test(`accepts URL-normalized issuers with ${name}`, async () => {
+				const metadata: IAuthorizationServerMetadata = { issuer, response_types_supported: ['code'] };
+				fetchStub.resolves({ status: 200, json: async () => metadata, text: async () => JSON.stringify(metadata), statusText: 'OK' });
+				assert.deepStrictEqual((await fetchAuthorizationServerMetadata(authority, { fetch: fetchStub })).metadata, metadata);
+			});
+		}
 
 		test('accepts an exactly matching Entra issuer', async () => {
 			const issuer = `${entraOrigin}/organizations/v2.0`;
@@ -2352,7 +2368,7 @@ suite('OAuth', () => {
 			assert.deepStrictEqual({ issuer: result.metadata.issuer, errors: result.errors.length, calls: fetchStub.callCount }, { issuer: authority, errors: 1, calls: 2 });
 		});
 
-		test('rejects an issuer that differs only by a trailing slash (exact match)', async () => {
+		test('rejects an issuer that differs only by a path trailing slash', async () => {
 			const authorizationServer = 'https://auth.example.com/tenant';
 			const trailingSlashMetadata: IAuthorizationServerMetadata = {
 				issuer: 'https://auth.example.com/tenant/',
