@@ -3361,6 +3361,43 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(lastStates.get(session.sessionId), state, 'subscription opens and applies the state once the marker clears');
 	}));
 
+	test('listed legacy sessions retain one row through adoption, repeated notifications and reconnect', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const active = createSession('legacy-active', { summary: 'Active Legacy', adoptable: true });
+		const archived = createSession('legacy-archived', { summary: 'Archived Legacy', adoptable: true, status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsArchived });
+		agentHost.addSession(active);
+		agentHost.addSession(archived);
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		const initialSessions = provider.getSessions();
+		const rows = () => provider.getSessions().map(session => ({
+			resource: session.resource.toString(),
+			archived: session.isArchived.get(),
+		})).sort((a, b) => a.resource.localeCompare(b.resource));
+		const initial = rows();
+
+		agentHost.addSession({ ...active, _meta: undefined });
+		fireSessionSummaryChanged(agentHost, 'legacy-active', { _meta: undefined });
+		fireSessionAdded(agentHost, 'legacy-active', { title: 'Active Legacy' });
+		fireSessionAdded(agentHost, 'legacy-active', { title: 'Active Legacy' });
+		await timeout(0);
+		const adopted = rows();
+
+		agentHost.fireAgentHostExit();
+		agentHost.fireAgentHostStart();
+		await timeout(100);
+
+		const expected = [
+			{ resource: 'agent-host-copilotcli:/legacy-active', archived: false },
+			{ resource: 'agent-host-copilotcli:/legacy-archived', archived: true },
+		];
+		assert.deepStrictEqual({
+			initial, adopted, reconnected: rows(),
+			identitiesPreserved: initialSessions.every(session => provider.getSessions().includes(session)),
+		}, {
+			initial: expected, adopted: expected, reconnected: expected, identitiesPreserved: true,
+		});
+	}));
+
 	test('resolveSessionResource seeds the twin in cache when the legacy provider is absent and refresh produces no row', async () => {
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true });
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService });

@@ -4799,7 +4799,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _buildImportedCatalogSyncRequest(provider: IAgent, metadata: IAgentSessionMetadata, external: boolean, seedExternalRead: boolean, database: AgentHostCatalogDatabaseReference | undefined, existingCatalogData?: AgentHostCatalogData, prefetch?: SessionStateValuesPrefetch): Promise<IAgentHostCatalogSyncRequest> {
 		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([metadata.session.toString()]);
 		const authoritativeChats = snapshot?.authorityVersion === 2 ? chatCatalogV2ToCatalogChats(snapshot) : undefined;
-		const shouldSeedExternalRead = external && seedExternalRead;
+		// Un-opened legacy sessions are seeded read like external ones: the host drops their read toggles until adoption, and their announcements report them read.
+		const shouldSeedExternalRead = (external || readSessionEhcliAdoptable(metadata._meta)) && seedExternalRead;
 		const preserveCentralRead = !database && existingCatalogData !== undefined;
 		const preserveCentralMetadata = preserveCentralRead && !this._stateManager.getSessionState(metadata.session.toString());
 		const baseStatus = metadata.status ?? SessionStatus.Idle;
@@ -5729,13 +5730,13 @@ export class AgentService extends Disposable implements IAgentService {
 		now = Date.now(),
 		recentSessionKeys?: ReadonlySet<string>,
 	): boolean {
-		// An un-adopted adoptable-legacy session belongs to the extension-host provider
-		// until it is opened (and thereby adopted), except for archived legacy sessions
-		// which are surfaced directly in the Archived section so they remain accessible
-		// once the extension-host provider is retired. Adoption clears this marker (and
-		// sets `ehcliAdopted`), so an adopted session surfaces normally below.
+		// An un-adopted adoptable-legacy session is listed (while migration is enabled)
+		// so it stays reachable once the extension-host provider is retired; the
+		// editor window hides the matching legacy row. Opening it adopts it in place.
+		// Adoption clears this marker (and sets `ehcliAdopted`), so an adopted session
+		// surfaces normally below.
 		if (readSessionEhcliAdoptable(session._meta)) {
-			return this._isMigrateLegacyEnabled() && isSessionStatusArchived(session.status);
+			return this._isMigrateLegacyEnabled();
 		}
 		if (!readSessionExternal(session._meta)) {
 			return true;
@@ -5761,8 +5762,8 @@ export class AgentService extends Disposable implements IAgentService {
 	 * on the registry's `external` flag alone.
 	 *
 	 * `None` is the only mode that rejects external sessions outright. Adoptable-legacy
-	 * rows are always excluded now (they belong to the extension host until opened), so
-	 * they can never keep an external session visible.
+	 * rows are internal (never external), so the mode never applies to them and they
+	 * can never keep an external session visible.
 	 */
 	private _hidesAllExternalSessions(mode: AgentHostExternalSessionsMode): boolean {
 		return mode === AgentHostExternalSessionsMode.None;
@@ -6037,12 +6038,14 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const title = await this._resolveSurfacedSessionTitle(meta);
 			const effectiveMetadata = title ? { ...meta, summary: title } : meta;
+			// Matches the listed summary, so clients can address an un-opened legacy session's default chat before a full refresh.
+			const defaultChat = readSessionEhcliAdoptable(meta._meta) ? await this._readDefaultChat(meta.session) : undefined;
 			// The external-sessions mode may have changed during the await above; re-check so a row that is no longer visible is not surfaced.
 			if (!this._shouldIncludeSession(effectiveMetadata)) {
 				this._announcedSurfacedKeys.delete(key);
 				return;
 			}
-			this._stateManager.announceSurfacedSession(this._surfacedSessionSummary(effectiveMetadata, provider));
+			this._stateManager.announceSurfacedSession(this._surfacedSessionSummary(effectiveMetadata, provider, defaultChat));
 			if (readSessionExternal(effectiveMetadata._meta)) {
 				this._broadcastExternalSessions.add(key);
 			}
@@ -6105,7 +6108,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** Synthesizes the minimal {@link SessionSummary} for a provider session surfaced outside the normal list response. */
-	private _surfacedSessionSummary(meta: IAgentSessionMetadata, provider: string): SessionSummary {
+	private _surfacedSessionSummary(meta: IAgentSessionMetadata, provider: string, defaultChat?: string): SessionSummary {
 		return {
 			resource: meta.session.toString(),
 			provider,
@@ -6121,6 +6124,7 @@ export class AgentService extends Disposable implements IAgentService {
 			modifiedAt: new Date(meta.modifiedTime).toISOString(),
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
 			workingDirectories: meta.workingDirectories?.map(d => d.toString()),
+			...(defaultChat ? { defaultChat, chats: [{ resource: defaultChat, title: meta.summary ?? '' }] } : {}),
 			_meta: meta._meta,
 		};
 	}
@@ -12056,12 +12060,18 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Returns `'restore'`, leaving the caller to restore, when its surfaced
 	 * summary does not list the chat; `'deleting'`, writing nothing, when the
 	 * session is being deleted; and `'unmanageable'`, writing nothing, for an
-	 * archive toggle on a default or tool chat. Callers must run it
+	 * archive toggle on a default or tool chat; and `'dropped'`, writing nothing,
+	 * for a read toggle on an un-opened legacy session. Callers must run it
 	 * through {@link _queuePassiveMetadataUpdate} and resolve `session` from
 	 * the chat's recorded owner.
 	 */
-	private async _applyPassiveChatFlags(session: string, chat: string, action: ChatIsReadChangedAction | ChatIsArchivedChangedAction): Promise<'applied' | 'restore' | 'deleting' | 'unmanageable'> {
+	private async _applyPassiveChatFlags(session: string, chat: string, action: ChatIsReadChangedAction | ChatIsArchivedChangedAction): Promise<'applied' | 'restore' | 'deleting' | 'unmanageable' | 'dropped'> {
 		const summary = this._stateManager.getSurfacedSessionSummary(session);
+		// As for the session read flag: a read toggle must not adopt an un-opened legacy session.
+		if (action.type === ActionType.ChatIsReadChanged && this._isMigrateLegacyEnabled()
+			&& (summary ? readSessionEhcliAdoptable(summary._meta) : await this._isRegisteredAdoptableSession(URI.parse(session)))) {
+			return 'dropped';
+		}
 		const target = summary?.chats?.find(candidate => candidate.resource === chat);
 		if (!summary || !target || readSessionEhcliAdoptable(summary._meta)) {
 			return 'restore';
@@ -12492,6 +12502,9 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 			} else if ((action.type === ActionType.ChatIsReadChanged || action.type === ActionType.ChatIsArchivedChanged) && chatChannel !== undefined && !subagent && requiresSessionRestore) {
 				const outcome = await this._queuePassiveMetadataUpdate(sessionChannel, () => this._applyPassiveChatFlags(sessionChannel, chatChannel, action));
+				if (outcome === 'dropped') {
+					return;
+				}
 				if (outcome === 'deleting' || outcome === 'unmanageable') {
 					this._stateManager.rejectClientAction(channel, action, { clientId, clientSeq }, outcome === 'unmanageable'
 						? UNMANAGEABLE_CHAT_ARCHIVE_REJECTION
