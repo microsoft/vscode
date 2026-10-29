@@ -494,6 +494,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		const logService = new CapturingLogService();
 		const launcher = createTestLauncher(undefined, {}, logService, noopSessionOpenTelemetry, configuration);
 		let attachedSession: CopilotSession | undefined;
+		let sessionClosed = false;
 		const services = new ServiceCollection(
 			[IAgentConfigurationService, configuration],
 			[IAgentHostStateManager, manager],
@@ -511,6 +512,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			getConfigWriteTarget: () => ({ session: owner, chat: testRuntime.chatUri.toString() }),
 			platform: process.platform,
 			getSession: () => attachedSession,
+			isSessionClosed: () => sessionClosed,
 			getHostSupport: async () => ({ supported: true, capabilities: [] }),
 			getCertificateStatus: async () => undefined,
 			installCertificate: async () => { },
@@ -528,8 +530,38 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				attachedSession = session;
 			},
 		};
-		return { manager, configuration, owner, updates, commands, launcher, plan, runtime, sandbox, logService, set sandboxUpdateError(error: Error | undefined) { sandboxUpdateError = error; }, get sandboxState() { return readSessionSandboxState(manager.getSessionState(owner)); }, get disconnected() { return disconnected; }, get captured() { return captured; } };
+		return { manager, configuration, owner, updates, commands, launcher, plan, runtime, sandbox, raw, logService, set sessionClosed(value: boolean) { sessionClosed = value; }, set sandboxUpdateError(error: Error | undefined) { sandboxUpdateError = error; }, get sandboxState() { return readSessionSandboxState(manager.getSessionState(owner)); }, get disconnected() { return disconnected; }, get captured() { return captured; } };
 	}
+
+	test('a sandbox update failing after shutdown does not broadcast a policy conflict', async () => {
+		const fixture = setup('create');
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'on' });
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		fixture.raw.rpc.options.update = async () => {
+			started.complete();
+			await release.p;
+			throw new Error('Session not found');
+		};
+		const update = fixture.sandbox.applyConfig();
+		try {
+			await started.p;
+			fixture.sessionClosed = true;
+			release.complete();
+			await update;
+			assert.deepStrictEqual({
+				state: fixture.sandboxState,
+				warnings: fixture.logService.warnings,
+				errors: fixture.logService.errors,
+			}, { state: { enabled: true }, warnings: [], errors: [] });
+		} finally {
+			release.complete();
+			await update;
+		}
+	});
 
 	test('background sandbox conflicts are broadcast without disconnecting or claiming the rejected state', async () => {
 		const fixture = setup('create');
