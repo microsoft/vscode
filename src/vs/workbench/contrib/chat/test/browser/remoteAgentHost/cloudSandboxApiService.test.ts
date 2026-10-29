@@ -35,7 +35,7 @@ import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/a
 import { ModelCard } from '../../../browser/widget/input/modelPicker/modelPickerCard.js';
 import { createModelAction } from '../../../browser/widget/input/modelPicker/modelPickerItemPrimitives.js';
 import { getModelConfigSummary } from '../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
-import { ICloudSandboxTelemetryService } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
+import { ICloudSandboxTelemetryService, type ICloudSandboxDiscoveryTelemetryData } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { EnvironmentsClient } from '../../../../../../platform/github/common/missionControl/environmentsClient.js';
 import { ITelemetryService, type ITelemetryData } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -76,6 +76,7 @@ interface ITestSetup {
 	readonly provisioningOutcomes: ProvisioningOutcome[];
 	readonly requestOutcomes: RequestOutcome[];
 	readonly lifecycleEvents: ITelemetryData[];
+	readonly discoveryEvents: ICloudSandboxDiscoveryTelemetryData[];
 	/** Peak number of task-detail fetches in flight at once during the run. */
 	readonly concurrency: { max: number; current: number };
 	changeAuthentication(kind?: 'sessions' | 'register' | 'unregister'): void;
@@ -137,6 +138,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	const provisioningOutcomes: ProvisioningOutcome[] = [];
 	const requestOutcomes: RequestOutcome[] = [];
 	const lifecycleEvents: ITelemetryData[] = [];
+	const discoveryEvents: ICloudSandboxDiscoveryTelemetryData[] = [];
 	const concurrency = { max: 0, current: 0 };
 	const remainingTaskRateLimits = new Map(options.rateLimitedTaskFetches ?? []);
 	let remainingListRateLimits = options.rateLimitedListPages ?? 0;
@@ -240,6 +242,9 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		override reportRequest(...outcome: RequestOutcome): void {
 			requestOutcomes.push(outcome);
 		}
+		override reportDiscovery(data: ICloudSandboxDiscoveryTelemetryData): void {
+			discoveryEvents.push({ ...data });
+		}
 		override reportProvisioningOutcome(...outcome: ProvisioningOutcome): void {
 			provisioningOutcomes.push(outcome);
 		}
@@ -285,6 +290,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		provisioningOutcomes,
 		requestOutcomes,
 		lifecycleEvents,
+		discoveryEvents,
 		concurrency,
 		changeAuthentication: (kind = 'sessions') => {
 			if (kind === 'register') {
@@ -297,6 +303,142 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		},
 	};
 }
+
+suite('CloudSandboxApiService discovery telemetry', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const date = 'Tue, 22 Sep 2026 10:00:00 GMT';
+	const emptyScan = {
+		trigger: 'unknown', requestedMode: 'full', mode: 'full', outcome: 'complete',
+		pageCount: 4, listRequestCount: 4, taskCount: 0, sandboxTaskCount: 0,
+		changedSandboxTaskCount: 0, checkpointAdvanced: true, validDuration: true,
+	};
+	const summarize = ({ durationMs, ...event }: ICloudSandboxDiscoveryTelemetryData) => ({
+		...event, validDuration: Number.isFinite(durationMs) && durationMs >= 0,
+	});
+
+	test('reports checkpoint fallback, unchanged checkpoints and empty targeted reads', async () => {
+		const h = createService(store, { tasks: [], repositories: new Map(), discoveryDate: () => date });
+		await h.service.listSessions(CancellationToken.None, { incremental: true, trigger: 'feedRenewal' });
+		await h.service.listSessions(CancellationToken.None, { incremental: true, trigger: 'poll' });
+		await h.service.listSessions(CancellationToken.None, { taskIds: [], trigger: 'feedChange' });
+		assert.deepStrictEqual(h.discoveryEvents.map(summarize), [
+			{ ...emptyScan, trigger: 'feedRenewal', requestedMode: 'incremental' },
+			{ ...emptyScan, trigger: 'poll', requestedMode: 'incremental', mode: 'incremental', outcome: 'incremental', checkpointAdvanced: false },
+			{ ...emptyScan, trigger: 'feedChange', requestedMode: 'targeted', mode: 'targeted', outcome: 'incremental', pageCount: 0, listRequestCount: 0, checkpointAdvanced: false },
+		]);
+	});
+
+	test('counts returned tasks separately from changed sandbox summaries', async () => {
+		const tasks: ITestTask[] = [
+			task('sandbox', 'Private task name', undefined, 'session', 'environment'),
+			{ ...task('other', 'Other task', undefined, 'other-session', 'other-environment'), compute: { provider: 'other' } },
+		];
+		const h = createService(store, { tasks, repositories: new Map(), discoveryDate: () => date });
+		await h.service.listSessions(CancellationToken.None, { trigger: 'startup' });
+		await h.service.listSessions(CancellationToken.None, { trigger: 'manual' });
+		tasks[0] = { ...tasks[0], name: 'Changed private name' };
+		await h.service.listSessions(CancellationToken.None, { taskIds: ['sandbox', 'sandbox'], trigger: 'feedChange' });
+		assert.deepStrictEqual(h.discoveryEvents.map(summarize), [
+			{ ...emptyScan, trigger: 'startup', taskCount: 2, sandboxTaskCount: 1, changedSandboxTaskCount: 1 },
+			{ ...emptyScan, trigger: 'manual', taskCount: 2, sandboxTaskCount: 1, checkpointAdvanced: false },
+			{ ...emptyScan, trigger: 'feedChange', requestedMode: 'targeted', mode: 'targeted', outcome: 'incremental', pageCount: 0, listRequestCount: 0, taskCount: 1, sandboxTaskCount: 1, changedSandboxTaskCount: 1, checkpointAdvanced: false },
+		]);
+	});
+
+	test('deduplicates returned tasks while counting each successfully parsed page', async () => {
+		const repeated = task('repeated', 'Private task', undefined, 'session', 'environment');
+		const h = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => url.pathname === '/agents/tasks' && url.searchParams.get('with_repo') === 'false' && url.searchParams.get('is_archived') === 'false'
+				? jsonResponse({ tasks: [repeated] }, 200, url.searchParams.get('page') === '1' ? { link: '<?page=2>; rel="next"' } : {})
+				: url.pathname === '/agents/tasks/repeated' ? jsonResponse(repeated) : undefined,
+		});
+		await h.service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual(h.discoveryEvents.map(summarize), [
+			{ ...emptyScan, pageCount: 5, listRequestCount: 5, taskCount: 1, sandboxTaskCount: 1, changedSandboxTaskCount: 1 },
+		]);
+	});
+
+	test('counts rate-limit retries as HTTP attempts, not extra pages', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createService(store, { tasks: [], repositories: new Map(), rateLimitedListPages: 2, retryAfterSeconds: 1 });
+		await h.service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual(h.discoveryEvents.map(summarize), [{ ...emptyScan, listRequestCount: 6 }]);
+	}));
+
+	test('reports detail failures as partial discovery even when all listing requests succeed', async () => {
+		let fail = true;
+		const h = createService(store, {
+			tasks: [task('one', 'One', undefined, 's1', 'e1'), task('two', 'Two', undefined, 's2', 'e2')],
+			repositories: new Map(),
+			onRequest: url => fail && url.pathname === '/agents/tasks/two' ? jsonResponse({}, 503) : undefined,
+		});
+		await h.service.listSessions(CancellationToken.None);
+		fail = false;
+		await h.service.listSessions(CancellationToken.None, { incremental: true });
+		assert.deepStrictEqual(h.discoveryEvents.map(summarize), [
+			{ ...emptyScan, outcome: 'partial', taskCount: 2, sandboxTaskCount: 2, changedSandboxTaskCount: 2, checkpointAdvanced: false },
+			{ ...emptyScan, requestedMode: 'incremental', taskCount: 2, sandboxTaskCount: 2 },
+		]);
+	});
+
+	test('records cancellation with counters for the work already attempted', async () => {
+		const cancellation = store.add(new CancellationTokenSource());
+		const h = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => {
+				if (url.searchParams.get('page') === '2') {
+					cancellation.cancel();
+					throw new CancellationError();
+				}
+				return jsonResponse({ tasks: [] }, 200, { link: '<?page=2>; rel="next"' });
+			},
+		});
+		await assert.rejects(h.service.listSessions(cancellation.token), CancellationError);
+		assert.deepStrictEqual(h.discoveryEvents.map(summarize), [
+			{ ...emptyScan, outcome: 'cancelled', pageCount: 1, listRequestCount: 2, checkpointAdvanced: false },
+		]);
+	});
+
+	test('reports malformed successful HTTP responses as failed discovery', async () => {
+		const h = createService(store, { tasks: [], repositories: new Map(), onRequest: () => jsonResponse({ privateData: 'not a task list' }) });
+		await h.service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual(h.discoveryEvents.map(summarize), [
+			{ ...emptyScan, outcome: 'failed', pageCount: 0, listRequestCount: 1, checkpointAdvanced: false },
+		]);
+	});
+
+	test('does not count HTTP attempts when authentication prevents discovery', async () => {
+		const h = createService(store, { tasks: [], repositories: new Map(), authenticationSessions: async () => [] });
+		await h.service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual(h.discoveryEvents.map(summarize), [
+			{ ...emptyScan, outcome: 'failed', pageCount: 0, listRequestCount: 0, checkpointAdvanced: false },
+		]);
+	});
+
+	test('concurrent targeted and inventory reads retain separate counters', async () => {
+		const entered = new DeferredPromise<void>();
+		const pending = new DeferredPromise<void>();
+		const h = createService(store, {
+			tasks: [task('one', 'One', undefined, 's1', 'e1')], repositories: new Map(), discoveryDate: () => date,
+			onRequest: async url => {
+				if (url.pathname === '/agents/tasks' && !entered.isSettled) {
+					await entered.complete();
+					await pending.p;
+				}
+				return undefined;
+			},
+		});
+		const inventory = h.service.listSessions(CancellationToken.None, { trigger: 'startup' });
+		await entered.p;
+		await h.service.listSessions(CancellationToken.None, { taskIds: ['one'], trigger: 'feedChange' });
+		await pending.complete();
+		await inventory;
+		assert.deepStrictEqual(h.discoveryEvents.map(summarize), [
+			{ ...emptyScan, trigger: 'feedChange', requestedMode: 'targeted', mode: 'targeted', outcome: 'incremental', pageCount: 0, listRequestCount: 0, taskCount: 1, sandboxTaskCount: 1, changedSandboxTaskCount: 1, checkpointAdvanced: false },
+			{ ...emptyScan, trigger: 'startup', taskCount: 1, sandboxTaskCount: 1, changedSandboxTaskCount: 1 },
+		]);
+	});
+});
 
 suite('CloudSandboxApiService identity credentials', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -4104,6 +4246,7 @@ function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
 		override readonly lifecycle = new CloudSandboxLifecycleTelemetry(NullTelemetryService);
 		override reportRequest(): void { }
+		override reportDiscovery(): void { }
 		override reportProvisioningOutcome(): void { }
 	}());
 	instantiationService.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() { }());
