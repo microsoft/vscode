@@ -6893,6 +6893,42 @@ suite('Sessions - SessionsList', () => {
 			return drag(source, target, container);
 		}
 
+		test('does not advertise a drop target for a revealed workspace outside the reorderable order', () => {
+			const now = Date.now();
+			const recent = createTestSession('Recent', {
+				workspaceLabel: 'Active',
+				createdAt: new Date(now),
+				updatedAt: new Date(now),
+			}).session;
+			const oldA = createTestSession('Old A', {
+				workspaceLabel: 'Old A',
+				createdAt: new Date(now - 10 * 24 * 60 * 60_000),
+			}).session;
+			const oldB = createTestSession('Old B', {
+				workspaceLabel: 'Old B',
+				createdAt: new Date(now - 11 * 24 * 60 * 60_000),
+			}).session;
+			const harness = createListHarness(disposables, [recent, oldA, oldB]);
+			const container = harness.createContainer();
+			harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			})).layout(300, 400);
+
+			const more = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+				.find(row => row.querySelector('.session-show-more-label')?.textContent === '+2 more folders');
+			assert.ok(more);
+			clickRow(more);
+
+			const highlighted = drag(sectionRow(container, 'Active'), sectionRow(container, 'Old A'), container);
+
+			assert.deepStrictEqual({ highlighted, sectionReorders: harness.sectionReorders }, {
+				highlighted: [],
+				sectionReorders: [],
+			});
+		});
+
 		suite('dragging a grouped session out of its group', () => {
 			const group: ISessionGroup = { id: 'group-1', name: 'My Group', createdAt: 1 };
 

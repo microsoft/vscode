@@ -7085,6 +7085,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			const parentId = this.getSectionParentId(target.id);
 			const position = sectorToPosition(sector);
+			if (parentId === undefined && isSessionGroupingSection(target.id) && !this._topLevelOrder.includes(target.id)) {
+				return undefined;
+			}
 			return parentId === undefined
 				? { kind: 'topLevel', targetId: target.id, position }
 				: canNestIn(parentId)
