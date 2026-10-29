@@ -1554,6 +1554,39 @@ suite('Sessions - ChatCompositeBar', () => {
 		});
 	});
 
+	test('rename input lets clipboard and editing shortcuts reach the workbench keybinding dispatcher without driving the tab', () => {
+		const { container, sessionsService, tabs } = createHarness(disposables);
+		const bubbled: string[] = [];
+		container.addEventListener(EventType.KEY_DOWN, e => bubbled.push(e.code));
+		tabs[1].dispatchEvent(new MouseEvent(EventType.DBLCLICK, { bubbles: true, button: 0, cancelable: true }));
+		const input = tabs[1].querySelector<HTMLInputElement>('.chat-composite-bar-tab-input input')!;
+		const openedBefore = sessionsService.openedChats.length;
+
+		for (const code of ['KeyV', 'KeyC', 'KeyX', 'KeyA', 'KeyZ']) {
+			input.dispatchEvent(new KeyboardEvent(EventType.KEY_DOWN, { code, key: code.slice(-1).toLowerCase(), ctrlKey: true, metaKey: true, bubbles: true, cancelable: true }));
+		}
+		const typingDefaultPrevented: boolean[] = [];
+		for (const [code, key, keyCode] of [['Space', ' ', 32], ['ArrowLeft', 'ArrowLeft', 37], ['Home', 'Home', 36]] as const) {
+			const keyDown = new KeyboardEvent(EventType.KEY_DOWN, { code, key, keyCode, bubbles: true, cancelable: true });
+			const keyUp = new KeyboardEvent(EventType.KEY_UP, { code, key, keyCode, bubbles: true, cancelable: true });
+			input.dispatchEvent(keyDown);
+			input.dispatchEvent(keyUp);
+			typingDefaultPrevented.push(keyDown.defaultPrevented || keyUp.defaultPrevented);
+		}
+
+		assert.deepStrictEqual({
+			bubbled,
+			typingDefaultPrevented,
+			openedChatsDuringRename: sessionsService.openedChats.length - openedBefore,
+			stillEditing: tabs[1].querySelector('.chat-composite-bar-tab-input input') === input,
+		}, {
+			bubbled: ['KeyV', 'KeyC', 'KeyX', 'KeyA', 'KeyZ', 'Space', 'ArrowLeft', 'Home'],
+			typingDefaultPrevented: [false, false, false],
+			openedChatsDuringRename: 0,
+			stillEditing: true,
+		});
+	});
+
 	// Regression: a chat-tab drag must carry its group-move payload on the
 	// `dataTransfer` (readable by the chat-groups drop target), not on the shared
 	// LocalSelectionTransfer singleton. The singleton is also used by the
