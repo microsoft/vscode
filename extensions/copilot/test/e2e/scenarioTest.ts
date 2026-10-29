@@ -67,7 +67,6 @@ export function generateScenarioTestRunner(scenario: Scenario, evaluator: Scenar
 			for (let i = 0; i < scenario.length; i++) {
 				const testCase = scenario[i];
 				simulationWorkspace.resetFromDeserializedWorkspaceState(testCase.getState?.());
-				await testCase.setupCase?.(accessor, simulationWorkspace);
 				const mockProgressReporter = new SpyChatResponseStream();
 				log(`> Query "${testCase.question}"\n`);
 

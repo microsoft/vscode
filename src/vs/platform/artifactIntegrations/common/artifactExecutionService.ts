@@ -16,7 +16,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { ArtifactAction, ArtifactActionRejectedError, ArtifactActor, ArtifactAutomationOption, ArtifactAutomationRequest, ArtifactContributionView, ArtifactDetails, ArtifactRecord, ArtifactRequestPresentation, ArtifactRun, IArtifactActionContext, IArtifactIntegrationBinding, artifactOptionDisabledValue, getArtifactActionAvailability, getArtifactRunInitiator, isArtifactOptionEnabled, isArtifactRunSettled } from './artifactIntegration.js';
+import { ArtifactAction, ArtifactActionRejectedError, ArtifactActor, ArtifactJsonValue, ArtifactAutomationOption, ArtifactAutomationRequest, ArtifactContributionView, ArtifactDetails, ArtifactRecord, ArtifactRequestPresentation, ArtifactRun, IArtifactActionContext, IArtifactIntegrationBinding, artifactOptionDisabledValue, getArtifactActionAvailability, getArtifactRunInitiator, isArtifactOptionEnabled, isArtifactRunSettled } from './artifactIntegration.js';
 import { artifactActionConsent, artifactOptionConsent } from './artifactAutomationConfiguration.js';
 import { ArtifactConfigurationConflictError, ArtifactIntegrationState, ArtifactIntegrationStore, ArtifactRetryLimitError, ArtifactStoredBinding } from './artifactIntegrationStore.js';
 import { isArtifactJsonValue } from './artifactIntegrationValidation.js';
@@ -118,21 +118,27 @@ export class ArtifactExecutionService extends Disposable {
 		}
 	}
 
-	async invoke(bindingId: string, actionId: string, chat: string, requestId: string, actor: ArtifactActor = { kind: 'user' }): Promise<ArtifactRun> {
+	async invoke(bindingId: string, actionId: string, chat: string, requestId: string, actor: ArtifactActor = { kind: 'user' }, input?: ArtifactJsonValue): Promise<ArtifactRun> {
 		if (!chat.trim() || !requestId.trim()) {
 			throw new Error('An invoking chat and request ID are required');
+		}
+		if (input !== undefined && !isArtifactJsonValue(input)) {
+			throw new Error('Invalid artifact action input');
 		}
 		const binding = this.requireBinding(bindingId);
 		const run = await this.ledger.transact(state => {
 			const existing = state.runs.find(run => run.bindingId === bindingId && run.source === 'manual' && run.requestId === requestId);
 			if (existing) {
-				if (existing.actionId !== actionId || existing.chat !== chat) {
+				if (existing.actionId !== actionId || existing.chat !== chat || !structuralEquals(existing.input, input)) {
 					throw new Error('Artifact action request ID was reused with different arguments');
 				}
 				return existing;
 			}
 			const action = this.requireAction(binding, actionId, true, chat);
-			const run: ArtifactRun = { ...this.newRun(binding, action, requestId, 'manual', action.label, chat), requestedBy: actor };
+			const run: ArtifactRun = {
+				...this.newRun(binding, action, requestId, 'manual', action.label, chat), requestedBy: actor,
+				...input === undefined ? {} : { input: deepClone(input) },
+			};
 			state.runs.push(run);
 			return run;
 		});

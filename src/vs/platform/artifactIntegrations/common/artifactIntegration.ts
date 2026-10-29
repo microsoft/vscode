@@ -124,6 +124,18 @@ export interface ArtifactItemActionDescriptor {
 	readonly id: string;
 	readonly iconId: string;
 	readonly label: string;
+	/**
+	 * Runs the integration's registered action with this ID for the item, with {@link ArtifactItemActionInput} as its input,
+	 * instead of {@link IArtifactDetailsModel.runItemAction}. The registered action must be offered and enabled.
+	 */
+	readonly actionId?: string;
+}
+
+/** The input of a registered action that runs for one details item. */
+export interface ArtifactItemActionInput {
+	readonly [key: string]: string;
+	readonly detailsId: string;
+	readonly itemId: string;
 }
 
 export interface ArtifactDetailsItem {
@@ -449,8 +461,11 @@ export interface IArtifactModel {
 	requestAuthentication(integrationId: string): Promise<ArtifactAuthenticationRequest | undefined>;
 	/** `actor` defaults to the user; agents pass their chat and turn so consent records who asked. */
 	configure(integrationId: string, expectedRevision: number, values: Readonly<Record<string, boolean | string>>, actor?: ArtifactActor): Promise<void>;
-	/** `actor` defaults to the user; agents pass their chat and turn so the run records who asked. */
-	invoke(integrationId: string, actionId: string, chat: string, requestId: string, actor?: ArtifactActor): Promise<ArtifactRun>;
+	/**
+	 * `actor` defaults to the user; agents pass their chat and turn so the run records who asked. `input` is passed to the action,
+	 * for example the details item it runs for.
+	 */
+	invoke(integrationId: string, actionId: string, chat: string, requestId: string, actor?: ArtifactActor, input?: ArtifactJsonValue): Promise<ArtifactRun>;
 	cancel(runId: string): Promise<void>;
 	reconcile(runId: string): Promise<void>;
 	/** Newest first. The optional cursor is the preceding page's last run ID; page size is 1-200. */
