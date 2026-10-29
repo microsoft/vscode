@@ -14226,7 +14226,8 @@ suite('CopilotAgentSession', () => {
 					workingDirectory: URI.file('/workspace'),
 					rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
 				});
-				const native = (uri: URI) => platform === 'win32' ? uri.fsPath.replace(/\//g, '\\') : uri.fsPath;
+				// The session's platform decides the path syntax, not the OS running the test.
+				const native = (uri: URI) => platform === 'win32' ? uri.path.replace(/\//g, '\\') : uri.path;
 				const resource = (uri: URI, displayKind: string): MessageAttachment => ({ type: MessageAttachmentKind.Resource, uri: uri.toString(), label: uri.path.split('/').pop() ?? '', displayKind });
 				const readonlyPaths = () => (mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined)?.userPolicy?.filesystem?.readonlyPaths;
 				const desktopFile = URI.file('/home/u/Desktop/mockup.txt');
@@ -14264,7 +14265,7 @@ suite('CopilotAgentSession', () => {
 					rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
 				});
 				const desktopFile = URI.file('/home/u/Desktop/mockup.txt');
-				const nativePath = platform === 'win32' ? desktopFile.fsPath.replace(/\//g, '\\') : desktopFile.fsPath;
+				const nativePath = platform === 'win32' ? desktopFile.path.replace(/\//g, '\\') : desktopFile.path;
 
 				await session.send('summarize', [{ type: MessageAttachmentKind.Resource, uri: desktopFile.toString(), label: 'mockup.txt', displayKind: 'file' }], 'turn-1');
 				const additionalContext = session.handleUserPromptSubmitted()?.additionalContext ?? '';

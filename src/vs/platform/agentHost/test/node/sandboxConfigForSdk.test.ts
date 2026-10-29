@@ -14,7 +14,7 @@ import { MessageAttachmentKind, type MessageAttachment } from '../../common/stat
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
 import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
 import { AgentSandboxEnabledValue, type IAgentSandboxUserConfiguredPaths } from '../../../sandbox/common/settings.js';
-import { buildSandboxConfigForSdk, resolveAttachedPathGrants, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
+import { buildSandboxConfigForSdk, resolveAttachedPathGrants, toSandboxFileSystemPath, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
 
 suite('VS Code sandbox read roots', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -594,6 +594,23 @@ suite('getAttachedLocalPaths', () => {
 			{ type: MessageAttachmentKind.EmbeddedResource, data: 'aGk=', contentType: 'text/plain', label: 'inline' },
 			{ type: MessageAttachmentKind.Simple, label: 'simple', modelRepresentation: 'text' },
 		];
-		assert.deepStrictEqual(getAttachedLocalPaths(attachments), [file.fsPath, folder.fsPath, file.fsPath, URI.file('/home/u/wrapped.txt').fsPath]);
+		assert.deepStrictEqual(getAttachedLocalPaths(attachments).map(uri => uri.toString()), [file, folder, file, URI.file('/home/u/wrapped.txt')].map(uri => uri.toString()));
+	});
+});
+
+suite('toSandboxFileSystemPath', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the target platform syntax regardless of the host OS', () => {
+		const uris = [
+			URI.from({ scheme: 'file', path: '/home/u/Desktop/mockup.txt' }),
+			URI.from({ scheme: 'file', path: '/C:/Users/u/notes' }),
+			URI.from({ scheme: 'file', authority: 'server', path: '/share/a.txt' }),
+		];
+		assert.deepStrictEqual((['linux', 'darwin', 'win32'] as const).map(platform => uris.map(uri => toSandboxFileSystemPath(uri, platform))), [
+			['/home/u/Desktop/mockup.txt', 'c:/Users/u/notes', '//server/share/a.txt'],
+			['/home/u/Desktop/mockup.txt', 'c:/Users/u/notes', '//server/share/a.txt'],
+			['\\home\\u\\Desktop\\mockup.txt', 'c:\\Users\\u\\notes', '\\\\server\\share\\a.txt'],
+		]);
 	});
 });

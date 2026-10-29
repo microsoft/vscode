@@ -34,7 +34,7 @@ import { CopilotSandboxDiagnostics } from './copilotSandboxDiagnostics.js';
 import { CopilotSandboxCertificateDiagnostics } from './copilotSandboxCertificateDiagnostics.js';
 import { applySandboxConfig } from './copilotSessionLauncher.js';
 import type { ShellManager } from './copilotShellTools.js';
-import { buildSandboxConfigForSdk, resolveAttachedPathGrants, type ISandboxAttachedPaths, type SandboxConfig } from './sandboxConfigForSdk.js';
+import { buildSandboxConfigForSdk, resolveAttachedPathGrants, toSandboxFileSystemPath, type ISandboxAttachedPaths, type SandboxConfig } from './sandboxConfigForSdk.js';
 
 /** A config change of the chat this SDK session runs. */
 interface ISandboxConfigChange {
@@ -70,8 +70,8 @@ interface ICopilotSessionSandboxOptions {
 export class CopilotSessionSandbox extends Disposable {
 	private readonly _requests = new Map<string, string>();
 	private readonly _pendingPathGrants = new Map<string, ISandboxPathGrant>();
-	/** Local paths of files and folders the user attached to this chat; read-only for the life of the SDK session, never saved to settings. */
-	private readonly _attachedPaths = new Set<string>();
+	/** Local files and folders the user attached to this chat, by URI; read-only for the life of the SDK session, never saved to settings. */
+	private readonly _attachedPaths = new Map<string, URI>();
 	private readonly _configSequencer = new Sequencer();
 	private readonly _diagnostics: CopilotSandboxDiagnostics;
 	private readonly _certificateDiagnostics: CopilotSandboxCertificateDiagnostics;
@@ -188,8 +188,8 @@ export class CopilotSessionSandbox extends Disposable {
 	 */
 	addAttachments(attachments: readonly MessageAttachment[] | undefined): boolean {
 		const size = this._attachedPaths.size;
-		for (const path of getAttachedLocalPaths(attachments)) {
-			this._attachedPaths.add(path);
+		for (const uri of getAttachedLocalPaths(attachments)) {
+			this._attachedPaths.set(uri.toString(), uri);
 		}
 		return this._attachedPaths.size !== size;
 	}
@@ -206,8 +206,13 @@ export class CopilotSessionSandbox extends Disposable {
 		return resolveAttachedPathGrants(this._options.platform, sandbox, policy, this._attachedPathsFor(paths)).blocked;
 	}
 
-	private _attachedPathsFor(paths: readonly string[]): ISandboxAttachedPaths {
-		return { paths, workingDirectory: this._options.getWorkingDirectory()?.fsPath };
+	/** Uses the session's platform rather than `URI.fsPath`, whose syntax follows the OS of the current process. */
+	private _attachedPathsFor(uris: readonly URI[]): ISandboxAttachedPaths {
+		const workingDirectory = this._options.getWorkingDirectory();
+		return {
+			paths: uris.map(uri => toSandboxFileSystemPath(uri, this._options.platform)),
+			...(workingDirectory ? { workingDirectory: toSandboxFileSystemPath(workingDirectory, this._options.platform) } : {}),
+		};
 	}
 
 	/** Whether the Agent Host's own shell tools replace the SDK's built-in shell. */
@@ -284,7 +289,7 @@ export class CopilotSessionSandbox extends Disposable {
 				.map(scope => this._sessionDataService.getSessionDataDir(URI.parse(scope))),
 			shellInitDirectory: this._options.getShellInitDirectory(),
 		}), ...this._options.getAppliedPluginDirectories()].map(root => root.fsPath);
-		return buildSandboxConfigForSdk(this._options.platform, sandbox, readonlyPaths, policy, this._attachedPathsFor([...this._attachedPaths]));
+		return buildSandboxConfigForSdk(this._options.platform, sandbox, readonlyPaths, policy, this._attachedPathsFor([...this._attachedPaths.values()]));
 	}
 
 	updateDiagnostics(config?: SandboxConfig): Promise<void> {

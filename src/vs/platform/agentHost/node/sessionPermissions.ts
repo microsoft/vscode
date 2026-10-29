@@ -424,7 +424,8 @@ export class SessionPermissionManager extends Disposable {
 		}
 		const chat = this._stateManager.getChatState(sessionOrChat);
 		const messages = [...chat?.turns ?? [], ...chat?.activeTurn ? [chat.activeTurn] : []].map(turn => turn.message);
-		return [...new Set(messages.flatMap(message => getAttachedLocalPaths(message.attachments)))].map(path => URI.file(path));
+		const attached = new Map(messages.flatMap(message => getAttachedLocalPaths(message.attachments)).map(uri => [uri.toString(), uri]));
+		return [...attached.values()];
 	}
 
 	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this shell event. */

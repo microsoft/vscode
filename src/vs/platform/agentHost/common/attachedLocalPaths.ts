@@ -10,14 +10,14 @@ import { isHostSnapshotAttachment } from './meta/agentSnapshotAttachmentMeta.js'
 import { MessageAttachmentKind, type MessageAttachment } from './state/protocol/state.js';
 
 /**
- * The Agent Host-local paths of the files and folders a user message attaches:
+ * The Agent Host-local `file` URIs of the files and folders a user message attaches:
  * the exact file, or the folder itself for a directory. Host-created snapshots
  * (already readable from the session data folder), embedded content, and
  * non-`file` resources are ignored. A client-wrapped `vscode-agent-host` URI is
  * unwrapped to the host URI it stands for.
  */
-export function getAttachedLocalPaths(attachments: readonly MessageAttachment[] | undefined): string[] {
-	const paths: string[] = [];
+export function getAttachedLocalPaths(attachments: readonly MessageAttachment[] | undefined): URI[] {
+	const paths: URI[] = [];
 	for (const attachment of attachments ?? []) {
 		if (attachment.type !== MessageAttachmentKind.Resource || isHostSnapshotAttachment(attachment)) {
 			continue;
@@ -32,7 +32,7 @@ export function getAttachedLocalPaths(attachments: readonly MessageAttachment[] 
 			uri = fromAgentHostUri(uri);
 		}
 		if (uri.scheme === Schemas.file && uri.path.length > 1) {
-			paths.push(uri.fsPath);
+			paths.push(uri);
 		}
 	}
 	return paths;

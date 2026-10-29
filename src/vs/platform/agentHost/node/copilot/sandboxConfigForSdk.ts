@@ -5,6 +5,7 @@
 
 import { homedir } from 'os';
 import { OperatingSystem } from '../../../../base/common/platform.js';
+import type { URI } from '../../../../base/common/uri.js';
 import { AgentSandboxEnabledValue, type IAgentSandboxMaskedCredentials, normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
 import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
 import type { ISessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
@@ -312,4 +313,22 @@ function isEqualOrInside(path: string, root: string, os: OperatingSystem): boole
 	const p = normalize(path);
 	const r = normalize(root);
 	return p === r || p.startsWith(r.endsWith(separator) ? r : r + separator);
+}
+
+/**
+ * The file system path of a `file` URI in `platform`'s syntax, matching what
+ * `URI.fsPath` returns when the process runs on that platform. Sandbox paths are
+ * compared with `platform`'s rules, so they must not take their syntax from the
+ * process's OS through `URI.fsPath`.
+ */
+export function toSandboxFileSystemPath(uri: URI, platform: NodeJS.Platform): string {
+	let path: string;
+	if (uri.authority && uri.path.length > 1) {
+		path = `//${uri.authority}${uri.path}`;
+	} else if (/^\/[a-zA-Z]:/.test(uri.path)) {
+		path = uri.path[1].toLowerCase() + uri.path.slice(2);
+	} else {
+		path = uri.path;
+	}
+	return platform === 'win32' ? path.replace(/\//g, '\\') : path;
 }
