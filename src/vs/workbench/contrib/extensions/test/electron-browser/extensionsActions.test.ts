@@ -916,6 +916,28 @@ suite('ExtensionsActions', () => {
 			});
 	});
 
+	test('Test DisableDropDownAction when extension is enabled for workspace and disabled globally', async () => {
+		const local = aLocalExtension('a');
+		instantiationService.stub(IExtensionService, {
+			extensions: [toExtensionDescription(local)],
+			onDidChangeExtensions: Event.None,
+			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
+		});
+
+		const extensionEnablementService = instantiationService.get(IWorkbenchExtensionEnablementService);
+		await extensionEnablementService.setEnablement([local], EnablementState.DisabledGlobally);
+		await extensionEnablementService.setEnablement([local], EnablementState.EnabledWorkspace);
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+
+		const extensions = await instantiationService.get(IExtensionsWorkbenchService).queryLocal();
+		const testObject: ExtensionsActions.DisableDropDownAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableDropDownAction));
+		testObject.extension = extensions[0];
+
+		assert.ok(testObject.enabled);
+		assert.strictEqual(testObject.label, 'Disable (Workspace)');
+		assert.strictEqual(testObject.menuActions.length, 0);
+	});
+
 	test('Test DisableGloballyAction when extension is uninstalled', () => {
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
