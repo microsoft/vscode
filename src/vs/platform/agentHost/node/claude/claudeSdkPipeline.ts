@@ -261,12 +261,12 @@ export class ClaudeSdkPipeline extends Disposable {
 			ClaudePromptQueue,
 			sessionId,
 			() => this._abortController.signal,
-			(pendingId: string) => this._onDidProduceSignal.fire({
-				kind: 'steering_consumed',
-				chat: this.chatChannelUri,
-				id: pendingId,
-			}),
 		));
+		this._register(this._queue.onDidYieldSteering(pendingId => this._onDidProduceSignal.fire({
+			kind: 'steering_consumed',
+			chat: this.chatChannelUri,
+			id: pendingId,
+		})));
 		this._router = this._register(instantiationService.createInstance(
 			ClaudeSdkMessageRouter, chatChannelUri, owner, resource, dbRef, subagents, clientTools,
 		));

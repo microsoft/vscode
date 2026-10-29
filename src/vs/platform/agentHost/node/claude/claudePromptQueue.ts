@@ -5,6 +5,7 @@
 
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -49,6 +50,9 @@ export interface IPendingSdkMessage {
  */
 export class ClaudePromptQueue extends Disposable {
 
+	private readonly _onDidYieldSteering = this._register(new Emitter<string>());
+	readonly onDidYieldSteering = this._onDidYieldSteering.event;
+
 	private _toYield: IPendingSdkMessage[] = [];
 	private _yielded: IPendingSdkMessage[] = [];
 	/**
@@ -73,7 +77,7 @@ export class ClaudePromptQueue extends Disposable {
 						this._yielded.push(entry);
 						this._logService.info(`[Claude:${this._sessionId}] queue yielded sdkUuid=${entry.sdkUuid} turnId=${entry.turnId}${entry.steeringPendingId ? ` steeringPendingId=${entry.steeringPendingId}` : ''}`);
 						if (entry.steeringPendingId) {
-							this._onSteeringYielded(entry.steeringPendingId);
+							this._onDidYieldSteering.fire(entry.steeringPendingId);
 						}
 						return { done: false, value: entry.sdkMessage };
 					}
@@ -87,7 +91,6 @@ export class ClaudePromptQueue extends Disposable {
 	constructor(
 		private readonly _sessionId: string,
 		private readonly _getAbortSignal: () => AbortSignal,
-		private readonly _onSteeringYielded: (pendingId: string) => void,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();

@@ -30,8 +30,8 @@ function createQueue(disposables: Pick<DisposableStore, 'add'>): IQueueHarness {
 		ClaudePromptQueue,
 		'sess-1',
 		() => controller.signal,
-		(id: string) => steeringYielded.push(id),
 	));
+	disposables.add(queue.onDidYieldSteering(id => steeringYielded.push(id)));
 	return { queue, controller, steeringYielded };
 }
 
@@ -176,7 +176,7 @@ suite('ClaudePromptQueue', () => {
 		assert.strictEqual(queue.peekParent(), undefined);
 	});
 
-	test('steering callback fires when an entry with steeringPendingId is YIELDED, not when it is pushed', async () => {
+	test('steering event fires when an entry with steeringPendingId is YIELDED, not when it is pushed', async () => {
 		const { queue, steeringYielded } = createQueue(disposables);
 		const iter = queue.iterable[Symbol.asyncIterator]();
 		const e = makeEntry('s1', { steeringPendingId: 'pending-42' });
@@ -186,12 +186,50 @@ suite('ClaudePromptQueue', () => {
 		assert.deepStrictEqual(steeringYielded, ['pending-42'], 'fires on yield');
 	});
 
-	test('non-steering entries do not fire the steering callback', async () => {
+	test('non-steering entries do not fire the steering event', async () => {
 		const { queue, steeringYielded } = createQueue(disposables);
 		const iter = queue.iterable[Symbol.asyncIterator]();
 		void queue.push(makeEntry('plain'));
 		await drainOne(iter);
 		assert.deepStrictEqual(steeringYielded, []);
+	});
+
+	test('steering listeners observe the yielded entry and can settle it reentrantly', async () => {
+		const { queue } = createQueue(disposables);
+		const notifications: { id: string; parent: string | undefined; empty: boolean }[] = [];
+		disposables.add(queue.onDidYieldSteering(id => {
+			notifications.push({ id, parent: queue.peekParent()?.sdkUuid, empty: queue.isEmpty });
+			queue.settleHead();
+		}));
+		const sent = queue.push(makeEntry('steering', { steeringPendingId: 'pending-1' }));
+		const yielded = await drainOne(queue.iterable[Symbol.asyncIterator]());
+		await sent;
+		assert.deepStrictEqual({ notifications, yielded: yielded?.uuid, empty: queue.isEmpty }, {
+			notifications: [{ id: 'pending-1', parent: 'steering', empty: false }],
+			yielded: makeUuid('steering'),
+			empty: true,
+		});
+	});
+
+	test('a steering listener can unsubscribe during emission without affecting other subscribers', async () => {
+		const { queue, steeringYielded } = createQueue(disposables);
+		const notifications: string[] = [];
+		const subscriptions = disposables.add(new DisposableStore());
+		const listener = subscriptions.add(queue.onDidYieldSteering(id => {
+			notifications.push(id);
+			subscriptions.delete(listener);
+		}));
+		const iterator = queue.iterable[Symbol.asyncIterator]();
+		for (const id of ['first', 'second']) {
+			const sent = queue.push(makeEntry(id, { steeringPendingId: id }));
+			await drainOne(iterator);
+			queue.settleHead();
+			await sent;
+		}
+		assert.deepStrictEqual({ notifications, steeringYielded }, {
+			notifications: ['first'],
+			steeringYielded: ['first', 'second'],
+		});
 	});
 
 	test('settleHead on an empty yielded list returns undefined and is a no-op', () => {
@@ -206,7 +244,7 @@ suite('ClaudePromptQueue', () => {
 		const services = new ServiceCollection([ILogService, new NullLogService()]);
 		const inst = disposables.add(new InstantiationService(services));
 		const q = disposables.add(inst.createInstance(
-			ClaudePromptQueue, 'sess-reset', () => liveController.signal, () => { /* no steering */ },
+			ClaudePromptQueue, 'sess-reset', () => liveController.signal,
 		));
 
 		// Park next() on the original deferred.
