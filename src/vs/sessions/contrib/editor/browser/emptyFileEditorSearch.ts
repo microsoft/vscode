@@ -337,8 +337,14 @@ export class EmptyFileEditorSearch extends Disposable {
 				if (!path) {
 					continue;
 				}
-				const isExcluded = !current.excludes.isExcepted(path, child.name) && (current.isExcluded || typeof current.excludes.matchesExclude(path, child.name, hasSibling) === 'string');
-				if (isExcluded && !(child.isDirectory && current.excludes.couldExceptionMatchBeneath(path))) {
+				const { isExcluded, isVisited } = glob.evaluateExcludeTreeEntry(current.excludes, {
+					path,
+					basename: child.name,
+					isDirectory: child.isDirectory,
+					isParentExcluded: current.isExcluded,
+					hasSibling,
+				});
+				if (!isVisited) {
 					continue;
 				}
 				if (visitedEntries >= MAX_VIRTUAL_WORKSPACE_ENTRIES) {

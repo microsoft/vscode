@@ -1671,11 +1671,6 @@ class SettingBoolObjectRenderer extends AbstractSettingObjectRenderer implements
 	}
 }
 
-/**
- * Exclude settings whose `!`-prefixed keys are exceptions rather than literal patterns.
- */
-const EXCLUDE_SETTINGS_WITH_EXCEPTIONS = new Set(['files.exclude', 'search.exclude']);
-
 abstract class SettingIncludeExcludeRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingIncludeExcludeItemTemplate> {
 
 	protected abstract isExclude(): boolean;
@@ -1750,10 +1745,7 @@ abstract class SettingIncludeExcludeRenderer extends AbstractSettingRenderer imp
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingIncludeExcludeItemTemplate, onChange: (value: string) => void): void {
 		const value = getIncludeExcludeDisplayValue(dataElement);
-		template.includeExcludeWidget.setValue(value, {
-			isReadOnly: dataElement.hasPolicyValue || dataElement.isAgentsWindowReadOnly,
-			showAddExceptionButton: EXCLUDE_SETTINGS_WITH_EXCEPTIONS.has(dataElement.setting.key)
-		});
+		template.includeExcludeWidget.setValue(value, { isReadOnly: dataElement.hasPolicyValue || dataElement.isAgentsWindowReadOnly });
 		template.context = dataElement;
 		template.elementDisposables.add(toDisposable(() => {
 			template.includeExcludeWidget.cancelEdit();

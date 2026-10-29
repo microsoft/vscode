@@ -263,11 +263,15 @@ class FileSearchEngine {
 				// If the user searches for the exact file name, we adjust the glob matching
 				// to ignore filtering by siblings because the user seems to know what they
 				// are searching for and we want to include the result in that case anyway
-				const isExcluded = isParentExcluded ?
-					!queryTester.isExcepted(relativePath, basename) :
-					queryTester.matchesExcludesSync(relativePath, basename, !strings.equals(filePattern, basename, ignoreGlobCase) ? hasSibling : undefined);
 				const sub = pathToEntries[relativePath];
-				if (isExcluded && !(sub && queryTester.couldExceptionMatchBeneath(relativePath))) {
+				const { isExcluded, isVisited } = glob.evaluateExcludeTreeEntry(queryTester, {
+					path: relativePath,
+					basename,
+					isDirectory: !!sub,
+					isParentExcluded,
+					hasSibling: !strings.equals(filePattern, basename, ignoreGlobCase) ? hasSibling : undefined,
+				});
+				if (!isVisited) {
 					continue;
 				}
 

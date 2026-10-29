@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { normalize } from '../../../../../base/common/path.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2, fixNewline, getRgArgs, performBraceExpansionForRipgrep } from '../../node/ripgrepTextSearchEngine.js';
+import { fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2, fixNewline, getRgArgs, performBraceExpansionForRipgrep, getExcludeExceptionGlobs } from '../../node/ripgrepTextSearchEngine.js';
 import { Range, TextSearchMatch2, TextSearchQuery2, TextSearchResult2 } from '../../common/searchExtTypes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { RipgrepTextSearchOptions } from '../../common/searchExtTypesInternal.js';
@@ -384,13 +383,18 @@ suite('RipgrepTextSearchEngine', () => {
 				maxResults: 1000,
 			};
 
-			assert.deepStrictEqual(getRgArgs({ pattern: 'test' }, options, { root: 'node_modules/@types', globs: ['node_modules/@types', 'node_modules/@types/**'], skippedFolders: ['.git'] }), [
+			assert.deepStrictEqual(getRgArgs({ pattern: 'test' }, options, ['node_modules/@types']), [
 				'--hidden',
 				'--no-require-git',
 				'--ignore-case',
-				'-g', '!**/.git',
+				'-g', '!*',
+				'-g', '/node_modules',
 				'-g', '/node_modules/@types',
 				'-g', '/node_modules/@types/**',
+				'-g', '!**/.git',
+				'-g', '!**/.svn',
+				'-g', '!**/.hg',
+				'-g', '!**/.jj',
 				'--no-ignore',
 				'--crlf',
 				'--fixed-strings',
@@ -399,8 +403,20 @@ suite('RipgrepTextSearchEngine', () => {
 				'--json',
 				'--',
 				'test',
-				normalize('node_modules/@types')
+				'.'
 			]);
+		});
+
+		test('exclude exception globs', () => {
+			assert.deepStrictEqual({
+				anchored: getExcludeExceptionGlobs(['node_modules/{@types,typescript}', 'gulpfile.js']),
+				unanchored: getExcludeExceptionGlobs(['**/Scripts']),
+				versionControl: getExcludeExceptionGlobs(['.git/hooks']),
+			}, {
+				anchored: ['!*', '/node_modules', '/node_modules/@types', '/node_modules/@types/**', '/node_modules', '/node_modules/typescript', '/node_modules/typescript/**', '/gulpfile.js', '/gulpfile.js/**', '!**/.git', '!**/.svn', '!**/.hg', '!**/.jj'],
+				unanchored: ['!*', '**', '**/Scripts', '**/Scripts/**', '!**/.git', '!**/.svn', '!**/.hg', '!**/.jj'],
+				versionControl: ['!*', '/.git', '/.git/hooks', '/.git/hooks/**', '!**/.svn', '!**/.hg', '!**/.jj'],
+			});
 		});
 	});
 

@@ -48,16 +48,6 @@ import { IUserDataProfileService } from '../../../services/userDataProfile/commo
 import { EXPERIMENTAL_INDICATOR_DESCRIPTION, PREVIEW_INDICATOR_DESCRIPTION } from '../common/preferences.js';
 import { mcpConfigurationSection } from '../../mcp/common/mcpConfiguration.js';
 import { McpCommandIds } from '../../mcp/common/mcpCommandIds.js';
-import { getExcludeExceptions, IExpression, isExcludeException } from '../../../../base/common/glob.js';
-import { parseTree } from '../../../../base/common/json.js';
-
-/**
- * Exclude settings that support `!`-prefixed exceptions, with the settings whose patterns they inherit.
- */
-const EXCLUDE_SETTINGS_WITH_EXCEPTIONS = new Map<string, readonly string[]>([
-	['files.exclude', ['files.exclude']],
-	['search.exclude', ['search.exclude', 'files.exclude']],
-]);
 
 export interface IPreferencesRenderer extends IDisposable {
 	render(): void;
@@ -567,7 +557,6 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 					const configuration = configurationRegistry[setting.key];
 					if (configuration) {
 						this.handleUnstableSettingConfiguration(setting, configuration, markerData);
-						this.handleExcludePatterns(setting, markerData);
 						if (this.handlePolicyConfiguration(setting, configuration, markerData)) {
 							continue;
 						}
@@ -721,82 +710,6 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 			markerData.push(this.generatePreviewSettingMarker(setting));
 		} else if (configuration.tags?.includes('experimental')) {
 			markerData.push(this.generateExperimentalSettingMarker(setting));
-		}
-	}
-
-	/**
-	 * Flags `"pattern": false` entries of exclude settings that do not disable a pattern from another scope, because
-	 * users often expect them to show files that another pattern excludes, and exceptions that make search slow.
-	 */
-	private handleExcludePatterns(setting: ISetting, markerData: IMarkerData[]): void {
-		const inheritedSettings = EXCLUDE_SETTINGS_WITH_EXCEPTIONS.get(setting.key);
-		if (!inheritedSettings || !setting.value || typeof setting.value !== 'object') {
-			return;
-		}
-
-		const model = this.editor.getModel();
-		if (!model) {
-			return;
-		}
-
-		let inheritedValues: (IExpression | undefined)[] | undefined;
-		const isInheritedPattern = (pattern: string) => {
-			inheritedValues ??= inheritedSettings.flatMap(key => {
-				const { defaultValue, applicationValue, userLocalValue, userRemoteValue, workspaceValue, workspaceFolderValue } = this.configurationService.inspect<IExpression>(key, { resource: this.settingsEditorModel.uri });
-				return [defaultValue, applicationValue, userLocalValue, userRemoteValue, workspaceValue, workspaceFolderValue];
-			});
-			return inheritedValues.some(value => !!value?.[pattern]);
-		};
-
-		const valueOffset = model.getOffsetAt(Range.lift(setting.valueRange).getStartPosition());
-		const valueNode = parseTree(model.getValueInRange(setting.valueRange));
-		for (const property of valueNode?.children ?? []) {
-			const [keyNode, valueOfKeyNode] = property.children ?? [];
-			const pattern = keyNode?.value;
-			if (typeof pattern !== 'string') {
-				continue;
-			}
-
-			const range = Range.fromPositions(model.getPositionAt(valueOffset + property.offset), model.getPositionAt(valueOffset + property.offset + property.length));
-			if (isExcludeException(pattern)) {
-				const exception = valueOfKeyNode?.value === true ? getExcludeExceptions({ [pattern]: true })[0] : undefined;
-				if (exception && !exception.literalPrefix) {
-					markerData.push({
-						severity: MarkerSeverity.Info,
-						...range,
-						message: nls.localize('unanchoredExcludeException', "Search looks through the whole folder, including excluded and ignored folders, to find files for this exception, which can be slow in large workspaces. An exception that starts with a folder path, for example \"!node_modules/@types\", only searches that folder.")
-					});
-				}
-				continue;
-			}
-
-			if (valueOfKeyNode?.value !== false || isInheritedPattern(pattern)) {
-				continue;
-			}
-
-			const marker: IMarkerData = {
-				severity: MarkerSeverity.Info,
-				...range,
-				message: nls.localize('disabledExcludePattern', "Setting a pattern to false only disables a pattern from another settings scope. To show files and folders that match '{0}' even if another pattern excludes them, add an exception: \"!{0}\": true.", pattern)
-			};
-			markerData.push(marker);
-			if ((setting.value as IExpression)[`!${pattern}`] !== undefined) {
-				continue; // converting would duplicate the existing exception key
-			}
-
-			this.addCodeActions(range, [{
-				title: nls.localize('convertToExcludeException', "Convert to Exception"),
-				kind: CodeActionKind.QuickFix.value,
-				diagnostics: [marker],
-				isPreferred: true,
-				edit: {
-					edits: [{
-						resource: model.uri,
-						versionId: model.getVersionId(),
-						textEdit: { range, text: `${JSON.stringify(`!${pattern}`)}: true` }
-					}]
-				}
-			}]);
 		}
 	}
 

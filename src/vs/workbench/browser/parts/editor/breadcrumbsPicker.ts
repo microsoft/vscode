@@ -330,13 +330,13 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 			return !expression.matches(path, name);
 		}
 
-		if (expression.isExcepted(path, name)) {
-			return true;
-		}
-
 		// the picker shows folders that lead to an exception, so their other children must stay excluded
-		const isExcluded = !!expression.matchesExclude(path, name) || this.isParentFolderExcluded(expression, path);
-		return !isExcluded || (!!element.isDirectory && expression.couldExceptionMatchBeneath(path));
+		return glob.evaluateExcludeTreeEntry(expression, {
+			path,
+			basename: name,
+			isDirectory: !!element.isDirectory,
+			isParentExcluded: this.isParentFolderExcluded(expression, path),
+		}).isVisited;
 	}
 
 	private isParentFolderExcluded(expression: glob.IParsedExcludeExpression, path: string): boolean {

@@ -11,11 +11,12 @@ import * as extpath from '../../../../base/common/extpath.js';
 import { isMacintosh as isMac } from '../../../../base/common/platform.js';
 import * as strings from '../../../../base/common/strings.js';
 import { IFileQuery, IFolderQuery } from '../common/search.js';
-import { anchorGlob, IExcludeExceptionRun } from './ripgrepSearchUtils.js';
+import { anchorGlob } from './ripgrepSearchUtils.js';
+import { getExcludeExceptionGlobs } from './ripgrepTextSearchEngine.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 
-export async function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number, exceptionRun?: IExcludeExceptionRun) {
-	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern, numThreads, exceptionRun);
+export async function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number, excludeExceptions?: readonly string[]) {
+	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern, numThreads, excludeExceptions);
 	const cwd = folderQuery.folder.fsPath;
 	const resolvedRgDiskPath = await rgDiskPath();
 	return {
@@ -27,7 +28,7 @@ export async function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQu
 	};
 }
 
-function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number, exceptionRun?: IExcludeExceptionRun) {
+function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number, excludeExceptions?: readonly string[]) {
 	const args = ['--files', '--hidden', '--case-sensitive', '--no-require-git'];
 
 	if (config.ignoreGlobCase || folderQuery.ignoreGlobCase) {
@@ -47,10 +48,9 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 
 	// Includes are applied to the results of an exception run instead, because
 	// ripgrep cannot intersect them with the globs of the exceptions
-	const rgGlobs: IRgGlobResult = exceptionRun ? { globArgs: [], siblingClauses: {} } : foldersToRgExcludeGlobs([folderQuery], excludePattern, undefined, false);
-	if (exceptionRun) {
-		exceptionRun.skippedFolders.forEach(folder => pushGlob(`!**/${folder}`));
-		exceptionRun.globs.forEach(globArg => pushGlob(anchorGlob(globArg)));
+	const rgGlobs: IRgGlobResult = excludeExceptions ? { globArgs: [], siblingClauses: {} } : foldersToRgExcludeGlobs([folderQuery], excludePattern, undefined, false);
+	if (excludeExceptions) {
+		getExcludeExceptionGlobs(excludeExceptions).forEach(pushGlob);
 	} else {
 		// includePattern can't have siblingClauses
 		foldersToIncludeGlobs([folderQuery], includePattern, false).forEach(globArg => pushGlob(anchorGlob(globArg)));
@@ -59,7 +59,7 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 
 	// Exception runs ignore ignore files: the globs of the exceptions only match re-included paths,
 	// which override ignore files, and folders that lead to them may be ignored themselves
-	if (exceptionRun || folderQuery.disregardIgnoreFiles !== false) {
+	if (excludeExceptions || folderQuery.disregardIgnoreFiles !== false) {
 		// Don't use .gitignore or .ignore
 		args.push('--no-ignore');
 	} else if (folderQuery.disregardParentIgnoreFiles !== false) {
@@ -72,7 +72,7 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 	}
 
 	// Exception runs list their candidates, because they are filtered further before existence is known
-	if (config.exists && !exceptionRun) {
+	if (config.exists && !excludeExceptions) {
 		args.push('--quiet');
 	}
 
@@ -83,10 +83,6 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 	args.push('--no-config');
 	if (folderQuery.disregardGlobalIgnoreFiles) {
 		args.push('--no-ignore-global');
-	}
-
-	if (exceptionRun?.root) {
-		args.push('--', path.normalize(exceptionRun.root));
 	}
 
 	return {

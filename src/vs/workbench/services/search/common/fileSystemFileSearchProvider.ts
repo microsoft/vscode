@@ -137,11 +137,15 @@ export class FileSystemFileSearchProvider extends Disposable implements ISearchR
 				if (folderQuery.ignoreSymlinks && (type & FileType.SymbolicLink)) {
 					continue;
 				}
-				const isHidden = isParentExcluded
-					|| (!!ignore && !ignore.isPathIncludedInTraversal(`/${relativePath}`, isDirectory))
-					|| tester.matchesExcludesSync(relativePath, name, sibling => siblings.has(sibling));
-				const isExcluded = isHidden && !tester.isExcepted(relativePath, name);
-				if (isExcluded && !(isDirectory && tester.couldExceptionMatchBeneath(relativePath))) {
+				const { isExcluded, isVisited } = glob.evaluateExcludeTreeEntry(tester, {
+					path: relativePath,
+					basename: name,
+					isDirectory,
+					isParentExcluded,
+					isHidden: () => !!ignore && !ignore.isPathIncludedInTraversal(`/${relativePath}`, isDirectory),
+					hasSibling: sibling => siblings.has(sibling),
+				});
+				if (!isVisited) {
 					continue;
 				}
 				const resource = joinPath(directory, name);

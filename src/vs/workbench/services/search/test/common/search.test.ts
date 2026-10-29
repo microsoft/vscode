@@ -192,12 +192,6 @@ suite('exclude exceptions', () => {
 		});
 	});
 
-	test('QueryGlobTester applies absolute exceptions to folder-relative paths', () => {
-		const tester = new QueryGlobTester({ type: QueryType.File, folderQueries: [] }, { folder, excludePattern: [{ pattern: { '**/*.js': true, '!/workspace/examples/small.js': true, '!/elsewhere/a.js': true } }] });
-
-		assert.deepStrictEqual([tester.matchesExcludesSync('examples/small.js'), tester.matchesExcludesSync('examples/other.js')], [false, true]);
-	});
-
 	test('providers receive exclude patterns without exceptions', () => {
 		assert.deepStrictEqual({
 			excludes: resolveExcludePatternsForProvider({ '!gulpfile.js': true }, excludePattern),

@@ -1149,6 +1149,8 @@ interface CachedParsedExpression {
 	parsed: glob.IParsedExcludeExpression;
 }
 
+const NO_EXCLUDES = glob.parseExcludeExpression(glob.getEmptyExpression());
+
 /**
  * Respects files.exclude setting in filtering out content from the explorer.
  * Makes sure that visible editors are always shown in the explorer even if they are filtered out by settings.
@@ -1334,34 +1336,33 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			return true; // always visible
 		}
 
-		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
-		const relativePath = path.relative(stat.root.resource.path, stat.resource.path);
-		if (cached?.parsed.isExcepted(relativePath, stat.name)) {
+		const parent = stat.parent;
+		const { isExcluded, isVisited } = glob.evaluateExcludeTreeEntry(this.hiddenExpressionPerRoot.get(stat.root.resource.toString())?.parsed ?? NO_EXCLUDES, {
+			path: path.relative(stat.root.resource.path, stat.resource.path),
+			basename: stat.name,
+			isDirectory: stat.isDirectory,
+			isParentExcluded: !!parent && (parent.isExcluded || this.foldersLeadingToExceptions.has(parent)),
+			isHidden: () => this.isGitIgnored(stat.resource, stat.root.resource, stat.isDirectory),
+			hasSibling: name => !!parent?.getChild(name),
+		});
+		if (!isExcluded) {
 			return true;
 		}
 
-		// Hide those that match Hidden Patterns
-		const globMatch = cached?.parsed.matchesExclude(relativePath, stat.name, name => !!(stat.parent?.getChild(name)));
-		// Small optimization to only run isHiddenResource (traverse gitIgnore) if the globMatch from fileExclude returned nothing
-		const isHiddenResource = globMatch ? true : this.isGitIgnored(stat.resource, stat.root.resource, stat.isDirectory);
-		if (isHiddenResource || (!!stat.parent && (stat.parent.isExcluded || this.foldersLeadingToExceptions.has(stat.parent)))) {
-			if (stat.isDirectory && cached?.parsed.couldExceptionMatchBeneath(relativePath)) {
-				this.foldersLeadingToExceptions.add(stat);
-				return true;
-			}
-
-			stat.isExcluded = true;
-			const editors = this.editorService.visibleEditors;
-			const editor = editors.find(e => e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, stat.resource));
-			if (editor && stat.root === this.explorerService.findClosestRoot(stat.resource)) {
-				this.editorsAffectingFilter.add(editor);
-				return true; // Show all opened files and their parents
-			}
-
-			return false; // hidden through pattern
+		if (isVisited) {
+			this.foldersLeadingToExceptions.add(stat);
+			return true;
 		}
 
-		return true;
+		stat.isExcluded = true;
+		const editors = this.editorService.visibleEditors;
+		const editor = editors.find(e => e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, stat.resource));
+		if (editor && stat.root === this.explorerService.findClosestRoot(stat.resource)) {
+			this.editorsAffectingFilter.add(editor);
+			return true; // Show all opened files and their parents
+		}
+
+		return false; // hidden through pattern
 	}
 
 	/**

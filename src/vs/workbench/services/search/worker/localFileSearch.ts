@@ -181,9 +181,11 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 		const queryExclude = queryProps.excludePattern && glob.parseExcludeExpression(queryProps.excludePattern, { ignoreCase: queryProps.ignoreGlobCase });
 		const excludes = queryExclude ? [...folderExcludes, queryExclude] : folderExcludes;
 
-		const matchesExclude = (path: string, basename: string, hasSibling: (query: string) => boolean) => excludes.some(exclude => exclude.matchesExclude(path, basename, hasSibling));
-		const isExcepted = (path: string, basename: string) => excludes.some(exclude => exclude.isExcepted(path, basename));
-		const couldExceptionMatchBeneath = (path: string) => excludes.some(exclude => exclude.couldExceptionMatchBeneath(path));
+		const excludeEvaluator: glob.IExcludeTreeEvaluator = {
+			matchesExclude: (path, basename, hasSibling) => excludes.some(exclude => exclude.matchesExclude(path, basename, hasSibling)),
+			isExcepted: (path, basename) => excludes.some(exclude => exclude.isExcepted(path, basename)),
+			couldExceptionMatchBeneath: path => excludes.some(exclude => exclude.couldExceptionMatchBeneath(path)),
+		};
 
 		const processFile = (file: FileSystemFileHandle, prior: string): FileNode => {
 
@@ -241,12 +243,15 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 					const path = prior + basename;
 					const relativePath = path.slice(1);
 					const isDirectory = isFileSystemDirectoryHandle(handle);
-					const hasSibling = (query: string) => sibilings.has(query);
-					const isHidden = isParentExcluded
-						|| (!!ignoreFile && !ignoreFile.isPathIncludedInTraversal(path, isDirectory))
-						|| matchesExclude(relativePath, basename, hasSibling);
-					const isExcluded = isHidden && !isExcepted(relativePath, basename);
-					if (isExcluded && !(isDirectory && couldExceptionMatchBeneath(relativePath))) {
+					const { isExcluded, isVisited } = glob.evaluateExcludeTreeEntry(excludeEvaluator, {
+						path: relativePath,
+						basename,
+						isDirectory,
+						isParentExcluded,
+						isHidden: () => !!ignoreFile && !ignoreFile.isPathIncludedInTraversal(path, isDirectory),
+						hasSibling: query => sibilings.has(query),
+					});
+					if (!isVisited) {
 						continue;
 					}
 

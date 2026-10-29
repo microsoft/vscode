@@ -8,7 +8,7 @@ import { isThenable } from './async.js';
 import { CharCode } from './charCode.js';
 import { isEqualOrParent } from './extpath.js';
 import { LRUCache } from './map.js';
-import { basename, extname, posix, sep } from './path.js';
+import { basename, extname, isAbsolute, posix, sep } from './path.js';
 import { isLinux } from './platform.js';
 import { endsWithIgnoreCase, equalsIgnoreCase, escapeRegExpCharacters, ltrim, rtrim } from './strings.js';
 
@@ -600,31 +600,12 @@ export function parse(arg1: string | IExpression | IRelativePattern, options: IG
 //#region Exclude exceptions
 
 const EXCLUDE_EXCEPTION_PREFIX = '!';
-const GLOB_SPECIAL_CHARACTERS = /[*?[\]{}]/;
 const VERSION_CONTROL_FOLDERS = ['.git', '.svn', '.hg', '.jj'];
 
 /**
  * Regular expression source that matches the keys of exclude exceptions, for use in JSON schemas.
  */
 export const EXCLUDE_EXCEPTION_KEY_PATTERN = '^\\s*!';
-
-/**
- * An enabled `!`-prefixed key of an exclude expression. Paths matching
- * the pattern, and everything beneath them, are never excluded.
- */
-export interface IExcludeException {
-
-	/**
-	 * The exception pattern without the leading `!`.
-	 */
-	readonly pattern: string;
-
-	/**
-	 * The leading segments of {@link pattern} that contain no glob characters, or
-	 * an empty string if the pattern can match at any depth (e.g. `**\/Scripts`).
-	 */
-	readonly literalPrefix: string;
-}
 
 /**
  * An exclude expression parsed with support for `!`-prefixed exception keys.
@@ -642,7 +623,10 @@ export interface IParsedExcludeExpression {
 	 */
 	readonly matchesExclude: ParsedExpression;
 
-	readonly exceptions: readonly IExcludeException[];
+	/**
+	 * The patterns of the enabled exceptions, see {@link getExcludeExceptions}.
+	 */
+	readonly exceptions: readonly string[];
 
 	/**
 	 * Whether the path or one of its parent folders matches an exception.
@@ -675,10 +659,12 @@ export function escapeExcludeException(pattern: string): string {
 }
 
 /**
- * Returns the enabled exceptions of an exclude expression.
+ * Returns the patterns, without the leading `!`, of the enabled exceptions of an exclude expression. Paths
+ * matching an exception, and everything beneath them, are never excluded. Exceptions are relative to the
+ * folder that is searched or shown, so absolute exceptions are ignored.
  */
-export function getExcludeExceptions(expression: IExpression | undefined): IExcludeException[] {
-	const exceptions: IExcludeException[] = [];
+export function getExcludeExceptions(expression: IExpression | undefined): string[] {
+	const exceptions: string[] = [];
 	if (!expression) {
 		return exceptions;
 	}
@@ -689,8 +675,8 @@ export function getExcludeExceptions(expression: IExpression | undefined): IExcl
 		}
 
 		const pattern = rtrim(key.trimStart().substring(EXCLUDE_EXCEPTION_PREFIX.length).trim(), GLOB_SPLIT);
-		if (pattern) {
-			exceptions.push({ pattern, literalPrefix: getLiteralPrefix(pattern) });
+		if (pattern && !isAbsolute(pattern)) {
+			exceptions.push(pattern);
 		}
 	}
 
@@ -701,8 +687,8 @@ export function getExcludeExceptions(expression: IExpression | undefined): IExcl
  * Returns the version control folders (such as `.git`) that exclude exceptions do not look into, unless
  * an exception names the folder, because they are large and rarely contain files to re-include.
  */
-export function getFoldersSkippedByExcludeExceptions(exceptions: readonly IExcludeException[]): string[] {
-	return VERSION_CONTROL_FOLDERS.filter(folder => !exceptions.some(exception => splitGlobAware(exception.pattern, GLOB_SPLIT).includes(folder)));
+export function getFoldersSkippedByExcludeExceptions(exceptions: readonly string[]): string[] {
+	return VERSION_CONTROL_FOLDERS.filter(folder => !exceptions.some(exception => splitGlobAware(exception, GLOB_SPLIT).includes(folder)));
 }
 
 /**
@@ -741,13 +727,13 @@ export function parseExcludeExpression(expression: IExpression, options: IGlobOp
 
 	const exceptionExpression: IExpression = Object.create(null);
 	for (const exception of exceptions) {
-		exceptionExpression[exception.pattern] = true;
-		exceptionExpression[`${exception.pattern}${GLOB_SPLIT}${GLOBSTAR}`] = true;
+		exceptionExpression[exception] = true;
+		exceptionExpression[`${exception}${GLOB_SPLIT}${GLOBSTAR}`] = true;
 	}
 
 	const matchesException = parse(exceptionExpression, { ...options, trimForExclusions: false });
 	const isExcepted = (path: string, basename?: string) => !!matchesException(path, basename);
-	const exceptionSegments = exceptions.map(exception => parseSegmentMatchers(exception.pattern, !!options.ignoreCase));
+	const exceptionSegments = exceptions.map(exception => parseSegmentMatchers(exception, !!options.ignoreCase));
 	const skippedFolders = new Set(getFoldersSkippedByExcludeExceptions(exceptions));
 
 	const matches: ParsedExpression = (path, basename, hasSibling) => {
@@ -776,17 +762,42 @@ export function parseExcludeExpression(expression: IExpression, options: IGlobOp
 	};
 }
 
-function getLiteralPrefix(pattern: string): string {
-	const literalSegments: string[] = [];
-	for (const segment of splitGlobAware(pattern, GLOB_SPLIT)) {
-		if (GLOB_SPECIAL_CHARACTERS.test(segment)) {
-			break;
-		}
+/**
+ * The exclude checks that a walk of a folder tree needs, for example an {@link IParsedExcludeExpression}.
+ */
+export interface IExcludeTreeEvaluator {
+	matchesExclude(path: string, basename?: string, hasSibling?: (name: string) => boolean): unknown;
+	isExcepted(path: string, basename?: string): boolean;
+	couldExceptionMatchBeneath(folderPath: string): boolean;
+}
 
-		literalSegments.push(segment);
-	}
+export interface IExcludeTreeEntry {
+	readonly path: string;
+	readonly basename?: string;
+	readonly isDirectory: boolean;
 
-	return literalSegments.join(GLOB_SPLIT);
+	/**
+	 * Whether the parent folder is excluded, as evaluated for the parent.
+	 */
+	readonly isParentExcluded: boolean;
+
+	/**
+	 * Whether something besides the exclude patterns hides the entry, for example an ignore file. Exceptions override it too.
+	 */
+	readonly isHidden?: () => boolean;
+
+	readonly hasSibling?: (name: string) => boolean;
+}
+
+/**
+ * Evaluates an entry while walking a folder tree. It is excluded when it or its parent folder is excluded and no
+ * exception matches it. It is visited when it is not excluded, or is a folder that an exception could match beneath.
+ */
+export function evaluateExcludeTreeEntry(evaluator: IExcludeTreeEvaluator, entry: IExcludeTreeEntry): { isExcluded: boolean; isVisited: boolean } {
+	const isMatched = entry.isParentExcluded || !!evaluator.matchesExclude(entry.path, entry.basename, entry.hasSibling) || !!entry.isHidden?.();
+	const isExcluded = isMatched && !evaluator.isExcepted(entry.path, entry.basename);
+
+	return { isExcluded, isVisited: !isExcluded || (entry.isDirectory && evaluator.couldExceptionMatchBeneath(entry.path)) };
 }
 
 type SegmentMatcher = typeof GLOBSTAR | ((segment: string) => boolean);

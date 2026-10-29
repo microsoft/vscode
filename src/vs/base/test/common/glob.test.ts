@@ -1310,12 +1310,32 @@ suite('Glob', () => {
 			assert.deepStrictEqual([await parsed.matches('keep.js', 'keep.js', hasSibling), await parsed.matches('drop.js', 'drop.js', hasSibling)], [null, '**/*.js']);
 		});
 
-		test('getExcludeExceptions', () => {
-			assert.deepStrictEqual(glob.getExcludeExceptions({ 'a': true, '!node_modules/@types/**': true, '!**/Scripts/': true, '!src/*.js': true, '!off': false, '!': true }), [
-				{ pattern: 'node_modules/@types/**', literalPrefix: 'node_modules/@types' },
-				{ pattern: '**/Scripts', literalPrefix: '' },
-				{ pattern: 'src/*.js', literalPrefix: 'src' }
+		test('getExcludeExceptions ignores disabled, empty and absolute exceptions', () => {
+			assert.deepStrictEqual(glob.getExcludeExceptions({ 'a': true, '!node_modules/@types/**': true, '!**/Scripts/': true, '!src/*.js': true, '!off': false, '!': true, '!/workspace/keep.js': true }), [
+				'node_modules/@types/**',
+				'**/Scripts',
+				'src/*.js'
 			]);
+		});
+
+		test('evaluateExcludeTreeEntry', () => {
+			const parsed = glob.parseExcludeExpression({ 'node_modules': true, '!node_modules/@types': true });
+			const evaluate = (path: string, isDirectory: boolean, isParentExcluded: boolean, isHidden = false) => glob.evaluateExcludeTreeEntry(parsed, { path, isDirectory, isParentExcluded, isHidden: () => isHidden });
+			assert.deepStrictEqual({
+				excludedFolderLeadingToException: evaluate('node_modules', true, false),
+				excludedFolder: evaluate('node_modules/react', true, true),
+				excludedFile: evaluate('node_modules/a.js', false, true),
+				exceptedFolder: evaluate('node_modules/@types', true, true),
+				hiddenFile: evaluate('dist/a.js', false, false, true),
+				includedFile: evaluate('src/a.js', false, false),
+			}, {
+				excludedFolderLeadingToException: { isExcluded: true, isVisited: true },
+				excludedFolder: { isExcluded: true, isVisited: false },
+				excludedFile: { isExcluded: true, isVisited: false },
+				exceptedFolder: { isExcluded: false, isVisited: true },
+				hiddenFile: { isExcluded: true, isVisited: false },
+				includedFile: { isExcluded: false, isVisited: true },
+			});
 		});
 
 		test('expressions without exceptions parse unchanged', () => {

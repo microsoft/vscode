@@ -32,7 +32,6 @@ import { hasNativeContextMenu } from '../../../../platform/window/common/window.
 import { SettingValueType } from '../../../services/preferences/common/preferences.js';
 import { validatePropertyName } from '../../../services/preferences/common/preferencesValidation.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
-import { isExcludeException } from '../../../../base/common/glob.js';
 import { settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../common/settingsEditorColorRegistry.js';
 import './media/settingsWidgets.css';
 import { settingsDiscardIcon, settingsEditIcon, settingsRemoveIcon } from './preferencesIcons.js';
@@ -158,7 +157,6 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 	protected readonly _onDidChangeList = this._register(new Emitter<SettingListEvent<TDataItem>>());
 	protected readonly model = new ListSettingListModel<TDataItem>(this.getEmptyItem());
 	protected readonly listDisposables = this._register(new DisposableStore());
-	protected readonly addButtonRow: HTMLElement;
 
 	readonly onDidChangeList: Event<SettingListEvent<TDataItem>> = this._onDidChangeList.event;
 
@@ -185,7 +183,7 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		this.listElement = DOM.append(container, $('div'));
 		this.listElement.setAttribute('role', 'list');
 		this.getContainerClasses().forEach(c => this.listElement.classList.add(c));
-		this.addButtonRow = DOM.append(container, this.renderAddButton());
+		DOM.append(container, this.renderAddButton());
 		this.renderList();
 
 		this._register(DOM.addDisposableListener(this.listElement, DOM.EventType.POINTER_DOWN, e => this.onListClick(e)));
@@ -350,14 +348,12 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		startAddButton.label = this.getLocalizedStrings().addButtonLabel;
 		startAddButton.element.classList.add('setting-list-addButton');
 
-		this._register(startAddButton.onDidClick(() => this.startAdding()));
+		this._register(startAddButton.onDidClick(() => {
+			this.model.setEditKey('create');
+			this.renderList();
+		}));
 
 		return rowElement;
-	}
-
-	protected startAdding(): void {
-		this.model.setEditKey('create');
-		this.renderList();
 	}
 
 	private onListClick(e: PointerEvent): void {
@@ -443,10 +439,6 @@ interface IListSetValueOptions {
 	showAddButton?: boolean;
 	keySuggester?: IObjectKeySuggester;
 	isReadOnly?: boolean;
-	/**
-	 * Whether to offer adding `!`-prefixed exceptions to an exclude setting.
-	 */
-	showAddExceptionButton?: boolean;
 }
 
 export interface IListDataItem {
@@ -464,15 +456,9 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 	private keyValueSuggester: IObjectKeySuggester | undefined;
 	private showAddButton: boolean = true;
 	private isEditable: boolean = true;
-	private newItemInitialValue: { value: string; ariaLabel?: string } = { value: '' };
 
 	protected override get isReadOnly(): boolean {
 		return !this.isEditable;
-	}
-
-	protected override startAdding(initialValue: { value: string; ariaLabel?: string } = { value: '' }): void {
-		this.newItemInitialValue = initialValue;
-		super.startAdding();
 	}
 
 	override setValue(listData: TListDataItem[], options?: IListSetValueOptions) {
@@ -657,14 +643,6 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 				break;
 		}
 
-		const initialValue = this.isItemNew(item) && valueInput instanceof InputBox ? this.newItemInitialValue : undefined;
-		if (initialValue?.value && valueInput instanceof InputBox) {
-			valueInput.value = initialValue.value;
-		}
-		if (initialValue?.ariaLabel && valueInput instanceof InputBox) {
-			valueInput.setAriaLabel(initialValue.ariaLabel);
-		}
-
 		const updatedInputBoxItem = (): TListDataItem => {
 			const inputBox = valueInput as InputBox;
 			// eslint-disable-next-line local/code-no-dangerous-type-assertions
@@ -754,8 +732,7 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 			disposableTimeout(() => {
 				valueInput.focus();
 				if (valueInput instanceof InputBox) {
-					const caret = initialValue?.value.length;
-					valueInput.select(caret ? { start: caret, end: caret } : null);
+					valueInput.select();
 				}
 			})
 		);
@@ -819,32 +796,6 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 }
 
 export class ExcludeSettingWidget extends ListSettingWidget<IIncludeExcludeDataItem> {
-	private readonly addExceptionButton: Button;
-	private supportsExceptions = false;
-
-	constructor(
-		container: HTMLElement,
-		@IThemeService themeService: IThemeService,
-		@IContextViewService contextViewService: IContextViewService,
-		@IHoverService hoverService: IHoverService,
-		@IConfigurationService configurationService: IConfigurationService,
-	) {
-		super(container, themeService, contextViewService, hoverService, configurationService);
-
-		this.addExceptionButton = this._register(new Button(this.addButtonRow, defaultButtonStyles));
-		this.addExceptionButton.label = localize('addException', "Add Exception");
-		this.addExceptionButton.element.classList.add('setting-list-addButton');
-		this._register(this.hoverService.setupDelayedHover(this.addExceptionButton.element, { content: localize('addExceptionHover', "Add a pattern starting with ! for files and folders that should not be excluded") }));
-		this._register(this.addExceptionButton.onDidClick(() => this.startAdding({ value: '!', ariaLabel: localize('exceptionPatternInputAriaLabel', "Exception Pattern") })));
-		DOM.hide(this.addExceptionButton.element);
-	}
-
-	override setValue(listData: IIncludeExcludeDataItem[], options?: IListSetValueOptions): void {
-		this.supportsExceptions = !!options?.showAddExceptionButton;
-		super.setValue(listData, options);
-		DOM.setVisibility(this.supportsExceptions && !this.isReadOnly, this.addExceptionButton.element);
-	}
-
 	protected override getContainerClasses() {
 		return ['setting-list-include-exclude-widget'];
 	}
@@ -854,12 +805,9 @@ export class ExcludeSettingWidget extends ListSettingWidget<IIncludeExcludeDataI
 	}
 
 	protected override addTooltipsToRow(rowElementGroup: RowElementGroup, item: IIncludeExcludeDataItem): void {
-		const pattern = item.value.data;
-		let title = this.supportsExceptions && isExcludeException(pattern)
-			? localize('excludeExceptionHintLabel', "Do not exclude files matching `{0}`", pattern.trimStart().substring(1))
-			: isUndefinedOrNull(item.sibling)
-				? localize('excludePatternHintLabel', "Exclude files matching `{0}`", pattern)
-				: localize('excludeSiblingHintLabel', "Exclude files matching `{0}`, only when a file matching `{1}` is present", pattern, item.sibling);
+		let title = isUndefinedOrNull(item.sibling)
+			? localize('excludePatternHintLabel', "Exclude files matching `{0}`", item.value.data)
+			: localize('excludeSiblingHintLabel', "Exclude files matching `{0}`, only when a file matching `{1}` is present", item.value.data, item.sibling);
 
 		if (item.source) {
 			title += localize('excludeIncludeSource', ". Default value provided by `{0}`", item.source);

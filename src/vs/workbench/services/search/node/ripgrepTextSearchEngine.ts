@@ -9,8 +9,7 @@ import { StringDecoder } from 'string_decoder';
 import { coalesce, mapArrayOrNot, asArray } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { groupBy } from '../../../../base/common/collections.js';
-import { getExcludeExceptions, splitGlobAware } from '../../../../base/common/glob.js';
-import { normalize } from '../../../../base/common/path.js';
+import { getFoldersSkippedByExcludeExceptions, splitGlobAware } from '../../../../base/common/glob.js';
 import { createRegExp, escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -18,7 +17,7 @@ import { Progress } from '../../../../platform/progress/common/progress.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, ITextSearchPreviewOptions, SearchError, SearchErrorCode, serializeSearchError, TextSearchMatch } from '../common/search.js';
 import { Range, TextSearchComplete2, TextSearchCompleteMessageType, TextSearchContext2, TextSearchMatch2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2 } from '../common/searchExtTypes.js';
 import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
-import { anchorGlob, getExcludeExceptionRuns, IExcludeExceptionRun, IOutputChannel, MAX_RIPGREP_SYMLINK_LOOPS, Maybe, rangeToSearchRange, resolveExcludeExceptionRunRoot, RipgrepSymlinkLoopDetector, searchRangeToRange } from './ripgrepSearchUtils.js';
+import { anchorGlob, IOutputChannel, MAX_RIPGREP_SYMLINK_LOOPS, Maybe, rangeToSearchRange, RipgrepSymlinkLoopDetector, searchRangeToRange } from './ripgrepSearchUtils.js';
 import type { RipgrepTextSearchOptions } from '../common/searchExtTypesInternal.js';
 import { newToOldPreviewOptions } from '../common/searchExtConversionTypes.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
@@ -54,54 +53,34 @@ export class RipgrepTextSearchEngine {
 	}
 
 	async provideTextSearchResultsWithRgOptions(query: TextSearchQuery2, options: RipgrepTextSearchOptions, progress: Progress<TextSearchResult2>, token: CancellationToken): Promise<TextSearchComplete2> {
-		const exceptionRuns = getExcludeExceptionRuns(getExcludeExceptions(Object.fromEntries((options.folderOptions.excludeExceptions ?? []).map(pattern => [`!${pattern}`, true]))), options.folderOptions.folder.fsPath);
-		if (!exceptionRuns.length) {
+		const excludeExceptions = options.folderOptions.excludeExceptions ?? [];
+		if (!excludeExceptions.length) {
 			return this.searchWithRipgrep(query, options, progress, token);
 		}
 
-		// ripgrep does not descend into excluded folders, so search the paths that exclude
-		// exceptions re-include separately and skip the files that an earlier run reported
-		const originalQuery = { ...query };
+		// ripgrep does not descend into excluded folders, so a second run searches the paths
+		// that exclude exceptions re-include and skips the files that the first run reported
 		const reportedPaths = new Set<string>();
-		const reportNewResults = (runPaths: Set<string>) => new Progress<TextSearchResult2>(result => {
-			if (!reportedPaths.has(result.uri.path)) {
-				runPaths.add(result.uri.path);
-				progress.report(result);
-			}
-		});
-		const addReportedPaths = (runPaths: Set<string>) => runPaths.forEach(path => reportedPaths.add(path));
-
-		const mainRunPaths = new Set<string>();
-		const complete = await this.searchWithRipgrep(query, options, reportNewResults(mainRunPaths), token);
-		addReportedPaths(mainRunPaths);
-
-		const messages = complete.message ? asArray(complete.message) : [];
-		let limitHit = !!complete.limitHit;
-		for (const exceptionRun of exceptionRuns) {
-			if (limitHit || token.isCancellationRequested) {
-				break;
-			}
-
-			const root = await resolveExcludeExceptionRunRoot(options.folderOptions.folder.fsPath, exceptionRun.root, options.folderOptions.followSymlinks, !!options.folderOptions.ignoreGlobCase);
-			if (root === undefined) {
-				continue;
-			}
-
-			// Results are filtered and deduplicated after ripgrep reports them, so the search manager limits the accepted results instead
-			const runOptions = { ...options, maxResults: Number.MAX_SAFE_INTEGER };
-			const runPaths = new Set<string>();
-			const runComplete = await this.searchWithRipgrep({ ...originalQuery }, runOptions, reportNewResults(runPaths), token, { ...exceptionRun, root });
-			addReportedPaths(runPaths);
-			limitHit = !!runComplete.limitHit;
-			if (runComplete.message) {
-				messages.push(...asArray(runComplete.message));
-			}
+		const complete = await this.searchWithRipgrep({ ...query }, options, new Progress<TextSearchResult2>(result => {
+			reportedPaths.add(result.uri.path);
+			progress.report(result);
+		}), token);
+		if (complete.limitHit || token.isCancellationRequested) {
+			return complete;
 		}
 
-		return messages.length ? { limitHit, message: messages } : { limitHit };
+		// Results are filtered after ripgrep reports them, so the search manager limits the accepted results instead
+		const exceptionComplete = await this.searchWithRipgrep({ ...query }, { ...options, maxResults: Number.MAX_SAFE_INTEGER }, new Progress<TextSearchResult2>(result => {
+			if (!reportedPaths.has(result.uri.path)) {
+				progress.report(result);
+			}
+		}), token, excludeExceptions);
+
+		const messages = [...asArray(complete.message ?? []), ...asArray(exceptionComplete.message ?? [])];
+		return messages.length ? { limitHit: exceptionComplete.limitHit, message: messages } : { limitHit: exceptionComplete.limitHit };
 	}
 
-	private async searchWithRipgrep(query: TextSearchQuery2, options: RipgrepTextSearchOptions, progress: Progress<TextSearchResult2>, token: CancellationToken, exceptionRun?: IExcludeExceptionRun): Promise<TextSearchComplete2> {
+	private async searchWithRipgrep(query: TextSearchQuery2, options: RipgrepTextSearchOptions, progress: Progress<TextSearchResult2>, token: CancellationToken, excludeExceptions?: readonly string[]): Promise<TextSearchComplete2> {
 		this.outputChannel.appendLine(`provideTextSearchResults ${query.pattern}, ${JSON.stringify({
 			...options,
 			...{
@@ -122,7 +101,7 @@ export class RipgrepTextSearchEngine {
 				...options,
 				numThreads: this._numThreads
 			};
-			const rgArgs = getRgArgs(query, extendedOptions, exceptionRun);
+			const rgArgs = getRgArgs(query, extendedOptions, excludeExceptions);
 
 			const cwd = options.folderOptions.folder.fsPath;
 
@@ -207,7 +186,7 @@ export class RipgrepTextSearchEngine {
 				this.outputChannel.appendLine('');
 
 				if (isRetrying && !token.isCancellationRequested) {
-					resolve(this.searchAgainWithoutFollowingSymlinks(query, options, progress, token, reportedPaths, exceptionRun));
+					resolve(this.searchAgainWithoutFollowingSymlinks(query, options, progress, token, reportedPaths, excludeExceptions));
 				} else if (isDone) {
 					resolve({ limitHit });
 				} else {
@@ -225,7 +204,7 @@ export class RipgrepTextSearchEngine {
 		});
 	}
 
-	private async searchAgainWithoutFollowingSymlinks(query: TextSearchQuery2, options: RipgrepTextSearchOptions, progress: Progress<TextSearchResult2>, token: CancellationToken, reportedPaths: readonly string[], exceptionRun: IExcludeExceptionRun | undefined): Promise<TextSearchComplete2> {
+	private async searchAgainWithoutFollowingSymlinks(query: TextSearchQuery2, options: RipgrepTextSearchOptions, progress: Progress<TextSearchResult2>, token: CancellationToken, reportedPaths: readonly string[], excludeExceptions: readonly string[] | undefined): Promise<TextSearchComplete2> {
 		const folder = options.folderOptions.folder;
 		this.outputChannel.appendLine(`ripgrep reported more than ${MAX_RIPGREP_SYMLINK_LOOPS} symbolic link loops, searching ${folder.fsPath} again without following symbolic links`);
 
@@ -248,7 +227,7 @@ export class RipgrepTextSearchEngine {
 				}
 			}),
 			token,
-			exceptionRun
+			excludeExceptions
 		);
 
 		return {
@@ -514,7 +493,7 @@ function getNumLinesAndLastNewlineLength(text: string): { numLines: number; last
 }
 
 // exported for testing
-export function getRgArgs(query: TextSearchQuery2, options: RipgrepTextSearchOptions, exceptionRun?: IExcludeExceptionRun): string[] {
+export function getRgArgs(query: TextSearchQuery2, options: RipgrepTextSearchOptions, excludeExceptions?: readonly string[]): string[] {
 	const args = ['--hidden', '--no-require-git'];
 	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
@@ -523,10 +502,9 @@ export function getRgArgs(query: TextSearchQuery2, options: RipgrepTextSearchOpt
 		args.push('--ignore-file-case-insensitive');
 	}
 
-	if (exceptionRun) {
+	if (excludeExceptions) {
 		// Includes are applied to the results instead, because ripgrep cannot intersect them with the globs of the exceptions
-		exceptionRun.skippedFolders.forEach(folder => args.push('-g', `!**/${folder}`));
-		exceptionRun.globs.forEach(globArg => args.push('-g', anchorGlob(globArg)));
+		getExcludeExceptionGlobs(excludeExceptions).forEach(globArg => args.push('-g', globArg));
 	} else {
 		pushIncludeAndExcludeGlobs(args, options);
 	}
@@ -537,7 +515,7 @@ export function getRgArgs(query: TextSearchQuery2, options: RipgrepTextSearchOpt
 
 	// Exception runs ignore ignore files: the globs of the exceptions only match re-included paths,
 	// which override ignore files, and folders that lead to them may be ignored themselves
-	if (options.folderOptions.useIgnoreFiles.local && !exceptionRun) {
+	if (options.folderOptions.useIgnoreFiles.local && !excludeExceptions) {
 		if (!options.folderOptions.useIgnoreFiles.parent) {
 			args.push('--no-ignore-parent');
 		}
@@ -616,7 +594,7 @@ export function getRgArgs(query: TextSearchQuery2, options: RipgrepTextSearchOpt
 		args.push(searchPatternAfterDoubleDashes);
 	}
 
-	args.push(exceptionRun?.root ? normalize(exceptionRun.root) : '.');
+	args.push('.');
 
 	return args;
 }
@@ -650,6 +628,20 @@ function pushIncludeAndExcludeGlobs(args: string[], options: RipgrepTextSearchOp
 	options.folderOptions.excludes.map(e => typeof (e) === 'string' ? e : e.pattern)
 		.map(anchorGlob)
 		.forEach(rgGlob => args.push('-g', `!${rgGlob}`));
+}
+
+/**
+ * Returns the ripgrep globs of a run that lists only the paths that `!`-prefixed exclude exceptions re-include,
+ * because ripgrep does not descend into excluded folders. The run ignores everything except the exceptions and
+ * the folders leading to them, and skips the folders of {@link getFoldersSkippedByExcludeExceptions}.
+ */
+export function getExcludeExceptionGlobs(excludeExceptions: readonly string[]): string[] {
+	return [
+		'!*',
+		...excludeExceptions.flatMap(exception => spreadGlobComponents(`${exception}/**`)).map(anchorGlob),
+		// Later globs take precedence
+		...getFoldersSkippedByExcludeExceptions(excludeExceptions).map(folder => `!**/${folder}`),
+	];
 }
 
 /**
