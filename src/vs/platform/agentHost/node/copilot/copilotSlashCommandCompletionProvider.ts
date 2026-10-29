@@ -218,13 +218,16 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 					return false;
 				})
 				.flatMap(plugin => {
+					if (plugin.marketplace) {
+						return [`${plugin.name}@${plugin.marketplace}`];
+					}
 					if (subcommand.toLowerCase() !== 'enable' && subcommand.toLowerCase() !== 'disable') {
-						return [plugin.marketplace ? `${plugin.name}@${plugin.marketplace}` : plugin.name];
+						return [plugin.name];
 					}
 					if ((togglePluginNameCounts.get(plugin.name) ?? 0) <= 1) {
 						return [plugin.name];
 					}
-					return plugin.marketplace ? [`${plugin.name}@${plugin.marketplace}`] : [];
+					return [];
 				});
 			return Array.from(new Set(candidates))
 				.filter(name => matchesSlashCompletion(text.slice(range.start, offset), name))
