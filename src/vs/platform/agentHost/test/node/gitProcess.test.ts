@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as fs from 'fs/promises';
+import { tmpdir } from 'os';
 import * as path from '../../../../base/common/path.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { GitExecutableResolver, mayBeInGitRepository } from '../../node/gitProcess.js';
 import { FakeGitFileSystem, fakeFsError } from './fakeGitFileSystem.js';
@@ -107,6 +110,30 @@ suite('GitExecutableResolver', () => {
 			bareProbes: 2,
 			bareProbesAfterError: 2,
 		});
+	});
+
+	// The kernel follows a symbolic link before it applies a following `..`, so lexically normalizing a PATH entry
+	// can name a different directory than the one a bare spawn searches.
+	(isWindows ? test.skip : test)('searches a PATH entry with .. after a symbolic link as the spawn does', async () => {
+		const root = await fs.realpath(await fs.mkdtemp(path.join(tmpdir(), 'agent-host-git-path-')));
+		try {
+			await fs.mkdir(path.join(root, 'real', 'target'), { recursive: true });
+			await fs.mkdir(path.join(root, 'real', 'bin'));
+			await fs.mkdir(path.join(root, 'bin'));
+			await fs.writeFile(path.join(root, 'real', 'bin', 'git'), '', { mode: 0o755 });
+			// What `link/../bin` names after lexical normalization.
+			await fs.writeFile(path.join(root, 'bin', 'git'), '', { mode: 0o755 });
+			await fs.symlink(path.join(root, 'real', 'target'), path.join(root, 'link'));
+
+			const resolved = await new GitExecutableResolver(false, fs).resolve({ PATH: `${root}/link/../bin` });
+
+			assert.deepStrictEqual({ resolved, target: await fs.realpath(resolved) }, {
+				resolved: `${root}/link/../bin/git`,
+				target: path.join(root, 'real', 'bin', 'git'),
+			});
+		} finally {
+			await fs.rm(root, { recursive: true, force: true });
+		}
 	});
 });
 

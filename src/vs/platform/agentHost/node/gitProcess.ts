@@ -108,7 +108,9 @@ export class GitExecutableResolver {
 				return undefined;
 			}
 			for (const name of names) {
-				const candidate = pathLib.join(entry, name);
+				// Windows resolves `..` lexically, like `join`; POSIX resolves it after following symbolic links,
+				// so the entry must reach the file system as the spawn's own lookup passes it.
+				const candidate = this._isWindows ? path.win32.join(entry, name) : `${entry.replace(/\/+$/, '')}/${name}`;
 				if (await this._isExecutableFile(candidate)) {
 					return candidate;
 				}
