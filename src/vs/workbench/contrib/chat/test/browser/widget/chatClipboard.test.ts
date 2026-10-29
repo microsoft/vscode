@@ -144,6 +144,29 @@ suite('ChatClipboard', () => {
 		});
 	});
 
+	test('copies text inside display: contents wrappers but not bodies collapsed with visibility or opacity', () => {
+		const container = document.createElement('div');
+		container.innerHTML = '<div class="value">'
+			+ '<p id="first">See <a href="" data-href="file:///repo/src/a.ts">a.ts</a>.</p>'
+			+ '<div style="display: contents"><p>Wrapped</p></div>'
+			+ '<div class="chat-collapsible-content-animation" style="visibility: hidden"><p>Collapsed thinking</p></div>'
+			+ '<div style="opacity: 0"><p>Faded out</p></div>'
+			+ '<p id="last">Done.</p>'
+			+ '</div>';
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const range = document.createRange();
+		range.setStart(container.querySelector('#first')!.firstChild!, 0);
+		range.setEnd(container.querySelector('#last')!.firstChild!, 5);
+		const fragment = cloneVisibleSelection(range, container);
+		sanitizeChatClipboardFragment(fragment);
+		const holder = document.createElement('div');
+		holder.appendChild(fragment);
+
+		assert.strictEqual(convertHtmlToMarkdown(holder.innerHTML), 'See `a.ts`.\n\nWrapped\n\nDone.');
+	});
+
 	suite('toPortableMarkdown', () => {
 		test('reduces non-portable link targets to their label', () => {
 			assert.deepStrictEqual(

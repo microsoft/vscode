@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { $, getWindow, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { appendEscapedMarkdownInlineCode, isPortableLinkTarget, isPortableMarkdownTarget } from '../../../../../base/common/htmlContent.js';
 import * as marked from '../../../../../base/common/marked/marked.js';
 import { IMarkdownEdit, markdownTokensToPlainText, rewriteMarkdownLinks } from '../../../../../base/common/markdownLinks.js';
@@ -49,7 +49,10 @@ export function cloneVisibleSelection(range: Range, root: Node): DocumentFragmen
 	}
 }
 
-/** Finds the outermost elements in `range` that are not rendered. */
+/**
+ * Finds the outermost elements in `range` the reader cannot see: unrendered ones, and ones a
+ * collapsed section hides with `visibility: hidden` or `opacity: 0` while keeping them laid out.
+ */
 function findHiddenElements(range: Range): Element[] {
 	const scope = range.commonAncestorContainer;
 	const hiddenElements: Element[] = [];
@@ -58,11 +61,17 @@ function findHiddenElements(range: Range): Element[] {
 			if (!range.intersectsNode(node)) {
 				return NodeFilter.FILTER_REJECT;
 			}
-			if (!(node as Element).checkVisibility()) {
-				hiddenElements.push(node as Element);
-				return NodeFilter.FILTER_REJECT;
+			const element = node as Element;
+			if (element.checkVisibility({ checkVisibilityCSS: true, checkOpacity: true })) {
+				return NodeFilter.FILTER_ACCEPT;
 			}
-			return NodeFilter.FILTER_ACCEPT;
+			// A `display: contents` element has no box of its own, so it reads as hidden, but its
+			// descendants render. Only read the computed style on this rare branch.
+			if (getWindow(element).getComputedStyle(element).display === 'contents') {
+				return NodeFilter.FILTER_SKIP;
+			}
+			hiddenElements.push(element);
+			return NodeFilter.FILTER_REJECT;
 		}
 	});
 	while (walker.nextNode()) {
