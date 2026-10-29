@@ -2932,7 +2932,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			mode: inventory.mode === 'disabled' || inventory.mode === 'load_only' || inventory.mode === 'load_and_augment'
 				? inventory.mode
 				: 'unknown',
-			extensions,
+			extensions: this._mergeExtensionInventoryEntries(extensions),
 		};
 		if (!session) {
 			return persisted;
@@ -2946,7 +2946,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const liveExtensionIds = new Set(liveExtensions.map(extension => extension.id));
 		return {
 			mode: persisted.mode,
-			extensions: [
+			extensions: this._mergeExtensionInventoryEntries([
 				...liveExtensions.map(extension => {
 					const persistedExtension = persistedById.get(extension.id);
 					return {
@@ -2957,8 +2957,31 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}),
 				...persisted.extensions
 					.filter(extension => !liveExtensionIds.has(extension.id)),
-			],
+			]),
 		};
+	}
+
+	private _mergeExtensionInventoryEntries(extensions: readonly IAgentExtensionInfo[]): IAgentExtensionInfo[] {
+		const result = new Map<string, IAgentExtensionInfo>();
+		for (const extension of extensions) {
+			const current = result.get(extension.id);
+			if (!current) {
+				result.set(extension.id, extension);
+				continue;
+			}
+			const statuses = new Set([current.status, extension.status]);
+			const status = statuses.size === 1 ? current.status
+				: statuses.has('starting') ? 'starting'
+					: statuses.has('failed') ? 'failed'
+						: 'unknown';
+			result.set(extension.id, {
+				...current,
+				status,
+				resource: current.resource ?? extension.resource,
+				pluginName: current.pluginName ?? extension.pluginName,
+			});
+		}
+		return [...result.values()];
 	}
 
 	async setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {
@@ -2973,9 +2996,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (extension.source !== 'user' && extension.source !== 'plugin') {
 			throw new Error(`Extension '${extensionId}' does not have a manageable source.`);
 		}
-		await this._retryAfterClosedConnection('setExtensionEnabled', client => enabled
-			? client.rpc.extensions.enable({ ids: [extensionId] })
-			: client.rpc.extensions.disable({ ids: [extensionId] }));
+		try {
+			await this._retryAfterClosedConnection('setExtensionEnabled', client => enabled
+				? client.rpc.extensions.enable({ ids: [extensionId] })
+				: client.rpc.extensions.disable({ ids: [extensionId] }));
+		} catch (error) {
+			throw new Error(enabled
+				? localize('copilot.extensionEnableFailed', "Couldn't enable canvas extension '{0}'. {1}", extension.name, getErrorMessage(error))
+				: localize('copilot.extensionDisableFailed', "Couldn't disable canvas extension '{0}'. {1}", extension.name, getErrorMessage(error)));
+		}
 		const targetSession = session ? this._findPluginOperationSession(session, chat) : undefined;
 		if (!targetSession) {
 			return;
@@ -2987,10 +3016,33 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (!currentSession || currentSession.sessionId !== targetSessionId) {
 					throw new Error(localize('copilot.extensionReconcileTargetUnavailable', "The selected chat stopped or was replaced before its extension state could be updated."));
 				}
-				return currentSession.reconcileExtensions();
+				return this._reconcileExtensionEnablement(currentSession, extensionId, enabled);
 			});
 		} catch (error) {
-			throw new Error(localize('copilot.extensionReconcileFailed', "The extension preference was saved, but the selected chat could not be updated: {0}", getErrorMessage(error)));
+			throw new Error(enabled
+				? localize('copilot.extensionEnableReconcileFailed', "Canvas extension '{0}' was enabled in settings, but couldn't be started in this chat. {1}", extension.name, getErrorMessage(error))
+				: localize('copilot.extensionDisableReconcileFailed', "Canvas extension '{0}' was disabled in settings, but couldn't be stopped in this chat. {1}", extension.name, getErrorMessage(error)));
+		}
+	}
+
+	private async _reconcileExtensionEnablement(session: CopilotAgentSession, extensionId: string, enabled: boolean): Promise<void> {
+		try {
+			await session.reconcileExtensions();
+		} catch (error) {
+			if (!enabled || session.isDisposed) {
+				throw error;
+			}
+			let extensions: readonly IAgentExtensionInfo[];
+			try {
+				extensions = await session.listExtensions();
+			} catch (verificationError) {
+				throw new AggregateError([error, verificationError], getErrorMessage(error));
+			}
+			const targets = extensions.filter(extension => extension.id === extensionId);
+			if (session.isDisposed || targets.length === 0 || targets.some(extension => extension.status !== 'running')) {
+				throw error;
+			}
+			this._logService.warn(`[Copilot:${session.sessionId}] Extension '${extensionId}' enablement was applied, but extension reconciliation reported a lifecycle failure`, error);
 		}
 	}
 
