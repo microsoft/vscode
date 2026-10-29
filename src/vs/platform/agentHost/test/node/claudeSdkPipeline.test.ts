@@ -355,7 +355,7 @@ suite('ClaudeSdkPipeline', () => {
 			const oldRemoved = sinon.spy(controller.signal, 'removeEventListener');
 			const newAdded = sinon.spy(replacement.signal, 'addEventListener');
 			const newRemoved = sinon.spy(replacement.signal, 'removeEventListener');
-			pipeline.attachRematerializer(async () => ({ warm: new FakeWarmQuery(), abortController: replacement }));
+			pipeline.attachRematerializer({ rematerialize: async () => ({ warm: new FakeWarmQuery(), abortController: replacement }) });
 			await pipeline.rebindForRestart();
 			const afterRebind = { oldRemoved: oldRemoved.callCount, newAdded: newAdded.callCount, newRemoved: newRemoved.callCount };
 			pipeline.dispose();
@@ -370,12 +370,14 @@ suite('ClaudeSdkPipeline', () => {
 			const { pipeline } = createPipeline(disposables);
 			const reasons: Array<'restart' | 'recover'> = [];
 			const built: { warm: FakeWarmQuery; controller: AbortController }[] = [];
-			const rematerializer: IRematerializer = async (reason) => {
-				reasons.push(reason);
-				const ctl = new AbortController();
-				const warm = new FakeWarmQuery();
-				built.push({ warm, controller: ctl });
-				return { warm, abortController: ctl };
+			const rematerializer: IRematerializer = {
+				async rematerialize(reason) {
+					reasons.push(reason);
+					const ctl = new AbortController();
+					const warm = new FakeWarmQuery();
+					built.push({ warm, controller: ctl });
+					return { warm, abortController: ctl };
+				},
 			};
 			pipeline.attachRematerializer(rematerializer);
 
@@ -399,9 +401,11 @@ suite('ClaudeSdkPipeline', () => {
 			const { pipeline } = createPipeline(disposables);
 			const rebuildErr = new Error('rematerialize failed');
 			let calls = 0;
-			pipeline.attachRematerializer(async () => {
-				calls++;
-				throw rebuildErr;
+			pipeline.attachRematerializer({
+				async rematerialize() {
+					calls++;
+					throw rebuildErr;
+				},
 			});
 
 			pipeline.abort();
@@ -416,10 +420,12 @@ suite('ClaudeSdkPipeline', () => {
 			const { pipeline } = createPipeline(disposables);
 			const releaseRebuild = new DeferredPromise<{ warm: FakeWarmQuery; controller: AbortController }>();
 			const built: { warm: FakeWarmQuery; controller: AbortController }[] = [];
-			pipeline.attachRematerializer(async () => {
-				const pair = await releaseRebuild.p;
-				built.push(pair);
-				return { warm: pair.warm, abortController: pair.controller };
+			pipeline.attachRematerializer({
+				async rematerialize() {
+					const pair = await releaseRebuild.p;
+					built.push(pair);
+					return { warm: pair.warm, abortController: pair.controller };
+				},
 			});
 
 			// Trigger rebind by aborting the seed controller and starting a send.
@@ -466,7 +472,7 @@ suite('ClaudeSdkPipeline', () => {
 
 			// Rebind to a fresh warm/Q2 while Q1's loop is still parked.
 			const warm2 = new ControllableWarmQuery();
-			pipeline.attachRematerializer(async () => ({ warm: warm2, abortController: new AbortController() }));
+			pipeline.attachRematerializer({ rematerialize: async () => ({ warm: warm2, abortController: new AbortController() }) });
 			await pipeline.rebindForRestart();
 			const q2 = warm2.queries[0];
 			assert.strictEqual(q2.nextCallCount, 0, 'new query not drained yet — the old loop is still running');
@@ -481,6 +487,47 @@ suite('ClaudeSdkPipeline', () => {
 			// Clean teardown: let the re-armed loop unwind before dispose.
 			q2.end();
 			await flushMicrotasks();
+		});
+
+		test('restart invokes the rebuild command with its owning receiver', async () => {
+			const { pipeline } = createPipeline(disposables);
+			const rebuilt = { warm: new FakeWarmQuery(), abortController: new AbortController() };
+			const requests: { reason: 'restart' | 'recover'; receiver: IRematerializer }[] = [];
+			const rematerializer: IRematerializer = {
+				async rematerialize(reason) {
+					requests.push({ reason, receiver: this });
+					return rebuilt;
+				},
+			};
+			pipeline.attachRematerializer(rematerializer);
+			await pipeline.rebindForRestart();
+			assert.deepStrictEqual({
+				requests: requests.map(request => ({ reason: request.reason, ownerRetained: request.receiver === rematerializer })),
+				queryBinds: rebuilt.warm.queryCallCount,
+				aborted: pipeline.isAborted,
+			}, {
+				requests: [{ reason: 'restart', ownerRetained: true }],
+				queryBinds: 1,
+				aborted: false,
+			});
+		});
+
+		test('dispose while rebuilding cancels and releases the late command result', async () => {
+			const { pipeline, warm } = createPipeline(disposables);
+			const rebuilt = new DeferredPromise<{ warm: FakeWarmQuery; abortController: AbortController }>();
+			pipeline.attachRematerializer({ rematerialize: () => rebuilt.p });
+			pipeline.abort();
+			const rejected = assert.rejects(pipeline.send(makePrompt('pending'), 'turn-A'), isCancellationError);
+			pipeline.dispose();
+			const fresh = { warm: new FakeWarmQuery(), abortController: new AbortController() };
+			rebuilt.complete(fresh);
+			await rejected;
+			assert.deepStrictEqual({
+				originalDisposals: warm.asyncDisposeCount,
+				freshDisposals: fresh.warm.asyncDisposeCount,
+				freshAborted: fresh.abortController.signal.aborted,
+				activeTurn: pipeline.hasActiveTurn,
+			}, { originalDisposals: 1, freshDisposals: 1, freshAborted: true, activeTurn: false });
 		});
 	});
 
@@ -559,10 +606,12 @@ suite('ClaudeSdkPipeline', () => {
 			assert.deepStrictEqual(warm.flagSettings, [], 'effort must not be pushed while needsRebind');
 
 			let warm2!: RecordingWarmQuery;
-			pipeline.attachRematerializer(async () => {
-				const ctl = new AbortController();
-				warm2 = new RecordingWarmQuery(ctl.signal);
-				return { warm: warm2, abortController: ctl };
+			pipeline.attachRematerializer({
+				async rematerialize() {
+					const ctl = new AbortController();
+					warm2 = new RecordingWarmQuery(ctl.signal);
+					return { warm: warm2, abortController: ctl };
+				},
 			});
 			pipeline.send(makePrompt('p2'), 'turn-B').catch(() => { /* stream ends without result */ });
 			await flushMicrotasks();
@@ -592,10 +641,12 @@ suite('ClaudeSdkPipeline', () => {
 
 		test('abort + send rejects with a CancellationError-shaped error after the rematerializer runs (when rematerializer rejects with one)', async () => {
 			const { pipeline } = createPipeline(disposables);
-			pipeline.attachRematerializer(async () => {
-				const err = new Error('Canceled');
-				err.name = 'Canceled';
-				throw err;
+			pipeline.attachRematerializer({
+				async rematerialize() {
+					const err = new Error('Canceled');
+					err.name = 'Canceled';
+					throw err;
+				},
 			});
 			pipeline.abort();
 			await pipeline.send(makePrompt('p1'), 'turn-A').then(
