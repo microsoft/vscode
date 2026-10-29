@@ -75,6 +75,35 @@ suite('SessionWorktreeCleanupEditor', () => {
 		}
 	}
 
+	for (const result of ['empty', 'populated'] as const) {
+		test(`focus enters the cleanup editor while loading and after ${result} results`, async () => {
+			const finished = new DeferredPromise<readonly ISessionWorktree[]>();
+			const { editor, container } = createEditor({ getWorktrees: () => finished.p });
+			const previousFocus = dom.append(container, dom.$('button'));
+			await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+			previousFocus.focus();
+			editor.focus();
+			const editorElement = container.querySelector<HTMLElement>('.session-worktree-cleanup-editor')!;
+			const focusedWhileLoading = dom.getActiveElement() === editorElement;
+			await finished.complete(result === 'empty' ? [] : [createWorktree('first', '/repos/app')]);
+			await timeout(0);
+			const focusedAfterLoading = dom.getActiveElement() === editorElement;
+			previousFocus.focus();
+			editor.focus();
+			assert.deepStrictEqual({
+				focusedWhileLoading,
+				focusedAfterLoading,
+				focusedOnReturn: dom.getActiveElement() === editorElement,
+				tabIndex: editorElement.tabIndex,
+			}, {
+				focusedWhileLoading: true,
+				focusedAfterLoading: true,
+				focusedOnReturn: true,
+				tabIndex: -1,
+			});
+		});
+	}
+
 	test('preselects unlinked worktrees with unknown size and allows cleanup', async () => {
 		const unlinked: ISessionWorktree = {
 			unlinkedWorktree: { providerId: 'test', repository: URI.file('/repos/app').toString(), worktree: URI.file('/repos/app.worktrees/recovered').toString(), branch: 'agents/recovered', cleanupStatus: { state: 'unknown' } },
