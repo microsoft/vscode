@@ -1,0 +1,179 @@
+{
+  "$comment": "Conformance vectors for the `copilot.toolTelemetry` key on ToolCallState._meta, delivered on the chat/toolCallComplete action. See ../tool-call.md for the prose spec and ./README.md for the harness contract. `projectFromSdk` drives the real host helper from a ToolExecutionCompleteData (camelCase wire JSON) and wraps the produced value under the key; `set` / `extract` pin the portable insert / read convention (including coexistence with the AHP-native `ui` key); `wireShape` pins the serialized chat/toolCallComplete carrier. Object comparison is order-insensitive, so the host's sorted-key output-stability rule is pinned separately by a Rust unit test.",
+  "key": "copilot.toolTelemetry",
+  "carrier": "ToolCallState._meta",
+  "tests": [
+    {
+      "name": "projectFromSdk: carries the tool_telemetry map verbatim under the key",
+      "op": "projectFromSdk",
+      "input": {
+        "data": {
+          "success": true,
+          "toolCallId": "tc-1",
+          "toolTelemetry": {
+            "matchCount": 42,
+            "filesScanned": 118,
+            "truncated": false
+          }
+        }
+      },
+      "expected": {
+        "meta": {
+          "copilot.toolTelemetry": {
+            "matchCount": 42,
+            "filesScanned": 118,
+            "truncated": false
+          }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: preserves nested value shapes verbatim",
+      "op": "projectFromSdk",
+      "input": {
+        "data": {
+          "success": true,
+          "toolCallId": "tc-2",
+          "toolTelemetry": {
+            "breakdown": { "high": 3, "low": 9 },
+            "paths": ["a.ts", "b.ts"]
+          }
+        }
+      },
+      "expected": {
+        "meta": {
+          "copilot.toolTelemetry": {
+            "breakdown": { "high": 3, "low": 9 },
+            "paths": ["a.ts", "b.ts"]
+          }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: returns no _meta when tool_telemetry is absent",
+      "op": "projectFromSdk",
+      "input": {
+        "data": {
+          "success": true,
+          "toolCallId": "tc-3"
+        }
+      },
+      "expected": {
+        "meta": null
+      }
+    },
+    {
+      "name": "projectFromSdk: returns no _meta when tool_telemetry is an empty map",
+      "op": "projectFromSdk",
+      "input": {
+        "data": {
+          "success": false,
+          "toolCallId": "tc-4",
+          "toolTelemetry": {}
+        }
+      },
+      "expected": {
+        "meta": null
+      }
+    },
+    {
+      "name": "set: stamps the key onto an empty _meta",
+      "op": "set",
+      "input": {
+        "detail": { "matchCount": 42 },
+        "meta": {}
+      },
+      "expected": {
+        "meta": {
+          "copilot.toolTelemetry": { "matchCount": 42 }
+        }
+      }
+    },
+    {
+      "name": "set: preserves the AHP-native `ui` key stamped at start",
+      "$comment": "The reducer replaces _meta wholesale on the complete transition, so the host re-includes the start-stamped `ui` block alongside the telemetry.",
+      "op": "set",
+      "input": {
+        "detail": { "matchCount": 42 },
+        "meta": { "ui": { "resourceUri": "ui://widget/grep", "visibility": ["app"] } }
+      },
+      "expected": {
+        "meta": {
+          "ui": { "resourceUri": "ui://widget/grep", "visibility": ["app"] },
+          "copilot.toolTelemetry": { "matchCount": 42 }
+        }
+      }
+    },
+    {
+      "name": "extract: returns the telemetry object when present and non-empty",
+      "op": "extract",
+      "input": {
+        "meta": {
+          "copilot.toolTelemetry": { "matchCount": 42, "filesScanned": 118 }
+        }
+      },
+      "expected": {
+        "detail": { "matchCount": 42, "filesScanned": 118 }
+      }
+    },
+    {
+      "name": "extract: returns null when _meta is absent",
+      "op": "extract",
+      "input": {},
+      "expected": { "detail": null }
+    },
+    {
+      "name": "extract: returns null when _meta lacks the key",
+      "op": "extract",
+      "input": {
+        "meta": { "ui": { "resourceUri": "ui://widget/grep" } }
+      },
+      "expected": { "detail": null }
+    },
+    {
+      "name": "extract: returns null when the value is an empty object",
+      "$comment": "The host never emits an empty telemetry object; a non-conformant producer that does is treated as 'no telemetry'.",
+      "op": "extract",
+      "input": {
+        "meta": { "copilot.toolTelemetry": {} }
+      },
+      "expected": { "detail": null }
+    },
+    {
+      "name": "extract: returns null when the value is a number (wrong type)",
+      "op": "extract",
+      "input": {
+        "meta": { "copilot.toolTelemetry": 42 }
+      },
+      "expected": { "detail": null }
+    },
+    {
+      "name": "wireShape: a chat/toolCallComplete with telemetry and a coexisting `ui` key serializes to the flat-dotted _meta plus camelCase result",
+      "op": "wireShape",
+      "input": {
+        "turnId": "t1",
+        "toolCallId": "tc-1",
+        "pastTenseMessage": "Ran grep",
+        "success": true,
+        "meta": {
+          "ui": { "resourceUri": "ui://widget/grep" },
+          "copilot.toolTelemetry": { "matchCount": 42, "filesScanned": 118 }
+        }
+      },
+      "expected": {
+        "json": {
+          "turnId": "t1",
+          "toolCallId": "tc-1",
+          "_meta": {
+            "ui": { "resourceUri": "ui://widget/grep" },
+            "copilot.toolTelemetry": { "matchCount": 42, "filesScanned": 118 }
+          },
+          "result": {
+            "success": true,
+            "pastTenseMessage": "Ran grep"
+          }
+        }
+      }
+    }
+  ]
+}

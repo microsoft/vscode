@@ -272,9 +272,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	private isTriggerKeyEvent(event: StandardKeyboardEvent): boolean {
+		const item = this.focusedItem !== undefined ? this.viewItems[this.focusedItem] : undefined;
+		const hasAlternative = item instanceof BaseActionViewItem && item.getActionToRun(event) !== item._action;
 		let ret = false;
 		this._triggerKeys.keys.forEach(keyCode => {
-			ret = ret || event.equals(keyCode);
+			ret = ret || event.equals(keyCode) || (hasAlternative && event.equals(keyCode | (event.altKey ? KeyMod.Alt : 0) | (event.shiftKey ? KeyMod.Shift : 0)));
 		});
 
 		return ret;
@@ -447,6 +449,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 			return;
 		}
 
+		if (!this.isFocused()) {
+			this.focusedItem = undefined;
+		}
+
 		this._viewItems = dispose(this._viewItems);
 		this.viewItemDisposables.clearAndDisposeAll();
 		DOM.clearNode(this.actionsList);
@@ -601,7 +607,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		const actionViewItem = this.viewItems[this.focusedItem];
 		if (actionViewItem instanceof BaseActionViewItem) {
 			const context = (actionViewItem._context === null || actionViewItem._context === undefined) ? event : actionViewItem._context;
-			this.run(actionViewItem._action, context);
+			this.run(actionViewItem.getActionToRun(event), context);
 		}
 	}
 

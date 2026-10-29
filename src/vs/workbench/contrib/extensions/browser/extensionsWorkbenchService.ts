@@ -7,7 +7,7 @@ import * as nls from '../../../../nls.js';
 import * as semver from '../../../../base/common/semver/semver.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { index } from '../../../../base/common/arrays.js';
-import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise, disposableTimeout } from '../../../../base/common/async.js';
+import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise } from '../../../../base/common/async.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IPager, singlePagePager } from '../../../../base/common/paging.js';
@@ -41,6 +41,7 @@ import { ExtensionsInput, IExtensionEditorOptions } from '../common/extensionsIn
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProgressOptions, IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { NotificationTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import * as resources from '../../../../base/common/resources.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -999,7 +1000,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private installing: IExtension[] = [];
 	private tasksInProgress: CancelablePromise<any>[] = [];
-	private readonly delayedAutoUpdateCheckTimer = this._register(new MutableDisposable());
 
 	readonly whenInitialized: Promise<void>;
 
@@ -1135,19 +1135,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		// Register listeners for auto updates
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
-				if (!this.isAutoUpdateEnabled()) {
-					// Auto update disabled — cancel any pending delayed re-check
-					this.delayedAutoUpdateCheckTimer.value = undefined;
-				} else {
+				if (this.isAutoUpdateEnabled()) {
 					this.eventuallyAutoUpdateExtensions();
 				}
 				// The auto update value affects whether an extension is shown as delayed
 				this._onChange.fire(undefined);
 			}
 			if (e.affectsConfiguration(AutoUpdateDelayConfigurationKey)) {
-				// The delay affects when delayed updates are applied — cancel any pending
-				// delayed re-check and re-run the scheduling path with the new delay.
-				this.delayedAutoUpdateCheckTimer.value = undefined;
 				if (this.isAutoUpdateEnabled()) {
 					this.eventuallyAutoUpdateExtensions();
 				}
@@ -1775,6 +1769,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				await this.extensionService.startExtensionHosts({ toAdd, toRemove });
 				if (auto) {
 					this.notificationService.notify({
+						telemetry: NotificationTelemetryId.ExtensionsAutoRestart,
 						severity: Severity.Info,
 						message: nls.localize('extensionsAutoRestart', "Extensions were auto restarted to enable updates."),
 						priority: NotificationPriority.SILENT
@@ -2161,14 +2156,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return;
 		}
 
-		this.progressService.withProgress({ location: ProgressLocation.Notification }, async progress => {
+		this.progressService.withProgress({ location: ProgressLocation.Notification, telemetry: NotificationTelemetryId.ExtensionDownload }, async progress => {
 			try {
 				progress.report({ message: nls.localize('downloading...', "Downloading VSIX...") });
 				const name = `${galleryExtension.identifier.id}-${galleryExtension.version}${targetPlatform !== TargetPlatform.UNDEFINED && targetPlatform !== TargetPlatform.UNIVERSAL && targetPlatform !== TargetPlatform.UNKNOWN ? `-${targetPlatform}` : ''}.vsix`;
 				await this.galleryService.download(galleryExtension, this.uriIdentityService.extUri.joinPath(result[0], name), InstallOperation.None);
-				this.notificationService.info(nls.localize('download.completed', "Successfully downloaded the VSIX"));
+				this.notificationService.notify({ severity: Severity.Info, telemetry: NotificationTelemetryId.ExtensionDownloadComplete, message: nls.localize('download.completed', "Successfully downloaded the VSIX") });
 			} catch (error) {
-				this.notificationService.error(nls.localize('download.failed', "Error while downloading the VSIX: {0}", getErrorMessage(error)));
+				this.notificationService.notify({ severity: Severity.Error, telemetry: NotificationTelemetryId.ExtensionDownloadError, message: nls.localize('download.failed', "Error while downloading the VSIX: {0}", getErrorMessage(error)) });
 			}
 		});
 	}
@@ -2280,7 +2275,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const toUpdate: IExtension[] = [];
 		const disabledAutoUpdate = [];
 		const consentRequired = [];
-		let soonestDelayRemaining = Number.MAX_SAFE_INTEGER;
 		for (const extension of this.outdated) {
 			if (!this.shouldAutoUpdateExtension(extension)) {
 				disabledAutoUpdate.push(extension.identifier.id);
@@ -2291,7 +2285,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				const delayRemaining = this.getAutoUpdateDelayRemaining(extension);
 				if (delayRemaining > 0) {
 					this.logService.trace('Auto update delayed for extension', extension.identifier.id);
-					soonestDelayRemaining = Math.min(soonestDelayRemaining, delayRemaining);
 					continue;
 				}
 			}
@@ -2300,12 +2293,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				continue;
 			}
 			toUpdate.push(extension);
-		}
-
-		if (soonestDelayRemaining < Number.MAX_SAFE_INTEGER) {
-			this.delayedAutoUpdateCheckTimer.value = disposableTimeout(() => this.eventuallyCheckForUpdates(true), soonestDelayRemaining);
-		} else {
-			this.delayedAutoUpdateCheckTimer.value = undefined;
 		}
 
 		if (disabledAutoUpdate.length) {
@@ -3048,6 +3035,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const title = extension ? nls.localize('installing named extension', "Installing '{0}' extension...", extension.displayName) : nls.localize('installing extension', 'Installing extension...');
 		return this.withProgress({
 			location: progressLocation ?? ProgressLocation.Extensions,
+			telemetry: NotificationTelemetryId.ExtensionInstall,
 			title
 		}, async () => {
 			try {

@@ -5,7 +5,7 @@
 
 export interface IHttpRequest {
 	readonly url: string;
-	readonly method: 'GET' | 'POST';
+	readonly method: 'GET' | 'POST' | 'DELETE';
 	readonly headers: Record<string, string>;
 	readonly body?: string;
 	/**

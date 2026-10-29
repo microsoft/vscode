@@ -5,7 +5,7 @@
 
 import './media/customEditor.css';
 import { coalesce } from '../../../../base/common/arrays.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { extname, isEqual } from '../../../../base/common/resources.js';
@@ -24,10 +24,11 @@ import { DEFAULT_EDITOR_ASSOCIATION, EditorExtensions, GroupIdentifier, IEditorF
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ActiveCustomEditorDiffCanToggleLayoutContext, ActiveCustomEditorTextDiffContext } from '../../../common/contextkeys.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorDiffEditorLayout, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorModelManager, ICustomEditorService } from '../common/customEditor.js';
 import { CustomEditorModelManager } from '../common/customEditorModelManager.js';
 import { IEditorGroup, IEditorGroupContextKeyProvider, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { IEditorResolverService, IEditorType, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorService, IUntypedEditorReplacement } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ContributedCustomEditors } from '../common/contributedCustomEditors.js';
@@ -43,85 +44,84 @@ interface CustomEditorDiffInputInfo {
 
 type CustomEditorUndoRedoInput = CustomEditorInput | CustomEditorDiffInput | CustomEditorSideBySideDiffInput;
 
+function getCustomEditorDiffInputInfo(input: EditorInput | undefined): CustomEditorDiffInputInfo | undefined {
+	if (input instanceof CustomEditorDiffInput) {
+		return {
+			viewType: input.viewType,
+			originalResource: input.originalResource,
+			modifiedResource: input.modifiedResource,
+			layout: CustomEditorDiffEditorLayout.Inline,
+		};
+	}
+
+	if (input instanceof DiffEditorInput
+		&& input.original instanceof CustomEditorSideBySideDiffInput
+		&& input.modified instanceof CustomEditorSideBySideDiffInput
+		&& input.original.side === 'original'
+		&& input.modified.side === 'modified'
+		&& input.original.viewType === input.modified.viewType
+		&& input.original.diffId === input.modified.diffId) {
+		return {
+			viewType: input.original.viewType,
+			originalResource: input.original.originalResource,
+			modifiedResource: input.original.modifiedResource,
+			layout: CustomEditorDiffEditorLayout.SideBySide,
+		};
+	}
+
+	return undefined;
+}
+
 export class CustomEditorService extends Disposable implements ICustomEditorService {
 	_serviceBrand: any;
 
-	private readonly _contributedEditors: ContributedCustomEditors;
-	private _untitledCounter = 0;
-	private readonly _editorResolverDisposables = this._register(new DisposableStore());
 	private readonly _editorCapabilities = new Map<string, CustomEditorCapabilities>();
 
 	private readonly _models: ICustomEditorModelManager;
 
-	private readonly _onDidChangeEditorTypes = this._register(new Emitter<void>());
-	public readonly onDidChangeEditorTypes: Event<void> = this._onDidChangeEditorTypes.event;
-
-	private readonly _fileEditorFactory = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).getFileEditorFactory();
+	private readonly _onDidChangeEditorCapabilities = this._register(new Emitter<void>());
 
 	constructor(
 		@IFileService fileService: IFileService,
-		@IStorageService storageService: IStorageService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
-		@IExtensionService private readonly extensionService: IExtensionService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 	) {
 		super();
 
 		this._models = new CustomEditorModelManager();
-
-		this._contributedEditors = this._register(new ContributedCustomEditors(storageService));
-		// Register the contribution points only emitting one change from the resolver
-		this.editorResolverService.bufferChangeEvents(this.registerContributionPoints.bind(this));
-
-		this._register(this._contributedEditors.onChange(() => {
-			// Register the contribution points only emitting one change from the resolver
-			this.editorResolverService.bufferChangeEvents(this.registerContributionPoints.bind(this));
-			this._onDidChangeEditorTypes.fire();
-		}));
 
 		// Register group context key providers.
 		// These set the context keys for each editor group and the global context
 		const activeCustomEditorContextKeyProvider: IEditorGroupContextKeyProvider<string> = {
 			contextKey: CONTEXT_ACTIVE_CUSTOM_EDITOR_ID,
 			getGroupContextKeyValue: group => this.getActiveCustomEditorId(group),
-			onDidChange: this.onDidChangeEditorTypes
+			onDidChange: this._onDidChangeEditorCapabilities.event
 		};
 
 		const customEditorIsEditableContextKeyProvider: IEditorGroupContextKeyProvider<boolean> = {
 			contextKey: CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE,
 			getGroupContextKeyValue: group => this.getCustomEditorIsEditable(group),
-			onDidChange: this.onDidChangeEditorTypes
+			onDidChange: this._onDidChangeEditorCapabilities.event
 		};
 
 		const customEditorDiffCanToggleLayoutContextKeyProvider: IEditorGroupContextKeyProvider<boolean> = {
 			contextKey: ActiveCustomEditorDiffCanToggleLayoutContext,
 			getGroupContextKeyValue: group => this.getActiveCustomEditorDiffCanToggleLayout(group),
-			onDidChange: this.onDidChangeEditorTypes
+			onDidChange: this._onDidChangeEditorCapabilities.event
 		};
 
 		const customEditorTextDiffContextKeyProvider: IEditorGroupContextKeyProvider<boolean> = {
 			contextKey: ActiveCustomEditorTextDiffContext,
 			getGroupContextKeyValue: group => this.getActiveCustomEditorTextDiff(group),
-			onDidChange: this.onDidChangeEditorTypes
+			onDidChange: this._onDidChangeEditorCapabilities.event
 		};
 
-		this._register(this.editorGroupService.registerContextKeyProvider(activeCustomEditorContextKeyProvider));
-		this._register(this.editorGroupService.registerContextKeyProvider(customEditorIsEditableContextKeyProvider));
-		this._register(this.editorGroupService.registerContextKeyProvider(customEditorDiffCanToggleLayoutContextKeyProvider));
-		this._register(this.editorGroupService.registerContextKeyProvider(customEditorTextDiffContextKeyProvider));
-
-		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => {
-			void this.updateCustomDiffEditorsForDiffConfigurationChange(e);
-		}));
+		this._register(editorGroupService.registerContextKeyProvider(activeCustomEditorContextKeyProvider));
+		this._register(editorGroupService.registerContextKeyProvider(customEditorIsEditableContextKeyProvider));
+		this._register(editorGroupService.registerContextKeyProvider(customEditorDiffCanToggleLayoutContextKeyProvider));
+		this._register(editorGroupService.registerContextKeyProvider(customEditorTextDiffContextKeyProvider));
 
 		this._register(fileService.onDidRunOperation(e => {
-			if (e.isOperation(FileOperation.MOVE)) {
-				this.handleMovedFileInOpenedFileEditors(e.resource, this.uriIdentityService.asCanonicalUri(e.target.resource));
-			}
 			if (e.isOperation(FileOperation.DELETE)) {
 				this.handleDeletedFile(e.resource);
 			}
@@ -134,10 +134,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this._register(RedoCommand.addImplementation(PRIORITY, 'custom-editor', () => {
 			return this.withActiveCustomEditor(editor => editor.redo());
 		}));
-	}
-
-	getEditorTypes(): IEditorType[] {
-		return [...this._contributedEditors];
 	}
 
 	private withActiveCustomEditor(f: (editor: CustomEditorUndoRedoInput) => void | Promise<void>): boolean | Promise<void> {
@@ -163,6 +159,114 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		return undefined;
 	}
 
+	public get models() { return this._models; }
+
+	public registerCustomEditorCapabilities(viewType: string, options: CustomEditorCapabilities): IDisposable {
+		if (this._editorCapabilities.has(viewType)) {
+			throw new Error(`Capabilities for ${viewType} already set`);
+		}
+		this._editorCapabilities.set(viewType, options);
+		this._onDidChangeEditorCapabilities.fire();
+		return toDisposable(() => {
+			this._editorCapabilities.delete(viewType);
+			this._onDidChangeEditorCapabilities.fire();
+		});
+	}
+
+	public getCustomEditorCapabilities(viewType: string): CustomEditorCapabilities | undefined {
+		return this._editorCapabilities.get(viewType);
+	}
+
+	private getActiveCustomEditorId(group: IEditorGroup): string {
+		const activeEditorPane = group.activeEditorPane;
+		const input = activeEditorPane?.input;
+		const diffInfo = getCustomEditorDiffInputInfo(input);
+		if (diffInfo) {
+			return diffInfo.viewType;
+		}
+
+		return input instanceof CustomEditorInput && input.resource ? input.viewType : '';
+	}
+
+	private getActiveCustomEditorDiffCanToggleLayout(group: IEditorGroup): boolean {
+		const diffInfo = getCustomEditorDiffInputInfo(group.activeEditorPane?.input);
+		const capabilities = diffInfo ? this.getCustomEditorCapabilities(diffInfo.viewType) : undefined;
+		return capabilities?.supportsInlineDiff === true && capabilities.supportsSideBySideDiff === true;
+	}
+
+	private getActiveCustomEditorTextDiff(group: IEditorGroup): boolean {
+		const diffInfo = getCustomEditorDiffInputInfo(group.activeEditorPane?.input);
+		return !!diffInfo && this.getCustomEditorCapabilities(diffInfo.viewType)?.isTextEditor === true;
+	}
+
+	private getCustomEditorIsEditable(group: IEditorGroup): boolean {
+		const activeEditorPane = group.activeEditorPane;
+		const resource = activeEditorPane?.input?.resource;
+		if (!resource) {
+			return false;
+		}
+
+		return activeEditorPane?.input instanceof CustomEditorInput;
+	}
+
+	private handleDeletedFile(resource: URI): void {
+		// Dispose all custom editor models associated with the deleted resource
+		// to prevent stale references that can cause issues when recreating files with the same name
+		this._models.disposeAllModelsForResource(resource);
+	}
+}
+
+/**
+ * Registers the custom editors contributed by extensions with the editor resolver.
+ *
+ * This runs before the workbench restores its editors, separately from the lazily created
+ * {@link CustomEditorService}, so that custom editors can be resolved for the editors that are
+ * opened on startup.
+ */
+export class CustomEditorResolverContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.customEditorResolver';
+
+	private readonly _contributedEditors: ContributedCustomEditors;
+	private _untitledCounter = 0;
+	private readonly _editorResolverDisposables = this._register(new DisposableStore());
+
+	private readonly _fileEditorFactory = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).getFileEditorFactory();
+
+	constructor(
+		@IFileService fileService: IFileService,
+		@IStorageService storageService: IStorageService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
+		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@ICustomEditorService private readonly customEditorService: ICustomEditorService,
+	) {
+		super();
+
+		this._contributedEditors = this._register(new ContributedCustomEditors(storageService));
+		// Register the contribution points only emitting one change from the resolver
+		this.editorResolverService.bufferChangeEvents(() => this.registerContributionPoints());
+
+		this._register(this._contributedEditors.onChange(() => {
+			// Register the contribution points only emitting one change from the resolver
+			this.editorResolverService.bufferChangeEvents(() => this.registerContributionPoints());
+		}));
+
+		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => {
+			void this.updateCustomDiffEditorsForDiffConfigurationChange(e);
+		}));
+
+		this._register(fileService.onDidRunOperation(e => {
+			if (e.isOperation(FileOperation.MOVE)) {
+				this.handleMovedFileInOpenedFileEditors(e.resource, this.uriIdentityService.asCanonicalUri(e.target.resource));
+			}
+		}));
+	}
+
 	private registerContributionPoints(): void {
 		// Clear all previous contributions we know
 		this._editorResolverDisposables.clear();
@@ -182,7 +286,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 						priority: contributedEditor.priority,
 					},
 					{
-						singlePerResource: () => !(this.getCustomEditorCapabilities(contributedEditor.id)?.supportsMultipleEditorsPerDocument ?? false)
+						singlePerResource: () => !(this.customEditorService.getCustomEditorCapabilities(contributedEditor.id)?.supportsMultipleEditorsPerDocument ?? false)
 					},
 					{
 						createEditorInput: ({ resource, label }, group) => {
@@ -252,7 +356,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	}
 
 	private getDiffEditorLayout(contributedEditor: CustomEditorInfo, modifiedResource: URI): CustomEditorDiffEditorLayout | undefined {
-		const capabilities = this.getCustomEditorCapabilities(contributedEditor.id);
+		const capabilities = this.customEditorService.getCustomEditorCapabilities(contributedEditor.id);
 		const supportsInlineDiff = capabilities?.supportsInlineDiff === true;
 		const supportsSideBySideDiff = capabilities?.supportsSideBySideDiff === true;
 
@@ -267,13 +371,13 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		for (const group of this.editorGroupService.groups) {
 			const replacements: IUntypedEditorReplacement[] = [];
 			for (const editor of group.editors) {
-				const diffInfo = this.getCustomEditorDiffInputInfo(editor);
+				const diffInfo = getCustomEditorDiffInputInfo(editor);
 				const contributedEditor = diffInfo ? this._contributedEditors.get(diffInfo.viewType) : undefined;
 				if (!diffInfo
 					|| !contributedEditor
 					|| !e.affectsConfiguration(diffInfo.modifiedResource, 'diffEditor.renderSideBySide')
-					|| !this.getCustomEditorCapabilities(contributedEditor.id)?.supportsInlineDiff
-					|| !this.getCustomEditorCapabilities(contributedEditor.id)?.supportsSideBySideDiff
+					|| !this.customEditorService.getCustomEditorCapabilities(contributedEditor.id)?.supportsInlineDiff
+					|| !this.customEditorService.getCustomEditorCapabilities(contributedEditor.id)?.supportsSideBySideDiff
 					|| this.getDiffEditorLayout(contributedEditor, diffInfo.modifiedResource) === diffInfo.layout) {
 					continue;
 				}
@@ -301,110 +405,22 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		}
 	}
 
-	private getCustomEditorDiffInputInfo(input: EditorInput | undefined): CustomEditorDiffInputInfo | undefined {
-		if (input instanceof CustomEditorDiffInput) {
-			return {
-				viewType: input.viewType,
-				originalResource: input.originalResource,
-				modifiedResource: input.modifiedResource,
-				layout: CustomEditorDiffEditorLayout.Inline,
-			};
-		}
-
-		if (input instanceof DiffEditorInput
-			&& input.original instanceof CustomEditorSideBySideDiffInput
-			&& input.modified instanceof CustomEditorSideBySideDiffInput
-			&& input.original.side === 'original'
-			&& input.modified.side === 'modified'
-			&& input.original.viewType === input.modified.viewType
-			&& input.original.diffId === input.modified.diffId) {
-			return {
-				viewType: input.original.viewType,
-				originalResource: input.original.originalResource,
-				modifiedResource: input.original.modifiedResource,
-				layout: CustomEditorDiffEditorLayout.SideBySide,
-			};
-		}
-
-		return undefined;
-	}
-
-	public get models() { return this._models; }
-
-	public getCustomEditor(viewType: string): CustomEditorInfo | undefined {
-		return this._contributedEditors.get(viewType);
-	}
-
-	public getContributedCustomEditors(resource: URI): CustomEditorInfoCollection {
+	private getContributedCustomEditors(resource: URI): CustomEditorInfoCollection {
 		return new CustomEditorInfoCollection(this._contributedEditors.getContributedEditors(resource));
 	}
 
-	public getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection {
+	private getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection {
 		const resourceAssocations = this.editorResolverService.getAssociationsForResource(resource);
 		return new CustomEditorInfoCollection(
 			coalesce(resourceAssocations
 				.map(association => this._contributedEditors.get(association.viewType))));
 	}
 
-	public getAllCustomEditors(resource: URI): CustomEditorInfoCollection {
+	private getAllCustomEditors(resource: URI): CustomEditorInfoCollection {
 		return new CustomEditorInfoCollection([
 			...this.getUserConfiguredCustomEditors(resource).allEditors,
 			...this.getContributedCustomEditors(resource).allEditors,
 		]);
-	}
-
-	public registerCustomEditorCapabilities(viewType: string, options: CustomEditorCapabilities): IDisposable {
-		if (this._editorCapabilities.has(viewType)) {
-			throw new Error(`Capabilities for ${viewType} already set`);
-		}
-		this._editorCapabilities.set(viewType, options);
-		this._onDidChangeEditorTypes.fire();
-		return toDisposable(() => {
-			this._editorCapabilities.delete(viewType);
-			this._onDidChangeEditorTypes.fire();
-		});
-	}
-
-	public getCustomEditorCapabilities(viewType: string): CustomEditorCapabilities | undefined {
-		return this._editorCapabilities.get(viewType);
-	}
-
-	private getActiveCustomEditorId(group: IEditorGroup): string {
-		const activeEditorPane = group.activeEditorPane;
-		const input = activeEditorPane?.input;
-		const diffInfo = this.getCustomEditorDiffInputInfo(input);
-		if (diffInfo) {
-			return diffInfo.viewType;
-		}
-
-		return input instanceof CustomEditorInput && input.resource ? input.viewType : '';
-	}
-
-	private getActiveCustomEditorDiffCanToggleLayout(group: IEditorGroup): boolean {
-		const diffInfo = this.getCustomEditorDiffInputInfo(group.activeEditorPane?.input);
-		const capabilities = diffInfo ? this.getCustomEditorCapabilities(diffInfo.viewType) : undefined;
-		return capabilities?.supportsInlineDiff === true && capabilities.supportsSideBySideDiff === true;
-	}
-
-	private getActiveCustomEditorTextDiff(group: IEditorGroup): boolean {
-		const diffInfo = this.getCustomEditorDiffInputInfo(group.activeEditorPane?.input);
-		return !!diffInfo && this.getCustomEditorCapabilities(diffInfo.viewType)?.isTextEditor === true;
-	}
-
-	private getCustomEditorIsEditable(group: IEditorGroup): boolean {
-		const activeEditorPane = group.activeEditorPane;
-		const resource = activeEditorPane?.input?.resource;
-		if (!resource) {
-			return false;
-		}
-
-		return activeEditorPane?.input instanceof CustomEditorInput;
-	}
-
-	private handleDeletedFile(resource: URI): void {
-		// Dispose all custom editor models associated with the deleted resource
-		// to prevent stale references that can cause issues when recreating files with the same name
-		this._models.disposeAllModelsForResource(resource);
 	}
 
 	private async handleMovedFileInOpenedFileEditors(oldResource: URI, newResource: URI): Promise<void> {

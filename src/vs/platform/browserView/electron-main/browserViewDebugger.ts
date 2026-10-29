@@ -7,6 +7,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { CDPEvent, CDPTargetInfo, ICDPConnection } from '../common/cdp/types.js';
 import { BrowserView } from './browserView.js';
+import { readBrowserViewAccessibilityTree, type IBrowserViewAccessibilityTree } from './browserViewAccessibility.js';
 
 /**
  * Intercepts a CDP command before it is forwarded to the Electron debugger.
@@ -105,6 +106,11 @@ export class BrowserViewDebugger extends Disposable {
 		this.ensureAttached();
 		const result = await this._electronDebugger.sendCommand('Target.getTargetInfo') as { targetInfo: CDPTargetInfo };
 		return result.targetInfo;
+	}
+
+	async getAccessibilityTree(): Promise<IBrowserViewAccessibilityTree> {
+		this.ensureAttached();
+		return readBrowserViewAccessibilityTree((method, params) => this._electronDebugger.sendCommand(method, params));
 	}
 
 	/**
@@ -214,6 +220,9 @@ export class BrowserViewDebugger extends Disposable {
 			const p = params as { targetInfo: CDPTargetInfo };
 			if (this._knownTargets.has(p.targetInfo.targetId)) {
 				this._knownTargets.set(p.targetInfo.targetId, p.targetInfo);
+				this._onTargetInfoChanged.fire(p.targetInfo);
+			} else if (p.targetInfo.targetId === this.targetId) {
+				// The page target isn't in _knownTargets, but its URL and title still change on navigation.
 				this._onTargetInfoChanged.fire(p.targetInfo);
 			}
 		} else if (method === 'Debugger.paused') {

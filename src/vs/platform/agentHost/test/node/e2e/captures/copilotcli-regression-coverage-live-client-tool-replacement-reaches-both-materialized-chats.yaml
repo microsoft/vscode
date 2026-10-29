@@ -1,0 +1,228 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY". Do not call tools.
+    response:
+      content: READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY". Do not call tools.
+        - role: assistant
+          content: READY
+        - role: user
+          content: Call shared_probe exactly once with oldLabel set to default.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: shared_probe
+          input:
+            oldLabel: default
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY". Do not call tools.
+        - role: assistant
+          content: READY
+        - role: user
+          content: Call shared_probe exactly once with oldLabel set to default.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: shared_probe
+              input:
+                oldLabel: default
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: LIVE_PROBE_RESULT
+    response:
+      content: LIVE_PROBE_RESULT
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call shared_probe exactly once with oldLabel set to peer.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: shared_probe
+          input:
+            oldLabel: peer
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call shared_probe exactly once with oldLabel set to peer.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: shared_probe
+              input:
+                oldLabel: peer
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: LIVE_PROBE_RESULT
+    response:
+      content: 'The probe returned: **LIVE_PROBE_RESULT**'
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY". Do not call tools.
+        - role: assistant
+          content: READY
+        - role: user
+          content: Call shared_probe exactly once with oldLabel set to default.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: shared_probe
+              input:
+                oldLabel: default
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: LIVE_PROBE_RESULT
+        - role: assistant
+          content: LIVE_PROBE_RESULT
+        - role: user
+          content: Call shared_probe exactly once with newLabel set to default. Use its current schema.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_2
+          name: shared_probe
+          input:
+            newLabel: default
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY". Do not call tools.
+        - role: assistant
+          content: READY
+        - role: user
+          content: Call shared_probe exactly once with oldLabel set to default.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: shared_probe
+              input:
+                oldLabel: default
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: LIVE_PROBE_RESULT
+        - role: assistant
+          content: LIVE_PROBE_RESULT
+        - role: user
+          content: Call shared_probe exactly once with newLabel set to default. Use its current schema.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: shared_probe
+              input:
+                newLabel: default
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: LIVE_PROBE_RESULT
+    response:
+      content: LIVE_PROBE_RESULT
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call shared_probe exactly once with oldLabel set to peer.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: shared_probe
+              input:
+                oldLabel: peer
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: LIVE_PROBE_RESULT
+        - role: assistant
+          content: 'The probe returned: **LIVE_PROBE_RESULT**'
+        - role: user
+          content: Call shared_probe exactly once with newLabel set to peer. Use its current schema.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_3
+          name: shared_probe
+          input:
+            newLabel: peer
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call shared_probe exactly once with oldLabel set to peer.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: shared_probe
+              input:
+                oldLabel: peer
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: LIVE_PROBE_RESULT
+        - role: assistant
+          content: 'The probe returned: **LIVE_PROBE_RESULT**'
+        - role: user
+          content: Call shared_probe exactly once with newLabel set to peer. Use its current schema.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: shared_probe
+              input:
+                newLabel: peer
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_3
+              content: LIVE_PROBE_RESULT
+    response:
+      content: 'The probe returned: **LIVE_PROBE_RESULT**'
+      stopReason: end_turn

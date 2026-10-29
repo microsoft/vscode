@@ -11,6 +11,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { type AgentProvider, AgentSession, type AuthenticateParams, type AuthenticateResult, type IAgent, type IAgentHostNetworkEndpoint, type IMcpNotification } from '../common/agent.js';
+import type { IAgentHostAuthenticationScope } from '../common/agentHostCredentials.js';
 import type { IAgentHostManagedSettingsDiagnostics } from '../common/agentService.js';
 import { IAgentHostAuthenticationController } from './agentHostAuthenticationService.js';
 import { parseMcpChannelUri } from './shared/mcpCustomizationController.js';
@@ -33,10 +34,20 @@ export interface IAgentHostProviderService {
 	resolveProvider(provider?: AgentProvider): IAgent | undefined;
 	getProvider(provider: AgentProvider): IAgent | undefined;
 	getProviderForSession(session: URI | string): IAgent | undefined;
+	/**
+	 * Resolves the agent backing `chat` of `session`: the chat's own agent when
+	 * one is associated with it (a chat whose agent differs from its session's),
+	 * otherwise the session's agent. `undefined` when the chat's own agent is not
+	 * registered: such a chat never falls back to its session's agent.
+	 */
+	getProviderForChat(session: URI | string, chat: URI | string | undefined): IAgent | undefined;
 	getProviders(): readonly IAgent[];
 	associateSession(session: URI | string, provider: AgentProvider): void;
 	releaseSession(session: URI | string, expectedProvider?: AgentProvider): void;
-	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
+	/** Records the agent of a chat whose agent differs from its session's. A chat's agent never changes. */
+	associateChat(chat: URI | string, provider: AgentProvider): void;
+	releaseChat(chat: URI | string): void;
+	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult>;
 	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 	getNetworkDiagnostics(): Promise<IAgentHostProviderNetworkDiagnostics>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
@@ -49,6 +60,7 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 	private readonly _providerRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	private readonly _providers = this._register(new DisposableMap<AgentProvider, IAgent>());
 	private readonly _sessionToProvider = new Map<string, AgentProvider>();
+	private readonly _chatToProvider = new Map<string, AgentProvider>();
 	private readonly _agents: ISettableObservable<readonly IAgent[]> = observableValue(this, []);
 	readonly agents: IObservable<readonly IAgent[]> = this._agents;
 	private readonly _onDidRegisterProvider = this._register(new Emitter<IAgent>());
@@ -58,6 +70,7 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 	private readonly _providerInitializers = new Set<(provider: IAgent) => IDisposable>();
 	private readonly _authenticationReplays = new Map<AgentProvider, Promise<void>>();
 	private _defaultProvider: AgentProvider | undefined;
+	private _shutdownStarted = false;
 	private _shutdownPromise: Promise<void> | undefined;
 
 	constructor(
@@ -77,7 +90,7 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 	}
 
 	registerProvider(provider: IAgent): void {
-		if (this._shutdownPromise) {
+		if (this._shutdownStarted) {
 			throw new Error('Cannot register an agent provider after shutdown has started');
 		}
 		if (this._providers.has(provider.id)) {
@@ -135,7 +148,12 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 		if (schemeProvider) {
 			return this._providers.get(schemeProvider);
 		}
-		return this._defaultProvider ? this._providers.get(this._defaultProvider) : undefined;
+		return undefined;
+	}
+
+	getProviderForChat(session: URI | string, chat: URI | string | undefined): IAgent | undefined {
+		const chatProvider = chat === undefined ? undefined : this._chatToProvider.get(typeof chat === 'string' ? chat : chat.toString());
+		return chatProvider !== undefined ? this._providers.get(chatProvider) : this.getProviderForSession(session);
 	}
 
 	getProviders(): readonly IAgent[] {
@@ -154,8 +172,16 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 		this._sessionToProvider.delete(key);
 	}
 
-	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		return this._authenticationController.authenticate(params, this._providers.values());
+	associateChat(chat: URI | string, provider: AgentProvider): void {
+		this._chatToProvider.set(typeof chat === 'string' ? chat : chat.toString(), provider);
+	}
+
+	releaseChat(chat: URI | string): void {
+		this._chatToProvider.delete(typeof chat === 'string' ? chat : chat.toString());
+	}
+
+	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult> {
+		return this._authenticationController.authenticate(params, this._providers.values(), scope);
 	}
 
 	async handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
@@ -219,15 +245,29 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 	}
 
 	shutdown(): Promise<void> {
-		return this._shutdownPromise ??= this._shutdown();
+		if (!this._shutdownPromise) {
+			this._shutdownStarted = true;
+			this._shutdownPromise = this._shutdown();
+		}
+		return this._shutdownPromise;
 	}
 
 	private async _shutdown(): Promise<void> {
+		const providers = [...this._providers.values()];
 		try {
-			await Promises.settled([...this._authenticationReplays.values()]);
-			await Promises.settled([...this._providers.values()].map(provider => provider.shutdown()));
+			await Promises.settled([
+				Promises.settled([...this._authenticationReplays.values()]),
+				Promises.settled(providers.map(async provider => provider.shutdown())),
+			]);
 		} finally {
+			for (const provider of providers) {
+				this._providerRegistrations.deleteAndDispose(provider.id);
+				this._providers.deleteAndDispose(provider.id);
+			}
+			this._agents.set([], undefined);
+			this._defaultProvider = undefined;
 			this._sessionToProvider.clear();
+			this._chatToProvider.clear();
 		}
 	}
 }

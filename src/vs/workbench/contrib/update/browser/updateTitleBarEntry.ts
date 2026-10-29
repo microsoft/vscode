@@ -124,7 +124,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		this._register(actionViewItemService.register(
 			MenuId.TitleBarUpdate,
 			UPDATE_TITLE_BAR_ACTION_ID,
-			(action, options) => this.createEntry(instantiationService, action, options)
+			(action, options) => this.createEntry(instantiationService, action, options, AnchorAlignment.RIGHT)
 		));
 
 		if (additionalMenuPlacement) {
@@ -140,15 +140,15 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			this._register(actionViewItemService.register(
 				menuId,
 				UPDATE_TITLE_BAR_ACTION_ID,
-				(action, options) => this.createEntry(instantiationService, action, options)
+				(action, options) => this.createEntry(instantiationService, action, options, AnchorAlignment.LEFT)
 			));
 		}
 
 		void this.onStateChange(true);
 	}
 
-	private createEntry(instantiationService: IInstantiationService, action: IAction, options: IBaseActionViewItemOptions): UpdateTitleBarEntry {
-		this.entry = instantiationService.createInstance(UpdateTitleBarEntry, action, options, this.tooltip, focus => {
+	private createEntry(instantiationService: IInstantiationService, action: IAction, options: IBaseActionViewItemOptions, anchorAlignment: AnchorAlignment): UpdateTitleBarEntry {
+		this.entry = instantiationService.createInstance(UpdateTitleBarEntry, action, options, anchorAlignment, this.tooltip, focus => {
 			this.tooltipVisible = true;
 			this.tooltipFocused = focus;
 		}, () => {
@@ -239,6 +239,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 	constructor(
 		action: IAction,
 		options: IBaseActionViewItemOptions,
+		private readonly anchorAlignment: AnchorAlignment,
 		private readonly tooltip: UpdateTooltip,
 		private readonly onDidShowTooltip: (focus: boolean) => void,
 		private readonly onUserDismissedTooltip: () => void,
@@ -291,7 +292,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 			},
 			persistence: { sticky: true },
 			appearance: { showPointer: true, compact: true },
-			position: { anchorAlignment: AnchorAlignment.RIGHT },
+			position: { anchorAlignment: this.anchorAlignment },
 			trapFocus: focus,
 		}, focus);
 
@@ -311,7 +312,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 	}
 
 	protected override getHoverOptions(): IManagedHoverOptions {
-		return { position: { anchorAlignment: AnchorAlignment.RIGHT } };
+		return { position: { anchorAlignment: this.anchorAlignment } };
 	}
 
 	private async runAction() {

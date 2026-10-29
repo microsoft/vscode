@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See License.txt in the project root for license information.
+
 set -e
 
 # Get snapcraft version
@@ -37,4 +40,34 @@ case $VSCODE_ARCH in
   x64) SNAPCRAFT_TARGET_ARGS="" ;;
   *) SNAPCRAFT_TARGET_ARGS="--target-arch $VSCODE_ARCH" ;;
 esac
-(cd $SNAP_ROOT/code-* && sudo --preserve-env snapcraft snap $SNAPCRAFT_TARGET_ARGS --output "$SNAP_PATH")
+(
+  set -o pipefail
+  cd "$SNAP_ROOT"/code-*
+  snapcraftLog=$(mktemp)
+  trap 'rm -f "$snapcraftLog"' EXIT
+
+  # Snapcraft 7.5.3 saves global state before running any part; only retry before that.
+  # Recheck this boundary when upgrading the pinned image:
+  # https://github.com/canonical/snapcraft/blob/7.5.3/snapcraft_legacy/internal/lifecycle/_runner.py#L121-L145
+  # Three backoffs with jitter, then a final attempt (0 means no more retries).
+  for delay in 30 60 120 0; do
+    if sudo --preserve-env snapcraft snap $SNAPCRAFT_TARGET_ARGS --output "$SNAP_PATH" 2>&1 | tee "$snapcraftLog"; then
+      break
+    else
+      exitCodes=("${PIPESTATUS[@]}")
+    fi
+
+    (( exitCodes[1] == 0 )) || exit "${exitCodes[1]}"
+
+    if (( delay == 0 || exitCodes[0] != 1 )) ||
+      [[ -e parts/.snapcraft_global_state ]] ||
+      ! grep -Fxq 'Starting Snapcraft 7.5.3' "$snapcraftLog" ||
+      [[ "$(awk 'NF { last = $0 } END { print last }' "$snapcraftLog")" != 'Issue encountered while processing your request: [429] Too Many Requests.' ]]; then
+      exit "${exitCodes[0]}"
+    fi
+
+    delay=$((delay + RANDOM % 30))
+    echo "Snap Store HTTP 429 before any parts ran; retrying initialization in ${delay}s." >&2
+    sleep "$delay"
+  done
+)

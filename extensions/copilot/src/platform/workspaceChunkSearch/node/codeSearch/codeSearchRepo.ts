@@ -7,9 +7,11 @@ import { Result } from '../../../../util/common/result';
 import { CallTracker, TelemetryCorrelationId } from '../../../../util/common/telemetryCorrelationId';
 import { CancelablePromise, DeferredPromise, createCancelablePromise, raceCancellationError, raceTimeout, timeout } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { isCancellationError } from '../../../../util/vs/base/common/errors';
+import { CancellationError, isCancellationError } from '../../../../util/vs/base/common/errors';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { Disposable, IDisposable } from '../../../../util/vs/base/common/lifecycle';
+import { IAuthenticationService } from '../../../authentication/common/authentication';
+import { authenticationSessionIdentityEquals } from '../../../authentication/common/enterprise';
 import { EmbeddingType } from '../../../embeddings/common/embeddingsComputer';
 import { AdoRepoId, GithubRepoId, ResolvedRepoRemoteInfo } from '../../../git/common/gitService';
 import { measureExecTime } from '../../../log/common/logExecTime';
@@ -492,15 +494,96 @@ export class GithubCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 }
 
 export class AdoCodeSearchRepo extends BaseRemoteCodeSearchRepo {
+	private _credentialsChanged = false;
+	private _latestStatusRequest: Promise<RemoteCodeSearchState> | undefined;
+	private _latestStatusRefresh: Promise<RemoteCodeSearchState | undefined> | undefined;
+	private readonly _statusRequestsByState = new WeakMap<RemoteCodeSearchState, Promise<RemoteCodeSearchState>>();
+
 	constructor(
 		repoInfo: RepoInfo,
 		private readonly _adoRepoId: AdoRepoId,
 		remoteInfo: ResolvedRepoRemoteInfo,
 		@ILogService logService: ILogService,
 		@IAdoCodeSearchService private readonly _adoCodeSearchService: IAdoCodeSearchService,
+		@IAuthenticationService authenticationService: IAuthenticationService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(repoInfo, remoteInfo, logService, telemetryService);
+
+		let lastSession = authenticationService.anyAdoSession;
+		this._register(authenticationService.onDidAdoAuthenticationChange(() => {
+			const session = authenticationService.anyAdoSession;
+			const identityChanged = session?.id !== lastSession?.id || !authenticationSessionIdentityEquals(session, lastSession);
+			const tokenChanged = session?.accessToken !== lastSession?.accessToken;
+			lastSession = session;
+			if (!identityChanged && !tokenChanged) {
+				return;
+			}
+
+			this._credentialsChanged = true;
+			this.refreshStatusForCredentials(identityChanged);
+		}));
+	}
+
+	public override async refreshStatusFromEndpoint(force = false, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<RemoteCodeSearchState | undefined> {
+		const previousRequest = this._latestStatusRequest;
+		let refresh = super.refreshStatusFromEndpoint(force, telemetryInfo, token);
+		// Cached no-op refreshes must not replace an in-flight completion.
+		if (this._latestStatusRequest === previousRequest) {
+			return refresh;
+		}
+		this._latestStatusRefresh = refresh;
+		let state = await refresh;
+		// A rejected stale publication must wait for the successor's complete refresh.
+		while (this._latestStatusRefresh && this._latestStatusRefresh !== refresh) {
+			if (this._store.isDisposed || token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			refresh = this._latestStatusRefresh;
+			state = await raceCancellationError(refresh, token);
+		}
+		return state;
+	}
+
+	protected override fetchRemoteIndexState(telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<RemoteCodeSearchState> {
+		if (this._store.isDisposed || token.isCancellationRequested) {
+			return Promise.reject(new CancellationError());
+		}
+
+		this._credentialsChanged = false;
+		const promise: Promise<RemoteCodeSearchState> = super.fetchRemoteIndexState(telemetryInfo, token).then(async state => {
+			this._statusRequestsByState.set(state, promise);
+			// A successor can itself be superseded while its result is being adopted.
+			let request = promise;
+			while (this._latestStatusRequest && this._latestStatusRequest !== request) {
+				request = this._latestStatusRequest;
+				state = await request;
+			}
+			return state;
+		});
+		this._latestStatusRequest = promise;
+		return promise;
+	}
+
+	protected override updateState(newState: RemoteCodeSearchState): void {
+		const request = this._statusRequestsByState.get(newState);
+		// A newer request can start after adoption but before the result reaches this method.
+		if (this._store.isDisposed || (request && request !== this._latestStatusRequest)) {
+			return;
+		}
+		super.updateState(newState);
+		// Credentials can change after a fetch completes but before its status is published.
+		this.refreshStatusForCredentials();
+	}
+
+	private refreshStatusForCredentials(force = false): void {
+		if (force || (this._credentialsChanged && (this.status === CodeSearchRepoStatus.NotAuthorized || this.status === CodeSearchRepoStatus.CouldNotCheckIndexStatus))) {
+			void this.refreshStatusFromEndpoint(true, new TelemetryCorrelationId('AdoCodeSearchRepo::refreshStatusForCredentials'), CancellationToken.None).catch(error => {
+				if (!isCancellationError(error)) {
+					this._logService.error(error instanceof Error ? error : String(error), 'Failed to refresh ADO repository authorization');
+				}
+			});
+		}
 	}
 
 	public searchRepo(authOptions: { silent: boolean }, _embeddingType: EmbeddingType, resolvedQuery: string, maxResultCountHint: number, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<SemanticCodeSearchResult> {
@@ -520,7 +603,14 @@ export class AdoCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 		return Result.error(TriggerRemoteIndexingError.notIndexable);
 	}
 
-	protected override doFetchRemoteIndexState(_telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<Result<RemoteCodeSearchIndexState, RemoteCodeSearchError>> {
-		return this._adoCodeSearchService.getRemoteIndexState({ silent: true }, this._adoRepoId, token);
+	protected override async doFetchRemoteIndexState(_telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<Result<RemoteCodeSearchIndexState, RemoteCodeSearchError>> {
+		try {
+			return await this._adoCodeSearchService.getRemoteIndexState({ silent: true }, this._adoRepoId, token);
+		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			return Result.error({ type: 'generic-error', error: error instanceof Error ? error : new Error(String(error)) });
+		}
 	}
 }

@@ -5,13 +5,15 @@
 
 import './media/sessionInputBanners.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Button, ButtonWithDropdown, IButton, IButtonOptions } from '../../../../base/browser/ui/button/button.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import type { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -47,7 +49,7 @@ export interface ISessionInputBanner {
 	readonly icon: ThemeIcon;
 	/** Use the orange accent (border + icon) reserved for CI failures. */
 	readonly accent: boolean;
-	/** Single-line text; ellipsized when it does not fit next to the actions. */
+	/** Text shown beside the icon and actions. */
 	readonly text: string;
 	readonly ariaLabel: string;
 	readonly actions: readonly ISessionInputBannerAction[];
@@ -72,6 +74,7 @@ type BannerFocus =
  * provided by the {@link ISessionInputBanner} passed in.
  */
 export class SessionInputBannerWidget extends Disposable {
+	private readonly _hoverDelegate = this._register(createInstantHoverDelegate());
 
 	readonly domNode: HTMLElement;
 
@@ -97,6 +100,15 @@ export class SessionInputBannerWidget extends Disposable {
 
 		this.domNode = dom.$('.session-input-banner');
 		this.domNode.setAttribute('role', 'status');
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, event => {
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			const banner = this._banners[this._activeIndex];
+			if (keyboardEvent.equals(KeyCode.Escape) && banner?.dismiss) {
+				keyboardEvent.preventDefault();
+				keyboardEvent.stopPropagation();
+				banner.dismiss();
+			}
+		}, true));
 		this.setBanners(Array.isArray(banner) ? banner : [banner]);
 	}
 
@@ -135,7 +147,7 @@ export class SessionInputBannerWidget extends Disposable {
 		if (banner.reference) {
 			const reference = dom.append(this.domNode, dom.$('span.session-input-banner-reference'));
 			reference.textContent = banner.reference.label;
-			store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), reference, banner.reference.hover));
+			store.add(this.hoverService.setupManagedHover(this._hoverDelegate, reference, banner.reference.hover));
 		}
 
 		const icon = dom.append(this.domNode, dom.$('.session-input-banner-icon'));
@@ -144,10 +156,12 @@ export class SessionInputBannerWidget extends Disposable {
 
 		const textEl = dom.append(this.domNode, dom.$('span.session-input-banner-text'));
 		textEl.textContent = banner.text;
-		store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), textEl, banner.text));
+		store.add(this.hoverService.setupManagedHover(this._hoverDelegate, textEl, banner.text));
 
 		const actions = dom.append(this.domNode, dom.$('.session-input-banner-actions'));
+		const bannerIdentity = banner.id ?? banner;
 		for (const [actionIndex, action] of banner.actions.entries()) {
+			const actionIdentity = action.id ?? action.label;
 			const options = this._buttonOptions(action, banner);
 			const button = action.dropdownActions?.length
 				? store.add(new ButtonWithDropdown(actions, {
@@ -155,7 +169,7 @@ export class SessionInputBannerWidget extends Disposable {
 					actions: action.dropdownActions.map((dropdownAction, dropdownIndex) => toAction({
 						id: dropdownAction.id ?? `session.inputBanner.${actionIndex}.${dropdownIndex}`,
 						label: dropdownAction.label,
-						run: () => this._runAction(dropdownAction),
+						run: () => this._runAction(bannerIdentity, dropdownAction.id ?? dropdownAction.label),
 					})),
 					addPrimaryActionToDropdown: false,
 					contextMenuProvider: this.contextMenuService,
@@ -169,7 +183,7 @@ export class SessionInputBannerWidget extends Disposable {
 				button.dropdownButton.setAriaLabel(localize('sessionInputBanner.moreActionsFor', "More Actions for {0}", action.label));
 			}
 			this._buttons.push({ button, primary: !!action.primary });
-			store.add(button.onDidClick(() => { void this._runAction(action).catch(onUnexpectedError); }));
+			store.add(button.onDidClick(() => { void this._runAction(bannerIdentity, actionIdentity).catch(onUnexpectedError); }));
 		}
 
 		if (banner.dismiss && banner.dismissTooltip) {
@@ -178,7 +192,7 @@ export class SessionInputBannerWidget extends Disposable {
 			dismiss.type = 'button';
 			dismiss.setAttribute('aria-label', banner.dismissTooltip);
 			dismiss.appendChild(renderIcon(Codicon.close));
-			store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), dismiss, banner.dismissTooltip));
+			store.add(this.hoverService.setupManagedHover(this._hoverDelegate, dismiss, banner.dismissTooltip));
 			store.add(dom.addDisposableListener(dismiss, dom.EventType.CLICK, e => {
 				dom.EventHelper.stop(e, true);
 				banner.dismiss?.();
@@ -282,6 +296,8 @@ export class SessionInputBannerWidget extends Disposable {
 	private _navigationButtonOptions(ariaLabel: string): IButtonOptions {
 		return {
 			...defaultButtonStyles,
+			hoverDelegate: this._hoverDelegate,
+			title: ariaLabel,
 			ariaLabel,
 			supportIcons: true,
 			buttonBackground: undefined,
@@ -300,6 +316,7 @@ export class SessionInputBannerWidget extends Disposable {
 	private _buttonOptions(action: ISessionInputBannerAction, banner: ISessionInputBanner): IButtonOptions {
 		return {
 			...defaultButtonStyles,
+			hoverDelegate: this._hoverDelegate,
 			...(action.primary && banner.accent ? {
 				buttonBackground: asCssVariable(chartsOrange),
 				buttonHoverBackground: `color-mix(in srgb, ${asCssVariable(chartsOrange)} 88%, black)`,
@@ -318,7 +335,11 @@ export class SessionInputBannerWidget extends Disposable {
 		};
 	}
 
-	private async _runAction(action: ISessionInputBannerAction): Promise<void> {
+	private async _runAction(bannerIdentity: string | ISessionInputBanner, actionIdentity: string): Promise<void> {
+		let action = this._findAction(bannerIdentity, actionIdentity);
+		if (!action) {
+			return;
+		}
 		if (!action.primary) {
 			await action.run();
 			return;
@@ -329,9 +350,6 @@ export class SessionInputBannerWidget extends Disposable {
 
 		this._runningPrimaryAction = true;
 		this._setPrimaryButtonsEnabled(false);
-		const banner = this._banners[this._activeIndex];
-		const bannerIdentity = banner?.id ?? banner;
-		const actionIdentity = action.id ?? action.label;
 		try {
 			if (action.waitUntilReady && !await this._waitUntilReady(action.waitUntilReady)) {
 				return;
@@ -339,8 +357,8 @@ export class SessionInputBannerWidget extends Disposable {
 			// Readiness can resolve after the banner was replaced or torn down
 			// (e.g. the comments it acted on disappeared), and running then would
 			// act on state this banner no longer represents.
-			const currentBanner = this._banners[this._activeIndex];
-			if (this._disposed || (currentBanner?.id ?? currentBanner) !== bannerIdentity || !this._hasAction(currentBanner, actionIdentity)) {
+			action = this._findAction(bannerIdentity, actionIdentity);
+			if (this._disposed || !action) {
 				return;
 			}
 			await action.run();
@@ -350,10 +368,21 @@ export class SessionInputBannerWidget extends Disposable {
 		}
 	}
 
-	private _hasAction(banner: ISessionInputBanner | undefined, actionIdentity: string): boolean {
-		return banner?.actions.some(action =>
-			(action.id ?? action.label) === actionIdentity ||
-			action.dropdownActions?.some(dropdownAction => (dropdownAction.id ?? dropdownAction.label) === actionIdentity)) === true;
+	private _findAction(bannerIdentity: string | ISessionInputBanner, actionIdentity: string): ISessionInputBannerAction | undefined {
+		const banner = this._banners[this._activeIndex];
+		if ((banner?.id ?? banner) !== bannerIdentity) {
+			return undefined;
+		}
+		for (const action of banner.actions) {
+			if ((action.id ?? action.label) === actionIdentity) {
+				return action;
+			}
+			const dropdownAction = action.dropdownActions?.find(candidate => (candidate.id ?? candidate.label) === actionIdentity);
+			if (dropdownAction) {
+				return dropdownAction;
+			}
+		}
+		return undefined;
 	}
 
 	private async _waitUntilReady(waitUntilReady: () => Promise<boolean>): Promise<boolean> {

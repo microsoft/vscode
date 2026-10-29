@@ -5,7 +5,7 @@
 
 /**
  * Single source of truth for the names of the session server tools (the tools
- * that let an agent list, create, message, inspect, and delete sessions/chats).
+ * that let an agent list, create, message, inspect, archive, and delete sessions/chats).
  *
  * These names are shared across layers: `common/` code surfaces them (e.g. the
  * open-session link and chat-attachment pointer) but cannot import from `node/`,
@@ -19,16 +19,29 @@
 export const enum SessionServerToolName {
 	ListSessions = 'list_sessions',
 	GetCurrentSession = 'get_current_session',
+	SetWorkspace = 'set_workspace',
+	IsolateSession = 'isolate_session',
 	CreateSession = 'create_session',
 	CreateChat = 'create_chat',
 	RenameChat = 'rename_chat',
+	ArchiveChat = 'archive_chat',
 	SendMessage = 'send_message',
 	GetSessionContext = 'get_session_context',
 	DeleteSession = 'delete_session',
+	MoveSession = 'move_session',
 }
 
-/** Names of the artifact server tools, shared between `common/` and `node/`. */
-export const enum ArtifactServerToolName {
+/**
+ * Whether {@link toolName} (a tool name as seen on a tool call) refers to
+ * {@link SessionServerToolName.RenameChat}. Accepts both the bare name, as the
+ * agent sees it under Copilot, and the Claude `mcp__<server>__<name>` prefixed
+ * form — the same shape the feedback-annotation predicates accept.
+ */
+export function isRenameChatTool(toolName: string): boolean {
+	return toolName === SessionServerToolName.RenameChat || toolName.endsWith(`__${SessionServerToolName.RenameChat}`);
+}
+
+/** Names of the artifact server tools, shared between `common/` and `node/`. */export const enum ArtifactServerToolName {
 	AddArtifactOrReference = 'add_artifact_or_reference',
 	RemoveArtifactOrReference = 'remove_artifact_or_reference',
 	ListArtifactsAndReferences = 'list_artifacts_and_references',
@@ -44,3 +57,11 @@ export const LEGACY_ARTIFACT_SERVER_TOOL_NAMES: ReadonlyMap<string, string> = ne
 	['remove_artifact', ArtifactServerToolName.RemoveArtifactOrReference as string],
 	['list_artifacts', ArtifactServerToolName.ListArtifactsAndReferences as string],
 ]);
+
+/** Names of the tools that read and operate the integrations of recorded artifacts. */
+export const enum ArtifactIntegrationServerToolName {
+	GetArtifactStatus = 'get_artifact_status',
+	RunArtifactAction = 'run_artifact_action',
+	SetArtifactAutomation = 'set_artifact_automation',
+	DisableArtifactAutomation = 'disable_artifact_automation',
+}

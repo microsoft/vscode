@@ -58,6 +58,22 @@ matching `SessionToolCallComplete` action. Hooks (`Options.hooks.PreToolUse` /
 `PostToolUse`) are deliberately NOT used because they are user-bypassable
 via settings; the message stream is the canonical, non-bypassable signal.
 
+**Claude retained shell output** / `ClaudeTerminalOutputs`:
+Copies the complete output Claude saves for a large top-level shell result
+(`tool_use_result.persistedOutputPath`) into the chat's session database before
+the result is published, and attaches a non-PTY terminal resource to it. This
+handles the SDK's `Bash` tool, including commands that invoke `pwsh`, but not
+Claude's separate native `PowerShell` tool. Output without `persistedOutputPath`
+stays exactly as Claude returned it. Restored transcripts carry only Claude's
+`<persisted-output>` notice, so the same resource is re-attached when the database has the output.
+The agent service rebuilds exited terminal state from the database for
+subscribers; no terminal is kept alive.
+Cancellation interrupts the file read where supported and discards the staged
+content and mapper tracking before publication, even if capture fails. Cleanup
+does not create a missing database; database failures are logged. Unrecognized
+preview notices are traced without logging their contents, and the raw result
+and retained output remain available.
+
 ## Relationships
 
 - The **Agent Host** owns one **Claude Proxy** for the lifetime of the process.
@@ -156,11 +172,18 @@ Anthropic-canonical IDs (`claude-opus-4-6-20250929`). Translation is
 
 ### Q7 — Anthropic-beta + header passthrough
 
-- Lift `filterSupportedBetas()` and the three-entry `SUPPORTED_ANTHROPIC_BETAS`
-  allowlist (`interleaved-thinking`, `context-management`, `advanced-tool-use`)
-  into `node/claude/anthropicBetas.ts` with a "keep in sync" comment.
-  Allowlist match is prefix + `-` (date-suffix discipline). Lift the
-  same 7 test fixtures.
+- `filterSupportedBetas()` in `node/claude/anthropicBetas.ts` accepts the
+  `SUPPORTED_ANTHROPIC_BETAS` families: `interleaved-thinking`,
+  `context-management`, `advanced-tool-use`, `per-turn-control`, and
+  `thinking-display-updates`.
+  Allowlist match is prefix + `-` (date-suffix discipline).
+- The filter only forwards supported betas supplied by the SDK; it does not
+  inject compatibility betas.
+- The SDK's `per-turn-control` beta is passed through so CAPI can accept
+  per-message `output_config`.
+- The SDK's `thinking-display-updates` beta is passed through so CAPI can
+  accept `thinking: { type: 'adaptive', display: 'updates' }`. Without it,
+  CAPI returns 400 and the SDK retries the request without `display`.
 - Applied at `POST /v1/messages` after auth, before model translation.
   If the filtered result is a non-empty string, set it on the outbound
   `ICopilotApiServiceRequestOptions.headers['anthropic-beta']`. If
@@ -464,7 +487,7 @@ Procedure (manual, run at the end of Phase 2 implementation):
    `claudeProxyService.start(token)` once a real GitHub token is
    minted, and log the resulting `baseUrl` and `nonce` at info level.
 2. Launch the dev build (`./scripts/code.sh --agents` or
-   `Run Dev Agents`) and authenticate.
+   `Run Agents`) and authenticate.
 3. Use the **code-oss-logs** skill to read `agenthost.log` from the
    most recent run; grep for the proxy line; extract `baseUrl` +
    `nonce`.
@@ -1249,10 +1272,7 @@ Mapping that to the IAgent lifecycle:
 | Forked session (`forkSession` already wrote the file) | Yes | `resume: <forkedSessionId>` — SDK resumes the on-disk transcript |
 | Restored / imported session (already on disk from a prior process) | Yes | `resume: <sessionId>` |
 
-The agent must track "is this session id backed by an on-disk file
-yet?" across its provisional/materialize lifecycle so it picks the
-correct field. The fork path flips the bit at `forkSession` return
-time; the fresh path flips it at `query({ sessionId })` return time.
+Rebuilds preserve fresh mode until the pipeline receives `system/init`; starting a warm subprocess alone does not establish a resumable conversation. Forked and restored chats retain resume mode even when rebuilt before their first send in the current process. Configuration changes during startup must therefore select resume mode using both the materialization context and the pipeline's initialization state.
 
 #### Fork sub-flow
 

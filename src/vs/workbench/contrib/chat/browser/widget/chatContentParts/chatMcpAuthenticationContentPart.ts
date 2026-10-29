@@ -4,28 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
+import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { appendEscapedMarkdownInlineCode, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { IAgentHostCustomizationService } from '../../agentSessions/agentHost/agentHostCustomizationService.js';
+import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
+import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../../agentSessions/agentHost/agentHostCustomizationService.js';
 import { IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer } from '../../../common/chatService/chatService.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { getCompactCodicon } from '../../chatIcons.js';
-import { IChatContentPart } from './chatContentParts.js';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { ChatCustomConfirmationWidget } from './chatConfirmationWidget.js';
 import './media/chatMcpServersInteractionContent.css';
 
 export class ChatMcpAuthenticationContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
 	private readonly rendered = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private readonly confirmation = this._register(new MutableDisposable<DisposableStore>());
+	private authenticateAction: HTMLElement | undefined;
 
 	/**
 	 * Whether this part was ever shown. Used to distinguish the initial empty
@@ -42,11 +49,17 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 	 * server and stays visible regardless of the underlying auth-required state.
 	 */
 	private readonly _authenticating = observableValue<IChatMcpAuthenticationRequiredServer | undefined>(this, undefined);
+	private _pendingServers: readonly Pick<IChatMcpAuthenticationRequiredServer, 'id' | 'name'>[] = [];
+	private _renderedAuthenticatingServerId: string | undefined;
 
 	constructor(
 		private readonly data: IChatMcpAuthenticationRequired,
+		private readonly context: IChatContentPartRenderContext,
+		private readonly options: { onDidAuthenticate?: () => void; onDidRemoveFocusedAction?: () => void } = {},
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this.domNode = dom.$('.chat-mcp-servers-interaction');
@@ -55,79 +68,109 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		// is pushed into the same observable by the session handler — or while a
 		// server is actively being authenticated.
 		this._register(autorun(reader => {
-			const servers = this.data.servers.read(reader);
+			const dataServers = this.data.servers.read(reader);
 			const authenticating = this._authenticating.read(reader);
-			this.render(servers, authenticating);
-			this.updateVisibility(servers, authenticating);
+			this.update(dataServers, authenticating);
 		}));
-		this._register(this.agentHostCustomizationService.onDidChangeCustomizations(() => this.updateVisibility(this.data.servers.get(), this._authenticating.get())));
+		this._register(this.agentHostCustomizationService.onDidChangeCustomizations(() => this.update(this.data.servers.get(), this._authenticating.get())));
 	}
 
-	private render(servers: readonly IChatMcpAuthenticationRequiredServer[], authenticating: IChatMcpAuthenticationRequiredServer | undefined): void {
+	private update(dataServers: readonly IChatMcpAuthenticationRequiredServer[], authenticating: IChatMcpAuthenticationRequiredServer | undefined): void {
+		const pendingServers = this.getPendingServers(dataServers);
+		const pendingServersChanged = !this.pendingServersEqual(pendingServers, this._pendingServers);
+		this._pendingServers = pendingServers;
+		if (authenticating?.id !== this._renderedAuthenticatingServerId || (!authenticating && pendingServersChanged)) {
+			this.render(pendingServers, authenticating);
+			this._renderedAuthenticatingServerId = authenticating?.id;
+		}
+		this.updateVisibility(pendingServers, authenticating);
+	}
+
+	private pendingServersEqual(first: readonly Pick<IChatMcpAuthenticationRequiredServer, 'id' | 'name'>[], second: readonly Pick<IChatMcpAuthenticationRequiredServer, 'id' | 'name'>[]): boolean {
+		return first.length === second.length && first.every((server, index) => server.id === second[index].id && server.name === second[index].name);
+	}
+
+	private getPendingServers(dataServers: readonly IChatMcpAuthenticationRequiredServer[]): readonly Pick<IChatMcpAuthenticationRequiredServer, 'id' | 'name'>[] {
+		const sessionResource = URI.revive(this.data.sessionResource);
+		const dataServerIds = new Set(dataServers.map(server => server.id));
+		return this.agentHostCustomizationService.getMcpServers(sessionResource)
+			.filter(server => dataServerIds.has(server.id) && server.enabled && server.status === McpServerStatus.AuthRequired)
+			.map(server => ({ id: server.id, name: getMcpServerDisplayLabel(server) }));
+	}
+
+	private render(servers: readonly Pick<IChatMcpAuthenticationRequiredServer, 'id' | 'name'>[], authenticating: IChatMcpAuthenticationRequiredServer | undefined): void {
+		const actionHadFocus = !!this.authenticateAction && dom.isActiveElement(this.authenticateAction);
+		this.authenticateAction = undefined;
 		dom.clearNode(this.domNode);
 		this.rendered.clear();
+		this.confirmation.clear();
 
 		if (authenticating) {
 			this._renderMessage(
 				ThemeIcon.modify(Codicon.loading, 'spin'),
-				localize('mcp.auth.authenticating', 'Authenticating {0}...', '`' + escapeMarkdownSyntaxTokens(authenticating.name) + '`'),
+				localize('mcp.auth.authenticating', 'Authenticating {0}...', appendEscapedMarkdownInlineCode(authenticating.name)),
 			);
+			if (actionHadFocus) {
+				this.options.onDidRemoveFocusedAction?.();
+			}
 			return;
 		}
 
 		if (!servers.length) {
+			if (actionHadFocus) {
+				this.options.onDidRemoveFocusedAction?.();
+			}
 			return;
 		}
 
 		const links = servers
-			.map(server => '`' + escapeMarkdownSyntaxTokens(server.name) + '`')
+			.map(server => appendEscapedMarkdownInlineCode(server.name))
 			.join(', ');
 		const content = servers.length === 1
-			? localize('mcp.auth.single', 'The MCP server {0} requires authentication. [Authenticate](#authenticate)?', links)
-			: localize('mcp.auth.multiple', 'The MCP servers {0} require authentication. [Authenticate](#authenticate)?', links);
-		this._renderMessage(Codicon.mcp, content, { href: '#authenticate', run: () => void this.authenticate() });
+			? localize('mcp.auth.single', "The MCP server {0} requires authentication.", links)
+			: localize('mcp.auth.multiple', "The MCP servers {0} require authentication.", links);
+		const store = this.confirmation.value = new DisposableStore();
+		const widget = store.add(this.instantiationService.createInstance(ChatCustomConfirmationWidget<void>, this.context, {
+			title: localize('mcp.auth.title', "MCP authentication required"),
+			icon: Codicon.mcp,
+			message: new MarkdownString(content),
+			buttons: [{ label: localize('mcp.auth.authenticate', "Authenticate"), data: undefined }],
+		}));
+		store.add(widget.onDidClick(() => void this.authenticate()));
+		this.domNode.appendChild(widget.domNode);
+		// eslint-disable-next-line no-restricted-syntax
+		this.authenticateAction = widget.domNode.querySelector<HTMLElement>('.monaco-button') ?? undefined;
+		if (!this._renderedAuthenticatingServerId && this.configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
+			alert(localize('mcp.auth.announcement', "{0} Use the Authenticate button to continue.", renderAsPlaintext(new MarkdownString(content))));
+		}
+		if (actionHadFocus) {
+			this.authenticateAction?.focus();
+		}
 	}
 
-	private _renderMessage(icon: ThemeIcon, content: string, action?: { href: string; run: () => void }): void {
+	private _renderMessage(icon: ThemeIcon, content: string): void {
 		const container = dom.$('.chat-mcp-servers-interaction-hint');
 		const messageContainer = dom.$('.chat-mcp-servers-message');
 		const iconElement = dom.$('.chat-mcp-servers-icon');
 		iconElement.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 
-		const rendered = this.rendered.value = this.markdownRendererService.render(new MarkdownString(content, { isTrusted: true }), action ? {
-			actionHandler: (href: string) => {
-				// Only the dedicated authenticate link triggers auth; ignore any
-				// other link target so the handler stays scoped to this control.
-				if (href !== action.href) {
-					return Promise.resolve(false);
-				}
-				action.run();
-				return Promise.resolve(true);
-			},
-		} : undefined);
+		const rendered = this.rendered.value = this.markdownRendererService.render(new MarkdownString(content));
 
 		messageContainer.appendChild(iconElement);
 		messageContainer.appendChild(rendered.element);
 		container.appendChild(messageContainer);
 		this.domNode.appendChild(container);
-
-		if (action) {
-			// Present the authenticate link as a button for assistive technology
-			// and clear its href so it doesn't behave like a navigable link.
-			// eslint-disable-next-line no-restricted-syntax
-			const actionLink = rendered.element.querySelector<HTMLAnchorElement>(`a[data-href="${action.href}"]`);
-			if (actionLink) {
-				actionLink.setAttribute('role', 'button');
-				actionLink.href = '';
-			}
-		}
 	}
 
 	private async authenticate(): Promise<void> {
 		const sessionResource = URI.revive(this.data.sessionResource);
 		try {
-			for (const server of this.data.servers.get()) {
-				this._authenticating.set(server, undefined);
+			for (const server of this.getPendingServers(this.data.servers.get())) {
+				const dataServer = this.data.servers.get().find(candidate => candidate.id === server.id);
+				if (!dataServer || !this.getPendingServers(this.data.servers.get()).some(candidate => candidate.id === server.id)) {
+					continue;
+				}
+				this._authenticating.set({ ...dataServer, name: server.name }, undefined);
 				await this.agentHostCustomizationService.authenticateMcpServer(sessionResource, server.id);
 			}
 		} finally {
@@ -135,24 +178,23 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		}
 	}
 
-	private updateVisibility(dataServers: readonly IChatMcpAuthenticationRequiredServer[], authenticating: IChatMcpAuthenticationRequiredServer | undefined): void {
+	private updateVisibility(pendingServers: readonly Pick<IChatMcpAuthenticationRequiredServer, 'id' | 'name'>[], authenticating: IChatMcpAuthenticationRequiredServer | undefined): void {
 		// Stay visible while actively authenticating so the progress message is shown.
 		if (authenticating) {
 			this.domNode.style.display = '';
 			this._hasBeenVisible = true;
 			return;
 		}
-		const sessionResource = URI.revive(this.data.sessionResource);
-		const servers = this.agentHostCustomizationService.getMcpServers(sessionResource);
-		const visible = dataServers.some(server => servers.some(current => current.id === server.id && current.status === McpServerStatus.AuthRequired));
+		const visible = pendingServers.length > 0;
 		this.domNode.style.display = visible ? '' : 'none';
 		if (visible) {
 			this._hasBeenVisible = true;
-		} else if (this._hasBeenVisible) {
+		} else if (this._hasBeenVisible && !this.data.isUsed) {
 			// Every server has been authenticated. Mark this part used so a
 			// subsequent auth requirement surfaces as a fresh prompt rather than
 			// silently reusing this now-hidden one.
 			this.data.isUsed = true;
+			this.options.onDidAuthenticate?.();
 		}
 	}
 

@@ -221,6 +221,11 @@ const editorConfiguration: IConfigurationNode = {
 			description: nls.localize('useInlineViewWhenSpaceIsLimited', "If enabled and the editor width is too small, the inline view is used."),
 			agentsWindow: { default: true },
 		},
+		'diffEditor.hideOriginalLineNumbers': {
+			type: ['boolean', 'null'],
+			default: null,
+			description: nls.localize('hideOriginalLineNumbers', "Controls whether original line numbers are hidden in inline diffs. When set to null, uses the editor's default: hidden in compact multi diff editors and visible in other diff editors."),
+		},
 		'diffEditor.renderMarginRevertIcon': {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.renderMarginRevertIcon,
@@ -269,6 +274,16 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('diffAlgorithm.advancedExternal', "Uses the advanced diffing algorithm from the external `@vscode/diff` package (pure JavaScript)."),
 				nls.localize('diffAlgorithm.advancedWasm', "Uses the advanced diffing algorithm from the external `@vscode/diff` package (WebAssembly)."),
 			]
+		},
+		'diffEditor.experimental.verifyDiffSampleRate': {
+			type: 'number',
+			default: 0,
+			minimum: 0,
+			maximum: 1,
+			description: nls.localize('diffEditor.experimental.verifyDiffSampleRate', "The probability (from 0 to 1) that a computed diff is checked for correctness and the result is reported in telemetry."),
+			included: false,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
 		},
 		'diffEditor.hideUnchangedRegions.enabled': {
 			type: 'boolean',

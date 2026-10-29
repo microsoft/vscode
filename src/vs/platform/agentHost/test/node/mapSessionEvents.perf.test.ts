@@ -69,7 +69,7 @@ async function runBenchmarkRound(path: string): Promise<BenchmarkResult> {
 
 	const map = StopWatch.create();
 	const session = AgentSession.uri('copilot', 'event-restoration-benchmark');
-	const restored = await mapSessionEvents(session, undefined, events, URI.parse(buildChatUri(session, 'default')));
+	const restored = await mapSessionEvents(session, undefined, events, URI.parse(buildChatUri(session, 'default')), session);
 	const mapMs = map.elapsed();
 
 	const serialize = StopWatch.create();

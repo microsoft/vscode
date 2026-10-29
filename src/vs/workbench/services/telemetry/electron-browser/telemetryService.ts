@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITelemetryService, ITelemetryData, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
-import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment, getUserContentPathsFromEnvironment, isInternalTelemetry } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { INativeWorkbenchEnvironmentService } from '../../environment/electron-browser/environmentService.js';
@@ -62,6 +62,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 					process,
 				),
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
+				userContentPaths: getUserContentPathsFromEnvironment(environmentService),
 				sendErrorTelemetry: true,
 				waitForExperimentProperties: experimentsEnabled(configurationService, productService, environmentService),
 			};
@@ -101,7 +102,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		return this.impl.setExperimentProperty(name, value);
 	}
 
-	setCommonProperty(name: string, value: string | boolean): void {
+	setCommonProperty(name: string, value: string | boolean | undefined): void {
 		this.impl.setCommonProperty(name, value);
 	}
 

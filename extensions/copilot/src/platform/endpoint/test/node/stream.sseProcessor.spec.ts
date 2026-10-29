@@ -3,16 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert, beforeAll, expect, suite, test } from 'vitest';
+import { Raw } from '@vscode/prompt-tsx';
+import { assert, beforeAll, expect, suite, test, vi } from 'vitest';
+import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { ILogService } from '../../../log/common/logService';
 import { IResponseDelta } from '../../../networking/common/fetch';
-import { FinishedCompletionReason } from '../../../networking/common/openai';
+import { ChatCompletion, FinishedCompletionReason } from '../../../networking/common/openai';
 import { FinishedCompletion, SSEProcessor } from '../../../networking/node/stream';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
+import { TelemetryData } from '../../../telemetry/common/telemetryData';
+import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
 import { createFakeStreamResponse } from '../../../test/node/fetcher';
 import { createPlatformServices } from '../../../test/node/services';
 import { isEncryptedThinkingDelta } from '../../../thinking/common/thinking';
+import { defaultChatResponseProcessor } from '../../node/chatEndpoint';
 
 async function getAll<T>(iter: AsyncIterable<T>): Promise<T[]> {
 	const result: T[] = [];
@@ -79,6 +84,36 @@ suite('SSEProcessor', () => {
 		assertSimplifiedResultsEqual(results, {});
 	});
 
+	test('preserves separate reasoning fields in telemetry without adding them to returned text', async () => {
+		const service = new SpyingTelemetryService();
+		const enhanced = vi.spyOn(service, 'sendEnhancedGHTelemetryEvent');
+		const response = [
+			{ choices: [{ index: 0, delta: { reasoning_text: 'First ' } }] },
+			{ choices: [{ index: 0, delta: { reasoning_text: 'second', reasoning_opaque: 'opaque' } }] },
+			{ choices: [{ index: 0, delta: { content: 'Answer' }, finish_reason: 'stop' }] },
+		].map(chunk => `data: ${JSON.stringify(chunk)}\n\n`).join('') + 'data: [DONE]\n\n';
+		const stream = await defaultChatResponseProcessor(
+			service, logService, createFakeStreamResponse(response), 1, async () => undefined, TelemetryData.createAndMarkAsIssued(),
+		);
+		const [completion] = await getAll(stream);
+		await vi.waitFor(() => expect(service.getEvents().telemetryServiceEvents.filter(event => event.eventName === 'engine.messages')).toHaveLength(1));
+		const event = enhanced.mock.calls.find(([name]) => name === 'engine.messages')!;
+		expect({
+			content: completion.message.content,
+			telemetry: JSON.parse(String(event[1]?.messagesJson)),
+		}).toEqual({
+			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Answer' }],
+			telemetry: [{
+				role: 'assistant', content: 'Answer', reasoning_text: 'First second', reasoning_opaque: 'opaque',
+				content_metadata: [
+					{ path: '/content', purpose: 'assistant_response', visibility: 'unknown', format: 'text' },
+					{ path: '/reasoning_text', purpose: 'reasoning', visibility: 'unknown', format: 'text' },
+					{ path: '/reasoning_opaque', purpose: 'reasoning', visibility: 'opaque', format: 'opaque' },
+				],
+			}],
+		});
+	});
+
 	test('done response yields no results', async function () {
 		const processor = await SSEProcessor.create(
 			logService,
@@ -90,6 +125,59 @@ suite('SSEProcessor', () => {
 		assertSimplifiedResultsEqual(results, {});
 	});
 
+	test.each([
+		{ expectedNumChoices: 1, finishReason: 'stop' },
+		{ expectedNumChoices: 1, finishReason: 'tool_calls' },
+		{ expectedNumChoices: 2, finishReason: 'stop' },
+	])('retains trailing reasoning after $finishReason with $expectedNumChoices choices', async ({ expectedNumChoices, finishReason }) => {
+		const service = new SpyingTelemetryService();
+		const enhanced = vi.spyOn(service, 'sendEnhancedGHTelemetryEvent');
+		const { collection, finishedCb } = createSpyingFinishedCb();
+		const text = finishReason === 'tool_calls' ? '' : 'Answer';
+		const chunks = [
+			{ choices: [{ index: 0, delta: { cot_summary: 'First ' } }] },
+			{ choices: [{ index: 0, delta: finishReason === 'tool_calls'
+				? { tool_calls: [{ index: 0, id: 'call-1', type: 'function', function: { name: 'read_file', arguments: '{}' } }] }
+				: { content: text } }] },
+			{ choices: [{ index: 0, delta: {}, finish_reason: finishReason }] },
+			...(expectedNumChoices === 2 ? [{ choices: [{ index: 1, delta: { content: 'Second answer' }, finish_reason: 'stop' }] }] : []),
+			{ choices: [{ index: 0, delta: { cot_summary: 'second', cot_id: 'trailing-id' } }] },
+		];
+		const response = chunks.map(chunk => `data: ${JSON.stringify(chunk)}\n\n`).join('') + 'data: [DONE]\n\n';
+		const stream = await defaultChatResponseProcessor(
+			service, logService, createFakeStreamResponse(response), expectedNumChoices, finishedCb,
+			TelemetryData.createAndMarkAsIssued({ modelCallId: 'trailing-reasoning' }),
+		);
+		const completions = await getAll(stream);
+		await vi.waitFor(() => expect(enhanced.mock.calls.filter(([name]) => name === 'engine.messages')).toHaveLength(expectedNumChoices));
+		const events = enhanced.mock.calls.filter(([name]) => name === 'engine.messages');
+		expect({
+			completions: completions.map(completion => ({ content: completion.message.content, finishReason: completion.finishReason })),
+			thinking: collection.filter(item => item.delta.thinking?.text || item.delta.thinking?.id).map(item => item.delta.thinking),
+			telemetry: events.flatMap(([, properties]) => JSON.parse(String(properties?.messagesJson))),
+		}).toEqual({
+			completions: [
+				{ content: [{ type: Raw.ChatCompletionContentPartKind.Text, text }], finishReason },
+				...(expectedNumChoices === 2 ? [{ content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Second answer' }], finishReason: 'stop' }] : []),
+			],
+			thinking: [{ text: 'First ' }, { text: 'second', id: 'trailing-id' }],
+			telemetry: [
+				{
+					role: 'assistant', content: text, cot_summary: 'First second', cot_id: 'trailing-id',
+					content_metadata: [
+						{ path: '/content', purpose: 'assistant_response', visibility: 'unknown', format: 'text' },
+						{ path: '/cot_summary', purpose: 'reasoning_summary', visibility: 'unknown', format: 'text' },
+						{ path: '/cot_id', purpose: 'reasoning', visibility: 'opaque', format: 'opaque' },
+					],
+				},
+				...(expectedNumChoices === 2 ? [{
+					role: 'assistant', content: 'Second answer',
+					content_metadata: [{ path: '/content', purpose: 'assistant_response', visibility: 'unknown', format: 'text' }],
+				}] : []),
+			],
+		});
+	});
+
 	test('broken JSON response is skipped', async function () {
 		const processor = await SSEProcessor.create(
 			logService,
@@ -99,6 +187,48 @@ suite('SSEProcessor', () => {
 		);
 		const results = await getAll(processor.processSSE());
 		assertSimplifiedResultsEqual(results, {});
+	});
+
+	test('delivers finished choices before trailing reasoning finishes', async () => {
+		const service = new SpyingTelemetryService();
+		const enhanced = vi.spyOn(service, 'sendEnhancedGHTelemetryEvent');
+		const trailingReceived = new DeferredPromise<void>();
+		const releaseTrailing = new DeferredPromise<void>();
+		const firstDelivered = vi.fn((result: IteratorResult<ChatCompletion, undefined>) => result);
+		const response = [
+			{ choices: [{ index: 0, delta: { content: 'Answer' }, finish_reason: 'stop' }] },
+			{ choices: [{ index: 0, delta: { cot_id: 'trailing-id' } }] },
+			{ choices: [{ index: 1, delta: { content: 'Second answer' }, finish_reason: 'stop' }] },
+		].map(chunk => `data: ${JSON.stringify(chunk)}\n\n`).join('') + 'data: [DONE]\n\n';
+		const stream = await defaultChatResponseProcessor(
+			service, logService, createFakeStreamResponse(response), 2,
+			async (_text, _index, delta) => {
+				if (delta.thinking?.id === 'trailing-id') {
+					await trailingReceived.complete();
+					await releaseTrailing.p;
+				}
+				return undefined;
+			},
+			TelemetryData.createAndMarkAsIssued({ modelCallId: 'immediate-completion' }),
+		);
+		const iterator = stream[Symbol.asyncIterator]();
+		const first = iterator.next().then(result => firstDelivered(result));
+		try {
+			await trailingReceived.p;
+			await vi.waitFor(() => expect(firstDelivered).toHaveBeenCalledOnce());
+			expect({
+				content: firstDelivered.mock.calls[0][0].value?.message.content,
+				contentEvents: enhanced.mock.calls.filter(([name]) => name === 'engine.messages'),
+			}).toEqual({
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Answer' }],
+				contentEvents: [],
+			});
+		} finally {
+			await releaseTrailing.complete();
+			await first;
+			await getAll(stream);
+		}
+		await vi.waitFor(() => expect(enhanced.mock.calls.filter(([name]) => name === 'engine.messages')).toHaveLength(2));
 	});
 
 	test('empty JSON response is skipped', async function () {

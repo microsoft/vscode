@@ -206,3 +206,8 @@
 .monaco-modal-editor-block.compact-header .modal-editor-title .monaco-icon-label > .monaco-icon-label-iconpath {
 	display: none;
 }
+
+.monaco-modal-editor-block.compact-header .modal-editor-title .ai-customization-management-editor-label .label-description {
+	font-size: inherit;
+	font-weight: var(--vscode-fontWeight-regular);
+}

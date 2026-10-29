@@ -13,6 +13,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { HasSpeechProvider, SpeechToTextInProgress } from '../../../speech/common/speechService.js';
 import { IChatSpeechToTextService } from '../../../chat/browser/speechToText/chatSpeechToTextService.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
 import { TerminalCommandId } from '../../../terminal/common/terminal.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
@@ -26,6 +27,10 @@ export function registerTerminalVoiceActions() {
 		title: localize2('workbench.action.terminal.startDictation', "Start Dictation in Terminal"),
 		category: VOICE_CATEGORY,
 		precondition: ContextKeyExpr.and(
+			ContextKeyExpr.or(
+				HasSpeechProvider,
+				ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.speechToTextConfigured)
+			),
 			// Keep the toggle available for terminal dictation, but not unrelated speech-to-text sessions.
 			ContextKeyExpr.or(SpeechToTextInProgress.toNegated(), TerminalContextKeys.terminalDictationInProgress),
 			sharedWhenClause.terminalAvailable
@@ -49,7 +54,7 @@ export function registerTerminalVoiceActions() {
 			// on-device engine (preferred), or the speech extension's provider.
 			if (chatSpeechToTextService.isConfigured || HasSpeechProvider.getValue(contextKeyService)) {
 				const instantiationService = accessor.get(IInstantiationService);
-				TerminalVoiceSession.getInstance(instantiationService).start();
+				await TerminalVoiceSession.getInstance(instantiationService).start();
 				return;
 			}
 			const extensions = await extensionManagementService.getInstalled();

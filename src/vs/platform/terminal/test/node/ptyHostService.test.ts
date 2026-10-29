@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
+import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IChannel, IChannelClient } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { NullLogService, NullLoggerService } from '../../../log/common/log.js';
+import { createLocalPtyChannel } from '../../common/localPtyChannel.js';
 import { IPtyHostConnection, IPtyHostStarter } from '../../node/ptyHost.js';
 import { PtyHostService } from '../../node/ptyHostService.js';
 
@@ -48,20 +50,24 @@ suite('PtyHostService', () => {
 			new NullLogService(),
 			store.add(new NullLoggerService())
 		));
+		const localChannel = createLocalPtyChannel(service, store.add(new DisposableStore()));
+		let starts = 0;
 
 		// _startPtyHost runs lazily on first use, so trigger one restart to spin up the
 		// initial host and capture the listener counts after a single startup as the baseline.
 		await service.restartPtyHost();
 		const baseline = new Map(listenerCounts);
+		store.add(localChannel.listen<void>('window', 'onPtyHostStart')(() => starts++));
+		await timeout(0);
 
 		for (let i = 0; i < 5; i++) {
 			await service.restartPtyHost();
 		}
 
 		deepStrictEqual(
-			[...listenerCounts.entries()].sort(),
-			[...baseline.entries()].sort(),
-			'listener counts should not grow across pty host restarts'
+			{ listeners: [...listenerCounts.entries()].sort(), starts },
+			{ listeners: [...baseline.entries()].sort(), starts: 6 },
+			'restarts should notify the local channel without accumulating startup listeners'
 		);
 	});
 });
