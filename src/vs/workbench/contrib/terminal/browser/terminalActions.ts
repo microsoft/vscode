@@ -8,6 +8,7 @@ import { Action } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Iterable } from '../../../../base/common/iterator.js';
+import { IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -69,6 +70,29 @@ import { SeparatorSelectOption } from '../../../../base/browser/ui/selectBox/sel
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
 
 const category = terminalStrings.actionCategory;
+
+const TERMINAL_TARGET_PROPERTIES: IJSONSchemaMap = {
+	terminalId: {
+		description: localize('workbench.action.terminal.target.terminalId', "The terminal instance ID. Use only one of terminalId, resource, or tab. Omit all selectors to use the active terminal."),
+		type: 'integer',
+		minimum: 1
+	},
+	resource: {
+		description: localize('workbench.action.terminal.target.resource', "The vscode-terminal URI of an existing terminal. Use only one of terminalId, resource, or tab."),
+		type: 'string',
+		minLength: 1
+	},
+	tab: {
+		description: localize('workbench.action.terminal.target.tab', "The 1-based position of a terminal tab in the terminal panel. Use only one of terminalId, resource, or tab."),
+		type: 'integer',
+		minimum: 1
+	},
+	split: {
+		description: localize('workbench.action.terminal.target.split', "The 1-based position of a split in the selected tab, or the active terminal tab when tab is omitted. When split is omitted, the selected tab's active terminal is used."),
+		type: 'integer',
+		minimum: 1
+	}
+};
 
 // Some terminal context keys get complicated. Since normalizing and/or context keys can be
 // expensive this is done once per context key and shared.
@@ -713,9 +737,31 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.ChangeIcon,
 		title: terminalStrings.changeIcon,
 		precondition: sharedWhenClause.terminalAvailable,
-		run: (c, _, args: unknown) => getResourceOrActiveInstance(c, args)?.changeIcon(
-			isString(args) ? ThemeIcon.fromString(args) || ThemeIcon.fromId(args) : undefined
-		)
+		metadata: {
+			description: terminalStrings.changeIcon,
+			args: [{
+				name: 'args',
+				isOptional: true,
+				schema: {
+					anyOf: [{ type: 'string' }, {
+						type: 'object',
+						properties: {
+							icon: {
+								description: localize('workbench.action.terminal.changeIcon.icon', "An icon ID or an expression such as {0}. When omitted, the icon picker is shown.", '$(rocket)'),
+								type: 'string'
+							},
+							...TERMINAL_TARGET_PROPERTIES
+						}
+					}]
+				}
+			}]
+		},
+		run: (c, accessor, args) => {
+			const options = isObject(args) && !URI.isUri(args) ? args as Record<string, unknown> : undefined;
+			const instance = options ? getTargetTerminal(c, options, accessor.get(INotificationService)) : getResourceOrActiveInstance(c, args);
+			const icon = options ? options.icon : args;
+			return instance?.changeIcon(isString(icon) ? ThemeIcon.fromString(icon) || ThemeIcon.fromId(icon) : undefined);
+		}
 	});
 
 	registerTerminalAction({
@@ -742,10 +788,40 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.ChangeColor,
 		title: terminalStrings.changeColor,
 		precondition: sharedWhenClause.terminalAvailable,
-		run: (c, _, args1, args2) => getResourceOrActiveInstance(c, args1)?.changeColor(
-			isString(args1) ? args1 : undefined,
-			isBoolean(args2) ? args2 : undefined
-		)
+		metadata: {
+			description: terminalStrings.changeColor,
+			args: [{
+				name: 'args',
+				isOptional: true,
+				schema: {
+					anyOf: [{ type: 'string' }, {
+						type: 'object',
+						properties: {
+							color: {
+								description: localize('workbench.action.terminal.changeColor.color', "A terminal color ID. When omitted, the color picker is shown unless skipQuickPick is true."),
+								type: 'string'
+							},
+							skipQuickPick: {
+								description: localize('workbench.action.terminal.changeColor.skipQuickPick', "Reset the color without showing the picker when no color is provided."),
+								type: 'boolean'
+							},
+							...TERMINAL_TARGET_PROPERTIES
+						}
+					}]
+				}
+			}, {
+				name: 'skipQuickPick',
+				isOptional: true,
+				schema: { type: 'boolean' }
+			}]
+		},
+		run: (c, accessor, args, args2) => {
+			const options = isObject(args) && !URI.isUri(args) ? args as Record<string, unknown> : undefined;
+			const instance = options ? getTargetTerminal(c, options, accessor.get(INotificationService)) : getResourceOrActiveInstance(c, args);
+			const color = options ? options.color : args;
+			const skipQuickPick = options ? options.skipQuickPick : args2;
+			return instance?.changeColor(isString(color) ? color : undefined, isBoolean(skipQuickPick) ? skipQuickPick : undefined);
+		}
 	});
 
 	registerTerminalAction({
@@ -1037,26 +1113,7 @@ export function registerTerminalActions() {
 							type: 'string',
 							minLength: 1
 						},
-						terminalId: {
-							description: localize('workbench.action.terminal.renameWithArg.terminalId', "The terminal instance ID. Use only one of terminalId, resource, or tab. Omit all three to rename the active terminal."),
-							type: 'integer',
-							minimum: 1
-						},
-						resource: {
-							description: localize('workbench.action.terminal.renameWithArg.resource', "The vscode-terminal URI of an existing terminal. Use only one of terminalId, resource, or tab."),
-							type: 'string',
-							minLength: 1
-						},
-						tab: {
-							description: localize('workbench.action.terminal.renameWithArg.tab', "The 1-based position of a terminal tab in the terminal panel. Use only one of terminalId, resource, or tab."),
-							type: 'integer',
-							minimum: 1
-						},
-						split: {
-							description: localize('workbench.action.terminal.renameWithArg.split', "The 1-based position of a split in the selected tab, or the active terminal tab when tab is omitted. When split is omitted, the selected tab's active terminal is renamed."),
-							type: 'integer',
-							minimum: 1
-						}
+						...TERMINAL_TARGET_PROPERTIES
 					}
 				}
 			}]
@@ -1071,40 +1128,8 @@ export function registerTerminalActions() {
 				notificationService.warn(localize('workbench.action.terminal.renameWithArg.noName', "No name argument provided"));
 				return;
 			}
-			const { terminalId, resource, tab, split } = options;
-			const selectorCount = [terminalId, resource, tab].filter(value => value !== undefined).length;
-			const invalidIndex = [terminalId, tab, split].some(value => value !== undefined && (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1));
-			if (selectorCount > 1 || invalidIndex || (resource !== undefined && !isString(resource)) || (split !== undefined && (terminalId !== undefined || resource !== undefined))) {
-				notificationService.warn(localize('workbench.action.terminal.renameWithArg.invalidSelector', "Invalid terminal selector. Use one of terminalId, resource, or tab. Split can be used with tab or on its own for the active terminal tab. Terminal IDs, tabs, and splits must be positive integers."));
-				return;
-			}
-
-			let instance: ITerminalInstance | undefined;
-			if (typeof terminalId === 'number') {
-				instance = c.service.getInstanceFromId(terminalId);
-			} else if (isString(resource)) {
-				let uri: URI | undefined;
-				try {
-					uri = URI.parse(resource, true);
-				} catch {
-					// An invalid explicit resource must not fall back to the active terminal.
-				}
-				if (uri?.scheme === Schemas.vscodeTerminal) {
-					instance = c.service.getInstanceFromResource(uri);
-				}
-			} else if (typeof tab === 'number' || typeof split === 'number') {
-				const group = typeof tab === 'number' ? c.groupService.groups[tab - 1] : c.groupService.activeGroup;
-				instance = typeof split === 'number' ? group?.terminalInstances[split - 1] : group?.activeInstance;
-			} else {
-				instance = c.service.activeInstance;
-			}
-			if (!instance) {
-				if (selectorCount > 0 || split !== undefined) {
-					notificationService.warn(localize('workbench.action.terminal.renameWithArg.targetNotFound', "The selected terminal was not found."));
-				}
-				return;
-			}
-			instance.rename(name);
+			const instance = getTargetTerminal(c, options, notificationService);
+			instance?.rename(name);
 		}
 	});
 
@@ -1704,6 +1729,46 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]): ID
 		}
 	});
 	return newWithProfileAction;
+}
+
+/**
+ * Resolves a terminal selector without changing focus or falling back from an explicit target.
+ */
+function getTargetTerminal(c: ITerminalServicesCollection, options: Record<string, unknown>, notificationService: INotificationService): ITerminalInstance | undefined {
+	const { terminalId, resource, tab, split } = options;
+	const selectorCount = [terminalId, resource, tab].filter(value => value !== undefined).length;
+	const invalidIndex = [terminalId, tab, split].some(value => value !== undefined && (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1));
+	if (selectorCount > 1 || invalidIndex || (resource !== undefined && !isString(resource)) || (split !== undefined && (terminalId !== undefined || resource !== undefined))) {
+		notificationService.warn(localize('workbench.action.terminal.target.invalidSelector', "Invalid terminal selector. Use one of terminalId, resource, or tab. Split can be used with tab or on its own for the active terminal tab. Terminal IDs, tabs, and splits must be positive integers."));
+		return;
+	}
+
+	let instance: ITerminalInstance | undefined;
+	if (typeof terminalId === 'number') {
+		instance = c.service.getInstanceFromId(terminalId);
+	} else if (isString(resource)) {
+		let uri: URI | undefined;
+		try {
+			uri = URI.parse(resource, true);
+		} catch {
+			// An invalid explicit resource must not fall back to the active terminal.
+		}
+		if (uri?.scheme === Schemas.vscodeTerminal) {
+			instance = c.service.getInstanceFromResource(uri);
+		}
+	} else if (typeof tab === 'number' || typeof split === 'number') {
+		const group = typeof tab === 'number' ? c.groupService.groups[tab - 1] : c.groupService.activeGroup;
+		instance = typeof split === 'number' ? group?.terminalInstances[split - 1] : group?.activeInstance;
+	} else {
+		instance = c.service.activeInstance;
+	}
+	if (!instance) {
+		if (selectorCount > 0 || split !== undefined) {
+			notificationService.warn(localize('workbench.action.terminal.target.notFound', "The selected terminal was not found."));
+		}
+		return;
+	}
+	return instance;
 }
 
 function getResourceOrActiveInstance(c: ITerminalServicesCollection, resource: unknown): ITerminalInstance | undefined {

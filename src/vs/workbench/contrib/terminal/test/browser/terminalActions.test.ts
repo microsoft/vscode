@@ -136,24 +136,30 @@ suite('terminalActions', () => {
 		});
 	});
 
-	suite('renameWithArg terminal selection', () => {
+	suite('terminal command target selection', () => {
 		let instantiationService: TestInstantiationService;
 		let instances: ITerminalInstance[];
 		let groups: ITerminalGroup[];
 		let activeGroup: ITerminalGroup | undefined;
 		let activeInstance: ITerminalInstance | undefined;
 		let renames: { terminalId: number; name: string }[];
+		let iconChanges: { terminalId: number; icon: TerminalIcon | null | undefined }[];
+		let colorChanges: { terminalId: number; color: string | undefined; skipQuickPick: boolean | undefined }[];
 		let warning: SinonSpy;
 
 		setup(() => {
 			instantiationService = store.add(new TestInstantiationService());
 			renames = [];
+			iconChanges = [];
+			colorChanges = [];
 			instances = [3, 12, 21, 99].map(id => new class extends mock<ITerminalInstance>() {
 				override readonly instanceId = id;
 				override readonly title = 'Shell';
 				// A terminal moved from another window can retain a resource with a different ID.
 				override readonly resource = URI.parse(id === 99 ? 'vscode-terminal:/previous-workspace/7' : `vscode-terminal:/workspace/${id}`);
 				override rename(name: string): void { renames.push({ terminalId: id, name }); }
+				override async changeIcon(icon?: TerminalIcon | null) { iconChanges.push({ terminalId: id, icon }); return icon; }
+				override async changeColor(color?: string, skipQuickPick?: boolean) { colorChanges.push({ terminalId: id, color, skipQuickPick }); return color; }
 			}());
 			groups = [
 				new class extends mock<ITerminalGroup>() {
@@ -189,10 +195,14 @@ suite('terminalActions', () => {
 
 		teardown(() => warning.restore());
 
-		async function rename(args: unknown): Promise<void> {
-			const command = CommandsRegistry.getCommand(TerminalCommandId.RenameWithArgs);
+		async function runCommand(id: TerminalCommandId, args: unknown): Promise<void> {
+			const command = CommandsRegistry.getCommand(id);
 			ok(command);
 			await instantiationService.invokeFunction(accessor => command.handler(accessor, args));
+		}
+
+		async function rename(args: unknown): Promise<void> {
+			await runCommand(TerminalCommandId.RenameWithArgs, args);
 		}
 
 		const selections = [
@@ -216,7 +226,61 @@ suite('terminalActions', () => {
 					renames: [{ terminalId, name: 'Build logs' }], activeId: 21, groupActiveIds: [12, 21], warnings: 0
 				});
 			});
+
+			test(`changeIcon ${title}`, async () => {
+				await runCommand(TerminalCommandId.ChangeIcon, { icon: '$(rocket)', ...selector });
+				deepStrictEqual({ iconChanges, activeId: activeInstance?.instanceId, groupActiveIds: groups.map(group => group.activeInstance?.instanceId), warnings: warning.callCount }, {
+					iconChanges: [{ terminalId, icon: { id: 'rocket' } }], activeId: 21, groupActiveIds: [12, 21], warnings: 0
+				});
+			});
+
+			test(`changeColor ${title}`, async () => {
+				await runCommand(TerminalCommandId.ChangeColor, { color: 'terminal.ansiRed', skipQuickPick: false, ...selector });
+				deepStrictEqual({ colorChanges, activeId: activeInstance?.instanceId, groupActiveIds: groups.map(group => group.activeInstance?.instanceId), warnings: warning.callCount }, {
+					colorChanges: [{ terminalId, color: 'terminal.ansiRed', skipQuickPick: false }], activeId: 21, groupActiveIds: [12, 21], warnings: 0
+				});
+			});
 		}
+
+		test('opens the icon and color pickers for a background split', async () => {
+			await runCommand(TerminalCommandId.ChangeIcon, { tab: 1, split: 1 });
+			await runCommand(TerminalCommandId.ChangeColor, { tab: 1, split: 1 });
+			deepStrictEqual({ iconChanges, colorChanges, activeId: activeInstance?.instanceId, warnings: warning.callCount }, {
+				iconChanges: [{ terminalId: 3, icon: undefined }],
+				colorChanges: [{ terminalId: 3, color: undefined, skipQuickPick: undefined }],
+				activeId: 21, warnings: 0
+			});
+		});
+
+		test('accepts a plain icon ID with a target', async () => {
+			await runCommand(TerminalCommandId.ChangeIcon, { icon: 'rocket', terminalId: 12 });
+			deepStrictEqual(iconChanges, [{ terminalId: 12, icon: { id: 'rocket' } }]);
+		});
+
+		test('resets a selected terminal color without showing the picker', async () => {
+			await runCommand(TerminalCommandId.ChangeColor, { terminalId: 12, skipQuickPick: true });
+			deepStrictEqual(colorChanges, [{ terminalId: 12, color: undefined, skipQuickPick: true }]);
+		});
+
+		test('ignores invalid appearance values while preserving the selected target', async () => {
+			await runCommand(TerminalCommandId.ChangeIcon, { terminalId: 12, icon: 42 });
+			await runCommand(TerminalCommandId.ChangeColor, { terminalId: 12, color: 42, skipQuickPick: 'true' });
+			deepStrictEqual({ iconChanges, colorChanges }, {
+				iconChanges: [{ terminalId: 12, icon: undefined }],
+				colorChanges: [{ terminalId: 12, color: undefined, skipQuickPick: undefined }]
+			});
+		});
+
+		test('changes appearance on an explicit target without an active terminal', async () => {
+			activeInstance = undefined;
+			await runCommand(TerminalCommandId.ChangeIcon, { icon: 'rocket', terminalId: 12 });
+			await runCommand(TerminalCommandId.ChangeColor, { color: 'terminal.ansiRed', terminalId: 12 });
+			deepStrictEqual({ iconChanges, colorChanges, activeInstance, warnings: warning.callCount }, {
+				iconChanges: [{ terminalId: 12, icon: { id: 'rocket' } }],
+				colorChanges: [{ terminalId: 12, color: 'terminal.ansiRed', skipQuickPick: undefined }],
+				activeInstance: undefined, warnings: 0
+			});
+		});
 
 		test('selects a background split in the active tab without changing focus', async () => {
 			activeGroup = groups[0];
@@ -276,7 +340,11 @@ suite('terminalActions', () => {
 		for (const selector of invalidSelectors) {
 			test(`rejects selector ${JSON.stringify(selector, (_, value) => typeof value === 'number' && !Number.isFinite(value) ? String(value) : value)} without renaming the active terminal`, async () => {
 				await rename({ name: 'Wrong terminal', ...selector });
-				deepStrictEqual({ renames, activeId: activeInstance?.instanceId, warnings: warning.callCount }, { renames: [], activeId: 21, warnings: 1 });
+				await runCommand(TerminalCommandId.ChangeIcon, { icon: 'rocket', ...selector });
+				await runCommand(TerminalCommandId.ChangeColor, { color: 'terminal.ansiRed', ...selector });
+				deepStrictEqual({ renames, iconChanges, colorChanges, activeId: activeInstance?.instanceId, warnings: warning.callCount }, {
+					renames: [], iconChanges: [], colorChanges: [], activeId: 21, warnings: 3
+				});
 			});
 		}
 
