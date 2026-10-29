@@ -134,6 +134,36 @@ suite('ExtHost structural diff', () => {
 		});
 	});
 
+	for (const side of ['original', 'modified'] as const) {
+		test(`preserves ${side}-only entities and incomplete results`, async () => {
+			await register({
+				provideStructuralDiff: () => {
+					const entity = { name: 'file.ts', kind: types.SymbolKind.File, range: new types.Range(0, 0, 0, 1) };
+					return {
+						root: {
+							id: 'file', original: entity, modified: entity, originalChanges: [], modifiedChanges: [],
+							children: [{
+								id: side,
+								[side]: { name: 'member', kind: types.SymbolKind.Property, range: entity.range },
+								originalChanges: [], modifiedChanges: [], children: [],
+							}],
+						},
+						isIncomplete: true,
+					};
+				},
+			});
+			const result = await provide();
+			assert.deepStrictEqual({ child: result?.root.children[0], isIncomplete: result?.isIncomplete }, {
+				child: {
+					id: side,
+					[side]: { name: 'member', kind: SymbolKind.Property, range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 } },
+					originalChanges: [], modifiedChanges: [], children: [],
+				},
+				isIncomplete: true,
+			});
+		});
+	}
+
 	for (const result of [null, undefined]) {
 		test(`returns undefined when the provider returns ${result}`, async () => {
 			await register({ provideStructuralDiff: () => result });

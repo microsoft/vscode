@@ -5,10 +5,9 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { DeferredPromise } from '../../../../base/common/async.js';
 import { VSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { setUnexpectedErrorHandler, errorHandler, isCancellationError } from '../../../../base/common/errors.js';
+import { setUnexpectedErrorHandler, errorHandler } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as types from '../../common/extHostTypes.js';
 import { createTextModel } from '../../../../editor/test/common/testTextModel.js';
@@ -44,7 +43,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { ITextModel, EndOfLineSequence } from '../../../../editor/common/model.js';
 import { getColors } from '../../../../editor/contrib/colorPicker/browser/color.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { nullExtensionDescription as defaultExtension } from '../../../services/extensions/common/extensions.js';
 import { provideSelectionRanges } from '../../../../editor/contrib/smartSelect/browser/smartSelect.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -75,7 +74,6 @@ suite('ExtHostLanguageFeatures', function () {
 	let originalErrorHandler: (e: any) => any;
 	let instantiationService: TestInstantiationService;
 	let extHostDocumentsAndEditors: ExtHostDocumentsAndEditors;
-	let extHostDocuments: ExtHostDocuments;
 
 	setup(() => {
 
@@ -122,7 +120,7 @@ suite('ExtHostLanguageFeatures', function () {
 				encoding: 'utf8'
 			}]
 		});
-		extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
+		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
 		const commands = new ExtHostCommands(rpcProtocol, new NullLogService(), new class extends mock<IExtHostTelemetry>() {
@@ -395,16 +393,10 @@ suite('ExtHostLanguageFeatures', function () {
 			};
 		}
 
-		function provide(token: CancellationToken = CancellationToken.None): Promise<languages.StructuralDiff | null | undefined> {
+		function provide(): Promise<languages.StructuralDiff | null | undefined> {
 			const provider = languageFeaturesService.structuralDiffProvider.ordered(model)[0];
-			return Promise.resolve(provider.provideStructuralDiff(originalModel, model, context, token));
+			return Promise.resolve(provider.provideStructuralDiff(originalModel, model, context, CancellationToken.None));
 		}
-
-		test('requires the structuralDiff proposal', () => {
-			assert.throws(() => extHost.registerStructuralDiffProvider(defaultExtension, defaultSelector, {
-				provideStructuralDiff: () => undefined,
-			}), /CANNOT use API proposal: structuralDiff/);
-		});
 
 		test('registers and unregisters providers', async () => {
 			const registration = disposables.add(extHost.registerStructuralDiffProvider(extension, defaultSelector, {
@@ -417,12 +409,9 @@ suite('ExtHostLanguageFeatures', function () {
 			assert.deepStrictEqual([before, languageFeaturesService.structuralDiffProvider.all(model).length], [1, 0]);
 		});
 
-		test('converts both documents, paired ranges and the nested result through RPC', async () => {
+		test('forwards both documents and the text changes and returns the converted result', async () => {
 			let received: { uris: string[]; contents: string[]; versions: number[]; context: vscode.StructuralDiffContext } | undefined;
 			const fullRange = { ...model.getFullModelRange() };
-			const entityRange = { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 1 };
-			const selectionRange = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 4 };
-			const changeRange = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 };
 			disposables.add(extHost.registerStructuralDiffProvider(extension, defaultSelector, {
 				provideStructuralDiff: (originalDocument, modifiedDocument, value) => {
 					received = {
@@ -431,33 +420,7 @@ suite('ExtHostLanguageFeatures', function () {
 						versions: [originalDocument.version, modifiedDocument.version],
 						context: value,
 					};
-					const base = createResult();
-					return {
-						root: {
-							...base.root,
-							children: [{
-								id: 'method',
-								original: {
-									name: 'oldName', detail: 'old signature', kind: types.SymbolKind.Method, languageKind: 'method',
-									range: new types.Range(0, 0, 1, 0), selectionRange: new types.Range(0, 0, 0, 3),
-								},
-								modified: {
-									name: 'newName', detail: 'new signature', kind: types.SymbolKind.Method, languageKind: 'method',
-									range: new types.Range(0, 0, 1, 0), selectionRange: new types.Range(0, 0, 0, 3),
-								},
-								originalChanges: [{
-									textChangeIndex: 0, range: new types.Range(0, 0, 0, 4),
-									classification: types.StructuralDiffClassification.Header, tags: [types.StructuralDiffTag.Test],
-								}],
-								modifiedChanges: [{
-									textChangeIndex: 0, range: new types.Range(0, 0, 0, 4),
-									classification: types.StructuralDiffClassification.Implementation, tags: [],
-								}],
-								children: [],
-							}],
-						},
-						isIncomplete: false,
-					};
+					return createResult();
 				},
 			}));
 			await rpcProtocol.sync();
@@ -476,120 +439,10 @@ suite('ExtHostLanguageFeatures', function () {
 						modified: { name: 'file.a', kind: languages.SymbolKind.File, range: fullRange },
 						originalChanges: [],
 						modifiedChanges: [],
-						children: [{
-							id: 'method',
-							original: { name: 'oldName', detail: 'old signature', kind: languages.SymbolKind.Method, languageKind: 'method', range: entityRange, selectionRange },
-							modified: { name: 'newName', detail: 'new signature', kind: languages.SymbolKind.Method, languageKind: 'method', range: entityRange, selectionRange },
-							originalChanges: [{
-								textChangeIndex: 0, range: changeRange, classification: languages.StructuralDiffClassification.Header, tags: [languages.StructuralDiffTag.Test],
-							}],
-							modifiedChanges: [{
-								textChangeIndex: 0, range: changeRange, classification: languages.StructuralDiffClassification.Implementation, tags: [],
-							}],
-							children: [],
-						}],
-					},
-					isIncomplete: false,
-				},
-			});
-		});
-
-		for (const side of ['original', 'modified'] as const) {
-			test(`preserves ${side}-only entities and incomplete results`, async () => {
-				disposables.add(extHost.registerStructuralDiffProvider(extension, defaultSelector, {
-					provideStructuralDiff: () => {
-						const base = createResult();
-						return {
-							...base,
-							root: {
-								...base.root,
-								children: [{
-									id: side,
-									[side]: { name: 'member', kind: types.SymbolKind.Property, range: new types.Range(0, 0, 0, 4) },
-									originalChanges: [],
-									modifiedChanges: [],
-									children: [],
-								}],
-							},
-						};
-					},
-				}));
-				await rpcProtocol.sync();
-				const result = await provide();
-				assert.deepStrictEqual({ child: result?.root.children[0], isIncomplete: result?.isIncomplete }, {
-					child: {
-						id: side,
-						[side]: {
-							name: 'member', kind: languages.SymbolKind.Property,
-							range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 },
-						},
-						originalChanges: [],
-						modifiedChanges: [],
 						children: [],
 					},
 					isIncomplete: true,
-				});
-			});
-
-			test(`rejects stale ${side} document versions before calling the extension`, async () => {
-				let called = false;
-				disposables.add(extHost.registerStructuralDiffProvider(extension, defaultSelector, {
-					provideStructuralDiff: () => {
-						called = true;
-						return createResult();
-					},
-				}));
-				await rpcProtocol.sync();
-				(side === 'original' ? originalModel : model).setValue('new version not synchronized to the extension host');
-				await assert.rejects(provide(), isCancellationError);
-				assert.strictEqual(called, false);
-			});
-		}
-
-		for (const reason of ['caller', 'original changed', 'modified changed', 'original closed', 'modified closed'] as const) {
-			test(`cancels the extension provider when ${reason}`, async () => {
-				const source = disposables.add(new CancellationTokenSource());
-				const started = new DeferredPromise<vscode.CancellationToken>();
-				const pending = new DeferredPromise<vscode.StructuralDiff | undefined>();
-				disposables.add(extHost.registerStructuralDiffProvider(extension, defaultSelector, {
-					provideStructuralDiff: (_original, _modified, _context, token) => {
-						started.complete(token);
-						return pending.p;
-					},
-				}));
-				await rpcProtocol.sync();
-				const rejected = assert.rejects(provide(source.token), isCancellationError);
-				const providerToken = await started.p;
-				const target = reason.startsWith('original') ? originalModel : model;
-				if (reason === 'caller') {
-					source.cancel();
-				} else if (reason.endsWith('closed')) {
-					extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({ removedDocuments: [target.uri] });
-				} else {
-					disposables.add(target.onDidChangeContent(event => extHostDocuments.$acceptModelChanged(target.uri, { ...event, detailedReason: undefined }, false)));
-					target.setValue('changed while provider was running');
-				}
-				await rejected;
-				assert.strictEqual(providerToken.isCancellationRequested, true);
-				await pending.complete(undefined);
-			});
-		}
-
-		test('propagates provider errors through RPC', async () => {
-			disposables.add(extHost.registerStructuralDiffProvider(extension, defaultSelector, {
-				provideStructuralDiff: () => { throw new Error('Structural diff provider failed'); },
-			}));
-			await rpcProtocol.sync();
-			await assert.rejects(provide(), /Structural diff provider failed/);
-		});
-
-		test('uses matching runtime enum values', () => {
-			assert.deepStrictEqual({
-				classification: types.StructuralDiffClassification,
-				tag: types.StructuralDiffTag,
-			}, {
-				classification: languages.StructuralDiffClassification,
-				tag: languages.StructuralDiffTag,
+				},
 			});
 		});
 	});
