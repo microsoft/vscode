@@ -46,6 +46,7 @@ Clicking an image attachment pill in chat (when `chat.imageCarousel.enabled` is 
 
 - **Keyboard parity**: Uses `registerOpenEditorListeners` (click, double-click, Enter, Space) matching other attachment widgets.
 - **Arrow key navigation**: Handled via DOM `keydown` listener with `stopPropagation()` — not Action2 keybindings, because the modal editor's `KEY_DOWN` handler blocks `workbench.*` commands not in its allowlist. The editor overrides `focus()` to forward focus to the slideshow container so arrow keys work immediately without clicking.
+- **Focus behavior**: Keep keyboard navigation reachable without requiring pointer interaction when changing the modal editor layout.
 
 ### Zoom
 
