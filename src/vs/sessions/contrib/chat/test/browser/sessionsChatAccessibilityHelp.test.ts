@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { isWeb } from '../../../../../base/common/platform.js';
+import { isMacintosh, isWeb } from '../../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -154,9 +154,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 			markUnread: content.includes('or unread<keybinding:agentSession.markUnread> without opening them'),
 			nestedReadState: content.includes('change only the targeted nested sessions, not their parent'),
 			earlyPreparation: content.includes(getCloudSandboxPreparationAccessibilityHelp()),
+			systemWideKeybindingTip: content.includes('Ctrl+Cmd+A as a system-wide shortcut for opening the Agents window'),
 			applicationFilter: content.includes('Enter or Space to open Filter Sessions with Created In focused.'),
 			moveToSession: content.includes('choose Move to Session..., then pick the destination session from the list'),
-		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, applicationFilter: true, moveToSession: true });
+		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, systemWideKeybindingTip: isMacintosh && !isWeb, applicationFilter: true, moveToSession: true });
 	});
 
 	test('documents terminal command descriptions and Explain in confirmations', () => {
