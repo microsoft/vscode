@@ -2075,6 +2075,7 @@ suite('CodexAgent prewarm eviction', () => {
 			_serviceBrand: undefined,
 			onDidChange: onDidChange.event,
 			initializeSession: async () => { },
+			adoptMcpServerOwnership: () => { },
 			getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
 			resolve,
 			applyClientGlobalEnablement: resolve,

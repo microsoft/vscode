@@ -101,6 +101,7 @@ export interface IAgentHostCustomizationEnablementService {
 	initializeSession(session: string): Promise<void>;
 	getWorkingDirectoryState(session: string): WorkingDirectoryState;
 	resolve(session: string, target: ICustomizationEnablementTarget): CustomizationEnablementResolution;
+	adoptMcpServerOwnership(session: string, target: ICustomizationEnablementTarget, owningPluginSource: URI): void;
 	applyClientGlobalEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution;
 	replaceEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution;
 	setEnablement(session: string, target: ICustomizationEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): CustomizationEnablementResolution;
@@ -307,6 +308,51 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		}
 		this._setClientGlobal(session, target, global.enabled);
 		return this.resolve(session, target);
+	}
+
+	/** Moves unowned host decisions to a confirmed plugin identity without overwriting existing plugin decisions. */
+	adoptMcpServerOwnership(session: string, target: ICustomizationEnablementTarget, owningPluginSource: URI): void {
+		if (target.type !== CustomizationType.McpServer || target.owningPluginSource || target.isClientBundled) {
+			throw new Error('Only an unowned host MCP server can adopt plugin ownership');
+		}
+		const ownedTarget = { ...target, owningPluginSource };
+		const from = this._persistentKey(target);
+		const to = this._persistentKey(ownedTarget);
+		const before = this._captureDecisionSnapshot(session, ownedTarget);
+		const beforeUnowned = this._captureDecisionSnapshot(session, target);
+		let changed = false;
+		const move = (decisions: Record<string, boolean> | undefined, scope: ILruEntry['scope'], workingDirectory?: string) => {
+			if (decisions?.[from] === undefined) {
+				return;
+			}
+			if (decisions[to] === undefined) {
+				decisions[to] = decisions[from];
+				this._touchLru({ scope, key: to, workingDirectory });
+			}
+			delete decisions[from];
+			this._removeLru(scope, from, workingDirectory);
+			changed = true;
+		};
+		move(this._persistent.global, 'global');
+		for (const [directory, decisions] of Object.entries(this._persistent.workingDirectories ?? {})) {
+			move(decisions, 'workspace', directory);
+		}
+		const pendingKey = `${session}\u0000${from}`;
+		const pending = this._pendingReplacements.get(pendingKey);
+		if (pending) {
+			const ownedKey = `${session}\u0000${to}`;
+			if (!this._pendingReplacements.has(ownedKey)) {
+				this._pendingReplacements.set(ownedKey, { ...pending, target: { ...pending.target, owningPluginSource } });
+			}
+			this._pendingReplacements.delete(pendingKey);
+		}
+		if (changed) {
+			this._persist();
+			this._notifyDecisionChanged([
+				...this._getAffectedSessions(session, ownedTarget, before),
+				...this._getAffectedSessions(session, target, beforeUnowned),
+			]);
+		}
 	}
 
 	setEnablement(session: string, target: ICustomizationEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): CustomizationEnablementResolution {

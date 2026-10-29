@@ -173,6 +173,80 @@ suite('AgentHostCustomizationEnablementService', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const scope of [CustomizationEnablementKind.Global, CustomizationEnablementKind.Workspace, CustomizationEnablementKind.Session]) {
+		test(`late MCP ownership preserves ${scope} decisions`, async () => {
+			const target: ICustomizationEnablementTarget = {
+				id: 'retained-runtime-id', type: CustomizationType.McpServer, name: 'search', source: URI.parse('mcpServers#search'), defaultEnabled: true,
+			};
+			const owned = { ...target, owningPluginSource: plugin.source };
+			service.setEnablement(session, target, scope, false);
+			service.adoptMcpServerOwnership(session, target, plugin.source);
+			await service.whenIdle();
+			const resolved = service.resolve(session, owned);
+			const reopened = scope === CustomizationEnablementKind.Session ? service : disposables.add(new AgentHostCustomizationEnablementService(
+				storage, state, new NullLogService(), worktree, createTestChatOwnershipService(state),
+				disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionData)),
+			));
+			await reopened.initializeSession(session);
+			const restored = reopened.resolve(session, owned);
+			assert.deepStrictEqual({
+				enabled: resolved.kind === 'resolved' && resolved.enabled,
+				decision: resolved.kind === 'resolved' && resolved.enablement.find(entry => entry.kind === scope)?.enabled,
+				restored: restored.kind === 'resolved' && restored.enabled,
+			}, { enabled: false, decision: false, restored: false });
+		});
+	}
+
+	test('MCP ownership adoption preserves existing destination decisions and consumes only unowned decisions', () => {
+		const target: ICustomizationEnablementTarget = {
+			id: 'runtime-id', type: CustomizationType.McpServer, name: 'search', source: URI.parse('mcpServers#search'), defaultEnabled: true,
+		};
+		const owned = { ...target, owningPluginSource: plugin.source, defaultEnabled: false };
+		service.setEnablement(session, target, CustomizationEnablementKind.Global, false);
+		service.setEnablement(session, owned, CustomizationEnablementKind.Global, true);
+		service.adoptMcpServerOwnership(session, target, plugin.source);
+		const resolved = service.resolve(session, owned);
+		const unowned = service.resolve(session, target);
+		const other = service.resolve(session, { ...target, owningPluginSource: URI.file('/plugins/other') });
+		assert.deepStrictEqual([resolved, unowned, other].map(value => value.kind === 'resolved' && value.enabled), [true, true, true]);
+	});
+
+	test('MCP ownership adoption carries a pending workspace decision to the owned target', async () => {
+		const target: ICustomizationEnablementTarget = {
+			id: 'runtime-id', type: CustomizationType.McpServer, name: 'search', source: URI.parse('mcpServers#search'),
+		};
+		const loading = disposables.add(new AgentHostCustomizationEnablementService(
+			storage, state, new NullLogService(), worktree, createTestChatOwnershipService(state),
+			disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionData)),
+		));
+		loading.setEnablement(session, target, CustomizationEnablementKind.Workspace, false);
+		loading.adoptMcpServerOwnership(session, target, plugin.source);
+		await loading.initializeSession(session);
+		const resolved = loading.resolve(session, { ...target, owningPluginSource: plugin.source });
+		assert.deepStrictEqual(resolved.kind === 'resolved' && resolved.enablement, [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false }]);
+	});
+
+	test('MCP ownership adoption does not persist an inherited SDK default', () => {
+		const target: ICustomizationEnablementTarget = {
+			id: 'runtime-id', type: CustomizationType.McpServer, name: 'search', source: URI.parse('mcpServers#search'), defaultEnabled: false,
+		};
+		service.adoptMcpServerOwnership(session, target, plugin.source);
+		const resolved = service.resolve(session, { ...target, owningPluginSource: plugin.source, defaultEnabled: true });
+		assert.deepStrictEqual(resolved.kind === 'resolved' && resolved.enabled, true);
+	});
+
+	test('MCP ownership adoption notifies when consuming a redundant unowned decision', () => {
+		const target: ICustomizationEnablementTarget = {
+			id: 'runtime-id', type: CustomizationType.McpServer, name: 'search', source: URI.parse('mcpServers#search'),
+		};
+		service.setEnablement(session, target, CustomizationEnablementKind.Global, false);
+		service.setEnablement(session, { ...target, owningPluginSource: plugin.source }, CustomizationEnablementKind.Global, false);
+		const changes: string[][] = [];
+		disposables.add(service.onDidChange(event => changes.push([...event.sessions])));
+		service.adoptMcpServerOwnership(session, target, plugin.source);
+		assert.deepStrictEqual(changes, [[session]]);
+	});
+
 	test('resolves session, workspace, global, and default decisions in precedence order', () => {
 		service.setEnablement(session, plugin, CustomizationEnablementKind.Global, false);
 		service.setEnablement(session, plugin, CustomizationEnablementKind.Workspace, true);
