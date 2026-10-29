@@ -468,7 +468,7 @@ suite('SessionsRecentWorkspacesService', () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const pending = new DeferredPromise<string>();
 			const startedAt = Date.now();
-			const workspaceFiles = Array.from({ length: 5 }, (_, index) => URI.file(`/workspace-${index}.code-workspace`));
+			const workspaceFiles = Array.from({ length: 5 }, (_, index) => extUri.joinPath(extUri.dirname(workspaceFile), `workspace-${index}.code-workspace`));
 			const files = new Map<string, string | DeferredPromise<string>>(workspaceFiles.map(uri => [extUri.getComparisonKey(uri), pending]));
 			files.set(extUri.getComparisonKey(workspaceFiles[4]), '{"folders":[{"path":"../second"}]}');
 			const harness = createHarness([...workspaceFiles.map(uri => recentWorkspace(uri)), { folderUri: firstFolder }],
