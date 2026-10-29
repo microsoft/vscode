@@ -2258,16 +2258,6 @@ per-word capitalization does not survive translation. */
 	color: var(--vscode-descriptionForeground);
 }
 
-.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .embedded-detail-uninstall-button.monaco-button {
-	color: var(--vscode-errorForeground);
-	border-color: transparent;
-	background: transparent;
-}
-
-.ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .embedded-detail-uninstall-button.monaco-button:hover {
-	background: var(--vscode-button-secondaryHoverBackground);
-}
-
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-name {
 	margin: 0;
 	font-size: var(--vscode-fontSize-heading2);
@@ -3457,6 +3447,34 @@ per-word capitalization does not survive translation. */
 
 .plugin-list-widget .plugin-card-section-actions .plugin-installed-action.monaco-button:hover {
 	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.ai-customization-group-header .plugin-card-split-button {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.ai-customization-group-header .plugin-card-split-button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.ai-customization-group-header .plugin-card-split-button > .monaco-button-dropdown-separator {
+	display: none;
+}
+
+.ai-customization-group-header .plugin-card-split-button > .plugin-card-icon-button.monaco-button {
+	border: 0;
+}
+
+.ai-customization-group-header .plugin-card-split-button > .plugin-card-icon-button.monaco-button:hover:not(:focus) {
+	background: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: -1px;
+}
+
+.ai-customization-group-header .plugin-card-split-button > .monaco-dropdown-button.codicon-chevron-down-compact {
+	width: var(--vscode-spacing-size200);
+	min-width: var(--vscode-spacing-size200);
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .plugin-list-widget.narrow-layout .available-plugins-section .plugin-card-section-header,

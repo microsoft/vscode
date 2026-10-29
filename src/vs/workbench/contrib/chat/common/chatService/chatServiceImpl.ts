@@ -1478,6 +1478,12 @@ export class ChatService extends Disposable implements IChatService {
 			metadata: options?.metadata ?? request.agentHostMetadata,
 			locationData: request.locationData,
 			attachedContext: request.attachedContext,
+			// Keep how the original request was presented, e.g. as a terminal system notification. A caller can
+			// replace these values; leaving one `undefined` keeps the original's, like `metadata` above.
+			isSystemInitiated: options?.isSystemInitiated ?? request.isSystemInitiated,
+			systemInitiatedLabel: options?.systemInitiatedLabel ?? request.systemInitiatedLabel,
+			terminalExecutionId: options?.terminalExecutionId ?? request.terminalExecutionId,
+			hideFromTranscript: options?.hideFromTranscript ?? (request.isHiddenFromTranscript ? true : undefined),
 		};
 		await this._sendRequestAsync(model, model.sessionResource, request.message, attempt, enableCommandDetection, defaultAgent, location, resendOptions, preservedRequest, preserveRequestId ? request.id : undefined).responseCompletePromise;
 	}
@@ -2760,6 +2766,9 @@ export class ChatService extends Disposable implements IChatService {
 				timestamp: remote.timestamp,
 				attachedContext: variableData.variables.slice(),
 				restoredId: remote.id,
+				// The list reuses a rendered row while its dataId (id and version) is unchanged, so a replacement
+				// for a request with the same id must have a higher version to show its new content.
+				version: local ? local.request.version + 1 : undefined,
 				modelId,
 				modelConfiguration,
 				isSystemInitiated,

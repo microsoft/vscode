@@ -999,7 +999,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				focus: nudgeHelp?.includes('returns focus to the chat input'),
 				close: nudgeHelp?.includes('Close'),
 				onboarding: content.includes('The action waits until you activate the highlighted action, activate Understood, or press Escape to end the spotlight.'),
-				continuation: content.includes('Sending a new message after the suggestion appears hides it for those pull requests, including after a reload. It can appear again when a new pull request is added to the session and all its pull requests have merged.'),
+				continuation: content.includes('Sending a new message after the suggestion appears hides it for those pull requests, including after a reload. It can appear again in a chat when a new pull request is added to that chat and all of its pull requests have merged.'),
 				sessionListHelp,
 			}, {
 				controls: true,
