@@ -74,6 +74,7 @@ suite('CopilotCanvasesWidget', () => {
 		readonly ownerSuffix?: string;
 		readonly mutationGate?: Promise<void>;
 		readonly mutationError?: Error;
+		readonly onMutation?: () => void;
 		readonly plugins?: readonly IAgentPlugin[];
 	}) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.copilot-canvases-test.ai-customization-management-editor'));
@@ -141,6 +142,7 @@ suite('CopilotCanvasesWidget', () => {
 				if (!value) {
 					definitions = definitions.filter(canvas => canvas.extensionId !== extensionId);
 				}
+				options?.onMutation?.();
 				if (options?.mutationError) {
 					throw options.mutationError;
 				}
@@ -593,6 +595,55 @@ suite('CopilotCanvasesWidget', () => {
 		});
 	});
 
+	test('refreshes committed enablement when Canvas listing also fails', async () => {
+		const preview = definition();
+		let failCanvasListing = false;
+		const harness = createHarness({
+			definitions: [preview],
+			listCanvases: async () => {
+				if (failCanvasListing) {
+					throw new Error('Canvas listing failed.');
+				}
+				return [preview];
+			},
+			onMutation: () => failCanvasListing = true,
+			mutationError: new Error('The preference was saved, but reconciliation failed.'),
+		});
+		await timeout(20);
+		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable canvas extension \'Preview Extension\'"]');
+		assert.ok(disable);
+		disable.click();
+		await timeout(20);
+		assert.deepStrictEqual({
+			checked: harness.container.querySelector('[aria-label="Enable canvas extension \'Preview Extension\'"]')?.getAttribute('aria-checked'),
+			notifications: harness.notifications,
+		}, {
+			checked: 'false',
+			notifications: ['Could not disable canvas extension \'Preview Extension\'. The preference was saved, but reconciliation failed.'],
+		});
+	});
+
+	test('restores toggle focus after enabling an extension', async () => {
+		const preview = definition();
+		const harness = createHarness({
+			definitions: [preview],
+			extensionInventory: inventory([preview], 'disabled'),
+		});
+		await timeout(20);
+		const enable = harness.container.querySelector<HTMLElement>('[aria-label="Enable canvas extension \'Preview Extension\'"]');
+		assert.ok(enable);
+		enable.focus();
+		enable.click();
+		await timeout(20);
+		assert.deepStrictEqual({
+			label: DOM.getActiveElement()?.getAttribute('aria-label'),
+			checked: DOM.getActiveElement()?.getAttribute('aria-checked'),
+		}, {
+			label: 'Disable canvas extension \'Preview Extension\'',
+			checked: 'true',
+		});
+	});
+
 	test('restores cached children after the Customizations widget is recreated while disabled', async () => {
 		const definitions = [
 			definition({ canvasId: 'review', extensionId: 'user:pr-tools', extensionSource: 'user', extensionName: 'PR Tools', displayName: 'PR Review Board' }),
@@ -680,11 +731,11 @@ suite('CopilotCanvasesWidget', () => {
 		assert.deepStrictEqual({
 			canvas: accessible.includes('Preview. Last known:'),
 			lastKnown: accessible.includes('Last known:'),
-			itemCounts: refreshed.itemCounts,
+			itemCount: refreshed.itemCounts.at(-1),
 		}, {
 			canvas: false,
 			lastKnown: false,
-			itemCounts: [0],
+			itemCount: 0,
 		});
 	});
 

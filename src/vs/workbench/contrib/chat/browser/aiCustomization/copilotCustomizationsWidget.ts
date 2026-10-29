@@ -104,6 +104,7 @@ interface ICopilotCanvasTreeGroup extends ICustomizationTreeGroup<CopilotCanvasT
 interface ICanvasRefreshBatch {
 	readonly generation: number;
 	readonly pendingOwnerKeys: Set<string>;
+	readonly notifyOnError: boolean;
 	errorMessage?: string;
 }
 
@@ -901,12 +902,13 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		return `${canvasOwnerKey(context.owner)}\u0000${source}\u0000${extensionId}`;
 	}
 
-	private refreshCanvases(): void {
+	private refreshCanvases(notifyOnError = true): void {
 		this.canvasErrors.clear();
 		const generation = this.canvasRefreshGeneration.get() + 1;
 		this.canvasRefreshBatch = {
 			generation,
 			pendingOwnerKeys: new Set(this.activeCanvasOwnerKeys),
+			notifyOnError,
 		};
 		this.canvasRefreshGeneration.set(generation, undefined);
 		status(localize('copilotCanvases.refreshing', "Refreshing Canvases."));
@@ -936,14 +938,18 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 					return undefined;
 				})
 				: Promise.resolve(undefined);
-			const [definitions, inventory] = await Promise.all([listCanvases(), inventoryPromise]);
+			const [definitionsResult, inventoryResult] = await Promise.allSettled([listCanvases(), inventoryPromise]);
+			const inventory = inventoryResult.status === 'fulfilled' ? inventoryResult.value : undefined;
 			if (isCurrent() && inventory) {
 				this.extensionInventories.set(ownerKey, inventory);
+				this.extensionInventoriesChanged.trigger(undefined);
 			}
+			if (definitionsResult.status === 'rejected') {
+				throw definitionsResult.reason;
+			}
+			const definitions = definitionsResult.value;
 			if (isCurrent() && definitions !== undefined) {
 				this.updateCachedDefinitions(context, inventory, definitions);
-			}
-			if (isCurrent() && (inventory || definitions !== undefined)) {
 				this.extensionInventoriesChanged.trigger(undefined);
 			}
 			return definitions;
@@ -975,10 +981,12 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		}
 		this.canvasRefreshBatch = undefined;
 		if (refresh.errorMessage) {
-			this.notificationService.error(localize('copilotCanvases.refreshFailed', "Unable to refresh Canvases. {0}", refresh.errorMessage));
-		} else {
-			status(localize('copilotCanvases.refreshed', "Canvases refreshed."));
+			if (refresh.notifyOnError) {
+				this.notificationService.error(localize('copilotCanvases.refreshFailed', "Unable to refresh Canvases. {0}", refresh.errorMessage));
+			}
+			return;
 		}
+		status(localize('copilotCanvases.refreshed', "Canvases refreshed."));
 	}
 
 	private render(): void {
@@ -1080,6 +1088,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		this.render();
 		this.restoreFocusedAction(focusedAction);
 		const focusedMutationAction = DOM.getActiveElement();
+		let mutationFailed = false;
 		try {
 			await this.extensionsService.setExtensionEnabled(sessionResource, currentItem.extension.id, enabled);
 			this.updateExtensionState(currentItem, enabled);
@@ -1087,13 +1096,14 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 				? localize('copilotCanvases.extensionEnabledAnnouncement', "Enabled canvas extension '{0}'.", currentItem.extensionName)
 				: localize('copilotCanvases.extensionDisabledAnnouncement', "Disabled canvas extension '{0}'.", currentItem.extensionName));
 		} catch (error) {
+			mutationFailed = true;
 			this.notificationService.error(enabled
 				? localize('copilotCanvases.extensionEnableFailed', "Could not enable canvas extension '{0}'. {1}", currentItem.extensionName, getErrorMessage(error))
 				: localize('copilotCanvases.extensionDisableFailed', "Could not disable canvas extension '{0}'. {1}", currentItem.extensionName, getErrorMessage(error)));
 		} finally {
 			const shouldRestoreFocus = DOM.getActiveElement() === focusedMutationAction;
 			this.pendingExtensionMutations.delete(mutationKey);
-			this.refreshCanvases();
+			this.refreshCanvases(!mutationFailed);
 			if (shouldRestoreFocus) {
 				this.restoreFocusedAction(focusedAction);
 			}
@@ -1114,7 +1124,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			const extensions = [...inventory.extensions];
 			extensions[extensionIndex] = {
 				...extensions[extensionIndex],
-				status: enabled ? 'starting' : 'disabled',
+				status: enabled ? 'unknown' : 'disabled',
 			};
 			this.extensionInventories.set(candidateOwnerKey, { ...inventory, extensions });
 		}

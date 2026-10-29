@@ -2377,8 +2377,38 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('conservatively combines conflicting live extension statuses', async () => {
+		const client = new TestCopilotClient([]);
+		client.extensionInventory = {
+			mode: 'load_and_augment',
+			extensions: [{ id: 'user:preview', name: 'Preview', path: '/extensions/preview.mjs', source: 'user', enabled: true }],
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const session = AgentSession.uri('copilotcli', 'conflicting-extension-statuses');
+		setDefaultSessionStub(agent, 'conflicting-extension-statuses', {
+			listExtensions: async () => [
+				{ id: 'user:preview', name: 'Preview', source: 'user', status: 'running' },
+				{ id: 'user:preview', name: 'Preview', source: 'user', status: 'disabled' },
+				{ id: 'plugin:failed', name: 'Failed', source: 'plugin', status: 'running' },
+				{ id: 'plugin:failed', name: 'Failed', source: 'plugin', status: 'failed' },
+				{ id: 'plugin:starting', name: 'Starting', source: 'plugin', status: 'running' },
+				{ id: 'plugin:starting', name: 'Starting', source: 'plugin', status: 'starting' },
+			],
+		});
+		try {
+			const inventory = await agent.listAgentExtensions(session);
+			assert.deepStrictEqual(inventory.extensions.map(extension => [extension.id, extension.status]), [
+				['user:preview', 'unknown'],
+				['plugin:failed', 'failed'],
+				['plugin:starting', 'starting'],
+			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	for (const scenario of [
-		{ name: 'disabled target and unrelated failure', enabled: false, statuses: ['disabled'], succeeds: true },
+		{ name: 'disabled target and unrelated failure', enabled: false, statuses: ['disabled'], succeeds: false },
 		{ name: 'running target and unrelated failure', enabled: true, statuses: ['running'], succeeds: true },
 		{ name: 'target still running', enabled: false, statuses: ['running'], succeeds: false },
 		{ name: 'target still starting', enabled: true, statuses: ['starting'], succeeds: false },
