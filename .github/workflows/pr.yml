@@ -4,7 +4,7 @@ on:
   pull_request:
     branches:
       - main
-      - 'release/*'
+      - "release/*"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,12 +14,17 @@ permissions:
   contents: read
 
 env:
-  VSCODE_QUALITY: 'oss'
+  VSCODE_QUALITY: "oss"
 
 jobs:
   compile:
     name: Compile & Hygiene
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64,
+        "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@v6
@@ -159,7 +164,12 @@ jobs:
 
   copilot-check-test-cache:
     name: Copilot - Check Test Cache
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-check-test-cache-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64,
+        "JobId=copilot-check-test-cache-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     permissions:
       contents: read
       pull-requests: read
@@ -205,7 +215,12 @@ jobs:
 
   copilot-check-telemetry:
     name: Copilot - Check Telemetry
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-check-telemetry-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64,
+        "JobId=copilot-check-telemetry-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     permissions:
       contents: read
     steps:
@@ -216,7 +231,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '22.21.x'
+          node-version: "22.21.x"
 
       - name: Validate telemetry events
         working-directory: extensions/copilot
@@ -224,7 +239,12 @@ jobs:
 
   copilot-linux-tests:
     name: Copilot - Test (Linux)
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-linux-tests-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64,
+        "JobId=copilot-linux-tests-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     permissions:
       contents: read
     steps:
@@ -236,18 +256,18 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22.21.x'
+          node-version: "22.21.x"
 
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
-          architecture: 'x64'
+          python-version: "3.12"
+          architecture: "x64"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0'
+          dotnet-version: "10.0"
 
       - name: Install setuptools
         run: pip install setuptools
@@ -329,7 +349,12 @@ jobs:
 
   copilot-windows-tests:
     name: Copilot - Test (Windows)
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=copilot-windows-tests-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on:
+      [
+        self-hosted,
+        1ES.Pool=1es-vscode-oss-windows-2022-x64,
+        "JobId=copilot-windows-tests-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}",
+      ]
     permissions:
       contents: read
     steps:
@@ -341,18 +366,18 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22.21.x'
+          node-version: "22.21.x"
 
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
-          architecture: 'x64'
+          python-version: "3.12"
+          architecture: "x64"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0'
+          dotnet-version: "10.0"
 
       - name: Install setuptools
         run: pip install setuptools
@@ -410,5 +435,3 @@ jobs:
       - name: Run Completions Core lib tests using VS Code
         working-directory: extensions/copilot
         run: npm run test:completions-core
-
-
