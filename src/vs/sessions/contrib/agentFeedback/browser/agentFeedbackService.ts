@@ -230,19 +230,23 @@ export interface IAgentFeedbackService {
 	 * Resolve the session that owns the given file resource. Returns the
 	 * session that was active when the file's editor was first opened; if the
 	 * file has never been tracked, falls back to the currently active session.
+	 * A window that shows one session other than the main window's, such as a
+	 * chat window, passes it as `hostSession`: the file belongs to it there,
+	 * whichever session is active.
 	 * Returns `undefined` when the file is not eligible for feedback (an
 	 * output-channel resource) or when there is no created session to scope to.
 	 */
-	getSessionForFile(resourceUri: URI): ISession | undefined;
+	getSessionForFile(resourceUri: URI, hostSession?: ISession): ISession | undefined;
 
 	/** File changes for the focused chat in the given session. */
 	getChatChanges(sessionResource: URI): readonly ISessionFileChange[];
 
 	/**
 	 * Resolve the feedback scope shown for a file in the current session view, or
+	 * in the window of `hostSession` (see {@link getSessionForFile}), or
 	 * `undefined` when the file is out of scope.
 	 */
-	getFeedbackSessionResource(resourceUri: URI): URI | undefined;
+	getFeedbackSessionResource(resourceUri: URI, hostSession?: ISession): URI | undefined;
 	registerFeedbackResourceScope(resourceUri: URI, sessionResource: URI): IDisposable;
 
 	/**
@@ -561,15 +565,15 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return session;
 	}
 
-	getSessionForFile(resourceUri: URI): ISession | undefined {
+	getSessionForFile(resourceUri: URI, hostSession?: ISession): ISession | undefined {
 		if (!this._isFileEligibleForFeedback(resourceUri)) {
 			return undefined;
 		}
-		const sessionResource = this._fileToSession.get(resourceUri) ?? this._sessionsService.activeSession.get()?.resource;
+		const sessionResource = hostSession?.resource ?? this._fileToSession.get(resourceUri) ?? this._sessionsService.activeSession.get()?.resource;
 		if (!sessionResource) {
 			return undefined;
 		}
-		const session = this._resolveSession(sessionResource);
+		const session = hostSession ?? this._resolveSession(sessionResource);
 		if (!session || session.status.get() === SessionStatus.Untitled) {
 			return undefined;
 		}
@@ -584,7 +588,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return this._resolveSession(sessionResource)?.mainChat.get().changes.get() ?? [];
 	}
 
-	getFeedbackSessionResource(resourceUri: URI): URI | undefined {
+	getFeedbackSessionResource(resourceUri: URI, hostSession?: ISession): URI | undefined {
 		const explicitScope = this._explicitResourceScopes.get(resourceUri);
 		if (explicitScope) {
 			return explicitScope;
@@ -593,12 +597,14 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return undefined;
 		}
 
-		const activeSession = this._sessionsService.activeSession.get();
-		if (!activeSession || !activeSession.isCreated.get()) {
-			return AGENT_FEEDBACK_NEW_SESSION_RESOURCE;
+		if (!hostSession) {
+			const activeSession = this._sessionsService.activeSession.get();
+			if (!activeSession || !activeSession.isCreated.get()) {
+				return AGENT_FEEDBACK_NEW_SESSION_RESOURCE;
+			}
 		}
 
-		return this.getSessionForFile(resourceUri)?.resource;
+		return this.getSessionForFile(resourceUri, hostSession)?.resource;
 	}
 
 	registerFeedbackResourceScope(resourceUri: URI, sessionResource: URI): IDisposable {
