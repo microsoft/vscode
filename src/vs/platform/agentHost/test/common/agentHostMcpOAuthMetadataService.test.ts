@@ -132,9 +132,8 @@ suite('AgentHostMcpOAuthMetadataService', () => {
 			const { service } = createService({
 				[discoveryUrl]: { status: 200, body: { ...entraMetadata, issuer } },
 			});
-			await assert.rejects(() => service.fetch(authority), {
-				message: 'MCP authorization server metadata issuer does not match the requested authorization server',
-			});
+			await assert.rejects(() => service.fetch(authority), (error: Error) =>
+				error instanceof AggregateError && error.errors.some((cause: Error) => /issuer does not match the requested authorization server/.test(cause.message)));
 		});
 	}
 

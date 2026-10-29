@@ -35,19 +35,6 @@ export class AgentHostMcpOAuthMetadataService implements IAgentHostMcpOAuthMetad
 		const { metadata, discoveryUrl } = await fetchAuthorizationServerMetadata(authorizationServer, {
 			fetch: (url, init) => this.request(url, init),
 		});
-		const issuer = new URL(metadata.issuer);
-		const expectedIssuer = new URL(authorizationServer);
-		// Entra discovery uses issuer aliases; access-token issuer validation belongs to the resource server.
-		if (expectedIssuer.origin === 'https://login.microsoftonline.com'
-			&& (/^\/(?:common|organizations|consumers)\/v2\.0\/?$/.test(expectedIssuer.pathname)
-				&& issuer.pathname === '/%7Btenantid%7D/v2.0'
-				|| /^\/consumers\/v2\.0\/?$/.test(expectedIssuer.pathname)
-				&& issuer.pathname === '/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0')) {
-			issuer.pathname = expectedIssuer.pathname;
-		}
-		if (issuer.toString() !== expectedIssuer.toString() || issuer.search || issuer.hash || issuer.username || issuer.password) {
-			throw new Error('MCP authorization server metadata issuer does not match the requested authorization server');
-		}
 		for (const endpoint of [metadata.authorization_endpoint, metadata.token_endpoint]) {
 			if (!endpoint || !new URL(endpoint).host) {
 				throw new Error('MCP authorization server metadata must advertise authorization and token endpoints');
