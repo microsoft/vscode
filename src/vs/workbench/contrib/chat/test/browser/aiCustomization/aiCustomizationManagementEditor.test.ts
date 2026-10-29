@@ -771,6 +771,7 @@ suite('aiCustomizationManagementEditor', () => {
 		showEmbeddedPluginDetail(item: IAgentPluginItem): Promise<void>;
 		goBackToList(): void;
 		onDidChangeSidebarSelection(e: IListEvent<{ readonly id: AICustomizationManagementSection }>): void;
+		showDiscover(searchQuery?: string): void;
 		showWelcomePage(options?: { resetFilters?: boolean; preserveFocus?: boolean }): void;
 		renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void;
 		onStructuredPreviewSettingChanged(): void;
@@ -1481,6 +1482,33 @@ suite('aiCustomizationManagementEditor', () => {
 			selected: true,
 			ariaCurrent: 'page',
 		});
+	});
+
+	test('opening Discover with a query clears an existing source filter first', () => {
+		const { editor } = createContributedSectionEditor();
+		let selectedSourceId: string | undefined = 'mcpGallery';
+		const calls: string[] = [];
+		Object.assign(editor, {
+			homeButton: $('button'),
+			welcomePage: {
+				container: $('div'),
+				setVisible() { },
+				resetFilters() {
+					calls.push(`reset:${selectedSourceId}`);
+					selectedSourceId = undefined;
+				},
+				reset() { },
+				focus() { },
+				setSearchQuery(query: string) { calls.push(`search:${selectedSourceId ?? 'all'}:${query}`); },
+			},
+		});
+
+		editor.showDiscover('@type:canvas');
+
+		assert.deepStrictEqual(calls, [
+			'reset:mcpGallery',
+			'search:all:@type:canvas',
+		]);
 	});
 
 	test('showing Discover can preserve focus through reset', () => {
