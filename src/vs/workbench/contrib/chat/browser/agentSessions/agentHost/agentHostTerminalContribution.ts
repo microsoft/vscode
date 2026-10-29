@@ -3,17 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OS } from '../../../../../../base/common/platform.js';
+import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
+import { delimiter, isAbsolute } from '../../../../../../base/common/path.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
+import { AgentHostConfigKey, type IAgentTerminalPath } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { AgentHostCustomTerminalToolEnabledSettingId, CopilotCliConfigKey } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TerminalSettingId } from '../../../../../../platform/terminal/common/terminal.js';
+import { EnvironmentVariableMutatorType } from '../../../../../../platform/terminal/common/environmentVariable.js';
+import { IEnvironmentVariableService } from '../../../../../../workbench/contrib/terminal/common/environmentVariable.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
 import { ITerminalProfileResolverService, ITerminalProfileService } from '../../../../../../workbench/contrib/terminal/common/terminal.js';
 import { IAgentHostTerminalService } from '../../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
@@ -58,6 +61,7 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
+		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
@@ -74,8 +78,15 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 				store.add(this._terminalProfileService.onDidChangeAvailableProfiles(() => push()));
 			},
 		};
+		const agentTerminalPathKey: IForwardedRootConfigKey = {
+			key: AgentHostConfigKey.AgentTerminalPath,
+			computeValue: () => this._computeAgentTerminalPath(),
+			registerTriggers: (store, push) => {
+				store.add(this._environmentVariableService.onDidChangeCollections(() => push()));
+			},
+		};
 		const keys: readonly IForwardedRootConfigKey[] = [
-			...(environmentService.remoteAuthority ? [] : [defaultShellKey]),
+			...(environmentService.remoteAuthority ? [] : [defaultShellKey, agentTerminalPathKey]),
 			{
 				key: CopilotCliConfigKey.EnableCustomTerminalTool,
 				computeValue: () => this._configurationService.getValue<boolean>(AgentHostCustomTerminalToolEnabledSettingId) === true,
@@ -150,5 +161,33 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 			return undefined;
 		}
 		return profile.path || undefined;
+	}
+
+	/**
+	 * Collects the global `PATH` prepend/append mutators of local extensions
+	 * that opted into agent terminals (`terminalAgentEnvironment` proposal),
+	 * as absolute directories in the order terminals would apply them.
+	 */
+	private _computeAgentTerminalPath(): IAgentTerminalPath {
+		const variables = this._environmentVariableService.getMergedCollection(null, OS).getVariableMap(undefined);
+		let prepend: string[] = [];
+		const append: string[] = [];
+		for (const [variable, mutators] of variables) {
+			if (OS === OperatingSystem.Windows ? variable.toUpperCase() !== 'PATH' : variable !== 'PATH') {
+				continue;
+			}
+			for (const mutator of mutators) {
+				if (!mutator.options?.applyToAgentTerminals) {
+					continue;
+				}
+				const directories = mutator.value.split(delimiter).filter(directory => directory && isAbsolute(directory));
+				if (mutator.type === EnvironmentVariableMutatorType.Prepend) {
+					prepend = [...directories, ...prepend];
+				} else if (mutator.type === EnvironmentVariableMutatorType.Append) {
+					append.push(...directories);
+				}
+			}
+		}
+		return { prepend, append };
 	}
 }

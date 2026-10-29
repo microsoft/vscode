@@ -29,6 +29,8 @@ import { TerminalSettingId, type ITerminalProfile } from '../../../../../../plat
 import { ITerminalProfileResolverService, ITerminalProfileService, type IShellLaunchConfigResolveOptions } from '../../../../terminal/common/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { AgentHostTerminalContribution } from '../../../browser/agentSessions/agentHost/agentHostTerminalContribution.js';
+import { IEnvironmentVariableService } from '../../../../terminal/common/environmentVariable.js';
+import { EnvironmentVariableMutatorType, type IExtensionOwnedEnvironmentVariableMutator, type IMergedEnvironmentVariableCollection } from '../../../../../../platform/terminal/common/environmentVariable.js';
 
 // ---- Mock agent host service (minimal — only what the contribution touches) ----
 
@@ -160,6 +162,35 @@ class MockDefaultAccountService extends mock<IDefaultAccountService>() {
 	}
 }
 
+// ---- Mock environment variable service (extension PATH contributions) ----
+
+class MockEnvironmentVariableService extends mock<IEnvironmentVariableService>() {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeCollections = new Emitter<IMergedEnvironmentVariableCollection>();
+	override readonly onDidChangeCollections = this._onDidChangeCollections.event;
+
+	public variables = new Map<string, IExtensionOwnedEnvironmentVariableMutator[]>();
+	public lastRemoteAuthority: string | null | undefined = 'unset';
+
+	override getMergedCollection(remoteAuthority: string | null | undefined): IMergedEnvironmentVariableCollection {
+		this.lastRemoteAuthority = remoteAuthority;
+		const variables = this.variables;
+		return new class extends mock<IMergedEnvironmentVariableCollection>() {
+			override getVariableMap() { return variables; }
+		}();
+	}
+
+	setPathMutators(mutators: IExtensionOwnedEnvironmentVariableMutator[]): void {
+		this.variables = new Map([[OS === OperatingSystem.Windows ? 'Path' : 'PATH', mutators]]);
+		this._onDidChangeCollections.fire(undefined!);
+	}
+
+	dispose(): void {
+		this._onDidChangeCollections.dispose();
+	}
+}
+
 // ---- Helpers ----
 
 function makeRootStateWithSchema(properties: Record<string, unknown>): RootState {
@@ -205,6 +236,7 @@ interface ITestSetup {
 	profileService: MockTerminalProfileService;
 	configurationService: TestConfigurationService;
 	defaultAccountService: MockDefaultAccountService;
+	environmentVariableService: MockEnvironmentVariableService;
 }
 
 function setup(disposables: DisposableStore, agentHostEnabled: boolean = true, remoteAuthority?: string): ITestSetup {
@@ -216,6 +248,8 @@ function setup(disposables: DisposableStore, agentHostEnabled: boolean = true, r
 	disposables.add({ dispose: () => profileService.dispose() });
 	const defaultAccountService = new MockDefaultAccountService();
 	disposables.add({ dispose: () => defaultAccountService.dispose() });
+	const environmentVariableService = new MockEnvironmentVariableService();
+	disposables.add({ dispose: () => environmentVariableService.dispose() });
 	const configurationService = new TestConfigurationService({
 		[AgentHostCustomTerminalToolEnabledSettingId]: true,
 	});
@@ -229,13 +263,14 @@ function setup(disposables: DisposableStore, agentHostEnabled: boolean = true, r
 	instantiationService.stub(ITerminalProfileResolverService, resolver);
 	instantiationService.stub(ITerminalProfileService, profileService);
 	instantiationService.stub(IDefaultAccountService, defaultAccountService);
+	instantiationService.stub(IEnvironmentVariableService, environmentVariableService);
 	instantiationService.stub(IAgentHostTerminalService, {
 		registerEntry: (): IDisposable => ({ dispose() { } }),
 		profiles: observableValue('test', []),
 	});
 
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostTerminalContribution));
-	return { contribution, agentHostService, resolver, profileService, configurationService, defaultAccountService };
+	return { contribution, agentHostService, resolver, profileService, configurationService, defaultAccountService, environmentVariableService };
 }
 
 /** Drain asynchronous config computations and their dispatches. */
@@ -629,6 +664,58 @@ suite('AgentHostTerminalContribution', () => {
 		}, {
 			beforeResolution: [],
 			afterResolution: [{ [AgentHostConfigKey.GithubEnterpriseUri]: 'https://acme.ghe.com' }],
+		});
+	});
+
+	suite('agent terminal PATH', () => {
+		const root = OS === OperatingSystem.Windows ? 'C:\\' : '/';
+		const sep = OS === OperatingSystem.Windows ? ';' : ':';
+		const dir = (name: string) => `${root}${name}`;
+		const mutator = (extensionIdentifier: string, type: EnvironmentVariableMutatorType, value: string, applyToAgentTerminals?: boolean): IExtensionOwnedEnvironmentVariableMutator => ({
+			extensionIdentifier, type, value, variable: 'PATH', options: { applyAtProcessCreation: true, ...(applyToAgentTerminals ? { applyToAgentTerminals } : {}) },
+		});
+		const dispatchedPaths = (agentHostService: MockAgentHostService) => agentHostService.dispatchedActions.map(({ action }) => (action as IRootConfigChangedAction).config[AgentHostConfigKey.AgentTerminalPath]);
+
+		test('forwards only opted-in absolute PATH entries of the local extension host', async () => {
+			const { agentHostService, environmentVariableService } = setup(disposables);
+			environmentVariableService.setPathMutators([
+				mutator('a', EnvironmentVariableMutatorType.Prepend, `${dir('a')}${sep}`, true),
+				mutator('b', EnvironmentVariableMutatorType.Prepend, `${dir('b')}${sep}`, true),
+				mutator('c', EnvironmentVariableMutatorType.Prepend, `${dir('not-opted-in')}${sep}`),
+				mutator('d', EnvironmentVariableMutatorType.Append, `${sep}${dir('d')}${sep}relative`, true),
+				mutator('e', EnvironmentVariableMutatorType.Replace, dir('replaced'), true),
+			]);
+
+			agentHostService.setRootState(makeRootStateWithSchema({ [AgentHostConfigKey.AgentTerminalPath]: { type: 'object', title: 'Agent Terminal Path' } }));
+			await flush();
+
+			assert.deepStrictEqual({ paths: dispatchedPaths(agentHostService), remoteAuthority: environmentVariableService.lastRemoteAuthority }, {
+				paths: [{ prepend: [dir('b'), dir('a')], append: [dir('d')] }],
+				remoteAuthority: null,
+			});
+		});
+
+		test('re-dispatches when extension collections change', async () => {
+			const { agentHostService, environmentVariableService } = setup(disposables);
+			agentHostService.setRootState(makeRootStateWithSchema({ [AgentHostConfigKey.AgentTerminalPath]: { type: 'object', title: 'Agent Terminal Path' } }));
+			await flush();
+
+			environmentVariableService.setPathMutators([mutator('a', EnvironmentVariableMutatorType.Prepend, dir('a'), true)]);
+			await flush();
+
+			assert.deepStrictEqual(dispatchedPaths(agentHostService), [
+				{ prepend: [], append: [] },
+				{ prepend: [dir('a')], append: [] },
+			]);
+		});
+
+		test('does not forward to a remote window', async () => {
+			const { agentHostService, environmentVariableService } = setup(disposables, true, 'ssh-remote+test');
+			environmentVariableService.setPathMutators([mutator('a', EnvironmentVariableMutatorType.Prepend, dir('a'), true)]);
+			agentHostService.setRootState(makeRootStateWithSchema({ [AgentHostConfigKey.AgentTerminalPath]: { type: 'object', title: 'Agent Terminal Path' } }));
+			await flush();
+
+			assert.deepStrictEqual(agentHostService.dispatchedActions, []);
 		});
 	});
 

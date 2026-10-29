@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import { DeferredPromise, raceCancellablePromises, timeout } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { dirname, parse as pathParse } from '../../../base/common/path.js';
+import { delimiter, dirname, parse as pathParse } from '../../../base/common/path.js';
 import * as platform from '../../../base/common/platform.js';
 import { getSystemShell } from '../../../base/node/shell.js';
 import { URI } from '../../../base/common/uri.js';
@@ -17,7 +17,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { getShellIntegrationInjection } from '../../terminal/node/terminalEnvironment.js';
-import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../common/agentHostCustomizationConfig.js';
+import { AgentHostConfigKey, agentHostCustomizationConfigSchema, readAgentTerminalPath } from '../common/agentHostCustomizationConfig.js';
 import { ActionType } from '../common/state/protocol/actions.js';
 import type { CreateTerminalParams } from '../common/state/protocol/commands.js';
 import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, TerminalClaimKind, TerminalLifecycleStatus } from '../common/state/protocol/state.js';
@@ -340,6 +340,9 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		// expansion and enable inline # comments.
 		if (params.claim?.kind === TerminalClaimKind.Session && isZsh(shell)) {
 			env['VSCODE_AGENT_ZSH_FIXUPS'] = '1';
+		}
+		if (params.claim?.kind === TerminalClaimKind.Session) {
+			this._applyAgentTerminalPath(env);
 		}
 		if (options?.nonInteractive) {
 			// Suppress paging and interactive prompts so that tool-spawned
@@ -944,6 +947,17 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			terminal.store.dispose();
 			this._broadcastTerminalList();
 		}
+	}
+
+	/** Adds the extension-contributed agent terminal `PATH` entries to `env`. */
+	private _applyAgentTerminalPath(env: Record<string, string>): void {
+		const { prepend, append } = readAgentTerminalPath(this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AgentTerminalPath));
+		if (prepend.length === 0 && append.length === 0) {
+			return;
+		}
+		// Windows environment keys are case-insensitive, but `env` is a plain object.
+		const pathKey = Object.keys(env).find(key => platform.isWindows ? key.toUpperCase() === 'PATH' : key === 'PATH') ?? 'PATH';
+		env[pathKey] = [...prepend, ...(env[pathKey] ? [env[pathKey]] : []), ...append].join(delimiter);
 	}
 
 	async getDefaultShell(): Promise<string> {

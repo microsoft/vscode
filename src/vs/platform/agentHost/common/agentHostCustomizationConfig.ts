@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../nls.js';
+import { isAbsolute } from '../../../base/common/path.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 import { CustomizationType, type Customization, type PluginCustomization } from './state/protocol/state.js';
 import { customizationId } from './state/sessionState.js';
@@ -38,6 +39,31 @@ export const enum AgentHostConfigKey {
 	 * `agent-host-config.json`.
 	 */
 	GithubEnterpriseUri = 'githubEnterpriseUri',
+	/**
+	 * Directories added to `PATH` of host-managed agent terminals, see
+	 * {@link IAgentTerminalPath}. Pushed by the local VS Code client from
+	 * extension environment variable collections that opt in through the
+	 * `terminalAgentEnvironment` API proposal. Never persisted.
+	 */
+	AgentTerminalPath = 'agentTerminalPath',
+}
+
+/** Value of {@link AgentHostConfigKey.AgentTerminalPath}: absolute directories. */
+export interface IAgentTerminalPath {
+	readonly prepend: readonly string[];
+	readonly append: readonly string[];
+}
+
+/**
+ * Reads the {@link AgentHostConfigKey.AgentTerminalPath} root value, keeping
+ * only absolute single-line directories so they are safe to embed in scripts.
+ */
+export function readAgentTerminalPath(value: unknown): IAgentTerminalPath {
+	const read = (entries: unknown) => Array.isArray(entries)
+		? entries.filter((entry): entry is string => typeof entry === 'string' && isAbsolute(entry) && !/[\0-\x1f]/.test(entry))
+		: [];
+	const raw = typeof value === 'object' && value !== null ? value as Partial<Record<keyof IAgentTerminalPath, unknown>> : {};
+	return { prepend: read(raw.prepend), append: read(raw.append) };
 }
 
 /**
@@ -94,6 +120,16 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		type: 'string',
 		title: localize('agentHost.config.githubEnterpriseUri.title', "GitHub Enterprise URI"),
 		description: localize('agentHost.config.githubEnterpriseUri.description', "Optional base URI of a GitHub Enterprise instance (for example \"https://ghe.example.com\" for GitHub Enterprise Server, or \"https://tenant.ghe.com\" for GitHub Enterprise Cloud). When set, the agent host authenticates and makes GitHub API calls against this instance instead of github.com. Normally pushed by the connected VS Code client from the selected enterprise account's authorization server; remote agent host operators can set it directly in the remote `agent-host-config.json`."),
+	}),
+	[AgentHostConfigKey.AgentTerminalPath]: schemaProperty<IAgentTerminalPath>({
+		type: 'object',
+		title: localize('agentHost.config.agentTerminalPath.title', "Agent Terminal Path"),
+		description: localize('agentHost.config.agentTerminalPath.description', "Absolute directories added to `PATH` of the terminals agents use to run commands. Pushed by the local VS Code client from extensions that opt in; not persisted."),
+		properties: {
+			prepend: { type: 'array', title: localize('agentHost.config.agentTerminalPath.prepend', "Prepend"), items: { type: 'string', title: localize('agentHost.config.agentTerminalPath.directory', "Directory") } },
+			append: { type: 'array', title: localize('agentHost.config.agentTerminalPath.append', "Append"), items: { type: 'string', title: localize('agentHost.config.agentTerminalPath.directory', "Directory") } },
+		},
+		required: ['prepend', 'append'],
 	}),
 });
 

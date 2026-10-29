@@ -15,6 +15,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnable
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, automationRootConfigSchema } from '../../common/automationConfig.js';
 import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEntries } from '../../common/agentCustomizationSettings.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentSessionUri, ChatOriginKind, SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
@@ -509,6 +510,26 @@ suite('AgentConfigurationService', () => {
 		const persisted = JSON.parse(fs.readFileSync(resource.fsPath, 'utf8')) as Record<string, unknown>;
 		assert.strictEqual(persisted['test.account'], undefined);
 		assert.deepStrictEqual(localManager.rootState.config?.values['test.account'], { status: 'signedIn' });
+		fs.rmSync(directory, { recursive: true, force: true });
+	});
+
+	test('does not persist client-pushed agent terminal PATH entries', async () => {
+		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
+		const resource = URI.file(join(directory, 'agent-host-config.json'));
+		const localManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const localService = disposables.add(new AgentConfigurationService(localManager, new NullLogService(), resource));
+
+		localService.updateRootConfig({ [AgentHostConfigKey.AgentTerminalPath]: { prepend: ['/opt/tool'], append: [] }, level: 'high' });
+		await localService.whenIdle();
+
+		const persisted = JSON.parse(fs.readFileSync(resource.fsPath, 'utf8')) as Record<string, unknown>;
+		assert.deepStrictEqual({
+			persisted: persisted[AgentHostConfigKey.AgentTerminalPath],
+			published: localManager.rootState.config?.values[AgentHostConfigKey.AgentTerminalPath],
+		}, {
+			persisted: undefined,
+			published: { prepend: ['/opt/tool'], append: [] },
+		});
 		fs.rmSync(directory, { recursive: true, force: true });
 	});
 
