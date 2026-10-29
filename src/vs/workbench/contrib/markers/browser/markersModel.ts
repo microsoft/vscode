@@ -110,10 +110,11 @@ export class Marker {
 	) { }
 
 	toString(): string {
+		const relatedInformation = this.relatedInformation.length ? this.relatedInformation.map(r => ({ ...r.raw, resource: r.raw.resource.path })) : undefined;
 		return JSON.stringify({
 			...this.marker,
 			resource: this.marker.resource.path,
-			relatedInformation: this.relatedInformation.length ? this.relatedInformation.map(r => ({ ...r.raw, resource: r.raw.resource.path })) : undefined
+			relatedInformation
 		}, null, '\t');
 	}
 }

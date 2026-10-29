@@ -90,9 +90,9 @@
 			"build/azure-pipelines/common/cacheKeys.ts"
 		],
 		// The unit test jobs, the actions they use and the scripts that set up their Linux machines.
+		// TEMPORARY (DO NOT MERGE): pr.yml and pr-linux-test.yml are left out so that the draft pull
+		// request that adopts ripple on Linux measures the job times of a selected run.
 		"test job definition": [
-			".github/workflows/pr.yml",
-			".github/workflows/pr-linux-test.yml",
 			".github/workflows/pr-darwin-test.yml",
 			".github/workflows/pr-win32-test.yml",
 			".github/workflows/node_modules_cache/**",
@@ -102,9 +102,11 @@
 			"build/azure-pipelines/linux/xvfb.init"
 		],
 		// ripple and this file decide what runs.
+		// TEMPORARY (DO NOT MERGE): this file is left out for the same measurement.
 		"test planner": [
 			"build/ripple/**",
-			"!build/ripple/**/*.md"
+			"!build/ripple/**/*.md",
+			"!build/ripple/vscode.jsonc"
 		]
 	},
 
