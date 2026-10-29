@@ -372,6 +372,8 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		// content size may have changed (e.g. an image finished loading)
 		this._hoverPosition = this._requestedHoverPosition;
 		this._hover.containerDomNode.classList.remove('right-aligned');
+		// Measure the full content when choosing the side, not the maximum height of a previous layout
+		this._hover.containerDomNode.style.maxHeight = '';
 		this._hover.contentsDomNode.style.maxHeight = '';
 		this._hover.containerDomNode.style.maxWidth = '';
 

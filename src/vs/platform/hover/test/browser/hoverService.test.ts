@@ -637,6 +637,41 @@ suite('HoverService', () => {
 			hover.dispose();
 		});
 
+		test('should not choose a side using the maximum height applied by a previous layout', () => {
+			const target = createTarget();
+			const content = document.createElement('div');
+			content.style.height = '800px';
+			let targetTop = 200;
+			target.getBoundingClientRect = () => new DOMRect(100, targetTop, 100, 22);
+			const hover = showHover('', target, {
+				content,
+				position: { hoverPosition: HoverPosition.ABOVE },
+				appearance: { maxHeightRatio: 0.5 }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			const innerHeightDescriptor = Object.getOwnPropertyDescriptor(mainWindow, 'innerHeight');
+			const layoutWithWindowHeight = (innerHeight: number) => {
+				Object.defineProperty(mainWindow, 'innerHeight', { configurable: true, value: innerHeight });
+				hoverWidget.layout();
+				return hoverWidget.anchor === AnchorPosition.BELOW ? 'below' : 'above';
+			};
+
+			try {
+				// The content is capped to half of the window, which is still taller than the room above
+				const small = layoutWithWindowHeight(600);
+				targetTop = 400;
+				const large = layoutWithWindowHeight(1200);
+				assert.deepStrictEqual([small, large], ['below', 'below']);
+			} finally {
+				if (innerHeightDescriptor) {
+					Object.defineProperty(mainWindow, 'innerHeight', innerHeightDescriptor);
+				} else {
+					delete (mainWindow as { innerHeight?: number }).innerHeight;
+				}
+				hover.dispose();
+			}
+		});
+
 		test('should use the maximum height of the hover when choosing a vertical fallback', () => {
 			const target = createTarget();
 			target.getBoundingClientRect = () => new DOMRect(100, 44, 100, 22);
