@@ -27,6 +27,7 @@ const SEARCH_RESULT_ID_PREFIX = 'searchResult:';
 type MobilePickerRow = {
 	readonly sheetItem: IMobilePickerSheetItem;
 	readonly run: () => void;
+	readonly showOnlyWhenFiltering?: boolean;
 };
 
 type BrowsedFolder = {
@@ -70,6 +71,7 @@ export function buildMobileWorkspacePickerRows(
 				const id = `submenu:${rows.length}`;
 				const childIcon = (child as IAction & { icon?: ThemeIcon }).icon ?? item.group?.icon;
 				rows.push({
+					showOnlyWhenFiltering: item.showOnlyWhenFiltering,
 					sheetItem: {
 						id,
 						label: child.label,
@@ -95,6 +97,7 @@ export function buildMobileWorkspacePickerRows(
 		const isWorkspaceRow = !!data?.folderUri;
 		const icon = isWorkspaceRow ? Codicon.folder : item.group?.icon;
 		rows.push({
+			showOnlyWhenFiltering: item.showOnlyWhenFiltering,
 			sheetItem: {
 				id,
 				label: item.label ?? '',
@@ -224,6 +227,7 @@ export async function showMobileWorkspacePickerSheet(
 				const normalizedQuery = query.trim().toLocaleLowerCase();
 				const filteredRows = showSearch
 					? rows
+						.filter(row => normalizedQuery || !row.showOnlyWhenFiltering)
 						.map(row => row.sheetItem)
 						.filter(item => !normalizedQuery
 							|| item.label.toLocaleLowerCase().includes(normalizedQuery)
@@ -286,7 +290,7 @@ export async function showMobileWorkspacePickerSheet(
 		result = await showMobilePickerSheet(
 			layoutService.mainContainer,
 			localize('mobileWorkspacePicker.title', "Choose Workspace"),
-			showSearch ? [] : rows.map(r => r.sheetItem),
+			showSearch ? [] : rows.filter(row => !row.showOnlyWhenFiltering).map(r => r.sheetItem),
 			{
 				cancellationToken,
 				headerActions,

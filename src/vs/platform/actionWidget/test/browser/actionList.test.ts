@@ -2568,6 +2568,29 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('searches additional items without showing them in the default list', () => {
+		const items = [action('Recent'), { ...action('Older'), description: '/projects/archive', showOnlyWhenFiltering: true }];
+		const widget = createActionListWidget(disposables, { items });
+		const initial = getVisibleRowText(widget);
+		typeFilter(widget, 'older');
+		const byLabel = getVisibleRowText(widget);
+		typeFilter(widget, 'archive');
+		const byDescription = getVisibleRowText(widget);
+		widget.updateItems(items);
+		const afterRefresh = getVisibleRowText(widget);
+		typeFilter(widget, 'missing');
+		const noMatch = getVisibleRowText(widget);
+		typeFilter(widget, '');
+		assert.deepStrictEqual({ initial, byLabel, byDescription, afterRefresh, noMatch, cleared: getVisibleRowText(widget) }, {
+			initial: ['Recent'],
+			byLabel: ['Older/projects/archive'],
+			byDescription: ['Older/projects/archive'],
+			afterRefresh: ['Older/projects/archive'],
+			noMatch: [],
+			cleared: ['Recent'],
+		});
+	});
+
 	test('filtering replaces a submenu trigger with matching child items and preserves parent matches', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
