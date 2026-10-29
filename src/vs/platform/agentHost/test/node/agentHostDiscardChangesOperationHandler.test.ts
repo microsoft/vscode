@@ -19,7 +19,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { ITrackedEditSource, ITrackedTurnDatabase } from '../../common/agentHostChangesetService.js';
-import { EMPTY_TREE_OBJECT, type IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../common/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT, type IAgentHostGitService, type IBranch, type IDefaultBranch, type IGitStash } from '../../common/agentHostGitService.js';
 import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildWorkingSetChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -68,7 +68,10 @@ class TestGitService implements IAgentHostGitService {
 	async checkout(): Promise<void> { }
 	async hasUncommittedChanges(): Promise<boolean> { return true; }
 	async createStash(): Promise<void> { }
-	async popStash(): Promise<void> { }
+	async listStashes(): Promise<readonly IGitStash[]> { return []; }
+	async applyStash(): Promise<void> { }
+	async dropStash(): Promise<void> { }
+	async getUnmergedPaths(): Promise<readonly string[]> { return []; }
 	async commitAll(): Promise<void> { }
 	async mergeBranch(): Promise<string> { return ''; }
 	async restore(workingDirectory: URI, paths: readonly string[], options?: { readonly staged?: boolean; readonly ref?: string }): Promise<void> {

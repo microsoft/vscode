@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
@@ -19,6 +20,13 @@ import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
+
+/** A stash entry created by this handler. */
+interface IOwnedStash {
+	readonly commit: string;
+	/** The message given to `git stash push`, which ends with a unique marker. */
+	readonly message: string;
+}
 
 export class AgentHostMergeOperationHandler implements IChangesetOperationHandler {
 
@@ -97,14 +105,13 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.sourceBranchMissingInParent', "The worktree branch '{0}' does not exist in the parent repository.", sourceBranch));
 		}
 		// Checked before anything is committed in the worktree, so a dirty parent leaves both repositories untouched.
-		let targetStash: string | undefined;
-		let overlappingPaths: string[] | undefined;
+		let targetStash: IOwnedStash | undefined;
 		if (await this._gitService.hasUncommittedChanges(repositoryRoot)) {
-			overlappingPaths = await this._findOverlappingTargetChanges(repositoryRoot, worktreeRoot, targetBranch);
 			if (!readMergeOperationStashTargetChanges(params)) {
+				const overlappingPaths = await this._findOverlappingTargetChanges(repositoryRoot, worktreeRoot, targetBranch);
 				throw new ProtocolError(
 					JsonRpcErrorCodes.InvalidParams,
-					localize('agentHost.changeset.merge.targetDirty', "Commit or stash the changes in the parent repository before merging into '{0}'. Nothing was committed or merged.", targetBranch),
+					localize('agentHost.changeset.merge.targetDirty', "'{0}' has uncommitted changes in the parent repository. Commit or stash them, then merge again.", targetBranch),
 					mergeOperationDirtyTargetErrorData(targetBranch, overlappingPaths),
 				);
 			}
@@ -116,7 +123,7 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 		try {
 			result = await this._commitAndMerge(parsed.ownerUri, sessionUri, worktreeRoot, repositoryRoot, sourceBranch, targetBranch, token, source);
 		} catch (error) {
-			const restoreFailure = targetStash ? await this._restoreTargetChanges(repositoryRoot, targetStash, undefined) : undefined;
+			const restoreFailure = targetStash ? await this._restoreTargetChanges(repositoryRoot, targetStash) : undefined;
 			if (restoreFailure) {
 				const detail = error instanceof Error ? error.message : String(error);
 				throw new ProtocolError(error instanceof ProtocolError ? error.code : JsonRpcErrorCodes.InternalError, `${detail} ${restoreFailure}`);
@@ -125,11 +132,11 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 		}
 
 		if (targetStash) {
-			const restoreFailure = await this._restoreTargetChanges(repositoryRoot, targetStash, overlappingPaths);
+			const restoreFailure = await this._restoreTargetChanges(repositoryRoot, targetStash);
 			if (restoreFailure) {
-				throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.mergedRestoreFailed', "Merged changes from '{0}' into '{1}'. {2}", sourceBranch, targetBranch, restoreFailure));
+				throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.mergedRestoreFailed', "Merged into '{0}'. {1}", targetBranch, restoreFailure));
 			}
-			return { message: { markdown: localize('agentHost.changeset.merge.mergedAndRestored', "Merged changes from '{0}' into '{1}' and restored the uncommitted changes in the parent repository.", sourceBranch, targetBranch) } };
+			return { message: { markdown: localize('agentHost.changeset.merge.mergedAndRestored', "Merged into '{0}' and restored your uncommitted changes.", targetBranch) } };
 		}
 		return result;
 	}
@@ -166,60 +173,67 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 	}
 
 	/**
-	 * Stashes the parent repository's tracked and untracked changes and returns
-	 * the stash commit, or `undefined` when there was nothing left to stash.
+	 * Stashes the parent repository's tracked, staged, and untracked changes and
+	 * returns the stash entry, or `undefined` when there was nothing to stash.
+	 *
+	 * The stash list is shared by every worktree of the repository, so the entry
+	 * is identified by a unique marker in its message, never by its position.
 	 */
-	private async _stashTargetChanges(repositoryRoot: URI, sourceBranch: string, targetBranch: string): Promise<string | undefined> {
-		const previousStash = await this._gitService.revParse(repositoryRoot, 'refs/stash');
+	private async _stashTargetChanges(repositoryRoot: URI, sourceBranch: string, targetBranch: string): Promise<IOwnedStash | undefined> {
+		const message = `${localize('agentHost.changeset.merge.stashMessage', "Changes in {0} before merging {1}", targetBranch, sourceBranch)} (${generateUuid().slice(0, 8)})`;
 		try {
-			await this._gitService.createStash(repositoryRoot, {
-				message: localize('agentHost.changeset.merge.stashMessage', "Changes in {0} before merging {1}", targetBranch, sourceBranch),
-				includeUntracked: true,
-			});
+			await this._gitService.createStash(repositoryRoot, { message, includeUntracked: true });
 		} catch (error) {
 			const detail = error instanceof Error ? error.message : String(error);
 			// `git stash push` records the stash before cleaning the working tree, so a late failure can leave changes only in the stash.
-			const partialStash = await this._gitService.revParse(repositoryRoot, 'refs/stash');
-			if (partialStash && partialStash !== previousStash) {
-				const restoreFailure = await this._restoreTargetChanges(repositoryRoot, partialStash, undefined);
+			const partialStash = await this._findOwnedStash(repositoryRoot, message);
+			if (partialStash) {
+				const restoreFailure = await this._restoreTargetChanges(repositoryRoot, partialStash);
 				throw new ProtocolError(JsonRpcErrorCodes.InternalError, restoreFailure
-					? localize('agentHost.changeset.merge.stashFailedPartially', "Could not stash the changes in the parent repository, so nothing was committed or merged. Git reported: {0} {1}", detail, restoreFailure)
-					: localize('agentHost.changeset.merge.stashFailedRestored', "Could not stash the changes in the parent repository, so nothing was committed or merged, and your changes were restored. Git reported: {0}", detail));
+					? localize('agentHost.changeset.merge.stashFailedPartially', "Couldn't stash your uncommitted changes, so nothing was merged. {0} Git reported: {1}", restoreFailure, detail)
+					: localize('agentHost.changeset.merge.stashFailedRestored', "Couldn't stash your uncommitted changes, so nothing was merged. Your changes are back in place. Git reported: {0}", detail));
 			}
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.stashFailed', "Could not stash the changes in the parent repository. Nothing was committed or merged. Git reported: {0}", detail));
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.stashFailed', "Couldn't stash your uncommitted changes, so nothing was merged. Git reported: {0}", detail));
 		}
-		const stash = await this._gitService.revParse(repositoryRoot, 'refs/stash');
-		if (stash && stash !== previousStash) {
-			this._logService.info(`[AgentHostMergeOperationHandler] Stashed parent repository changes in ${repositoryRoot.toString()} as ${stash}`);
+		const stash = await this._findOwnedStash(repositoryRoot, message);
+		if (stash) {
+			this._logService.info(`[AgentHostMergeOperationHandler] Stashed parent repository changes in ${repositoryRoot.toString()} as ${stash.commit}`);
 			return stash;
 		}
 		if (await this._gitService.hasUncommittedChanges(repositoryRoot)) {
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.stashMissing', "Could not stash the changes in the parent repository. Nothing was committed or merged."));
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.stashMissing', "Couldn't stash your uncommitted changes, so nothing was merged."));
 		}
 		return undefined;
 	}
 
+	private async _findOwnedStash(repositoryRoot: URI, message: string): Promise<IOwnedStash | undefined> {
+		const stash = (await this._gitService.listStashes(repositoryRoot)).find(entry => entry.message.endsWith(`: ${message}`));
+		return stash ? { commit: stash.commit, message } : undefined;
+	}
+
 	/**
-	 * Restores the stash created by {@link _stashTargetChanges}. Returns a
-	 * user-facing explanation when it could not be restored; the stash entry is
-	 * then kept so no changes are lost. `overlappingPaths` are the merged paths
-	 * the parent had also changed, which is where a restore conflicts.
+	 * Restores the stash created by {@link _stashTargetChanges}, including its
+	 * staged changes, and drops only that entry. Returns a user-facing
+	 * explanation when it could not be restored; the entry is then kept so no
+	 * changes are lost.
 	 */
-	private async _restoreTargetChanges(repositoryRoot: URI, stash: string, overlappingPaths: readonly string[] | undefined): Promise<string | undefined> {
-		const latestStash = await this._gitService.revParse(repositoryRoot, 'refs/stash');
-		if (latestStash !== stash) {
-			this._logService.warn(`[AgentHostMergeOperationHandler] Not restoring ${stash} in ${repositoryRoot.toString()} because the latest stash is ${latestStash ?? 'missing'}`);
-			return localize('agentHost.changeset.merge.restoreSkipped', "Your uncommitted changes in the parent repository were not restored automatically. Git kept them in the stash, so nothing is lost; run 'git stash list' in the parent repository to find and restore them.");
+	private async _restoreTargetChanges(repositoryRoot: URI, stash: IOwnedStash): Promise<string | undefined> {
+		try {
+			await this._gitService.applyStash(repositoryRoot, stash.commit);
+		} catch (error) {
+			const detail = error instanceof Error ? error.message : String(error);
+			this._logService.warn(`[AgentHostMergeOperationHandler] Restoring ${stash.commit} in ${repositoryRoot.toString()} failed: ${detail}`);
+			const conflicts = await this._gitService.getUnmergedPaths(repositoryRoot).catch(() => []);
+			return conflicts.length
+				? localize('agentHost.changeset.merge.restoreConflicted', "Your uncommitted changes conflict with the merged changes in {0}. Resolve the conflicts in the parent repository. A copy of your changes is in the stash as \"{1}\".", conflicts.join(', '), stash.message)
+				: localize('agentHost.changeset.merge.restoreFailed', "Your uncommitted changes couldn't be put back. They're safe in the stash as \"{0}\". Git reported: {1}", stash.message, detail);
 		}
 		try {
-			await this._gitService.popStash(repositoryRoot);
-			return undefined;
+			await this._gitService.dropStash(repositoryRoot, stash.commit);
 		} catch (error) {
-			this._logService.warn(`[AgentHostMergeOperationHandler] Restoring ${stash} in ${repositoryRoot.toString()} failed: ${error instanceof Error ? error.message : String(error)}`);
-			return overlappingPaths?.length
-				? localize('agentHost.changeset.merge.restoreConflicted', "Restoring your uncommitted changes in the parent repository conflicted with the merged changes in {0}. Resolve the conflicts there. Git also kept a copy of your changes in the stash, so nothing is lost.", overlappingPaths.join(', '))
-				: localize('agentHost.changeset.merge.restoreFailed', "Your uncommitted changes in the parent repository could not be restored automatically. Git kept them in the stash, so nothing is lost; run 'git stash list' in the parent repository to find and restore them.");
+			this._logService.warn(`[AgentHostMergeOperationHandler] Restored ${stash.commit} in ${repositoryRoot.toString()} but could not drop it: ${error instanceof Error ? error.message : String(error)}`);
 		}
+		return undefined;
 	}
 
 	private async _commitAndMerge(ownerUri: string, sessionUri: string, worktreeRoot: URI, repositoryRoot: URI, sourceBranch: string, targetBranch: string, token: CancellationToken, source: IAgentHostCredentialSource | undefined): Promise<InvokeChangesetOperationResult> {

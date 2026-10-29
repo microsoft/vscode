@@ -1565,33 +1565,64 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		});
 	});
 
-	(hasGit ? test : test.skip)('popStash restores stashed changes, and keeps the stash when restoring conflicts', async () => {
+	(hasGit ? test : test.skip)('applyStash restores staged and unstaged changes separately, and dropStash removes only that entry', async () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');
+		const git = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8' }).trimEnd();
+		await fs.writeFile(join(dir, 'tracked.txt'), 'base\n');
+		git('add', 'tracked.txt');
+		git('commit', '-q', '-m', 'add tracked');
+
+		await fs.writeFile(join(dir, 'tracked.txt'), 'base\nstaged\n');
+		git('add', 'tracked.txt');
+		await fs.writeFile(join(dir, 'tracked.txt'), 'base\nstaged\nunstaged\n');
+		await fs.writeFile(join(dir, 'untracked.txt'), 'untracked');
+		await svc!.createStash(URI.file(dir), { message: 'mine (abc12345)', includeUntracked: true });
+		const ours = (await svc!.listStashes(URI.file(dir))).find(stash => stash.message.endsWith(': mine (abc12345)'));
+		assert.ok(ours);
+
+		// Another worktree pushes a stash on top of ours.
+		await fs.writeFile(join(dir, 'other.txt'), 'other');
+		git('stash', 'push', '-u', '-q', '-m', 'other worktree');
+
+		await svc!.applyStash(URI.file(dir), ours.commit);
+		await svc!.dropStash(URI.file(dir), ours.commit);
+
+		assert.deepStrictEqual({
+			status: git('status', '--porcelain').split(/\r?\n/g).sort(),
+			index: git('show', ':tracked.txt'),
+			workingTree: await fs.readFile(join(dir, 'tracked.txt'), 'utf8'),
+			stashes: (await svc!.listStashes(URI.file(dir))).map(stash => stash.message),
+		}, {
+			status: ['?? untracked.txt', 'MM tracked.txt'],
+			index: 'base\nstaged',
+			workingTree: 'base\nstaged\nunstaged\n',
+			stashes: ['On main: other worktree'],
+		});
+	});
+
+	(hasGit ? test : test.skip)('applyStash keeps the stash and reports unmerged paths when restoring conflicts', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		const git = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8' }).trimEnd();
 		await fs.writeFile(join(dir, 'tracked.txt'), 'before');
-		cp.execFileSync('git', ['add', 'tracked.txt'], { cwd: dir, env, stdio: 'pipe' });
-		cp.execFileSync('git', ['commit', '-q', '-m', 'add tracked'], { cwd: dir, env, stdio: 'pipe' });
+		git('add', 'tracked.txt');
+		git('commit', '-q', '-m', 'add tracked');
 
 		await fs.writeFile(join(dir, 'tracked.txt'), 'local');
-		await fs.writeFile(join(dir, 'untracked.txt'), 'untracked');
-		await svc!.createStash(URI.file(dir), { message: 'restore me', includeUntracked: true });
-		await svc!.popStash(URI.file(dir));
-		const restored = {
-			status: cp.execFileSync('git', ['status', '--porcelain'], { cwd: dir, env, encoding: 'utf8' }).trimEnd().split(/\r?\n/g).sort(),
-			stash: cp.execFileSync('git', ['stash', 'list', '--format=%s'], { cwd: dir, env, encoding: 'utf8' }).trim(),
-		};
-
 		await svc!.createStash(URI.file(dir), { message: 'conflicting', includeUntracked: true });
+		const [stash] = await svc!.listStashes(URI.file(dir));
 		await fs.writeFile(join(dir, 'tracked.txt'), 'merged');
-		cp.execFileSync('git', ['commit', '-q', '-am', 'merged'], { cwd: dir, env, stdio: 'pipe' });
-		await assert.rejects(svc!.popStash(URI.file(dir)));
-		const conflicted = {
-			stash: cp.execFileSync('git', ['stash', 'list', '--format=%s'], { cwd: dir, env, encoding: 'utf8' }).trim(),
-		};
+		git('commit', '-q', '-am', 'merged');
 
-		assert.deepStrictEqual({ restored, conflicted }, {
-			restored: { status: [' M tracked.txt', '?? untracked.txt'], stash: '' },
-			conflicted: { stash: 'On main: conflicting' },
+		await assert.rejects(svc!.applyStash(URI.file(dir), stash.commit));
+
+		assert.deepStrictEqual({
+			unmerged: await svc!.getUnmergedPaths(URI.file(dir)),
+			stashes: (await svc!.listStashes(URI.file(dir))).map(entry => entry.commit),
+		}, {
+			unmerged: ['tracked.txt'],
+			stashes: [stash.commit],
 		});
 	});
 

@@ -609,10 +609,10 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		}
 		const { result } = await this._dialogService.prompt<boolean>({
 			type: 'warning',
-			message: localize('agentHostChangeset.merge.dirtyTarget', "Merge Changes needs a clean '{0}'.", dirtyTarget.targetBranch),
+			message: localize('agentHostChangeset.merge.dirtyTarget', "'{0}' has uncommitted changes", dirtyTarget.targetBranch),
 			detail: dirtyTarget.overlappingPaths?.length
-				? localize('agentHostChangeset.merge.dirtyTargetOverlapDetail', "The parent repository has uncommitted changes, so nothing was committed or merged.\n\nStash and Merge sets those changes aside, merges the worktree changes, and then restores them. This merge also changes {0}, so restoring may conflict there; you would then resolve the conflicts in the parent repository. Git keeps a copy in the stash so nothing is lost.", dirtyTarget.overlappingPaths.join(', '))
-				: localize('agentHostChangeset.merge.dirtyTargetDetail', "The parent repository has uncommitted changes, so nothing was committed or merged.\n\nStash and Merge sets those changes aside, merges the worktree changes, and then restores them. If they can't be restored, Git keeps them in the stash so nothing is lost."),
+				? localize('agentHostChangeset.merge.dirtyTargetOverlapDetail', "Stash and Merge sets them aside, merges, then puts them back. Your changes to {0} may conflict with the merge. A copy stays in the stash.", dirtyTarget.overlappingPaths.join(', '))
+				: localize('agentHostChangeset.merge.dirtyTargetDetail', "Stash and Merge sets them aside, merges, then puts them back."),
 			buttons: [{
 				label: localize('agentHostChangeset.merge.stashAndMerge', "Stash and Merge"),
 				run: () => true,

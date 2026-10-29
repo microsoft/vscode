@@ -18,7 +18,7 @@ import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common
 import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { buildChatUri, buildDefaultChatUri, withSessionGitHubState, withSessionGitState, type ISessionFileDiff, type ISessionGitState, MessageKind, ResponsePartKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
-import type { IAgentHostGitService, IBranch, IDefaultBranch, IPushOptions } from '../../common/agentHostGitService.js';
+import type { IAgentHostGitService, IBranch, IDefaultBranch, IGitStash, IPushOptions } from '../../common/agentHostGitService.js';
 import { AgentHostPullRequestOperationHandler } from '../../node/agentHostPullRequestOperationHandler.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostUtilityModelService } from '../../node/agentHostUtilityModelService.js';
@@ -138,7 +138,10 @@ class TestGitService implements IAgentHostGitService {
 		return this.uncommitted;
 	}
 	async createStash(): Promise<void> { }
-	async popStash(): Promise<void> { }
+	async listStashes(): Promise<readonly IGitStash[]> { return []; }
+	async applyStash(): Promise<void> { }
+	async dropStash(): Promise<void> { }
+	async getUnmergedPaths(): Promise<readonly string[]> { return []; }
 	async commitAll(_workingDirectory: URI, message: string): Promise<void> {
 		this.onMutation?.('commitAll');
 		this.calls.push(`commitAll:${message}`);

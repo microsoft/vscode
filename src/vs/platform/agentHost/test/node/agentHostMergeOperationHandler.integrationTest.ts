@@ -123,7 +123,7 @@ suite('AgentHostMergeOperationHandler (real git)', () => {
 			} catch (error) {
 				return error instanceof ProtocolError && readMergeOperationDirtyTargetErrorData(error.data)
 					? { dirtyTarget: readMergeOperationDirtyTargetErrorData(error.data) }
-					: { errorMessage: error instanceof Error ? error.message : String(error) };
+					: { errorMessage: (error instanceof Error ? error.message : String(error)).replace(/ \([0-9a-f]{8}\)/, ' (<id>)') };
 			}
 		};
 		return { invoke };
@@ -157,7 +157,7 @@ suite('AgentHostMergeOperationHandler (real git)', () => {
 				stashes: '',
 				worktreeStatus: '?? src/multiply.js',
 			},
-			merged: { message: 'Merged changes from \'agents/add-multiply-function\' into \'main\' and restored the uncommitted changes in the parent repository.' },
+			merged: { message: 'Merged into \'main\' and restored your uncommitted changes.' },
 			afterMerged: {
 				mainLog: ['Agent Host changes for agents/add-multiply-function', 'init'],
 				parentStatus: [' M src/index.js', '?? scratch.txt'],
@@ -187,7 +187,7 @@ suite('AgentHostMergeOperationHandler (real git)', () => {
 			bothVersionsInConflict: index.includes('function multiply') && index.includes('function sub') && index.includes('<<<<<<<'),
 		}, {
 			rejected: { dirtyTarget: { targetBranch: 'main', overlappingPaths: ['src/index.js'] } },
-			merged: { errorMessage: 'Merged changes from \'agents/add-multiply-function\' into \'main\'. Restoring your uncommitted changes in the parent repository conflicted with the merged changes in src/index.js. Resolve the conflicts there. Git also kept a copy of your changes in the stash, so nothing is lost.' },
+			merged: { errorMessage: 'Merged into \'main\'. Your uncommitted changes conflict with the merged changes in src/index.js. Resolve the conflicts in the parent repository. A copy of your changes is in the stash as "Changes in main before merging agents/add-multiply-function (<id>)".' },
 			mainLog: ['Agent Host changes for agents/add-multiply-function', 'init'],
 			parentStatus: ['UU src/index.js', '?? scratch.txt'],
 			keptStashes: 1,

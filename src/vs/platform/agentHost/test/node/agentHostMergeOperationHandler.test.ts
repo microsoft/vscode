@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostGitService, type IGitStash } from '../../common/agentHostGitService.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { buildBranchChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { mergeOperationDirtyTargetErrorData, mergeOperationStashTargetChangesMeta, readMergeOperationDirtyTargetErrorData } from '../../common/meta/agentMergeOperationMeta.js';
@@ -27,6 +27,11 @@ const repositoryRoot = URI.file('/repo');
 const branchOwner = buildFolderChangesetOwnerUri(session.toString(), getWorkingDirectoryScopeId([worktreeRoot.toString()]));
 const branchChangeset = buildBranchChangesetUri(branchOwner);
 
+/** Replaces the random marker that identifies a stash this handler created. */
+function normalizeStashMessage(message: string | undefined): string | undefined {
+	return message?.replace(/ \([0-9a-f]{8}\)/, ' (<id>)');
+}
+
 class TestGitService extends mock<IAgentHostGitService>() {
 	declare readonly _serviceBrand: undefined;
 
@@ -38,9 +43,12 @@ class TestGitService extends mock<IAgentHostGitService>() {
 	targetDirty = false;
 	mergeError: Error | undefined;
 	mergeCommit: string | undefined = 'merge-sha';
-	stash: string | undefined;
-	popError: Error | undefined;
+	readonly stashes: IGitStash[] = [];
 	stashError: Error | undefined;
+	applyError: Error | undefined;
+	unmergedPaths: string[] = [];
+	/** A stash another worktree pushes right after ours. */
+	foreignStash: IGitStash | undefined;
 	targetDirtyPaths: string[] = ['scratch.txt', 'src/index.js'];
 	mergePaths: string[] = ['src/multiply.js'];
 
@@ -93,8 +101,11 @@ class TestGitService extends mock<IAgentHostGitService>() {
 	}
 
 	override async createStash(workingDirectory: URI, options?: { readonly message?: string; readonly includeUntracked?: boolean }): Promise<void> {
-		this.calls.push(`createStash:${workingDirectory.toString()}:${options?.message}:${options?.includeUntracked}`);
-		this.stash = 'stash-sha';
+		this.calls.push(`createStash:${workingDirectory.toString()}:${normalizeStashMessage(options?.message)}:${options?.includeUntracked}`);
+		this.stashes.unshift({ ref: 'stash@{0}', commit: 'stash-sha', message: `On main: ${options?.message}` });
+		if (this.foreignStash) {
+			this.stashes.unshift(this.foreignStash);
+		}
 		this.targetDirty = false;
 		if (this.stashError) {
 			// Like git, a late failure (cleaning the working tree) still leaves the stash recorded.
@@ -102,14 +113,28 @@ class TestGitService extends mock<IAgentHostGitService>() {
 		}
 	}
 
-	override async popStash(workingDirectory: URI): Promise<void> {
-		this.calls.push(`popStash:${workingDirectory.toString()}`);
-		if (this.popError) {
-			// Like git, a failed pop keeps the stash entry.
-			throw this.popError;
+	override async listStashes(): Promise<readonly IGitStash[]> {
+		return this.stashes;
+	}
+
+	override async applyStash(workingDirectory: URI, commit: string): Promise<void> {
+		this.calls.push(`applyStash:${workingDirectory.toString()}:${commit}`);
+		if (this.applyError) {
+			throw this.applyError;
 		}
-		this.stash = undefined;
 		this.targetDirty = true;
+	}
+
+	override async dropStash(workingDirectory: URI, commit: string): Promise<void> {
+		this.calls.push(`dropStash:${workingDirectory.toString()}:${commit}`);
+		const index = this.stashes.findIndex(stash => stash.commit === commit);
+		if (index >= 0) {
+			this.stashes.splice(index, 1);
+		}
+	}
+
+	override async getUnmergedPaths(): Promise<readonly string[]> {
+		return this.unmergedPaths;
 	}
 
 	override async captureWorkingTreeAsTree(workingDirectory: URI): Promise<string> {
@@ -124,8 +149,8 @@ class TestGitService extends mock<IAgentHostGitService>() {
 		return toTreeish === 'target-tree' && fromTreeish === 'HEAD' ? this.targetDirtyPaths : fromTreeish === 'baseline' ? this.mergePaths : [];
 	}
 
-	override async revParse(_repositoryRoot: URI, expression: string): Promise<string | undefined> {
-		return expression === 'refs/stash' ? this.stash : this.mergeCommit;
+	override async revParse(): Promise<string | undefined> {
+		return this.mergeCommit;
 	}
 }
 
@@ -138,7 +163,9 @@ interface ISetupOptions {
 	readonly mergeError?: Error;
 	readonly missingMergeCommit?: boolean;
 	readonly hasPullRequest?: boolean;
-	readonly popError?: Error;
+	readonly applyError?: Error;
+	readonly unmergedPaths?: string[];
+	readonly foreignStash?: IGitStash;
 	readonly stashError?: Error;
 	readonly mergePaths?: string[];
 }
@@ -183,7 +210,9 @@ async function setup(disposables: Pick<DisposableStore, 'add'>, options: ISetupO
 	gitService.targetDirty = options.targetDirty ?? false;
 	gitService.mergeError = options.mergeError;
 	gitService.mergeCommit = options.missingMergeCommit ? undefined : 'merge-sha';
-	gitService.popError = options.popError;
+	gitService.applyError = options.applyError;
+	gitService.unmergedPaths = options.unmergedPaths ?? [];
+	gitService.foreignStash = options.foreignStash;
 	gitService.stashError = options.stashError;
 	gitService.mergePaths = options.mergePaths ?? gitService.mergePaths;
 	const refreshed: string[] = [];
@@ -337,11 +366,17 @@ suite('AgentHostMergeOperationHandler', () => {
 			return { message: typeof result.message === 'string' ? result.message : result.message?.markdown };
 		} catch (error) {
 			return {
-				errorMessage: error instanceof Error ? error.message : String(error),
+				errorMessage: normalizeStashMessage(error instanceof Error ? error.message : String(error)),
 				errorData: error instanceof ProtocolError ? error.data : undefined,
 			};
 		}
 	}
+
+	const stashMessage = 'Changes in main before merging agents/session (<id>)';
+	const restoreCalls = [
+		`applyStash:${repositoryRoot.toString()}:stash-sha`,
+		`dropStash:${repositoryRoot.toString()}:stash-sha`,
+	];
 
 	test('rejects a dirty parent with a structured reason before committing anything', async () => {
 		const { gitService, handler, merged, refreshed } = await setup(disposables, { sourceDirty: true, targetDirty: true });
@@ -353,52 +388,44 @@ suite('AgentHostMergeOperationHandler', () => {
 			merged: [],
 			refreshed: [],
 			outcome: {
-				errorMessage: 'Commit or stash the changes in the parent repository before merging into \'main\'. Nothing was committed or merged.',
+				errorMessage: '\'main\' has uncommitted changes in the parent repository. Commit or stash them, then merge again.',
 				errorData: mergeOperationDirtyTargetErrorData('main', []),
 			},
 			dirtyTarget: { targetBranch: 'main', overlappingPaths: [] },
 		});
 	});
 
-	test('names the files the merge also changes, and reports them if restoring the stash conflicts there', async () => {
-		const { gitService, handler, merged } = await setup(disposables, {
-			targetDirty: true,
-			mergePaths: ['src/index.js', 'src/multiply.js'],
-			popError: new Error('CONFLICT (content): Merge conflict in src/index.js'),
-		});
-
-		const rejected = await invokeMerge(handler);
-		const outcome = await invokeMerge(handler, mergeOperationStashTargetChangesMeta());
-
-		assert.deepStrictEqual({ dirtyTarget: readMergeOperationDirtyTargetErrorData(rejected.errorData), merged, outcome, stash: gitService.stash }, {
-			dirtyTarget: { targetBranch: 'main', overlappingPaths: ['src/index.js'] },
-			merged: [{ sessionKey: session.toString(), commit: 'merge-sha' }],
-			outcome: {
-				errorMessage: 'Merged changes from \'agents/session\' into \'main\'. Restoring your uncommitted changes in the parent repository conflicted with the merged changes in src/index.js. Resolve the conflicts there. Git also kept a copy of your changes in the stash, so nothing is lost.',
-				errorData: undefined,
-			},
-			stash: 'stash-sha',
-		});
-	});
-
-	test('stashes parent changes, merges, and restores them when requested', async () => {
+	test('stashes parent changes, merges, and restores them with their staged state when requested', async () => {
 		const { gitService, handler, merged } = await setup(disposables, { sourceDirty: true, targetDirty: true });
 
 		const outcome = await invokeMerge(handler, mergeOperationStashTargetChangesMeta());
 
-		assert.deepStrictEqual({ calls: gitService.calls, merged, outcome, stash: gitService.stash, targetDirty: gitService.targetDirty }, {
+		assert.deepStrictEqual({ calls: gitService.calls, merged, outcome, stashes: gitService.stashes, targetDirty: gitService.targetDirty }, {
 			calls: [
 				`hasUncommittedChanges:${repositoryRoot.toString()}`,
-				`createStash:${repositoryRoot.toString()}:Changes in main before merging agents/session:true`,
+				`createStash:${repositoryRoot.toString()}:${stashMessage}:true`,
 				`hasUncommittedChanges:${worktreeRoot.toString()}`,
 				`commitAll:${worktreeRoot.toString()}:Agent Host changes for agents/session`,
 				`mergeBranch:${repositoryRoot.toString()}:agents/session`,
-				`popStash:${repositoryRoot.toString()}`,
+				...restoreCalls,
 			],
 			merged: [{ sessionKey: session.toString(), commit: 'merge-sha' }],
-			outcome: { message: 'Merged changes from \'agents/session\' into \'main\' and restored the uncommitted changes in the parent repository.' },
-			stash: undefined,
+			outcome: { message: 'Merged into \'main\' and restored your uncommitted changes.' },
+			stashes: [],
 			targetDirty: true,
+		});
+	});
+
+	test('restores only its own stash when another worktree pushes a stash meanwhile', async () => {
+		const foreignStash: IGitStash = { ref: 'stash@{0}', commit: 'foreign-sha', message: 'On feature: other worktree' };
+		const { gitService, handler } = await setup(disposables, { targetDirty: true, foreignStash });
+
+		const outcome = await invokeMerge(handler, mergeOperationStashTargetChangesMeta());
+
+		assert.deepStrictEqual({ restoreCalls: gitService.calls.filter(call => /^(apply|drop)Stash/.test(call)), outcome, stashes: gitService.stashes }, {
+			restoreCalls,
+			outcome: { message: 'Merged into \'main\' and restored your uncommitted changes.' },
+			stashes: [foreignStash],
 		});
 	});
 
@@ -407,18 +434,18 @@ suite('AgentHostMergeOperationHandler', () => {
 
 		const outcome = await invokeMerge(handler, mergeOperationStashTargetChangesMeta());
 
-		assert.deepStrictEqual({ calls: gitService.calls, merged, outcome, stash: gitService.stash, targetDirty: gitService.targetDirty }, {
+		assert.deepStrictEqual({ calls: gitService.calls, merged, outcome, stashes: gitService.stashes, targetDirty: gitService.targetDirty }, {
 			calls: [
 				`hasUncommittedChanges:${repositoryRoot.toString()}`,
-				`createStash:${repositoryRoot.toString()}:Changes in main before merging agents/session:true`,
-				`popStash:${repositoryRoot.toString()}`,
+				`createStash:${repositoryRoot.toString()}:${stashMessage}:true`,
+				...restoreCalls,
 			],
 			merged: [],
 			outcome: {
-				errorMessage: 'Could not stash the changes in the parent repository, so nothing was committed or merged, and your changes were restored. Git reported: unable to remove locked.txt',
+				errorMessage: 'Couldn\'t stash your uncommitted changes, so nothing was merged. Your changes are back in place. Git reported: unable to remove locked.txt',
 				errorData: undefined,
 			},
-			stash: undefined,
+			stashes: [],
 			targetDirty: true,
 		});
 	});
@@ -428,36 +455,57 @@ suite('AgentHostMergeOperationHandler', () => {
 
 		const outcome = await invokeMerge(handler, mergeOperationStashTargetChangesMeta());
 
-		assert.deepStrictEqual({ calls: gitService.calls, merged, outcome, stash: gitService.stash, targetDirty: gitService.targetDirty }, {
+		assert.deepStrictEqual({ calls: gitService.calls, merged, outcome, stashes: gitService.stashes, targetDirty: gitService.targetDirty }, {
 			calls: [
 				`hasUncommittedChanges:${repositoryRoot.toString()}`,
-				`createStash:${repositoryRoot.toString()}:Changes in main before merging agents/session:true`,
+				`createStash:${repositoryRoot.toString()}:${stashMessage}:true`,
 				`hasUncommittedChanges:${worktreeRoot.toString()}`,
 				`mergeBranch:${repositoryRoot.toString()}:agents/session`,
-				`popStash:${repositoryRoot.toString()}`,
+				...restoreCalls,
 			],
 			merged: [],
 			outcome: {
 				errorMessage: 'Failed to merge changes into \'main\'. Open the parent repository and merge manually. Git reported: merge conflict',
 				errorData: undefined,
 			},
-			stash: undefined,
+			stashes: [],
 			targetDirty: true,
 		});
 	});
 
-	test('keeps the stash and explains how to restore it when restoring conflicts', async () => {
-		const { gitService, handler, merged } = await setup(disposables, { targetDirty: true, popError: new Error('CONFLICT (content): Merge conflict in src/index.js') });
+	test('names the files the merge also changes, and reports the conflicts git leaves when restoring', async () => {
+		const { gitService, handler, merged } = await setup(disposables, {
+			targetDirty: true,
+			mergePaths: ['src/index.js', 'src/multiply.js'],
+			applyError: new Error('CONFLICT (content): Merge conflict in src/index.js'),
+			unmergedPaths: ['src/index.js'],
+		});
+
+		const rejected = await invokeMerge(handler);
+		const outcome = await invokeMerge(handler, mergeOperationStashTargetChangesMeta());
+
+		assert.deepStrictEqual({ dirtyTarget: readMergeOperationDirtyTargetErrorData(rejected.errorData), merged, outcome, keptStashes: gitService.stashes.map(stash => stash.commit) }, {
+			dirtyTarget: { targetBranch: 'main', overlappingPaths: ['src/index.js'] },
+			merged: [{ sessionKey: session.toString(), commit: 'merge-sha' }],
+			outcome: {
+				errorMessage: `Merged into 'main'. Your uncommitted changes conflict with the merged changes in src/index.js. Resolve the conflicts in the parent repository. A copy of your changes is in the stash as "${stashMessage}".`,
+				errorData: undefined,
+			},
+			keptStashes: ['stash-sha'],
+		});
+	});
+
+	test('reports git\'s diagnostic and keeps the stash when restoring fails without conflicts', async () => {
+		const { gitService, handler } = await setup(disposables, { targetDirty: true, applyError: new Error('Unable to create index.lock: File exists') });
 
 		const outcome = await invokeMerge(handler, mergeOperationStashTargetChangesMeta());
 
-		assert.deepStrictEqual({ merged, outcome, stash: gitService.stash }, {
-			merged: [{ sessionKey: session.toString(), commit: 'merge-sha' }],
+		assert.deepStrictEqual({ outcome, keptStashes: gitService.stashes.map(stash => stash.commit) }, {
 			outcome: {
-				errorMessage: 'Merged changes from \'agents/session\' into \'main\'. Your uncommitted changes in the parent repository could not be restored automatically. Git kept them in the stash, so nothing is lost; run \'git stash list\' in the parent repository to find and restore them.',
+				errorMessage: `Merged into 'main'. Your uncommitted changes couldn't be put back. They're safe in the stash as "${stashMessage}". Git reported: Unable to create index.lock: File exists`,
 				errorData: undefined,
 			},
-			stash: 'stash-sha',
+			keptStashes: ['stash-sha'],
 		});
 	});
 

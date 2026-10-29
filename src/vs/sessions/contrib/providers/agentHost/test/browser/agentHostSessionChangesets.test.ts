@@ -1448,9 +1448,9 @@ suite('AgentHostSessionChangesets', () => {
 		assert.deepStrictEqual({ invoked, prompts, confirmations, running: changeset.operations.get().map(operation => operation.status) }, {
 			invoked: [undefined, mergeOperationStashTargetChangesMeta(), undefined, undefined],
 			prompts: [
-				'Merge Changes needs a clean \'main\'. [Stash and Merge]',
-				'Merge Changes needs a clean \'main\'. [Stash and Merge]',
-				'Merge Changes needs a clean \'main\'. [Stash and Merge] warns about src/index.js',
+				'\'main\' has uncommitted changes [Stash and Merge]',
+				'\'main\' has uncommitted changes [Stash and Merge]',
+				'\'main\' has uncommitted changes [Stash and Merge] warns about src/index.js',
 			],
 			confirmations: 3,
 			running: [SessionChangesetOperationStatus.Idle],

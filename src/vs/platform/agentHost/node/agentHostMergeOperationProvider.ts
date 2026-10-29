@@ -69,7 +69,7 @@ export class AgentHostMergeOperationContribution extends Disposable implements I
 			id: AgentHostMergeOperationHandler.OPERATION_MERGE,
 			label: localize('agentHost.changeset.merge', "Merge Changes"),
 			description: localize('agentHost.changeset.merge.description', "Commit any uncommitted changes and merge '{0}' into '{1}' in the parent repository.", branchName, baseBranchName),
-			confirmation: localize('agentHost.changeset.merge.confirmation', "Merge the worktree changes into the parent repository? If the merge can proceed, uncommitted worktree changes are committed first."),
+			confirmation: localize('agentHost.changeset.merge.confirmation', "Merge these changes into '{0}'? Uncommitted worktree changes are included.", baseBranchName),
 			icon: 'git-merge',
 			group: 'merge',
 			scopes: [ChangesetOperationScope.Changeset],

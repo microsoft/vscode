@@ -215,6 +215,16 @@ export interface IDefaultBranch {
 	readonly startPoint: string;
 }
 
+/** A stash entry. */
+export interface IGitStash {
+	/** The entry's current position, for example `stash@{0}`; it shifts as stashes are pushed. */
+	readonly ref: string;
+	/** The stash commit, which identifies the entry. */
+	readonly commit: string;
+	/** The stash subject, for example `On main: <message>`. */
+	readonly message: string;
+}
+
 /** How far along a worktree file operation is, in files. */
 export interface IWorktreeFileProgress {
 	readonly filesDone: number;
@@ -316,11 +326,26 @@ export interface IAgentHostGitService {
 	createStash(workingDirectory: URI, options?: { readonly message?: string; readonly includeUntracked?: boolean; readonly staged?: boolean }): Promise<void>;
 
 	/**
-	 * Applies the most recent stash and drops it (`git stash pop`). When
-	 * applying fails, for example because of conflicts, git keeps the stash
-	 * entry so no changes are lost, and the error is rethrown.
+	 * Lists stash entries, newest first. The stash list is shared by all
+	 * worktrees of a repository, so identify entries by {@link IGitStash.commit}
+	 * rather than by position.
 	 */
-	popStash(workingDirectory: URI): Promise<void>;
+	listStashes(workingDirectory: URI): Promise<readonly IGitStash[]>;
+
+	/**
+	 * Applies the stash commit, including its staged changes
+	 * (`git stash apply --index <commit>`). The stash entry is never dropped.
+	 */
+	applyStash(workingDirectory: URI, commit: string): Promise<void>;
+
+	/**
+	 * Drops the stash entry whose commit is `commit`, never a different entry.
+	 * Does nothing when no entry has that commit.
+	 */
+	dropStash(workingDirectory: URI, commit: string): Promise<void>;
+
+	/** Returns the paths with unresolved merge conflicts. */
+	getUnmergedPaths(workingDirectory: URI): Promise<readonly string[]>;
 
 	/**
 	 * Stages and commits all tracked, staged, and untracked changes in the
