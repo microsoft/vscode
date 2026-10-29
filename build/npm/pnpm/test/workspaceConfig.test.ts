@@ -9,7 +9,7 @@ import path from 'path';
 import { suite, test } from 'node:test';
 import { convertPackageJsonText } from '../installRoots.ts';
 import { parseNpmLockfile, type NpmLockfile } from '../npmLockfile.ts';
-import { computeWorkspaceSettings, convertNpmOverrides, getGeneratedOverrides, getPatchedDependencies, mergeAllowBuilds, parseOverrideKey, renderWorkspaceYaml, type ConfigNote, type NpmFolder } from '../workspaceConfig.ts';
+import { computeWorkspaceSettings, convertNpmOverrides, getGeneratedOverrides, getMinimumReleaseAgeExclude, getPatchedDependencies, mergeAllowBuilds, parseOverrideKey, renderWorkspaceYaml, type ConfigNote, type NpmFolder } from '../workspaceConfig.ts';
 
 const fixture = path.join(import.meta.dirname, 'fixtures', 'workspace');
 const rootFolder: NpmFolder = {
@@ -163,6 +163,21 @@ suite('pnpm conversion: workspace configuration', () => {
 			{ 'patched': '../build/npm/patches/patched.patch' },
 			{},
 			{ 'patched': '../build/npm/patches/patched.patch' },
+			undefined,
+		]);
+	});
+
+	test('a root is exempted from the release-age check only for packages its projects install', () => {
+		const exclusions = ['@vscode/*', 'electron', 'vscode-*-languageservice', 'typescript'];
+		const member: NpmFolder = { folder: 'remote/web', packageJson: {}, lockfile: lockfileWith({ 'node_modules/x/node_modules/@vscode/iconv-lite-umd': { version: '0.7.1' }, 'node_modules/vscode-css-languageservice': { version: '6.3.2' } }) };
+		const remote: NpmFolder = { folder: 'remote', packageJson: {}, lockfile: lockfileWith({ 'node_modules/typescript-eslint': { version: '8.66.0' } }) };
+		assert.deepStrictEqual([
+			getMinimumReleaseAgeExclude([remote, member], exclusions),
+			getMinimumReleaseAgeExclude([remote], exclusions),
+			computeWorkspaceSettings([remote], [], exactOrCaret).minimumReleaseAgeExclude,
+		], [
+			['@vscode/*', 'vscode-*-languageservice'],
+			[],
 			undefined,
 		]);
 	});
