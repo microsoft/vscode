@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { getWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { OverlayLayoutElement } from '../../../../../base/browser/overlayLayoutElement.js';
 import { ActionBar, ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { HorizontalDirection, Menu, unthemedMenuStyles, VerticalDirection } from '../../../../../base/browser/ui/menu/menu.js';
 import { MenuBar } from '../../../../../base/browser/ui/menu/menubar.js';
@@ -2172,6 +2173,53 @@ suite('ModernUIContribution', () => {
 		}, {
 			panelBottomMargin: '0px',
 			maximizedPanelBottomMargin: '4px',
+		});
+	});
+
+	test('clips notebook overlay corners to match editor cards across layout densities', () => {
+		const root = appendElement(document.body, 'monaco-workbench');
+		root.style.setProperty('--vscode-cornerRadius-large', '8px');
+		store.add(toDisposable(() => root.remove()));
+		const anchor = appendElement(root, 'notebook-anchor');
+		anchor.style.cssText = 'position: fixed; left: 100px; top: 100px; width: 100px; height: 100px;';
+		const overlay = store.add(new OverlayLayoutElement());
+		overlay.content.className = 'notebookOverlay notebook-editor';
+		root.appendChild(overlay.root);
+		overlay.setAnchorElement(anchor);
+		const output = appendElement(overlay.content, 'notebook-test-output');
+		output.style.cssText = 'width: 100%; height: 100%;';
+		const overflowHost = appendElement(root, 'notebook-overflow-widget-container monaco-editor');
+		const targetWindow = getWindow(root);
+		const state = (classes: string, modal = false) => {
+			root.className = `monaco-workbench ${classes}`;
+			overlay.content.classList.toggle('notebook-overlay-modal', modal);
+			const bounds = overlay.content.getBoundingClientRect();
+			const coversPoint = (x: number, y: number) => overlay.content.contains(targetWindow.document.elementFromPoint(x, y));
+			return {
+				radius: targetWindow.getComputedStyle(overlay.content).borderRadius,
+				bottomLeftClipped: !coversPoint(bounds.left + 0.5, bounds.bottom - 0.5),
+				bottomRightClipped: !coversPoint(bounds.right - 0.5, bounds.bottom - 0.5),
+				outputVisible: coversPoint(bounds.left + bounds.width / 2, bounds.bottom - 0.5),
+				overflowHostRadius: targetWindow.getComputedStyle(overflowHost).borderRadius,
+			};
+		};
+
+		assert.deepStrictEqual({
+			classic: state(''),
+			modern: state('modern-ui floating-panels'),
+			compact: state('modern-ui floating-panels modern-ui-compact'),
+			auxiliary: state('modern-ui'),
+			compactAuxiliary: state('modern-ui modern-ui-compact'),
+			compactModal: state('modern-ui floating-panels modern-ui-compact', true),
+			returningToCompact: state('modern-ui floating-panels modern-ui-compact'),
+		}, {
+			classic: { radius: '0px', bottomLeftClipped: false, bottomRightClipped: false, outputVisible: true, overflowHostRadius: '0px' },
+			modern: { radius: '8px', bottomLeftClipped: true, bottomRightClipped: true, outputVisible: true, overflowHostRadius: '0px' },
+			compact: { radius: '0px', bottomLeftClipped: false, bottomRightClipped: false, outputVisible: true, overflowHostRadius: '0px' },
+			auxiliary: { radius: '8px', bottomLeftClipped: true, bottomRightClipped: true, outputVisible: true, overflowHostRadius: '0px' },
+			compactAuxiliary: { radius: '8px', bottomLeftClipped: true, bottomRightClipped: true, outputVisible: true, overflowHostRadius: '0px' },
+			compactModal: { radius: '8px', bottomLeftClipped: true, bottomRightClipped: true, outputVisible: true, overflowHostRadius: '0px' },
+			returningToCompact: { radius: '0px', bottomLeftClipped: false, bottomRightClipped: false, outputVisible: true, overflowHostRadius: '0px' },
 		});
 	});
 
