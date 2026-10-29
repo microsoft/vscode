@@ -56,7 +56,7 @@ import { checkModeOption } from '../../common/chat.js';
 import { IChatAgentMetadata } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatProgressResponseContent, IChatTextEditGroup } from '../../common/model/chatModel.js';
-import { chatSubcommandLeader, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
+import { chatSubcommandLeader } from '../../common/requestParser/chatParserTypes.js';
 import { TerminalToolId } from '../../common/tools/terminalToolIds.js';
 import { ChatAgentVoteDirection, ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatExternalEdit, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPlanReview, IChatPlanReviewResult, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsageModelTotal, isChatFollowup } from '../../common/chatService/chatService.js';
 import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -127,8 +127,7 @@ import { ChatWorkspaceEditContentPart } from './chatContentParts/chatWorkspaceEd
 import { ChatExternalEditContentPart } from './chatContentParts/chatExternalEditContentPart.js';
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatImageGenerationBatchPart } from './chatContentParts/chatImageGenerationBatchPart.js';
-import { ChatInlineAttachmentRenderer, ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdownDecorationsRenderer.js';
-import { getInlineRequestAttachments, recoverAttachmentMentions } from '../../common/attachments/chatInlineAttachments.js';
+import { ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { autorun, autorunPerKeyedItem, autorunSelfDisposable, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
@@ -2904,17 +2903,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		let content: IChatRendererContent[] = [];
-		// Attachments shown as pills inline with the request text are not repeated above it.
-		const inlineAttachments = this.getInlineRequestAttachments(element);
-		const inlineAttachmentIds = new Set(Array.from(inlineAttachments.values(), attachment => attachment.id));
-		const variables = inlineAttachmentIds.size ? element.variables.filter(variable => !inlineAttachmentIds.has(variable.id)) : element.variables;
-		const explicitFileOrImageVariables = variables.filter(isExplicitFileOrImageVariableEntry);
+		const explicitFileOrImageVariables = element.variables.filter(isExplicitFileOrImageVariableEntry);
 		const explicitImageVariables = explicitFileOrImageVariables.filter(variable => variable.kind === 'image');
-		const explicitFileOrDirectoryVariables = variables.filter(variable => variable.kind === 'file' || variable.kind === 'directory' || isPasteVariableEntry(variable));
-		const otherVariables = variables.filter(variable => !isExplicitFileOrImageVariableEntry(variable) && !isPasteVariableEntry(variable));
+		const explicitFileOrDirectoryVariables = element.variables.filter(variable => variable.kind === 'file' || variable.kind === 'directory' || isPasteVariableEntry(variable));
+		const otherVariables = element.variables.filter(variable => !isExplicitFileOrImageVariableEntry(variable) && !isPasteVariableEntry(variable));
 		const isStickyAndEditing = !element.confirmation && isStickyScrollRow && element.id === this.viewModel?.editing?.id;
 		if (!element.confirmation && !isStickyAndEditing) {
-			const requestMarkdown = isStickyScrollRow && requestSummary ? requestSummary : this.getRequestMarkdown(element, explicitFileOrImageVariables, new Set(inlineAttachments.keys()));
+			const requestMarkdown = isStickyScrollRow && requestSummary ? requestSummary : this.getRequestMarkdown(element, explicitFileOrImageVariables);
 			if (requestMarkdown) {
 				content = [{ content: new MarkdownString(requestMarkdown), kind: 'markdownContent' }];
 			}
@@ -3163,66 +3158,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	/**
-	 * @param inlineAttachmentParts The parts of the request whose attachments are
-	 * shown as pills inline with its text, see {@link getInlineRequestAttachments}.
-	 */
-	private getRequestMarkdown(element: IChatRequestViewModel, explicitFileOrImageVariables = element.variables.filter(isExplicitFileOrImageVariableEntry), inlineAttachmentParts?: ReadonlySet<number>): string | undefined {
+	private getRequestMarkdown(element: IChatRequestViewModel, explicitFileOrImageVariables = element.variables.filter(isExplicitFileOrImageVariableEntry)): string | undefined {
 		const markdown = isChatFollowup(element.message)
 			? element.message.message
-			: this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, this.getRenderedRequestMessage(element.message, element.variables), inlineAttachmentParts);
+			: this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, element.message);
 		const attachmentSummary = !element.messageText.trim() && !explicitFileOrImageVariables.length
 			? getExplicitFileOrImageAttachmentSummary(element.variables)
 			: undefined;
 		return markdown.trim() ? markdown : attachmentSummary;
-	}
-
-	/**
-	 * The message of a request as it is rendered. With inline attachments, a
-	 * request whose history kept its text but not its references, as an agent
-	 * host's history does, gets the mentions of its attachments back as
-	 * references, which show as pills.
-	 */
-	private getRenderedRequestMessage(message: IParsedChatRequest, variables: readonly IChatRequestVariableEntry[]): IParsedChatRequest {
-		return this.configService.getValue<boolean>(ChatConfiguration.InlineAttachmentsEnabled) ? recoverAttachmentMentions(message, variables) : message;
-	}
-
-	/**
-	 * The attachments of a request that are shown as pills inline with its text
-	 * when {@link ChatConfiguration.InlineAttachmentsEnabled} is enabled, by the
-	 * index of the part of the request that stands for them.
-	 */
-	private getInlineRequestAttachments(element: IChatRequestViewModel): ReadonlyMap<number, IChatRequestVariableEntry> {
-		if (isChatFollowup(element.message) || !this.configService.getValue<boolean>(ChatConfiguration.InlineAttachmentsEnabled)) {
-			return new Map();
-		}
-		return getInlineRequestAttachments(this.getRenderedRequestMessage(element.message, element.variables).parts, element.variables, element.message.text);
-	}
-
-	private createInlineRequestAttachmentRenderer(element: IChatRequestViewModel): ChatInlineAttachmentRenderer | undefined {
-		const attachments = this.getInlineRequestAttachments(element);
-		if (!attachments.size) {
-			return undefined;
-		}
-		return (partIndex, store) => {
-			const attachment = attachments.get(partIndex);
-			if (!attachment) {
-				return undefined;
-			}
-			const part = store.add(this.instantiationService.createInstance(ChatAttachmentsContentPart, {
-				variables: [attachment],
-				sessionResource: element.sessionResource,
-				contentReferences: element.contentReferences,
-				modelId: element.modelId,
-				resolvedModelId: element.resolvedModelId,
-				domNode: dom.$('span.chat-attached-context.chat-request-inline-attachment'),
-			}));
-			// Clicking the text of a request edits it, while clicking a pill is for the pill alone.
-			if (part.domNode) {
-				store.add(dom.addDisposableListener(part.domNode, dom.EventType.CLICK, e => e.stopPropagation()));
-			}
-			return part.domNode;
-		};
 	}
 
 	private requestHasStickyScrollContent(element: IChatRequestViewModel): boolean {
@@ -6041,10 +5984,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
 		const codeBlockStartIndex = context.codeBlockStartIndex;
-		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.chatContentMarkdownRenderer, undefined, () => this._currentLayoutWidth.get(), {
-			codeBlockRenderOptions: this.rendererOptions.codeBlockRenderOptions,
-			renderInlineAttachment: isRequestVM(element) ? this.createInlineRequestAttachmentRenderer(element) : undefined,
-		});
+		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.chatContentMarkdownRenderer, undefined, () => this._currentLayoutWidth.get(), { codeBlockRenderOptions: this.rendererOptions.codeBlockRenderOptions });
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => this.fireItemHeightChange(templateData)));
 		if (isRequestVM(element)) {
 			markdownPart.domNode.tabIndex = 0;

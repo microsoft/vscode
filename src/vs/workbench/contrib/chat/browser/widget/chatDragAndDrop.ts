@@ -186,14 +186,12 @@ export class ChatDragAndDrop extends Themable {
 	}
 
 	private async drop(e: DragEvent): Promise<void> {
-		// Resolving the dropped attachments takes time, so the drop point is mapped while the input is as it was dropped on.
-		const dropPosition = this.attachmentTarget.getDropPosition?.(e.clientX, e.clientY);
 		const contexts = await this.resolveAttachmentsFromDragEvent(e);
 		if (contexts.length === 0) {
 			return;
 		}
 
-		this.attachmentTarget.addAttachments(contexts, dropPosition);
+		this.attachmentTarget.addAttachments(contexts);
 	}
 
 	private updateDropFeedback(e: DragEvent, target: HTMLElement, dropType: ChatDragAndDropType | undefined): void {

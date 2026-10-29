@@ -32,7 +32,7 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/th
 import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { ChatDynamicVariableModel } from '../../../../workbench/contrib/chat/browser/attachments/chatDynamicVariables.js';
-import { getDynamicVariablesForWidget, getInputDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../../../workbench/contrib/chat/browser/attachments/chatVariables.js';
+import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../../../workbench/contrib/chat/browser/attachments/chatVariables.js';
 import { IChatExecuteActionContext } from '../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
 import { compactCodiconsIn } from '../../../../workbench/contrib/chat/browser/chatIcons.js';
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
@@ -580,8 +580,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		const attachments = [...widget.attachmentModel.attachments];
 		const references = [...getDynamicVariablesForWidget(widget)];
 		widget.setModel(ref.object);
-		// The references refer to the prompt, which differs from the input editor's text while it shows inline attachment pills.
-		if (widget.inputEditor.getValue() !== inputText) {
+		if (widget.getInput() !== inputText) {
 			this.setInputValue(inputText);
 		}
 		widget.attachmentModel.clearAndSetContext(...attachments);
@@ -671,26 +670,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	}
 
 	saveState(): void {
-		const widget = this._widget;
-		if (widget) {
-			writeNewChatDraftState(this.storageService, { inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) });
-		}
-	}
-
-	/**
-	 * The references that a draft keeps when the input shows inline attachment
-	 * pills. The draft saves a pill as a mention of its attachment by name,
-	 * which its reference binds to the attachment by id.
-	 */
-	private _getDraftReferences(widget: ChatWidget): IDynamicVariable[] | undefined {
-		const projection = widget.input.inlineAttachments?.project(getInputDynamicVariablesForWidget(widget));
-		return projection ? [...projection.references] : undefined;
-	}
-
-	/** Binds the mentions of a draft to what they stand for, so that each becomes the pill it was. */
-	private _restoreDraftReferences(draft: IChatDraft): void {
-		if (draft.references?.length) {
-			this._widget?.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.setInputState({ [ChatDynamicVariableModel.ID]: draft.references });
+		if (this._widget) {
+			writeNewChatDraftState(this.storageService, { inputText: this.getInputValue(), attachments: [...this.attachments] });
 		}
 	}
 
@@ -706,7 +687,6 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			if (draft.attachments.length) {
 				this._widget?.attachmentModel.addContext(...draft.attachments);
 			}
-			this._restoreDraftReferences(draft);
 		}
 	}
 
@@ -725,7 +705,6 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		}
 		this.prefillInput(draft.inputText);
 		this.addAttachments(...draft.attachments);
-		this._restoreDraftReferences(draft);
 		this.saveState();
 		return true;
 	}
