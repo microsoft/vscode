@@ -4257,10 +4257,20 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Plugins tab
 	PluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Plugins page uses a classic tree with separate collapsible User and Workspace groups, plus Remote Session and Available groups when applicable. Header action buttons use the standard gap.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The Plugins page uses a classic tree with separate collapsible User and Workspace groups, plus Remote Session and Available groups when applicable. Header action buttons use the standard gap. The add split button has a borderless compact chevron and matches the Agents run split button resting and segment hover states.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
+			availableHarnesses: [{
+				...createVSCodeHarnessDescriptor(),
+				pluginActions: [{
+					id: 'fixture.createPlugin',
+					label: 'Create Plugin',
+					tooltip: 'Create Plugin',
+					run: async () => { },
+				}],
+			}],
 		}),
 	}),
 

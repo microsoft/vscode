@@ -3459,6 +3459,32 @@ per-word capitalization does not survive translation. */
 	background: var(--vscode-toolbar-hoverBackground);
 }
 
+.ai-customization-group-header .plugin-card-split-button {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.ai-customization-group-header .plugin-card-split-button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.ai-customization-group-header .plugin-card-split-button > .monaco-button-dropdown-separator {
+	display: none;
+}
+
+.ai-customization-group-header .plugin-card-split-button > .plugin-card-icon-button.monaco-button {
+	border: 0;
+}
+
+.ai-customization-group-header .plugin-card-split-button > .plugin-card-icon-button.monaco-button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: -1px;
+}
+
+.ai-customization-group-header .plugin-card-split-button > .monaco-dropdown-button.codicon-chevron-down-compact {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 .plugin-list-widget.narrow-layout .available-plugins-section .plugin-card-section-header,
 .plugin-list-widget.narrow-layout .installed-plugins-section .plugin-card-section-header,
 .plugin-list-widget.narrow-layout .available-mcp-servers-section .plugin-card-section-header,
