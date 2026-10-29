@@ -120,21 +120,6 @@ export function diffRegistrySnapshots(before: IRegistrySnapshot, after: IRegistr
 const maxReportedChanges = 20;
 
 /**
- * Suites that changed the registries before this check existed. Do not add to this list: dispose what
- * a suite registers instead, and remove a suite from it once it is fixed.
- */
-const knownLeakingSuites: ReadonlySet<string> = new Set([
-	'AgentSessionsActions',
-	'Chat code-block action telemetry',
-	'ChatMcpAuthenticationContentPart',
-	'Edit session sync',
-	'ExtHostLanguageFeatureCommands',
-	'Inline chat zone widget — menu contributions',
-	'RetryChatAction',
-	'Sessions - Layout Actions',
-]);
-
-/**
  * Fails every top-level suite that leaves a different set of commands, menu items or keybindings
  * registered than it started with.
  *
@@ -147,9 +132,6 @@ export function installRegistryLeakCheck(root: Mocha.Suite): void {
 
 	// Mocha emits 'suite' when a suite is added, before its definition runs, so this hook runs before the suite's own hooks.
 	root.on('suite', (suite: Mocha.Suite) => {
-		if (knownLeakingSuites.has(suite.title)) {
-			return;
-		}
 		suite.beforeAll('Registry leak check: snapshot', () => {
 			snapshots.set(suite, takeRegistrySnapshot());
 		});
@@ -162,9 +144,6 @@ export function installRegistryLeakCheck(root: Mocha.Suite): void {
 				continue;
 			}
 			checked.add(suite);
-			if (knownLeakingSuites.has(suite.title)) {
-				continue;
-			}
 			suite.afterAll('Registry leak check', () => {
 				const before = snapshots.get(suite);
 				snapshots.delete(suite);
