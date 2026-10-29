@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../../../base/common/uri.js';
-import { isURLSafeForTrust, normalizeURLForTrust, normalizeURLPattern, serializeURLPattern } from '../../../../../../platform/url/common/trustedDomains.js';
-import { testUrlMatchesGlob } from '../../../../../../platform/url/common/urlGlob.js';
+import { URI } from '../../../base/common/uri.js';
+import { isURLSafeForTrust, normalizeURLForTrust, normalizeURLPattern, serializeURLPattern } from '../../url/common/trustedDomains.js';
+import { testUrlMatchesGlob } from '../../url/common/urlGlob.js';
 
 /**
  * Approval settings for a URL pattern
@@ -19,7 +19,11 @@ function getUrlApprovalValue(settings: boolean | IUrlApprovalSettings, checkRequ
 	if (typeof settings === 'boolean') {
 		return settings;
 	}
-	return checkRequest ? settings.approveRequest : settings.approveResponse;
+	if (!settings || typeof settings !== 'object') {
+		return undefined;
+	}
+	const value = checkRequest ? settings.approveRequest : settings.approveResponse;
+	return typeof value === 'boolean' ? value : undefined;
 }
 
 function normalizeSafeURL(url: URI): URI | undefined {

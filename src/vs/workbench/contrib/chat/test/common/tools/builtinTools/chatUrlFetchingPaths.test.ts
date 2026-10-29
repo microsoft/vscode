@@ -7,7 +7,7 @@ import assert from 'assert';
 import { StopWatch } from '../../../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { extractUrlPatterns, getMatchingPattern, getPatternLabel, isUrlApproved, IUrlApprovalSettings } from '../../../../common/tools/builtinTools/chatUrlFetchingPatterns.js';
+import { extractUrlPatterns, getMatchingPattern, getPatternLabel, isUrlApproved, IUrlApprovalSettings } from '../../../../../../../platform/chat/common/chatUrlFetchingPatterns.js';
 
 suite('Chat URL effective path approval', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

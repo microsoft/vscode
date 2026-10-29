@@ -20,7 +20,7 @@ import {
 	ILanguageModelToolConfirmationContributionQuickTreeItem,
 	ILanguageModelToolConfirmationRef
 } from '../languageModelToolsConfirmationService.js';
-import { extractUrlPatterns, getPatternLabel, isUrlApproved, IUrlApprovalSettings } from './chatUrlFetchingPatterns.js';
+import { extractUrlPatterns, getPatternLabel, isUrlApproved, IUrlApprovalSettings } from '../../../../../../platform/chat/common/chatUrlFetchingPatterns.js';
 
 const trashButton: IQuickInputButton = {
 	iconClass: ThemeIcon.asClassName(Codicon.trash),

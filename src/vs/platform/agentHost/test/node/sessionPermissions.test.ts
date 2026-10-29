@@ -14,7 +14,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostUrlAutoApprovePatternsConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, getChatSensitiveEditLocations, mergeChatEditAutoApprovePatterns } from '../../../chat/common/chatSettings.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -72,6 +72,10 @@ suite('SessionPermissionManager', () => {
 		return shellEvent(commandLine, 'powershell');
 	}
 
+	function urlEvent(url: string): IToolApprovalEvent {
+		return { toolCallId: 'tc-fetch', session: URI.parse(sessionUri), permissionKind: 'url', toolInput: JSON.stringify({ url }) };
+	}
+
 	setup(async () => {
 		// Prefer the CI runner temp dir (a plain long path) over `os.tmpdir()`,
 		// which on Windows CI is an 8.3 short path (`C:\Users\RUNNER~1\...`) that
@@ -113,6 +117,88 @@ suite('SessionPermissionManager', () => {
 	test('auto-approves a normal file inside the working directory', async () => {
 		const result = await permissions.getAutoApproval(writeEvent(join(workDir, 'src', 'app.ts')), sessionUri);
 		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
+	});
+
+	test('auto-approves URL requests matching the client URL approval setting', async () => {
+		configService.updateRootConfig({ [AgentHostUrlAutoApprovePatternsConfigKey]: { 'https://example.com': true } });
+		const results = await Promise.all(['https://example.com/', 'https://example.com/another-path'].map(url =>
+			permissions.getAutoApproval(urlEvent(url), sessionUri)
+		));
+		assert.deepStrictEqual(results, [ToolCallConfirmationReason.Setting, ToolCallConfirmationReason.Setting]);
+	});
+
+	test('URL approvals use domain and path patterns without approving other hosts or protocols', async () => {
+		configService.updateRootConfig({
+			[AgentHostUrlAutoApprovePatternsConfigKey]: {
+				'https://example.com/private/*': false,
+				'https://example.com': true,
+				'https://*.docs.example.org/api/*': true,
+			},
+		});
+		const results = await Promise.all([
+			'https://example.com/public',
+			'https://example.com/private/secret',
+			'https://sub.docs.example.org/api/page',
+			'https://sub.docs.example.org/other',
+			'https://example.com.evil.test/',
+			'https://example.com@evil.test/',
+			'http://example.com/',
+		].map(url => permissions.getAutoApproval(urlEvent(url), sessionUri)));
+		assert.deepStrictEqual(results, [ToolCallConfirmationReason.Setting, undefined, ToolCallConfirmationReason.Setting, undefined, undefined, undefined, undefined]);
+	});
+
+	test('URL approvals require both request and response consent and respect revocation', async () => {
+		const results = [];
+		for (const patterns of [
+			{},
+			{ 'https://example.com': false },
+			{ 'https://example.com': { approveRequest: true } },
+			{ 'https://example.com': { approveResponse: true } },
+			{ 'https://example.com': { approveRequest: true, approveResponse: false } },
+			{ 'https://example.com': { approveRequest: true, approveResponse: true } },
+			{},
+		]) {
+			configService.updateRootConfig({ [AgentHostUrlAutoApprovePatternsConfigKey]: patterns });
+			results.push(await permissions.getAutoApproval(urlEvent('https://example.com/'), sessionUri));
+		}
+		assert.deepStrictEqual(results, [undefined, undefined, undefined, undefined, undefined, ToolCallConfirmationReason.Setting, undefined]);
+	});
+
+	test('malformed URL approval settings never grant consent', async () => {
+		const results = [];
+		for (const patterns of [
+			['https://example.com'],
+			{ 'https://example.com': null },
+			{ 'https://example.com': 'true' },
+			{ 'https://example.com': { approveRequest: 'true', approveResponse: 'true' } },
+		]) {
+			configService.updateRootConfig({ [AgentHostUrlAutoApprovePatternsConfigKey]: patterns });
+			results.push(await permissions.getAutoApproval(urlEvent('https://example.com/'), sessionUri));
+		}
+		assert.deepStrictEqual(results, [undefined, undefined, undefined, undefined]);
+	});
+
+	test('malformed URL permission inputs and sandbox bypass requests require confirmation', async () => {
+		configService.updateRootConfig({ [AgentHostUrlAutoApprovePatternsConfigKey]: { '*': true } });
+		const event = urlEvent('https://example.com/');
+		const results = await Promise.all([
+			undefined, '', '{', 'null', '[]', '{}', '{"url":42}', '{"url":"not a URL"}',
+			JSON.stringify({ url: 'file:///secret' }), JSON.stringify({ url: 'data:text/plain,secret' }),
+		].map(toolInput => permissions.getAutoApproval({ ...event, toolInput }, sessionUri)));
+		results.push(await permissions.getAutoApproval({ ...event, requestSandboxBypass: true }, sessionUri));
+		assert.deepStrictEqual(results, Array(11).fill(undefined));
+	});
+
+	test('URL approval preferences apply to new sessions and peer chats', async () => {
+		configService.updateRootConfig({ [AgentHostUrlAutoApprovePatternsConfigKey]: { 'https://example.com': true } });
+		const other = URI.from({ scheme: 'copilot', path: '/other' }).toString();
+		manager.createSession(makeSummary(other, URI.file(workDir2).toString()));
+		const peer = buildChatUri(sessionUri, 'peer');
+		manager.addChat(sessionUri, peer, creationTimeChatStorageResource(sessionUri, peer, buildDefaultChatUri(sessionUri)));
+		const results = await Promise.all([buildDefaultChatUri(sessionUri), buildDefaultChatUri(other), peer].map(resource =>
+			permissions.getAutoApproval({ ...urlEvent('https://example.com/'), session: URI.parse(resource) }, resource)
+		));
+		assert.deepStrictEqual(results, Array(3).fill(ToolCallConfirmationReason.Setting));
 	});
 
 	test('auto-approves the owning session attachment for a peer chat, not that of the session named by its URI', async () => {

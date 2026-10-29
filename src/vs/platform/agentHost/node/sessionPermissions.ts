@@ -18,9 +18,10 @@ import { isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ALWAYS_CHECKED_EDIT_PATTERNS, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS } from '../../chat/common/chatSettings.js';
+import { isUrlApproved } from '../../chat/common/chatUrlFetchingPatterns.js';
 import { ILogService } from '../../log/common/log.js';
 import { containsCmdDelayedExpansion } from '../../terminal/common/autoApprove/cmdDelayedExpansion.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostUrlAutoApprovePatternsConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
 import type { IAgentToolPendingConfirmationSignal } from '../common/agent.js';
 import { ISessionDataService, isSessionAttachmentPath } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -249,6 +250,7 @@ export class SessionPermissionManager extends Disposable {
 	 * 4. Read path rules (within working directory)
 	 * 5. Write path rules (within working directory + glob patterns)
 	 * 6. Shell command rules (tree-sitter parsed, default allow/deny)
+	 * 7. URL patterns (request and response approval)
 	 */
 	async getAutoApproval(e: IToolApprovalEvent, sessionKey: ProtocolURI): Promise<ToolCallConfirmationReason | undefined> {
 		// `sessionKey` is the chat channel URI (see `_handleToolReady`), so the
@@ -357,7 +359,32 @@ export class SessionPermissionManager extends Disposable {
 			return undefined;
 		}
 
+		if (e.permissionKind === 'url' && e.toolInput && this._isUrlAutoApproved(e.toolInput)) {
+			return ToolCallConfirmationReason.Setting;
+		}
+
 		return undefined;
+	}
+
+	private _isUrlAutoApproved(toolInput: string): boolean {
+		let input: { url?: unknown } | null;
+		try {
+			input = JSON.parse(toolInput);
+		} catch {
+			this._logService.warn('[SessionPermissionManager] Invalid JSON in URL permission input');
+			return false;
+		}
+		if (typeof input !== 'object' || input === null || typeof input.url !== 'string' || !URL.canParse(input.url)) {
+			this._logService.warn('[SessionPermissionManager] URL permission input must contain a valid URL');
+			return false;
+		}
+		const url = URI.parse(input.url);
+		if (url.scheme !== Schemas.http && url.scheme !== Schemas.https) {
+			return false;
+		}
+		const patterns = this._configService.getRootValue(platformRootSchema, AgentHostUrlAutoApprovePatternsConfigKey) ?? {};
+		// The runtime has no separate response confirmation, so both approvals are needed before fetching.
+		return isUrlApproved(url, patterns, true) && isUrlApproved(url, patterns, false);
 	}
 
 	/**

@@ -25,6 +25,7 @@ import { registerAction2 } from '../../../../platform/actions/common/actions.js'
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import { chatUrlFetchingConfiguration } from './chatUrlFetchingConfiguration.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
@@ -904,27 +905,7 @@ configurationRegistry.registerConfiguration({
 				transform: mergeChatEditAutoApprovePatterns,
 			},
 		},
-		[ChatConfiguration.AutoApprovedUrls]: {
-			tags: ['chatPermissions'],
-			default: {
-				'https://code.visualstudio.com': true,
-				'https://github.com/microsoft/vscode/wiki/*': true,
-			},
-			markdownDescription: nls.localize('chat.tools.fetchPage.approvedUrls', "Controls which URLs are automatically approved when requested by chat tools. Keys are URL patterns and values can be `true` to approve both requests and responses, `false` to deny, or an object with `approveRequest` and `approveResponse` properties for granular control.\n\nExamples:\n- `\"https://example.com\": true` - Approve all requests to example.com\n- `\"https://*.example.com\": true` - Approve all requests to any subdomain of example.com\n- `\"https://example.com/api/*\": { \"approveRequest\": true, \"approveResponse\": false }` - Approve requests but not responses for example.com/api paths"),
-			type: 'object',
-			additionalProperties: {
-				oneOf: [
-					{ type: 'boolean' },
-					{
-						type: 'object',
-						properties: {
-							approveRequest: { type: 'boolean' },
-							approveResponse: { type: 'boolean' }
-						}
-					}
-				]
-			}
-		},
+		[ChatConfiguration.AutoApprovedUrls]: chatUrlFetchingConfiguration,
 		[ChatConfiguration.EligibleForAutoApproval]: {
 			default: {},
 			tags: ['chatPermissions'],

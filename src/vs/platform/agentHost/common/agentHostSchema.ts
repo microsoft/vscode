@@ -7,6 +7,7 @@ import { localize } from '../../../nls.js';
 import { structuralEquals } from '../../../base/common/equals.js';
 import { ConfigurationTarget, type IConfigurationService, type IConfigurationValue } from '../../configuration/common/configuration.js';
 import { ChatExternalSessionsMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, type ChatEditAutoApprovePatterns, type IChatSensitiveEditLocation } from '../../chat/common/chatSettings.js';
+import type { IUrlApprovalSettings } from '../../chat/common/chatUrlFetchingPatterns.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { telemetryLevelToAgentHostValue } from './agentHostTelemetry.js';
@@ -501,6 +502,7 @@ export const AgentHostCodexEnabledConfigKey = 'codexAgentEnabled';
 
 /** Root config key carrying the effective edit auto-approve patterns. */
 export const AgentHostEditAutoApprovePatternsConfigKey = 'editAutoApprovePatterns';
+export const AgentHostUrlAutoApprovePatternsConfigKey = 'urlAutoApprovePatterns';
 
 /**
  * Root config key forwarded from the renderer when VS Code's
@@ -1123,6 +1125,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.terminalAutoApproveRules.description', "Terminal auto-approve rules forwarded by the connected client for agent-host shell permission checks."),
 		default: {},
 	}),
+	[AgentHostUrlAutoApprovePatternsConfigKey]: schemaProperty<Record<string, boolean | IUrlApprovalSettings>>({
+		type: 'object',
+		title: localize('agentHost.config.urlAutoApprovePatterns.title', "URL Auto Approve Patterns"),
+		description: localize('agentHost.config.urlAutoApprovePatterns.description', "URL approval patterns forwarded by the connected client. Agent-host fetches require both request and response approval."),
+		default: {},
+	}),
 	[AgentHostMcpServersConfigKey]: schemaProperty<AgentHostMcpServers>({
 		type: 'object',
 		title: localize('agentHost.config.mcpServers.title', "MCP Servers"),
@@ -1149,6 +1157,7 @@ export const clientOwnedApprovalRootConfigKeys: ReadonlySet<string> = new Set([
 	AgentHostTerminalAutoApproveEnabledConfigKey,
 	AgentHostTerminalAutoApproveRulesConfigKey,
 	AgentHostEditAutoApprovePatternsConfigKey,
+	AgentHostUrlAutoApprovePatternsConfigKey,
 	AgentHostAutoReplyEnabledConfigKey,
 	AgentHostWorkspaceTrustConfigKey,
 ]);

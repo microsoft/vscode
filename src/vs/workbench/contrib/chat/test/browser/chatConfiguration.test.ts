@@ -17,6 +17,9 @@ import { customizationMarketplaceConfigurationProperties, isAgentFinderPublicFee
 import { CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import '../../browser/agentSessionsConfiguration.js';
 import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
+import { AgentHostUrlAutoApprovePatternsConfigKey } from '../../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch } from '../../../../../platform/agentHost/common/agentHostConfigurationSync.js';
+import { chatUrlFetchingConfiguration } from '../../browser/chatUrlFetchingConfiguration.js';
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 const registeredAgentSessionsSettings = [
@@ -35,6 +38,30 @@ const persistentProgressSetting = chatProgressConfigurationProperties[ChatConfig
 suite('Chat configuration', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('forwards global URL approval preferences to local and remote hosts, not workspace grants', () => {
+		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		const node = { id: 'testUrlApprovals', properties: { [ChatConfiguration.AutoApprovedUrls]: chatUrlFetchingConfiguration } };
+		registry.registerConfiguration(node);
+		const patterns = { 'https://example.com': true };
+		const configurationService = new class extends mock<IConfigurationService>() {
+			override inspect<T>(key: string): IConfigurationValue<T> {
+				return (key === ChatConfiguration.AutoApprovedUrls ? { userValue: patterns, workspaceValue: { '*': true } } : {}) as IConfigurationValue<T>;
+			}
+		};
+		try {
+			assert.deepStrictEqual([
+				chatUrlFetchingConfiguration.agentHost?.key,
+				...[
+					AgentHostConfigurationSyncTarget.Local,
+					AgentHostConfigurationSyncTarget.RemoteExtensionHost,
+					AgentHostConfigurationSyncTarget.Remote,
+				].map(target => resolveAgentHostConfigurationSyncPatch(configurationService, target)[AgentHostUrlAutoApprovePatternsConfigKey]),
+			], [AgentHostUrlAutoApprovePatternsConfigKey, patterns, patterns, patterns]);
+		} finally {
+			registry.deregisterConfigurations([node]);
+		}
+	});
 
 	test('defaults to sticky progress instead of the input progress border', () => {
 		const setting = chatProgressConfigurationProperties[ChatConfiguration.ProgressBorder];

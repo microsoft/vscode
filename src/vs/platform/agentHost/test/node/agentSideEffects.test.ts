@@ -45,7 +45,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostOverlapProviderPreparationSettingId } from '../../common/agentService.js';
 import { CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostOverlapProviderPreparationConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceSnapshotEnabledConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostOverlapProviderPreparationConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostUrlAutoApprovePatternsConfigKey, AgentHostWorkspaceSnapshotEnabledConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
@@ -6091,6 +6091,41 @@ suite('AgentSideEffects', () => {
 				permissions: agent.respondToPermissionCalls,
 			}, { status: ToolCallStatus.PendingConfirmation, permissions: [] });
 		});
+
+		for (const managedApprovalRequired of [false, true]) {
+			test(`URL approval preferences release fetches without overriding managed asks (managed=${managedApprovalRequired})`, async () => {
+				setupSession();
+				startTurn('turn-1');
+				disposables.add(sideEffects.registerProgressListener(agent));
+				stateManager.dispatchServerAction(ROOT_STATE_URI, {
+					type: ActionType.RootConfigChanged,
+					config: { [AgentHostUrlAutoApprovePatternsConfigKey]: { 'https://example.com': true } },
+				});
+				agent.fireProgress({
+					kind: 'action', resource: URI.parse(defaultChatUri),
+					action: {
+						type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+						toolCallId: 'fetch-url', toolName: 'web_fetch', displayName: 'Fetch', contributor: undefined,
+					},
+				});
+				agent.fireProgress({
+					kind: 'pending_confirmation', chat: URI.parse(defaultChatUri), managedApprovalRequired,
+					state: {
+						status: ToolCallStatus.PendingConfirmation, toolCallId: 'fetch-url', toolName: 'web_fetch', displayName: 'Fetch',
+						invocationMessage: 'Fetch URL', confirmationTitle: 'Fetch URL?', toolInput: JSON.stringify({ url: 'https://example.com/' }),
+					},
+					permissionKind: 'url', permissionPath: undefined,
+				});
+				const toolCall = await waitForState(stateManager, () => {
+					const part = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts[0];
+					return part?.kind === ResponsePartKind.ToolCall && part.toolCall.status !== ToolCallStatus.Streaming ? part.toolCall : undefined;
+				});
+				assert.deepStrictEqual({ status: toolCall.status, responses: agent.respondToPermissionCalls }, {
+					status: managedApprovalRequired ? ToolCallStatus.PendingConfirmation : ToolCallStatus.Running,
+					responses: managedApprovalRequired ? [] : [{ requestId: 'fetch-url', approved: true }],
+				});
+			});
+		}
 
 		test('tool_ready for a non-permission tool dispatches ChatToolCallReady and advances state from Streaming to Running', async () => {
 			setupSession();
