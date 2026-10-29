@@ -75,6 +75,7 @@ import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTr
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NestedChatWorkspaceControls } from '../../browser/nestedChatWorkspacePicker.js';
+import { IChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -2298,7 +2299,7 @@ suite('Sessions - Chat View', () => {
 		let inputOptions: INewChatComposerInputOptions | undefined;
 		const repositoryControls = { visible: constObservable(true), dispose: () => { } };
 		const petPlatform = dom.$('a.action-label');
-		const input = Object.assign(Object.create(SharedChatInputComposer.prototype), { dispose: () => { } }) as SharedChatInputComposer;
+		const input = Object.assign(Object.create(SharedChatInputComposer.prototype), { dispose: () => { }, getDraft: () => ({ inputText: '', attachments: [] }) }) as SharedChatInputComposer;
 		const instantiationService = new class extends mock<IInstantiationService>() {
 			override createInstance = ((ctor: unknown, options: INewChatComposerInputOptions) => {
 				if (ctor === NestedChatWorkspaceControls) {
@@ -2328,6 +2329,7 @@ suite('Sessions - Chat View', () => {
 			disposables.add(new InMemoryStorageService()),
 			new TestAccessibilityService(),
 			new class extends mock<IFileService>() { }(),
+			new SessionsChatViewStateService(),
 		));
 		const beforeChat = inputOptions?.chat?.get();
 		const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), { _widget: widget });
@@ -2341,6 +2343,106 @@ suite('Sessions - Chat View', () => {
 			repositoryControls: typeof renderRepositoryControls === 'function' ? renderRepositoryControls(dom.$('div'), getDefaultHoverDelegate('element')) : renderRepositoryControls,
 			petPlatform: inputOptions?.getChatPetPlatformElements?.(),
 		}, { beforeChat: undefined, chat: 'chat:/composer', repositoryControls, petPlatform: [petPlatform] });
+	});
+
+	suite('unsent peer chat drafts', () => {
+
+		function createPeerChatWidgets() {
+			const viewStateService = new SessionsChatViewStateService();
+			return (restoredInput = '') => {
+				let draft: IChatDraft | undefined = restoredInput ? { inputText: restoredInput, attachments: [] } : undefined;
+				const input = upcastPartial<SharedChatInputComposer>({
+					dispose: () => { },
+					getDraft: () => draft ?? { inputText: '', attachments: [] },
+					setDraft: value => { draft = value; },
+				});
+				const instantiationService = new class extends mock<IInstantiationService>() {
+					override createInstance = ((ctor: unknown) => ctor === NestedChatWorkspaceControls
+						? { reset: () => { }, dispose: () => { } }
+						: input) as IInstantiationService['createInstance'];
+				}();
+				const sessionsService = new class extends mock<ISessionsService>() {
+					override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+				}();
+				const widget = disposables.add(new NewChatInSessionWidget(
+					{},
+					new TestConfigurationService(),
+					instantiationService,
+					new class extends mock<ILogService>() { }(),
+					new class extends mock<INotificationService>() { }(),
+					new class extends mock<ISessionsProvidersService>() { }(),
+					new class extends mock<ISessionsRecentWorkspacesService>() { }(),
+					new class extends mock<IFileDialogService>() { }(),
+					new class extends mock<ISessionsManagementService>() { }(),
+					sessionsService,
+					disposables.add(new InMemoryStorageService()),
+					new TestAccessibilityService(),
+					new class extends mock<IFileService>() { }(),
+					viewStateService,
+				));
+				return {
+					widget,
+					type: (inputText: string) => { draft = inputText ? { inputText, attachments: [] } : undefined; },
+					input: () => draft?.inputText ?? '',
+				};
+			};
+		}
+
+		const chat = (name: string) => upcastPartial<IChat>({ resource: URI.parse(`chat:/${name}`) });
+
+		test('a peer chat composer replaced by another view shows the unsent prompt when its chat is shown again', () => {
+			const create = createPeerChatWidgets();
+			const newChat = chat('new');
+			const first = create();
+			first.widget.setChat(newChat);
+			first.type('unsent prompt');
+			first.widget.dispose();
+
+			const second = create();
+			second.widget.setChat(newChat);
+
+			assert.strictEqual(second.input(), 'unsent prompt');
+		});
+
+		test('a cleared prompt is not replaced by the composer\'s restored global draft', () => {
+			const create = createPeerChatWidgets();
+			const newChat = chat('new');
+			const first = create();
+			first.widget.setChat(newChat);
+			first.type('sent prompt');
+			first.type('');
+			first.widget.dispose();
+
+			const second = create('stale global draft');
+			second.widget.setChat(newChat);
+
+			assert.strictEqual(second.input(), '');
+		});
+
+		test('a chat that was never shown keeps the input the composer restored', () => {
+			const create = createPeerChatWidgets();
+			const composer = create('restored global draft');
+			composer.widget.setChat(chat('new'));
+
+			assert.strictEqual(composer.input(), 'restored global draft');
+		});
+
+		test('one composer keeps a separate unsent prompt for each chat it shows', () => {
+			const create = createPeerChatWidgets();
+			const a = chat('a');
+			const b = chat('b');
+			const composer = create();
+			composer.widget.setChat(a);
+			composer.type('draft a');
+			composer.widget.setChat(b);
+			const inB = composer.input();
+			composer.type('draft b');
+			composer.widget.setChat(a);
+			const backInA = composer.input();
+			composer.widget.setChat(b);
+
+			assert.deepStrictEqual({ inB, backInA, backInB: composer.input() }, { inB: '', backInA: 'draft a', backInB: 'draft b' });
+		});
 	});
 
 	test('positions peer chat content for centered attachment growth', () => {
@@ -4255,6 +4357,25 @@ suite('Sessions - Chat View', () => {
 			hiddenBeforeDispose: 'none',
 			paddingUpdates: 1,
 			replicaCountAfterDispose: 0,
+		});
+	});
+
+	test('stores unsent drafts independently by chat resource', () => {
+		const service = new SessionsChatViewStateService();
+		const first = URI.parse('test:///first');
+		const second = URI.parse('test:///second');
+
+		service.setDraft(first, { inputText: 'first draft', attachments: [] });
+		service.setDraft(second, { inputText: 'second draft', attachments: [] });
+
+		assert.deepStrictEqual({
+			first: service.getDraft(first),
+			second: service.getDraft(second),
+			unknown: service.getDraft(URI.parse('test:///unknown')),
+		}, {
+			first: { inputText: 'first draft', attachments: [] },
+			second: { inputText: 'second draft', attachments: [] },
+			unknown: undefined,
 		});
 	});
 
