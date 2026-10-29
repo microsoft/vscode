@@ -27,10 +27,12 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { IContextMenuService, IContextViewService } from '../../contextview/browser/contextView.js';
 import { QuickInputList } from './quickInputList.js';
 import { IContextKey, IContextKeyService } from '../../contextkey/common/contextkey.js';
+import { IClipboardService } from '../../clipboard/common/clipboardService.js';
+import { createTextInputActions } from '../../clipboard/browser/textInputActions.js';
+import { ILogService } from '../../log/common/log.js';
 import './quickInputActions.js';
 import { IObservable, autorun, observableValue } from '../../../base/common/observable.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
-import { markAsContextMenuHost } from '../../../base/browser/contextmenu.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { Platform, platform, setTimeout0 } from '../../../base/common/platform.js';
@@ -115,7 +117,9 @@ export class QuickInputController extends Disposable {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IContextViewService private readonly contextViewService: IContextViewService
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -178,7 +182,8 @@ export class QuickInputController extends Disposable {
 			hoverDelegate: this.options.hoverDelegate,
 			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
 			icon: true,
-			label: false
+			label: false,
+			renderDropdownAsChildElement: true,
 		}));
 		leftActionBar.getElement().classList.add('quick-input-left-action-bar');
 
@@ -188,7 +193,8 @@ export class QuickInputController extends Disposable {
 			hoverDelegate: this.options.hoverDelegate,
 			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
 			icon: true,
-			label: false
+			label: false,
+			renderDropdownAsChildElement: true,
 		}));
 		rightActionBar.getElement().classList.add('quick-input-right-action-bar');
 
@@ -226,7 +232,8 @@ export class QuickInputController extends Disposable {
 			hoverDelegate: this.options.hoverDelegate,
 			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
 			icon: true,
-			label: false
+			label: false,
+			renderDropdownAsChildElement: true,
 		}));
 		inlineActionBar.getElement().classList.add('quick-input-inline-action-bar');
 
@@ -365,11 +372,12 @@ export class QuickInputController extends Disposable {
 			this.previousFocusElement = undefined;
 		}));
 
-		// Context menus opened from within the quick input are rendered inside of
-		// it so that focus does not leave the quick input and hide it
+		// Context menus of the quick input are rendered inside of it (toolbars via
+		// `renderDropdownAsChildElement`, the input via `domForShadowRoot`) so that
+		// focus does not leave the quick input and hide it
 		// (https://github.com/microsoft/vscode/issues/153267). Hosted menus are
 		// positioned fixed, so any opening motion must have completed first.
-		this._register(markAsContextMenuHost(container));
+		this._register(dom.addDisposableListener(filterContainer, dom.EventType.CONTEXT_MENU, e => this.showInputContextMenu(container, e)));
 		this._register(dom.addDisposableListener(container, dom.EventType.CONTEXT_MENU, () => this.finishOpenMotion(), true));
 		this._register(dom.addDisposableListener(container, dom.EventType.POINTER_DOWN, () => this.finishOpenMotion(), true));
 		this._register(dom.addDisposableListener(container, dom.EventType.MOUSE_DOWN, e => this.onHostedContextViewMouseDown(container, e), true));
@@ -952,6 +960,23 @@ export class QuickInputController extends Disposable {
 		const root = view.getRootNode();
 		const host = dom.isShadowRoot(root) ? root.host : view;
 		return view.isConnected && dom.isAncestor(host, container);
+	}
+
+	private showInputContextMenu(container: HTMLElement, e: MouseEvent): void {
+		const target = e.target;
+		if (e.defaultPrevented || !(dom.isHTMLInputElement(target) || dom.isHTMLTextAreaElement(target))) {
+			return;
+		}
+
+		dom.EventHelper.stop(e, true);
+
+		const anchor = new StandardMouseEvent(dom.getWindow(target), e);
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => createTextInputActions(this.clipboardService, this.logService),
+			getActionsContext: () => target,
+			domForShadowRoot: container,
+		});
 	}
 
 	private hideHostedContextView(container: HTMLElement): void {

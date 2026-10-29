@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import * as dom from '../../../../base/browser/dom.js';
 import { unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
 import { unthemedCountStyles } from '../../../../base/browser/ui/countBadge/countBadge.js';
@@ -13,7 +14,6 @@ import { unthemedListStyles } from '../../../../base/browser/ui/list/listWidget.
 import { unthemedProgressBarOptions } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { markAsContextMenuHost } from '../../../../base/browser/contextmenu.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IconSelectBox } from '../../../../base/browser/ui/icons/iconSelectBox.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -31,7 +31,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IAccessibilityService } from '../../../accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../accessibility/test/common/testAccessibilityService.js';
 import { IMenuService } from '../../../actions/common/actions.js';
+import { IClipboardService } from '../../../clipboard/common/clipboardService.js';
+import { TestClipboardService } from '../../../clipboard/test/common/testClipboardService.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../contextkey/common/contextkey.js';
@@ -116,8 +119,9 @@ suite('QuickInput hosts its context menus', () => { // https://github.com/micros
 	let ignoreFocusOut: boolean;
 	let controller: QuickInputController;
 	let input: HTMLInputElement;
+	let clipboardService: TestClipboardService;
 
-	// Harmless stand-ins for the workbench text input actions; they act on the input the menu was opened for
+	// Harmless actions for the workbench-style generic opener below and the icon picker fixture; they act on the input the menu was opened for
 	const textInputActions: IAction[] = [
 		toAction({
 			id: 'harmlessPaste', label: 'Paste', run: (target: HTMLInputElement) => {
@@ -132,7 +136,8 @@ suite('QuickInput hosts its context menus', () => { // https://github.com/micros
 
 	/**
 	 * Mirrors the workbench `TextInputActionsProvider`: a generic opener for the context
-	 * menu of any input that knows nothing about the quick input (no `domForShadowRoot`).
+	 * menu of any input that knows nothing about its owner (no `domForShadowRoot`). It
+	 * skips events an owner already handled.
 	 */
 	function registerGenericTextInputContextMenu(): void {
 		store.add(dom.addDisposableListener(fixture, dom.EventType.CONTEXT_MENU, e => {
@@ -150,10 +155,8 @@ suite('QuickInput hosts its context menus', () => { // https://github.com/micros
 		}));
 	}
 
-	function setupController(withGenericTextInputContextMenu = true): void {
-		if (withGenericTextInputContextMenu) {
-			registerGenericTextInputContextMenu();
-		}
+	function setupController(): void {
+		registerGenericTextInputContextMenu();
 		controller = store.add(createQuickInputController(instantiationService, fixture, () => ignoreFocusOut));
 		controller.layout({ height: 400, width: 800 }, 0);
 	}
@@ -193,6 +196,10 @@ suite('QuickInput hosts its context menus', () => { // https://github.com/micros
 		instantiationService.stub(INotificationService, new TestNotificationService());
 		instantiationService.stub(IMenuService, {});
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		clipboardService = new TestClipboardService();
+		await clipboardService.writeText('T10-pasted');
+		instantiationService.stub(IClipboardService, clipboardService);
+		instantiationService.stub(ILogService, new NullLogService());
 
 		// Real context menu service and handler (blocks mouse like in the workbench)
 		contextMenuService = store.add(instantiationService.createInstance(ContextMenuService));
@@ -336,7 +343,8 @@ suite('QuickInput hosts its context menus', () => { // https://github.com/micros
 		const picker = showPicker();
 		rightClickInput();
 		await settle();
-		keydown(activeElementDeep()!, 'ArrowDown', 40);
+		keydown(activeElementDeep()!, 'End', 35); // Select All
+		keydown(activeElementDeep()!, 'ArrowUp', 38); // Paste
 		keydown(activeElementDeep()!, 'Enter', 13);
 		await settle();
 		const afterPaste = state(picker);
@@ -345,6 +353,19 @@ suite('QuickInput hosts its context menus', () => { // https://github.com/micros
 			{ visible: true, focus: 'input', menu: 'none', value: 'T10 T10-pastedmless', selection: [14, 14] },
 			'editor',
 		]);
+	});
+
+	test('pasting when the clipboard cannot be read keeps the value and selection', async () => {
+		setupController();
+		await clipboardService.writeText(''); // what the browser clipboard service returns when reading fails
+		const picker = showPicker();
+		rightClickInput();
+		await settle();
+		keydown(activeElementDeep()!, 'End', 35);
+		keydown(activeElementDeep()!, 'ArrowUp', 38);
+		keydown(activeElementDeep()!, 'Enter', 13);
+		await settle();
+		assert.deepStrictEqual(state(picker), { visible: true, focus: 'input', menu: 'none', value: 'T10 harmless', selection: [4, 7] });
 	});
 
 	for (const location of [QuickInputButtonLocation.Title, QuickInputButtonLocation.Inline]) {
@@ -464,6 +485,7 @@ suite('QuickInput hosts its context menus', () => { // https://github.com/micros
 		let ran = false;
 		contextMenuService.showContextMenu({
 			getAnchor: () => input,
+			domForShadowRoot: widget(),
 			getActions: () => [new SubmenuAction('t10.submenu', 'T10 Submenu', [toAction({ id: 't10.subitem', label: 'T10 Subitem', run: () => { ran = true; } })])],
 		});
 		await settle();
@@ -567,12 +589,18 @@ suite('QuickInput hosts its context menus', () => { // https://github.com/micros
 		assert.deepStrictEqual(state(picker).visible, true);
 	});
 
-	test('the quick input itself does not handle context menu events of its input', async () => {
-		setupController(false);
+	test('the quick input opens the only context menu of its input; the generic opener skips it', async () => {
+		setupController();
 		const picker = showPicker();
-		const event = rightClickInput();
+		const show = sinon.spy(contextMenuService, 'showContextMenu');
+		store.add(toDisposable(() => show.restore()));
+		rightClickInput();
 		await settle();
-		assert.deepStrictEqual([event.defaultPrevented, state(picker).menu, state(picker).visible], [false, 'none', true]);
+		const calls = show.getCalls().map(call => ({ hostIsWidget: call.args[0].domForShadowRoot === widget(), actions: (call.args[0].getActions?.() ?? []).map(action => action.id) }));
+		assert.deepStrictEqual([calls, state(picker).menu], [[{
+			hostIsWidget: true,
+			actions: ['undo', 'redo', 'vs.actions.separator', 'editor.action.clipboardCutAction', 'editor.action.clipboardCopyAction', 'editor.action.clipboardPasteAction', 'vs.actions.separator', 'editor.action.selectAll'],
+		}], 'hosted']);
 	});
 
 	test('the context menu of an ordinary input outside of the quick input is not hosted', async () => {
@@ -590,7 +618,7 @@ suite('QuickInput hosts its context menus', () => { // https://github.com/micros
 		assert.deepStrictEqual([!!menu, hostedInWidget], [true, false]);
 	});
 
-	test('item row overflow menu is hosted in the quick input, not in the row; Escape keeps the picker', async () => {
+	test('item row overflow menus are not rendered inside the quick input (unchanged; a child menu would be clipped by the list)', async () => {
 		setupController();
 		editor.focus();
 		const picker = store.add(controller.createQuickPick());
@@ -604,23 +632,31 @@ suite('QuickInput hosts its context menus', () => { // https://github.com/micros
 		more.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
 		await settle();
 		const menu = openMenu();
-		const hosted = { inWidget: !!menu && widget().contains(menu.host), inRow: !!menu && row.contains(menu.host), visible: state(picker).visible };
-		keydown(activeElementDeep()!, 'Escape', 27);
-		await settle();
-		assert.deepStrictEqual([hosted, state(picker).visible, state(picker).menu], [{ inWidget: true, inRow: false, visible: true }, true, 'none']);
+		const hosted = { menu: !!menu, inWidget: !!menu && widget().contains(menu.host) };
+		instantiationService.get(IContextViewService).hideContextView();
+		assert.deepStrictEqual(hosted, { menu: true, inWidget: false });
 	});
 
 	test('a nested focus owner (icon picker) hosts the menu of its search box; it stays usable and Escape restores the search box', async () => {
 		setupController();
 		editor.focus();
-		// Mirrors workbench IconPicker: hidden quick input box, an icon select box as custom widget that is
-		// declared a context menu host and that moves focus to the first item when it loses focus.
+		// Mirrors workbench IconPicker: hidden quick input box, an icon select box as custom widget that
+		// opens the context menu of its search box inside of itself and that moves focus to the first
+		// item when it loses focus.
 		const picker = store.add(controller.createQuickPick({ useSeparators: true }));
 		const grid = store.add(new IconSelectBox({ icons: [Codicon.add, Codicon.gear, Codicon.edit].map(icon => ThemeIcon.fromId(icon.id)), inputBoxStyles: unthemedInboxStyles }));
 		picker.hideInput = true;
 		picker.widget = grid.domNode;
 		picker.items = [{ type: 'separator' }, { label: 'Reset to default' }];
-		store.add(markAsContextMenuHost(grid.domNode));
+		store.add(dom.addDisposableListener(grid.domNode, dom.EventType.CONTEXT_MENU, e => {
+			const target = e.target;
+			if (e.defaultPrevented || !dom.isHTMLInputElement(target)) {
+				return;
+			}
+			dom.EventHelper.stop(e, true);
+			const anchor = new StandardMouseEvent(mainWindow, e);
+			contextMenuService.showContextMenu({ getAnchor: () => anchor, getActions: () => textInputActions, getActionsContext: () => target, domForShadowRoot: grid.domNode });
+		}));
 		const gridFocus = store.add(dom.trackFocus(grid.domNode));
 		store.add(gridFocus.onDidFocus(() => picker.activeItems = []));
 		store.add(gridFocus.onDidBlur(() => picker.focus(QuickPickFocus.First)));

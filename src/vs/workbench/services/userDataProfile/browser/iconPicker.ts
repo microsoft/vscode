@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { markAsContextMenuHost } from '../../../../base/browser/contextmenu.js';
-import { Dimension, DisposableResizeObserver, getActiveElement, getWindow, trackFocus } from '../../../../base/browser/dom.js';
+import { addDisposableListener, Dimension, DisposableResizeObserver, EventHelper, EventType, getActiveElement, getWindow, isHTMLInputElement, trackFocus } from '../../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
+import { createTextInputActions } from '../../../../platform/clipboard/browser/textInputActions.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IQuickInputService, IQuickPickItem, ItemActivation, QuickPickFocus } from '../../../../platform/quickinput/common/quickInput.js';
 import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
@@ -18,6 +22,9 @@ export class IconPicker extends Disposable {
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 	}
@@ -48,8 +55,21 @@ export class IconPicker extends Disposable {
 			picker.widget = grid.domNode;
 			picker.items = [{ type: 'separator' }, { label: localize('resetIcon', "Reset to default") }];
 			// The grid owns focus within the picker (see the blur handling below), so
-			// context menus opened from it, e.g. on its search box, are rendered in it
-			disposables.add(markAsContextMenuHost(grid.domNode));
+			// the context menu of its search box is rendered in it
+			disposables.add(addDisposableListener(grid.domNode, EventType.CONTEXT_MENU, e => {
+				const target = e.target;
+				if (e.defaultPrevented || !isHTMLInputElement(target)) {
+					return;
+				}
+				EventHelper.stop(e, true);
+				const anchor = new StandardMouseEvent(getWindow(target), e);
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => anchor,
+					getActions: () => createTextInputActions(this.clipboardService, this.logService),
+					getActionsContext: () => target,
+					domForShadowRoot: grid.domNode,
+				});
+			}));
 			const focus = disposables.add(trackFocus(grid.domNode));
 			disposables.add(focus.onDidFocus(() => picker.activeItems = []));
 			disposables.add(focus.onDidBlur(() => picker.focus(QuickPickFocus.First)));
