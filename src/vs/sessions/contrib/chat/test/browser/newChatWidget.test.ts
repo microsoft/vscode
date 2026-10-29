@@ -442,6 +442,7 @@ interface IClearWorkspaceHarness {
 const renderWorkspacePicker = Reflect.get(NewChatWidget.prototype, '_renderWorkspacePicker') as (this: IRenderWorkspacePickerHarness, container: HTMLElement) => IDisposable;
 const noIconOnlyPickers: IRenderWorkspacePickerHarness['_iconOnlyPickers'] = {
 	iconOnlyPickerIds: constObservable(new Set<string>()),
+	showOptionsToggle: constObservable(true),
 	getPickerId: () => undefined,
 	showContextMenu: () => { },
 };
@@ -707,12 +708,24 @@ suite('NewChatWidget', () => {
 				_isPreferredServable: () => false,
 				_onWorkspaceSelected: async () => { calls.push('createDraft'); await onSelect(); },
 				accessibilityService: { status: (message: string) => calls.push(message) },
+				focusWorkspacePicker: () => calls.push('openWorkspacePicker'),
 				logService: { error: () => assert.fail('unexpected connection failure') },
 				notificationService: { error: () => assert.fail('unexpected connection failure notification') },
 			};
 			const select = Reflect.get(NewChatWidget.prototype, '_selectEnvironment') as (this: typeof harness, environment: ISessionCreationEnvironment) => Promise<void>;
 			return { harness, calls, select: (environment: ISessionCreationEnvironment) => select.call(harness, environment) };
 		}
+
+		test('does not open the workspace picker after changing or reselecting an environment', async () => {
+			const { calls, select } = createHarness(true);
+			await select(cloud);
+			const afterChange = [...calls];
+			await select(cloud);
+			assert.deepStrictEqual({ afterChange, afterReselection: calls }, {
+				afterChange: ['saveDraft', 'cancelUpgrade', 'cancelCreation', 'cancelRestore', 'userSelection', 'workspace:cloud:false', 'createDraft', 'Environment: Cloud'],
+				afterReselection: afterChange,
+			});
+		});
 
 		test('saves the draft and cancels pending work before clearing an incompatible workspace', async () => {
 			const { harness, calls, select } = createHarness(false);
@@ -763,7 +776,7 @@ suite('NewChatWidget', () => {
 			}, { restoredLocal: folder, restoredCloud: cloudFolder, updatedLocal: updatedLocalFolder });
 		});
 
-		test('does not announce a superseded destination after late draft creation', async () => {
+		test('does not announce or open the workspace picker for a superseded destination after late draft creation', async () => {
 			const pending = new DeferredPromise<void>();
 			let selections = 0;
 			const { harness, calls, select } = createHarness(true, async () => {
@@ -778,7 +791,8 @@ suite('NewChatWidget', () => {
 			assert.deepStrictEqual({
 				environment: harness._pickedEnvironment.get()?.id,
 				announcements: calls.filter(call => call.startsWith('Environment:')),
-			}, { environment: 'local', announcements: ['Environment: This Computer'] });
+				openedPickers: calls.filter(call => call === 'openWorkspacePicker').length,
+			}, { environment: 'local', announcements: ['Environment: This Computer'], openedPickers: 0 });
 		});
 
 		function createFolderlessHarness(quickChat = true, optOutEnabled = true) {
@@ -911,6 +925,15 @@ suite('NewChatWidget', () => {
 			assert.deepStrictEqual({ afterFailure, providerId: state.session.get()?.providerId, errors: state.errors }, {
 				afterFailure: undefined, providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 				errors: ['tunnel relay connect timed out after 30000ms'],
+			});
+		});
+
+		test('does not open the workspace picker or announce success after an environment connection fails', async () => {
+			const state = createFolderlessHarness();
+			const open = sinon.stub(state.widget, 'focusWorkspacePicker');
+			await state.select(state.tunnel);
+			assert.deepStrictEqual({ opened: open.callCount, announcements: state.announcements, errors: state.errors }, {
+				opened: 0, announcements: [], errors: ['tunnel relay connect timed out after 30000ms'],
 			});
 		});
 
@@ -1552,7 +1575,7 @@ suite('NewChatWidget', () => {
 				{ label: 'WorktreeBranch', className: 'new-chat-repository-controls-host' },
 				{ label: 'Copilot', className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' },
 			],
-			workspaceTriggers: [{ tooltip: 'Choose where the new session runs', icon: isWeb ? 'repo' : 'project', attachesContext: false }],
+			workspaceTriggers: [{ tooltip: 'Project for the agent to work on', icon: isWeb ? 'repo' : 'project', attachesContext: false }],
 			workspaceVisibility: [false, true],
 			collapsed: { hidden: true, inert: true, expanded: 'false', label: 'Show Session Options', chevron: 'right' },
 			expanded: { hidden: false, inert: false, expanded: 'true', label: 'Hide Session Options', chevron: 'left' },
