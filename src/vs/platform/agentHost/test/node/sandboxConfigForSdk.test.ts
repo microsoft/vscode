@@ -8,12 +8,12 @@ import { homedir } from 'os';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { toAgentHostUri } from '../../common/agentHostUri.js';
+import { getAttachedLocalPaths } from '../../common/attachedLocalPaths.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
 import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
 import { AgentSandboxEnabledValue, type IAgentSandboxUserConfiguredPaths } from '../../../sandbox/common/settings.js';
-import { getAttachedLocalPaths } from '../../node/copilot/copilotSessionSandbox.js';
 import { buildSandboxConfigForSdk, resolveAttachedPathGrants, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
 
 suite('VS Code sandbox read roots', () => {

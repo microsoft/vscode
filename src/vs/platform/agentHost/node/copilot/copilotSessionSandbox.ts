@@ -8,7 +8,6 @@ import { Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../base/common/network.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -16,14 +15,13 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService } from '../../../log/common/log.js';
 import { normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
 import type { IAgentPermissionResponseContext } from '../../common/agent.js';
-import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../common/agentHostUri.js';
+import { getAttachedLocalPaths } from '../../common/attachedLocalPaths.js';
 import type { IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
-import { isHostSnapshotAttachment } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
+import type { MessageAttachment } from '../../common/state/protocol/state.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import type { ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -433,31 +431,3 @@ export class CopilotSessionSandbox extends Disposable {
 	}
 }
 
-/**
- * The Agent Host-local paths of the files and folders a user message attaches:
- * the exact file, or the folder itself for a directory. Host-created snapshots
- * (already readable from the session data folder), embedded content, and
- * non-`file` resources are ignored. A client-wrapped `vscode-agent-host` URI is
- * unwrapped to the host URI it stands for.
- */
-export function getAttachedLocalPaths(attachments: readonly MessageAttachment[] | undefined): string[] {
-	const paths: string[] = [];
-	for (const attachment of attachments ?? []) {
-		if (attachment.type !== MessageAttachmentKind.Resource || isHostSnapshotAttachment(attachment)) {
-			continue;
-		}
-		let uri: URI;
-		try {
-			uri = URI.parse(attachment.uri);
-		} catch {
-			continue;
-		}
-		if (uri.scheme === AGENT_HOST_SCHEME) {
-			uri = fromAgentHostUri(uri);
-		}
-		if (uri.scheme === Schemas.file && uri.path.length > 1) {
-			paths.push(uri.fsPath);
-		}
-	}
-	return paths;
-}
