@@ -6,7 +6,7 @@
 import { session } from 'electron';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { COI, FileAccess, Schemas, CacheControlheaders, DocumentPolicyheaders } from '../../../base/common/network.js';
-import { basename, extname, normalize } from '../../../base/common/path.js';
+import { basename, extname, join, normalize } from '../../../base/common/path.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { URI } from '../../../base/common/uri.js';
@@ -126,7 +126,9 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 		// Document-policy header is needed for collecting
 		// JavaScript callstacks via https://www.electronjs.org/docs/latest/api/web-frame-main#framecollectjavascriptcallstack-experimental
 		// until https://github.com/electron/electron/issues/45356 is resolved.
-		if (pathBasename === 'workbench.html' || pathBasename === 'workbench-dev.html') {
+		const isSessionsWorkbench = (pathBasename === 'sessions.html' || pathBasename === 'sessions-dev.html')
+			&& path === normalize(join(this.environmentService.appRoot, 'out/vs/sessions/electron-browser', pathBasename));
+		if (pathBasename === 'workbench.html' || pathBasename === 'workbench-dev.html' || isSessionsWorkbench) {
 			headers = {
 				...headers,
 				...DocumentPolicyheaders

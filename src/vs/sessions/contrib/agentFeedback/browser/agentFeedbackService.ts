@@ -617,10 +617,11 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	/**
 	 * Whether the given file is eligible for agent feedback. The Output view
 	 * renders into a code editor but is not a real file the user can give
-	 * feedback on, so it is the one thing excluded here.
+	 * feedback on, and a terminal shown as an editor has no document at all,
+	 * so neither is in the scope of a session (nor shows its comments).
 	 */
 	private _isFileEligibleForFeedback(resourceUri: URI): boolean {
-		return resourceUri.scheme !== Schemas.outputChannel;
+		return resourceUri.scheme !== Schemas.outputChannel && resourceUri.scheme !== Schemas.vscodeTerminal;
 	}
 
 	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = AgentFeedbackKind.UserReview, state: AgentFeedbackState = AgentFeedbackState.Accepted, sourcePullRequest?: IFeedbackPullRequest): IAgentFeedback {

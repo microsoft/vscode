@@ -1033,6 +1033,7 @@ suite('ChatModelConfigurationStore', () => {
 				_currentChatModesObservable: observableValue('test.modes', modes),
 				_currentSessionModelObservable: observableValue('test.model', undefined),
 				_currentSessionTypeObservable: observableValue<string | undefined>('test.sessionType', undefined),
+				_modelSessionTypeOverride: observableValue('test.modelSessionTypeOverride', undefined),
 				_currentLanguageModel: observableValue('test.selectedModel', selectedModel),
 				chatModeService: { createModes: () => modes },
 				selectedToolsModel: { resetSessionEnablementState() { } },

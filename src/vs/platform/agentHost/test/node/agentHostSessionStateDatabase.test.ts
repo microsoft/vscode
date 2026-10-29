@@ -5,8 +5,6 @@
 
 import assert from 'assert';
 import type { Database } from '@vscode/sqlite3';
-import { mkdtemp, rm } from 'fs/promises';
-import { tmpdir } from 'os';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -14,6 +12,7 @@ import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionSta
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { SESSION_STATE_TABLES, type IAgentHostSessionStateDatabase, type IAgentHostSessionStateImport } from '../../node/agentHostSessionStateDatabase.js';
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
+import { AgentHostDatabaseTestDirectory } from './agentHostDatabaseTestUtils.js';
 import { createLegacySessionFixture, InMemorySessionDataService, readOldBuildView, writeLegacySessionState } from './sessionStateCompatibilityFixtures.js';
 
 /** Tables older builds read; Block 3a never alters them. */
@@ -105,21 +104,21 @@ async function importFullState(database: IAgentHostSessionStateDatabase, session
 
 suite('AgentHostDatabase session state', () => {
 	const store = new DisposableStore();
-	let directory: string;
+	let directory: AgentHostDatabaseTestDirectory;
 	let path: string;
 
 	setup(async () => {
-		directory = await mkdtemp(join(tmpdir(), 'ah-session-state-'));
-		path = join(directory, 'agent-host.db');
+		directory = await AgentHostDatabaseTestDirectory.create('ah-session-state-');
+		path = join(directory.path, 'agent-host.db');
 	});
 	teardown(async () => {
 		store.clear();
-		await rm(directory, { recursive: true, force: true });
+		await directory.remove();
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function open(): Promise<AgentHostDatabase> {
-		return store.add(new AgentHostDatabase(path));
+		return store.add(directory.track(new AgentHostDatabase(path)));
 	}
 
 	test('migrates a Block 2b database without changing the tables older builds read, other than adding chat origins', async () => {
@@ -357,7 +356,7 @@ suite('AgentHostDatabase session state', () => {
 	});
 
 	test('the compatibility database stores session state in storage spelling and reads it in runtime spelling', async () => {
-		const compatible = store.add(new CompatibleAgentHostDatabase(path));
+		const compatible = store.add(directory.track(new CompatibleAgentHostDatabase(path)));
 		await compatible.initialize();
 		const session = 'ahp-session:/compat';
 		await compatible.prepareSessionStorage(session, 'copilotcli');

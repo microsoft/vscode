@@ -1078,12 +1078,12 @@ suite('VoiceClientService', () => {
 		}, { background: undefined, active: 'active', spoken: ['Approve A?'] });
 	});
 
-	for (const { language, displayLanguage, needsGuidance } of [
-		{ language: 'de-DE', displayLanguage: 'en', needsGuidance: true },
-		{ language: 'auto', displayLanguage: 'de', needsGuidance: true },
-		{ language: 'auto', displayLanguage: 'ru', needsGuidance: true },
-		{ language: 'en-US', displayLanguage: 'de', needsGuidance: false },
-		{ language: 'auto', displayLanguage: 'en', needsGuidance: false },
+	for (const { language, displayLanguage, approvalGuidance } of [
+		{ language: 'de-DE', displayLanguage: 'en', approvalGuidance: 'Please say "ja" to approve or "nein" to reject, or use the controls in chat.' },
+		{ language: 'auto', displayLanguage: 'de', approvalGuidance: 'Please say "ja" to approve or "nein" to reject, or use the controls in chat.' },
+		{ language: 'auto', displayLanguage: 'ru', approvalGuidance: 'Please say "да" to approve or "нет" to reject, or use the controls in chat.' },
+		{ language: 'en-US', displayLanguage: 'de', approvalGuidance: '' },
+		{ language: 'auto', displayLanguage: 'en', approvalGuidance: '' },
 	]) {
 		test(`narrates GPT-Live prompts with the appropriate reply guidance for ${language} voice and ${displayLanguage} display language`, async () => {
 			sinon.stub(Language, 'value').returns(displayLanguage);
@@ -1118,13 +1118,39 @@ suite('VoiceClientService', () => {
 			service.requestNarration('chat-session:/a', 'question', 'Summary of the form', 'question', undefined, undefined, { pendingId: 'questions' });
 			service.requestNarration('chat-session:/a', 'question', 'Another question?', 'fallback-question');
 			service.requestNarration('chat-session:/a', 'response', 'The tests passed.', 'response');
-			const suffix = needsGuidance ? ' Please answer by voice, or use the controls in chat.' : '';
-			const approvalSuffix = needsGuidance ? ' Please approve or reject by voice, or use the controls in chat.' : '';
+			const suffix = approvalGuidance ? ' Please answer by voice, or use the controls in chat.' : '';
+			const approvalSuffix = approvalGuidance ? ` ${approvalGuidance}` : '';
 			assert.deepStrictEqual(peer.channel.sent.filter(event => event.type === 'session.commentary.append').map(event => event.content), [
 				`Run the command?${approvalSuffix}`, `Which region? 1. West 2. East${suffix}`, `Another question?${suffix}`, 'The tests passed.',
 			]);
 		});
 	}
+
+	test('updates approval phrases when the voice language changes after connecting in English', async () => {
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(
+			peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService,
+			{ 'agents.voice.language': 'en-US' },
+		));
+		await service.connect(createTestWindow());
+		peer.channel.fireMessage({ type: 'session.started' });
+		service.sendStartSession({
+			display_locale: 'en-US',
+			sessions: [{
+				id: 'chat-session:/a', is_active: true, agent_state: 'waiting_for_confirmation',
+				pending: { type: 'approval', request_id: 'request', pending_id: 'approval' },
+			}],
+		}, 'machine');
+		for (const language of ['es', 'en-US']) {
+			await service.configurationService.setUserConfiguration('agents.voice.language', language);
+			fireConfigurationChange(service.configurationService, 'agents.voice.language');
+			service.requestNarration('chat-session:/a', 'confirmation', 'Run the command?', undefined, undefined, 'tool', { pendingId: 'approval' });
+		}
+		assert.deepStrictEqual(peer.channel.sent.filter(event => event.type === 'session.commentary.append').map(event => event.content), [
+			'Run the command? Please say "sí" to approve or "no" to reject, or use the controls in chat.',
+			'Run the command?',
+		]);
+	});
 
 	test('updates GPT-Live question guidance immediately when the voice language changes', async () => {
 		const peer = new TestRtcPeerConnection();

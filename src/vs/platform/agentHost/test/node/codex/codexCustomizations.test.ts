@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { sep } from '../../../../../base/common/path.js';
 import { isLinux } from '../../../../../base/common/platform.js';
@@ -24,10 +23,7 @@ import type { SkillsListResponse } from '../../../node/codex/protocol/generated/
 
 suite('codexCustomizations', () => {
 
-	const disposables = new DisposableStore();
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const skill = (name: string, scope: SkillScope, path: string, enabled = true): SkillMetadata =>
 		({ name, description: `${name} desc`, path, scope, enabled, pluginId: null });

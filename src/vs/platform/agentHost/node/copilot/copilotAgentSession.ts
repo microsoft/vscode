@@ -67,7 +67,7 @@ import { getToolCallDurationMs, toToolCallMeta, type IToolCallMeta, type IToolCa
 import { readAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { CopilotSessionApprovalPolicy, fromCopilotPermissionMode } from './copilotApprovalPolicy.js';
+import { CopilotSessionApprovalPolicy, fromCopilotPermissionMode, isWithheldClientTool } from './copilotApprovalPolicy.js';
 import { isShellInitScriptList, type IShellInitScript } from '../../common/shellInitScript.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
@@ -113,9 +113,10 @@ import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestrictedTelemetry.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
-import { buildMcpChannel, buildMcpTopLevelCustomizationId, getMcpServerCustomizations, McpCustomizationController, type IMcpServerProvenance, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
+import { applyMcpServerRuntimeStates, buildMcpChannel, buildMcpTopLevelCustomizationId, getMcpServerCustomizations, McpCustomizationController, type IMcpServerProvenance, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
-import { appendSdkToolResultContent, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents, persistSdkToolResultResources } from './mapSessionEvents.js';
+import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
+import { appendSdkToolResultContent, getSdkMcpResultMeta, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents, persistSdkToolResultResources } from './mapSessionEvents.js';
 import { withPermissionDiff } from '../../common/meta/agentPermissionRequestMeta.js';
 import { COPILOT_FUSION_PHASE_AGENT_NAME, CopilotFusionProgress, formatFusionReviewContent, getFusionPhaseToolCallId, isProvisionalFusionConversationEvent, type CopilotFusionEvent, type FusionPhasePresentation, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
 import { CopilotFusionRequestCorrelation, getFusionEventKey, getFusionEventSdkTurnId, isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
@@ -1876,8 +1877,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _appliedPluginDirectories: readonly URI[];
 	private readonly _projectedMcpServerLaunchEnablement: ReadonlyMap<string, boolean>;
 	private readonly _declaredMcpServerNames: ReadonlySet<string>;
-	/** Servers this host disabled at runtime, as opposed to servers the SDK configuration disables. */
-	private readonly _hostDisabledMcpServerNames = new Set<string>();
+	/** Last host-applied values, retained until SDK-native servers return to their inherited defaults. */
+	private readonly _hostMcpServerEnablement = new Map<string, boolean>();
 	private _mcpLaunchConfigurationDirty = false;
 	private readonly _observedMcpEnablementOverrides = new Map<string, boolean>();
 	private readonly _mcpConfiguredEnablement = new Map<string, boolean>();
@@ -2173,7 +2174,9 @@ export class CopilotAgentSession extends Disposable {
 			storage: this._storageUri,
 			getConfigWriteTarget: () => this._configWriteTarget(),
 			platform: options.platform ?? process.platform,
-			getSession: () => this._wrapper?.session,
+			getSession: () => !this._store.isDisposed && this._wrapper?.lifecycleState === 'active' ? this._wrapper.session : undefined,
+			// Only the session of a closing wrapper counts as closed, so a replacement SDK session from a relaunch is still configured.
+			isSessionClosed: session => this._store.isDisposed || (session !== undefined && this._wrapper?.session === session && this._wrapper.lifecycleState !== 'active'),
 			getHostSupport: () => this._launchPlan.client.rpc.sandbox.getHostSupport(),
 			getCertificateStatus: config => options.sandboxCertificate.getStatus(this._launchPlan.client.rpc.sandbox.proxyCa, config),
 			installCertificate: (getConfig, scopeId) => options.sandboxCertificate.install(this._launchPlan.client.rpc.sandbox.proxyCa, getConfig, scopeId),
@@ -2231,6 +2234,9 @@ export class CopilotAgentSession extends Disposable {
 			...this._appliedSnapshot.plugins.flatMap(plugin => plugin.disabledMcpServers ?? []),
 			...(this._launchPlan.disabledRootMcpServers ?? []),
 		]);
+		for (const name of disabledMcpServers) {
+			this._hostMcpServerEnablement.set(name, false);
+		}
 		this._projectedMcpServerLaunchEnablement = new Map(this._appliedSnapshot.plugins.flatMap(plugin =>
 			plugin.mcpServers
 				.filter(isMcpServerExplicitlyProjected)
@@ -3874,7 +3880,7 @@ export class CopilotAgentSession extends Disposable {
 			throw new Error('Client tool configuration is unavailable');
 		}
 		const pending: ICopilotClientToolReplacement = { toolNames: new Set(), calls: new Map() };
-		const replacement = this._buildClientSdkTools(tools, configuration.toolSearchActive, configuration.hostToolNames, pending);
+		const replacement = this._buildClientSdkTools(tools, configuration.toolSearchActive, configuration.hostToolNames, configuration.withheldToolNames, pending);
 		if (onlyIfRoutingChanged && equals([...replacement.mcpRoutingProxies], [...this._mcpRoutingProxies])) {
 			return;
 		}
@@ -4056,19 +4062,19 @@ export class CopilotAgentSession extends Disposable {
 	 * `session/toolCallComplete`.
 	 */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	private _createClientSdkTools(toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>): Tool<any>[] {
-		const result = this._buildClientSdkTools(this._appliedSnapshot.tools, toolSearchActive, hostToolNames);
+	private _createClientSdkTools(toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>, withheldToolNames?: ReadonlySet<string>): Tool<any>[] {
+		const result = this._buildClientSdkTools(this._appliedSnapshot.tools, toolSearchActive, hostToolNames, withheldToolNames);
 		this._toolSearchActive = toolSearchActive;
 		this._applyClientSdkTools(result);
 		return result.tools;
 	}
 
-	private _buildClientSdkTools(definitions: readonly ToolDefinition[], toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>, replacement?: ICopilotClientToolReplacement) {
+	private _buildClientSdkTools(definitions: readonly ToolDefinition[], toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>, withheldToolNames?: ReadonlySet<string>, replacement?: ICopilotClientToolReplacement) {
 		const reservedHostToolNames = hostToolNames ?? new Set(this._getServerToolDefinitions().map(tool => tool.name));
 		const mcpRoutingProxies = new Map<string, IMcpRoutingProxy>();
 		const proxyTools = toolSearchActive ? this._createMcpRoutingProxyTools(mcpRoutingProxies) : [];
 		const tools = definitions.filter(tool =>
-			!reservedHostToolNames.has(tool.name) && !mcpRoutingProxies.has(tool.name) && !(toolSearchActive && tool.name === RUNTIME_TOOL_SEARCH_TOOL_NAME));
+			!reservedHostToolNames.has(tool.name) && !isWithheldClientTool(tool, withheldToolNames) && !mcpRoutingProxies.has(tool.name) && !(toolSearchActive && tool.name === RUNTIME_TOOL_SEARCH_TOOL_NAME));
 		const sessionTools = toolSearchActive
 			? tools
 			: tools.filter(def => def.name !== CLIENT_TOOL_SEARCH_REFERENCE_NAME || readAgentToolOrigin(def) === 'mcpApp');
@@ -5251,8 +5257,8 @@ export class CopilotAgentSession extends Disposable {
 			chatUri: this._chatChannelUri,
 			launchOwner: this.launchOwner,
 			reportManagedSettingsActivity: activity => this._setManagedSettingsActivity(activity),
-			getLaunchSandboxConfig: () => this._sandbox.getLaunchConfig(),
-			applyLaunchSandbox: session => this._sandbox.applyLaunchConfig(session),
+			getLaunchSandboxConfig: isResume => this._sandbox.getLaunchConfig(isResume),
+			applyLaunchSandbox: (session, isResume) => this._sandbox.applyLaunchConfig(session, isResume),
 			handlePermissionRequest: this._guarded((request, invocation) => {
 				const recorder = this._currentTurn.value?.timingRecorder;
 				recorder?.markMilestone?.('permissionRequest');
@@ -5284,7 +5290,7 @@ export class CopilotAgentSession extends Disposable {
 				recorder?.markMilestone?.('unsandboxedConfirmation');
 				return measureAgentProviderOperation(recorder, 'unsandboxedConfirmation', () => this._requestUnsandboxedCommandConfirmation(request));
 			}, false, 'unsandboxed-command-confirmation'),
-			createClientSdkTools: (toolSearchActive, hostToolNames) => this._createClientSdkTools(toolSearchActive, hostToolNames),
+			createClientSdkTools: (toolSearchActive, hostToolNames, withheldToolNames) => this._createClientSdkTools(toolSearchActive, hostToolNames, withheldToolNames),
 			configureClientTools: configuration => { this._clientToolConfiguration = configuration; },
 			createServerSdkTools: toolSearchActive => this._createServerSdkTools(toolSearchActive),
 			createComputerUseActivationTools: () => this._computerUseActivation.createTools(),
@@ -6241,13 +6247,19 @@ export class CopilotAgentSession extends Disposable {
 		if (previousEnabled === undefined || previousEnabled === enabled) {
 			return;
 		}
-		const desired = this._getDesiredMcpServerEnablementByName().get(serverName);
-		if (desired === undefined || desired === enabled) {
-			return;
-		}
 		const server = this._mcpCustomizations.customizationForServer(serverName);
 		if (!server) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Cannot record observed enablement for unknown MCP server ${serverName}`);
+			return;
+		}
+		if (readCustomizationDiscoveryMeta(server)?.defaultEnabled !== undefined) {
+			// A confirmed SDK configuration change updates inheritance, not host-owned intent.
+			this._hostMcpServerEnablement.delete(serverName);
+			this._mcpCustomizations.applyOne({ name: serverName, state: this._mcpCustomizations.stateForServer(serverName) ?? server.state, enabled, defaultEnabled: enabled });
+			return;
+		}
+		const desired = this._getDesiredMcpServerEnablementByName().get(serverName);
+		if (desired === undefined || desired === enabled) {
 			return;
 		}
 		this._observedMcpEnablementOverrides.set(serverName, enabled);
@@ -7240,7 +7252,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _getDesiredMcpServerEnablementByName(configuredServerNames: readonly string[] = [], includeInheritedEnablement = true): ReadonlyMap<string, boolean> {
-		const customizations = [...this._hostCustomizations()];
+		const customizations = this._hostCustomizations().map(customization => applyMcpServerRuntimeStates(customization, this._mcpCustomizations.runtimeStates.get()));
 		const retainedNames = new Set(getMcpServerCustomizations(customizations).map(server => server.name));
 		for (const server of this._mcpCustomizations.topLevelCustomizations()) {
 			if (!retainedNames.has(server.name)) {
@@ -7274,16 +7286,27 @@ export class CopilotAgentSession extends Disposable {
 				const owningPluginSource = this._mcpCustomizations.pluginMcpServerSources?.get(server.name);
 				const source = customization.type === CustomizationType.Plugin ? customization.uri : owningPluginSource;
 				const applied = source === undefined || this._appliedPluginSources.has(URI.parse(source).toString());
+				const defaultEnabled = readCustomizationDiscoveryMeta(server)?.defaultEnabled;
+				const sdkDiscovered = defaultEnabled !== undefined;
+				// Observing SDK enablement is not a host request to change the runtime.
+				const hostDecision = sdkDiscovered ? this._customizationEnablementService.resolve(this.launchOwner.toString(), {
+					...targetForMcpServer(server, source, false), defaultEnabled: undefined,
+				}) : undefined;
+				const hasDecision = hostDecision?.kind === 'resolved' ? hostDecision.enablement.length > 0 : (server.enablement?.length ?? 0) > 0;
+				const hostApplied = this._hostMcpServerEnablement.get(server.name);
+				const needsRestore = sdkDiscovered ? hostApplied !== undefined && hostApplied !== defaultEnabled : hostApplied === false;
+				const explicit = this._declaredMcpServerNames.has(server.name) || this._projectedMcpServerLaunchEnablement.has(server.name)
+					|| needsRestore || hasDecision
+					|| (customization.type === CustomizationType.Plugin && (customization.enablement?.length ?? 0) > 0);
+				if (sdkDiscovered && !explicit && hostDecision?.kind === 'resolved') {
+					continue;
+				}
 				let namedCandidates = candidates.get(server.name);
 				if (!namedCandidates) {
 					namedCandidates = [];
 					candidates.set(server.name, namedCandidates);
 				}
-				// A server this host disabled is restored when its decision returns to the inherited default.
-				const explicit = this._declaredMcpServerNames.has(server.name) || this._projectedMcpServerLaunchEnablement.has(server.name)
-					|| this._hostDisabledMcpServerNames.has(server.name)
-					|| (server.enablement?.length ?? 0) > 0
-					|| (customization.type === CustomizationType.Plugin && (customization.enablement?.length ?? 0) > 0);
+				// Restore both host-enabled and host-disabled servers before relinquishing control.
 				namedCandidates.push({ server, applied, explicit });
 			}
 		}
@@ -7300,7 +7323,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}
 		for (const name of this._launchPlan.disabledRootMcpServers ?? []) {
-			if (!result.has(name)) {
+			if (!result.has(name) && !retainedNames.has(name)) {
 				result.set(name, false);
 			}
 		}
@@ -7367,7 +7390,7 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			this._recordRuntimeMutation('mcpEnable');
 			await this._wrapper.session.rpc.mcp.enable({ serverName });
-			this._hostDisabledMcpServerNames.delete(serverName);
+			this._hostMcpServerEnablement.set(serverName, true);
 		} catch (error) {
 			if (this._expectedMcpEnablementChanges.get(serverName) === true) {
 				this._expectedMcpEnablementChanges.delete(serverName);
@@ -7384,7 +7407,7 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			this._recordRuntimeMutation('mcpDisable');
 			await this._wrapper.session.rpc.mcp.disable({ serverName });
-			this._hostDisabledMcpServerNames.add(serverName);
+			this._hostMcpServerEnablement.set(serverName, false);
 		} catch (error) {
 			if (this._expectedMcpEnablementChanges.get(serverName) === false) {
 				this._expectedMcpEnablementChanges.delete(serverName);
@@ -8093,14 +8116,21 @@ export class CopilotAgentSession extends Disposable {
 		}));
 	}
 
+	private _isInactiveForBackgroundConfigSync(): boolean {
+		return this._store.isDisposed || (this._wrapper !== undefined && this._wrapper.lifecycleState !== 'active');
+	}
+
 	private async _syncImageGenerationAfterConfigChange(): Promise<void> {
-		if (!this._wrapper) {
+		if (!this._wrapper || this._isInactiveForBackgroundConfigSync()) {
 			// Wrapper initialization applies the latest preference before the session becomes usable.
 			return;
 		}
 		try {
 			await this._syncImageGeneration();
 		} catch (error) {
+			if (this._isInactiveForBackgroundConfigSync()) {
+				return;
+			}
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to apply image generation setting`);
 			const turn = this._currentTurn.value ?? this._resumingTurnAwaitingProviderStart;
 			if (turn) {
@@ -8128,6 +8158,9 @@ export class CopilotAgentSession extends Disposable {
 
 	private _syncImageGeneration(): Promise<void> {
 		return this._imageGenerationSequencer.queue(async () => {
+			if (this._isInactiveForBackgroundConfigSync()) {
+				return;
+			}
 			const enabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGeneration) === true;
 			const watermark = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGenerationWatermark) === true;
 			if (enabled === this._appliedImageGenerationEnabled && watermark === this._appliedImageGenerationWatermark) {
@@ -8144,7 +8177,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _syncShellInitScript(recorder?: IAgentProviderSendStageRecorder): Promise<void> {
-		if (this._shellInitScriptDisposing) {
+		if (this._shellInitScriptDisposing || this._isInactiveForBackgroundConfigSync()) {
 			return Promise.resolve();
 		}
 		return measureAgentProviderOperation(recorder, 'shell', () => this._applyEffectiveShellInitScripts(recorder), this._shellInitScriptSequencer);
@@ -8156,6 +8189,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _syncPermissionModeAfterConfigChange(event?: IAgentChatConfigurationChangeEvent): Promise<void> {
+		if (this._isInactiveForBackgroundConfigSync()) {
+			return;
+		}
 		const sandboxChange = this._sandbox.prepareConfigChange(event);
 		try {
 			if (this.hasActiveTurn && (!sandboxChange.sessionCommand || (event && Object.hasOwn(event.config, SessionConfigKey.AutoApprove)))) {
@@ -8163,6 +8199,9 @@ export class CopilotAgentSession extends Disposable {
 			}
 			await sandboxChange.apply();
 		} catch (error) {
+			if (this._isInactiveForBackgroundConfigSync()) {
+				return;
+			}
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to apply permission config change${this.hasActiveTurn ? '; aborting active turn' : ''}`);
 			sandboxChange.reject(error);
 			if (!this.hasActiveTurn) {
@@ -8178,6 +8217,9 @@ export class CopilotAgentSession extends Disposable {
 
 	syncPermissionMode(source: 'config-change' | 'turn-start', recorder?: IAgentProviderSendStageRecorder): Promise<void> {
 		return measureAgentProviderOperation(recorder, 'permission', async () => {
+			if (source === 'config-change' && this._isInactiveForBackgroundConfigSync()) {
+				return;
+			}
 			const { mode, configuredLevel } = this._approvalPolicy.resolveSelection(this._getApprovalInputs());
 			this._logService.info(`[Copilot:${this.sessionId}] Syncing permission mode: source=${source}, agentMode=${this._getConfiguredAgentMode()}, configuredLevel=${configuredLevel}, sdkMode=${mode}, previousSdkMode=${this._lastAppliedPermissionMode ?? 'unknown'}, globalAutoApprove=${this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true}`);
 			const experimentalModeEnabled = mode === 'assisted' || this._isHydraFusionEnabled();
@@ -8273,7 +8315,7 @@ export class CopilotAgentSession extends Disposable {
 	 * Best-effort: failures are logged and retried on the next turn.
 	 */
 	private async _applyEffectiveShellInitScripts(recorder?: IAgentProviderSendStageRecorder): Promise<void> {
-		if (this._shellInitScriptDisposing) {
+		if (this._shellInitScriptDisposing || this._isInactiveForBackgroundConfigSync()) {
 			return;
 		}
 		try {
@@ -8299,6 +8341,9 @@ export class CopilotAgentSession extends Disposable {
 				// The file and its sandbox grant stay until dispose, so a command
 				// that already captured the path can still source it.
 				if (this._registeredShellInitScriptPath) {
+					if (this._shellInitScriptDisposing || this._isInactiveForBackgroundConfigSync()) {
+						return;
+					}
 					const result = await measureAgentProviderOperation(recorder, 'shellRpc', () => this._wrapper.session.rpc.options.update({ shell: { initScripts: [] } }));
 					if (!result.success) {
 						throw new Error('Copilot SDK rejected shell init script update');
@@ -8311,7 +8356,7 @@ export class CopilotAgentSession extends Disposable {
 
 			this._shellInitScriptMaterialized = true;
 			const ref = await measureAgentProviderOperation(recorder, 'shellFile', () => this._materializeShellInitScript(scripts[0]));
-			if (!ref) {
+			if (!ref || this._shellInitScriptDisposing || this._isInactiveForBackgroundConfigSync()) {
 				// Leave the cache unchanged so the next turn retries.
 				return;
 			}
@@ -8320,6 +8365,9 @@ export class CopilotAgentSession extends Disposable {
 			if (ref.path !== this._registeredShellInitScriptPath) {
 				// The SDK requires init scripts to be readable when registered.
 				await this._sandbox.applyConfig(true, undefined, recorder);
+				if (this._shellInitScriptDisposing || this._isInactiveForBackgroundConfigSync()) {
+					return;
+				}
 				const result = await measureAgentProviderOperation(recorder, 'shellRpc', () => this._wrapper.session.rpc.options.update({ shell: { initScripts: [ref] } }));
 				if (!result.success) {
 					throw new Error('Copilot SDK rejected shell init script update');
@@ -8329,6 +8377,9 @@ export class CopilotAgentSession extends Disposable {
 			this._lastAppliedShellInitScripts = serialized;
 			this._logService.trace(`[Copilot:${this.sessionId}] Applied shell init script`);
 		} catch (err) {
+			if (this._shellInitScriptDisposing || this._isInactiveForBackgroundConfigSync()) {
+				return;
+			}
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to update shell init scripts`, err);
 		}
 	}
@@ -8888,7 +8939,7 @@ export class CopilotAgentSession extends Disposable {
 			if (isEditTool(input.toolName, getToolCommand(input))) {
 				const filePaths = this._getEditFilePaths(input.toolArgs);
 				const mode = this._getConfiguredAgentMode();
-				await Promise.all(filePaths.map(p => this._editTracker.trackEditStart(p, mode)));
+				await Promise.all(filePaths.map(p => this._editTracker.trackEditStart(p, mode, input.toolArgs)));
 			}
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed in onPreToolUse: tool=${input.toolName}`);
@@ -8900,7 +8951,7 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			if (isEditTool(input.toolName, getToolCommand(input))) {
 				const filePaths = this._getEditFilePaths(input.toolArgs);
-				await Promise.all(filePaths.map(p => this._editTracker.completeEdit(p)));
+				await Promise.all(filePaths.map(p => this._editTracker.completeEdit(p, input.toolArgs)));
 			}
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed in onPostToolUse: tool=${input.toolName}`);
@@ -9784,6 +9835,7 @@ export class CopilotAgentSession extends Disposable {
 						pastTenseMessage: getPastTenseMessage(tracked.toolName, displayName, tracked.parameters, e.data.success, e.data.success ? toolOutput : undefined, path => this._resolveEditFilePath(path), this._resolveAgentName, tracked.meta?.[imageGenerationToolMetaKey]),
 						content: content.length > 0 ? content : undefined,
 						structuredContent: e.data.result?.structuredContent as Record<string, unknown> | undefined,
+						resultMetadata: getSdkMcpResultMeta(e.data.result),
 						error: e.data.error,
 					},
 					_meta: tracked.meta ? toToolCallMeta(tracked.meta) : undefined,

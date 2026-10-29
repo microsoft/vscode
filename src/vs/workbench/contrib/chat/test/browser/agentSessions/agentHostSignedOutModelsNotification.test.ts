@@ -7,10 +7,8 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { RootState } from '../../../../../../platform/agentHost/common/state/protocol/channels-root/state.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -146,8 +144,6 @@ suite('AgentHostSignedOutModelsNotification', () => {
 		const languageModelsConfiguration = new TestLanguageModelsConfigurationService(options.configuredVendors ?? []);
 		const account = new TestDefaultAccountService();
 		const chatEntitlement = new TestChatEntitlementService(options.entitlement ?? ChatEntitlement.Unknown);
-		const configuration = new TestConfigurationService();
-		configuration.setUserConfiguration(AgentHostAllowSignedOutWhenUsableSettingId, true);
 
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IChatInputNotificationService, notifications);
@@ -158,7 +154,6 @@ suite('AgentHostSignedOutModelsNotification', () => {
 			onAgentHostStart: Event.None,
 			rootState: new TestRootStateSubscription({ agents: [{ provider: 'copilotcli' }] } as RootState),
 		});
-		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IChatEntitlementService, chatEntitlement);
 		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
 		instantiationService.stub(IExtensionService, { whenInstalledExtensionsRegistered: () => Promise.resolve(true) });

@@ -201,6 +201,30 @@ suite('AgentCustomizationContentExpander', () => {
 	// -----------------------------------------------------------------------
 
 	suite('expandPluginContents – agents', () => {
+		test('expands source namespaces only for synced bundles and retains legacy flat agents', async () => {
+			const pluginRoot = URI.file('/plugins/bundle');
+			await mockFiles(fileService, [
+				{ path: '/plugins/bundle/agents/first/reviewer.agent.md', contents: ['---', 'name: Reviewer', '---'] },
+				{ path: '/plugins/bundle/agents/second/reviewer.agent.md', contents: ['---', 'name: Reviewer', '---'] },
+				{ path: '/plugins/bundle/agents/.hidden/reviewer.agent.md', contents: ['---', 'name: Hidden', '---'] },
+				{ path: '/plugins/bundle/agents/legacy.agent.md', contents: ['---', 'name: Legacy', '---'] },
+			]);
+			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
+			const bundled = await expand(expander, pluginRoot, REMOTE_CLIENT_GROUP, true, AICustomizationSources.plugin, CancellationToken.None);
+			const regular = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
+			assert.deepStrictEqual({
+				bundled: bundled.map(item => [item.name, item.uri.path]).sort(),
+				regular: regular.map(item => item.name),
+			}, {
+				bundled: [
+					['Legacy', '/plugins/bundle/agents/legacy.agent.md'],
+					['Reviewer', '/plugins/bundle/agents/first/reviewer.agent.md'],
+					['Reviewer', '/plugins/bundle/agents/second/reviewer.agent.md'],
+				],
+				regular: ['Legacy'],
+			});
+		});
+
 		test('emits one item per .md file with name/description/userInvocable from frontmatter', async () => {
 			const pluginRoot = URI.file('/plugins/agents-plugin');
 			await mockFiles(fileService, [

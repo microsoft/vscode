@@ -204,6 +204,8 @@ export interface IAgentSessionChatMetadata {
 	readonly kind: 'default' | 'peer';
 	readonly origin?: ChatOrigin;
 	readonly interactivity?: ChatInteractivity;
+	/** The chat's own agent when it differs from its session's; absence means the session's agent. */
+	readonly provider?: string;
 	readonly archived?: boolean;
 	/** Exact chat read state when known; absence means the provider did not supply it. */
 	readonly isRead?: boolean;
@@ -1014,6 +1016,13 @@ export interface IAgentCreateChatRequestOptions extends IAgentCreateChatOptions 
 	 */
 	readonly sideChat?: IAgentCreateChatSideChatSource;
 	/**
+	 * The agent requested for the new chat (`CreateChatParams.provider`). The
+	 * host resolves and validates it and creates the chat in that agent;
+	 * absent means the source chat's agent for a fork or side chat, else the
+	 * session's. Never passed to providers.
+	 */
+	readonly provider?: AgentProvider;
+	/**
 	 * Host-owned workspace requested for a new peer chat. The host prepares it
 	 * (adding the folder to the session, creating a worktree or a scratch
 	 * folder) and resolves it into {@link workingDirectories}; providers never
@@ -1585,6 +1594,14 @@ export namespace AgentSession {
 	export function provider(session: URI | string): AgentProvider | undefined {
 		const parsed = typeof session === 'string' ? URI.parse(session) : session;
 		return parsed.scheme === 'ahp-session' ? undefined : parsed.scheme || undefined;
+	}
+
+	/**
+	 * Whether a session URI has the shape {@link uri} mints: no authority, query or fragment.
+	 * Session storage is keyed by {@link id} alone, so any other shape must not be resolved to it.
+	 */
+	export function isCanonical(session: URI): boolean {
+		return !session.authority && !session.query && !session.fragment;
 	}
 }
 

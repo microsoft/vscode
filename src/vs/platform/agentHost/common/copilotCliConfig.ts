@@ -96,6 +96,8 @@ export const enum CopilotCliConfigKey {
 	LocalModelLlamaServerPath = 'localModelLlamaServerPath',
 	/** Account-dependent part of the on-device gate, computed by the workbench: preview features allowed, signed in, AI features enabled. */
 	LocalModelAccountGate = 'localModelAccountGate',
+	/** Whether Copilot adds its `Co-authored-by` trailer to the commits it creates. On by default. */
+	IncludeCoAuthoredBy = 'includeCoAuthoredBy',
 }
 
 export const CopilotCliVSCodeAssignmentContextKey = 'copilotCliVSCodeAssignmentContext';
@@ -158,6 +160,8 @@ export const CopilotSkillCharBudgetSettingId = 'chat.copilot.skillCharBudget';
 export const CopilotAutoModeTierOverrideSettingId = 'github.copilot.chat.autoModeTierOverride';
 
 export const AgentHostCopilotModelCapabilityOverridesSettingId = 'chat.agentHost.copilot.modelCapabilityOverrides';
+
+export const AgentHostCopilotIncludeCoAuthoredBySettingId = 'chat.agentHost.copilot.includeCoAuthoredBy';
 
 export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
 export type CopilotSdkLogLevelSetting = typeof copilotSdkLogLevelSettingValues[number];
@@ -474,6 +478,12 @@ export const copilotCliConfigSchema = createSchema({
 		title: localize('agentHost.config.localModelAccountGate.title', "On-Device Models Allowed for Account"),
 		description: localize('agentHost.config.localModelAccountGate.description', "Whether the signed-in account allows on-device models. Set by the client."),
 		default: false,
+	}),
+	[CopilotCliConfigKey.IncludeCoAuthoredBy]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.includeCoAuthoredBy.title', "Include Co-authored-by Trailer"),
+		description: localize('agentHost.config.includeCoAuthoredBy.description', "When enabled, Copilot SDK sessions add a `Co-authored-by` trailer to the commits they create. Applied when a session starts or resumes."),
+		default: true,
 	}),
 });
 

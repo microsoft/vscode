@@ -73,6 +73,18 @@ function close(database: Database): Promise<void> {
 	return new Promise((resolve, reject) => database.close(error => error ? reject(error) : resolve()));
 }
 
+/** Counts the commits in a SQLite write-ahead log: the last frame of a commit records the database size, other frames 0. */
+function countWriteAheadLogCommits(log: Buffer): number {
+	const frameSize = 24 + log.readUInt32BE(8);
+	let commits = 0;
+	for (let offset = 32; offset + frameSize <= log.length; offset += frameSize) {
+		if (log.readUInt32BE(offset + 4) !== 0) {
+			commits++;
+		}
+	}
+	return commits;
+}
+
 function createPayload(session: string, sourceRevision: number, isChatBacking = false): string {
 	return stableStringify({
 		payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
@@ -429,11 +441,13 @@ suite('AgentHostDatabase sessions_v2', () => {
 		const path = join(temporaryDirectory!, 'agent-host.db');
 		database = new AgentHostDatabase(path);
 		await database.isSessionRegistryEmpty();
+		// Read the write-ahead log before closing the database checkpoints it into the database file.
+		const commits = countWriteAheadLogCommits(await fs.readFile(`${path}-wal`));
 		await database.close();
 		database = undefined;
 
-		// SQLite's file change counter (header offset 24) counts committed write transactions, each of which flushes the disk.
-		assert.strictEqual((await fs.readFile(path)).readUInt32BE(24), 1);
+		// SQLite's file format version (header offset 18) is 2 for a database in write-ahead log mode.
+		assert.deepStrictEqual({ commits, fileFormat: (await fs.readFile(path)).readUInt8(18) }, { commits: 1, fileFormat: 2 });
 	});
 
 	test('stores revisioned authoritative peer-chat membership', async () => {

@@ -589,16 +589,36 @@ export class GitHubCloudAutomationStore extends Disposable {
 			snapshot.set(key, [...snapshot.get(key) ?? [], entry]);
 		}
 		const eligible: RepositoryRef[] = [];
+		const missing: RepositoryRef[] = [];
 		for (const [key, repository] of repositories) {
+			let configuration: AutomationRepositoryConfiguration;
 			try {
-				const configuration = await client.automations.getConfiguration(repository, signal, options);
+				configuration = await client.automations.getConfiguration(repository, signal, options);
 				signal.throwIfAborted();
-				this.setRepositoryConfiguration(key, configuration);
-				if (!configuration.can_manage_automations) {
+			} catch (error) {
+				signal.throwIfAborted();
+				if (isCancellationError(error)) {
+					throw error;
+				}
+				if (error instanceof ApiRequestError && error.statusCode === 404) {
 					snapshot.delete(key);
+					this.repositoryConfigurations.delete(key);
+					this.updateRepositoryTargets(key);
+					missing.push(repository);
+					this.logService.info(`[CloudAutomations] Repository no longer available ${key}`);
 					continue;
 				}
-				eligible.push(repository);
+				this.logService.warn(`[CloudAutomations] Failed to refresh ${key}`, error);
+				errors.push(error);
+				continue;
+			}
+			this.setRepositoryConfiguration(key, configuration);
+			if (!configuration.can_manage_automations) {
+				snapshot.delete(key);
+				continue;
+			}
+			eligible.push(repository);
+			try {
 				const definitions = await this.listDefinitions(client.automations, repository, signal, options);
 				snapshot.set(key, definitions.map(definition => ({ repository, definition })));
 			} catch (error) {
@@ -610,7 +630,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 				errors.push(error);
 			}
 		}
-		this.rememberRepositories(account.accountName, eligible, signal);
+		this.rememberRepositories(account.accountName, eligible, signal, missing);
 		transaction(tx => {
 			this.cachedEntries.set([...snapshot.values()].flat(), tx);
 			this.cachedHistory.set(this.cachedHistory.get().filter(row => this.cachedEntries.get().some(entry => sameEntry(row.entry, entry))), tx);
@@ -757,9 +777,12 @@ export class GitHubCloudAutomationStore extends Disposable {
 		return repositories;
 	}
 
-	private rememberRepositories(account: string, repositories: readonly RepositoryRef[], signal: AbortSignal): void {
+	private rememberRepositories(account: string, repositories: readonly RepositoryRef[], signal: AbortSignal, missing: readonly RepositoryRef[] = []): void {
 		signal.throwIfAborted();
 		const known = this.readRepositories(account);
+		for (const repository of missing) {
+			known.delete(repositoryKey(repository));
+		}
 		for (const repository of repositories) {
 			known.set(repositoryKey(repository), repository);
 		}

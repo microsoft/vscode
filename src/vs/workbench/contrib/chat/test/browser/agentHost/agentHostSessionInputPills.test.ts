@@ -2893,7 +2893,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	function createSessionWorkingSetPills() {
+	function createSessionWorkingSetPills(options?: { connectionAuthority?: string; resourceUris?: IAgentHostResourceUriMapper }) {
 		const errors: string[] = [];
 		const confirmations: Pick<IConfirmation, 'title' | 'message' | 'primaryButton' | 'type'>[] = [];
 		let confirmed = false;
@@ -2909,8 +2909,9 @@ suite('AgentHostSessionInputPills', () => {
 		const harness = createActivityPills(session, upcastPartial<ChatState>({
 			changesets: [{ label: 'Branch Changes', uriTemplate: 'vendor-diff:/opaque/branch-changes', changeKind: ChangesetKind.Branch }],
 			turns: [],
-		}), undefined, 'remote-test', undefined, undefined, {
+		}), undefined, options?.connectionAuthority ?? 'remote-test', undefined, undefined, {
 			getUriLabel: labelService.getUriLabel,
+			resourceUris: options?.resourceUris,
 			dialogService: upcastPartial<IDialogService>({
 				confirm: async ({ title, message, primaryButton, type }) => {
 					confirmations.push({ title, message, primaryButton, type });
@@ -3057,6 +3058,33 @@ suite('AgentHostSessionInputPills', () => {
 			whileTurnRuns: { changeset: 'vendor-diff:/opaque/working-set', files: ['file.ts'], keep: false, undo: false },
 			withoutAcceptChanges: { changeset: 'vendor-diff:/opaque/working-set', files: ['file.ts'], keep: false, undo: true },
 			withoutWorkingSet: { changeset: 'vendor-diff:/opaque/session-changes', files: ['file.ts'], keep: undefined, undo: undefined },
+			errors: [],
+		});
+	});
+
+	test('opens, keeps and undoes Working Set files through the ambient host of a remote window', async () => {
+		// The ambient host of a remote window resolves as `local` but runs on the remote, so its files aren't on this machine
+		const { harness, errors, setOperations, readInvoked } = createSessionWorkingSetPills({ connectionAuthority: 'local', resourceUris: createAgentHostResourceUriMapper('ambient-remote') });
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		await harness.setWorkingSetEnabled(true);
+		const keep = harness.workingSetKeep();
+		const undo = harness.workingSetUndo();
+		const [diff] = harness.workingSetChanges() ?? [];
+		assert.ok(keep && undo && diff);
+		const results = [await keep.keep([diff], false), await undo.undo([diff], false)];
+
+		assert.deepStrictEqual({
+			resources: [diff.originalURI, diff.modifiedURI, diff.modifiedSnapshotURI].map(uri => `${uri?.scheme}://${uri?.authority}${uri?.path}`),
+			results,
+			invoked: readInvoked(),
+			errors,
+		}, {
+			resources: Array.from({ length: 3 }, () => 'vscode-agent-host://ambient-remote/repo/file.ts'),
+			results: [true, true],
+			invoked: [
+				'accept-changes vendor-diff:/opaque/working-set file:///repo/file.ts',
+				'discard-changes vendor-diff:/opaque/working-set file:///repo/file.ts',
+			],
 			errors: [],
 		});
 	});

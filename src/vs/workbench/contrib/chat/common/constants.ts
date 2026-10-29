@@ -62,7 +62,6 @@ export enum ChatConfiguration {
 	MigrateLegacyCopilotCliSessions = 'chat.agentSessions.migrateLegacyCopilotCli',
 	ShowExternalAgentSessions = 'chat.agentSessions.showExternal',
 	OpenSessionsInEditor = 'chat.agentSessions.openInEditor',
-	UnifiedWorkspacePicker = 'sessions.chat.unifiedWorkspacePicker.enabled',
 	AutoMarkAsDoneMergedSessionsAfterDays = 'chat.agentSessions.autoMarkAsDoneMergedSessionsAfterDays',
 	AutoDeleteMarkedAsDoneMergedSessionsAfterDays = 'chat.agentSessions.autoDeleteMarkedAsDoneMergedSessionsAfterDays',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
@@ -70,6 +69,7 @@ export enum ChatConfiguration {
 	EditRequests = 'chat.editRequests',
 	PasteAsAttachmentThreshold = 'chat.pasteAsAttachmentThreshold',
 	InlineReferencesStyle = 'chat.inlineReferences.style',
+	InlineAttachmentsEnabled = 'chat.inlineAttachments.enabled',
 	AutoReply = 'chat.autoReply',
 	GlobalAutoApprove = 'chat.tools.global.autoApprove',
 	AutoApproveEdits = 'chat.tools.edits.autoApprove',
@@ -100,8 +100,8 @@ export enum ChatConfiguration {
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	Verbose = 'chat.verbose',
 	ProgressBorder = 'chat.progressBorder.enabled',
-	PersistentProgress = 'chat.experimental.persistentProgress',
-	PersistentProgressVerbosity = 'chat.experimental.persistentProgressVerbosity',
+	PersistentProgress = 'chat.persistentProgress',
+	PersistentProgressVerbosity = 'chat.persistentProgressVerbosity',
 	SessionStateIndicatorEnabled = 'chat.experimental.sessionStateIndicator.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
@@ -756,13 +756,7 @@ function getVisibleNonLocalEditorChatSessionTypes(
 
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
 export const CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID = 'workbench.action.chat.openAgentHostChat';
-export const CHAT_SUBAGENT_RESOURCE_QUERY_PARAM = 'subagentChatResource';
-
-/** Removes workbench chat selectors without rewriting the session's authority or other query fields. */
-export function getAgentHostSessionResource(resource: URI): URI {
-	const query = resource.query.split('&').filter(part => !part.startsWith(`${CHAT_SUBAGENT_RESOURCE_QUERY_PARAM}=`)).join('&');
-	return resource.with({ query, fragment: '' });
-}
+export { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, getAgentHostSessionResource } from '../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 
 export const OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openWorkspaceInAgentsWindow';
 export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow';

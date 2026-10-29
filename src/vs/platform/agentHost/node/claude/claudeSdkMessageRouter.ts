@@ -65,7 +65,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		super();
 		this._clientToolOwner = clientToolOwner;
 		this._editObserver = this._register(
-			instantiationService.createInstance(ClaudeFileEditObserver, _resource.toString(), () => _owner.get().toString(), dbRef),
+			instantiationService.createInstance(ClaudeFileEditObserver, _resource.toString(), _owner, dbRef),
 		);
 		this._terminalOutputs = instantiationService.createInstance(ClaudeTerminalOutputs);
 	}

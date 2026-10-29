@@ -51,6 +51,7 @@ interface ICopilotSessionSandboxOptions {
 	readonly getConfigWriteTarget: () => IAgentChatConfigurationTarget;
 	readonly platform: NodeJS.Platform;
 	readonly getSession: () => CopilotSession | undefined;
+	readonly isSessionClosed?: (session?: CopilotSession) => boolean;
 	readonly getHostSupport: () => ReturnType<CopilotClient['rpc']['sandbox']['getHostSupport']>;
 	readonly getCertificateStatus: (config: SandboxConfig) => Promise<IAgentSandboxCertificateStatus | undefined>;
 	readonly installCertificate: (getConfig: () => SandboxConfig, scopeId: string) => Promise<void>;
@@ -148,13 +149,15 @@ export class CopilotSessionSandbox extends Disposable {
 				if (!context.sandboxPathGrantSaved) {
 					throw new Error(localize('copilot.permission.grant.unsupportedClient', "This client did not save the sandbox path grant. Update VS Code and retry."));
 				}
-				if (token.isCancellationRequested || !requestId || !grant || this._requests.get(toolCallId) !== requestId) {
+				// The SDK session stops being available once it starts disconnecting.
+				const session = this._options.getSession();
+				if (token.isCancellationRequested || !requestId || !grant || this._requests.get(toolCallId) !== requestId || !session) {
 					throw new Error(localize('copilot.permission.grant.expired', "The sandbox permission request is no longer pending."));
 				}
 				const attributed = attributePermissionResult({ kind: 'approve-once' }, context.decisionSource);
 				// The grant changes the runtime's live policy outside `options.update`.
 				this._appliedConfig = undefined;
-				const result = await this._options.getSession()!.rpc.sandbox.grantPathForRequest({
+				const result = await session.rpc.sandbox.grantPathForRequest({
 					requestId,
 					...(attributed.kind === 'attributed' ? { decisionContext: attributed.decisionContext } : {}),
 				});
@@ -193,26 +196,46 @@ export class CopilotSessionSandbox extends Disposable {
 		return { session: this._options.ownerSession.toString(), chat: this._options.chat.toString() };
 	}
 
-	applyLaunchConfig(session: CopilotSession): Promise<void> {
-		return this._configSequencer.queue(() => {
+	private _getLaunchSelection(isResume: boolean): 'on' | 'off' | 'default' | undefined {
+		if (this._pendingSelection !== undefined || !isResume) {
+			return this._pendingSelection;
+		}
+		const target = this._target();
+		const policy = this._configurationService.getSessionSandboxPolicy(target.session);
+		return policy?.enabled && policy.allowBypass === true
+			&& this._configurationService.getChatSandboxEnabled(target) === false
+			&& this._configurationService.getChatConfigValues(target)?.[SessionConfigKey.SandboxEnabled] === 'off'
+			? 'off' : undefined;
+	}
+
+	applyLaunchConfig(session: CopilotSession, isResume = false): Promise<void> {
+		return this._configSequencer.queue(async () => {
 			this._launchSession = session;
-			const requestedSelection = this._pendingSelection;
+			const requestedSelection = this._getLaunchSelection(isResume);
 			this._pendingSelection = undefined;
 			this._appliedConfig = undefined;
-			return this._updateConfig(true, requestedSelection, undefined, session, false);
+			if (isResume) {
+				this._disabledForSession = false;
+			}
+			try {
+				await this._updateConfig(true, requestedSelection, undefined, session, false, isResume);
+			} catch (error) {
+				this._launchSession = undefined;
+				throw error;
+			}
 		});
 	}
 
 	/** The config {@link applyLaunchConfig} pushes, so it can also be applied when the SDK session opens; `undefined` when the launch uses the session command or pushes nothing. */
-	getLaunchConfig(): SandboxConfig | undefined {
-		return this._configForUpdate(this._pendingSelection, this._computeConfig());
+	getLaunchConfig(isResume = false): SandboxConfig | undefined {
+		return this._configForUpdate(this._getLaunchSelection(isResume), this._computeConfig(), isResume);
 	}
 
-	private _configForUpdate(requestedSelection: 'on' | 'off' | 'default' | undefined, base: SandboxConfig | undefined): SandboxConfig | undefined {
+	private _configForUpdate(requestedSelection: 'on' | 'off' | 'default' | undefined, base: SandboxConfig | undefined, isResume = false): SandboxConfig | undefined {
 		if (requestedSelection !== undefined && this._requiresSessionCommand()) {
 			return undefined;
 		}
-		if (!base && this._disabledForSession) {
+		if (!base && this._disabledForSession && !isResume) {
 			// A bare disabled options.update does not preserve the runtime's managed sandbox floor.
 			return undefined;
 		}
@@ -313,7 +336,10 @@ export class CopilotSessionSandbox extends Disposable {
 		return (policy?.enabled === true && policy.allowBypass === true) || this._disabledForSession;
 	}
 
-	private async _updateConfig(failOnError: boolean, requestedSelection: 'on' | 'off' | 'default' | undefined, recorder?: IAgentProviderSendStageRecorder, session = this._options.getSession() ?? this._launchSession, reportMutation = true): Promise<void> {
+	private async _updateConfig(failOnError: boolean, requestedSelection: 'on' | 'off' | 'default' | undefined, recorder?: IAgentProviderSendStageRecorder, session = this._options.getSession() ?? this._launchSession, reportMutation = true, isResume = false): Promise<void> {
+		if (this._store.isDisposed || this._options.isSessionClosed?.(session)) {
+			return;
+		}
 		if (!session) {
 			if (requestedSelection !== undefined) {
 				this._pendingSelection = requestedSelection;
@@ -321,12 +347,14 @@ export class CopilotSessionSandbox extends Disposable {
 			return;
 		}
 		// Saving settings must not replace the live policy before the runtime accepts the pending grant.
-		if (this._pendingPathGrants.size && requestedSelection === undefined) {
+		if (this._pendingPathGrants.size && requestedSelection === undefined && !isResume) {
 			this._configUpdateDeferred = true;
 			return;
 		}
 		const base = this._computeConfig();
 		const target = this._target();
+		const writeTarget = this._options.getConfigWriteTarget();
+		const values = this._configurationService.getChatConfigValues(writeTarget);
 		if (requestedSelection !== undefined && this._requiresSessionCommand()) {
 			const enabled = requestedSelection === 'on' || (requestedSelection === 'default' && base?.enabled === true);
 			this._options.onDidChangeRuntimeConfig?.();
@@ -340,7 +368,7 @@ export class CopilotSessionSandbox extends Disposable {
 			await measureAgentProviderOperation(recorder, 'sandboxDiagnostics', () => this.updateDiagnostics(enabled ? base : { enabled: false }));
 			return;
 		}
-		const sandboxConfig = this._configForUpdate(requestedSelection, base);
+		const sandboxConfig = this._configForUpdate(requestedSelection, base, isResume);
 		if (!sandboxConfig) {
 			return;
 		}
@@ -350,13 +378,29 @@ export class CopilotSessionSandbox extends Disposable {
 			if (!unchanged && reportMutation) {
 				this._options.onDidChangeRuntimeConfig?.();
 			}
-			if (unchanged || await measureAgentProviderOperation(recorder, 'sandboxRpc', () => applySandboxConfig(session, sandboxConfig, this._options.sessionId, this._logService, requestedSelection !== undefined))) {
-				this._appliedConfig = serialized;
-				this._disabledForSession = false;
-				this._configurationService.setChatSandboxEnabled(target, sandboxConfig.enabled);
-				await measureAgentProviderOperation(recorder, 'sandboxDiagnostics', () => this.updateDiagnostics(sandboxConfig));
+			if (!unchanged) {
+				const result = await measureAgentProviderOperation(recorder, 'sandboxRpc', () => applySandboxConfig(session, sandboxConfig, this._options.sessionId, this._logService, isResume || requestedSelection !== undefined, () => !!this._options.isSessionClosed?.(session)));
+				if (this._store.isDisposed || this._options.isSessionClosed?.(session)) {
+					return;
+				}
+				if (!result.applied) {
+					this._configurationService.reportChatSandboxConflict(target, result.message);
+					return;
+				}
 			}
+			this._appliedConfig = serialized;
+			this._disabledForSession = false;
+			this._configurationService.setChatSandboxEnabled(target, sandboxConfig.enabled);
+			if (isResume && requestedSelection === undefined && sandboxConfig.enabled
+				&& values?.[SessionConfigKey.SandboxEnabled] === 'off'
+				&& this._configurationService.getChatConfigValues(writeTarget) === values) {
+				this._configurationService.updateChatConfig(writeTarget, { [SessionConfigKey.SandboxEnabled]: 'on' });
+			}
+			await measureAgentProviderOperation(recorder, 'sandboxDiagnostics', () => this.updateDiagnostics(sandboxConfig));
 		} catch (err) {
+			if (this._store.isDisposed || this._options.isSessionClosed?.(session)) {
+				return;
+			}
 			if (failOnError) {
 				throw err;
 			}

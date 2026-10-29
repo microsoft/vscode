@@ -188,6 +188,19 @@ export default defineConfig(
 			'local/code-no-sync-fs': 'error',
 		},
 	},
+	// Opt in migrated areas without introducing warnings in the remaining callback APIs.
+	{
+		files: [
+			'src/vs/platform/agentHost/node/claude/claudeAgent.ts',
+			'src/vs/platform/agentHost/node/claude/claudeAgentSdkService.ts',
+			'src/vs/platform/agentHost/node/claude/claudeFileEditObserver.ts',
+			'src/vs/workbench/api/browser/mainThreadMcp.ts',
+			'src/vs/workbench/api/common/extHostQuickOpen.ts',
+		],
+		rules: {
+			'local/code-prefer-event-or-observable': 'warn',
+		},
+	},
 	// Disallow bracket notation for property names that can use dot notation.
 	{
 		files: [

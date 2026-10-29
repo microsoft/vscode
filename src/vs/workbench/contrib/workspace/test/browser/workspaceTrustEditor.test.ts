@@ -8,18 +8,25 @@ import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/s
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { errorHandler } from '../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { normalizeDriveLetter } from '../../../../../base/common/labels.js';
+import { isWindows } from '../../../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileDialogService, IOpenDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustUriInfo } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { TestEditorGroupView, TestFileDialogService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestEditorGroupView, TestFileDialogService, TestWorkbenchExtensionEnablementService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestWorkspaceTrustManagementService } from '../../../../test/common/workbenchTestServices.js';
+import { WorkspaceTrustedUrisTable, WorkspaceTrustEditor } from '../../browser/workspaceTrustEditor.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { IWorkbenchConfigurationService } from '../../../../services/configuration/common/configuration.js';
 import { IWorkbenchExtensionEnablementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionManifestPropertiesService } from '../../../../services/extensions/common/extensionManifestPropertiesService.js';
-import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { WorkspaceTrustedUrisTable, WorkspaceTrustEditor } from '../../browser/workspaceTrustEditor.js';
+import { WorkspaceTrustEditorInput } from '../../../../services/workspaces/browser/workspaceTrustEditorInput.js';
 
 class PickerFileDialogService extends TestFileDialogService {
 	nextPick: URI[] | undefined;
@@ -41,6 +48,7 @@ class FakeWorkspaceTrustManagementService extends TestWorkspaceTrustManagementSe
 	override onDidChangeTrustedFolders = this._onDidChangeTrustedFoldersEmitter.event;
 
 	private entries: URI[];
+	verificationGate: Promise<void> | undefined;
 	completionGate: Promise<void> | undefined;
 	failure: Error | undefined;
 	autoTrusted: ((uri: URI) => boolean) | undefined;
@@ -92,6 +100,16 @@ class FakeWorkspaceTrustManagementService extends TestWorkspaceTrustManagementSe
 		await this.completionGate;
 	}
 
+	override async setTrustedUris(uris: URI[]): Promise<void> {
+		await this.verificationGate;
+		if (this.failure) {
+			throw this.failure;
+		}
+		this.entries = uris.map(uri => this.getCanonicalUri(uri));
+		this._onDidChangeTrustedFoldersEmitter.fire();
+		await this.completionGate;
+	}
+
 	private getCanonicalUri(uri: URI): URI {
 		return (this.canonicalize?.(uri) ?? uri).with({ query: null, fragment: null });
 	}
@@ -110,6 +128,155 @@ interface ITableState {
 	readonly tableHasDomFocus: boolean;
 }
 
+suite('WorkspaceTrustEditor source recovery', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	let container: HTMLElement;
+	let retries: number;
+	let resolved: boolean;
+	let resolveOnRetry: boolean;
+	let allowTrustChanges: boolean;
+	let trustChanges: number;
+	let retryGate: DeferredPromise<void> | undefined;
+	let retryFailure: Error | undefined;
+
+	setup(async () => {
+		retries = 0;
+		resolved = false;
+		resolveOnRetry = false;
+		allowTrustChanges = true;
+		trustChanges = 0;
+		retryGate = undefined;
+		retryFailure = undefined;
+		container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+
+		const changed = store.add(new Emitter<void>());
+		const trustService = store.add(new class extends TestWorkspaceTrustManagementService {
+			override onDidChangeTrustedFolders = changed.event;
+			override isWorkspaceTrusted() { return false; }
+			override getTrustedUris() { return []; }
+			override canSetWorkspaceTrust() { return resolved && allowTrustChanges; }
+			override isWorkspaceTrustSourceResolved() { return resolved; }
+			override async setWorkspaceTrust() { trustChanges++; }
+			override async resolveWorkspaceTrust() {
+				retries++;
+				await retryGate?.p;
+				if (retryFailure) {
+					throw retryFailure;
+				}
+				resolved = resolveOnRetry;
+				changed.fire();
+			}
+		});
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IWorkspaceTrustManagementService, trustService);
+		instantiationService.stub(IExtensionsWorkbenchService, { onChange: Event.None, local: [] });
+		instantiationService.stub(IWorkbenchConfigurationService, Object.assign(new TestConfigurationService(), {
+			restrictedSettings: { default: [] },
+			onDidChangeRestrictedSettings: Event.None,
+		}));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestWorkbenchExtensionEnablementService());
+		instantiationService.stub(IExtensionManifestPropertiesService, new class extends mock<IExtensionManifestPropertiesService>() { });
+		const editor = store.add(instantiationService.createInstance(WorkspaceTrustEditor, new TestEditorGroupView(1)));
+		editor.create(container);
+		await editor.setInput(store.add(new WorkspaceTrustEditorInput()), {}, {}, CancellationToken.None);
+		await timeout(150);
+	});
+
+	teardown(() => container.remove());
+
+	function retryButton(): HTMLElement | null {
+		return container.querySelector('[aria-label="Retry Source Check"] .monaco-button');
+	}
+
+	test('explains an unverified source and retries without granting trust', async () => {
+		assert.ok(container.textContent?.includes('source repository for this workspace could not be verified'));
+		assert.strictEqual(container.querySelector('[aria-label^="Trust,"]'), null);
+		retryGate = new DeferredPromise<void>();
+		resolveOnRetry = true;
+		const button = retryButton()!;
+		button.focus();
+		button.click();
+		assert.strictEqual(button.getAttribute('aria-disabled'), 'true');
+		assert.strictEqual(retries, 1);
+		await retryGate.complete();
+		await timeout(150);
+
+		assert.strictEqual(retryButton(), null);
+		assert.ok(container.querySelector('.workspace-trust-editor.untrusted'));
+		const trustButton = Array.from(container.querySelectorAll('.monaco-button')).find(button => button.textContent === 'Trust');
+		assert.ok(trustButton);
+		const focusedHeading = mainWindow.document.activeElement === container.querySelector('.workspace-trust-header');
+		mainWindow.document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, repeat: true, bubbles: true }));
+		await timeout(0);
+		assert.deepStrictEqual({ focusedHeading, trustChanges }, { focusedHeading: true, trustChanges: 0 });
+	});
+
+	test('an unsuccessful check stays restricted and can be retried again', async () => {
+		const button = retryButton()!;
+		button.focus();
+		button.click();
+		await timeout(150);
+
+		assert.strictEqual(retries, 1);
+		assert.strictEqual(resolved, false);
+		assert.strictEqual(retryButton()!.getAttribute('aria-disabled'), 'false');
+		assert.ok(container.textContent?.includes('source repository for this workspace could not be verified'));
+		assert.notStrictEqual(retryButton(), button);
+		assert.strictEqual(mainWindow.document.activeElement, retryButton());
+	});
+
+	test('focuses the editor heading when a successful retry leaves no trust action', async () => {
+		resolveOnRetry = true;
+		allowTrustChanges = false;
+		retryButton()!.focus();
+		retryButton()!.click();
+		await timeout(150);
+
+		assert.strictEqual(retryButton(), null);
+		assert.strictEqual(mainWindow.document.activeElement, container.querySelector('.workspace-trust-header'));
+	});
+
+	for (const phase of ['during the request', 'before the debounced render']) {
+		test(`does not take focus back when the user leaves the action ${phase}`, async () => {
+			retryGate = new DeferredPromise<void>();
+			retryButton()!.focus();
+			retryButton()!.click();
+			if (phase === 'before the debounced render') {
+				await retryGate.complete();
+				await timeout(0);
+			}
+			const otherControl = container.appendChild(mainWindow.document.createElement('button'));
+			otherControl.textContent = 'Other control';
+			otherControl.focus();
+			if (phase === 'during the request') {
+				await retryGate.complete();
+			}
+			await timeout(150);
+
+			assert.strictEqual(retries, 1);
+			assert.strictEqual(mainWindow.document.activeElement, otherControl);
+		});
+	}
+
+	test('reports retry errors and re-enables the action', async () => {
+		retryFailure = new Error('Retry failed');
+		const errors: unknown[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+		try {
+			retryButton()!.click();
+			await timeout(0);
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(previousHandler);
+		}
+
+		assert.deepStrictEqual(errors, [retryFailure]);
+		assert.strictEqual(retryButton()!.getAttribute('aria-disabled'), 'false');
+		assert.strictEqual(resolved, false);
+	});
+});
+
 suite('WorkspaceTrustedUrisTable', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -118,7 +285,7 @@ suite('WorkspaceTrustedUrisTable', () => {
 	let trustService: FakeWorkspaceTrustManagementService;
 	let table: WorkspaceTrustedUrisTable;
 
-	const folder = (name: string) => URI.file(`/trusted/${name}`);
+	const folder = (name: string) => URI.file(isWindows ? `c:\\trusted\\${name}` : `/trusted/${name}`);
 	const label = (element: Element | null | undefined) => element?.getAttribute('aria-label')?.match(/[\\/]trusted[\\/](?<name>[^\s\\/]+) on /)?.groups?.name;
 
 	setup(() => {
@@ -163,6 +330,14 @@ suite('WorkspaceTrustedUrisTable', () => {
 		const row = Array.from(container.querySelectorAll('.monaco-list-row')).find(row => label(row) === name)!;
 		row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 		row.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+	}
+
+	function acceptInlineEdit(name: string, newName: string): void {
+		const row = Array.from(container.querySelectorAll('.monaco-list-row')).find(row => label(row) === name)!;
+		row.querySelector<HTMLElement>('.codicon-workspace-trust-editor-edit-folder')!.click();
+		const input = row.querySelector<HTMLInputElement>('.input-mode input')!;
+		input.value = folder(newName).fsPath;
+		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
 	}
 
 	async function addFolder(pick: URI[] | undefined): Promise<void> {
@@ -264,7 +439,7 @@ suite('WorkspaceTrustedUrisTable', () => {
 		for (const existing of [['c-two', 'z-last'], ['c-two', 'm-middle', 'z-last']]) {
 			container.replaceChildren();
 			createTable(existing);
-			trustService.canonicalize = uri => uri.with({ path: uri.path.replace(/^\/alias\//, '/trusted/') });
+			trustService.canonicalize = uri => uri.with({ path: uri.path.replace(/^\/alias\//, folder('').path) });
 			selectRow('z-last');
 			await addFolder([URI.file('/alias/m-middle')]);
 			results.push(getState());
@@ -336,6 +511,109 @@ suite('WorkspaceTrustedUrisTable', () => {
 			errorHandler.setUnexpectedErrorHandler(previousHandler);
 		}
 		assert.deepStrictEqual([errors, getState().selected, mainWindow.document.activeElement === getAddButton()], [[trustService.failure], ['z-last'], true]);
+	});
+
+	test('does not accept an edit until trust persistence completes', async () => {
+		createTable(['c-two']);
+		const gate = new DeferredPromise<void>();
+		trustService.completionGate = gate.p;
+		let accepted = 0;
+		store.add(table.onDidAcceptEdit(() => accepted++));
+		const edit = table.acceptEdit({ uri: folder('c-two'), parentOfWorkspaceItem: false }, folder('m-middle'));
+		const acceptedBeforeCompletion = accepted;
+		gate.complete();
+		await edit;
+
+		assert.deepStrictEqual({
+			acceptedBeforeCompletion,
+			accepted,
+			trustedUris: trustService.getTrustedUris().map(uri => uri.toString()),
+		}, {
+			acceptedBeforeCompletion: 0,
+			accepted: 1,
+			trustedUris: [folder('m-middle').toString()],
+		});
+	});
+
+	test('reports a failed edit without accepting it or changing stored trust', async () => {
+		createTable(['c-two']);
+		trustService.failure = new Error('source could not be verified');
+		let accepted = 0;
+		store.add(table.onDidAcceptEdit(() => accepted++));
+		const errors: unknown[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+		try {
+			await table.acceptEdit({ uri: folder('c-two'), parentOfWorkspaceItem: false }, folder('m-middle'));
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(previousHandler);
+		}
+
+		assert.deepStrictEqual({
+			errors,
+			accepted,
+			trustedUris: trustService.getTrustedUris().map(uri => uri.toString()),
+		}, {
+			errors: [trustService.failure],
+			accepted: 0,
+			trustedUris: [folder('c-two').toString()],
+		});
+	});
+
+	test('inline editing shows the saved path until verification and then the canonical path', async () => {
+		createTable(['c-two']);
+		const gate = new DeferredPromise<void>();
+		trustService.verificationGate = gate.p;
+		trustService.canonicalize = uri => uri.path === folder('m-middle').path ? folder('verified-source') : uri;
+
+		acceptInlineEdit('c-two', 'm-middle');
+		const pendingLabel = container.querySelector('.path-label')!.textContent;
+		const pendingUris = trustService.getTrustedUris().map(uri => uri.toString());
+		await gate.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			pendingLabel,
+			pendingUris,
+			label: container.querySelector('.path-label')!.textContent,
+			trustedUris: trustService.getTrustedUris().map(uri => uri.toString()),
+		}, {
+			pendingLabel: normalizeDriveLetter(folder('c-two').fsPath),
+			pendingUris: [folder('c-two').toString()],
+			label: normalizeDriveLetter(folder('verified-source').fsPath),
+			trustedUris: [folder('verified-source').toString()],
+		});
+	});
+
+	test('inline editing keeps the saved path visible when verification fails', async () => {
+		createTable(['c-two']);
+		const gate = new DeferredPromise<void>();
+		trustService.verificationGate = gate.p;
+		trustService.failure = new Error('source could not be verified');
+		const errors: unknown[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+		let pendingLabel: string | null;
+		try {
+			acceptInlineEdit('c-two', 'm-middle');
+			pendingLabel = container.querySelector('.path-label')!.textContent;
+			await gate.complete();
+			await timeout(0);
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(previousHandler);
+		}
+
+		assert.deepStrictEqual({
+			pendingLabel,
+			errors,
+			label: container.querySelector('.path-label')!.textContent,
+			trustedUris: trustService.getTrustedUris().map(uri => uri.toString()),
+		}, {
+			pendingLabel: normalizeDriveLetter(folder('c-two').fsPath),
+			errors: [trustService.failure],
+			label: normalizeDriveLetter(folder('c-two').fsPath),
+			trustedUris: [folder('c-two').toString()],
+		});
 	});
 
 	test('does not touch the table when disposed during the addition', async () => {
@@ -416,7 +694,7 @@ suite('WorkspaceTrustEditor', () => {
 		// Native scrolling, e.g. the browser revealing a control focused with Tab.
 		const scrollNatively = (scrollTop: number) => {
 			body.scrollTop = scrollTop;
-			body.dispatchEvent(new Event('scroll'));
+			body.dispatchEvent(new mainWindow.Event('scroll'));
 			return !!scrollableNode.querySelector(':scope > .shadow.top');
 		};
 

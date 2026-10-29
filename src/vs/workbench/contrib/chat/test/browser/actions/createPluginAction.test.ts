@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -333,7 +332,7 @@ suite('CreatePluginAction helpers', () => {
 
 suite('writePluginToDisk', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: IFileService;
 	const root = URI.from({ scheme: Schemas.inMemory, path: '/test' });
 
@@ -343,12 +342,6 @@ suite('writePluginToDisk', () => {
 		disposables.add(service.registerProvider(Schemas.inMemory, provider));
 		fileService = service;
 	});
-
-	teardown(() => {
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function readJson(uri: URI): Promise<Record<string, unknown>> {
 		const content = await fileService.readFile(uri);
@@ -781,7 +774,7 @@ suite('writePluginToDisk', () => {
 
 suite('updateMarketplaceIfNeeded', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: IFileService;
 	const root = URI.from({ scheme: Schemas.inMemory, path: '/marketplace-test' });
 
@@ -791,12 +784,6 @@ suite('updateMarketplaceIfNeeded', () => {
 		disposables.add(service.registerProvider(Schemas.inMemory, provider));
 		fileService = service;
 	});
-
-	teardown(() => {
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('adds plugin to existing marketplace.json', async () => {
 		const marketplace = { name: 'my-marketplace', plugins: [{ name: 'existing', source: './existing/' }] };

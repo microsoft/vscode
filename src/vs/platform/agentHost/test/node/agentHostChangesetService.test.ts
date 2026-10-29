@@ -108,6 +108,8 @@ class TestAgentHostChangesetService extends AgentHostChangesetService {
 
 	readonly stateStore: IAgentHostSessionStateStore;
 	readonly provider: IAgent;
+	/** The agent chats are routed to, when a test gives chats their own agent; else the session's. */
+	readonly chatRouting: { agent: IAgent | undefined };
 	readonly storedTurnEdits: Emitter<{ readonly chat: URI; readonly turnIds: readonly string[] }>;
 	readonly fileEditCoordinator: AgentHostFileEditCoordinator;
 
@@ -119,11 +121,13 @@ class TestAgentHostChangesetService extends AgentHostChangesetService {
 			override waitForTurnEdits = async (_chat: URI, _turnId: string): Promise<void> => { };
 		};
 		const fileEditCoordinator = new AgentHostFileEditCoordinator();
+		const chatRouting: { agent: IAgent | undefined } = { agent: undefined };
 		super(...args, TEST_GIT_STATE_SERVICE, new NullAgentHostWorktreeIsolation(), {
 			_serviceBrand: undefined, setRead: async () => { }, setArchived: async () => { },
 			...createLegacyChatMetadataPersistence(args[2]),
 		}, createTestChatOwnershipService(args[0]),
-			mirrorStore, { ...createTestAgentHostProviderService(() => provider), getProviders: () => [provider] }, fileEditCoordinator);
+			mirrorStore, { ...createTestAgentHostProviderService(() => provider), getProviderForChat: () => chatRouting.agent ?? provider, getProviders: () => [provider] }, fileEditCoordinator);
+		this.chatRouting = chatRouting;
 		this.stateStore = mirrorStore;
 		this.provider = provider;
 		this.storedTurnEdits = this._register(storedTurnEdits);
@@ -1458,12 +1462,8 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 
 suite('AgentHostChangesetService - materialization refresh', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => {
-		disposables.clear();
-	});
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('recomputes an uncommitted subscription added after worktree pending clears but before materialization', async () => {
 		const sessionStr = AgentSession.uri('mock', 'session-materialization').toString();
@@ -1536,13 +1536,9 @@ class RecordingLogService extends NullLogService {
 
 suite('AgentHostChangesetService - turn changeset lifecycle', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const sessionStr = AgentSession.uri('mock', 'session-turn-lifecycle').toString();
 
-	teardown(() => {
-		disposables.clear();
-	});
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('marks a cached empty turn changeset as recomputing until recomputation completes', async () => {
 		const firstComputeGate = new DeferredPromise<void>();
@@ -1892,6 +1888,17 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			during: ChangesetStatus.Computing, calls: [[buildDefaultChatUri(sessionStr), 'cancelled-turn']],
 			status: ChangesetStatus.Ready, files: ['file:///repo/file.ts'],
 		});
+	});
+
+	test('turn changesets wait for the chat\'s own agent, not its session\'s', async () => {
+		const { svc } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db: new TestSessionDatabase() });
+		const calls: string[] = [];
+		svc.provider.waitForTurnEdits = async () => { throw new Error('The session\'s agent does not know the chat'); };
+		svc.chatRouting.agent = new class extends mock<IAgent>() {
+			override waitForTurnEdits = async (chat: URI, turnId: string): Promise<void> => { calls.push(`${chat.toString()} ${turnId}`); };
+		};
+		await svc.computeTurnChangeset(sessionStr, 'own-agent-turn', 'fileEditTracker');
+		assert.deepStrictEqual(calls, [`${buildDefaultChatUri(sessionStr)} own-agent-turn`]);
 	});
 
 	test('late snapshots refresh session changes without waiting for a native turn', async () => {
