@@ -506,10 +506,14 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		const isByokEffortAlias = readAgentModelByokIdentifier(target.model) !== undefined && !!properties.reasoningEffort && !properties.thinkingLevel;
 		if (sourceConfiguration?.thinkingLevel !== undefined && target.model.provider === COPILOT_CLI_AGENT_PROVIDER_ID && (isNativeCopilot || isByokEffortAlias)) {
 			const reasoningEffort = properties.reasoningEffort;
-			if (!reasoningEffort || typeof sourceConfiguration.thinkingLevel !== 'string' || (reasoningEffort.enum && !reasoningEffort.enum.includes(sourceConfiguration.thinkingLevel))) {
+			const hostEfforts = target.model.configSchema?.properties.thinkingLevel?.enum;
+			const isFixedEffort = !reasoningEffort && hostEfforts?.length === 1 && hostEfforts[0] === sourceConfiguration.thinkingLevel;
+			if (typeof sourceConfiguration.thinkingLevel !== 'string' || (!reasoningEffort && !isFixedEffort) || (reasoningEffort?.enum && !reasoningEffort.enum.includes(sourceConfiguration.thinkingLevel))) {
 				throw new Error(localize('agentHost.unsupportedReasoningEffort', "The selected reasoning effort is not supported for direct requests to model '{0}'.", modelId));
 			}
-			sourceConfiguration.reasoningEffort = sourceConfiguration.thinkingLevel;
+			if (reasoningEffort) {
+				sourceConfiguration.reasoningEffort = sourceConfiguration.thinkingLevel;
+			}
 			delete sourceConfiguration.thinkingLevel;
 		}
 		const configuration = sourceConfiguration && Object.fromEntries(Object.entries(sourceConfiguration).filter(([key]) => Object.hasOwn(properties, key)));

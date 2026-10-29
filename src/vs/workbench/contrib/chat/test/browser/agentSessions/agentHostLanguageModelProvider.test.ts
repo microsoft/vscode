@@ -1080,69 +1080,76 @@ suite('AgentHostLanguageModelProvider', () => {
 			assert.strictEqual(calls.length, 1);
 		});
 
-		test('discovers a cold Copilot counterpart and preserves saved thinkingLevel across both services configuration merges', async () => {
-			const vendor = 'agent-host-copilotcli';
-			const service = store.add(new LanguageModelsService(
-				new class extends mock<IExtensionService>() { override async activateByEvent() { } },
-				new NullLogService(),
-				store.add(new TestStorageService()),
-				store.add(new MockContextKeyService()),
-				new class extends mock<ILanguageModelsConfigurationService>() {
-					override onDidChangeLanguageModelGroups = Event.None;
-					override getLanguageModelsProviderGroups() {
-						return [{ vendor, name: 'Copilot CLI', settings: { 'test-model': { thinkingLevel: 'high', contextSize: 200000 } } }];
-					}
-				},
-				new class extends mock<IQuickInputService>() { },
-				store.add(new TestSecretStorageService()),
-				new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
-				new class extends mock<IRequestService>() { },
-				new TestNotificationService(),
-				NullOpenerService,
-				NullTelemetryService,
-			));
-			service.deltaLanguageModelChatProviderDescriptors([vendor, 'copilot'].map(vendor => ({
-				vendor, displayName: vendor, configuration: undefined, managementCommand: undefined, when: undefined,
-			})), []);
-			let receivedOptions: unknown;
-			store.add(service.registerLanguageModelProvider('copilot', {
-				onDidChange: Event.None,
-				provideLanguageModelChatInfo: async () => [{
-					identifier: 'copilot/test-model',
-					metadata: {
-						id: 'test-model', vendor: 'copilot', extension: nullExtensionDescription.identifier,
-						name: 'Test Model', family: 'test-model', version: '1',
-						maxInputTokens: 1000, maxOutputTokens: 1000, isDefaultForLocation: {},
-						configurationSchema: {
-							properties: {
-								reasoningEffort: { type: 'string', enum: ['low', 'high'], default: 'low' },
-								contextSize: { type: 'number', default: 100000 },
-							}
-						},
+		for (const fixedEffort of [false, true]) {
+			test(`discovers a cold Copilot counterpart and preserves ${fixedEffort ? 'singleton' : 'configurable'} thinkingLevel across both services configuration merges`, async () => {
+				const vendor = 'agent-host-copilotcli';
+				const service = store.add(new LanguageModelsService(
+					new class extends mock<IExtensionService>() { override async activateByEvent() { } },
+					new NullLogService(),
+					store.add(new TestStorageService()),
+					store.add(new MockContextKeyService()),
+					new class extends mock<ILanguageModelsConfigurationService>() {
+						override onDidChangeLanguageModelGroups = Event.None;
+						override getLanguageModelsProviderGroups() {
+							return [{ vendor, name: 'Copilot CLI', settings: { 'test-model': { ...(!fixedEffort ? { thinkingLevel: 'high' } : {}), contextSize: 200000 } } }];
+						}
 					},
-				}],
-				sendChatRequest: async (_id, _messages, _from, options) => {
-					receivedOptions = options;
-					return { stream: AsyncIterableObject.fromArray([]), result: Promise.resolve() };
-				},
-				provideTokenCount: async () => 0,
-			}));
-			const bridge = store.add(new AgentHostLanguageModelProvider(vendor, vendor, service, service));
-			bridge.updateModels([{
-				id: 'test-model', provider: 'copilotcli', name: 'Test Model',
-				configSchema: {
-					type: 'object', properties: {
-						thinkingLevel: { type: 'string', title: 'Effort', enum: ['low', 'high'], default: 'low' },
-						contextSize: { type: 'number', title: 'Context', default: 100000 },
-					}
-				},
-			}]);
-			store.add(service.registerLanguageModelProvider(vendor, bridge));
-			await service.selectLanguageModels({ vendor });
-			assert.ok(service.lookupLanguageModel('copilot/test-model'));
-			await service.sendChatRequest(`${vendor}:test-model`, nullExtensionDescription.identifier, [], {}, CancellationToken.None);
-			assert.deepStrictEqual(receivedOptions, { configuration: { reasoningEffort: 'high', contextSize: 200000 } });
-		});
+					new class extends mock<IQuickInputService>() { },
+					store.add(new TestSecretStorageService()),
+					new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+					new class extends mock<IRequestService>() { },
+					new TestNotificationService(),
+					NullOpenerService,
+					NullTelemetryService,
+				));
+				service.deltaLanguageModelChatProviderDescriptors([vendor, 'copilot'].map(vendor => ({
+					vendor, displayName: vendor, configuration: undefined, managementCommand: undefined, when: undefined,
+				})), []);
+				let receivedOptions: unknown;
+				store.add(service.registerLanguageModelProvider('copilot', {
+					onDidChange: Event.None,
+					provideLanguageModelChatInfo: async () => [{
+						identifier: 'copilot/test-model',
+						metadata: {
+							id: 'test-model', vendor: 'copilot', extension: nullExtensionDescription.identifier,
+							name: 'Test Model', family: 'test-model', version: '1',
+							maxInputTokens: 1000, maxOutputTokens: 1000, isDefaultForLocation: {},
+							configurationSchema: {
+								properties: {
+									...(!fixedEffort ? { reasoningEffort: { type: 'string' as const, enum: ['low', 'high'], default: 'low' } } : {}),
+									contextSize: { type: 'number', default: 100000 },
+								}
+							},
+						},
+					}],
+					sendChatRequest: async (_id, _messages, _from, options) => {
+						receivedOptions = options;
+						return { stream: AsyncIterableObject.fromArray([]), result: Promise.resolve() };
+					},
+					provideTokenCount: async () => 0,
+				}));
+				const bridge = store.add(new AgentHostLanguageModelProvider(vendor, vendor, service, service));
+				bridge.updateModels([{
+					id: 'test-model', provider: 'copilotcli', name: 'Test Model',
+					configSchema: {
+						type: 'object', properties: {
+							thinkingLevel: { type: 'string', title: 'Effort', enum: fixedEffort ? ['high'] : ['low', 'high'], default: fixedEffort ? 'high' : 'low' },
+							contextSize: { type: 'number', title: 'Context', default: 100000 },
+						}
+					},
+				}]);
+				store.add(service.registerLanguageModelProvider(vendor, bridge));
+				await service.selectLanguageModels({ vendor });
+				assert.ok(service.lookupLanguageModel('copilot/test-model'));
+				await service.sendChatRequest(`${vendor}:test-model`, nullExtensionDescription.identifier, [], {}, CancellationToken.None);
+				assert.deepStrictEqual(receivedOptions, { configuration: fixedEffort ? { contextSize: 200000 } : { reasoningEffort: 'high', contextSize: 200000 } });
+				await assert.rejects(service.sendChatRequest(`${vendor}:test-model`, nullExtensionDescription.identifier, [], { configuration: { thinkingLevel: fixedEffort ? 'low' : 'max' } }, CancellationToken.None), /reasoning effort is not supported/);
+				if (fixedEffort) {
+					await service.sendChatRequest(`${vendor}:test-model`, nullExtensionDescription.identifier, [], { configuration: { thinkingLevel: 'high' } }, CancellationToken.None);
+					assert.deepStrictEqual(receivedOptions, { configuration: { contextSize: 200000 } });
+				}
+			});
+		}
 
 		test('republishes BYOK alias authorization after target-only metadata changes without looping', async () => {
 			const vendor = 'agent-host-copilotcli';
