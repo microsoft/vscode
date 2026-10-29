@@ -257,6 +257,8 @@ A chat view binds its transcript to the content provider serving the chat's sess
 
 Creating or forking a peer chat in the same session is a capability-gated provider operation routed by the management service. Provider-neutral fork options may carry an optional initial title; each provider decides whether its transport supports that option. An older Agent Host omits the unsupported title and performs an ordinary fork rather than failing. A fork that includes a first user message requires the owning Agent Host's composed-operation capability; an unsupported host does not silently create a fork without that message.
 
+A chat may expose its own harness identity in the same identity space as the session's; absent means the session's harness. Creating a peer chat may request a harness among the choices the session advertises through its capabilities; shared code gates that choice on the advertised capability, never on provider ids. Reusing an unsent chat for such a request requires that chat to use the requested harness. Providers present a harness id (label and icon) through the optional `getHarnessPresentation`, so shared surfaces can show a chat's harness without knowing provider ids.
+
 Opening an existing chat is view orchestration: `ISessionsService` activates the session, resolves the chat from `session.chats`, and updates visible and active state. Chat-tab presentation remains view-owned configuration and is not carried through service open options.
 
 ### Remote delegation

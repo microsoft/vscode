@@ -1382,6 +1382,29 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		assert.strictEqual(await svc!.branchExists(URI.file(dir), 'does-not-exist'), false);
 	});
 
+	(hasGit ? test : test.skip)('inventories unusual worktree paths without bypassing registered dirty-worktree protection', async () => {
+		const dir = initRepo();
+		const wtPath = join(dir, isWindows ? 'checkout with spaces' : 'checkout with\n"quotes"');
+		cp.execFileSync('git', ['worktree', 'add', '-b', 'agents/inventory', wtPath], { cwd: dir, env, stdio: 'pipe' });
+		writeFileSync(join(wtPath, 'keep.txt'), 'uncommitted work');
+		// Git expands Windows short paths that Node's realpathSync can preserve.
+		const gitRoot = (cwd: string) => URI.file(cp.execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd, env, encoding: 'utf8' }).trim());
+		const repository = gitRoot(dir);
+		const worktree = gitRoot(wtPath);
+		const inventory = await svc!.getWorktrees(repository);
+		assert.deepStrictEqual({
+			inventory: inventory.map(entry => ({ path: entry.path.toString(), branch: entry.branchName })),
+			roots: (await svc!.getWorktreeRoots(repository)).map(root => root.toString()),
+			registered: await svc!.isWorktreeRegistered(repository, worktree),
+		}, {
+			inventory: [{ path: repository.toString(), branch: 'main' }, { path: worktree.toString(), branch: 'agents/inventory' }],
+			roots: [repository.toString(), worktree.toString()],
+			registered: true,
+		});
+		await assert.rejects(svc!.removeWorktree(repository, worktree));
+		assert.ok(existsSync(join(wtPath, 'keep.txt')));
+	});
+
 	(hasGit ? test : test.skip)('createBranch preserves dirty changes and leaves the base branch unchanged', async () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');

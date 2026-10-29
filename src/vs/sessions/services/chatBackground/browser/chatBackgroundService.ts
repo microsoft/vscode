@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as css from '../../../../base/browser/cssValue.js';
+import { Sequencer } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ColorScheme, isDark, isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundConfiguredContext, SessionsChatBackgroundImageConfiguredContext } from '../../../common/contextkeys.js';
@@ -65,6 +67,37 @@ export type ChatBackgroundImageLayout = keyof typeof backgroundImageStyles;
 
 export const chatBackgroundImageLayoutValues = Object.keys(backgroundImageStyles) as ChatBackgroundImageLayout[];
 
+/**
+ * What changed the chat background: the Set Chat Background tool of an agent, or the background or
+ * layout quick pick of the Agents window. Changes from anywhere else are reported as `settings`.
+ */
+export type ChatBackgroundChangeSource = 'agent' | 'backgroundPicker' | 'layoutPicker';
+
+type ChatBackgroundChangedEvent = {
+	source: ChatBackgroundChangeSource | 'settings';
+	change: 'background' | 'layout';
+	background: 'userImage' | 'builtin' | 'none';
+	layout: ChatBackgroundImageLayout | undefined;
+	colorScheme: 'dark' | 'light';
+};
+
+type ChatBackgroundChangedClassification = {
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What made the change: agent for the Set Chat Background tool, backgroundPicker or layoutPicker for the Agents window quick picks, or settings for anything else, such as the Settings editor, settings.json, or Settings Sync.' };
+	change: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the background changed, or only the layout of its image.' };
+	background: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The background after the change: userImage for an image file from the user or an agent, builtin for the built-in Codicons pattern, or none when the background was removed.' };
+	layout: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The image layout after the change, when the background is an image.' };
+	colorScheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the background of dark or light themes changed.' };
+	owner: 'benibenj';
+	comment: 'Tracks changes of the Agents window chat background and what made them.';
+};
+
+interface IReportedChatBackground {
+	readonly background: ISessionsChatConfiguredBackground | undefined;
+	readonly layout: ChatBackgroundImageLayout;
+}
+
+const reportedColorSchemes = [ColorScheme.DARK, ColorScheme.LIGHT];
+
 export const ISessionsChatBackgroundService = createDecorator<ISessionsChatBackgroundService>('sessionsChatBackgroundService');
 
 export interface ISessionsChatBackgroundService {
@@ -80,9 +113,10 @@ export interface ISessionsChatBackgroundService {
 	/** Every image a preference or the recently used list refers to, across both color schemes. */
 	getReferencedBackgroundImages(): readonly URI[];
 	getBackgroundImageLayout(colorScheme?: ColorScheme): ChatBackgroundImageLayout;
-	setBackground(background: URI | SessionsChatBackgroundPreset, colorScheme?: ColorScheme): Promise<void>;
-	clearBackground(colorScheme?: ColorScheme): Promise<void>;
-	setBackgroundImageLayout(layout: ChatBackgroundImageLayout, persist?: boolean, colorScheme?: ColorScheme): Promise<void>;
+	setBackground(background: URI | SessionsChatBackgroundPreset, source: ChatBackgroundChangeSource, colorScheme?: ColorScheme): Promise<void>;
+	clearBackground(source: ChatBackgroundChangeSource, colorScheme?: ColorScheme): Promise<void>;
+	/** Shows the layout, and saves it unless `persist` is false, which previews it without reporting a change. */
+	setBackgroundImageLayout(layout: ChatBackgroundImageLayout, source: ChatBackgroundChangeSource, persist?: boolean, colorScheme?: ColorScheme): Promise<void>;
 }
 
 export class SessionsChatBackgroundService extends Disposable implements ISessionsChatBackgroundService {
@@ -91,16 +125,26 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 	private readonly _onDidChangeBackground = this._register(new Emitter<void>());
 	readonly onDidChangeBackground = this._onDidChangeBackground.event;
 	private backgroundImageLayout: ChatBackgroundImageLayout;
+	/** The source of each setting this service is writing, which the resulting configuration change is attributed to. */
+	private readonly pendingChangeSources = new Map<string, ChatBackgroundChangeSource>();
+	/** Serializes writes, so that overlapping writes of a setting cannot replace or remove each other's source. */
+	private readonly writeSequencer = new Sequencer();
+	/** The last reported background of each color scheme, so that only changes of what is shown are reported. */
+	private readonly reportedBackgrounds = new Map<ColorScheme, IReportedChatBackground>();
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
 		this.backgroundImageLayout = this.readConfiguredBackgroundImageLayout();
+		for (const colorScheme of reportedColorSchemes) {
+			this.reportedBackgrounds.set(colorScheme, this.readReportedBackground(colorScheme));
+		}
 		const backgroundAvailableContext = SessionsChatBackgroundAvailableContext.bindTo(contextKeyService);
 		const backgroundConfiguredContext = SessionsChatBackgroundConfiguredContext.bindTo(contextKeyService);
 		const backgroundImageConfiguredContext = SessionsChatBackgroundImageConfiguredContext.bindTo(contextKeyService);
@@ -130,6 +174,7 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 			if (backgroundChanged) {
 				this._onDidChangeBackground.fire();
 			}
+			this.reportChanges(event);
 		}));
 		this._register(this.themeService.onDidColorThemeChange(() => {
 			this.backgroundImageLayout = this.readConfiguredBackgroundImageLayout();
@@ -178,17 +223,15 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 		return images;
 	}
 
-	async setBackground(background: URI | SessionsChatBackgroundPreset, colorScheme = this.themeService.getColorTheme().type): Promise<void> {
-		const setting = this.getBackgroundImageSetting(colorScheme);
-		await this.configurationService.updateValue(setting, URI.isUri(background) ? background.fsPath : background, ConfigurationTarget.USER);
+	async setBackground(background: URI | SessionsChatBackgroundPreset, source: ChatBackgroundChangeSource, colorScheme = this.themeService.getColorTheme().type): Promise<void> {
+		await this.updateSetting(this.getBackgroundImageSetting(colorScheme), URI.isUri(background) ? background.fsPath : background, source);
 		if (URI.isUri(background)) {
 			this.storeRecentBackgroundImage(background);
 		}
 	}
 
-	async clearBackground(colorScheme = this.themeService.getColorTheme().type): Promise<void> {
-		const setting = this.getBackgroundImageSetting(colorScheme);
-		await this.configurationService.updateValue(setting, undefined, ConfigurationTarget.USER);
+	async clearBackground(source: ChatBackgroundChangeSource, colorScheme = this.themeService.getColorTheme().type): Promise<void> {
+		await this.updateSetting(this.getBackgroundImageSetting(colorScheme), undefined, source);
 	}
 
 	getBackgroundImageLayout(colorScheme = this.themeService.getColorTheme().type): ChatBackgroundImageLayout {
@@ -197,7 +240,7 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 			: this.readConfiguredBackgroundImageLayout(colorScheme);
 	}
 
-	async setBackgroundImageLayout(layout: ChatBackgroundImageLayout, persist = true, colorScheme = this.themeService.getColorTheme().type): Promise<void> {
+	async setBackgroundImageLayout(layout: ChatBackgroundImageLayout, source: ChatBackgroundChangeSource, persist = true, colorScheme = this.themeService.getColorTheme().type): Promise<void> {
 		const setting = this.getBackgroundImageLayoutSetting(colorScheme);
 		if (isDark(colorScheme) === isDark(this.themeService.getColorTheme().type) && layout !== this.backgroundImageLayout) {
 			this.backgroundImageLayout = layout;
@@ -205,7 +248,7 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 		}
 		if (persist) {
 			try {
-				await this.configurationService.updateValue(setting, layout, ConfigurationTarget.USER);
+				await this.updateSetting(setting, layout, source);
 			} catch (error) {
 				const configuredLayout = this.readConfiguredBackgroundImageLayout();
 				if (configuredLayout !== this.backgroundImageLayout) {
@@ -215,6 +258,54 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 				throw error;
 			}
 		}
+	}
+
+	private updateSetting(setting: string, value: string | undefined, source: ChatBackgroundChangeSource): Promise<void> {
+		return this.writeSequencer.queue(async () => {
+			// The configuration service reports the change before the update resolves.
+			this.pendingChangeSources.set(setting, source);
+			try {
+				await this.configurationService.updateValue(setting, value, ConfigurationTarget.USER);
+			} finally {
+				this.pendingChangeSources.delete(setting);
+			}
+		});
+	}
+
+	/** Reports each change of a shown background, including changes made outside this service, such as in settings.json. */
+	private reportChanges(event: IConfigurationChangeEvent): void {
+		for (const colorScheme of reportedColorSchemes) {
+			const backgroundSetting = this.getBackgroundImageSetting(colorScheme);
+			const layoutSetting = this.getBackgroundImageLayoutSetting(colorScheme);
+			if (!event.affectsConfiguration(backgroundSetting) && !event.affectsConfiguration(layoutSetting)) {
+				continue;
+			}
+			// A setting can change without changing what is shown, for example when the layout
+			// that is used by default is selected, or a path replaces a `file` URI of the same image.
+			const previous = this.reportedBackgrounds.get(colorScheme);
+			const current = this.readReportedBackground(colorScheme);
+			this.reportedBackgrounds.set(colorScheme, current);
+			const { background, layout } = current;
+			const backgroundChanged = !isSameConfiguredBackground(previous?.background, background);
+			// Only images have a layout.
+			if (!backgroundChanged && (background?.kind !== 'image' || layout === previous?.layout)) {
+				continue;
+			}
+			this.telemetryService.publicLog2<ChatBackgroundChangedEvent, ChatBackgroundChangedClassification>('vscodeAgents.chatBackground/changed', {
+				source: this.pendingChangeSources.get(backgroundChanged ? backgroundSetting : layoutSetting) ?? 'settings',
+				change: backgroundChanged ? 'background' : 'layout',
+				background: background?.kind === 'image' ? 'userImage' : background?.kind === 'codicons' ? 'builtin' : 'none',
+				layout: background?.kind === 'image' ? layout : undefined,
+				colorScheme: colorScheme === ColorScheme.DARK ? 'dark' : 'light',
+			});
+		}
+	}
+
+	private readReportedBackground(colorScheme: ColorScheme): IReportedChatBackground {
+		return {
+			background: this.readConfiguredBackground(this.getBackgroundImageSetting(colorScheme)),
+			layout: this.readConfiguredBackgroundImageLayout(colorScheme),
+		};
 	}
 
 	private readConfiguredBackgroundImageLayout(colorScheme = this.themeService.getColorTheme().type): ChatBackgroundImageLayout {
@@ -294,4 +385,8 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 		const uri = URI.parse(candidate);
 		return uri.scheme === Schemas.file ? uri : undefined;
 	}
+}
+
+function isSameConfiguredBackground(a: ISessionsChatConfiguredBackground | undefined, b: ISessionsChatConfiguredBackground | undefined): boolean {
+	return a?.kind === 'image' && b?.kind === 'image' ? isEqual(a.image, b.image) : a?.kind === b?.kind;
 }

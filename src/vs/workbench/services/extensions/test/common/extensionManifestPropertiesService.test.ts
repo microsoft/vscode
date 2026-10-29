@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, ExtensionUntrustedWorkspaceSupportType, IExtensionContributions, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
+import { EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, ExtensionUntrustedWorkspaceSupportType, IExtensionContributions, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -144,6 +144,39 @@ suite('ExtensionManifestPropertiesService - SessionsWindowSupport', () => {
 			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', contributes: { themes: [] } })),
 			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ contributes: { commands: [] } })),
 		], [true, false, false]);
+	});
+
+	test('supports user extensions without code while extensions are managed, unless their support is declared', async () => {
+		await testConfigurationService.setUserConfiguration(EXTENSIONS_SUPPORT_AGENTS_WINDOW, { 'pub.configuredUnsupported': false });
+		await testConfigurationService.setUserConfiguration(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, true);
+		testObject = createTestObject();
+		const extension = (name: string, contributes: Record<string, unknown>, properties: Partial<IExtensionManifest> = {}) =>
+			getExtensionManifest({ name, contributes: contributes as IExtensionContributions, ...properties });
+		const manifests = [
+			extension('skills', { chatSkills: [{}] }),
+			extension('views', { views: { explorer: [{}] } }),
+			extension('withCode', { chatSkills: [{}] }, { main: './out/extension.js' }),
+			extension('declaredUnsupported', { chatSkills: [{}] }, { capabilities: { agentsWindow: { supported: false } } }),
+			extension('configuredUnsupported', { chatSkills: [{}] }),
+		];
+		const supported = () => ({
+			user: Object.fromEntries(manifests.map(manifest => [manifest.name, testObject.canExecuteOnSessionsWindow(manifest)])),
+			builtinViews: testObject.canExecuteOnSessionsWindow(manifests[1], true),
+		});
+
+		const unmanaged = supported();
+		await testConfigurationService.setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, true);
+
+		assert.deepStrictEqual({ unmanaged, managed: supported() }, {
+			unmanaged: {
+				user: { skills: false, views: false, withCode: false, declaredUnsupported: false, configuredUnsupported: false },
+				builtinViews: false,
+			},
+			managed: {
+				user: { skills: true, views: true, withCode: false, declaredUnsupported: false, configuredUnsupported: false },
+				builtinViews: false,
+			},
+		});
 	});
 
 	test('preserves built-in defaults when no agents window support is declared', () => {
@@ -366,12 +399,48 @@ if (!isWeb) {
 			return Object.create({ name: 'a', publisher: 'pub', version: '1.0.0', ...properties }) as IExtensionManifest;
 		}
 
-		test('test extension workspace trust request when main entry point is missing', () => {
+		test('test extension workspace trust request when no executable entry point exists', () => {
 			instantiationService.stub(IProductService, {});
 			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
 
 			const extensionManifest = getExtensionManifest();
 			assertUntrustedWorkspaceSupport(extensionManifest, true);
+		});
+
+		for (const supported of [false, true, 'limited'] as const) {
+			test(`browser-only extension honors its declared untrusted workspace support: ${supported}`, () => {
+				instantiationService.stub(IProductService, {});
+				instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+				assertUntrustedWorkspaceSupport(getExtensionManifest({
+					browser: './dist/browser/extension.js',
+					capabilities: { untrustedWorkspaces: { supported, description: 'Workspace trust support' } },
+				}), supported);
+			});
+		}
+
+		test('browser-only extensions without declared support require workspace trust', () => {
+			instantiationService.stub(IProductService, {});
+			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+			assertUntrustedWorkspaceSupport(getExtensionManifest({ browser: './dist/browser/extension.js' }), false);
+		});
+
+		test('browser-only extensions still honor the disabled workspace trust feature', () => {
+			instantiationService.stub(IProductService, {});
+			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService(false));
+			assertUntrustedWorkspaceSupport(getExtensionManifest({
+				browser: './dist/browser/extension.js',
+				capabilities: { untrustedWorkspaces: { supported: false, description: 'Requires trust' } },
+			}), true);
+		});
+
+		test('browser-only extensions honor an explicit user trust-support override', async () => {
+			instantiationService.stub(IProductService, {});
+			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+			await testConfigurationService.setUserConfiguration('extensions', { supportUntrustedWorkspaces: { 'pub.a': { supported: true } } });
+			assertUntrustedWorkspaceSupport(getExtensionManifest({
+				browser: './dist/browser/extension.js',
+				capabilities: { untrustedWorkspaces: { supported: false, description: 'Requires trust' } },
+			}), true);
 		});
 
 		test('test extension workspace trust request when workspace trust is disabled', async () => {

@@ -596,6 +596,9 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 				// Callers use `title` to say why a switch is unavailable, so it names the
 				// control for a screen reader too rather than only appearing on hover.
 				ariaLabel: toggleConfig.title ?? toggleConfig.label,
+				// A standalone toggle's row hover already explains the switch, so a
+				// second hover on the switch would show the same text twice.
+				title: element.standaloneToggle && element.hover?.content ? false : undefined,
 				checked: toggleConfig.checked,
 				disabled: toggleConfig.disabled,
 			}));

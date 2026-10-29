@@ -1081,12 +1081,12 @@ suite('Artifact Integrations', () => {
 				kind: 'changed', content: [
 					'Autopilot updated for Example \\(3 rules\\)',
 					'',
-					'- Repair enabled\\',
+					'- **Repair enabled**\\',
 					'  Repair failures.',
-					'- Merge enabled\\',
+					'- **Merge enabled**\\',
 					'  Merge when ready.\\',
 					'  Mode: Only if Unchanged',
-					'- Address \\*Reviews\\* disabled\\',
+					'- **Address \\*Reviews\\* disabled**\\',
 					'  Attempt limit reached',
 					'',
 					'No new automatic runs will start for the disabled rules. Pending runs will be cancelled; work already sent may still finish. Completed changes are not undone.',
@@ -1103,6 +1103,22 @@ suite('Artifact Integrations', () => {
 			},
 			integrations: 'Still enabled: Repair.',
 			disabledAcrossIntegrations: 'No automation rules remain enabled for these artifact integrations.',
+		});
+	});
+
+	test('notice list titles are bold without formatting their descriptions', () => {
+		assert.deepStrictEqual(formatArtifactAutomationNotice('Example', [
+			{ integrationId: 'test', optionId: 'repair', label: '*Repair*\nfailures', kind: 'changed', details: ['Use [this](command:run).\nThen push.'] },
+			{ integrationId: 'test', optionId: 'merge', label: 'Merge', kind: 'enabled', details: [] },
+		], []), {
+			kind: 'changed',
+			content: [
+				'Autopilot updated for Example \\(2 rules\\)',
+				'',
+				'- **\\*Repair\\* failures updated**\\',
+				'  Use \\[this\\]\\(command:run\\). Then push.',
+				'- **Merge enabled**',
+			].join('\n'),
 		});
 	});
 

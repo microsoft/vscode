@@ -213,7 +213,7 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 	await timeout(100);
 	let request = 0;
 	return {
-		model, service, runtime, integration, snapshot, artifact, session, chat, directory, configuration, mutations, prompts, stateManager, authenticationRequests, endpoint, checkoutRequests,
+		model, service, runtime, integration, snapshot, artifact, session, chat, directory, configuration, mutations, prompts, stateManager, authenticationRequests, endpoint, checkoutRequests, logService,
 		setCheckout: (value: { branch?: string; commit?: string; dirty?: boolean; remote?: string; directory?: string }) => {
 			if (value.directory) {
 				branches.set(value.directory, value.branch ?? branch);
@@ -1380,6 +1380,54 @@ suite('GitHub pull request artifact integration', () => {
 			peerEnabled: getArtifactActionAvailability(action, peer).enabled, beforeManual, destinations: f.prompts.map(prompt => prompt.chat),
 		}, { originalEnabled: false, explanation: true, peerEnabled: true, beforeManual: 0, destinations: [peer] });
 		await f.finishPrompt();
+	}));
+
+	for (const ownFolders of [false, true]) {
+		test(`restored repair chats verify ${ownFolders ? 'their recorded' : 'inherited'} checkout without loading history`, () => run(async store => {
+			const f = await fixture(store, itemActionSnapshot());
+			const peer = buildChatUri(f.session, 'restored');
+			const peerDirectory = URI.file('/restored').toString();
+			const directory = ownFolders ? peerDirectory : f.directory;
+			let historyLoads = 0;
+			const warnings: string[] = [];
+			f.logService.warn = (message: string) => warnings.push(message);
+			f.stateManager.registerRestoredChatSummary(f.session, peer, {
+				storageResource: peer,
+				workingDirectories: ownFolders ? [peerDirectory] : undefined,
+				resolver: async () => {
+					historyLoads++;
+					return { turns: [] };
+				},
+			});
+			f.setCheckout({ directory, branch: 'feature' });
+			await timeout(100);
+			const action = f.model.snapshot.get().contributions[0].view.stateActions.find(action => action.id === 'fixCI')!;
+			const availability = getArtifactActionAvailability(action, peer);
+			const run = await f.invoke('fixCI', peer);
+			assert.deepStrictEqual({
+				owner: f.stateManager.getChatOwner(peer), loaded: !!f.stateManager.getChatState(peer),
+				enabled: availability.enabled, state: run.state, destinations: f.prompts.map(prompt => prompt.chat),
+				checkout: f.prompts[0].prompt.text.includes(JSON.stringify({ directory: URI.parse(directory).fsPath, repository: 'octo/repo', branch: 'feature' })),
+				historyLoads, warnings,
+			}, { owner: f.session, loaded: false, enabled: true, state: 'running', destinations: [peer], checkout: true, historyLoads: 0, warnings: [] });
+			await f.finishPrompt();
+		}));
+	}
+
+	test('restored repair chats still require the matching branch and session owner', () => run(async store => {
+		const f = await fixture(store, itemActionSnapshot());
+		const peer = buildChatUri(f.session, 'restored');
+		f.stateManager.registerRestoredChatSummary(f.session, peer, { storageResource: peer });
+		f.setCheckout({ branch: 'different' });
+		await timeout(100);
+		await assert.rejects(f.invoke('fixCI', peer), /must already have/);
+		const other = 'copilot:/other-artifact-session';
+		f.stateManager.createSession({ resource: other, defaultChat: buildDefaultChatUri(other), provider: 'copilot', title: 'Other', status: SessionStatus.Idle, createdAt: '2026-01-01', modifiedAt: '2026-01-01' });
+		f.stateManager.reassignChatOwner(peer, other);
+		f.setCheckout({ branch: 'feature' });
+		await timeout(100);
+		await assert.rejects(f.invoke('fixCI', peer), /no longer belongs/);
+		await assert.rejects(f.invoke('fixCI', buildChatUri(f.session, 'missing')), /not available in the invoking chat/);
 	}));
 
 	test('workspace exclusions affect automatic Mark Ready but never automatic merging', () => run(async store => {
