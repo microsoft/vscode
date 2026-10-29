@@ -87,6 +87,8 @@ import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../
 import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, ISessionsChatBackground, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IWorktreeSuggestionService } from '../../../worktreeSuggestion/browser/worktreeSuggestionService.js';
+import { NullWorktreeSuggestionService } from '../../../worktreeSuggestion/test/browser/worktreeSuggestionTestUtils.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -542,6 +544,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly extUri = extUri;
 			}());
 			reg.defineInstance(INewSessionComposerService, composerService);
+			reg.defineInstance(IWorktreeSuggestionService, new NullWorktreeSuggestionService());
 			reg.defineInstance(IChatTipService, new class extends mock<IChatTipService>() {
 				private readonly _onDidChangeTip = disposableStore.add(new Emitter<void>());
 				override readonly onDidChangeTip = this._onDidChangeTip.event;
