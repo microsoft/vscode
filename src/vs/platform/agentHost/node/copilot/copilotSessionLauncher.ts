@@ -305,9 +305,9 @@ export interface ICopilotSessionRuntime {
 	/** The owner session this launch is configured for; the chat's owner can change later, which relaunches at the next turn boundary. */
 	readonly launchOwner: URI;
 	/** The sandbox policy to pass when the SDK session opens; `undefined` when the launch applies it another way. */
-	getLaunchSandboxConfig(): SandboxConfig | undefined;
+	getLaunchSandboxConfig(isResume: boolean): SandboxConfig | undefined;
 	/** Applies the launch-time sandbox policy and diagnostics before the SDK session is attached. */
-	applyLaunchSandbox(session: CopilotSession): Promise<void>;
+	applyLaunchSandbox(session: CopilotSession, isResume: boolean): Promise<void>;
 	handlePermissionRequest(request: PermissionRequest, invocation?: Parameters<PermissionHandler>[1]): Promise<PermissionRequestResult | AttributedPermissionResult>;
 	handleExitPlanModeRequest(request: ExitPlanModeRequest, invocation: { sessionId: string }): Promise<ExitPlanModeResult>;
 	handleUserInputRequest(request: UserInputRequest, invocation: UserInputInvocation): Promise<UserInputResponse>;
@@ -946,19 +946,19 @@ function isManagedSandboxPolicyConflict(err: unknown): boolean {
 		|| (err instanceof Error && err.message.includes('Sandbox configuration update violates managed policy. Contact your administrator for more information.'));
 }
 
-/** Applies sandbox configuration, returning false when the runtime retains its policy after a managed conflict. */
-export async function applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig, sessionId: string, logService: ILogService, rejectPolicyConflicts = false): Promise<boolean> {
+/** Applies sandbox configuration, returning a reportable conflict when the runtime retains its policy. */
+export async function applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig, sessionId: string, logService: ILogService, rejectPolicyConflicts = false): Promise<{ applied: true } | { applied: false; message: string }> {
 	try {
 		const result = await session.rpc.options.update({ sandboxConfig });
 		if (!result.success) {
 			throw new Error('Copilot SDK rejected sandbox config update');
 		}
 		logService.info(`[Copilot:${sessionId}] Applied SDK sandboxConfig via session.options.update`);
-		return true;
+		return { applied: true };
 	} catch (err) {
 		if (!rejectPolicyConflicts && isManagedSandboxPolicyConflict(err)) {
 			logService.warn(`[Copilot:${sessionId}] SDK sandboxConfig update conflicts with managed policy; continuing with the runtime's existing sandbox configuration`, err);
-			return false;
+			return { applied: false, message: getErrorMessage(err) };
 		}
 		logService.warn(`[Copilot:${sessionId}] Failed to apply SDK sandboxConfig`, err);
 		throw err;
@@ -1116,13 +1116,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 		const modelPolicy = built.modelPolicy;
 		// Applied during construction so MCP servers start sandboxed; the launch apply below still repeats it for runtimes without open-time support.
-		const config: SandboxAwareSessionConfig = { ...built.config, sandboxConfig: runtime.getLaunchSandboxConfig() };
+		const config: SandboxAwareSessionConfig = { ...built.config, sandboxConfig: runtime.getLaunchSandboxConfig(plan.kind === 'resume') };
 		plan.stageRecorder?.mark('create');
 		const sandboxConfig = async (session: CopilotSessionWrapper['session']) => {
 			if (!managedSettingsResolved) {
 				this._logService.error(`[Copilot:${plan.sessionId}] Copilot runtime did not report its resolved managed settings; continuing with available sandbox configuration`);
 			}
-			await runtime.applyLaunchSandbox(session);
+			await runtime.applyLaunchSandbox(session, plan.kind === 'resume');
 		};
 		if (plan.kind === 'create') {
 			return this._createSession(plan, config, sandboxConfig, runtime, modelPolicy);

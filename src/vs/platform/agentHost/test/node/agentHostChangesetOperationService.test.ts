@@ -141,6 +141,7 @@ class TestConfigurationService implements IAgentConfigurationService {
 	getChatSandboxEnabled(): undefined { return undefined; }
 	getChatAttachmentScopes(target: IAgentChatConfigurationTarget): readonly string[] { return [target.session]; }
 	setChatSandboxEnabled(): void { }
+	reportChatSandboxConflict(): void { }
 	rejectChatSandboxChange(): void { }
 
 	constructor(private _workingDirectories: string[] | undefined) { }

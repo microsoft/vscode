@@ -1443,7 +1443,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	onDidReportModelConfiguration: Event<void>;
 	chatConfigUpdates: ReadonlyArray<{ chat: string; patch: Record<string, unknown> }>;
 	rootConfigUpdates: ReadonlyArray<Record<string, unknown>>;
-	sandboxResults: Array<boolean | string>;
+	sandboxResults: Array<boolean | string | undefined>;
 	dispatchSessionAction: (action: StateAction) => void;
 	storageService: IAgentHostStorageService;
 } & ITestSessionConfiguration> {
@@ -1606,7 +1606,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const modelConfigurationReported = new DeferredPromise<void>();
 	const modelConfigurationReports = disposables.add(new Emitter<void>());
 	const chatConfigUpdates: Array<{ chat: string; patch: Record<string, unknown> }> = [];
-	const sandboxResults: Array<boolean | string> = [];
+	const sandboxResults: Array<boolean | string | undefined> = [];
 	let sandboxEnabled: boolean | undefined;
 	const configValues = options?.configValues ?? {};
 	const rootValues: Record<string, unknown> = { ...(options?.rootValues ?? {}) };
@@ -1654,6 +1654,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		getChatSandboxEnabled: () => sandboxEnabled,
 		getChatAttachmentScopes: target => [target.session, ...options?.attachmentScopes ?? []],
 		setChatSandboxEnabled: (_target, enabled, error) => { sandboxEnabled = enabled; sandboxResults.push(error?.message ?? enabled); },
+		reportChatSandboxConflict: (_target, message) => { sandboxResults.push(message); },
 		rejectChatSandboxChange: (_target, _values, _origin, message) => { sandboxResults.push(message); },
 		updateSessionConfig: (session, patch) => {
 			if (options?.trackModelConfigurationUpdates || !Object.hasOwn(patch, agentModelConfigurationReportKey)) {
@@ -13322,7 +13323,7 @@ suite('CopilotAgentSession', () => {
 							}
 							configuration.setConfigValue(SessionConfigKey.AutoApprove, 'default');
 							configuration.fireSessionConfigChange({ [SessionConfigKey.AutoApprove]: 'default' });
-							await runtime.applyLaunchSandbox(sdkSession as unknown as CopilotSession);
+							await runtime.applyLaunchSandbox(sdkSession as unknown as CopilotSession, false);
 							launchUpdates = [...sdkSession.sandboxConfigUpdates];
 						},
 						configureMockSession: value => { sdkSession = value; },
@@ -13377,7 +13378,7 @@ suite('CopilotAgentSession', () => {
 							};
 						},
 						duringLaunch: async (runtime, configuration) => {
-							const launch = runtime.applyLaunchSandbox(sdkSession as unknown as CopilotSession);
+							const launch = runtime.applyLaunchSandbox(sdkSession as unknown as CopilotSession, false);
 							await applying.p;
 							try {
 								if (source === 'root') {
@@ -13590,7 +13591,7 @@ suite('CopilotAgentSession', () => {
 		}
 
 		for (const activeTurn of [false, true]) {
-			test(`reports explicit sandbox conflicts with active turn ${activeTurn}`, async () => {
+			test(`reports explicit and subsequent background sandbox conflicts with active turn ${activeTurn}`, async () => {
 				const logService = new CapturingLogService();
 				const { session, mockSession, setConfigValue, fireSessionConfigChange, sandboxResults } = await createAgentSession(disposables, { logService });
 				setConfigValue(SessionConfigKey.SandboxEnabled, 'on');
@@ -13617,7 +13618,7 @@ suite('CopilotAgentSession', () => {
 					errors: logService.errors,
 				}, {
 					hadActiveTurn: activeTurn,
-					sandboxResults: [true, 'Managed sandbox conflict'],
+					sandboxResults: [true, 'Managed sandbox conflict', 'Managed sandbox conflict'],
 					abortCalls: activeTurn ? 1 : 0,
 					sendCount: 1,
 					rejectedUpdates: [{ enabled: false }, { enabled: false }],
@@ -13630,7 +13631,7 @@ suite('CopilotAgentSession', () => {
 
 				mockSession.sandboxConfigUpdateError = undefined;
 				await session.send('retry', undefined, 'retry-turn');
-				assert.deepStrictEqual(sandboxResults, [true, 'Managed sandbox conflict', false]);
+				assert.deepStrictEqual(sandboxResults, [true, 'Managed sandbox conflict', 'Managed sandbox conflict', false]);
 			});
 		}
 
@@ -14039,7 +14040,7 @@ suite('CopilotAgentSession', () => {
 						},
 						rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
 					});
-					const launchConfig = runtime.getLaunchSandboxConfig();
+					const launchConfig = runtime.getLaunchSandboxConfig(resume);
 					await session.send('hello', undefined, 'turn-1');
 
 					const native = (path: string) => platform === 'win32' ? path.replace(/\//g, '\\') : path;
@@ -14163,7 +14164,7 @@ suite('CopilotAgentSession', () => {
 					rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
 				});
 
-				await runtime.applyLaunchSandbox(mockSession as unknown as CopilotSession);
+				await runtime.applyLaunchSandbox(mockSession as unknown as CopilotSession, false);
 				const launchConfig = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig;
 				const updatesBeforeTurn = mockSession.sandboxConfigUpdates.length;
 				await session.send('hello', undefined, 'turn-1');
@@ -14191,7 +14192,7 @@ suite('CopilotAgentSession', () => {
 					rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
 				});
 
-				await runtime.applyLaunchSandbox(mockSession as unknown as CopilotSession);
+				await runtime.applyLaunchSandbox(mockSession as unknown as CopilotSession, false);
 				const updatesBeforeTurn = mockSession.sandboxConfigUpdates.length;
 				await session.send('hello', undefined, 'turn-1');
 
@@ -14207,7 +14208,7 @@ suite('CopilotAgentSession', () => {
 					attachmentScopes,
 					rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
 				});
-				await runtime.applyLaunchSandbox(mockSession as unknown as CopilotSession);
+				await runtime.applyLaunchSandbox(mockSession as unknown as CopilotSession, false);
 				attachmentScopes.push(resource.toString());
 				await session.send('hello', undefined, 'turn-1');
 
