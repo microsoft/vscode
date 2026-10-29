@@ -68,7 +68,7 @@ export function getSessionSandboxConfig(configuration: IAgentConfigurationServic
 	return sandbox;
 }
 
-/** Resolves a chat's toggle overrides using confirmed sandbox metadata and current managed policy. */
+/** Resolves a chat's toggle overrides without changing global settings. */
 export function getSessionSandboxOverrides(configuration: IAgentConfigurationService, target: IAgentChatConfigurationTarget): Pick<ISandboxConfigValue, AgentHostSandboxKey.Enabled | AgentHostSandboxKey.AllowUnsandboxedCommands | AgentHostSandboxKey.AllowNetwork | AgentHostSandboxKey.AllowLocalNetwork | AgentHostSandboxKey.AllowDevToolAccess | AgentHostSandboxKey.SandboxMcpServers | AgentHostSandboxKey.SandboxLspServers | AgentHostSandboxKey.AuthenticateGit | AgentHostSandboxKey.AuthenticateGh> {
 	const policy = configuration.getSessionSandboxPolicy(target.session);
 	const enabled = resolveSandboxEnabled(configuration.getChatConfigValues(target)?.[SessionConfigKey.SandboxEnabled], policy, configuration.getChatSandboxEnabled(target));
@@ -95,6 +95,11 @@ export function getSessionSandboxOverrides(configuration: IAgentConfigurationSer
 	};
 }
 
+/**
+ * Resolves sandbox enablement from a selection (`default`, `on`, `off`), the
+ * session's policy floor and the last successfully applied enablement: an
+ * applied disable within a policy that allows bypass stays authorized.
+ */
 export function resolveSandboxEnabled(rawSelection: unknown, policy: ISessionSandboxPolicy | undefined, appliedEnabled: boolean | undefined): AgentSandboxEnabledValue | undefined {
 	const selection = platformSessionSchema.validate(SessionConfigKey.SandboxEnabled, rawSelection) ? rawSelection : undefined;
 	const authorizedDisable = policy?.allowBypass === true && appliedEnabled === false;

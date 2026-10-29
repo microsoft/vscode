@@ -5,11 +5,11 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
+import { ChatProvidersConfigKey } from '../../common/agentHostChatProviders.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { ChatProvidersConfigKey } from '../../common/agentHostChatProviders.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentHostSandboxKey, ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
 import { readSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
