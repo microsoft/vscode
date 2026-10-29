@@ -232,9 +232,9 @@ export class ChatPetJumpGame extends Disposable {
 						? localize('chatPet.jump.landedMoving', "Moving platform. Blobby moves with it while charging. Hops: {0}.", this.model.hops)
 						: this.model.player.platform < 0
 							? localize('chatPet.jump.landedWall', "Blobby landed on a wall. Hops: {0}.", this.model.hops)
-						: this.model.player.platform === 0
-							? localize('chatPet.jump.startingPlatform', "Blobby is back on the starting platform")
-							: localize('chatPet.jump.landed', "Blobby landed on platform {0}. Hops: {1}.", this.model.player.platform, this.model.hops));
+							: this.model.player.platform === 0
+								? localize('chatPet.jump.startingPlatform', "Blobby is back on the starting platform")
+								: localize('chatPet.jump.landed', "Blobby landed on platform {0}. Hops: {1}.", this.model.player.platform, this.model.hops));
 			}
 			this.render();
 			this.scheduleFrame();
