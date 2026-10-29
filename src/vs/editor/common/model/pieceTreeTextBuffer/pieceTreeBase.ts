@@ -738,7 +738,7 @@ export class PieceTreeBase {
 	public findMatchesLineByLine(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[] {
 		const result: FindMatch[] = [];
 		let resultLen = 0;
-		const searcher = new Searcher(searchData.wordSeparators, searchData.regex);
+		const searcher = new Searcher(searchData.wordSeparators, searchData.regex, searchData.isLiteralSearch);
 
 		let startPosition = this.nodeAt2(searchRange.startLineNumber, searchRange.startColumn);
 		if (startPosition === null) {
