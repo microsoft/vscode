@@ -14,7 +14,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -72,7 +72,7 @@ import { INewChatVoiceTargetService } from './newChatVoice.js';
 import { ISessionsChatViewStateService } from './chatViewStateService.js';
 import { ExternalSessionBanner } from './externalSessionBanner.js';
 import { ISessionOpenTelemetryService } from '../../../services/sessions/browser/sessionOpenTelemetryService.js';
-import { SessionArchiveNudge } from './sessionArchiveNudge.js';
+import { ISessionArchiveNudgeTarget, SessionArchiveNudge } from './sessionArchiveNudge.js';
 import { SessionsChatBackgroundReplica } from '../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
 import { SessionComparisonResult } from './sessionComparisonResult.js';
@@ -556,17 +556,21 @@ export class ChatView extends AbstractChatView {
 			scopedInstantiationService.createInstance(ChatContentMarkdownRenderer),
 		));
 
-		const archiveNudge = this._register(instantiationService.createInstance(SessionArchiveNudge, derived(this, reader => {
+		const archiveNudge = this._register(instantiationService.createInstance(SessionArchiveNudge, derivedOpts<ISessionArchiveNudgeTarget | undefined>({
+			owner: this,
+			equalsFn: (a, b) => a?.session === b?.session && a?.chat === b?.chat,
+		}, reader => {
 			if (!this._isVisibleObs.read(reader) || !this._isPrimaryObs.read(reader) || this.isLoadingTranscript.read(reader)) {
 				return undefined;
 			}
 			const session = this._currentSessionObs.read(reader);
 			const resource = this._currentChatResourceObs.read(reader);
-			if (!isEqual(chatModel.read(reader)?.sessionResource, resource)) {
+			if (!session || !isEqual(chatModel.read(reader)?.sessionResource, resource)) {
 				return undefined;
 			}
-			const chat = session?.chats.read(reader).find(chat => isEqual(chat.resource, resource));
-			return chat?.interactivity.read(reader) === ChatInteractivity.Full ? session : undefined;
+			// The suggestion covers the pull requests of the chat it appears in.
+			const chat = session.chats.read(reader).find(chat => isEqual(chat.resource, resource));
+			return chat?.interactivity.read(reader) === ChatInteractivity.Full ? { session, chat } : undefined;
 		})));
 		this._register(autorun(reader => {
 			const options = archiveNudge.options.read(reader);
