@@ -1078,23 +1078,23 @@ suite('CloudSandboxApiService session feed', () => {
 		});
 	}
 
-	for (const invalid of [
-		{ url: 'ws://feed.example.test/?access_token=secret' },
-		{ url: 'not a URL secret' },
-		{ url: 'wss://user:password@feed.example.test/' },
-		{ url: 'wss://feed.example.test/#secret' },
-		{ reconnect_after: new Date(0).toISOString() },
-		{ get reconnect_after() { return new Date(Date.now() + 20 * 60_000).toISOString(); } },
-		{ frame_schema_version: 2 },
-		{ subprotocol: 'json.reliable.webpubsub.azure.v1' },
-		{ group: '' },
-		{ expires_in: 600_000 },
-		{ reconnect_in: 480_000 },
-		{ expires_in: 600_000, reconnect_in: 0 },
-		{ expires_in: 600_000, reconnect_in: 600_000 },
-		{ expires_in: 2 ** 32, reconnect_in: 2 ** 31 },
-	]) {
-		test(`rejects malformed feed metadata (${Object.keys(invalid)[0]}: ${Object.values(invalid)[0]}) without disclosing it`, async () => {
+	for (const [name, invalid] of [
+		['insecure URL', { url: 'ws://feed.example.test/?access_token=secret' }],
+		['invalid URL', { url: 'not a URL secret' }],
+		['URL credentials', { url: 'wss://user:password@feed.example.test/' }],
+		['URL fragment', { url: 'wss://feed.example.test/#secret' }],
+		['expired renewal timestamp', { reconnect_after: new Date(0).toISOString() }],
+		['renewal timestamp after expiry', { get reconnect_after() { return new Date(Date.now() + 20 * 60_000).toISOString(); } }],
+		['unsupported schema version', { frame_schema_version: 2 }],
+		['unsupported subprotocol', { subprotocol: 'json.reliable.webpubsub.azure.v1' }],
+		['empty group', { group: '' }],
+		['missing relative renewal', { expires_in: 600_000 }],
+		['missing relative expiry', { reconnect_in: 480_000 }],
+		['expired relative renewal', { expires_in: 600_000, reconnect_in: 0 }],
+		['relative renewal at expiry', { expires_in: 600_000, reconnect_in: 600_000 }],
+		['renewal exceeding the timer limit', { expires_in: 2 ** 32, reconnect_in: 2 ** 31 }],
+	] as const) {
+		test(`rejects malformed feed metadata (${name}) without disclosing it`, async () => {
 			const { service } = createService(store, {
 				tasks: [], repositories: new Map(), onRequest: () => jsonResponse({ ...feedConnection(), ...invalid }),
 			});
