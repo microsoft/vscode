@@ -80,6 +80,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	sandboxConfigurationOutput: string | undefined;
 	useRealSandboxConfiguration = false;
 	preparedSandboxConfiguration: IDevContainerSandboxConfiguration | undefined;
+	environmentGate: Promise<void> | undefined;
+	readonly environmentEntered = new DeferredPromise<void>();
 	configurationReadError: Error | undefined;
 	configurationReadExitCode = 0;
 	readonly localCommands: { readonly command: string; readonly args: readonly string[] }[] = [];
@@ -181,6 +183,14 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		return this._resolveDevContainerEnvironment();
 	}
 
+	protected override async _resolveDevContainerEnvironment(): Promise<typeof process.env> {
+		if (this.environmentGate) {
+			this.environmentEntered.complete();
+			await this.environmentGate;
+		}
+		return super._resolveDevContainerEnvironment();
+	}
+
 	getDevContainerSpawnEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 		return this._getDevContainerSpawnEnvironment(environment);
 	}
@@ -234,9 +244,9 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		return Promise.resolve(this.containerMounts);
 	}
 
-	protected override async _prepareSandboxConfiguration(configuration: Promise<string>, workspaceFolder: string, directory: string): Promise<IDevContainerSandboxConfiguration> {
+	protected override async _prepareSandboxConfiguration(configuration: Promise<string>, workspaceFolder: string, directory: string, token: CancellationToken): Promise<IDevContainerSandboxConfiguration> {
 		if (this.useRealSandboxConfiguration) {
-			this.preparedSandboxConfiguration = await super._prepareSandboxConfiguration(configuration, workspaceFolder, directory);
+			this.preparedSandboxConfiguration = await super._prepareSandboxConfiguration(configuration, workspaceFolder, directory, token);
 		}
 		this.sandboxConfigurationPrepared = true;
 		return {
@@ -247,7 +257,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 	prepareRealSandboxConfiguration(workspaceFolder: string, directory: string): Promise<IDevContainerSandboxConfiguration> {
 		assert.ok(this.sandboxConfigurationOutput);
-		return super._prepareSandboxConfiguration(Promise.resolve(this.sandboxConfigurationOutput), workspaceFolder, directory);
+		return super._prepareSandboxConfiguration(Promise.resolve(this.sandboxConfigurationOutput), workspaceFolder, directory, CancellationToken.None);
 	}
 
 	protected override async _getSandboxSupported(): Promise<boolean> {
@@ -852,6 +862,37 @@ suite('Dev Container Agent Host Main Service', () => {
 				['read-configuration', '--log-level', 'debug', '--workspace-folder', '/workspace', '--include-merged-configuration'],
 				['read-configuration', '--log-level', 'debug', '--workspace-folder', '/workspace', '--include-merged-configuration'],
 			]);
+		} finally {
+			service.dispose();
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('stops sandbox preparation when the connection is cancelled while the launch environment resolves', async () => {
+		const directory = await mkdtemp(join(process.cwd(), '.build', 'dev-container-cancelled-prepare-'));
+		const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, false, [], new Set(), directory));
+		try {
+			const configPath = join(directory, 'devcontainer.json');
+			await writeFile(configPath, JSON.stringify({ image: 'test-image' }));
+			service.useRealSandboxConfiguration = true;
+			service.sandboxConfigurationOutput = JSON.stringify({
+				configuration: { image: 'test-image', configFilePath: URI.file(configPath).toJSON() },
+				mergedConfiguration: { mounts: [] },
+			});
+			const gate = new DeferredPromise<void>();
+			service.environmentGate = gate.p;
+			const connecting = service.connect({ connectionId: 'cancelled-prepare', workspaceFolder: '/workspace', name: 'Project', sandboxEnabled: true });
+			await service.environmentEntered.p;
+			await service.disconnect('cancelled-prepare');
+			gate.complete();
+			await assert.rejects(connecting, CancellationError);
+			const overrides = (await readdir(directory)).filter(name => name.startsWith('vscode-dev-container-sandbox-'));
+			const written = (await Promise.all(overrides.map(name => readdir(join(directory, name)).catch(() => [])))).flat();
+			assert.deepStrictEqual({
+				prepared: service.preparedSandboxConfiguration,
+				written,
+				up: service.devContainerArgs.filter(args => args[0] === 'up').length,
+			}, { prepared: undefined, written: [], up: 0 });
 		} finally {
 			service.dispose();
 			await rm(directory, { recursive: true, force: true });

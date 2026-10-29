@@ -284,7 +284,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					store.add(toDisposable(() => {
 						void rm(directory, { recursive: true, force: true }).catch(error => this._logService.error(`${LOG_PREFIX} Failed to remove sandbox override`, error));
 					}));
-					const sandbox = await this._prepareSandboxConfiguration(configuration, config.workspaceFolder, directory);
+					const sandbox = await this._prepareSandboxConfiguration(configuration, config.workspaceFolder, directory, tokenSource.token);
 					workspaceSelector = ['--workspace-folder', config.workspaceFolder, ...sandbox.args];
 					sandboxEnvironment = sandbox.environment;
 				}
@@ -467,8 +467,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return result.stdout;
 	}
 
-	protected async _prepareSandboxConfiguration(configuration: Promise<string>, workspaceFolder: string, directory: string): Promise<IDevContainerSandboxConfiguration> {
-		return prepareDevContainerSandboxConfiguration(await configuration, directory, workspaceFolder, await this._resolveDevContainerEnvironment());
+	protected async _prepareSandboxConfiguration(configuration: Promise<string>, workspaceFolder: string, directory: string, token: CancellationToken): Promise<IDevContainerSandboxConfiguration> {
+		return prepareDevContainerSandboxConfiguration(await configuration, directory, workspaceFolder, await this._resolveDevContainerEnvironment(), token);
 	}
 
 	protected async _getSandboxSupported(_connectionId: string, containerId: string, token: CancellationToken): Promise<boolean> {
