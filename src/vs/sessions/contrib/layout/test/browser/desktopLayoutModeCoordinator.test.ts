@@ -303,7 +303,7 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 	test('the main window shows the toggles the user promoted as buttons before its Layout menu, with an icon for their state and the arrangement, and no Layout menu once all three are; in its title bar or its Session Activity Bar', async () => {
 		const controller = createController('chat', sessionA);
 		await controller.whenRestored();
-		const titles = ['Show Chat', 'Show Editor', 'Stacked'];
+		const titles = ['Show Chat', 'Show Editor', 'Stacked', 'Side by Side'];
 		const describe = (layoutActions: boolean, mode: SessionLayoutMode, splitLayout: SessionLayoutMode, promoted: readonly SessionLayoutButton[]) => {
 			const contextKeys: Record<string, ContextKeyValue> = {
 				agentSessionsDesktopLayout: true, 'sessions.layoutMode': mode, 'sessions.splitLayout': splitLayout,
@@ -331,12 +331,12 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 			stripNone: describe(true, SessionLayoutMode.Stacked, SessionLayoutMode.Stacked, []),
 		}, {
 			none: ['Layout: Side by Side (menu)'],
-			sideBySide: ['Show Chat (layout-sidebar-left)', 'Show Editor (layout-sidebar-right)', 'Stacked (split-horizontal)'],
-			stacked: ['Show Chat (layout-statusbar)', 'Show Editor (session-layout-editor-above)', 'Stacked (split-vertical)'],
-			chatOnlyStacked: ['Show Chat (layout-statusbar)', 'Show Editor (session-layout-editor-above-off)', 'Stacked (split-vertical)'],
-			editorOnly: ['Show Chat (layout-sidebar-left-off)', 'Show Editor (layout-sidebar-right)', 'Stacked (split-horizontal)'],
-			oneHidden: ['Show Chat (layout-sidebar-left)', 'Stacked (split-horizontal)', 'Layout: Side by Side (menu)'],
-			strip: ['Show Chat (layout-statusbar)', 'Show Editor (session-layout-editor-above)', 'Stacked (split-vertical)'],
+			sideBySide: ['Show Chat (layout-sidebar-left)', 'Show Editor (layout-sidebar-right)', 'Stacked (split-vertical)'],
+			stacked: ['Show Chat (layout-statusbar)', 'Show Editor (session-layout-editor-above)', 'Side by Side (split-horizontal)'],
+			chatOnlyStacked: ['Show Chat (layout-statusbar)', 'Show Editor (session-layout-editor-above-off)', 'Side by Side (split-horizontal)'],
+			editorOnly: ['Show Chat (layout-sidebar-left-off)', 'Show Editor (layout-sidebar-right)', 'Stacked (split-vertical)'],
+			oneHidden: ['Show Chat (layout-sidebar-left)', 'Stacked (split-vertical)', 'Layout: Side by Side (menu)'],
+			strip: ['Show Chat (layout-statusbar)', 'Show Editor (session-layout-editor-above)', 'Side by Side (split-horizontal)'],
 			stripNone: ['Layout: Stacked (menu)'],
 		});
 	});
