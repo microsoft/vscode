@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ChatRequest, ChatResponseStream } from 'vscode';
+import type { CancellationToken, ChatRequest, ChatResponseStream } from 'vscode';
 import { ChatResponseStreamImpl } from '../../../util/common/chatResponseStreamImpl';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { TaskSingler } from '../../../util/common/taskSingler';
@@ -99,6 +99,7 @@ export function reportAutoModeRouting(
 	request: ChatRequest,
 	stream: ChatResponseStream,
 	automodeService: IAutomodeService,
+	token: CancellationToken,
 	reportRouting = true,
 ): IAutoModeRoutingReporter {
 	let tier: AutoModeTier | undefined;
@@ -106,11 +107,15 @@ export function reportAutoModeRouting(
 		if (e.requestId === undefined || e.requestId !== request.id) {
 			return;
 		}
-		if (e.kind === 'started' && reportRouting) {
+		// Routing resolves asynchronously, so a cancelled turn may have already
+		// closed the response stream by the time this fires. Pushing to a closed
+		// stream throws "Response stream has been closed"; the explainability
+		// part is also moot once the turn is gone, so skip it.
+		if (e.kind === 'started' && reportRouting && !token.isCancellationRequested) {
 			stream.push(new ChatResponseAutoModeResolutionPart());
 		} else if (e.kind === 'resolved') {
 			tier = e.tier;
-			if (reportRouting && e.didRoute) {
+			if (reportRouting && e.didRoute && !token.isCancellationRequested) {
 				stream.push(new ChatResponseAutoModeResolutionPart({ id: e.endpoint.model, name: e.endpoint.name }));
 			}
 		} else if (e.kind === 'failed') {

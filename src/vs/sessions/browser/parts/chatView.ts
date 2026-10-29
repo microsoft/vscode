@@ -8,6 +8,7 @@ import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { IAction } from '../../../base/common/actions.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
@@ -85,6 +86,15 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility> = constObservable(noSessionPickerVisibility);
 
+	get activityBarActions(): IObservable<readonly IAction[]> {
+		return constObservable([]);
+	}
+
+	/** Retain the composer while it clears a draft as part of an in-place selection change. */
+	get preserveOnSessionClear(): boolean {
+		return false;
+	}
+
 	focusWorkspacePicker(): void {
 		// no-op by default
 	}
@@ -92,6 +102,24 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	focusHarnessPicker(): void {
 		// no-op by default
 	}
+
+	focusEnvironmentPicker(): void {
+		// no-op by default
+	}
+
+	focusBranchPicker(): void {
+		// no-op by default
+	}
+
+	focusWorktreePicker(): void {
+		// no-op by default
+	}
+
+	focusSyncAction(): void {
+		// no-op by default
+	}
+
+	openModelComparison(): void { }
 
 	/**
 	 * Whether the view has a visible transcript turn to retain when a remote
@@ -118,6 +146,11 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 */
 	setChat(_chat: IChat, _historyKey?: string, _session?: ISession, _onInput?: () => void): void {
 		// no-op by default
+	}
+
+	/** Retry a failed load when the user explicitly opens the selected chat again. */
+	reopenChat(_resource: URI): Promise<void> {
+		return Promise.resolve();
 	}
 
 	/**

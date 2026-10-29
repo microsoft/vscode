@@ -9,10 +9,13 @@ import { isObject } from '../../../../../../base/common/types.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getGlobalConfigurationValue } from '../../../../../../platform/agentHost/common/agentHostConfigurationSync.js';
-import { AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostEnsembleEnabledSettingId, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, CopilotTgrepEnabledSettingId, normalizeToolSearchDeferThreshold, type AgentHostHydraFusionSettingValue, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, normalizeToolSearchDeferThreshold, type AgentHostHydraFusionSettingValue, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId, LocalModelUseInAutoSettingId } from '../../../../../../platform/agentHost/common/localModel.js';
+import { IConfigurationService, isConfigured } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { AgentHostRootConfigForwarder, type IForwardedRootConfigKey } from './agentHostRootConfigForwarder.js';
 
 /**
@@ -32,6 +35,7 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -57,14 +61,39 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotClaudeAdvisorEnabledSettingId),
 			},
 			{
-				key: CopilotCliConfigKey.Tgrep,
-				computeValue: () => this._configurationService.getValue<boolean>(CopilotTgrepEnabledSettingId) === true,
-				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotTgrepEnabledSettingId),
-			},
-			{
 				key: CopilotCliConfigKey.SearchSubagent,
 				computeValue: () => this._configurationService.getValue<boolean>(CopilotSearchSubagentEnabledSettingId) === true,
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotSearchSubagentEnabledSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.SearchSubagentModel,
+				computeValue: () => this._configurationService.getValue<string>(CopilotSearchSubagentModelSettingId) ?? '',
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotSearchSubagentModelSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.ExploreAgent,
+				computeValue: () => this._configurationService.getValue<boolean>(CopilotExploreAgentEnabledSettingId) !== false,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotExploreAgentEnabledSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.ExecutionSubagentDefaultControlled,
+				computeValue: () => this._isDefaultControlled(AgentHostCopilotExecutionSubagentEnabledSettingId),
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostCopilotExecutionSubagentEnabledSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.ExecutionSubagent,
+				computeValue: () => this._configurationService.getValue<boolean>(AgentHostCopilotExecutionSubagentEnabledSettingId) === true,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostCopilotExecutionSubagentEnabledSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled,
+				computeValue: () => this._isDefaultControlled(AgentHostCopilotExecutionSubagentModelSettingId),
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostCopilotExecutionSubagentModelSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.ExecutionSubagentModel,
+				computeValue: () => this._configurationService.getValue<string>(AgentHostCopilotExecutionSubagentModelSettingId)?.trim() ?? DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostCopilotExecutionSubagentModelSettingId),
 			},
 			{
 				key: CopilotCliConfigKey.LocalIndexEnabled,
@@ -83,50 +112,26 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 			},
 			{
 				key: CopilotCliConfigKey.HydraFusion,
-				computeValue: () => this._isEnsembleEnabled() || this._getHydraFusionSettingValue() !== false,
-				registerTriggers: (store, push) => {
-					this._pushOnSettingChange(store, push, AgentHostHydraFusionEnabledSettingId);
-					this._pushOnSettingChange(store, push, AgentHostEnsembleEnabledSettingId);
-					store.add(this._defaultAccountService.onDidChangePolicyData(push));
-				},
+				computeValue: () => this._getHydraFusionSettingValue() !== false,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostHydraFusionEnabledSettingId),
 			},
 			{
 				key: CopilotCliConfigKey.HydraFusionV2,
 				computeValue: () => {
 					const hydraFusion = this._getHydraFusionSettingValue();
-					return hydraFusion === 'v2' || this._isEnsembleEnabled();
+					return hydraFusion === 'v2' || hydraFusion === 'multiRoot';
 				},
-				registerTriggers: (store, push) => {
-					this._pushOnSettingChange(store, push, AgentHostHydraFusionEnabledSettingId);
-					this._pushOnSettingChange(store, push, AgentHostEnsembleEnabledSettingId);
-					store.add(this._defaultAccountService.onDidChangePolicyData(push));
-				},
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostHydraFusionEnabledSettingId),
 			},
 			{
-				key: CopilotCliConfigKey.Ensemble,
-				computeValue: () => this._isEnsembleEnabled(),
-				registerTriggers: (store, push) => {
-					this._pushOnSettingChange(store, push, AgentHostEnsembleEnabledSettingId);
-					store.add(this._defaultAccountService.onDidChangePolicyData(push));
-				},
-			},
-			{
-				key: CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion,
-				computeValue: () => this._defaultAccountService.policyData?.chat_preview_features_enabled !== false
-					&& this._configurationService.getValue<boolean>(AgentHostEnsembleIntelligenceUsesHydraFusionSettingId) === true,
-				registerTriggers: (store, push) => {
-					this._pushOnSettingChange(store, push, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId);
-					store.add(this._defaultAccountService.onDidChangePolicyData(push));
-				},
+				key: CopilotCliConfigKey.HydraFusionMultiRoot,
+				computeValue: () => this._getHydraFusionSettingValue() === 'multiRoot',
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostHydraFusionEnabledSettingId),
 			},
 			{
 				key: CopilotCliConfigKey.Memory,
-				computeValue: () => this._defaultAccountService.policyData?.chat_preview_features_enabled !== false
-					&& this._configurationService.getValue<boolean>(AgentHostCopilotMemoryEnabledSettingId) === true,
-				registerTriggers: (store, push) => {
-					this._pushOnSettingChange(store, push, AgentHostCopilotMemoryEnabledSettingId);
-					store.add(this._defaultAccountService.onDidChangePolicyData(push));
-				},
+				computeValue: () => this._configurationService.getValue<boolean>(AgentHostCopilotMemoryEnabledSettingId) === true,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostCopilotMemoryEnabledSettingId),
 			},
 			{
 				key: CopilotCliConfigKey.LocalMemory,
@@ -158,6 +163,37 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 				computeValue: () => this._configurationService.getValue<boolean>(AgentHostShellToolInitScriptEnabledSettingId) === true,
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostShellToolInitScriptEnabledSettingId),
 			},
+			{
+				key: CopilotCliConfigKey.LocalModelEnabled,
+				computeValue: () => this._configurationService.getValue<boolean>(LocalModelEnabledSettingId) === true,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, LocalModelEnabledSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.LocalModelUseInAuto,
+				computeValue: () => this._configurationService.getValue<boolean>(LocalModelUseInAutoSettingId) === true,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, LocalModelUseInAutoSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.LocalModelLlamaServerPath,
+				computeValue: () => {
+					const value = this._configurationService.getValue<unknown>(LocalModelLlamaServerPathSettingId);
+					return typeof value === 'string' ? value.trim() : '';
+				},
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, LocalModelLlamaServerPathSettingId),
+			},
+			{
+				// The account-dependent part of the on-device gate. The host never sees
+				// the account or the policy itself, only this verdict.
+				key: CopilotCliConfigKey.LocalModelAccountGate,
+				computeValue: () => this._defaultAccountService.policyData?.chat_preview_features_enabled !== false
+					&& this._defaultAccountService.currentDefaultAccount !== null
+					&& this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key) === true,
+				registerTriggers: (store, push) => {
+					store.add(this._defaultAccountService.onDidChangePolicyData(push));
+					store.add(this._defaultAccountService.onDidChangeDefaultAccount(push));
+					this._pushOnContextKeyChange(store, push, ChatContextKeys.enabled.key);
+				},
+			},
 		];
 		this._forwarder = this._register(new AgentHostRootConfigForwarder(keys, agentHostService));
 
@@ -170,23 +206,29 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 		}));
 	}
 
-	/** Resolves the HydraFusion setting to `false`, `true` (v1), or `'v2'`; preview-feature policy turns it off. */
-	private _getHydraFusionSettingValue(): AgentHostHydraFusionSettingValue {
-		if (this._defaultAccountService.policyData?.chat_preview_features_enabled === false) {
-			return false;
-		}
-		const value = this._configurationService.getValue<AgentHostHydraFusionSettingValue>(AgentHostHydraFusionEnabledSettingId);
-		return value === true || value === 'v2' ? value : false;
+	private _isDefaultControlled(settingId: string): boolean {
+		const inspected = this._configurationService.inspect<unknown>(settingId);
+		return !isConfigured(inspected) && inspected.policyValue === undefined && inspected.memoryValue === undefined;
 	}
 
-	private _isEnsembleEnabled(): boolean {
-		return this._defaultAccountService.policyData?.chat_preview_features_enabled !== false
-			&& this._configurationService.getValue<boolean>(AgentHostEnsembleEnabledSettingId) === true;
+	/** Resolves the HydraFusion setting to `false`, `true` (v1), `'v2'`, or `'multiRoot'`. */
+	private _getHydraFusionSettingValue(): AgentHostHydraFusionSettingValue {
+		const value = this._configurationService.getValue<AgentHostHydraFusionSettingValue>(AgentHostHydraFusionEnabledSettingId);
+		return value === true || value === 'v2' || value === 'multiRoot' ? value : false;
 	}
 
 	private _pushOnSettingChange(store: DisposableStore, push: () => void, settingId: string): void {
 		store.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(settingId)) {
+				push();
+			}
+		}));
+	}
+
+	private _pushOnContextKeyChange(store: DisposableStore, push: () => void, contextKey: string): void {
+		const keys = new Set([contextKey]);
+		store.add(this._contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(keys)) {
 				push();
 			}
 		}));

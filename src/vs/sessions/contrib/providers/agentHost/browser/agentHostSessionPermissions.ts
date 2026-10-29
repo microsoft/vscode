@@ -6,7 +6,7 @@
 import { localize } from '../../../../../nls.js';
 import { CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
 import { ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
-import { CodexSessionConfigKey, narrowCodexPermissionsPreset } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
+import { CODEX_PERMISSIONS_PRESET_LABELS, CodexSessionConfigKey, narrowCodexPermissionsPreset } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, isSessionConfigWritable, readSessionApprovalLevel, writeSessionApprovalLevel } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -95,18 +95,18 @@ export function getAgentHostSessionPermissionOptions(agentProvider: string, poli
 		case CODEX_AGENT_PROVIDER_ID:
 			return [{
 				id: 'default',
-				label: localize('sessionComparison.permissions.codex.default', "Default Permissions"),
+				label: CODEX_PERMISSIONS_PRESET_LABELS.default,
 				description: localize('sessionComparison.permissions.codex.defaultDescription', "Codex works inside the workspace sandbox and asks before broader access."),
 				isDefault: true,
 			}, {
 				id: 'auto-review',
-				label: localize('sessionComparison.permissions.codex.autoReview', "Auto-Review"),
+				label: CODEX_PERMISSIONS_PRESET_LABELS['auto-review'],
 				description: localize('sessionComparison.permissions.codex.autoReviewDescription', "Approval requests are routed through the auto-reviewer instead of prompting you."),
 				locked: policyRestricted,
 				lockedReason: policyRestricted ? policyLockedReason() : undefined,
 			}, {
 				id: 'full-access',
-				label: localize('sessionComparison.permissions.codex.fullAccess', "Full Access"),
+				label: CODEX_PERMISSIONS_PRESET_LABELS['full-access'],
 				description: localize('sessionComparison.permissions.codex.fullAccessDescription', "Codex can use the internet and edit files outside the workspace without asking."),
 				isAllowAll: true,
 				locked: policyRestricted,

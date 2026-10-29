@@ -34,6 +34,7 @@ import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AICustomizationSources, getCustomizationMigrationHintDismissedStorageKey, IAICustomizationMarketplaceOpenTarget, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
@@ -65,10 +66,11 @@ import {
 	DELETE_AI_CUSTOMIZATION_ID,
 	resolveAICustomizationManagementOpenEditorTarget,
 } from './aiCustomizationManagement.js';
-import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
+import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult } from './aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import './customizationMarketplace.contribution.js';
 import './customizationMigrationAccessibility.js';
+import { CustomizationMigrationResultToolContribution } from './customizationMigrationResultTool.js';
 
 //#region Telemetry
 
@@ -136,6 +138,7 @@ type AICustomizationContext = {
 	uri: URI | string;
 	name?: string;
 	promptType?: PromptsType;
+	source?: AICustomizationSource;
 	storage?: PromptsStorage;
 	skipMarketplaceUninstall?: boolean;
 	[key: string]: unknown;
@@ -164,7 +167,8 @@ function extractSource(context: AICustomizationContext): AICustomizationSource |
 	if (URI.isUri(context) || typeof context === 'string') {
 		return undefined;
 	}
-	return context.storage;
+	// The item list passes `source`; the discovery page passes `storage`.
+	return context.source ?? context.storage;
 }
 
 /**
@@ -601,7 +605,7 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 });
 
 // Show Plugin action - navigates to the parent plugin detail page
-const SHOW_PLUGIN_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.showPlugin';
+const SHOW_PLUGIN_AI_CUSTOMIZATION_ID = AICustomizationManagementCommands.ShowPlugin;
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -875,13 +879,29 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 			}
 
 			async run(accessor: ServicesAccessor, target?: AICustomizationManagementSection | IAICustomizationMarketplaceOpenTarget): Promise<void> {
+				if (accessor.get(IChatEntitlementService).sentiment.hidden) {
+					return;
+				}
 				const editorService = accessor.get(IEditorService);
 				const input = AICustomizationManagementEditorInput.getOrCreate();
-				const pane = await editorService.openEditor(input, { pinned: true });
+				const preserveFocus = typeof target !== 'string' && target?.preserveFocus;
+				const pane = await editorService.openEditor(input, { pinned: true, preserveFocus });
 				if (pane instanceof AICustomizationManagementEditor) {
 					const section = typeof target === 'string' ? target : target?.section ?? AICustomizationManagementSection.McpServers;
-					const sourceId = typeof target === 'string' ? undefined : target?.sourceId;
-					pane.selectSectionById(section, { showMarketplace: true, marketplaceSourceId: sourceId });
+					if (typeof target !== 'string' && target?.mcpServer) {
+						await pane.showMcpMarketplaceDetail(target.mcpServer.name, target.mcpServer.registryUrl, preserveFocus);
+					} else if (typeof target !== 'string' && target?.connectorName) {
+						const result = await pane.showCopilotConnectorDetail(target.connectorName, target.connectorDisplayName);
+						if (result === CopilotConnectorDetailOpenResult.NotFound) {
+							throw new Error(`Copilot connector '${target.connectorDisplayName ?? target.connectorName}' is not available`);
+						}
+					} else {
+						const sourceId = typeof target === 'string' ? undefined : target?.sourceId;
+						pane.selectSectionById(section, { showMarketplace: true, marketplaceSourceId: sourceId, preserveFocus });
+						if (typeof target !== 'string' && target?.searchQuery !== undefined) {
+							pane.setSearchQuery(target.searchQuery, preserveFocus);
+						}
+					}
 				}
 			}
 		}));
@@ -921,6 +941,11 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 registerWorkbenchContribution2(
 	AICustomizationManagementActionsContribution.ID,
 	AICustomizationManagementActionsContribution,
+	WorkbenchPhase.AfterRestored
+);
+registerWorkbenchContribution2(
+	CustomizationMigrationResultToolContribution.ID,
+	CustomizationMigrationResultToolContribution,
 	WorkbenchPhase.AfterRestored
 );
 

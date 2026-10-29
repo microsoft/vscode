@@ -18,9 +18,11 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../../..
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
+import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../../sessions/common/sessionsProvider.js';
-import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService, SessionsProvidersService } from '../../../sessions/browser/sessionsProvidersService.js';
 import { AgentHostFilterService } from '../../browser/agentHostFilterService.js';
 import { AgentHostFilterConnectionStatus } from '../../common/agentHostFilter.js';
 
@@ -117,7 +119,7 @@ suite('AgentHostFilterService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(providers: StubSessionsProvidersService, storage = store.add(new InMemoryStorageService()), remote = store.add(new StubRemoteAgentHostService()), configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true })) {
+	function createService(providers: StubSessionsProvidersService | SessionsProvidersService, storage = store.add(new InMemoryStorageService()), remote = store.add(new StubRemoteAgentHostService()), configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true })) {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsProvidersService, providers as unknown as ISessionsProvidersService);
@@ -132,6 +134,38 @@ suite('AgentHostFilterService', () => {
 		const service = createService(providers);
 		assert.strictEqual(service.selectedHostId, undefined);
 		assert.deepStrictEqual([...service.hosts], []);
+	});
+
+	test('groups internal cloud backends without exposing them as logical providers', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILifecycleService, store.add(new TestLifecycleService()));
+		const providers = store.add(instantiationService.createInstance(SessionsProvidersService));
+		const owner = store.add(providers.registerProvider(upcastPartial<ISessionsProvider>({ id: 'cloud', order: 0 })));
+		const first = new StubRemoteProvider('environment-1', 'First task', RemoteAgentHostConnectionStatus.connected, SANDBOX_GROUP);
+		const second = new StubRemoteProvider('environment-2', 'Second task', RemoteAgentHostConnectionStatus.disconnected, SANDBOX_GROUP);
+		store.add(providers.registerSessionBackend('cloud', upcastPartial<ISessionsProvider>(first)));
+		const service = createService(providers);
+		store.add(providers.registerSessionBackend('cloud', upcastPartial<ISessionsProvider>(second)));
+		const snapshot = () => service.hosts.map(host => ({
+			id: host.id, providers: host.providerIds, status: host.status, connectable: host.connectable,
+		}));
+		const connected = snapshot();
+		first.setStatus(RemoteAgentHostConnectionStatus.disconnected);
+		const disconnected = snapshot();
+		second.setStatus(RemoteAgentHostConnectionStatus.connected);
+		const reconnected = snapshot();
+		const creationProviders = providers.getProviders().map(provider => provider.id);
+		owner.dispose();
+		const entry = {
+			id: SANDBOX_GROUP.id, providers: [first.id, second.id], connectable: false,
+		};
+		assert.deepStrictEqual({ creationProviders, connected, disconnected, reconnected, removed: snapshot() }, {
+			creationProviders: ['cloud'],
+			connected: [{ ...entry, status: AgentHostFilterConnectionStatus.Connected }],
+			disconnected: [{ ...entry, status: AgentHostFilterConnectionStatus.Disconnected }],
+			reconnected: [{ ...entry, status: AgentHostFilterConnectionStatus.Connected }],
+			removed: [],
+		});
 	});
 
 	test('defaults based on platform when none persisted', () => {

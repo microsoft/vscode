@@ -57,6 +57,12 @@ export interface IAgentSubscription<T> {
 
 	/** Fires after a server-originated action is applied to this subscription's state. */
 	readonly onDidApplyAction: Event<ActionEnvelope>;
+
+	/** Fires after a server snapshot and any newer buffered actions are applied. */
+	readonly onDidApplySnapshot?: Event<T>;
+
+	/** Fires after a cancelled snapshot refresh replays its buffered actions. */
+	readonly onDidCancelSnapshotRefresh?: Event<readonly ActionEnvelope[]>;
 }
 
 /**
@@ -119,6 +125,12 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	protected readonly _onDidApplyAction = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidApplyAction: Event<ActionEnvelope> = this._onDidApplyAction.event;
 
+	protected readonly _onDidApplySnapshot = this._register(new Emitter<T>());
+	readonly onDidApplySnapshot: Event<T> = this._onDidApplySnapshot.event;
+
+	protected readonly _onDidCancelSnapshotRefresh = this._register(new Emitter<readonly ActionEnvelope[]>());
+	readonly onDidCancelSnapshotRefresh: Event<readonly ActionEnvelope[]> = this._onDidCancelSnapshotRefresh.event;
+
 	protected readonly _clientId: string;
 	protected readonly _log: (msg: string) => void;
 
@@ -148,6 +160,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 		this._error = undefined;
 		this._onSnapshotApplied(fromSeq);
 		this._onDidChange.fire(this.value as T);
+		this._onDidApplySnapshot.fire(this.value as T);
 	}
 
 	/**
@@ -183,6 +196,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 			this._reconcile(envelope, envelope.origin?.clientId === this._clientId);
 		}
 		this._onDidChange.fire(this.value as T);
+		this._onDidCancelSnapshotRefresh.fire(buffered);
 	}
 
 	/**
@@ -1023,6 +1037,8 @@ export class AgentSubscriptionManager extends Disposable {
 				const snapshot = await this._subscribe(resource);
 				if (this._subscriptions.get(resource) === entry && entry.snapshotVersion === snapshotVersion) {
 					entry.sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
+				} else {
+					this._unsubscribeIfReleased(resource);
 				}
 			} catch (error) {
 				if (this._subscriptions.get(resource) === entry && entry.snapshotVersion === snapshotVersion) {
@@ -1114,6 +1130,8 @@ export class AgentSubscriptionManager extends Disposable {
 				const snapshot = await this._subscribe(resource);
 				if (this._subscriptions.get(resource) === entry && entry.snapshotVersion === snapshotVersion) {
 					sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
+				} else {
+					this._unsubscribeIfReleased(resource);
 				}
 			} catch (err) {
 				if (this._subscriptions.get(resource) === entry && entry.snapshotVersion === snapshotVersion) {
@@ -1159,6 +1177,17 @@ export class AgentSubscriptionManager extends Disposable {
 			entry.sub.clearPending();
 		}
 		entry.sub.dispose();
+	}
+
+	/**
+	 * Called when a subscribe resolves for an entry that is no longer current. If nothing holds the resource any more,
+	 * its unsubscribe may have reached the host before this subscribe did (e.g. a subscribe resent after a reconnect),
+	 * leaving the host subscribed: release it again.
+	 */
+	private _unsubscribeIfReleased(resource: URI): void {
+		if (!this._subscriptions.has(resource)) {
+			this._tryUnsubscribe(resource);
+		}
 	}
 
 	private _tryUnsubscribe(resource: URI): void {
@@ -1224,6 +1253,10 @@ export class AgentSubscriptionManager extends Disposable {
 	 */
 	currentSubscriptionUris(): URI[] {
 		return [...this._subscriptions.keys()];
+	}
+
+	getSubscriptionKind(resource: URI): StateComponents | undefined {
+		return this._subscriptions.get(resource)?.kind;
 	}
 
 	/**

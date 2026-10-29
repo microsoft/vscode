@@ -27,7 +27,7 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 suite('Sessions - EditorPart', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Agents Connected panel rows match chat height without enlarging main or modal editors', () => {
+	test('Connected panel rows match panel header height across hosts', () => {
 		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench modern-ui-tabs modern-ui-connected-editor-tabs');
 		workbench.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-cornerRadius-small: 4px; --vscode-cornerRadius-medium: 6px; --vscode-strokeThickness: 1px;';
 		const editor = appendElement(workbench, 'part editor');
@@ -70,9 +70,9 @@ suite('Sessions - EditorPart', () => {
 			}
 			assert.deepStrictEqual(results, results.map(result => ({
 				...result,
-				rowHeight: result.host === 'agents' ? result.compact ? 25 : 29 : result.compact ? 23 : 25,
+				rowHeight: result.compact ? 28 : 32,
 				topInset: '0px',
-				tabHeight: `${result.host === 'agents' ? result.compact ? 24 : 28 : result.compact ? 22 : 24}px`,
+				tabHeight: `${result.compact ? 27 : 31}px`,
 				capRadius: '7px',
 				hoverInsets: ['0px', '-1px'],
 			})));

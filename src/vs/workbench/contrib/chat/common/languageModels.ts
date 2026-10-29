@@ -21,10 +21,11 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IAction, SubmenuAction } from '../../../../base/common/actions.js';
 import { isObject, isString } from '../../../../base/common/types.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -240,13 +241,27 @@ export interface ILanguageModelConfigurationSchema extends IJSONSchema {
 			group?: string;
 			/** Labels for enum values. If provided, these are shown instead of the raw enum values. */
 			enumItemLabels?: string[];
+			/** Enum values shown but not selectable, parallel to `enum`; `enumDescriptions` says why. */
+			enumItemDisabled?: boolean[];
 			/** When `true`, the property is displayed but cannot be modified by the user. */
 			readOnly?: boolean;
 		};
 	};
 }
 
+export interface IAutoModelTierPromotion {
+	readonly id: string;
+	readonly message?: string;
+	readonly discountPercent: number;
+	readonly tierIds: readonly string[];
+	readonly startsAt?: string;
+	readonly endsAt?: string;
+}
+
 export interface ILanguageModelChatMetadata {
+	/** Host-advertised options whose defaults are not explicit user choices. */
+	readonly configurationDefaultKeys?: readonly string[];
+	readonly managedModelDefaults?: { readonly model: boolean; readonly keys: readonly string[] };
 	readonly extension: ExtensionIdentifier;
 
 	readonly name: string;
@@ -262,8 +277,17 @@ export interface ILanguageModelChatMetadata {
 	 * in {@link tooltip} instead.
 	 */
 	readonly autoModelDiscountPercent?: number;
-	/** How the agent host presents its Auto model as Ensemble, when it does. */
-	readonly autoModelEnsemble?: { readonly intelligenceUsesHydraFusion: boolean };
+	/** Whether the agent host presents its Auto model as Copilot Fusion. */
+	readonly autoModelFusion?: boolean;
+	/**
+	 * The tier the agent host runs Copilot Fusion at for editor and terminal inline chat, whatever
+	 * effort level is selected, so inline chat offers none. Absent when the host pins no tier there.
+	 */
+	readonly autoModelFusionInlineChatTier?: string;
+	/** Set only on the agent host's Auto model presented as Fusion. */
+	readonly autoModelTierPromotions?: readonly IAutoModelTierPromotion[];
+	/** Auto's tiers come from the provider, which may hide some, including HydraFusion ones. */
+	readonly autoModelProviderTiers?: boolean;
 	readonly multiplierNumeric?: number;
 	readonly isBYOK?: boolean;
 	readonly pricing?: string;
@@ -422,25 +446,59 @@ export namespace ILanguageModelChatMetadata {
 		return localize('chat.promo.endsAt', "Ends {0}.", formattedDate);
 	}
 
+	export function isAutoTierPromotionActive(promotion: IAutoModelTierPromotion, now: number): boolean {
+		const startsAt = promotion.startsAt ? Date.parse(promotion.startsAt) : -Infinity;
+		const endsAt = promotion.endsAt ? Date.parse(promotion.endsAt) : Infinity;
+		// An unparsable boundary yields NaN, which fails both comparisons.
+		return now >= startsAt && now < endsAt;
+	}
+
+	/** The active promotion with the largest discount. */
+	export function getAutoTierPromotion(metadata: ILanguageModelChatMetadata, tier: unknown, now: number = Date.now()): IAutoModelTierPromotion | undefined {
+		if (typeof tier !== 'string') {
+			return undefined;
+		}
+		let best: IAutoModelTierPromotion | undefined;
+		for (const promotion of metadata.autoModelTierPromotions ?? []) {
+			if ((!best || promotion.discountPercent > best.discountPercent) && promotion.tierIds.includes(tier) && isAutoTierPromotionActive(promotion, now)) {
+				best = promotion;
+			}
+		}
+		return best;
+	}
+
+	export function getAutoTierDiscountPercent(metadata: ILanguageModelChatMetadata, tier: unknown, now: number = Date.now()): number | undefined {
+		const promotion = getAutoTierPromotion(metadata, tier, now);
+		return promotion && promotion.discountPercent > 0 ? promotion.discountPercent : metadata.autoModelDiscountPercent;
+	}
+
 	/**
 	 * Documentation link explaining how Auto model selection works.
 	 * NOTE: Also defined in extensions/copilot/src/extension/conversation/common/languageModelAccess.ts — keep in sync.
 	 */
 	export const autoModelSelectionDocsUrl = 'https://docs.github.com/en/copilot/concepts/models/auto-model-selection';
 
+	/** Where Copilot Fusion's description links for more about it. */
+	export const fusionDocsUrl = 'https://aka.ms/vscode-copilot-fusion';
+
 	/**
 	 * Builds the shared description shown for the Auto model, rendered as Markdown
-	 * (Auto's contains a "Learn More" link; Ensemble's does not). The discount is
-	 * described separately by {@link getAutoModelDiscountDescription}.
+	 * with a "Learn More" link. The discount is described separately by
+	 * {@link getAutoModelDiscountDescription}.
 	 */
-	export function getAutoModelDescription(ensemble?: boolean): string {
-		if (ensemble) {
-			// The Auto docs don't describe Ensemble, so it has no Learn More link.
-			return localize('autoModel.ensembleDescription', "Ensemble routes based on your task and real-time system health and model performance.");
+	export function getAutoModelDescription(fusion?: boolean): string {
+		if (fusion) {
+			const fusionLearnMore = localize('autoModel.fusionLearnMore', "[Learn more]({0})", fusionDocsUrl);
+			return `${getFusionSummary()} ${fusionLearnMore}`;
 		}
 		const base = localize('autoModel.description', "Auto routes based on your task and real-time system health and model performance.");
 		const learnMore = localize('autoModel.learnMore', "[Learn More]({0})", autoModelSelectionDocsUrl);
 		return `${base} ${learnMore}`;
+	}
+
+	/** Copilot Fusion's one-sentence description, as plain text without its "Learn more" link. */
+	export function getFusionSummary(): string {
+		return localize('autoModel.fusionDescription', "Copilot Fusion selects a single model or orchestrates multiple models to complete your task.");
 	}
 
 	/**
@@ -448,14 +506,8 @@ export namespace ILanguageModelChatMetadata {
 	 *
 	 * @param discountPercent Whole-number percentage (e.g. `10` for 10%).
 	 * @param tierLabel The label of Auto's selected tier, e.g. "Efficiency".
-	 * @param ensemble Whether Auto is presented as Ensemble.
 	 */
-	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string, ensemble?: boolean): string {
-		if (ensemble) {
-			return tierLabel
-				? localize('autoModel.ensembleTierDiscount', "Models routed via Ensemble {0} receive a {1}% discount.", tierLabel, discountPercent)
-				: localize('autoModel.ensembleDiscount', "Models routed via Ensemble receive a {0}% discount.", discountPercent);
-		}
+	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string): string {
 		return tierLabel
 			? localize('autoModel.tierDiscount', "Models routed via Auto {0} receive a {1}% discount.", tierLabel, discountPercent)
 			: localize('autoModel.discount', "Models routed via auto receive a {0}% discount.", discountPercent);
@@ -592,6 +644,8 @@ export interface IModelConfigurationAccess {
 	/** Effective schema for this scope, including provider or managed startup defaults. */
 	getModelConfigurationSchema?(modelId: string): ILanguageModelConfigurationSchema | undefined;
 	setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void>;
+	/** Applies values in this scope without persisting them or reporting them as a selection. */
+	presentModelConfiguration?(modelId: string, values: IStringDictionary<unknown>): void;
 	getModelConfigurationActions(modelId: string): IAction[];
 	/** Configuration changes within this scope; global access uses `onDidChangeLanguageModels`. */
 	readonly onDidChange?: Event<string>;
@@ -792,6 +846,11 @@ export function getLanguageModelProviderDisplayName(languageModelsService: ILang
 	return descriptor?.displayName ?? vendor.charAt(0).toUpperCase() + vendor.slice(1);
 }
 
+/** The icon a language model chat provider declared, if any. */
+export function getLanguageModelProviderIcon(languageModelsService: ILanguageModelsService, vendor: string): LanguageModelProviderIcon | undefined {
+	return languageModelsService.getVendors().find(candidate => candidate.vendor === vendor)?.icon;
+}
+
 export function getLanguageModelDisplayNameWithProvider(model: ILanguageModelChatMetadataAndIdentifier, languageModelsService: ILanguageModelsService): string {
 	const { metadata } = model;
 	if (!metadata.isBYOK && !metadata.byokModelIdentifier) {
@@ -885,6 +944,28 @@ const languageModelChatProviderType = {
 			deprecated: true,
 			deprecationMessage: localize('vscode.extension.contributes.languageModels.managementCommand.deprecated', "The managementCommand property is deprecated and will be removed in a future release. Use the new configuration property instead.")
 		},
+		icon: {
+			markdownDescription: localize('vscode.extension.contributes.languageModels.icon', "An icon that represents this language model chat provider, shown in the chat model picker. Either a theme icon reference, like `\\$(zap)`, a file path relative to the extension, or an object with file paths for light and dark themes."),
+			anyOf: [
+				{
+					type: 'string'
+				},
+				{
+					type: 'object',
+					properties: {
+						light: {
+							description: localize('vscode.extension.contributes.languageModels.icon.light', "Icon path when a light theme is used."),
+							type: 'string'
+						},
+						dark: {
+							description: localize('vscode.extension.contributes.languageModels.icon.dark', "Icon path when a dark theme is used."),
+							type: 'string'
+						}
+					},
+					required: ['light', 'dark']
+				}
+			]
+		},
 		deprecation: {
 			type: 'object',
 			description: localize('vscode.extension.contributes.languageModels.deprecation', "Marks this language model chat provider as deprecated. When set, the Manage Models view renders the provider with a link pointing to a replacement."),
@@ -902,14 +983,54 @@ const languageModelChatProviderType = {
 	}
 } as const satisfies IJSONSchema;
 
-export type IUserFriendlyLanguageModel = Omit<TypeFromJsonSchema<typeof languageModelChatProviderType>, 'deprecation'> & {
+/** A `languageModelChatProviders` entry as written in an extension's `package.json`. */
+type ILanguageModelChatProviderContribution = TypeFromJsonSchema<typeof languageModelChatProviderType>;
+
+/** The icon of a language model chat provider: a theme icon, or images for light and dark themes. */
+export type LanguageModelProviderIcon = ThemeIcon | { readonly light: URI; readonly dark: URI };
+
+export type IUserFriendlyLanguageModel = Omit<ILanguageModelChatProviderContribution, 'deprecation' | 'icon'> & {
 	/**
 	 * Marks a provider as deprecated. The Manage Models view renders a link
 	 * (pointing to a replacement, e.g. a `vscode:extension/<publisher>.<name>` URI)
 	 * next to the provider name. Optional so existing provider descriptors are unaffected.
 	 */
 	readonly deprecation?: { readonly link?: string };
+	/** The provider's icon, with any image paths already resolved against the contributing extension. */
+	readonly icon?: LanguageModelProviderIcon;
 };
+
+/**
+ * Resolves a contributed provider icon the way `languageModelTools` and `commands` do: a
+ * `$(name)` reference becomes a theme icon and anything else is a path relative to the
+ * contributing extension. Returns `undefined` for a malformed value, or for a path that
+ * leaves the extension's folder.
+ */
+export function resolveLanguageModelProviderIcon(icon: ILanguageModelChatProviderContribution['icon'], extensionLocation: URI): LanguageModelProviderIcon | undefined {
+	const resolvePath = (path: string) => {
+		// Images load from a URL that keeps `%` and `\` as written, and loading decodes `%2e%2e`
+		// and treats `\` as a separator, so either could reach outside the folder checked here.
+		if (/[%\\]/.test(path)) {
+			return undefined;
+		}
+		const location = joinPath(extensionLocation, path);
+		return isEqualOrParent(location, extensionLocation) ? location : undefined;
+	};
+	if (isString(icon)) {
+		const themeIcon = ThemeIcon.fromString(icon);
+		if (themeIcon) {
+			return themeIcon;
+		}
+		const path = resolvePath(icon);
+		return path && { light: path, dark: path };
+	}
+	if (isObject(icon) && isString(icon.light) && isString(icon.dark)) {
+		const light = resolvePath(icon.light);
+		const dark = resolvePath(icon.dark);
+		return light && dark && { light, dark };
+	}
+	return undefined;
+}
 
 export interface ILanguageModelProviderDescriptor extends IUserFriendlyLanguageModel {
 	readonly isDefault: boolean;
@@ -928,7 +1049,7 @@ export function resolveProviderDeprecationLink(link: string, urlProtocol: string
 	return uri.scheme === Schemas.vscode && urlProtocol ? uri.with({ scheme: urlProtocol }) : uri;
 }
 
-export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IUserFriendlyLanguageModel | IUserFriendlyLanguageModel[]>({
+export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ILanguageModelChatProviderContribution | ILanguageModelChatProviderContribution[]>({
 	extensionPoint: 'languageModelChatProviders',
 	jsonSchema: {
 		description: localize('vscode.extension.contributes.languageModelChatProviders', "Contribute language model chat providers of a specific vendor."),
@@ -940,7 +1061,7 @@ export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.regist
 			}
 		]
 	},
-	activationEventsGenerator: function* (contribs: readonly IUserFriendlyLanguageModel[]) {
+	activationEventsGenerator: function* (contribs: readonly ILanguageModelChatProviderContribution[]) {
 		for (const contrib of contribs) {
 			yield `onLanguageModelChatProvider:${contrib.vendor}`;
 		}
@@ -1082,7 +1203,7 @@ export function createModelConfigurationActions(
 				id: `configureModel.${key}.${value}`,
 				label: displayLabel,
 				class: undefined,
-				enabled: true,
+				enabled: !propSchema.readOnly && propSchema.enumItemDisabled?.[index] !== true,
 				tooltip,
 				checked: currentValue === value,
 				run: () => setValue(key, value)
@@ -1092,6 +1213,13 @@ export function createModelConfigurationActions(
 	}
 
 	return actions;
+}
+
+/** A model resolution for a vendor that is waiting behind another one and can still be joined. */
+interface IQueuedModelResolution {
+	readonly provider: ILanguageModelChatProvider;
+	readonly silent: boolean;
+	readonly promise: Promise<void>;
 }
 
 export class LanguageModelsService implements ILanguageModelsService {
@@ -1105,6 +1233,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	private readonly _providers = new Map<string, ILanguageModelChatProvider>();
 	private readonly _vendors = new Map<string, ILanguageModelProviderDescriptor>();
+	/** Parsed `when` clauses of {@link _vendors}, by their source text, since {@link getVendors} is read for every model. */
+	private readonly _vendorWhenClauses = new Map<string, ContextKeyExpression | undefined>();
 
 	/** Vendors for which a deprecation notice has already been shown this session. */
 	private readonly _deprecationNoticeShownVendors = new Set<string>();
@@ -1115,6 +1245,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _modelsGroups = new Map<string, ILanguageModelsGroup[]>();
 	private readonly _modelCache = new Map<string, ILanguageModelChatMetadata>();
 	private readonly _resolveLMSequencer = new SequencerByKey<string>();
+	/**
+	 * The resolution each vendor has queued but not started. Requests made meanwhile join it rather
+	 * than queue another, e.g. `selectChatModels` calls that each re-resolve every vendor.
+	 */
+	private readonly _queuedResolutions = new Map<string, IQueuedModelResolution>();
 	private readonly _modelConfigurations = new Map<string, IStringDictionary<unknown>>();
 	private readonly _hasUserSelectableModels: IContextKey<boolean>;
 	private readonly _hasNonCopilotUserSelectableModels: IContextKey<boolean>;
@@ -1203,13 +1338,17 @@ export class LanguageModelsService implements ILanguageModelsService {
 						extension.collector.error(localize('vscode.extension.contributes.languageModels.whitespaceVendor', "The vendor field cannot start or end with whitespace."));
 						continue;
 					}
-					addedVendors.push(item);
+					const icon = item.icon !== undefined ? resolveLanguageModelProviderIcon(item.icon, extension.description.extensionLocation) : undefined;
+					if (item.icon !== undefined && !icon) {
+						extension.collector.warn(localize('vscode.extension.contributes.languageModels.invalidIcon', "The icon of vendor '{0}' must be a theme icon reference, a file path, or an object with 'light' and 'dark' file paths. File paths must stay inside the extension's folder, use '/' as the separator, and not contain '%'.", item.vendor));
+					}
+					addedVendors.push({ ...item, icon });
 				}
 			}
 
 			for (const extension of removed) {
 				for (const item of Iterable.wrap(extension.value)) {
-					removedVendors.push(item);
+					removedVendors.push({ ...item, icon: undefined });
 				}
 			}
 
@@ -1240,6 +1379,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				configuration: item.configuration,
 				managementCommand: item.managementCommand,
 				deprecation: item.deprecation,
+				icon: item.icon,
 				when: item.when,
 				isDefault: item.vendor === COPILOT_VENDOR_ID
 			};
@@ -1283,7 +1423,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 				if (!vendor.when) {
 					return true; // No when clause means always visible
 				}
-				const whenClause = ContextKeyExpr.deserialize(vendor.when);
+				let whenClause = this._vendorWhenClauses.get(vendor.when);
+				if (!this._vendorWhenClauses.has(vendor.when)) {
+					whenClause = ContextKeyExpr.deserialize(vendor.when);
+					this._vendorWhenClauses.set(vendor.when, whenClause);
+				}
 				return whenClause ? this._contextKeyService.contextMatchesRules(whenClause) : false;
 			});
 	}
@@ -1328,7 +1472,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return;
 		}
 
-		return this._resolveLMSequencer.queue(vendorId, async () => {
+		// A resolution that has not started yet will see everything that changed before this request.
+		const queued = this._queuedResolutions.get(vendorId);
+		if (queued?.provider === provider && queued.silent === silent) {
+			return queued.promise;
+		}
+
+		const promise = this._resolveLMSequencer.queue(vendorId, async () => {
+			if (this._queuedResolutions.get(vendorId)?.promise === promise) {
+				this._queuedResolutions.delete(vendorId);
+			}
 			if (this._providers.get(vendorId) !== provider) {
 				return;
 			}
@@ -1473,6 +1626,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 				this._logService.trace(`[LM] No changes in language models for vendor ${vendorId}`);
 			}
 		});
+		this._queuedResolutions.set(vendorId, { provider, silent, promise });
+		return promise;
 	}
 
 	private _hasGroupStructureChanged(oldGroups: readonly ILanguageModelsGroup[], newGroups: readonly ILanguageModelsGroup[]): boolean {
@@ -1649,8 +1804,13 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return undefined;
 		}
 
-		// User config overrides defaults
-		return { ...defaults, ...userConfig };
+		const configuration = { ...defaults, ...userConfig };
+		for (const [key, property] of Object.entries(schema?.properties ?? {})) {
+			if (property.readOnly && property.default !== undefined) {
+				configuration[key] = property.default;
+			}
+		}
+		return configuration;
 	}
 
 	computeTokenLength(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number> {
@@ -1710,16 +1870,14 @@ export class LanguageModelsService implements ILanguageModelsService {
 			group = allGroups.find(g => g.vendor === metadata.vendor);
 		}
 
-		// Merge new values into existing config, removing properties set to their schema default
+		// Reset keys must be removed from both persisted settings and the in-memory cache.
 		const existingConfig = this._modelConfigurations.get(modelId) ?? {};
 		const updatedConfig = { ...existingConfig, ...values };
 		const schema = metadata.configurationSchema;
-		if (schema?.properties) {
-			for (const [key, value] of Object.entries(updatedConfig)) {
-				const propSchema = schema.properties[key];
-				if (propSchema?.default !== undefined && propSchema.default === value) {
-					delete updatedConfig[key];
-				}
+		for (const [key, value] of Object.entries(updatedConfig)) {
+			const propSchema = schema?.properties?.[key];
+			if (value === undefined || (propSchema?.default !== undefined && propSchema.default === value && !metadata.configurationDefaultKeys?.includes(key))) {
+				delete updatedConfig[key];
 			}
 		}
 

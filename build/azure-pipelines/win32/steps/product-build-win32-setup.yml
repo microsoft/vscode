@@ -21,10 +21,7 @@ steps:
   - ${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}:
     - template: ../../common/ensure-test-artifact-directories.yml@self
 
-  - task: NodeTool@0
-    inputs:
-      versionSource: fromFile
-      versionFilePath: .nvmrc
+  - template: ../../common/setup-node.yml@self
 
   - task: UsePythonVersion@0
     inputs:
@@ -59,6 +56,7 @@ steps:
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
+    retryCountOnTaskFailure: 2
 
   - powershell: 7z.exe x .build/node_modules_cache/cache.7z -aoa
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))

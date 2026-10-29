@@ -404,13 +404,13 @@ suite('Workbench editor utils', () => {
 		assert.strictEqual(isEditorInputWithOptions(editorInput), false);
 		assert.strictEqual(isEditorInputWithOptionsAndGroup(editorInput), false);
 
-		const editorInputWithOptions: EditorInputWithOptions = { editor: editorInput, options: { override: EditorResolution.PICK } };
+		const editorInputWithOptions: EditorInputWithOptions = { editor: editorInput, options: { override: EditorResolution.EXCLUSIVE_ONLY } };
 		assert.strictEqual(isEditorInput(editorInputWithOptions), false);
 		assert.strictEqual(isEditorInputWithOptions(editorInputWithOptions), true);
 		assert.strictEqual(isEditorInputWithOptionsAndGroup(editorInputWithOptions), false);
 
 		const service = accessor.editorGroupService;
-		const editorInputWithOptionsAndGroup: EditorInputWithOptionsAndGroup = { editor: editorInput, options: { override: EditorResolution.PICK }, group: service.activeGroup };
+		const editorInputWithOptionsAndGroup: EditorInputWithOptionsAndGroup = { editor: editorInput, options: { override: EditorResolution.EXCLUSIVE_ONLY }, group: service.activeGroup };
 		assert.strictEqual(isEditorInput(editorInputWithOptionsAndGroup), false);
 		assert.strictEqual(isEditorInputWithOptions(editorInputWithOptionsAndGroup), true);
 		assert.strictEqual(isEditorInputWithOptionsAndGroup(editorInputWithOptionsAndGroup), true);

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import type { IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import type { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
@@ -13,9 +13,11 @@ import { NullRemoteAgentHostService, RemoteAgentHostConnectionStatus, type IRemo
 import type { IActiveSubscriptionInfo } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 
 import { Schemas } from '../../../../../base/common/network.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { FileOperation } from '../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { agentModelCallMetaKey } from '../../../../../platform/agentHost/common/meta/agentModelCallMeta.js';
@@ -163,15 +165,54 @@ suite('AgentHostUsageRecorder model-call diagnostics', () => {
 		assert.deepStrictEqual(await records(), ['recorded']);
 	});
 
+	test('a failed session listing is not remembered: a later usage records once the listing works', async () => {
+		let fail = true;
+		const { recorder, fire, records } = setup(new FakeHost(async () => {
+			if (fail) {
+				throw new Error('host unavailable');
+			}
+			return [target];
+		}));
+		fire('while-failing');
+		await recorder.flush();
+		fail = false;
+		fire('after-recovery');
+		await recorder.flush();
+		assert.deepStrictEqual(await records(), ['after-recovery']);
+	});
+
+	test('a usage that arrives before its session is listed is not remembered as a non-default chat', async () => {
+		let listed: IAgentSessionMetadata[] = [];
+		const { recorder, fire, records } = setup(new FakeHost(async () => listed));
+		fire('before-listing');
+		await recorder.flush();
+		listed = [target];
+		fire('after-listing');
+		await recorder.flush();
+		assert.deepStrictEqual(await records(), ['after-listing']);
+	});
+
+	test('a peer chat\'s usage is not recorded and its role is looked up once', async () => {
+		const peerChat = 'ahp-chat://peer/Y29waWxvdGNsaTovZW5jb2RlZA';
+		const local = new FakeHost(async () => [{ ...target, chats: [...target.chats!, { chat: URI.parse(peerChat), kind: 'peer' }] }]);
+		const { recorder, records } = setup(local);
+		local.actions.fire(usage(peerChat, 'peer-1'));
+		await recorder.flush();
+		local.actions.fire(usage(peerChat, 'peer-2'));
+		await recorder.flush();
+		assert.deepStrictEqual({ records: await records(), listings: local.listings }, { records: [], listings: 1 });
+	});
+
 	test('a slow remote host does not block local records', async () => {
 		const stalled = new DeferredPromise<IAgentSessionMetadata[]>();
 		const remote = new FakeHost(() => stalled.p);
-		const { fire, records } = setup(new FakeHost(), remote);
+		const { fileService, fire, records } = setup(new FakeHost(), remote);
+		// `recorder.flush()` would also wait for the stalled remote lookup, so wait for the local record's write instead.
+		const uri = buildAgentHostUsageUri(baseDir, 'sdk');
+		const localWritten = Event.toPromise(Event.filter(fileService.onDidRunOperation, e => e.isOperation(FileOperation.WRITE) && isEqual(e.resource, uri)));
 		remote.actions.fire(usage(defaultChat, 'remote'));
 		fire('local');
-		for (let attempt = 0; attempt < 50 && (await records()).length === 0; attempt++) {
-			await timeout(1);
-		}
+		await localWritten;
 		const local = await records();
 		await stalled.complete([]);
 		assert.deepStrictEqual(local, ['local']);

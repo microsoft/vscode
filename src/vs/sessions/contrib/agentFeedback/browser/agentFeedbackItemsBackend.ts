@@ -370,6 +370,11 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		// acquired lazily in `_ensureChannel` would be held for the lifetime of
 		// this (singleton-owned) backend.
 		this._register(this._sessionsManagementService.onDidDeleteSession(session => this._releaseChannel(session.resource)));
+		this._register(this._sessionsManagementService.onDidChangeSessions(() => {
+			for (const resource of this._sessionResourceByKey.values()) {
+				this._ensureChannel(resource);
+			}
+		}));
 	}
 
 	getItems(sessionResource: URI): readonly IAgentFeedback[] {
@@ -575,14 +580,19 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		}
 	}
 
-	private _releaseChannel(sessionResource: URI): void {
+	private _suspendChannel(sessionResource: URI): void {
 		const key = sessionResource.toString();
 		this._channels.deleteAndDispose(key);
 		this._channelBySession.delete(key);
+		this._loadedBySession.delete(key);
+	}
+
+	private _releaseChannel(sessionResource: URI): void {
+		const key = sessionResource.toString();
+		this._suspendChannel(sessionResource);
 		this._sessionResourceByKey.delete(key);
 		this._cacheBySession.delete(key);
 		this._signatureBySession.delete(key);
-		this._loadedBySession.delete(key);
 	}
 
 	private _ensureChannel(sessionResource: URI): ITrackedChannel | undefined {
@@ -591,10 +601,13 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		if (existing) {
 			// A remote host can reconnect as a new client, leaving the old connection dead.
 			const current = existing.provider.getFeedbackAnnotationsChannel(existing.sessionId);
-			if (!current || current.connection === existing.connection) {
+			if (current?.connection === existing.connection) {
 				return existing;
 			}
-			this._releaseChannel(sessionResource);
+			this._suspendChannel(sessionResource);
+			if (!current) {
+				return undefined;
+			}
 		}
 
 		const session = this._sessionsManagementService.getSession(sessionResource);
@@ -605,6 +618,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		if (!provider?.getFeedbackAnnotationsChannel) {
 			return undefined;
 		}
+		this._sessionResourceByKey.set(key, sessionResource);
 		const resolved = provider.getFeedbackAnnotationsChannel(session.sessionId);
 		if (!resolved) {
 			return undefined;
@@ -629,7 +643,6 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 
 		this._channels.set(key, store);
 		this._channelBySession.set(key, channel);
-		this._sessionResourceByKey.set(key, sessionResource);
 		return channel;
 	}
 }

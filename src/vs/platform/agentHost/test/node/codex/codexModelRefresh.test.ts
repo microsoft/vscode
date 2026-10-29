@@ -30,15 +30,15 @@ import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitl
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
-import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, readAgentSdkSetupInfos } from '../../../common/agentSdkSetup.js';
-import { AgentChatMigrationDeferred, AgentSession } from '../../../common/agent.js';
+import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, agentSdkSetupStatusKey, readAgentSdkSetupInfos, type AgentSdkDownloadStatus } from '../../../common/agentSdkSetup.js';
+import { AgentChatMigrationDeferred, AgentSession, fixedChatOwnerRef } from '../../../common/agent.js';
+import { ActionType } from '../../../common/state/sessionActions.js';
 import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
-import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { AgentHostConfigKey } from '../../../common/agentHostCustomizationConfig.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
@@ -1651,19 +1651,9 @@ suite('CodexAgent model refresh', () => {
 		});
 	});
 
-	test('advertises multiple working directories only while enabled', () => {
+	test('advertises multiple working directories by default', () => {
 		const agent = createAgent(disposables, async () => []);
-		const disabledByDefault = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
-		agent['_configurationService'].updateRootConfig({ [AgentHostCodexMultiRootEnabledConfigKey]: true });
-		const whenEnabled = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
-		agent['_configurationService'].updateRootConfig({ [AgentHostCodexMultiRootEnabledConfigKey]: false });
-		const afterDisabling = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
-
-		assert.deepStrictEqual({ disabledByDefault, whenEnabled, afterDisabling }, {
-			disabledByDefault: undefined,
-			whenEnabled: { immutablePrimary: true },
-			afterDisabling: undefined,
-		});
+		assert.deepStrictEqual(agent.getDescriptor().capabilities?.multipleWorkingDirectories, { immutablePrimary: true });
 	});
 });
 
@@ -1686,11 +1676,20 @@ suite('CodexAgent — agent SDK setup channel', () => {
 		ctx.configurationService.updateRootConfig({ [AGENT_SDK_SETUP_RELOAD_REQUEST_KEY]: { agent, request } });
 	}
 
-	/** Waits for the ctor's queued publish (and any refresh it chains) to settle. */
-	async function settle(): Promise<void> {
-		for (let i = 0; i < 20; i++) {
-			await new Promise<void>(resolve => setTimeout(resolve, 0));
+	/** Resolves once the constructor's queued SDK setup status has been published. */
+	async function whenSetupPublished(ctx: ITestAgentContext): Promise<void> {
+		if (!readSetup(ctx)) {
+			await Event.toPromise(Event.filter(ctx.stateManager.onDidEmitEnvelope, () => readSetup(ctx) !== undefined));
 		}
+	}
+
+	/**
+	 * Resolves on the next SDK setup status the agent publishes with `download`
+	 * set to `status`. Subscribe before the request whose outcome it awaits.
+	 */
+	function nextPublishedDownload(ctx: ITestAgentContext, status: AgentSdkDownloadStatus): Promise<unknown> {
+		return Event.toPromise(Event.filter(ctx.stateManager.onDidEmitEnvelope, ({ action }) =>
+			action.type === ActionType.RootConfigChanged && Object.hasOwn(action.config, agentSdkSetupStatusKey('codex')) && readSetup(ctx)?.download === status));
 	}
 
 	/**
@@ -1706,7 +1705,7 @@ suite('CodexAgent — agent SDK setup channel', () => {
 
 	test('an SDK already on disk publishes `ready`, plus the docs URL and sign-in affordance the banner offers', async () => {
 		const ctx = createAgentContext(disposables, async () => []);
-		await settle();
+		await whenSetupPublished(ctx);
 
 		assert.deepStrictEqual(readSetup(ctx), {
 			agent: 'codex',
@@ -1720,7 +1719,7 @@ suite('CodexAgent — agent SDK setup channel', () => {
 
 	test('a cold cache publishes `notDownloaded`, which is what turns the banner into an offer', async () => {
 		const ctx = createAgentContext(disposables, async () => [], {}, createNotDownloaded());
-		await settle();
+		await whenSetupPublished(ctx);
 
 		assert.strictEqual(readSetup(ctx)?.download, 'notDownloaded');
 	});
@@ -1739,7 +1738,7 @@ suite('CodexAgent — agent SDK setup channel', () => {
 			await agent.authenticate(agent.getProtectedResources()[0].resource, 'token');
 			const session = AgentSession.uri('codex', 'fresh-chat');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await agent.chats.createChat(chat, { resource: session, configurationResource: session }, {
+			await agent.chats.createChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session) }, {
 				workingDirectories: [URI.file('/workspace')],
 				deferBacking: true,
 			});
@@ -1754,27 +1753,30 @@ suite('CodexAgent — agent SDK setup channel', () => {
 
 	test('an explicit download fetches the SDK, holds progress interest for the fetch, and ends at `ready`', async () => {
 		const sdkDownloader = createNotDownloaded();
+		const downloadStarted = new DeferredPromise<void>();
 		let releaseDownload = () => { };
 		const downloaded = new Promise<void>(resolve => {
 			// Releasing the gate is the moment the SDK lands on disk.
 			releaseDownload = () => { sdkDownloader.resolvableWithoutDownload = true; resolve(); };
 		});
-		sdkDownloader.loadSdkRootResult = async () => { await downloaded; return '/tmp/codex-sdk'; };
+		sdkDownloader.loadSdkRootResult = async () => { downloadStarted.complete(); await downloaded; return '/tmp/codex-sdk'; };
 		const ctx = createAgentContext(disposables, async () => [], {}, sdkDownloader);
 		// The refresh the download chains must not spawn a real app server.
 		ctx.agent['_ensureConnection'] = async () => { throw new Error('offline'); };
-		await settle();
+		await whenSetupPublished(ctx);
 
 		dispatchDownload(ctx);
-		await settle();
+		// The progress interest is taken before the fetch starts.
+		await downloadStarted.p;
 		const inFlight = {
 			download: readSetup(ctx)?.download,
 			interests: [...sdkDownloader.progressInterests],
 			held: sdkDownloader.heldProgressInterests,
 		};
 
+		const ready = nextPublishedDownload(ctx, 'ready');
 		releaseDownload();
-		await settle();
+		await ready;
 
 		assert.deepStrictEqual({ inFlight, after: readSetup(ctx)?.download, held: sdkDownloader.heldProgressInterests }, {
 			inFlight: { download: 'downloading', interests: ['codex'], held: 1 },
@@ -1792,10 +1794,11 @@ suite('CodexAgent — agent SDK setup channel', () => {
 			connectionRequests++;
 			throw new Error('persistent connection should remain stopped');
 		};
-		await settle();
+		await whenSetupPublished(ctx);
 
+		const ready = nextPublishedDownload(ctx, 'ready');
 		dispatchDownload(ctx);
-		await settle();
+		await ready;
 
 		assert.deepStrictEqual({ download: readSetup(ctx)?.download, models: ctx.agent.models.get().length, connectionRequests }, {
 			download: 'ready',
@@ -1810,14 +1813,16 @@ suite('CodexAgent — agent SDK setup channel', () => {
 		sdkDownloader.loadSdkRootResult = async () => { downloads++; return '/tmp/codex-sdk'; };
 		const ctx = createAgentContext(disposables, async () => [], {}, sdkDownloader);
 		ctx.agent['_ensureConnection'] = async () => { throw new Error('offline'); };
-		await settle();
+		await whenSetupPublished(ctx);
 
+		const firstDownload = nextPublishedDownload(ctx, 'ready');
 		dispatchDownload(ctx, 'codex', 'press-1');
-		await settle();
+		await firstDownload;
 		const consumed = ctx.configurationService.getRootConfigValues()[AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY];
 
+		const secondDownload = nextPublishedDownload(ctx, 'ready');
 		dispatchDownload(ctx, 'codex', 'press-2');
-		await settle();
+		await secondDownload;
 
 		assert.deepStrictEqual({ consumed, downloads }, { consumed: undefined, downloads: 2 });
 	});
@@ -1825,10 +1830,10 @@ suite('CodexAgent — agent SDK setup channel', () => {
 	test('a request addressed to another agent is ignored', async () => {
 		const sdkDownloader = createNotDownloaded();
 		const ctx = createAgentContext(disposables, async () => [], {}, sdkDownloader);
-		await settle();
+		await whenSetupPublished(ctx);
 
+		// A request is claimed, and its key cleared, synchronously as the root config changes.
 		dispatchDownload(ctx, 'claude');
-		await settle();
 
 		assert.deepStrictEqual({
 			downloads: sdkDownloader.progressInterests,
@@ -1844,10 +1849,11 @@ suite('CodexAgent — agent SDK setup channel', () => {
 		const sdkDownloader = createNotDownloaded();
 		sdkDownloader.loadSdkRootResult = async () => { throw new Error('CDN unreachable'); };
 		const ctx = createAgentContext(disposables, async () => [], {}, sdkDownloader);
-		await settle();
+		await whenSetupPublished(ctx);
 
+		const failed = nextPublishedDownload(ctx, 'notDownloaded');
 		dispatchDownload(ctx);
-		await settle();
+		await failed;
 
 		assert.deepStrictEqual({
 			download: readSetup(ctx)?.download,
@@ -1861,10 +1867,12 @@ suite('CodexAgent — agent SDK setup channel', () => {
 	test('a reload is claimed here too, since the request handling is the shared channel and not per-agent code', async () => {
 		const ctx = createAgentContext(disposables, async () => []);
 		ctx.agent['_ensureConnection'] = async () => { throw new Error('offline'); };
-		await settle();
+		await whenSetupPublished(ctx);
 
+		// The reload ends by re-reading the models, which replaces the model list.
+		const modelsReread = Event.toPromise(Event.fromObservableLight(ctx.agent.models));
 		dispatchReload(ctx);
-		await settle();
+		await modelsReread;
 
 		assert.deepStrictEqual({
 			key: ctx.configurationService.getRootConfigValues()[AGENT_SDK_SETUP_RELOAD_REQUEST_KEY],

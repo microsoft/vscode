@@ -19,6 +19,7 @@ import { type IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatResourceGroupWidget } from '../chatResourceGroupWidget.js';
 import { type IChatCollapsibleIODataPart } from '../chatToolInputOutputContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { getImageGenerationBatch } from './chatToolPartUtilities.js';
 
 export function getGeneratedImageResultParts(
 	details: IToolResultInputOutputDetails | undefined,
@@ -42,7 +43,7 @@ function getGeneratedImageResultDetails(toolInvocation: IChatToolInvocation | IC
 	return isToolResultInputOutputDetails(resultDetails) ? resultDetails : undefined;
 }
 
-/** Collects completed top-level image results for the response gallery, excluding subagent tools. */
+/** Collects completed top-level image results, excluding subagent tools. */
 export function getGeneratedImageResultSnapshot(content: ReadonlyArray<IChatRendererContent | IChatProgressResponseContent>): { readonly toolCallId: string; readonly details: IToolResultInputOutputDetails }[] {
 	const results: { toolCallId: string; details: IToolResultInputOutputDetails }[] = [];
 	for (const part of content) {
@@ -109,14 +110,15 @@ export class ChatGeneratedImageResultSubPart extends BaseChatToolInvocationSubPa
 		super(toolInvocation);
 		this.domNode = dom.$('.chat-generated-image-tool-result');
 
-		if (!toolInvocation.subAgentInvocationId && getLastGeneratedImageToolCallId(context.content) !== toolInvocation.toolCallId) {
+		const batch = getImageGenerationBatch(context.content, toolInvocation.toolCallId);
+		if (!toolInvocation.subAgentInvocationId && getLastGeneratedImageToolCallId(batch) !== toolInvocation.toolCallId) {
 			return;
 		}
 
-		// Child tools retain their own results rather than claiming the response-level gallery.
+		// Child tools retain their own results rather than claiming the parent batch's gallery.
 		const parts = toolInvocation.subAgentInvocationId
 			? getGeneratedImageResultParts(getGeneratedImageResultDetails(toolInvocation), context.element.sessionResource, toolInvocation.toolCallId)
-			: getGeneratedImageResultPartsFromContent(context.content, context.element.sessionResource);
+			: getGeneratedImageResultPartsFromContent(batch, context.element.sessionResource);
 		let imageDimensions = ChatGeneratedImageResultSubPart.imageDimensions.get(context.element);
 		if (!imageDimensions) {
 			imageDimensions = new ResourceMap<dom.IDimension>(getChatImageResourceComparisonKey);

@@ -120,7 +120,11 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	async realpath(resource: URI): Promise<string> {
 		const filePath = this.toFilePath(resource);
 
-		return Promises.realpath(filePath);
+		try {
+			return await Promises.realpath(filePath);
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
+		}
 	}
 
 	async readdir(resource: URI): Promise<[string, FileType][]> {

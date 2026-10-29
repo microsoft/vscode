@@ -25,7 +25,7 @@ import { isJsonRpcResponse, type AhpServerNotification, type JsonRpcNotification
 import type { IClientTransport } from '../common/state/sessionTransport.js';
 import { Reassembler } from '../common/webPubSub/chunking.js';
 import { type InboundResult, type SendToGroupCommand, RELIABLE_JSON_SUBPROTOCOL, buildPublish, parseInbound } from '../common/webPubSub/framing.js';
-import type { ParseGroupNameOptions } from '../common/webPubSub/groups.js';
+import { parseGroupName, type ParseGroupNameOptions } from '../common/webPubSub/groups.js';
 
 type ReceiveCapabilitiesCommand = Omit<SendToGroupCommand, 'data'> & {
 	readonly data: { readonly kind: 'capabilities'; readonly accepts: readonly string[] };
@@ -407,6 +407,16 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			result = parseInbound(frame, { reassembler: this._reassembler, groupValidation: this._options.groupValidation });
 		} catch (err) {
 			this._reportProtocolError('invalid group message', err);
+			return;
+		}
+		if (result.kind === 'hostOffline') {
+			const destination = parseGroupName(this._options.toHostGroup);
+			if (result.group.uid !== destination.uid || result.group.eid !== destination.eid) {
+				this._reportProtocolError('invalid host-offline scope', new Error('Mission Control advisory belongs to another environment'));
+				return;
+			}
+			this._logService.info(`${this._logContext()} Mission Control reports the host offline`);
+			onFail(new Error('Mission Control host is offline'));
 			return;
 		}
 		if (result.kind === 'payload' || result.kind === 'batch' || result.kind === 'pending') {

@@ -16,10 +16,7 @@ jobs:
     steps:
       - template: ../common/checkout.yml@self
 
-      - task: NodeTool@0
-        inputs:
-          versionSource: fromFile
-          versionFilePath: .nvmrc
+      - template: ../common/setup-node.yml@self
 
       - template: ../distro/download-distro.yml@self
 
@@ -46,12 +43,21 @@ jobs:
       - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
         displayName: Prepare node_modules cache key
 
+      # AcesShared agents download the default 64 KB dedup chunks of this ~1.5 GB
+      # archive at ~7 MB/s, with request timeouts, against ~40 MB/s for the 1 MB
+      # chunks of pipeline artifacts. These agent knobs make the post-job step save
+      # new entries with 1 MB chunks, and restores follow the chunking of the saved
+      # entry. The "dedup1024k" key segment starts new entries in that format.
       - task: Cache@2
         inputs:
-          key: '"node_modules" | .build/packagelockhash'
+          key: '"node_modules" | "dedup1024k" | .build/packagelockhash'
           path: .build/node_modules_cache
           cacheHitVar: NODE_MODULES_RESTORED
+        env:
+          AGENT_ENABLE_PIPELINEARTIFACT_LARGE_CHUNK_SIZE: "true"
+          OVERRIDE_PIPELINE_ARTIFACT_CHUNKSIZE: Dedup1024K
         displayName: Restore node_modules cache
+        retryCountOnTaskFailure: 2
 
       - script: |
           set -e

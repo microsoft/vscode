@@ -4,26 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { derived, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IRequestService } from '../../../../../platform/request/common/request.js';
+import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
+import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { getSelectedModelStorageKey, storeSelectedModel } from '../../../../../workbench/contrib/chat/common/chatSelectedModel.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { isAutomationModelConfiguration } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { buildModelPickerDestinations } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerTabs.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, LanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelsConfigurationService, ILanguageModelsProviderGroup } from '../../../../../workbench/contrib/chat/common/languageModelsConfiguration.js';
 import { isInConversationModelChoice, resolveModelIdentifier } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { conformanceInputs, IModelSelectionConformanceScenario, ModelSelectionConformanceModel, modelSelectionConformanceScenarios } from '../../../../../workbench/contrib/chat/test/browser/widget/input/modelSelectionConformance.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ChatModelSource, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatModelSource, IChat, ISessionWorkspace, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { restoreReasonForSource, SessionModelSelection } from '../../browser/sessionModelSelection.js';
 import { AutomationModelConfiguration } from '../../../automations/browser/automationModelConfiguration.js';
+import { modelConfigurationSourceKey } from '../../../../../platform/agentHost/common/agentModelConfiguration.js';
+import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 
 function model(identifier: string): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -246,6 +258,141 @@ suite('SessionModelSelection', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const quickChat of [false, true]) {
+		test(`offers every provider harness model only to comparison selection (quick chat: ${quickChat})`, () => {
+			const workspaceUri = URI.file('/workspace');
+			const workspace: ISessionWorkspace = {
+				uri: workspaceUri,
+				label: 'workspace',
+				icon: Codicon.folder,
+				folders: [],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			};
+			const testSession = createSession('provider', SessionStatus.Untitled, first.identifier);
+			const session = {
+				...testSession.session,
+				workspace: observableValue<ISessionWorkspace | undefined>('workspace', quickChat ? undefined : workspace),
+				isQuickChat: constObservable(quickChat),
+			};
+			const provider = disposables.add(createProvider('provider'));
+			const copilot = { ...first, metadata: { ...first.metadata, modelGroup: { id: 'copilotcli' }, targetChatSessionType: 'agent-host-copilot' } };
+			const openRouter = {
+				...model('agent-host-copilot/openrouter/model'),
+				metadata: {
+					...first.metadata,
+					vendor: 'agent-host-copilot',
+					byokModelIdentifier: 'openrouter/model',
+					modelGroup: { id: 'openrouter', sourceId: 'openrouter-source' },
+					targetChatSessionType: 'agent-host-copilot',
+				},
+			};
+			const claude = { ...second, identifier: 'claude/second', metadata: { ...second.metadata, modelGroup: { id: 'copilot' }, targetChatSessionType: 'agent-host-claude' } };
+			const codex = { ...second, identifier: 'codex/second', metadata: { ...second.metadata, modelGroup: { id: 'copilot' }, targetChatSessionType: 'agent-host-codex' } };
+			provider.models = [copilot];
+			const sessionTypes = [
+				{ id: 'copilot', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.GitHub },
+				{ id: 'claude', label: 'Claude', icon: Codicon.commentDiscussion, authRequirement: SessionTypeAuthRequirement.None },
+				{ id: 'codex', label: 'Codex', icon: Codicon.code, authRequirement: SessionTypeAuthRequirement.None },
+			];
+			provider.getSessionTypes = () => sessionTypes;
+			Object.defineProperty(provider, 'sessionTypes', { value: sessionTypes });
+			provider.getModelsSnapshotForCreation = (_workspace, sessionType, desiredModelId) => {
+				assert.strictEqual(_workspace, quickChat ? undefined : workspaceUri);
+				const models = sessionType === 'copilot' ? [copilot, openRouter] : sessionType === 'claude' ? [claude] : [codex];
+				return {
+					models,
+					desiredModelResolution: desiredModelId
+						? resolveModelIdentifier(models, desiredModelId, true)
+						: { kind: 'notRequested' },
+					modelTarget: `agent-host-${sessionType}`,
+				};
+			};
+			const selection = disposables.add(new SessionModelSelection(
+				observableValue<IActiveSession | undefined>('session', session),
+				{},
+				createProvidersService([provider]),
+				disposables.add(new InMemoryStorageService()),
+				createConfigurationService(),
+				disposables.add(new NullLogService()),
+			));
+			const languageModelsService = new class extends mock<ILanguageModelsService>() {
+				override getVendors() {
+					return [
+						...sessionTypes.map(type => upcastPartial<ILanguageModelProviderDescriptor>({ vendor: type.id, displayName: type.label, isDefault: type.id === 'copilot' })),
+						upcastPartial<ILanguageModelProviderDescriptor>({ vendor: 'openrouter', displayName: 'OpenRouter', isDefault: false }),
+					];
+				}
+				override getLanguageModelGroups() { return []; }
+			};
+			const comparisonModels = selection.getComparisonModels();
+			assert.deepStrictEqual({
+				ordinary: selection.state.get().models.map(model => model.identifier),
+				comparison: comparisonModels.map(model => [model.identifier, model.metadata.modelGroup?.id]),
+				destinations: buildModelPickerDestinations(comparisonModels, languageModelsService).map(destination => ({
+					label: destination.label,
+					models: destination.models.map(model => model.identifier),
+				})),
+				openRouterMetadata: comparisonModels.find(model => model.identifier === openRouter.identifier)?.metadata,
+				resolvedOpenRouter: selection.resolveComparisonModel(openRouter.identifier),
+				resolvedClaude: selection.resolveComparisonModel(claude.identifier),
+			}, {
+				ordinary: [copilot.identifier],
+				comparison: [
+					[copilot.identifier, 'copilot'],
+					[openRouter.identifier, 'openrouter'],
+					[claude.identifier, 'claude'],
+					[codex.identifier, 'codex'],
+				],
+				destinations: [
+					{ label: 'Copilot', models: [copilot.identifier] },
+					{ label: 'Claude', models: [claude.identifier] },
+					{ label: 'Codex', models: [codex.identifier] },
+					{ label: 'OpenRouter', models: [openRouter.identifier] },
+				],
+				openRouterMetadata: openRouter.metadata,
+				resolvedOpenRouter: {
+					sessionType: provider.getSessionTypes(workspaceUri)[0],
+					model: openRouter,
+				},
+				resolvedClaude: {
+					sessionType: provider.getSessionTypes(workspaceUri)[1],
+					model: claude,
+				},
+			});
+		});
+	}
+
+	test('managed models seed new chats, preserve available existing choices and replace unavailable ones', () => {
+		const managed = { ...second, metadata: { ...second.metadata, managedModelDefaults: { model: true, keys: [] } } };
+		const observations = [];
+		for (const status of [SessionStatus.Untitled, SessionStatus.Completed]) {
+			for (const selected of [undefined, first.identifier, 'removed-model']) {
+				if (status === SessionStatus.Completed && !selected) {
+					continue;
+				}
+				const session = createSession('provider', status, selected);
+				const provider = disposables.add(createProvider('provider', (id, source) => session.modelId.set(id, undefined, source)));
+				provider.models = [first, managed];
+				const storage = disposables.add(new InMemoryStorageService());
+				storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, first.identifier);
+				const selection = disposables.add(new SessionModelSelection(
+					observableValue<IActiveSession | undefined>('session', session.session),
+					{ modelConfiguration: true }, createProvidersService([provider]), storage,
+					createConfigurationService(first.metadata.id), disposables.add(new NullLogService()),
+				));
+				observations.push({ status, selected, current: selection.state.get().currentModel?.identifier, writes: [...provider.writes] });
+			}
+		}
+		assert.deepStrictEqual(observations, [
+			{ status: SessionStatus.Untitled, selected: undefined, current: second.identifier, writes: [second.identifier] },
+			{ status: SessionStatus.Untitled, selected: first.identifier, current: first.identifier, writes: [] },
+			{ status: SessionStatus.Untitled, selected: 'removed-model', current: undefined, writes: [] },
+			{ status: SessionStatus.Completed, selected: first.identifier, current: first.identifier, writes: [] },
+			{ status: SessionStatus.Completed, selected: 'removed-model', current: second.identifier, writes: [second.identifier] },
+		]);
+	});
+
 	suite('Automation model configuration', () => {
 		class ConfigurationService extends mock<ILanguageModelsService>() {
 			metadata: ILanguageModelChatMetadata | undefined = {
@@ -266,6 +413,241 @@ suite('SessionModelSelection', () => {
 				this.configuration = { ...this.configuration, ...values };
 			}
 		}
+
+		test('allows undefined only in transient model configuration edits', () => {
+			const values = [{ thinkingLevel: undefined }, { thinkingLevel: null }, { thinkingLevel: { value: 'low' } }, { thinkingLevel: NaN }, { thinkingLevel: Infinity }, [], new Date(0)];
+			assert.deepStrictEqual(values.map(value => ({
+				stored: isAutomationModelConfiguration(value), edit: isAutomationModelConfiguration(value, true),
+			})), [
+				{ stored: false, edit: true }, { stored: true, edit: true },
+				{ stored: false, edit: false }, { stored: false, edit: false }, { stored: false, edit: false },
+				{ stored: false, edit: false }, { stored: false, edit: false },
+			]);
+		});
+
+		test('resetting unspecified effort clears the preference before capture and first send', async () => {
+			const service = new ConfigurationService();
+			service.metadata = {
+				...first.metadata,
+				configurationSchema: { properties: { thinkingLevel: { type: 'string', enum: ['low', 'high'] } } },
+			};
+			const configuration = disposables.add(new AutomationModelConfiguration(service));
+			await configuration.setModelConfiguration(first.identifier, { thinkingLevel: 'low' });
+			await configuration.setModelConfiguration(first.identifier, { thinkingLevel: undefined });
+			const captured = configuration.captureModelConfiguration(first.identifier);
+			const reopened = disposables.add(new AutomationModelConfiguration(service, { modelId: first.identifier, modelConfiguration: captured }));
+			assert.deepStrictEqual({
+				captured, sent: configuration.getModelConfigurationForRequest(first.identifier),
+				reopened: reopened.getModelConfigurationForRequest(first.identifier), writes: service.writes,
+			}, { captured: {}, sent: {}, reopened: {}, writes: [{ thinkingLevel: 'low' }, { thinkingLevel: undefined }] });
+		});
+
+		for (const retainContext of [false, true]) {
+			test(`a fresh draft can capture shared configuration after effort reset before catalogue refresh (retainContext=${retainContext})`, async () => {
+				const instantiation = workbenchInstantiationService(undefined, disposables);
+				instantiation.stub(ISecretStorageService, disposables.add(new TestSecretStorageService()));
+				instantiation.stub(IRequestService, new class extends mock<IRequestService>() { }());
+				instantiation.stub(IProductService, new class extends mock<IProductService>() { override readonly version = '1.100.0'; }());
+				instantiation.stub(IOpenerService, { ...NullOpenerService });
+				let groups: ILanguageModelsProviderGroup[] = [];
+				instantiation.stub(ILanguageModelsConfigurationService, new class extends mock<ILanguageModelsConfigurationService>() {
+					override readonly onDidChangeLanguageModelGroups = Event.None;
+					override getLanguageModelsProviderGroups() { return groups; }
+					override async addLanguageModelsProviderGroup(group: ILanguageModelsProviderGroup) {
+						groups.push(group);
+						return group;
+					}
+					override async updateLanguageModelsProviderGroup(from: ILanguageModelsProviderGroup, to: ILanguageModelsProviderGroup) {
+						groups = groups.map(group => group === from ? to : group);
+						return to;
+					}
+					override async removeLanguageModelsProviderGroup(removed: ILanguageModelsProviderGroup) {
+						groups = groups.filter(group => group !== removed);
+					}
+				}());
+				const service = disposables.add(instantiation.createInstance(LanguageModelsService));
+				service.deltaLanguageModelChatProviderDescriptors([{ vendor: 'test', displayName: 'Test', configuration: undefined, managementCommand: undefined, when: undefined }], []);
+				let publications = 0;
+				disposables.add(service.registerLanguageModelProvider('test', {
+					onDidChange: Event.None,
+					provideLanguageModelChatInfo: async () => {
+						publications++;
+						return [{
+							...first,
+							metadata: {
+								...first.metadata,
+								configurationSchema: {
+									properties: {
+										reasoningEffort: { type: 'string', enum: ['low', 'high'] },
+										...(retainContext ? { contextTier: { type: 'string' as const, enum: ['default', 'long_context'] } } : {}),
+									}
+								},
+							},
+						}];
+					},
+					sendChatRequest: async () => { throw new Error('Unexpected model request'); },
+					provideTokenCount: async () => { throw new Error('Unexpected token count'); },
+				}));
+				await service.selectLanguageModels({ vendor: 'test' });
+				const publishedBeforeReset = publications;
+				const draft = disposables.add(new AutomationModelConfiguration(service));
+				await draft.setModelConfiguration(first.identifier, { reasoningEffort: 'low', ...(retainContext ? { contextTier: 'long_context' } : {}) });
+				await draft.setModelConfiguration(first.identifier, { reasoningEffort: undefined });
+				const fresh = disposables.add(new AutomationModelConfiguration(service));
+				const captured = fresh.captureModelConfiguration(first.identifier);
+				const expected = retainContext ? { contextTier: 'long_context' } : {};
+				assert.deepStrictEqual({
+					captured, sent: fresh.getModelConfigurationForRequest(first.identifier),
+					shared: service.getModelConfiguration(first.identifier, false),
+					saved: groups.map(group => group.settings),
+					refreshed: publications !== publishedBeforeReset,
+				}, {
+					captured: expected, sent: expected,
+					shared: retainContext ? expected : undefined,
+					saved: retainContext ? [{ [first.metadata.id]: expected }] : [],
+					refreshed: false,
+				});
+			});
+		}
+
+		test('host defaults remain implicit until an explicit selection, including the default itself', async () => {
+			const service = new ConfigurationService();
+			service.configuration = {};
+			service.metadata = { ...service.metadata!, configurationDefaultKeys: ['thinkingLevel'] };
+			const configuration = disposables.add(new AutomationModelConfiguration(service));
+			const initial = configuration.getModelConfigurationForRequest(first.identifier);
+			const implicit = configuration.captureModelConfiguration(first.identifier);
+			await configuration.setModelConfiguration(first.identifier, { thinkingLevel: 'medium' });
+			const captured = configuration.captureModelConfiguration(first.identifier);
+			const reopened = disposables.add(new AutomationModelConfiguration(service, { modelId: first.identifier, modelConfiguration: captured }));
+			assert.deepStrictEqual({
+				initial, implicit, captured, reopened: reopened.getModelConfigurationForRequest(first.identifier),
+			}, {
+				initial: { thinkingLevel: 'medium', [modelConfigurationSourceKey('thinkingLevel')]: 'default' },
+				implicit: {},
+				captured: { thinkingLevel: 'medium' },
+				reopened: { thinkingLevel: 'medium', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit' },
+			});
+
+		});
+
+		test('managed startup options outrank inherited preferences but not restored or current-chat choices', async () => {
+			const service = new ConfigurationService();
+			service.configuration = { thinkingLevel: 'low', contextSize: 200_000, tier: 'efficiency' };
+			service.metadata = {
+				...service.metadata!,
+				configurationDefaultKeys: ['thinkingLevel', 'contextSize', 'tier'],
+				managedModelDefaults: { model: true, keys: ['thinkingLevel', 'contextSize', 'tier'] },
+				configurationSchema: {
+					properties: {
+						thinkingLevel: { enum: ['low', 'high'], default: 'high' },
+						contextSize: { enum: [200_000, 1_000_000], default: 1_000_000 },
+						tier: { enum: ['efficiency', 'intelligence'], default: 'intelligence' },
+					}
+				},
+			};
+			const draft = disposables.add(new AutomationModelConfiguration(service));
+			const restored = disposables.add(new AutomationModelConfiguration(service, {
+				modelId: first.identifier, modelConfiguration: { thinkingLevel: 'low', contextSize: 200_000, tier: 'efficiency' },
+			}));
+			const initial = draft.getModelConfigurationForRequest(first.identifier);
+			const captured = draft.captureModelConfiguration(first.identifier);
+			const reopenedDraft = disposables.add(new AutomationModelConfiguration(service, { modelId: first.identifier, modelConfiguration: captured }));
+			const reopened = reopenedDraft.getModelConfigurationForRequest(first.identifier);
+			await draft.setModelConfiguration(first.identifier, { thinkingLevel: 'low' });
+			const edited = draft.getModelConfigurationForRequest(first.identifier);
+			const restoredValue = restored.getModelConfigurationForRequest(first.identifier);
+			service.metadata = { ...service.metadata, managedModelDefaults: undefined };
+			assert.deepStrictEqual({ initial, captured, reopened, edited, restored: restoredValue, removed: draft.getModelConfigurationForRequest(first.identifier) }, {
+				initial: { thinkingLevel: 'high', contextSize: 1_000_000, tier: 'intelligence', [modelConfigurationSourceKey('thinkingLevel')]: 'default', [modelConfigurationSourceKey('contextSize')]: 'default', [modelConfigurationSourceKey('tier')]: 'default' },
+				captured: {},
+				reopened: initial,
+				edited: { ...initial, thinkingLevel: 'low', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit' },
+				restored: { thinkingLevel: 'low', contextSize: 200_000, tier: 'efficiency', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit', [modelConfigurationSourceKey('contextSize')]: 'explicit', [modelConfigurationSourceKey('tier')]: 'explicit' },
+				removed: { thinkingLevel: 'low', contextSize: 200_000, tier: 'efficiency', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit', [modelConfigurationSourceKey('contextSize')]: 'explicit', [modelConfigurationSourceKey('tier')]: 'explicit' },
+			});
+		});
+
+		test('ordinary picker edits update an eagerly captured draft without changing another automation', async () => {
+			const service = new ConfigurationService();
+			service.configuration = {};
+			service.metadata = {
+				...service.metadata!,
+				configurationDefaultKeys: ['thinkingLevel', 'contextSize'],
+				configurationSchema: {
+					properties: {
+						thinkingLevel: { type: 'string', enum: ['low', 'medium', 'high'], default: 'medium' },
+						contextSize: { type: 'number', enum: [200_000, 1_000_000], default: 200_000 },
+					}
+				},
+			};
+			const draft = disposables.add(new AutomationModelConfiguration(service));
+			const automation = disposables.add(new AutomationModelConfiguration(service, {
+				modelId: first.identifier, modelConfiguration: { thinkingLevel: 'low', contextSize: 200_000 },
+			}));
+			const initial = draft.getModelConfigurationForRequest(first.identifier);
+			const session = createSession('provider', SessionStatus.Untitled, first.identifier);
+			const provider = disposables.add(createProvider('provider'));
+			provider.getAutomationModelConfiguration = () => draft;
+			const selection = disposables.add(new SessionModelSelection(
+				observableValue<IActiveSession | undefined>('session', session.session),
+				{ modelConfiguration: true, fallbackModelConfiguration: service },
+				createProvidersService([provider]), disposables.add(new InMemoryStorageService()),
+				createConfigurationService(), disposables.add(new NullLogService()),
+			));
+			const access = selection.modelConfiguration!;
+			await access.setModelConfiguration(first.identifier, { thinkingLevel: 'high', contextSize: 1_000_000 });
+			const sent = draft.getModelConfigurationForRequest(first.identifier);
+			const shown = access.getModelConfiguration(first.identifier);
+			provider.getAutomationModelConfiguration = () => undefined;
+			provider.modelChanges.fire();
+			await access.setModelConfiguration(first.identifier, { thinkingLevel: 'low' });
+			assert.deepStrictEqual({
+				initial, shown, sent,
+				automation: automation.captureModelConfiguration(first.identifier),
+				fallback: access.getModelConfiguration(first.identifier),
+			}, {
+				initial: { thinkingLevel: 'medium', contextSize: 200_000, [modelConfigurationSourceKey('thinkingLevel')]: 'default', [modelConfigurationSourceKey('contextSize')]: 'default' },
+				shown: { thinkingLevel: 'high', contextSize: 1_000_000, [modelConfigurationSourceKey('thinkingLevel')]: 'explicit', [modelConfigurationSourceKey('contextSize')]: 'explicit' },
+				sent: { thinkingLevel: 'high', contextSize: 1_000_000, [modelConfigurationSourceKey('thinkingLevel')]: 'explicit', [modelConfigurationSourceKey('contextSize')]: 'explicit' },
+				automation: { thinkingLevel: 'low', contextSize: 200_000 },
+				fallback: { thinkingLevel: 'low', contextSize: 1_000_000 },
+			});
+		});
+
+		test('host locks leave captured automation preferences intact and restore them after removal', async () => {
+			const service = new ConfigurationService();
+			service.metadata = { ...service.metadata!, configurationDefaultKeys: ['thinkingLevel'] };
+			const original = service.metadata;
+			const configuration = disposables.add(new AutomationModelConfiguration(service, { modelId: first.identifier, modelConfiguration: { thinkingLevel: 'low' } }));
+			service.metadata = {
+				...original,
+				configurationSchema: { properties: { thinkingLevel: { type: 'string', title: 'Effort', enum: ['low', 'high'], default: 'high', readOnly: true } } },
+			};
+			const locked = configuration.getModelConfiguration(first.identifier);
+			await assert.rejects(configuration.setModelConfiguration(first.identifier, { thinkingLevel: 'low' }), /managed by the agent host/);
+			await assert.rejects(configuration.setModelConfiguration(first.identifier, { thinkingLevel: undefined }), /managed by the agent host/);
+			const captured = configuration.captureModelConfiguration(first.identifier);
+			service.metadata = original;
+			assert.deepStrictEqual({ locked, captured, removed: configuration.getModelConfiguration(first.identifier), writes: service.writes }, {
+				locked: { thinkingLevel: 'high', [modelConfigurationSourceKey('thinkingLevel')]: 'managed' },
+				captured: { thinkingLevel: 'low' },
+				removed: { thinkingLevel: 'low', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit' },
+				writes: [],
+			});
+		});
+
+		test('restored running chats retain their applied defaults after the admin changes them', () => {
+			const service = new ConfigurationService();
+			service.metadata = { ...service.metadata!, configurationDefaultKeys: ['thinkingLevel'], managedModelDefaults: { model: true, keys: ['thinkingLevel'] } };
+			const saved = { thinkingLevel: 'low', [modelConfigurationSourceKey('thinkingLevel')]: 'default' };
+			const restored = disposables.add(new AutomationModelConfiguration(service, {
+				modelId: first.identifier, modelConfiguration: saved,
+			}, true));
+			assert.deepStrictEqual(restored.getModelConfigurationForRequest(first.identifier), {
+				thinkingLevel: 'low', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit',
+			});
+		});
 
 		test('scopes picker options to each Automation and only remembers explicit choices', async () => {
 			const languageModelsService = new ConfigurationService();
@@ -1173,6 +1555,40 @@ suite('SessionModelSelection', () => {
 			current: first.identifier,
 			stored: first.identifier,
 		});
+	});
+
+	test('a pick the picker re-selects during the provider write settles on the re-selected model', () => {
+		const testSession = createSession('provider', SessionStatus.Untitled);
+		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
+		const storage = disposables.add(new InMemoryStorageService());
+		const selection = disposables.add(new SessionModelSelection(
+			observableValue<IActiveSession | undefined>('session', testSession.session),
+			{},
+			createProvidersService([provider]),
+			storage,
+			createConfigurationService(),
+			disposables.add(new NullLogService()),
+		));
+		// As the picker maps a Fusion tier onto the HydraFusion model that runs it.
+		disposables.add(autorun(reader => {
+			if (selection.state.read(reader).currentModel?.identifier === second.identifier) {
+				selection.selectModel(first.identifier, false);
+			}
+		}));
+		const snapshot = () => ({
+			current: selection.state.get().currentModel?.identifier,
+			chat: testSession.modelId.get(),
+			stored: storage.get(selectedModelStorageKey, StorageScope.PROFILE),
+			writes: [...provider.writes],
+		});
+
+		selection.selectModel(second.identifier);
+		const afterPick = snapshot();
+		provider.modelChanges.fire();
+		(testSession.activeChat.get() as ITestChat).status.set(SessionStatus.InProgress, undefined);
+
+		const settled = { current: first.identifier, chat: first.identifier, stored: first.identifier, writes: [first.identifier, second.identifier, first.identifier] };
+		assert.deepStrictEqual({ afterPick, afterRefresh: snapshot() }, { afterPick: settled, afterRefresh: settled });
 	});
 
 	test('reclaims a model that returns after a switch away from its stand-in', () => {

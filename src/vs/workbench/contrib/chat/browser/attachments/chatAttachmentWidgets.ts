@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { HoverStyle, IDelayedHoverOptions, type IHoverLifecycleOptions, type IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -57,6 +59,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IOpenerService, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { FolderThemeIcon, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
+import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { StaticResourceContextKey } from '../../../../common/contextkeys.js';
@@ -72,8 +75,7 @@ import { BrowserEditorInput } from '../../../browserView/common/browserEditorInp
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
 import { IChatContentReference } from '../../common/chatService/chatService.js';
 import { buildOpenSessionLinkForChat } from '../../../../../platform/agentHost/common/openSessionLink.js';
-import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_CHAT_OWNER_TIMEOUT_MS, resolveAgentHostChatOwner } from '../agentSessions/agentHost/agentHostChatOwner.js';
 import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -84,6 +86,7 @@ import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileL
 import { IChatResponseResourceFileSystemProvider } from '../../common/widget/chatResponseResourceFileSystemProvider.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../chatImageCarouselService.js';
+import { createChatImageCopyActions } from '../chatImageActions.js';
 import { createChatImageHoverContent } from '../../../../browser/chatImagePreview.js';
 import { ChatImageReveal, IChatImageRevealOrigin } from './chatImageReveal.js';
 
@@ -560,7 +563,8 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		} else {
 			const imageElements = this._register(new MutableDisposable<IDisposable>());
 			const renderImageElements = (buffer: Uint8Array) => {
-				imageElements.value = createImageElements(resource, attachment.name, fullName, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, omittedState, options.isCurrentInput === true, options.showImageInHover ?? true);
+				imageElements.value = createImageElements(resource, attachment.name, fullName, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, omittedState, options.isCurrentInput === true, options.showImageInHover ?? true, image => this.instantiationService.invokeFunction(accessor =>
+					hookUpResourceContextMenu(accessor, image, resource, MenuId.ChatImageContext, createChatImageCopyActions(accessor, image, resource, async () => buffer, attachment.kind === 'image' ? attachment.mimeType : undefined), this.element)));
 				// createImageElements resets the label; restore the deletion hint after each render.
 				this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 			};
@@ -582,11 +586,20 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 			}));
 		}
 
-		if (resource) {
-			instantiationService.invokeFunction(accessor => {
-				this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
-			});
-		}
+		const imageBase64Data = options.imageBase64Data;
+		const readData = imageBase64Data
+			? async () => decodeBase64(imageBase64Data.data).buffer
+			: imageData
+				? async () => imageData
+				: resource
+					? async () => (await this.fileService.readFile(resource)).value.buffer
+					: undefined;
+		instantiationService.invokeFunction(accessor => {
+			const actions = createChatImageCopyActions(accessor, this.element, resource, readData, imageBase64Data?.mimeType ?? (attachment.kind === 'image' ? attachment.mimeType : undefined));
+			this._register(resource
+				? hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource, actions, MenuId.ChatImageContext)
+				: hookUpResourceContextMenu(accessor, this.element, resource, MenuId.ChatImageContext, actions));
+		});
 	}
 
 	private renderInlineImage(resource: URI | undefined, name: string, fullName: string, imageData: Uint8Array | IChatImageBase64Data | undefined, ariaLabel: string, imageReveal: IChatImageRevealOrigin | undefined, imageDimensions: ResourceMap<dom.IDimension> | undefined): IDisposable {
@@ -746,7 +759,8 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	currentLanguageModel?: ILanguageModelChatMetadataAndIdentifier,
 	omittedState?: OmittedState,
 	useCompactWarningIcon = false,
-	showImageInHover = true): IDisposable {
+	showImageInHover = true,
+	imageContextMenu?: (image: HTMLImageElement) => IDisposable): IDisposable {
 
 	const disposable = new DisposableStore();
 	if (omittedState === OmittedState.Partial) {
@@ -812,6 +826,11 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 				replacePill(pill);
 			}
 			hoverImage.onerror = onImageFailed;
+			if (imageContextMenu) {
+				hoverImage.alt = name;
+				hoverImage.tabIndex = 0;
+				disposable.add(imageContextMenu(hoverImage));
+			}
 		}, '', showImageInHover);
 		disposable.add(hoverContent.disposable);
 		const hoverElement = hoverContent.element;
@@ -893,10 +912,23 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 			range = attachment.copiedFrom.range;
 			const filename = basename(resource.path);
 			this.label.setLabel(filename, undefined, { extraClasses: classNames });
+		} else if (attachment.icon) {
+			// Labelled context, such as a GitHub issue, rather than pasted text. Its
+			// icon keeps its theme color, for example an open issue's.
+			const icon = renderIcon(attachment.icon);
+			icon.classList.add('chat-attached-context-icon');
+			icon.setAttribute('aria-hidden', 'true');
+			if (attachment.icon.color) {
+				icon.style.color = asCssVariable(attachment.icon.color.id);
+			}
+			this.element.insertBefore(icon, this.label.element);
+			this.label.setLabel(attachment.name);
 		} else {
 			this.label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
 		}
-		this.element.appendChild(dom.$('span.attachment-additional-info', {}, `Pasted ${attachment.pastedLines}`));
+		if (!attachment.icon || attachment.copiedFrom) {
+			this.element.appendChild(dom.$('span.attachment-additional-info', {}, `Pasted ${attachment.pastedLines}`));
+		}
 
 		this.element.style.position = 'relative';
 
@@ -1206,13 +1238,18 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
  * Renders an agent-host {@link IChatRequestChatReferenceVariableEntry chat-reference}
  * attachment (`#chat:<title>`) as a clickable chip. Clicking (or pressing
  * Enter/Space) opens the referenced chat in the Agents window by handing an
- * `agent-host-session://` link to the {@link IOpenerService}. When the link
- * cannot be built or the opener declines it (e.g. the chat was deleted or lives
- * in another window) the chip degrades gracefully and still renders its label.
+ * `agent-host-session://` link to the {@link IOpenerService}. A chat reference
+ * never crosses agent hosts, so the referenced chat is resolved, and the link
+ * scoped, on the host connection of the chat that shows the chip
+ * (`sessionResource`). When that session has no agent host connection, the link
+ * cannot be built, or the opener declines it (e.g. the chat was deleted or
+ * lives in another window) the chip degrades gracefully and still renders its
+ * label.
  */
 export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget {
 	constructor(
 		attachment: IChatRequestChatReferenceVariableEntry,
+		private readonly _sessionResource: URI | undefined,
 		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
@@ -1221,8 +1258,7 @@ export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget 
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService,
-		@IAgentHostService private readonly _agentHostService: IAgentHostService,
-		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
@@ -1256,13 +1292,19 @@ export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget 
 	}
 
 	private async _openReferencedChat(chatResource: URI): Promise<void> {
-		const owner = await resolveAgentHostChatOwner(chatResource, this._agentHostService, this._remoteAgentHostService, this._logService, AGENT_HOST_CHAT_OWNER_TIMEOUT_MS);
+		const connectionAuthority = this._sessionResource && this._connectionsService.resolveSessionResourceIdentity(this._sessionResource)?.connectionAuthority;
+		const connection = connectionAuthority && this._connectionsService.getConnectionByAuthority(connectionAuthority);
+		if (!connectionAuthority || !connection) {
+			this._logService.trace(`[ChatReferenceAttachmentWidget] The chat showing the reference to ${chatResource.toString()} has no agent host connection`);
+			return;
+		}
+		const owner = await resolveAgentHostChatOwner(chatResource, connection, connectionAuthority, this._logService, AGENT_HOST_CHAT_OWNER_TIMEOUT_MS);
 		if (this._store.isDisposed) {
 			return;
 		}
-		const link = owner && buildOpenSessionLinkForChat(owner, chatResource);
+		const link = owner && buildOpenSessionLinkForChat(owner.session, chatResource, owner.defaultChat, owner.connectionAuthority);
 		if (!link) {
-			this._logService.trace(`[ChatReferenceAttachmentWidget] No host lists the referenced chat ${chatResource.toString()}`);
+			this._logService.trace(`[ChatReferenceAttachmentWidget] ${connectionAuthority} does not list the referenced chat ${chatResource.toString()}`);
 			return;
 		}
 		// The opener returns false when the link cannot be resolved (e.g. the
@@ -1322,6 +1364,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
+		let imageCopyActions: (() => IAction[]) | undefined;
 		switch (attachment.mimeType) {
 			case 'application/vnd.code.notebook.error': {
 				this.renderErrorOutput(resource, attachment);
@@ -1330,7 +1373,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 			case 'image/png':
 			case 'image/jpeg':
 			case 'image/svg': {
-				this.renderImageOutput(resource, attachment, options.isCurrentInput === true);
+				imageCopyActions = this.renderImageOutput(resource, attachment, options.isCurrentInput === true);
 				break;
 			}
 			default: {
@@ -1339,7 +1382,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		}
 
 		this.instantiationService.invokeFunction(accessor => {
-			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
+			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource, imageCopyActions, imageCopyActions ? MenuId.ChatImageContext : MenuId.ChatInputResourceAttachmentContext));
 		});
 		this.addResourceOpenHandlers(resource, undefined);
 	}
@@ -1379,8 +1422,10 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		const clickHandler = async () => await this.openResource(resource, { editorOptions: { preserveFocus: true } }, false, undefined);
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : undefined;
 		const buffer = this.getOutputItem(resource, attachment)?.data.buffer ?? new Uint8Array();
-		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, useCompactWarningIcon));
+		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, useCompactWarningIcon, true, image => this.instantiationService.invokeFunction(accessor =>
+			hookUpResourceContextMenu(accessor, image, resource, MenuId.ChatImageContext, createChatImageCopyActions(accessor, image, resource, async () => buffer, attachment.mimeType), this.element))));
 		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
+		return this.instantiationService.invokeFunction(accessor => createChatImageCopyActions(accessor, this.element, resource, async () => buffer, attachment.mimeType));
 	}
 
 	private getOutputItem(resource: URI, attachment: INotebookOutputVariableEntry) {
@@ -2034,15 +2079,10 @@ export class BrowserViewAttachmentWidget extends AbstractChatAttachmentWidget {
 	}
 }
 
-export function hookUpResourceAttachmentDragAndContextMenu(accessor: ServicesAccessor, widget: HTMLElement, resource: URI): IDisposable {
-	const contextKeyService = accessor.get(IContextKeyService);
+export function hookUpResourceAttachmentDragAndContextMenu(accessor: ServicesAccessor, widget: HTMLElement, resource: URI, additionalActions?: () => IAction[], menuId = MenuId.ChatInputResourceAttachmentContext): IDisposable {
 	const instantiationService = accessor.get(IInstantiationService);
 
 	const store = new DisposableStore();
-
-	// Context
-	const scopedContextKeyService = store.add(contextKeyService.createScoped(widget));
-	setResourceContext(accessor, scopedContextKeyService, resource);
 
 	// Drag and drop
 	widget.draggable = true;
@@ -2052,8 +2092,22 @@ export function hookUpResourceAttachmentDragAndContextMenu(accessor: ServicesAcc
 	}));
 
 	// Context menu
-	store.add(addBasicContextMenu(accessor, widget, scopedContextKeyService, MenuId.ChatInputResourceAttachmentContext, resource));
+	store.add(hookUpResourceContextMenu(accessor, widget, resource, menuId, additionalActions));
 
+	return store;
+}
+
+/**
+ * Shows the actions of {@link menuId} for {@link resource} when {@link widget} opens a context menu,
+ * using resource context keys scoped to the widget.
+ */
+export function hookUpResourceContextMenu(accessor: ServicesAccessor, widget: HTMLElement, resource: URI | undefined, menuId: MenuId, additionalActions?: () => IAction[], fallbackFocusTarget?: HTMLElement): IDisposable {
+	const store = new DisposableStore();
+	const scopedContextKeyService = store.add(accessor.get(IContextKeyService).createScoped(widget));
+	if (resource) {
+		setResourceContext(accessor, scopedContextKeyService, resource);
+	}
+	store.add(addBasicContextMenu(accessor, widget, scopedContextKeyService, menuId, resource, undefined, additionalActions, fallbackFocusTarget));
 	return store;
 }
 
@@ -2153,14 +2207,11 @@ function setResourceContext(accessor: ServicesAccessor, scopedContextKeyService:
 	resourceContextKey.set(resource);
 }
 
-function addBasicContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, menuId: MenuId, arg: unknown, updateContextKeys?: () => Promise<void>): IDisposable {
+function addBasicContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, menuId: MenuId, arg: unknown, updateContextKeys?: () => Promise<void>, additionalActions?: () => IAction[], fallbackFocusTarget?: HTMLElement): IDisposable {
 	const contextMenuService = accessor.get(IContextMenuService);
 	const menuService = accessor.get(IMenuService);
 
-	return dom.addDisposableListener(widget, dom.EventType.CONTEXT_MENU, async domEvent => {
-		const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
-		dom.EventHelper.stop(domEvent, true);
-
+	const showContextMenu = async (anchor: HTMLElement | StandardMouseEvent) => {
 		try {
 			await updateContextKeys?.();
 		} catch (e) {
@@ -2169,13 +2220,28 @@ function addBasicContextMenu(accessor: ServicesAccessor, widget: HTMLElement, sc
 
 		contextMenuService.showContextMenu({
 			contextKeyService: scopedContextKeyService,
-			getAnchor: () => event,
+			getAnchor: () => anchor,
 			getActions: () => {
-				const menu = menuService.getMenuActions(menuId, scopedContextKeyService, { arg });
-				return getFlatContextMenuActions(menu);
+				const actions = additionalActions?.() ?? [];
+				const menu = arg ? getFlatContextMenuActions(menuService.getMenuActions(menuId, scopedContextKeyService, { arg })) : [];
+				return Separator.join(actions, menu);
 			},
+			onHide: () => (widget.isConnected ? widget : fallbackFocusTarget)?.focus(),
 		});
-	});
+	};
+	const store = new DisposableStore();
+	store.add(dom.addDisposableListener(widget, dom.EventType.CONTEXT_MENU, domEvent => {
+		dom.EventHelper.stop(domEvent, true);
+		void showContextMenu(new StandardMouseEvent(dom.getWindow(domEvent), domEvent));
+	}));
+	store.add(dom.addDisposableListener(widget, dom.EventType.KEY_DOWN, domEvent => {
+		const event = new StandardKeyboardEvent(domEvent);
+		if (domEvent.key === 'ContextMenu' || event.keyCode === KeyCode.ContextMenu || (event.shiftKey && event.keyCode === KeyCode.F10)) {
+			dom.EventHelper.stop(domEvent, true);
+			void showContextMenu(widget);
+		}
+	}));
+	return store;
 }
 
 export const chatAttachmentResourceContextKey = new RawContextKey<string>('chatAttachmentResource', undefined, { type: 'URI', description: localize('resource', "The full value of the chat attachment resource, including scheme and path") });

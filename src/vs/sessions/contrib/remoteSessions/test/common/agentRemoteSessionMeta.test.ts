@@ -8,8 +8,7 @@ import { hasKey } from '../../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { parseRemoteSessionOrigin, readRemoteSessionDepth, readRemoteSessionOrigin, supportsRemoteSessions, toRemoteSessionMessageMetadata, withRemoteSessionOrigin, withRemoteSessionsCapability } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
-import { parseChatUri, readSessionSpawnDepth, withSessionSpawnDepth } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { mintedTestChatOwner } from '../../../../../platform/agentHost/test/common/mintedChatUri.js';
+import { readSessionSpawnDepth, withSessionSpawnDepth } from '../../../../../platform/agentHost/common/state/sessionState.js';
 
 suite('Remote session origin metadata', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -69,19 +68,13 @@ suite('Remote session origin metadata', () => {
 		], [0, 3, 3, 3]);
 	});
 
-	test('request metadata preserves host-qualified default, peer and subagent source chats', () => {
-		const chats = ['', 'original-chat', 'subagent/call-1'];
-		const results = chats.map(chatId => {
-			const metadata = toRemoteSessionMessageMetadata({
-				session: origin.session, chat: `${origin.session}${chatId ? `#${chatId}` : ''}`,
-			}, 'source-turn');
-			const delegation = readAgentMessageDelegationMeta({ _meta: metadata });
-			assert.ok(delegation && hasKey(delegation, { sourceSession: true }) && delegation.sourceChat);
-			return { session: delegation.sourceSession, chat: { session: mintedTestChatOwner(delegation.sourceChat), chatId: parseChatUri(delegation.sourceChat)?.chatId }, turnId: delegation.sourceTurnId };
+	test('request metadata names the recorded source chat verbatim, whatever its URI shape', () => {
+		const sourceChats = ['ahp-chat:/0f9d6c1e-2b8a-4c3e-9d41-5a6b7c8d9e0f', 'ahp-chat:/x/y', 'conversation://tenant/main', undefined];
+		const results = sourceChats.map(chat => {
+			const delegation = readAgentMessageDelegationMeta({ _meta: toRemoteSessionMessageMetadata(origin.session, chat, 'source-turn') });
+			return delegation && hasKey(delegation, { sourceSession: true }) ? { session: delegation.sourceSession, chat: delegation.sourceChat, turnId: delegation.sourceTurnId } : 'no session delegation';
 		});
-		assert.deepStrictEqual(results, chats.map(chatId => ({
-			session: origin.session, chat: { session: origin.session, chatId: chatId || 'default' }, turnId: 'source-turn',
-		})));
+		assert.deepStrictEqual(results, sourceChats.map(chat => ({ session: origin.session, chat, turnId: 'source-turn' })));
 	});
 
 	test('rejects malformed metadata, unqualified identities and mismatched chats', () => {

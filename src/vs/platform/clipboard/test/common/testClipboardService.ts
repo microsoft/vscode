@@ -11,6 +11,19 @@ export class TestClipboardService implements IClipboardService {
 		throw new Error('Method not implemented.');
 	}
 
+	private image: Uint8Array | undefined = undefined;
+
+	async writeImage(data: Uint8Array | Promise<Uint8Array>): Promise<void> {
+		this.image = await data;
+	}
+
+	/**
+	 * The image most recently written with {@link writeImage}.
+	 */
+	get writtenImage(): Uint8Array | undefined {
+		return this.image;
+	}
+
 	_serviceBrand: undefined;
 
 	private text: string | undefined = undefined;

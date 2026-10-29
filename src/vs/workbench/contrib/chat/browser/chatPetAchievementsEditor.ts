@@ -5,7 +5,6 @@
 
 import * as DOM from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -38,7 +37,7 @@ export class ChatPetAchievementsEditor extends EditorPane {
 	private readonly focusedContextKey: IContextKey<boolean>;
 	private container: HTMLElement | undefined;
 	private readonly widget = this._register(new MutableDisposable<ChatPetAchievementsWidget | ChatPetColorsWidget>());
-	private readonly tabs = new Map<ChatPetCustomizationTab, { readonly button: Button; readonly panel: HTMLElement }>();
+	private readonly tabs = new Map<ChatPetCustomizationTab, { readonly tab: HTMLElement; readonly panel: HTMLElement }>();
 	private activeTab: ChatPetCustomizationTab = 'achievements';
 	private tabBar: HTMLElement | undefined;
 	private dimension: DOM.Dimension | undefined;
@@ -67,7 +66,8 @@ export class ChatPetAchievementsEditor extends EditorPane {
 		this.widget.clear();
 		this.editorDisposables.clear();
 		this.tabs.clear();
-		this.container = DOM.append(parent, DOM.$('.chat-pet-achievements-editor', {
+		// Reuse the Modern UI editor tab hooks. The modal editor group is always the active group while open.
+		this.container = DOM.append(parent, DOM.$('.chat-pet-achievements-editor.modern-ui-editor-tab-group.modern-ui-editor-tab-group-active', {
 			role: 'group',
 			tabindex: '-1',
 			'aria-label': localize('chatPet.customization.label', "Customize Blobby"),
@@ -75,30 +75,42 @@ export class ChatPetAchievementsEditor extends EditorPane {
 		const focusTracker = this.editorDisposables.add(DOM.trackFocus(this.container));
 		this.editorDisposables.add(focusTracker.onDidFocus(() => this.focusedContextKey.set(true)));
 		this.editorDisposables.add(focusTracker.onDidBlur(() => this.focusedContextKey.set(false)));
-		this.tabBar = DOM.append(this.container, DOM.$('.chat-pet-customization-tabs', {
+		this.tabBar = DOM.append(this.container, DOM.$('.chat-pet-customization-tabs.modern-ui-editor-tab-strip.modern-ui-editor-tab-list', {
 			role: 'tablist',
 			'aria-label': localize('chatPet.customization.tabs', "Blobby customization"),
 		}));
 		const tabIds: readonly ChatPetCustomizationTab[] = ['achievements', 'color'];
 		const prefix = generateUuid();
 		for (const [index, tab] of tabIds.entries()) {
-			const button = this.editorDisposables.add(new Button(this.tabBar, {}));
-			button.label = tab === 'achievements'
+			const tabElement = DOM.append(this.tabBar, DOM.$('.chat-pet-customization-tab.modern-ui-editor-tab', {
+				role: 'tab',
+				id: `${prefix}-${tab}`,
+			}));
+			DOM.append(tabElement, DOM.$('.chat-pet-customization-tab-fill.modern-ui-editor-tab-fill', { 'aria-hidden': 'true' }));
+			DOM.append(tabElement, DOM.$('.tab-connected-edge', { 'aria-hidden': 'true' }));
+			DOM.append(tabElement, DOM.$('.chat-pet-customization-tab-label.modern-ui-editor-tab-label')).textContent = tab === 'achievements'
 				? localize('chatPet.customization.achievements', "Achievements")
 				: localize('chatPet.customization.color', "Color");
-			button.element.setAttribute('role', 'tab');
-			button.element.id = `${prefix}-${tab}`;
 			const panel = DOM.append(this.container, DOM.$('.chat-pet-customization-panel', {
 				role: 'tabpanel',
 				id: `${prefix}-${tab}-panel`,
-				'aria-labelledby': button.element.id,
+				'aria-labelledby': tabElement.id,
 			}));
-			button.element.setAttribute('aria-controls', panel.id);
-			this.tabs.set(tab, { button, panel });
-			this.editorDisposables.add(button.onDidClick(() => this.showTab(tab)));
-			this.editorDisposables.add(button.onDidEscape(() => this.close()));
-			this.editorDisposables.add(DOM.addDisposableListener(button.element, DOM.EventType.KEY_DOWN, e => {
+			tabElement.setAttribute('aria-controls', panel.id);
+			this.tabs.set(tab, { tab: tabElement, panel });
+			this.editorDisposables.add(DOM.addDisposableListener(tabElement, DOM.EventType.CLICK, () => this.showTab(tab)));
+			this.editorDisposables.add(DOM.addDisposableListener(tabElement, DOM.EventType.KEY_DOWN, e => {
 				const event = new StandardKeyboardEvent(e);
+				if (event.equals(KeyCode.Escape)) {
+					DOM.EventHelper.stop(e, true);
+					this.close();
+					return;
+				}
+				if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+					DOM.EventHelper.stop(e, true);
+					this.showTab(tab);
+					return;
+				}
 				const nextIndex = event.equals(KeyCode.LeftArrow)
 					? (index + tabIds.length - 1) % tabIds.length
 					: event.equals(KeyCode.RightArrow) ? (index + 1) % tabIds.length
@@ -108,7 +120,7 @@ export class ChatPetAchievementsEditor extends EditorPane {
 					DOM.EventHelper.stop(e, true);
 					const nextTab = tabIds[nextIndex];
 					this.showTab(nextTab);
-					this.tabs.get(nextTab)?.button.focus();
+					this.tabs.get(nextTab)?.tab.focus();
 				}
 			}));
 		}
@@ -140,8 +152,9 @@ export class ChatPetAchievementsEditor extends EditorPane {
 		this.activeTab = tab;
 		for (const [id, entry] of this.tabs) {
 			const selected = id === tab;
-			entry.button.element.setAttribute('aria-selected', String(selected));
-			entry.button.element.tabIndex = selected ? 0 : -1;
+			entry.tab.classList.toggle('active', selected);
+			entry.tab.setAttribute('aria-selected', String(selected));
+			entry.tab.tabIndex = selected ? 0 : -1;
 			entry.panel.hidden = !selected;
 		}
 		const panel = this.tabs.get(tab)?.panel;

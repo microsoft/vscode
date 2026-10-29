@@ -9,10 +9,10 @@ import { DataTransfers } from '../../../../base/browser/dnd.js';
 import { $, Dimension, getActiveWindow, getWindow, isMouseEvent, setVisibility } from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { IAction, ActionRunner, toAction } from '../../../../base/common/actions.js';
+import { IAction, ActionRunner } from '../../../../base/common/actions.js';
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { createActionViewItem, getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -36,6 +36,7 @@ import { WorkbenchToolBar, HiddenItemStrategy } from '../../../../platform/actio
 import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
 import { DraggedTreeItemsIdentifier } from '../../../../editor/common/services/treeViewsDnd.js';
 import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import { IEditorTitleControlDimensions } from './editorTitleControl.js';
 import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
 import { EDITOR_CORE_NAVIGATION_COMMANDS } from './editorCommands.js';
@@ -47,9 +48,7 @@ import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionba
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { EditorAddTabControl } from './editorAddTabControl.js';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -165,6 +164,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IHostService protected readonly hostService: IHostService,
 		@IMenuService protected readonly menuService: IMenuService,
+		@IModelService private readonly modelService: IModelService,
 	) {
 		super(themeService);
 
@@ -221,40 +221,15 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement, onDidChangeVisibility?: () => void): HTMLElement {
-		const container = $('.tabs-bar-add-tab');
-		parent.insertBefore(container, before ?? null);
-
-		const menu = this._register(this.menuService.createMenu(menuId, this.contextKeyService));
-		const getActions = () => getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
-		const addTabAction = toAction({
-			id: 'editor.tabs.addTab',
-			label: localize('addTab', "Add Tab"),
-			class: ThemeIcon.asClassName(Codicon.add),
-			run: () => { }
-		});
-		const dropdown = this._register(new DropdownMenuActionViewItem(addTabAction, { getActions }, this.contextMenuService, {
-			classNames: ThemeIcon.asClassNameArray(Codicon.add),
+		const control = this._register(this.instantiationService.createInstance(EditorAddTabControl, parent, menuId, this.contextKeyService, {
+			before,
 			keybindingProvider: action => this.getKeybinding(action)
 		}));
-		const toolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, container, {
-			ariaLabel: localize('ariaLabelAddTab', "Add Tab"),
-			actionViewItemProvider: action => action === addTabAction ? dropdown : undefined
-		}));
-		toolbar.setActions([addTabAction]);
+		if (onDidChangeVisibility) {
+			this._register(control.onDidChangeVisibility(onDidChangeVisibility));
+		}
 
-		const updateVisibility = () => {
-			container.classList.toggle('hidden', getActions().length === 0);
-		};
-		updateVisibility();
-		this._register(menu.onDidChange(() => {
-			const wasHidden = container.classList.contains('hidden');
-			updateVisibility();
-			if (wasHidden !== container.classList.contains('hidden')) {
-				onDidChangeVisibility?.();
-			}
-		}));
-
-		return container;
+		return control.element;
 	}
 
 	private updateEditorLayoutActionsSeparator(): void {
@@ -408,7 +383,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.updateEditorLayoutActionsToolbar();
 	}
 
-	private updateEditorLayoutActionsToolbar(): void {
+	protected updateEditorLayoutActionsToolbar(): void {
 		if (
 			!this.editorActionsEnabled ||
 			!this.editorLayoutActionsToolbarContainer ||
@@ -599,7 +574,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.groupLockedContext.set(this.tabsModel.isLocked);
 		this.editorCanSplitInGroupContext.set(editor.hasCapability(EditorInputCapabilities.CanSplitInGroup));
 		this.sideBySideEditorContext.set(editor.typeId === SideBySideEditorInput.ID);
-		applyAvailableEditorIds(this.editorAvailableEditorIds, editor, this.editorResolverService);
+		applyAvailableEditorIds(this.editorAvailableEditorIds, editor, this.editorResolverService, this.modelService);
 
 		// Find target anchor
 		let anchor: HTMLElement | StandardMouseEvent = node;

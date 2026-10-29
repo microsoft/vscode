@@ -493,6 +493,7 @@ export class OpenModePickerAction extends Action2 {
 					order: 1,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
+						ChatContextKeys.agentPickerInAttachContext.negate(),
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
 						// Hide the agent picker while a delegation (continue in) target is pending
@@ -956,6 +957,7 @@ export class CancelAction extends Action2 {
 					ContextKeyExpr.or(ChatContextKeys.hasActiveRequest, ChatContextKeys.transcriptProgressActive),
 					ChatContextKeys.remoteJobCreating.negate()
 				),
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Escape },
 				win: { primary: KeyMod.Alt | KeyCode.Backspace },
 			}
 		});

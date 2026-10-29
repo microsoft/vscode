@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash, randomUUID } from 'crypto';
-import { link, mkdir, open, readFile, realpath, rm, unlink } from 'fs/promises';
+import { link, mkdir, open, readFile, realpath } from 'fs/promises';
 import { join } from '../../../../base/common/path.js';
 import { disposableLongTimeout, raceTimeout, Sequencer } from '../../../../base/common/async.js';
 import { combinedDisposable, Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../base/common/lifecycle.js';
@@ -12,13 +12,15 @@ import type { Event } from '../../../../base/common/event.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { Promises as FSPromises } from '../../../../base/node/pfs.js';
 import { CloudSandboxRequestError } from '../../common/cloudSandboxAgentHost.js';
-import { emitConnectionDiagnostic, getGitHubRequestId, sanitizeConnectionDiagnosticText, traceConnectionOperation, type ConnectionDiagnosticObserver } from '../../common/connectionDiagnostics.js';
+import { emitConnectionDiagnostic, getConnectionDiagnosticError, traceConnectionOperation, type ConnectionDiagnosticObserver, type IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
+import { parseGitHubRequestId, parseRetryAfter } from '../../../github/common/client/headers.js';
+import { isRetryableMissionControlError, MISSION_CONTROL_RETRY_BUDGET_MS, missionControlMaxRetries, missionControlRetryDelay, parseMissionControlError } from '../../../github/common/missionControl/missionControlError.js';
 import type { IMissionControlOptions } from '../../common/agentService.js';
 import { parseGroupName } from '../../common/webPubSub/groups.js';
 import { RELIABLE_JSON_SUBPROTOCOL } from '../../common/webPubSub/framing.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { MissionControlControlVerifier, type IMissionControlSigningKey } from './missionControlControl.js';
-import { MissionControlProtocolServer, type IMissionControlSocket } from './missionControlProtocolServer.js';
+import { MissionControlProtocolServer, type IMissionControlRelayDetails, type IMissionControlSocket, type MissionControlPublishDiagnosticObserver } from './missionControlProtocolServer.js';
 import { MissionControlAuthentication, MissionControlSealing, resolveMissionControlOwner } from './missionControlAuthentication.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
 import type { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
@@ -35,21 +37,28 @@ interface IEnvironmentResponse {
 		readonly access_token: string;
 		readonly expires_at?: string;
 		readonly hub?: string;
+		readonly session_events_formats?: readonly string[];
 		readonly groups: { readonly control: string; readonly ingest_ack?: string };
 	};
 }
 
 const heartbeatInterval = 60_000;
+
+/** A relay loss or recovery, with bounded details for telemetry. */
+export interface IMissionControlRelayDiagnostic extends IConnectionDiagnosticEvent {
+	readonly relay?: IMissionControlRelayDetails;
+}
 const registrationMetadataTimeout = 60_000;
 
 export interface IMissionControlEnvironmentHost {
 	readonly userDataPath: string;
 	readonly name: string;
 	readonly fetch: typeof fetch;
-	readonly attach: (server: MissionControlProtocolServer, initialRoots: readonly string[], getRoots: () => readonly string[], getProjects: () => readonly string[], defaultDirectory?: string) => IDisposable;
+	readonly attach: (server: MissionControlProtocolServer, initialRoots: readonly string[], getRoots: () => readonly string[], getProjects: () => readonly string[], defaultDirectory?: string, useLocalCredentials?: boolean) => IDisposable;
 	readonly updateProjects?: () => Promise<void>;
 	readonly onError: (error: unknown) => void;
 	readonly onDiagnostic?: ConnectionDiagnosticObserver;
+	readonly onPublishDiagnostic?: MissionControlPublishDiagnosticObserver;
 	readonly socketFactory?: (url: string, protocol: string) => IMissionControlSocket;
 	readonly getSessionCount?: () => Promise<number>;
 	readonly getRemoteControlPolicy?: () => Promise<Record<string, unknown> | undefined>;
@@ -96,6 +105,10 @@ function parseEnvironment(value: unknown): IEnvironmentResponse {
 		|| wps.subprotocol !== RELIABLE_JSON_SUBPROTOCOL || typeof wps.groups?.control !== 'string') {
 		throw new Error('Mission Control returned an invalid user-local environment');
 	}
+	if (wps.session_events_formats !== undefined && (!Array.isArray(wps.session_events_formats)
+		|| wps.session_events_formats.length > 256 || wps.session_events_formats.some(value => typeof value !== 'string'))) {
+		throw new Error('Mission Control returned invalid session-event formats');
+	}
 	return { ...environment, id: environment.id, kind: 'user-local', user_id: owner, owner_id: owner, owner_type: 'user', webpubsub: wps };
 }
 
@@ -123,13 +136,16 @@ export class MissionControlEnvironment extends Disposable {
 	private _roots: readonly string[] = [];
 	private _initialRoots: readonly string[] | undefined;
 	private _environment: IEnvironmentResponse | undefined;
-	private _currentCheckIn: { readonly generation: number; readonly operation: Promise<void> } | undefined;
+	private _currentCheckIn: { readonly generation: number; readonly operation: Promise<boolean> } | undefined;
 	private _generation = 0;
 	private _configurationEpoch = 0;
 	private _policyRefresh = 0;
 	private _appliedPolicyRefresh = 0;
 	private _retryDelay = 500;
-	private _credentialRejected = false;
+	private _recoveryStopped = false;
+	private _requestNotBefore = 0;
+	private _requestFailures = 0;
+	private _failureStartedAt: number | undefined;
 	private _signingKeys: readonly IMissionControlSigningKey[] | undefined;
 	private _signingKeysFetchedAt = 0;
 	private _verifier: MissionControlControlVerifier | undefined;
@@ -182,13 +198,17 @@ export class MissionControlEnvironment extends Disposable {
 	}
 
 	get environmentId(): string | undefined { return this._environment?.id; }
+	get environmentName(): string { return this._options?.name ?? this._host.name; }
 	get isEnabled(): boolean { return this._options?.live === true; }
+	get isRepositoryMetadataEnabled(): boolean { return this._options?.disableRepositoryMetadata !== true; }
+
+	get cloneRoot(): string | undefined { return this._options?.cloneRoot; }
 
 	private _getIdentityApiBase(): string {
 		return this._host.getIdentityApiBase?.() ?? 'https://api.github.com';
 	}
 
-	private _createHeartbeat(status: 'online' | 'offline', capabilities?: IEnvironmentCapabilities, options = this._options): object {
+	private _createHeartbeat(status: 'online' | 'offline', capabilities?: IEnvironmentCapabilities, options = this._options): Record<string, unknown> {
 		return {
 			name: options?.name ?? this._host.name,
 			status,
@@ -197,7 +217,7 @@ export class MissionControlEnvironment extends Disposable {
 		};
 	}
 
-	private async _createRegistration(capabilities: IEnvironmentCapabilities, remoteControl: Record<string, unknown> | undefined): Promise<object> {
+	private async _createRegistration(capabilities: IEnvironmentCapabilities, remoteControl: Record<string, unknown> | undefined): Promise<Record<string, unknown>> {
 		return {
 			name: this._options?.name ?? this._host.name,
 			kind: 'user-local',
@@ -227,6 +247,8 @@ export class MissionControlEnvironment extends Disposable {
 		this._tokenExpiresAt = undefined;
 		this._requiresBootstrap = false;
 		this._nextHeartbeatAt = 0;
+		this._requestFailures = 0;
+		this._failureStartedAt = undefined;
 	}
 
 	private async _configure(options: IMissionControlOptions, epoch: number): Promise<void> {
@@ -283,7 +305,7 @@ export class MissionControlEnvironment extends Disposable {
 			if (remoteControlPolicyOverrideChanged) {
 				this._policyRefresh++;
 			}
-			if (this._options.credential !== options.credential || this._credentialRejected
+			if (this._options.credential !== options.credential || this._recoveryStopped
 				|| this._options.defaultDirectory !== options.defaultDirectory
 				|| (this._options.useLocalCredentials === true) !== (options.useLocalCredentials === true)
 				|| remoteControlPolicyOverrideChanged) {
@@ -293,7 +315,9 @@ export class MissionControlEnvironment extends Disposable {
 				this._server.clear();
 				this._heartbeat.clear();
 				this._options = { ...options, roots: this._roots };
-				this._credentialRejected = false;
+				this._recoveryStopped = false;
+				this._requestFailures = 0;
+				this._failureStartedAt = undefined;
 				await this._checkIn();
 			} else {
 				this._options = { ...options, roots: this._roots };
@@ -308,7 +332,7 @@ export class MissionControlEnvironment extends Disposable {
 		this._initialRoots ??= roots;
 		this._roots = [...new Set([...this._roots, ...roots])];
 		this._options = { ...options, roots: this._roots };
-		this._credentialRejected = false;
+		this._recoveryStopped = false;
 		try {
 			if (options.live) {
 				await MissionControlSealing.ready();
@@ -345,7 +369,8 @@ export class MissionControlEnvironment extends Disposable {
 		const initializationPath = `${path}.${createHash('sha256').update(directory).digest('hex')}.init`;
 		const existing = await this._readComputeIdentity(path);
 		if (existing?.userDataDirectory === directory) {
-			await rm(initializationPath, { force: true });
+			// Concurrent readers can briefly deny deletion on Windows.
+			await FSPromises.rm(initializationPath);
 			return existing.id;
 		}
 		await this._writeComputeIdentity(initializationPath, {
@@ -364,7 +389,7 @@ export class MissionControlEnvironment extends Disposable {
 			id = initialized.id;
 			await this._writeComputeIdentity(path, { id, userDataDirectory: directory }, true);
 		}
-		await rm(initializationPath, { force: true });
+		await FSPromises.rm(initializationPath);
 		return id;
 	}
 
@@ -420,20 +445,16 @@ export class MissionControlEnvironment extends Disposable {
 				}
 			}
 		} finally {
-			await unlink(temporaryPath).catch((error: NodeJS.ErrnoException) => {
-				if (error.code !== 'ENOENT') {
-					throw error;
-				}
-			});
+			await FSPromises.rm(temporaryPath);
 		}
 	}
 
-	private async _request(path: string, body?: object, options = this._options): Promise<unknown> {
+	private async _request(path: string, body?: Record<string, unknown>, options = this._options): Promise<unknown> {
 		const operation = path.endsWith('/register') ? 'register' : path.endsWith('/heartbeat') ? 'heartbeat' : path.endsWith('/token') ? 'token' : 'signingKeys';
 		return traceConnectionOperation(this._host.onDiagnostic, operation, () => this._doRequest(path, body, options));
 	}
 
-	private async _doRequest(path: string, body: object | undefined, options: IMissionControlOptions | undefined): Promise<unknown> {
+	private async _doRequest(path: string, body: Record<string, unknown> | undefined, options: IMissionControlOptions | undefined): Promise<unknown> {
 		if (!options) {
 			throw new Error('Mission Control is disabled');
 		}
@@ -446,7 +467,9 @@ export class MissionControlEnvironment extends Disposable {
 			signal: AbortSignal.timeout(15_000),
 		});
 		if (path.endsWith('/heartbeat')) {
-			this._nextHeartbeatAt = Date.now() + heartbeatInterval;
+			if (response.ok) {
+				this._nextHeartbeatAt = Date.now() + heartbeatInterval;
+			}
 			const retryAfter = response.headers.get('Retry-After');
 			if (retryAfter !== null) {
 				const now = Date.now();
@@ -457,30 +480,26 @@ export class MissionControlEnvironment extends Disposable {
 					this._heartbeatNotBefore = Math.max(this._heartbeatNotBefore, now + delay);
 				}
 			}
+			const status = body?.status;
+			const advertisedStatus = status === 'online' || status === 'offline' ? status : 'unknown';
+			emitConnectionDiagnostic(this._host.onDiagnostic, {
+				operationId: '', phase: 'heartbeatResponse', timestamp: Date.now(), outcome: 'info',
+				detail: `environmentId=${path.split('/').at(-2)}; advertisedStatus=${advertisedStatus}; httpStatus=${response.status}; relayConnected=${!!this._server.value && !this._server.value.isClosed}; nextHeartbeatInMs=${Math.max(0, this._nextHeartbeatAt - Date.now())}; retryAfterMs=${Math.max(0, this._heartbeatNotBefore - Date.now())}; requestId=${parseGitHubRequestId(response.headers.get('x-github-request-id')) ?? 'none'}`,
+			});
 		}
 		if (!response.ok) {
-			if ((response.status === 401 || response.status === 403) && generation === this._generation && this._options === options) {
-				this._credentialRejected = true;
+			const metadata = parseMissionControlError(await response.text().catch(() => undefined), response.headers.get('x-github-request-id'));
+			const retryAfterSeconds = parseRetryAfter(response.headers.get('Retry-After'), Date.now());
+			if (!isRetryableMissionControlError(response.status, metadata.code) && generation === this._generation && this._options === options) {
+				this._recoveryStopped = true;
 				this._handler.clear();
 				this._mirrorAttachment.clear();
 				this._server.clear();
+				this._heartbeat.clear();
 			}
-			const requestId = getGitHubRequestId(response.headers.get('x-github-request-id'));
-			const text = await response.text();
-			let message: string | undefined;
-			try {
-				const data: { message?: string } | null = JSON.parse(text);
-				if (typeof data === 'object' && data !== null && typeof data.message === 'string') {
-					message = data.message;
-				}
-			} catch (error) {
-				if (!(error instanceof SyntaxError)) {
-					throw error;
-				}
-				message = text;
-			}
-			message = message ? sanitizeConnectionDiagnosticText(message) : undefined;
-			throw new CloudSandboxRequestError(response.status, `Mission Control request failed (${response.status})${requestId ? ` (requestId=${requestId})` : ''}${message ? `: ${message}` : ''}`);
+			throw new CloudSandboxRequestError(response.status,
+				`Mission Control request failed (${response.status})${metadata.code ? ` code=${metadata.code}` : ''}${metadata.requestId ? ` (requestId=${metadata.requestId})` : ''}`,
+				retryAfterSeconds, metadata);
 		}
 		try {
 			return await response.json();
@@ -493,6 +512,20 @@ export class MissionControlEnvironment extends Disposable {
 	}
 
 	private async _checkIn(): Promise<void> {
+		if (!this._recoveryStopped && this._failureStartedAt !== undefined && Date.now() - this._failureStartedAt >= MISSION_CONTROL_RETRY_BUDGET_MS) {
+			this._recoveryStopped = true;
+			this._host.onError(new Error('Mission Control request retry budget exhausted; reconfigure the environment to reconnect.'));
+		}
+		if (this._recoveryStopped) {
+			return;
+		}
+		if (Date.now() < this._requestNotBefore) {
+			this._heartbeat.value = disposableLongTimeout(() => {
+				this._heartbeat.clear();
+				this._checkIn().catch(this._host.onError);
+			}, this._requestNotBefore - Date.now());
+			return;
+		}
 		const generation = this._generation;
 		if (this._currentCheckIn?.generation === generation) {
 			await this._currentCheckIn.operation;
@@ -505,20 +538,32 @@ export class MissionControlEnvironment extends Disposable {
 		const current = { generation, operation };
 		this._currentCheckIn = current;
 		try {
-			await operation;
-			if (generation === this._generation) {
+			const completed = await operation;
+			if (completed && generation === this._generation) {
 				this._retryDelay = 500;
+				this._requestFailures = 0;
+				this._failureStartedAt = undefined;
+				this._requestNotBefore = 0;
 			}
 		} catch (error) {
 			if (generation === this._generation) {
 				this._retryDelay = Math.min(30_000, this._retryDelay * 2);
+				if (error instanceof CloudSandboxRequestError && !this._recoveryStopped) {
+					this._failureStartedAt ??= Date.now();
+					const delay = missionControlRetryDelay(error.code, error.retryAfterSeconds, ++this._requestFailures);
+					this._requestNotBefore = Date.now() + delay;
+					if (this._requestFailures > missionControlMaxRetries(error.code)
+						|| this._requestNotBefore - this._failureStartedAt >= MISSION_CONTROL_RETRY_BUDGET_MS) {
+						this._recoveryStopped = true;
+					}
+				}
 			}
 			throw error;
 		} finally {
 			if (this._currentCheckIn === current) {
 				this._currentCheckIn = undefined;
 			}
-			if (generation === this._generation && this._options && !this._store.isDisposed && !this._credentialRejected) {
+			if (generation === this._generation && this._options && !this._store.isDisposed && !this._recoveryStopped) {
 				const recovering = this._environment !== undefined && (!this._server.value || this._server.value.isClosed);
 				const heartbeatDelay = Math.max(1000, this._nextHeartbeatAt - Date.now(), this._heartbeatNotBefore - Date.now());
 				const tokenDelay = this._tokenExpiresAt === undefined ? heartbeatDelay : Math.max(1000, this._tokenExpiresAt - Date.now() - 30_000);
@@ -526,35 +571,39 @@ export class MissionControlEnvironment extends Disposable {
 				this._heartbeat.value = disposableLongTimeout(() => {
 					this._heartbeat.clear();
 					this._checkIn().catch(this._host.onError);
-				}, refreshingPolicy ? this._retryDelay : this._requiresBootstrap ? Math.max(this._retryDelay, heartbeatDelay) : recovering ? this._retryDelay : Math.min(heartbeatDelay, tokenDelay));
+				}, Math.max(this._requestNotBefore - Date.now(), refreshingPolicy ? this._retryDelay : this._requiresBootstrap ? Math.max(this._retryDelay, heartbeatDelay) : recovering ? this._retryDelay : Math.min(heartbeatDelay, tokenDelay)));
 			}
 		}
 	}
 
-	private async _doCheckIn(): Promise<void> {
+	/** Returns false when no remote work completed, so a no-op cannot reset recovery budgets. */
+	private async _doCheckIn(): Promise<boolean> {
 		const options = this._options;
 		const generation = this._generation;
 		const policyRefresh = this._policyRefresh;
-		if (!options || this._credentialRejected) {
-			return;
+		if (!options || this._recoveryStopped) {
+			return false;
 		}
 		const waiting = this._environment && Date.now() < Math.max(this._heartbeatNotBefore, this._nextHeartbeatAt);
 		const recovering = this._environment && (!this._server.value || this._server.value.isClosed);
 		const refreshToken = !this._requiresBootstrap && this._environment && (recovering || (this._tokenExpiresAt !== undefined && Date.now() >= this._tokenExpiresAt - 30_000));
 		if (waiting && !refreshToken && this._appliedPolicyRefresh === policyRefresh) {
-			return;
+			return false;
 		}
 		if (refreshToken && this._environment) {
 			const reply = await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(this._environment.id)}/token`, {}, options);
 			if (generation !== this._generation || this._options !== options || this._store.isDisposed) {
-				return;
+				return false;
 			}
 			if (!reply || typeof reply !== 'object' || Array.isArray(reply)) {
 				throw new Error('Mission Control returned an invalid token bootstrap');
 			}
 			const token = reply as { url?: unknown; wps_endpoint?: unknown; expires_at?: unknown };
-			const bootstrap = parseEnvironment({ ...this._environment, webpubsub: { ...reply, url: token.wps_endpoint ?? token.url } }).webpubsub;
 			const cached = this._environment.webpubsub;
+			const bootstrap = parseEnvironment({
+				...this._environment,
+				webpubsub: { ...reply, url: token.wps_endpoint ?? token.url, session_events_formats: cached.session_events_formats },
+			}).webpubsub;
 			if (bootstrap.url !== cached.url || bootstrap.subprotocol !== cached.subprotocol || bootstrap.hub !== cached.hub
 				|| JSON.stringify(Object.entries(bootstrap.groups).sort()) !== JSON.stringify(Object.entries(cached.groups).sort())) {
 				this._requiresBootstrap = true;
@@ -569,7 +618,7 @@ export class MissionControlEnvironment extends Disposable {
 				if (recovering) {
 					await this._connectRelay(options, generation);
 				}
-				return;
+				return true;
 			}
 		}
 		const capabilities = { ahp_version: PROTOCOL_VERSION, features: [], current_sessions: await this._boundedRegistrationWork(this._host.getSessionCount?.() ?? Promise.resolve(0), 'session count') };
@@ -581,7 +630,7 @@ export class MissionControlEnvironment extends Disposable {
 			remoteControl = await this._boundedRegistrationWork(this._host.getRemoteControlPolicy(), 'remote-control policy');
 		}
 		if (generation !== this._generation || this._options !== options || this._store.isDisposed) {
-			return;
+			return false;
 		}
 		const policy = JSON.stringify(remoteControl ?? null);
 		const register = !this._environment || (options.live && policy !== this._policy);
@@ -590,7 +639,7 @@ export class MissionControlEnvironment extends Disposable {
 			if (recovering) {
 				await this._connectRelay(options, generation);
 			}
-			return;
+			return !!recovering;
 		}
 		const path = !register && this._environment
 			? `cmc_internal/api/agents/environments/${encodeURIComponent(this._environment.id)}/heartbeat`
@@ -599,11 +648,11 @@ export class MissionControlEnvironment extends Disposable {
 			? this._createHeartbeat(options.live && (!this._server.value || this._server.value.isClosed) ? 'offline' : 'online', capabilities)
 			: await this._createRegistration(capabilities, remoteControl);
 		if (generation !== this._generation || this._options !== options || this._store.isDisposed) {
-			return;
+			return false;
 		}
 		const reply = await this._request(path, body, options);
 		if (generation !== this._generation || this._options !== options || this._store.isDisposed) {
-			return;
+			return false;
 		}
 		const response = parseEnvironment(reply);
 		if (response.user_id !== this._canonicalOwner || (this._environment && (response.id !== this._environment.id || response.owner_id !== this._environment.owner_id))) {
@@ -641,6 +690,7 @@ export class MissionControlEnvironment extends Disposable {
 		this._policy = policy;
 		this._appliedPolicyRefresh = policyRefresh;
 		await this._connectRelay(options, generation);
+		return true;
 	}
 
 	private async _connectRelay(options: IMissionControlOptions, generation: number): Promise<void> {
@@ -670,6 +720,7 @@ export class MissionControlEnvironment extends Disposable {
 			this._server.clear();
 		}
 		if (this._server.value) {
+			this._server.value.setSessionEventsFormats(response.webpubsub.session_events_formats);
 			return;
 		}
 		const sealing = this._sealing.value;
@@ -689,23 +740,39 @@ export class MissionControlEnvironment extends Disposable {
 			sealing && identityApiBase ? () => new MissionControlAuthentication(
 				sealing, response.user_id, identityApiBase, this._host.fetch, options.requireConnectionBinding === true,
 				() => identityApiBase === this._getIdentityApiBase() && generation === this._generation,
-				options.useLocalCredentials === true ? () => this._options?.credential : undefined,
 			) : undefined,
 			sealing?.rootMeta,
 			this._mirror.value,
 			this._host.createAhpLogger,
+			event => {
+				if (this._server.value === server) {
+					this._host.onPublishDiagnostic?.(event);
+				}
+			},
 		);
 		this._server.value = server;
 		const connectionWatch = StopWatch.create(false);
 		let relayReady = false;
-		this._handler.value = combinedDisposable(this._host.attach(server, this._initialRoots ?? [], () => this._roots, () => this._options?.projects ?? this._roots, options.defaultDirectory), server.onClose(() => {
-			if (generation === this._generation && !this._store.isDisposed && this._server.value === server && this._options && !this._credentialRejected) {
+		this._handler.value = combinedDisposable(this._host.attach(server, this._initialRoots ?? [], () => this._roots, () => this._options?.projects ?? this._roots, options.defaultDirectory, options.useLocalCredentials === true), server.onClose(() => {
+			if (generation === this._generation && !this._store.isDisposed && this._server.value === server && this._options && !this._recoveryStopped) {
 				if (relayReady) {
-					emitConnectionDiagnostic(this._host.onDiagnostic, { operationId: '', phase: 'relayDisconnected', timestamp: Date.now(), outcome: 'info', durationMs: connectionWatch.elapsed() });
+					const close = server.closeInfo;
+					emitConnectionDiagnostic<IMissionControlRelayDiagnostic>(this._host.onDiagnostic, {
+						operationId: '', phase: 'relayDisconnected', timestamp: Date.now(), outcome: 'info', durationMs: connectionWatch.elapsed(),
+						error: close?.error ? getConnectionDiagnosticError(close.error) : undefined,
+						relay: close ? { reason: close.reason, closeCode: close.closeCode, activeClients: close.activeClients, attempts: close.attempts } : undefined,
+					});
 				}
 				this._heartbeat.value = disposableLongTimeout(() => {
 					this._checkIn().catch(this._host.onError);
-				}, this._retryDelay);
+				}, Math.max(this._retryDelay, this._requestNotBefore - Date.now()));
+			}
+		}), server.onDidRecover(recovery => {
+			if (this._server.value === server) {
+				emitConnectionDiagnostic<IMissionControlRelayDiagnostic>(this._host.onDiagnostic, {
+					operationId: '', phase: 'relayRecovery', timestamp: Date.now(), outcome: 'succeeded', durationMs: recovery.durationMs,
+					relay: { reason: recovery.reason, closeCode: recovery.closeCode, activeClients: recovery.activeClients, attempts: recovery.attempts, interruptedClients: recovery.interruptedClients },
+				});
 			}
 		}));
 		await traceConnectionOperation(this._host.onDiagnostic, 'relay', () => server.connect());
@@ -731,7 +798,18 @@ export class MissionControlEnvironment extends Disposable {
 			this._mirrorAttachment.value = combinedDisposable(attachment, onClose);
 		}
 		if (options.live && Date.now() >= this._heartbeatNotBefore) {
-			await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(response.id)}/heartbeat`, this._createHeartbeat('online'), options);
+			const reply = await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(response.id)}/heartbeat`, this._createHeartbeat('online'), options);
+			if (generation === this._generation && this._options === options && this._server.value === server) {
+				const refreshed = parseEnvironment(reply);
+				if (refreshed.id !== response.id || refreshed.owner_id !== response.owner_id) {
+					throw new Error('Mission Control environment owner changed');
+				}
+				this._environment = {
+					...this._environment!,
+					webpubsub: { ...this._environment!.webpubsub, session_events_formats: refreshed.webpubsub.session_events_formats },
+				};
+				server.setSessionEventsFormats(refreshed.webpubsub.session_events_formats);
+			}
 		}
 		if (generation === this._generation && this._options === options && !this._store.isDisposed) {
 			this._host.onReady?.(response.id);

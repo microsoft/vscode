@@ -13,14 +13,30 @@ import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSour
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, isAhpChatChannel, isDefaultChatUri, ISessionGitHubState, readFolderGitHubState, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
-import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, type IChangesetOperationContribution, type IAgentHostChangesetOperationService, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, isAhpChatChannel, ISessionGitHubState, readFolderGitHubState, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
+import { AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, type IChangesetOperationContribution, type IAgentHostChangesetOperationService, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
+import { getCapturedCredentialSourceKey, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { resolveChangesetSubscriptions } from './agentHostChangesetSummary.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
+import { IAgentHostFileEditCoordinator } from './agentHostFileEditCoordinator.js';
+
+/**
+ * Whether operations on a changeset of `kind` wait for the session's Git
+ * state. Turn, Session, and Working Set changesets can offer operations on
+ * their tracked edits without it.
+ */
+function requiresGitState(kind: ChangesetKind | undefined): boolean {
+	return kind !== ChangesetKind.Turn && kind !== ChangesetKind.Session && kind !== ChangesetKind.WorkingSet;
+}
+
+/** Whether `operation` can be advertised before the Git state is known, or in a folder without Git. */
+function isAvailableWithoutGitState(operation: ChangesetOperation): boolean {
+	return operation.id === AGENT_HOST_DISCARD_CHANGES_OPERATION_ID || operation.id === AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID;
+}
 
 export class AgentHostChangesetOperationService extends Disposable implements IAgentHostChangesetOperationService {
 	declare readonly _serviceBrand: undefined;
@@ -28,6 +44,8 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	private readonly _registry: IChangesetOperationRegistry;
 	private readonly _handlerRegistrations = this._register(new DisposableMap<IChangesetOperationContribution>());
 	private readonly _changesetOperationHandlers = new Map<string, IChangesetOperationHandler>();
+	private readonly _credentialSourceIds = new WeakMap<IAgentHostCredentialSource, number>();
+	private _nextCredentialSourceId = 0;
 	private readonly _inFlightOperations = new Map<string, Promise<InvokeChangesetOperationResult>>();
 	private readonly _operationLanes = new Map<string, Promise<InvokeChangesetOperationResult>>();
 	private readonly _pendingSessionOperationUpdates = new Set<string>();
@@ -40,12 +58,13 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostFileEditCoordinator private readonly _fileEditCoordinator: IAgentHostFileEditCoordinator,
 	) {
 		super();
 
 		this._registry = {
 			registerChangesetOperationHandler: (operationId, handler) => this._registerChangesetOperationHandler(operationId, handler),
-			refreshSessionGitState: sessionKey => this._refreshGitState(sessionKey),
+			refreshSessionGitState: (sessionKey, source) => this._refreshGitState(sessionKey, source),
 			onDidChangeOperations: sessionKey => this.scheduleRelatedOperationsUpdate(sessionKey),
 		};
 	}
@@ -56,13 +75,13 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		super.dispose();
 	}
 
-	private async _refreshGitState(owner: string): Promise<void> {
+	private async _refreshGitState(owner: string, credentials?: IAgentHostCredentialSource): Promise<void> {
 		const scope = resolveBranchChangesetScopeForOwner(this._stateManager, owner);
 		const source = scope?.sourceUri ?? owner;
 		const session = scope?.sessionUri ?? (isAhpChatChannel(owner) ? this._chatOwnership.getChatOwner(owner) : undefined);
 		await Promise.all([
-			this._gitStateService.refreshSessionGitState(source),
-			...(session && session !== source ? [this._gitStateService.refreshSessionGitState(session)] : []),
+			this._gitStateService.refreshSessionGitState(source, undefined, credentials),
+			...(session && session !== source ? [this._gitStateService.refreshSessionGitState(session, undefined, credentials)] : []),
 		]);
 	}
 
@@ -109,8 +128,8 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		if (!gitState) {
 			gitState = this._gitStateService.getSessionGitState?.(sourceKey)
-				?? (isAhpChatChannel(sourceKey) && !isDefaultChatUri(sourceKey) ? undefined : readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta));
-			if (!gitState) {
+				?? (isAhpChatChannel(sourceKey) && !this._chatOwnership.isRegisteredDefaultChat(sourceKey) ? undefined : readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta));
+			if (!gitState && requiresGitState(parsed.kind)) {
 				return [];
 			}
 		}
@@ -132,7 +151,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			return [];
 		}
 
-		return this._getOperations({
+		const operations = this._getOperations({
 			sessionKey,
 			ownerKey,
 			sourceKey,
@@ -141,6 +160,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			gitState,
 			gitHubState
 		});
+		return gitState ? operations : operations.filter(isAvailableWithoutGitState);
 	}
 
 	/**
@@ -156,12 +176,16 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	}
 
 	private _getOperations(context: IChangesetOperationContext): readonly ChangesetOperation[] {
-		const operations: ChangesetOperation[] = [];
+		let operations: ChangesetOperation[] = [];
 		for (const contribution of this._handlerRegistrations.keys()) {
 			const contributed = contribution.getOperations(context);
 			if (contributed) {
 				operations.push(...contributed);
 			}
+		}
+		// The Working Set only offers operations on its own changes, not the repository's.
+		if (context.changesetKind === ChangesetKind.WorkingSet) {
+			operations = operations.filter(operation => operation.id === AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID || operation.id === AGENT_HOST_DISCARD_CHANGES_OPERATION_ID);
 		}
 		const parsed = parseChangesetUri(context.changesetUri);
 		const ownerKey = context.ownerKey ?? parsed?.ownerUri ?? context.sessionKey;
@@ -173,7 +197,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		// of which changeset is selected; the direct merge stays with the default
 		// chat's Branch changeset.
 		const allowsPullRequestOperations = isBranchChangeset || context.changesetKind === ChangesetKind.Uncommitted;
-		const allowsMergeOperation = isBranchChangeset && isDefaultChatUri(sourceKey);
+		const allowsMergeOperation = isBranchChangeset && this._chatOwnership.isRegisteredDefaultChat(sourceKey);
 		const scopedOperations = scopedOwner
 			? operations.filter(operation => operation.id === AGENT_HOST_MERGE_CHANGESET_OPERATION_ID
 				? allowsMergeOperation
@@ -181,17 +205,33 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			: operations;
 
 		// Operations are disabled while a turn is active so the working tree /
-		// branch state can't be mutated mid-request.
+		// branch state can't be mutated mid-request. The Working Set's changes
+		// can still be reviewed: see `_isAvailableDuringTurn`.
 		const parsedChangeset = parseChangesetUri(context.changesetUri);
 		const sessionKey = (parsedChangeset && this._containingSession(parsedChangeset)) ?? context.sessionKey;
 		if (this._stateManager.hasActiveTurn(sessionKey)) {
-			return scopedOperations.map(operation => ({
+			return scopedOperations.map(operation => this._isAvailableDuringTurn(context.changesetKind, operation.id, sessionKey) ? operation : {
 				...operation,
 				status: ChangesetOperationStatus.Disabled
-			}));
+			});
 		}
 
 		return scopedOperations;
+	}
+
+	/**
+	 * Whether an operation on a changeset of `kind` can run while a turn of
+	 * `sessionKey` is active. Accepting Working Set changes only records them,
+	 * and names the changes the client showed, so it can. Discarding them
+	 * changes the files the agent edits, so it can only when the provider's
+	 * edit tool calls wait for it (see {@link IAgentHostFileEditCoordinator}).
+	 */
+	private _isAvailableDuringTurn(kind: ChangesetKind | undefined, operationId: string, sessionKey: string): boolean {
+		if (kind !== ChangesetKind.WorkingSet) {
+			return false;
+		}
+		return operationId === AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID
+			|| (operationId === AGENT_HOST_DISCARD_CHANGES_OPERATION_ID && this._fileEditCoordinator.isCoordinatedProvider(this._stateManager.getSessionSummary(sessionKey)?.provider));
 	}
 
 	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void {
@@ -305,7 +345,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		if (!gitState) {
 			const sourceKey = resolveBranchChangesetScopeForOwner(this._stateManager, ownerKey)?.sourceUri ?? ownerKey;
 			gitState = this._gitStateService.getSessionGitState?.(sourceKey)
-				?? (!isAhpChatChannel(sourceKey) || isDefaultChatUri(sourceKey)
+				?? (!isAhpChatChannel(sourceKey) || this._chatOwnership.isRegisteredDefaultChat(sourceKey)
 					? readSessionGitState(this._stateManager.getSessionState(containingSessionKey)?._meta)
 					: undefined);
 		}
@@ -317,7 +357,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		for (const changeset of unsuppressed) {
 			// Defer initial publication without Git state, but clear previously advertised actions.
-			if (!gitState && !this._stateManager.getChangesetState(changeset)?.operations?.length) {
+			if (!gitState && requiresGitState(parseChangesetUri(changeset)?.kind) && !this._stateManager.getChangesetState(changeset)?.operations?.length) {
 				continue;
 			}
 			const operations = this.getOperations(ownerKey, changeset, gitState, gitHubState);
@@ -335,7 +375,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		});
 	}
 
-	async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+	async invokeChangesetOperation(params: InvokeChangesetOperationParams, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
 		const state = this._stateManager.getChangesetState(params.channel);
 		if (!state) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Changeset not found: ${params.channel}`);
@@ -356,7 +396,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		// branch state be mutated.
 		const parsed = parseChangesetUri(params.channel);
 		const containingSession = parsed && this._containingSession(parsed);
-		if (containingSession && this._stateManager.hasActiveTurn(containingSession)) {
+		if (containingSession && this._stateManager.hasActiveTurn(containingSession) && !this._isAvailableDuringTurn(parsed.kind, params.operationId, containingSession)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Operation '${params.operationId}' is disabled while a turn is active on changeset ${params.channel}`);
 		}
 
@@ -386,15 +426,23 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `No operation handler registered for '${params.operationId}' on changeset ${params.channel}`);
 		}
 
-		return this._invokeChangesetOperation(handler, params);
+		return this._invokeChangesetOperation(handler, params, source);
 	}
 
 	private _invokeChangesetOperation(
 		handler: IChangesetOperationHandler,
 		params: InvokeChangesetOperationParams,
+		source?: IAgentHostCredentialSource,
 	): Promise<InvokeChangesetOperationResult> {
 		const operationLane = `${params.channel}\x00${params.operationId}`;
-		const operationKey = `${operationLane}\x00${stableStringify({ target: params.target ?? null, _meta: params._meta ?? null })}`;
+		const executionSource = handler.captureCredentialSource?.(params, source) ?? source;
+		let sourceId = 0;
+		if (source) {
+			sourceId = this._credentialSourceIds.get(source) ?? ++this._nextCredentialSourceId;
+			this._credentialSourceIds.set(source, sourceId);
+		}
+		const captureKey = executionSource ? getCapturedCredentialSourceKey(executionSource) ?? '' : '';
+		const operationKey = `${operationLane}\x00${sourceId}\x00${captureKey}\x00${stableStringify({ target: params.target ?? null, _meta: params._meta ?? null })}`;
 		const inFlightOperationResult = this._inFlightOperations.get(operationKey);
 		if (inFlightOperationResult && this._operationLanes.get(operationLane) === inFlightOperationResult) {
 			return inFlightOperationResult;
@@ -403,10 +451,10 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		const runningOperation = this._operationLanes.get(operationLane);
 		const operationPromise = runningOperation
 			? runningOperation.then(
-				() => this._executeChangesetOperation(handler, params),
-				() => this._executeChangesetOperation(handler, params),
+				() => this._executeChangesetOperation(handler, params, executionSource),
+				() => this._executeChangesetOperation(handler, params, executionSource),
 			)
-			: this._executeChangesetOperation(handler, params);
+			: this._executeChangesetOperation(handler, params, executionSource);
 		this._operationLanes.set(operationLane, operationPromise);
 		this._inFlightOperations.set(operationKey, operationPromise);
 
@@ -423,7 +471,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		return operationPromise;
 	}
 
-	private async _executeChangesetOperation(handler: IChangesetOperationHandler, params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+	private async _executeChangesetOperation(handler: IChangesetOperationHandler, params: InvokeChangesetOperationParams, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
 		this._stateManager.dispatchServerAction(params.channel, {
 			type: ActionType.ChangesetOperationStatusChanged,
 			operationId: params.operationId,
@@ -431,7 +479,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		});
 
 		try {
-			const result = await handler.invoke(params, CancellationToken.None);
+			const result = await handler.invoke(params, CancellationToken.None, source);
 			this._stateManager.dispatchServerAction(params.channel, {
 				type: ActionType.ChangesetOperationStatusChanged,
 				operationId: params.operationId,

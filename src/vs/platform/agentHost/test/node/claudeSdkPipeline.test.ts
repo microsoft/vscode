@@ -19,11 +19,12 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
-import { ISessionDatabase } from '../../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { ClaudeSdkPipeline, IRematerializer } from '../../node/claude/claudeSdkPipeline.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
-import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { fixedChatOwnerRef } from '../../common/agent.js';
 
 // ===== Test doubles =====
 
@@ -205,6 +206,7 @@ function createPipeline(
 	const services = new ServiceCollection(
 		[ILogService, new NullLogService()],
 		[IFileService, fileService],
+		[ISessionDataService, createSessionDataService(db)],
 		[IDiffComputeService, createZeroDiffComputeService()],
 	);
 	const inst: IInstantiationService = disposables.add(new InstantiationService(services));
@@ -213,7 +215,7 @@ function createPipeline(
 		ClaudeSdkPipeline,
 		'sess-1',
 		URI.parse(buildDefaultChatUri('claude:/sess-1')),
-		URI.parse('claude:/sess-1'),
+		fixedChatOwnerRef(URI.parse('claude:/sess-1')),
 		URI.parse('claude:/sess-1'),
 		warm,
 		controller,
@@ -278,6 +280,7 @@ suite('ClaudeSdkPipeline', () => {
 			const services = new ServiceCollection(
 				[ILogService, new NullLogService()],
 				[IFileService, fileService],
+				[ISessionDataService, createSessionDataService(db)],
 				[IDiffComputeService, createZeroDiffComputeService()],
 			);
 			const inst: IInstantiationService = disposables.add(new InstantiationService(services));
@@ -286,7 +289,7 @@ suite('ClaudeSdkPipeline', () => {
 				ClaudeSdkPipeline,
 				'sess-2',
 				URI.parse(buildDefaultChatUri('claude:/sess-2')),
-				URI.parse('claude:/sess-2'),
+				fixedChatOwnerRef(URI.parse('claude:/sess-2')),
 				URI.parse('claude:/sess-2'),
 				warm,
 				controller,

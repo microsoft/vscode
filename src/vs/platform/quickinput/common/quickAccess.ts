@@ -40,6 +40,11 @@ export interface AnythingQuickAccessProviderRunOptions extends IQuickAccessProvi
 
 export interface IQuickAccessOptions {
 	/**
+	 * The prefix of the provider to use regardless of the input value.
+	 */
+	readonly providerPrefix?: string;
+
+	/**
 	 * An optional anchor for the picker.
 	 */
 	readonly anchor?: unknown /* HTMLElement */ | { x: number; y: number };

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import assert from 'assert';
 import sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -95,6 +97,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		if (isolation || sessionAgentMergeEnabled) {
 			const session = {
 				resource: 'agent:/session',
+				defaultChat: buildDefaultChatUri('agent:/session'),
 				provider: 'copilot',
 				title: 'Session',
 				status: SessionStatus.Idle,
@@ -127,7 +130,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			nullGitStateService,
 			createStatusService(status, onDidChangePullRequestStatus),
 			configurationService,
-			createNullSessionDataService(),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), createNullSessionDataService()),
 			new NullLogService(),
 		));
 	}
@@ -142,6 +145,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
 			workingDirectories: ['file:///repo'],
+			defaultChat: buildDefaultChatUri('agent:/session'),
 		});
 		const database = new TestSessionDatabase();
 		const reference: ISessionArtifact = {
@@ -160,7 +164,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			nullGitStateService,
 			createStatusService(),
 			new class extends mock<IAgentConfigurationService>() { }(),
-			createSessionDataService(database),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), createSessionDataService(database)),
 			new NullLogService(),
 		));
 
@@ -232,6 +236,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		stateManager.restoreSession({
 			resource: sessionKey,
+			defaultChat: buildDefaultChatUri(sessionKey),
 			provider: 'copilot',
 			title: 'Session',
 			status: SessionStatus.Idle,
@@ -240,7 +245,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			workingDirectories: ['file:///repo'],
 		}, [], creationTimeChatStorageResource);
 		const peerChat = buildChatUri(sessionKey, 'peer');
-		stateManager.addChat(sessionKey, peerChat, creationTimeChatStorageResource(sessionKey, peerChat), { workingDirectories: ['file:///other'] });
+		stateManager.addChat(sessionKey, peerChat, creationTimeChatStorageResource(sessionKey, peerChat, buildDefaultChatUri(sessionKey)), { workingDirectories: ['file:///other'] });
 		const peerScopeOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(['file:///other']));
 		const defaultScopeOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(['file:///repo']));
 		const recordedGitHubStates: [string, ISessionGitHubState][] = [];
@@ -266,7 +271,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 				override readonly onDidRootConfigChange = Event.None;
 				override getRootValue() { return undefined as never; }
 			}(),
-			createSessionDataService(new TestSessionDatabase()),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), createSessionDataService(new TestSessionDatabase())),
 			new NullLogService(),
 		));
 
@@ -298,6 +303,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		stateManager.restoreSession({
 			resource: sessionKey,
+			defaultChat: buildDefaultChatUri(sessionKey),
 			provider: 'copilot',
 			title: 'Session',
 			status: SessionStatus.Idle,
@@ -306,7 +312,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 			workingDirectories: ['file:///repo'],
 		}, [], creationTimeChatStorageResource);
 		const peerChat = buildChatUri(sessionKey, 'peer');
-		stateManager.addChat(sessionKey, peerChat, creationTimeChatStorageResource(sessionKey, peerChat), { workingDirectories: ['file:///repo'] });
+		stateManager.addChat(sessionKey, peerChat, creationTimeChatStorageResource(sessionKey, peerChat, buildDefaultChatUri(sessionKey)), { workingDirectories: ['file:///repo'] });
 		const sharedFolderOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(['file:///repo']));
 		const contribution = disposables.add(new AgentHostPullRequestOperationContribution(
 			stateManager,
@@ -317,7 +323,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 				override readonly onDidRootConfigChange = Event.None;
 				override getRootValue() { return undefined as never; }
 			}(),
-			createSessionDataService(new TestSessionDatabase()),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), createSessionDataService(new TestSessionDatabase())),
 			new NullLogService(),
 		));
 

@@ -5,16 +5,18 @@
 
 import { isThenable, SequencerByKey } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IDiffComputeService, IOffsetEdit } from '../../common/diffComputeService.js';
 import { AttributedToolResultFileEditContent, FILE_EDIT_ATTRIBUTION_PROPERTY, IAgentEditAttributionService, IFileEditAttributionMarker } from '../../common/fileEditAttribution.js';
-import { ISessionDatabase } from '../../common/sessionDataService.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import type { AutoModeRoutingTier } from '../../common/autoModeTiers.js';
+import { IAgentHostFileEditCoordinator } from '../agentHostFileEditCoordinator.js';
 import { extractAiChunks } from './editChunkExtractor.js';
 import { IEditSurvivalReporterFactory } from './editSurvivalReporter.js';
 import { IEditArcReporterService } from './editArcReporter.js';
@@ -25,21 +27,23 @@ interface ICompletedEdit {
 	readonly beforeExisted: boolean;
 	readonly afterContent: VSBuffer;
 	readonly mode: string | undefined;
+	readonly lease: IDisposable;
 }
 
 /**
- * Tracks file edits made by tools in a session by snapshotting file content
- * before and after each edit tool invocation, persisting snapshots into the
- * session database.
+ * Snapshots file content before and after each edit tool invocation.
+ * Persistence holds its own database reference independently of the session's lifetime.
  */
-export class FileEditTracker {
+export class FileEditTracker extends Disposable {
+
+	private readonly _runningEdits = this._register(new DisposableStore());
 
 	/**
 	 * Pending edits keyed by file path. Populated by {@link trackEditStart}
 	 * before the edit tool runs; popped by {@link completeEdit} when it
 	 * finishes.
 	 */
-	private readonly _pendingEdits = new Map<string, { beforeContent: VSBuffer; beforeExisted: boolean; mode: string | undefined; snapshotDone: Promise<void> }>();
+	private readonly _pendingEdits = new Map<string, { beforeContent: VSBuffer; beforeExisted: boolean; mode: string | undefined; snapshotDone: Promise<void>; lease: IDisposable }>();
 
 	/**
 	 * Completed edits keyed by file path. Populated by {@link completeEdit};
@@ -52,16 +56,26 @@ export class FileEditTracker {
 
 	constructor(
 		private readonly _sessionUri: string,
-		private readonly _ownerSessionUri: string,
-		private readonly _db: ISessionDatabase,
+		/** The session that owns the chat, read when an edit is attributed: it can change while the chat runs. */
+		private readonly _owner: () => string,
 		private readonly _provider: string | undefined,
+		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IDiffComputeService private readonly _diffComputeService: IDiffComputeService,
 		@IEditSurvivalReporterFactory private readonly _editSurvivalReporterFactory: IEditSurvivalReporterFactory,
 		@IAgentEditAttributionService private readonly _editAttributionService: IAgentEditAttributionService,
 		@IEditArcReporterService private readonly _editArcReporterService: IEditArcReporterService,
-	) { }
+		@IAgentHostFileEditCoordinator private readonly _fileEditCoordinator: IAgentHostFileEditCoordinator,
+	) {
+		super();
+	}
+
+	override dispose(): void {
+		this._pendingEdits.clear();
+		this._completedEdits.clear();
+		super.dispose();
+	}
 
 	/**
 	 * Call before an edit tool runs. Reads the file's current content
@@ -73,18 +87,43 @@ export class FileEditTracker {
 	 * @param mode - Provider execution mode when the edit started.
 	 */
 	async trackEditStart(filePath: string, mode?: string): Promise<void> {
-		const snapshotDone = this._readFileWithExistence(filePath);
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
+		const lease = this._runningEdits.add(new DisposableStore());
+		const resource = URI.file(filePath);
+		const acquired = this._fileEditCoordinator.isCoordinatedProvider(this._provider)
+			? this._fileEditCoordinator.beginEdit(resource)
+			: this._fileEditCoordinator.markEditing(resource);
+		const snapshot = (edit: IDisposable) => {
+			if (lease.isDisposed) {
+				edit.dispose();
+				throw new CancellationError();
+			}
+			lease.add(edit);
+			return this._readFileWithExistence(filePath);
+		};
+		const snapshotDone = isThenable(acquired) ? acquired.then(snapshot) : snapshot(acquired);
 		const entry = {
 			beforeContent: VSBuffer.fromString(''),
 			beforeExisted: false,
 			mode,
+			lease,
 			snapshotDone: snapshotDone.then(({ content, existed }) => {
 				entry.beforeContent = content;
 				entry.beforeExisted = existed;
 			}),
 		};
 		this._pendingEdits.set(filePath, entry);
-		await entry.snapshotDone;
+		try {
+			await entry.snapshotDone;
+		} catch (error) {
+			if (this._pendingEdits.get(filePath) === entry) {
+				this._pendingEdits.delete(filePath);
+			}
+			this._runningEdits.delete(lease);
+			throw error;
+		}
 	}
 
 	/**
@@ -103,12 +142,15 @@ export class FileEditTracker {
 		await pending.snapshotDone;
 
 		const afterContent = await this._readFile(filePath);
-
+		if (this._store.isDisposed) {
+			return;
+		}
 		this._completedEdits.set(filePath, {
 			beforeContent: pending.beforeContent,
 			beforeExisted: pending.beforeExisted,
 			afterContent,
 			mode: pending.mode,
+			lease: pending.lease,
 		});
 	}
 
@@ -122,16 +164,22 @@ export class FileEditTracker {
 	 * for region-based survival scoring; unknown shapes fall back to
 	 * whole-file scoring.
 	 */
-	takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string, autoTierSnapshot?: AutoModeRoutingTier | Promise<AutoModeRoutingTier | undefined>, fusionModel?: string): Promise<ToolResultFileEditContent | undefined> {
+	takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string, autoTierSnapshot?: string | Promise<string | undefined>, fusionModel?: string): Promise<ToolResultFileEditContent | undefined> {
 		const edit = this._completedEdits.get(filePath);
 		if (!edit) {
+			const pending = this._pendingEdits.get(filePath);
+			if (pending) {
+				this._pendingEdits.delete(filePath);
+				this._runningEdits.delete(pending.lease);
+			}
 			return Promise.resolve(undefined);
 		}
 		this._completedEdits.delete(filePath);
-		return this._completedEditSequencer.queue(filePath, () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, clientContext, chatUri, autoTierSnapshot, fusionModel));
+		return this._completedEditSequencer.queue(filePath, () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, isSubagent, clientContext, chatUri, autoTierSnapshot, fusionModel))
+			.finally(() => this._runningEdits.delete(edit.lease));
 	}
 
-	private async _processCompletedEdit(edit: ICompletedEdit, turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, clientContext: IAgentHostClientTelemetryContext | undefined, chatUri: string | undefined, autoTierSnapshot: AutoModeRoutingTier | Promise<AutoModeRoutingTier | undefined> | undefined, fusionModel: string | undefined): Promise<ToolResultFileEditContent | undefined> {
+	private async _processCompletedEdit(edit: ICompletedEdit, turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext: IAgentHostClientTelemetryContext | undefined, chatUri: string | undefined, autoTierSnapshot: string | Promise<string | undefined> | undefined, fusionModel: string | undefined): Promise<ToolResultFileEditContent | undefined> {
 
 		if (!modelId) {
 			this._logService.warn(`[FileEditTracker] No modelId for completed edit: ${filePath} (turn=${turnId}, toolCall=${toolCallId}, tool=${toolName || '<unknown>'}). Edit-survival telemetry will be emitted with an empty modelId.`);
@@ -148,36 +196,43 @@ export class FileEditTracker {
 		let addedLines: number | undefined;
 		let removedLines: number | undefined;
 		let changes: readonly IOffsetEdit[] = [];
+		let diffHitTimeout = false;
 		try {
 			const counts = await this._diffComputeService.computeDiffCounts(beforeText, afterText);
 			addedLines = counts.added;
 			removedLines = isCreate ? 0 : counts.removed;
 			changes = counts.changes;
+			diffHitTimeout = counts.hitTimeout ?? false;
 		} catch (err) {
 			this._logService.warn(`[FileEditTracker] Failed to compute diff counts: ${filePath}`, err);
 		}
 
 		try {
-			await this._db.storeFileEdit({
-				turnId,
-				toolCallId,
-				filePath,
-				kind: isCreate ? FileEditKind.Create : FileEditKind.Edit,
-				beforeContent: beforeBytes,
-				afterContent: afterBytes,
-				addedLines,
-				removedLines,
-			});
+			const ref = this._sessionDataService.openDatabase(URI.parse(this._sessionUri));
+			try {
+				await ref.object.storeFileEdit({
+					turnId,
+					toolCallId,
+					filePath,
+					kind: isCreate ? FileEditKind.Create : FileEditKind.Edit,
+					beforeContent: beforeBytes,
+					afterContent: afterBytes,
+					addedLines,
+					removedLines,
+				});
+			} finally {
+				ref.dispose();
+			}
 		} catch (err) {
 			this._logService.warn(`[FileEditTracker] Failed to persist file edit to database: ${filePath}`, err);
 		}
 
-		const autoTier = isThenable<AutoModeRoutingTier | undefined>(autoTierSnapshot) ? await autoTierSnapshot : autoTierSnapshot;
+		const autoTier = isThenable<string | undefined>(autoTierSnapshot) ? await autoTierSnapshot : autoTierSnapshot;
 
 		this._editSurvivalReporterFactory.launch({
 			clientContext,
 			sessionUri: this._sessionUri,
-			ownerSessionUri: this._ownerSessionUri,
+			ownerSessionUri: this._owner(),
 			...(this._provider ? { provider: this._provider } : {}),
 			turnId,
 			toolCallId,
@@ -208,7 +263,7 @@ export class FileEditTracker {
 		try {
 			marker = await this._editAttributionService.recordEdit({
 				sessionUri: this._sessionUri,
-				ownerSessionUri: this._ownerSessionUri,
+				ownerSessionUri: this._owner(),
 				...(this._provider ? { provider: this._provider } : {}),
 				chatUri,
 				turnId,
@@ -217,6 +272,7 @@ export class FileEditTracker {
 				beforeText,
 				afterText,
 				changes,
+				diffHitTimeout,
 				modelId,
 				...(autoTier !== undefined ? { autoTier } : {}),
 				...(fusionModel !== undefined ? { fusionModel } : {}),
@@ -231,7 +287,8 @@ export class FileEditTracker {
 		this._editArcReporterService.reportEdit({
 			clientContext,
 			sessionUri: this._sessionUri,
-			ownerSessionUri: this._ownerSessionUri,
+			ownerSessionUri: this._owner(),
+			isSubagent,
 			...(this._provider ? { provider: this._provider } : {}),
 			turnId,
 			toolCallId,
@@ -240,6 +297,8 @@ export class FileEditTracker {
 			afterText,
 			initialEdit,
 			modelId,
+			...(autoTier !== undefined ? { autoTier } : {}),
+			...(fusionModel !== undefined ? { fusionModel } : {}),
 			toolName,
 			mode: edit.mode,
 			completionTime,

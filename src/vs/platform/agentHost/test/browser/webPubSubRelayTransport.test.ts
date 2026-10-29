@@ -143,6 +143,68 @@ suite('WebPubSubRelayTransport', () => {
 		await connected;
 	}
 
+	test('acknowledges a scoped host-offline advisory and closes once without delivering it to AHP', async () => {
+		const fake = new FakeWebSocket();
+		const received: ProtocolMessage[] = [];
+		const errors: unknown[] = [];
+		let closes = 0;
+		const transport = createTransport(fake, { onProtocolError: error => errors.push(error) });
+		store.add(transport.onMessage(message => received.push(message)));
+		store.add(transport.onClose(() => closes++));
+		await connectHandshake(transport, fake);
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'ping', params: { channel: 'ahp-root://' } });
+		const notice = { kind: 'host_offline', environment_id: 'e1', status: 'offline', timestamp: '2026-10-13T00:00:00Z' };
+		fake.emitGroupMessage(1, { kind: 'message', data: notice }, 'user.u1.env.e1.clients');
+		fake.emitClose();
+		assert.deepStrictEqual({ closes, received, errors, open: transport.isOpen, closed: fake.closed, acknowledged: fake.highestAcknowledgedSequenceId }, {
+			closes: 1, received: [], errors: [], open: false, closed: true, acknowledged: 1,
+		});
+	});
+
+	test('rejects a pending relay handshake promptly when MC reports the host offline', async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		const connecting = transport.connect();
+		fake.emit({ type: 'system', event: 'connected' });
+		fake.emitGroupMessage(1, {
+			kind: 'message', data: {
+				kind: 'host_offline', environment_id: 'e1', status: 'offline', timestamp: '2026-10-13T00:00:00Z',
+			}
+		}, 'user.u1.env.e1.clients');
+		await assert.rejects(connecting, /Mission Control host is offline/);
+	});
+
+	test('handles the unwrapped MC service advisory on the environment clients lane', async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		let closes = 0;
+		store.add(transport.onClose(() => closes++));
+		await connectHandshake(transport, fake);
+		fake.emit({
+			type: 'message', from: 'group', group: 'user.u1.env.e1.clients', dataType: 'json', sequenceId: 1,
+			data: { kind: 'host_offline', environment_id: 'e1', status: 'offline', timestamp: '2026-10-13T00:00:00Z' },
+		});
+		assert.deepStrictEqual({ closes, acknowledged: fake.highestAcknowledgedSequenceId, open: transport.isOpen }, {
+			closes: 1, acknowledged: 1, open: false,
+		});
+	});
+
+	test('does not disconnect for foreign, malformed, or ordinary-lane offline messages', async () => {
+		const fake = new FakeWebSocket();
+		const errors: unknown[] = [];
+		const transport = createTransport(fake, { onProtocolError: error => errors.push(error) });
+		await connectHandshake(transport, fake);
+		const notice = { kind: 'host_offline', environment_id: 'e1', status: 'offline', timestamp: '2026-10-13T00:00:00Z' };
+		fake.emitGroupMessage(1, { kind: 'message', data: notice }, TO_CLIENT);
+		fake.emitGroupMessage(2, { kind: 'message', data: notice }, 'user.other.env.e1.clients');
+		fake.emitGroupMessage(3, { kind: 'message', data: { ...notice, environment_id: 'other' } }, 'user.u1.env.e1.clients');
+		fake.emitGroupMessage(4, { kind: 'message', data: { ...notice, timestamp: 'invalid' } }, 'user.u1.env.e1.clients');
+		fake.emitGroupMessage(5, { kind: 'message', data: { kind: 'future_notice' } }, 'user.u1.env.e1.clients');
+		assert.deepStrictEqual({ open: transport.isOpen, closed: fake.closed, errors: errors.length, acknowledged: fake.highestAcknowledgedSequenceId }, {
+			open: true, closed: false, errors: 4, acknowledged: 5,
+		});
+	});
+
 	test('logs connection milestones and a closing summary, not every frame or payload', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const infos: string[] = [];
 		const logService = new class extends NullLogService {

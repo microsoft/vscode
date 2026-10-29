@@ -38,6 +38,7 @@ import { TestExtensionService } from '../../../test/common/workbenchTestServices
 import { IMcpServerAuthContext, MainThreadMcp, McpServerAuthTracker } from '../../browser/mainThreadMcp.js';
 import { ExtHostMcpShape, IMcpAuthenticationDetails } from '../../common/extHost.protocol.js';
 import { CommonRequestInit, CommonResponse, McpHTTPHandle } from '../../common/extHostMcp.js';
+import { createEnvVarResolver } from '../../../../platform/mcp/common/envVarResolution.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 
 function createMainThreadMcp(disposables: Pick<DisposableStore, 'add'>, proxy: Partial<ExtHostMcpShape>, registry: IMcpRegistry, configure?: (services: TestInstantiationService) => void): MainThreadMcp {
@@ -58,6 +59,7 @@ function createMainThreadMcp(disposables: Pick<DisposableStore, 'add'>, proxy: P
 	services.stub(IAllowedMcpServersService, {
 		onDidChangeAllowedMcpServers: Event.None,
 		isServerAllowed: () => true,
+		getServerPolicyVariableValues: () => [],
 	});
 	configure?.(services);
 	return disposables.add(services.createInstance(MainThreadMcp, SingleProxyRPCProtocol(proxy)));
@@ -399,6 +401,7 @@ suite('MainThreadMcp - request policy', () => {
 		denied?: readonly IMcpServerMatcher[];
 		access?: McpAccessValue;
 		destination?: string;
+		env?: Record<string, string>;
 	} = {}) {
 		const configuration = new TestConfigurationService({
 			[mcpAllowedServersConfig]: options.allowed,
@@ -425,6 +428,10 @@ suite('MainThreadMcp - request policy', () => {
 			},
 			$sendMessage() { },
 			$onDidChangeMcpServerDefinitions() { },
+			async $resolveMcpPolicyVariables(values) {
+				const resolve = createEnvVarResolver(options.env, false);
+				return Object.fromEntries(values.map(value => [value, resolve(value)]));
+			},
 		}, registry, services => {
 			services.stub(IConfigurationService, configuration);
 			services.stub(IAllowedMcpServersService, policy);
@@ -489,6 +496,31 @@ suite('MainThreadMcp - request policy', () => {
 		assert.deepStrictEqual(requests, [initialUrl]);
 	});
 
+	test('a name entry cannot bypass a URL entry at the request boundary', async () => {
+		const { fetch, requests } = createConnection({ allowed: [{ serverName: name }, { serverUrl: initialUrl }] });
+		await assert.rejects(fetch(), /not in the list of servers allowed/);
+		assert.deepStrictEqual(requests, [initialUrl]);
+	});
+
+	test('expands URL policies on the connecting host for initial and redirected requests', async () => {
+		const { fetch, requests } = createConnection({
+			allowed: [{ serverUrl: 'https://${INITIAL}/mcp' }, { serverUrl: 'https://${REDIRECTED}/mcp' }],
+			env: { INITIAL: 'allowed.example', REDIRECTED: 'redirected.example' },
+		});
+		await fetch();
+		assert.deepStrictEqual(requests, [initialUrl, redirectedUrl]);
+	});
+
+	test('an expanded URL denial wins over an expanded allow entry', async () => {
+		const { fetch, requests } = createConnection({
+			allowed: [{ serverUrl: 'https://${INITIAL}/mcp' }, { serverUrl: 'https://${REDIRECTED}/mcp' }],
+			denied: [{ serverUrl: 'https://${REDIRECTED}/mcp' }],
+			env: { INITIAL: 'allowed.example', REDIRECTED: 'redirected.example' },
+		});
+		await assert.rejects(fetch(), /blocked by your organization\./);
+		assert.deepStrictEqual(requests, [initialUrl]);
+	});
+
 	test('preserves the configured server name for destination policy decisions', async () => {
 		const { fetch, requests } = createConnection({ allowed: [{ serverName: name }] });
 		await fetch();
@@ -497,7 +529,7 @@ suite('MainThreadMcp - request policy', () => {
 
 	test('a destination denial overrides a matching server name allowlist', async () => {
 		const { fetch, requests } = createConnection({ allowed: [{ serverName: name }], denied: [{ serverUrl: redirectedUrl }] });
-		await assert.rejects(fetch(), /blocked by your organization's policy/);
+		await assert.rejects(fetch(), /blocked by your organization\./);
 		assert.deepStrictEqual(requests, [initialUrl]);
 	});
 
@@ -515,7 +547,7 @@ suite('MainThreadMcp - request policy', () => {
 
 	test('enforces configured server name denials before dispatch', async () => {
 		const { fetch, requests } = createConnection({ denied: [{ serverName: name }] });
-		await assert.rejects(fetch(), /blocked by your organization's policy/);
+		await assert.rejects(fetch(), /blocked by your organization\./);
 		assert.deepStrictEqual(requests, []);
 	});
 

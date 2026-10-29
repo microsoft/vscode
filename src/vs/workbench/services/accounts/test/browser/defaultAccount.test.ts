@@ -12,6 +12,7 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -32,6 +33,7 @@ import { IWorkbenchEnvironmentService } from '../../../environment/common/enviro
 import { IExtensionService } from '../../../extensions/common/extensions.js';
 import { IHostService } from '../../../host/browser/host.js';
 import { DefaultAccountProvider, DefaultAccountService } from '../../browser/defaultAccount.js';
+import { IManagedSettingsResponse } from '../../browser/managedSettings.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
 import { AccountPolicyGateState, AccountPolicyService } from '../../../policies/common/accountPolicyService.js';
 
@@ -641,6 +643,38 @@ suite('DefaultAccountProvider', () => {
 		});
 	});
 
+	test('refreshing to Local-only permission or empty settings clears cached raw governance', async () => {
+		let response: IManagedSettingsResponse = { futureControl: {} };
+		const requestService = new TestRequestService(async options => {
+			if (options.url?.endsWith('/copilot_internal/user')) {
+				return jsonResponse({ chat_enabled: true });
+			}
+			if (options.url?.includes('/copilot_internal/managed_settings')) {
+				return jsonResponse(response);
+			}
+			throw new Error(`Unexpected request: ${options.url}`);
+		});
+		const provider = await createProvider(requestService, {}, {},
+			'https://api.github.com/copilot_internal/managed_settings', { getSessions: async () => sessions });
+		const responses: IManagedSettingsResponse[] = [
+			{ futureControl: {} },
+			{ vscode: { temporaryAllowLocalHarness: false } },
+			{ vscode: { temporaryAllowLocalHarness: true }, futureControl: {} },
+			{},
+		];
+		const results = [];
+		for (response of responses) {
+			await provider.refresh({ forceRefresh: true });
+			const refreshed = provider.policyData?.managedSettingsActive;
+			await provider.refresh();
+			results.push({ refreshed, cached: provider.policyData?.managedSettingsActive });
+		}
+		assert.deepStrictEqual(results, [
+			{ refreshed: true, cached: true }, { refreshed: false, cached: false },
+			{ refreshed: true, cached: true }, { refreshed: false, cached: false },
+		]);
+	});
+
 	test('truthy non-boolean server refresh control remains non-blocking after an endpoint outage', async () => {
 		let managedSettingsRequestCount = 0;
 		const requestService = new TestRequestService(async options => {
@@ -1110,7 +1144,7 @@ suite('DefaultAccountProvider', () => {
 		});
 	});
 
-	test('a failed session lookup keeps the signed-in account and satisfied refresh gate', async () => {
+	test('a failed session lookup keeps the signed-in account and satisfied refresh gate', () => runWithFakedTimers({}, async () => {
 		let sessionLookupFails = false;
 		const requestService = new TestRequestService(async options => {
 			if (options.url?.endsWith('/copilot_internal/user')) {
@@ -1162,9 +1196,9 @@ suite('DefaultAccountProvider', () => {
 			afterLookupFailure: expected(),
 			observedSessionIds: [],
 		});
-	});
+	}));
 
-	test('a failed session lookup without a known account still reports a missing token', async () => {
+	test('a failed session lookup without a known account still reports a missing token', () => runWithFakedTimers({}, async () => {
 		const provider = await createProvider(
 			new TestRequestService(async options => {
 				throw new Error(`Unexpected request: ${options.url}`);
@@ -1191,7 +1225,7 @@ suite('DefaultAccountProvider', () => {
 				hasLastAttempt: false,
 			},
 		});
-	});
+	}));
 
 	test('native false disables a cached server refresh requirement', async () => {
 		const requestService = new TestRequestService(async () => {

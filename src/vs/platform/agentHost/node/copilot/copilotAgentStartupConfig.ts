@@ -5,18 +5,15 @@
 
 import { equals } from '../../../../base/common/objects.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
-import type { CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 
 export class CopilotAgentStartupConfig {
 	constructor(
-		readonly sessionSync: boolean,
 		readonly rubberDuck: boolean,
 		readonly claudeAdvisor: boolean,
-		readonly tgrep: boolean,
 		readonly hydraFusion: boolean,
-		/** Like {@link localMemory}, a resumed resident SDK session keeps its original plan version until restart. */
 		readonly hydraFusionV2: boolean,
-		/** Session `featureFlags` are not reapplied when a resident SDK session resumes, so the in-repo memory flag needs a restart. */
+		readonly hydraFusionMultiRoot: boolean,
 		readonly localMemory: boolean,
 		readonly skillCharBudget: number,
 		readonly copilotSdkLogLevel: CopilotSdkLogLevelSetting,
@@ -28,6 +25,14 @@ export class CopilotAgentStartupConfig {
 		readonly managedSettingsPermissions: IAgentHostManagedSettingsPermissions,
 		readonly localIndexEnabled: boolean,
 		readonly legacyApprovalRestricted = false,
+		readonly searchSubagentModel = '',
+		/** `chat.copilot.localModel.enabled`: the request handler can only be installed when the client starts. */
+		readonly localModel = false,
+		readonly executionSubagent = false,
+		readonly executionSubagentModel = DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL,
+		readonly dynamicAutoTiers = false,
+		/** `chat.agentHost.computerUse.enabled`: built-in plugins can only be registered before any session exists. */
+		readonly computerUse = false,
 	) { }
 
 	equals(other: CopilotAgentStartupConfig): boolean {

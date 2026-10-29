@@ -14,7 +14,7 @@ import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { buildOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
-import { DEFAULT_CHAT_ID, getSessionChatResource, parseChatUri, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { DEFAULT_CHAT_ID, getSessionChatResource, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
@@ -36,8 +36,8 @@ export class RemoteSessionInspector {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		const { resource, identity } = resolveRemoteSessionReference(reference, this.connectionsService);
-		const provider = this.providersService.getProviders().filter(isAgentHostProvider).find(provider =>
+		const { resource, identity } = await resolveRemoteSessionReference(reference, this.connectionsService);
+		const provider = this.providersService.getProviders({ includeSessionBackends: true }).filter(isAgentHostProvider).find(provider =>
 			provider.remoteAddress !== undefined && agentHostAuthority(provider.remoteAddress) === identity.connectionAuthority);
 		if (!provider) {
 			throw new Error(localize('remoteInspection.unknownHost', "Use a session or chat on a remote agent host registered in this Agents window."));
@@ -69,7 +69,7 @@ export class RemoteSessionInspector {
 					|| current.connectionAuthority !== identity.connectionAuthority
 					|| !isEqual(current.backendSession, identity.backendSession)
 					|| provider.connectionStatus?.get().kind !== 'connected'
-					|| !this.providersService.getProviders().includes(provider)) {
+					|| !this.providersService.getProviders({ includeSessionBackends: true }).includes(provider)) {
 					throw new Error(localize('remoteInspection.connectionChanged', "The remote agent host disconnected or its connection changed during inspection."));
 				}
 			};
@@ -90,8 +90,8 @@ export class RemoteSessionInspector {
 				throw new CancellationError();
 			}
 			// A chat listed in the backend session's catalog belongs to that session.
-			const chatResource = getSessionChatResource(sessionState, resource.fragment || DEFAULT_CHAT_ID);
-			if (!chatResource || !parseChatUri(chatResource)) {
+			const chatResource = getSessionChatResource(sessionState, resource.fragment || DEFAULT_CHAT_ID, sessionState.defaultChat);
+			if (!chatResource) {
 				throw new Error(localize('remoteInspection.missingChat', "The exact target chat no longer exists on its agent host."));
 			}
 			const chat = store.add(connection.getSubscription(StateComponents.Chat, URI.parse(chatResource), 'RemoteSessionInspector'));

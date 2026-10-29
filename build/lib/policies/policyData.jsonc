@@ -254,6 +254,24 @@
             }
         },
         {
+            "key": "chat.agentHost.githubEnvironments.enabled",
+            "name": "ChatAgentHostGitHubEnvironments",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.144",
+            "localization": {
+                "description": {
+                    "key": "githubEnvironments.enabled.policy",
+                    "value": "Controls whether this machine can be shared as a GitHub environment and connect to other shared machines through Mission Control."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
             "key": "chat.agentHost.otel.captureContent",
             "name": "CopilotOtelCaptureContent",
             "category": "InteractiveSession",
@@ -310,7 +328,7 @@
             "default": false,
             "included": true,
             "agentHost": {
-                "status": "partial"
+                "status": "enforced"
             },
             "referencedSettings": [
                 "github.copilot.chat.otel.enabled"
@@ -341,7 +359,7 @@
                     },
                     {
                         "key": "chat.agentHost.otel.protocol.policy.file",
-                        "value": "File exporter is not selected by enterprise managed settings."
+                        "value": "Use the enterprise-managed file exporter."
                     }
                 ]
             },
@@ -432,7 +450,7 @@
             "localization": {
                 "description": {
                     "key": "chat.agentHost.otel.outfile.policy",
-                    "value": "Prevents local file export when enterprise-managed Copilot OpenTelemetry export is configured."
+                    "value": "Controls the enterprise-managed file export destination for Copilot OpenTelemetry and prevents local file export when an enterprise OTLP destination is configured."
                 }
             },
             "type": "string",
@@ -506,6 +524,78 @@
             }
         },
         {
+            "key": "chat.canvases.enabled",
+            "name": "ChatCanvases",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.144",
+            "localization": {
+                "description": {
+                    "key": "chat.canvases.enabled.policy",
+                    "value": "Controls whether Copilot sessions can use Canvases to present interactive content."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
+            "key": "chat.copilotCliCommand.enabled",
+            "name": "CopilotCliCommand",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.143",
+            "localization": {
+                "description": {
+                    "key": "chat.copilotCliCommand.enabled.policy",
+                    "value": "Controls whether VS Code provides the copilot command for GitHub Copilot CLI. When disabled, VS Code setup on Windows and the Linux DEB and RPM packages don't add the command to PATH and remove the entry they added, VS Code doesn't install GitHub Copilot CLI, and integrated terminals don't include the command. A GitHub Copilot CLI that was installed separately isn't affected."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
+            "key": "chat.customizations.copilotConnectors.enabled",
+            "name": "ChatCopilotConnectors",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.144",
+            "localization": {
+                "description": {
+                    "key": "chat.customizations.copilotConnectors.enabled",
+                    "value": "Enables Copilot connectors in the unified marketplace and exposes connected connector MCP servers in Chat Customizations and Copilot agent sessions."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
+            "key": "chat.customizations.marketplace.enabled",
+            "name": "ChatCustomizationMarketplace",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.144",
+            "localization": {
+                "description": {
+                    "key": "chat.customizations.marketplace.enabled",
+                    "value": "Shows Browse instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
             "key": "chat.customizations.strictPluginOnlyCustomization",
             "name": "ChatStrictPluginOnlyCustomization",
             "category": "InteractiveSession",
@@ -521,6 +611,27 @@
             "included": false,
             "agentHost": {
                 "status": "partial"
+            }
+        },
+        {
+            "key": "chat.defaultConfiguration",
+            "name": "ChatDefaultConfiguration",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.144",
+            "localization": {
+                "description": {
+                    "key": "chat.defaultConfiguration.policy",
+                    "value": "Sets the default configuration for new agent sessions, as a JSON object with an optional \"mode\" (\"interactive\", \"plan\", or \"autopilot\") and \"approvals\" (\"manual\", \"assisted\", or \"allowAll\"). Users can still change them for each session."
+                }
+            },
+            "type": "object",
+            "default": {
+                "mode": "interactive",
+                "approvals": "manual"
+            },
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
             }
         },
         {
@@ -760,27 +871,6 @@
             "type": "object",
             "default": {},
             "included": false,
-            "agentHost": {
-                "status": "partial"
-            }
-        },
-        {
-            "key": "chat.plugins.strictMarketplaces",
-            "name": "ChatStrictMarketplaces",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.122",
-            "localization": {
-                "description": {
-                    "key": "chat.plugins.strictMarketplaces.policy",
-                    "value": "Allowlist of plugin marketplace sources. When set, only marketplaces matching an entry are trusted; an empty array blocks all marketplaces."
-                }
-            },
-            "type": [
-                "array",
-                "null"
-            ],
-            "default": null,
-            "included": true,
             "agentHost": {
                 "status": "partial"
             }
