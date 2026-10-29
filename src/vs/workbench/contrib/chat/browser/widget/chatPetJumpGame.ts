@@ -7,15 +7,19 @@ import './media/chatPetJumpGame.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { KeyCodeChord } from '../../../../../base/common/keybindings.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { clamp } from '../../../../../base/common/numbers.js';
+import { OS } from '../../../../../base/common/platform.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { defaultKeybindingLabelStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatPetJumpDirection, ChatPetJumpGameModel } from '../../common/chatPetJumpGame.js';
 
@@ -83,7 +87,26 @@ export class ChatPetJumpGame extends Disposable {
 		this.gauge = dom.append(this.stage, dom.$('.chat-pet-jump-charge'));
 		const track = dom.append(this.gauge, dom.$('.chat-pet-jump-charge-track'));
 		this.cells = Array.from({ length: 8 }, () => dom.append(track, dom.$('.chat-pet-jump-charge-cell')));
-		dom.append(this.stage, dom.$('.chat-pet-jump-hint')).textContent = localize('chatPet.jump.controls', "Hold Space to charge, release to jump. Left / Right to hop or aim. Esc to exit.");
+		const hint = dom.append(this.stage, dom.$('.chat-pet-jump-hint'));
+		const hintKeys = new Map([
+			['{0}', KeyCode.Space],
+			['{1}', KeyCode.LeftArrow],
+			['{2}', KeyCode.RightArrow],
+			['{3}', KeyCode.Escape],
+		]);
+		const controls = localize({
+			key: 'chatPet.jump.controlsWithKeybindings',
+			comment: ['{0}, {1}, {2}, and {3} are keybinding labels for Space, Left Arrow, Right Arrow, and Escape.'],
+		}, "Hold {0} to charge, release to jump. {1} / {2} to hop or aim. {3} to exit.");
+		for (const part of controls.split(/(\{\d+\})/g)) {
+			const keyCode = hintKeys.get(part);
+			if (keyCode !== undefined) {
+				const keybindingLabel = this._register(new KeybindingLabel(hint, OS, { ...defaultKeybindingLabelStyles, disableTitle: true }));
+				keybindingLabel.set(keybindingService.resolveKeybinding(new KeyCodeChord(false, false, false, false, keyCode).toKeybinding())[0]);
+			} else {
+				hint.append(part);
+			}
+		}
 		const score = dom.append(this.stage, dom.$('.chat-pet-jump-score'));
 		this.hopsLabel = dom.append(score, dom.$('.chat-pet-jump-hops'));
 		this.highScoreLabel = dom.append(score, dom.$('.chat-pet-jump-high-score'));
