@@ -34,6 +34,10 @@ export interface IUnattendedRestartService {
 
 	readonly _serviceBrand: undefined;
 
+	/**
+	 * Register no later than the `AfterRestored` phase: windows report that they are
+	 * starting until the contributions of that phase have been created.
+	 */
 	registerParticipant(participant: IUnattendedRestartParticipant): IDisposable;
 
 	canRestartUnattended(token?: CancellationToken): Promise<IUnattendedRestartReadiness>;
@@ -46,6 +50,8 @@ export class UnattendedRestartService implements IUnattendedRestartService {
 	static readonly PARTICIPANT_TIMEOUT = 5000;
 
 	private readonly participants = new Set<IUnattendedRestartParticipant>();
+
+	private lastLoggedBlockers = '';
 
 	constructor(
 		@ILogService private readonly logService: ILogService
@@ -61,8 +67,11 @@ export class UnattendedRestartService implements IUnattendedRestartService {
 		const results = await Promise.all(Array.from(this.participants, participant => this.check(participant, token)));
 		const blockers = Array.from(new Set(results.filter(result => result !== undefined))).sort();
 
-		if (blockers.length > 0) {
-			this.logService.info(`[unattended restart] blocked by: ${blockers.join(', ')}`);
+		// The main process asks every minute while the screen is locked, so only log changes
+		const summary = blockers.join(', ');
+		if (summary !== this.lastLoggedBlockers) {
+			this.lastLoggedBlockers = summary;
+			this.logService.info(blockers.length > 0 ? `[unattended restart] blocked by: ${summary}` : '[unattended restart] no longer blocked');
 		}
 
 		return { blockers };

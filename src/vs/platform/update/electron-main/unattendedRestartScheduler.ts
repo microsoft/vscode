@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron from 'electron';
+import { equals } from '../../../base/common/arrays.js';
 import { raceTimeout, RunOnceScheduler } from '../../../base/common/async.js';
 import { Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -58,6 +59,11 @@ const SESSION_ARGUMENTS: readonly (keyof NativeParsedArgs)[] = [
  * Remembers an unattended restart across the restart, to report it once it completed.
  */
 const PENDING_RESTART_STATE_KEY = 'update.unattendedRestart';
+
+/**
+ * Remembers an update that an unattended restart did not install, to not restart for it again.
+ */
+const FAILED_UPDATE_STATE_KEY = 'update.unattendedRestartFailedUpdate';
 
 /**
  * The operating system signals that decide whether the user is away.
@@ -192,6 +198,7 @@ type UnattendedRestartClassification = {
 
 interface IPendingUnattendedRestart {
 	readonly fromCommit: string | undefined;
+	readonly toVersion?: string;
 	readonly inBackground: boolean;
 	readonly attempts: number;
 	readonly lockedMinutes: number;
@@ -200,6 +207,20 @@ interface IPendingUnattendedRestart {
 function isPendingUnattendedRestart(value: unknown): value is IPendingUnattendedRestart {
 	const candidate = value as Partial<IPendingUnattendedRestart> | undefined;
 	return !!candidate && typeof candidate === 'object' && typeof candidate.inBackground === 'boolean' && typeof candidate.attempts === 'number' && typeof candidate.lockedMinutes === 'number';
+}
+
+interface IFailedUnattendedUpdate {
+
+	/**
+	 * The commit that the update was not installed on.
+	 */
+	readonly commit: string | undefined;
+	readonly version: string;
+}
+
+function isFailedUnattendedUpdate(value: unknown): value is IFailedUnattendedUpdate {
+	const candidate = value as Partial<IFailedUnattendedUpdate> | undefined;
+	return !!candidate && typeof candidate === 'object' && typeof candidate.version === 'string';
 }
 
 /**
@@ -224,6 +245,7 @@ export class UnattendedRestartScheduler extends Disposable {
 	private isDone = false;
 	private isEvaluating = false;
 	private pendingRestart: IPendingUnattendedRestart | undefined;
+	private failedUpdateVersion: string | undefined;
 
 	private readonly host: IUnattendedRestartHost;
 	private readonly os: OperatingSystem;
@@ -249,6 +271,7 @@ export class UnattendedRestartScheduler extends Disposable {
 		this.os = options.os ?? OS;
 		this.argv = options.argv ?? process.argv;
 
+		this.failedUpdateVersion = this.readFailedUpdateVersion();
 		this.reportCompletedRestart();
 
 		this._register(this.host.onDidBlurWindow(() => this.lastWindowBlur = Date.now()));
@@ -291,13 +314,34 @@ export class UnattendedRestartScheduler extends Disposable {
 			return;
 		}
 
+		const updated = restart.fromCommit !== this.productService.commit;
+		if (!updated && restart.toVersion) {
+			// Restarting for the same update would most likely not install it either
+			this.failedUpdateVersion = restart.toVersion;
+			this.stateService.setItem(FAILED_UPDATE_STATE_KEY, { commit: this.productService.commit, version: restart.toVersion } satisfies IFailedUnattendedUpdate);
+		}
+
 		this.logOutcome({
-			outcome: restart.fromCommit !== this.productService.commit ? 'restarted' : 'restartedWithoutUpdate',
+			outcome: updated ? 'restarted' : 'restartedWithoutUpdate',
 			blockers: '',
 			inBackground: restart.inBackground,
 			attempts: restart.attempts,
 			lockedMinutes: restart.lockedMinutes,
 		});
+	}
+
+	private readFailedUpdateVersion(): string | undefined {
+		const failedUpdate = this.stateService.getItem<unknown>(FAILED_UPDATE_STATE_KEY);
+		if (failedUpdate === undefined) {
+			return undefined;
+		}
+
+		if (!isFailedUnattendedUpdate(failedUpdate) || failedUpdate.commit !== this.productService.commit) {
+			this.stateService.removeItem(FAILED_UPDATE_STATE_KEY); // another version runs now
+			return undefined;
+		}
+
+		return failedUpdate.version;
 	}
 
 	private onDidVetoRestart(): void {
@@ -375,7 +419,9 @@ export class UnattendedRestartScheduler extends Disposable {
 			}
 
 			if (blockers.length > 0) {
-				this.logService.info(`update#unattendedRestart - not restarting: ${blockers.join(', ')}`);
+				if (!equals(blockers, this.lastBlockers)) {
+					this.logService.info(`update#unattendedRestart - not restarting: ${blockers.join(', ')}`); // retried every minute, so only log changes
+				}
 				this.lastBlockers = blockers;
 				this.evaluation.schedule(RETRY_INTERVAL);
 				return;
@@ -388,9 +434,10 @@ export class UnattendedRestartScheduler extends Disposable {
 			}
 
 			this.logService.info(`update#unattendedRestart - restarting ${inBackground ? 'in the background' : 'in the foreground'} to apply the update while the screen is locked`);
-			this.pendingRestart = { fromCommit: this.productService.commit, inBackground, attempts: this.attempts, lockedMinutes: this.getLockedMinutes() };
+			const toVersion = this.updateService.state.type === StateType.Ready ? this.updateService.state.update.version : undefined;
+			this.pendingRestart = { fromCommit: this.productService.commit, toVersion, inBackground, attempts: this.attempts, lockedMinutes: this.getLockedMinutes() };
 			this.windowsMainService.restoreExactlyOnNextStartup({ inBackground });
-			await this.updateService.quitAndInstall({ relaunchInBackground: inBackground });
+			await this.updateService.quitAndInstall({ unattended: true, relaunchInBackground: inBackground });
 
 			// The shutdown can still be vetoed, which is handled when the update service restores `Ready`
 			if (!this.hasUpdateState(StateType.Restarting)) {
@@ -419,6 +466,10 @@ export class UnattendedRestartScheduler extends Disposable {
 		const blockers = new Set(getWindowBlockers(windows, this.auxiliaryWindowsMainService.getWindows(), this.os, inBackground));
 		if (this.dialogMainService.hasOpenDialogs()) {
 			blockers.add('app.dialogOpen');
+		}
+		const state = this.updateService.state;
+		if (state.type === StateType.Ready && state.update.version === this.failedUpdateVersion) {
+			blockers.add('update.installFailed');
 		}
 		if (this.host.getIdleState() !== 'locked') {
 			blockers.add('system.notLocked');

@@ -134,6 +134,12 @@ export function isUnattendedRestartSupported(os: OperatingSystem, productService
 export interface IQuitAndInstallOptions {
 
 	/**
+	 * The user did not ask for the restart, so like the checks in the background, the
+	 * check for a newer update before restarting skips metered connections.
+	 */
+	readonly unattended?: boolean;
+
+	/**
 	 * Relaunch without activating the application, so that the restart does not take
 	 * focus. Only macOS activates a relaunched application, the windows restore without
 	 * focus on every platform (see `IWindowsMainService.restoreExactlyOnNextStartup`).
