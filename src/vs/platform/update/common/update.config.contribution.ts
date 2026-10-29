@@ -81,7 +81,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'UpdateRestartWhenIdle',
 				category: PolicyCategory.Update,
-				minimumVersion: '1.144',
+				minimumVersion: '1.145',
 				localization: {
 					description: {
 						key: 'restartWhenIdle',
