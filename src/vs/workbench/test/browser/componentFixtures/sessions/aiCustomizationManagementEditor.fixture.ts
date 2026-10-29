@@ -4257,10 +4257,20 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Plugins tab
 	PluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Plugins page uses a classic tree with separate collapsible User and Workspace groups, plus Remote Session and Available groups when applicable. Header action buttons use the standard gap.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The Plugins page uses a classic tree with separate collapsible User and Workspace groups, plus Remote Session and Available groups when applicable. Header action buttons use the standard gap. The add split button has a borderless, narrow compact-chevron segment and matches the Agents run split button resting and segment hover states.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
+			availableHarnesses: [{
+				...createVSCodeHarnessDescriptor(),
+				pluginActions: [{
+					id: 'fixture.createPlugin',
+					label: 'Create Plugin',
+					tooltip: 'Create Plugin',
+					run: async () => { },
+				}],
+			}],
 		}),
 	}),
 
@@ -5146,7 +5156,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	EmbeddedPluginDetailInstalled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The installed plugin detail has Uninstall and Disable actions. The Disable split-button divider is visible without leaking through the outer border at its top or bottom edge.'],
+		expectedVisualDescriptions: ['The installed plugin detail has Disable and Uninstall actions. Uninstall uses the standard secondary button style, and the Disable split-button divider is visible without leaking through the outer border at its top or bottom edge.'],
 		render: ctx => renderEmbeddedPluginDetail(ctx, makeInstalledPluginItem('Linear', 'Issue tracking and project management integration')),
 	}),
 

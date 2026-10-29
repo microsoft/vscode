@@ -46,7 +46,7 @@ import { resolveResponseSelection } from '../responseSelectionResolver.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
-import { getLinkTarget, sanitizeChatClipboardFragment } from './chatClipboard.js';
+import { cloneVisibleSelection, getLinkTarget, sanitizeChatClipboardFragment } from './chatClipboard.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 
@@ -857,7 +857,7 @@ export class ChatListWidget extends Disposable {
 			ranges.push(range);
 		}
 
-		const fragments = ranges.map(range => this.cloneSelectedContents(range));
+		const fragments = ranges.map(range => cloneVisibleSelection(range, this._container));
 		if (!fragments.map(fragment => sanitizeChatClipboardFragment(fragment)).some(Boolean)) {
 			return;
 		}
@@ -873,56 +873,23 @@ export class ChatListWidget extends Disposable {
 	}
 
 	/**
-	 * Clones a range along with the elements it sits inside. `cloneContents` returns only what
-	 * lies between the range boundaries, which drops both the heading or list item giving the
-	 * text its shape and, for a partly selected link, the rest of its label.
-	 */
-	private cloneSelectedContents(range: Range): DocumentFragment {
-		let content: Node = range.cloneContents();
-
-		for (
-			let ancestor = range.commonAncestorContainer;
-			ancestor && ancestor !== this._container;
-			ancestor = ancestor.parentNode as Node
-		) {
-			if (!dom.isHTMLElement(ancestor)) {
-				continue;
-			}
-
-			// A link is one unit: selecting part of `foo.ts:42` should still copy the whole
-			// reference rather than a fragment of its label.
-			if (ancestor.tagName === 'A') {
-				content = ancestor.cloneNode(true);
-				continue;
-			}
-
-			const wrapper = ancestor.cloneNode(false);
-			wrapper.appendChild(content);
-			content = wrapper;
-		}
-
-		if (content.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
-			return content as DocumentFragment;
-		}
-
-		const fragment = this._container.ownerDocument.createDocumentFragment();
-		fragment.appendChild(content);
-		return fragment;
-	}
-
-	/**
 	 * Update scroll-down button visibility based on scroll position and scroll lock.
 	 */
 	private updateScrollDownButtonVisibility(): void {
 		const isScrolledToBottom = this.isScrolledToBottom;
 		const { showButton, atBottom } = computeScrollDownState(isScrolledToBottom, this._scrollLock);
+		const button = this._scrollDownButton.element;
+		const wasShown = button.style.display !== 'none';
 		// Use an explicit `flex` (the `.monaco-button` default) rather than '' when showing: the
 		// stylesheet applies `display: none` to `.interactive-session .chat-scroll-down`, so clearing
 		// the inline style would let that rule win and keep the button hidden.
-		this._scrollDownButton.element.style.display = showButton ? 'flex' : 'none';
+		button.style.display = showButton ? 'flex' : 'none';
 		this._container.classList.toggle('chat-list-at-bottom', atBottom);
 		this._container.classList.toggle('chat-list-scrolled-to-bottom', isScrolledToBottom);
-		this.updateScrollDownButtonPosition();
+		// Scrolling cannot move the progress row; layout and its resize observer reposition a shown button.
+		if (showButton !== wasShown) {
+			this.updateScrollDownButtonPosition();
+		}
 	}
 
 	private updateStickyProgress(): void {
@@ -930,11 +897,15 @@ export class ChatListWidget extends Disposable {
 		this.updateScrollDownButtonPosition();
 	}
 
+	/**
+	 * Centers the scroll-down button on the sticky progress row, which keeps its slot above the
+	 * input even while no progress is shown.
+	 */
 	private updateScrollDownButtonPosition(): void {
 		const button = this._scrollDownButton.element;
 		const progress = this._workingProgressContainer;
 		let bottom = '';
-		if (this._visible && progress?.isConnected && progress.childElementCount > 0 && button.style.display !== 'none') {
+		if (this._visible && progress?.isConnected && button.style.display !== 'none') {
 			const bounds = progress.getBoundingClientRect();
 			if (bounds.height > 0) {
 				const viewport = this._container.getBoundingClientRect();

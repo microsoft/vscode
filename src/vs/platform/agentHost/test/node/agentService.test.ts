@@ -101,6 +101,7 @@ import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATI
 import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { AgentHostSystemWakeService } from '../../node/agentHostSystemWakeService.js';
+import type { IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_ORIGIN_KEY, SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { SCHEDULED_WORK_WAKE_SETTLE_MS } from '../../common/agentHostWakeNetworkMonitor.js';
 import { AgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
@@ -6414,8 +6415,12 @@ suite('AgentService (node dispatcher)', () => {
 		class ReadPeerAgent extends MockAgent {
 			historyGate: DeferredPromise<void> | undefined;
 			historyHits = 0;
+			serverToolHost: IAgentServerToolHost | undefined;
 			readonly historyReached = new DeferredPromise<void>();
 			override async createChat(): Promise<void> { }
+			setServerToolHost(host: IAgentServerToolHost): void {
+				this.serverToolHost = host;
+			}
 			override async getSessionMessages(session: URI) {
 				if (this.historyGate) {
 					this.historyHits++;
@@ -7144,6 +7149,63 @@ suite('AgentService (node dispatcher)', () => {
 			const surfaced = getStateManager(svc).getSurfacedSessionSummary(session.toString())?.chats?.find(candidate => candidate.resource === chat) as (NonNullable<SessionSummary['chats']>[number] & { readonly archived?: boolean }) | undefined;
 			return { archived: isSessionStatusArchived(surfaced?.status), legacyArchived: surfaced?.archived === true, read: isSessionStatusRead(surfaced?.status) };
 		}
+
+		test('archive_chat archives a nested chat and the session of an unloaded session without restoring them, survives restart, and reports refusals', async () => {
+			const { svc, agent, session, peer, restart } = await createSessionWithReadPeer('normalized');
+			const sessionKey = session.toString();
+			const caller = await svc.createSession({ legacyChatUris: false, provider: 'copilot' });
+			const callerChat = getStateManager(svc).getDefaultChat(caller.toString())!;
+			const accessorOf = (service: AgentService) => (service as unknown as { _createSessionServerToolAccessor(): IAgentServiceSessionServerToolAccessor })._createSessionServerToolAccessor();
+			const sessionLink = buildOpenSessionLinkUri(sessionKey);
+			unloadSession(svc, session);
+			const nestedResult = await agent.serverToolHost!.executeTool(callerChat, SessionServerToolName.ArchiveChat, { chat: buildOpenSessionLinkUri(sessionKey, getAgentHostChatId(peer)) });
+			const sessionResult = await agent.serverToolHost!.executeTool(callerChat, SessionServerToolName.ArchiveChat, { chat: sessionLink });
+			await svc.whenCatalogReconciliationIdle();
+			const unloaded = {
+				nestedResult,
+				sessionResult,
+				resident: !!getStateManager(svc).getSessionState(sessionKey),
+				peerArchived: surfacedChatFlags(svc, session, peer).archived,
+				sessionArchived: isSessionStatusArchived(getStateManager(svc).getSurfacedSessionSummary(sessionKey)?.status),
+				againResult: await agent.serverToolHost!.executeTool(callerChat, SessionServerToolName.ArchiveChat, { chat: sessionLink }),
+			};
+			const restarted = await restart();
+			await restarted.restoreSession(session);
+			const peerState = await getStateManager(restarted).resolveChatState(peer);
+			const afterRestart = {
+				peerArchived: isSessionStatusArchived(peerState?.status),
+				sessionArchived: isSessionStatusArchived(getStateManager(restarted).getSessionState(sessionKey)?.status),
+			};
+
+			const { svc: toggles } = createReadToggleService();
+			const unloadedSession = AgentSession.uri('copilot', 'tool-chat').toString();
+			const toolChat = buildChatUri(unloadedSession, 'tool');
+			announceUnloadedSession(toggles, unloadedSession, SessionStatus.Idle, [
+				{ resource: buildDefaultChatUri(unloadedSession), title: '', status: SessionStatus.Idle },
+				{ resource: toolChat, title: 'Tool', status: SessionStatus.Idle, origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(unloadedSession), toolCallId: 'tool' } },
+			]);
+			const refusal = (operation: Promise<void>) => operation.then(() => undefined, (error: Error) => error.message);
+			const refusals = {
+				toolChat: await refusal(accessorOf(toggles).archiveChat(URI.parse(toolChat))),
+				unknownSession: await refusal(accessorOf(toggles).archiveSession(AgentSession.uri('copilot', 'missing'))),
+			};
+
+			assert.deepStrictEqual({ unloaded, afterRestart, refusals }, {
+				unloaded: {
+					nestedResult: `Archived chat ${buildOpenSessionLinkUri(sessionKey, getAgentHostChatId(peer))}.`,
+					sessionResult: `Archived session ${sessionLink} with all of its chats.`,
+					resident: false,
+					peerArchived: true,
+					sessionArchived: true,
+					againResult: `Session ${sessionLink} is already archived.`,
+				},
+				afterRestart: { peerArchived: true, sessionArchived: true },
+				refusals: {
+					toolChat: 'Only a known independently manageable non-default chat can be archived.',
+					unknownSession: `The host did not apply session/isArchivedChanged to ${AgentSession.uri('copilot', 'missing').toString()}.`,
+				},
+			});
+		});
 
 		test('a chat archive toggle on an unloaded session applies without restoring it or holding later actions', async () => {
 			const { svc, db, session, peer } = await createSessionWithReadPeer('normalized');
@@ -35266,6 +35328,28 @@ suite('AgentService (node dispatcher)', () => {
 			const sourceSession = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
 			const sourceChat = URI.parse(buildChatUri(sourceSession, 'source-chat'));
 			await localService.createChat(sourceSession, sourceChat);
+			const firstActiveClient: SessionActiveClient = {
+				clientId: 'first-client',
+				tools: [{ name: 'first-tool', description: 'First tool', inputSchema: { type: 'object' } }],
+				customizations: [{
+					type: CustomizationType.Plugin,
+					id: 'first-plugin',
+					uri: 'file:///first-plugin',
+					name: 'first-plugin',
+				}],
+			};
+			const initiatingActiveClient: SessionActiveClient = {
+				clientId: 'test-client',
+				tools: [{ name: 'initiating-tool', description: 'Initiating tool', inputSchema: { type: 'object' } }],
+				customizations: [{
+					type: CustomizationType.Plugin,
+					id: 'agent-plan',
+					uri: 'file:///agent-plan',
+					name: 'agent-plan',
+				}],
+			};
+			localService.dispatchAction(sourceSession.toString(), { type: ActionType.SessionActiveClientSet, activeClient: firstActiveClient }, 'first-client', 1);
+			localService.dispatchAction(sourceSession.toString(), { type: ActionType.SessionActiveClientSet, activeClient: initiatingActiveClient }, 'test-client', 1);
 			getStateManager(localService).setSessionConfig(sourceSession.toString(), {
 				schema: { type: 'object', properties: {} },
 				values: {
@@ -35283,6 +35367,10 @@ suite('AgentService (node dispatcher)', () => {
 				startedAt: new Date().toISOString(),
 				message: { text: 'Create more work', origin: { kind: MessageKind.User }, model: { id: 'source-model' } },
 			}, 'test-client', 1);
+			const turnTracker = Reflect.get(localService, '_turnTracker') as IAgentHostTurnTracker;
+			turnTracker.turnStarted(agent, sourceChat.toString(), sourceSession.toString(), 'source-turn', 'source-model', undefined, 'default', undefined, undefined, undefined, 'test-client');
+			const getCreationDefaults = Reflect.get(localService, '_getServerToolCreationDefaults') as IAgentServiceSessionServerToolAccessor['getCreationDefaults'];
+			const selectedActiveClient = getCreationDefaults.call(localService, sourceChat, 'source-turn')?.activeClient;
 			const sourceModelBeforeCreation = getStateManager(localService).getSessionState(sourceChat.toString())?.activeTurn?.message.model;
 			const sessionUrisBeforeCreation = new Set(getStateManager(localService).getSessionUris());
 
@@ -35328,6 +35416,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				sourceModelBeforeCreation,
+				selectedActiveClient,
 				createdIsolation,
 				downgradedIsolation,
 				delegation: delegatedMessage && readAgentMessageDelegationMeta(delegatedMessage),
@@ -35339,6 +35428,7 @@ suite('AgentService (node dispatcher)', () => {
 				chatOptions: agent.createChatOptions.at(-1),
 			}, {
 				sourceModelBeforeCreation: { id: 'source-model' },
+				selectedActiveClient: initiatingActiveClient,
 				createdIsolation: 'worktree',
 				downgradedIsolation: 'folder',
 				delegation: {
@@ -41815,6 +41905,56 @@ suite('AgentService (node dispatcher)', () => {
 					{ uri: peerChat, title: 'Complete replacement peer chat title', titleSource: 'agent' },
 				],
 				summaryTitleChange: 'Complete replacement default chat title',
+			});
+		});
+
+		test('archive_chat archives a nested session, archives the session of a main session, and reports host rejections', async () => {
+			class ServerToolAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+
+				override async createChat(): Promise<void> { }
+
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+			}
+
+			const localService = disposables.add(createRenameTestAgentService(createSessionDataService(new TestSessionDatabase()), new TestAgentHostOrchestratorDatabase()));
+			const agent = disposables.add(new ServerToolAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const caller = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const target = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const targetUri = target.toString();
+			const targetDefaultChat = buildDefaultChatUri(target);
+			const targetPeerChat = buildChatUri(targetUri, 'peer-archive');
+			await localService.createChat(target, URI.parse(targetPeerChat), { title: 'Nested' });
+			const stateManager = getStateManager(localService);
+			const isArchived = (status: SessionStatus | undefined) => ((status ?? 0) & SessionStatus.IsArchived) === SessionStatus.IsArchived;
+			const accessor = (localService as unknown as { _createSessionServerToolAccessor(): IAgentServiceSessionServerToolAccessor })._createSessionServerToolAccessor();
+			const targetLink = `agent-host-session://copilot/${AgentSession.id(target)}`;
+
+			const nestedResult = await agent.serverToolHost!.executeTool(buildDefaultChatUri(caller), SessionServerToolName.ArchiveChat, { chat: `${targetLink}?chat=peer-archive` });
+			const afterNested = {
+				peerArchived: isArchived(stateManager.getSessionState(targetUri)?.chats.find(chat => chat.resource === targetPeerChat)?.status),
+				sessionArchived: isArchived(stateManager.getSessionState(targetUri)?.status),
+			};
+			const defaultChatRejection = await accessor.archiveChat(URI.parse(targetDefaultChat)).then(() => undefined, (error: Error) => error.message);
+			const sessionResult = await agent.serverToolHost!.executeTool(buildDefaultChatUri(caller), SessionServerToolName.ArchiveChat, { chat: targetLink });
+
+			assert.deepStrictEqual({
+				nestedResult,
+				afterNested,
+				defaultChatRejection,
+				sessionResult,
+				sessionArchived: isArchived(stateManager.getSessionState(targetUri)?.status),
+				callerArchived: isArchived(stateManager.getSessionState(caller.toString())?.status),
+			}, {
+				nestedResult: `Archived chat ${targetLink}?chat=peer-archive.`,
+				afterNested: { peerArchived: true, sessionArchived: false },
+				defaultChatRejection: 'Only a known independently manageable non-default chat can be archived.',
+				sessionResult: `Archived session ${targetLink} with all of its chats.`,
+				sessionArchived: true,
+				callerArchived: false,
 			});
 		});
 

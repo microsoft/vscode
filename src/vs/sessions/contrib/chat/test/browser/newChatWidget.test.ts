@@ -29,7 +29,7 @@ import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../servi
 import { SessionsManagementService } from '../../../../services/sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
-import { NewChatWidget } from '../../browser/newChatWidget.js';
+import { NewChatWidget, shouldShowNewSessionChatTip } from '../../browser/newChatWidget.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -183,6 +183,7 @@ const recreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_recreate
 const handlePromptOptionsWorkspaceChange = Reflect.get(NewChatWidget.prototype, '_handlePromptOptionsWorkspaceChange') as (this: IPromptOptionsWorkspaceHarness, previousFolderUri: URI | undefined, folderUri: URI | undefined) => void;
 const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.prototype, '_syncWorkspacePickerFromSessionWorkspace') as (this: ISyncWorkspacePickerHarness, workspace: ISessionWorkspace | undefined) => void;
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
+const prepareChatTipSession = Reflect.get(NewChatWidget.prototype, '_prepareChatTipSession') as (this: IChatTipSessionHarness) => void;
 const restoreSessionOptionsExpanded = Reflect.get(NewChatWidget.prototype, '_restoreSessionOptionsExpanded') as (this: ISessionOptionsPersistenceHarness) => void;
 const setSessionOptionsExpandedFromUser = Reflect.get(NewChatWidget.prototype, '_setSessionOptionsExpandedFromUser') as (this: ISessionOptionsPersistenceHarness, expanded: boolean) => void;
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
@@ -239,6 +240,16 @@ interface ISyncWorkspacePickerHarness {
 
 interface ISessionCountHarness {
 	readonly _usage: { readonly createdSessionCount: number };
+}
+
+interface IChatTipSessionHarness {
+	_isChatTipSessionInitialized: boolean;
+	readonly contextKeyService: {
+		getContextKeyValue(key: string): number | undefined;
+	};
+	readonly chatTipService: {
+		resetSession(): void;
+	};
 }
 
 interface ISessionOptionsPersistenceHarness {
@@ -3230,6 +3241,45 @@ suite('NewChatWidget', () => {
 		}));
 
 		assert.deepStrictEqual(eligibility, [false, false, true, true]);
+	});
+
+	test('shows a tip only when the new-session composer is the sole foreground chat widget', () => {
+		assert.deepStrictEqual([
+			shouldShowNewSessionChatTip(true, true, undefined),
+			shouldShowNewSessionChatTip(true, true, 0),
+			shouldShowNewSessionChatTip(true, true, 1),
+			shouldShowNewSessionChatTip(true, true, 2),
+			shouldShowNewSessionChatTip(false, true, 1),
+			shouldShowNewSessionChatTip(true, false, 1),
+		], [false, false, true, false, false, false]);
+	});
+
+	test('resets the tip session when the composer returns from multiple foreground chats', () => {
+		let foregroundSessionCount = 2;
+		let resetCount = 0;
+		const harness: IChatTipSessionHarness = {
+			_isChatTipSessionInitialized: true,
+			contextKeyService: {
+				getContextKeyValue: () => foregroundSessionCount,
+			},
+			chatTipService: {
+				resetSession: () => resetCount++,
+			},
+		};
+
+		const states = [2, 1, 1, 2, 1].map(count => {
+			foregroundSessionCount = count;
+			prepareChatTipSession.call(harness);
+			return { count, initialized: harness._isChatTipSessionInitialized, resetCount };
+		});
+
+		assert.deepStrictEqual(states, [
+			{ count: 2, initialized: false, resetCount: 0 },
+			{ count: 1, initialized: true, resetCount: 1 },
+			{ count: 1, initialized: true, resetCount: 1 },
+			{ count: 2, initialized: false, resetCount: 1 },
+			{ count: 1, initialized: true, resetCount: 2 },
+		]);
 	});
 
 	test('forwards every composer context pill to the first chat request', async () => {

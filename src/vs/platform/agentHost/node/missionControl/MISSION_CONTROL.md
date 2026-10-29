@@ -86,6 +86,8 @@ Remote owner access includes native sessions, tools, and granted workspace resou
 
 Clients must authenticate the relay identity after each handshake before requesting session content or mutations, independently of agent-provider authentication. Unauthenticated protected requests return `AuthRequired` with standard `data.resources` identifying the configured GitHub identity authority, including hosts without a Copilot provider. Owner-validated identity authentication can establish lane identity even without provider acceptance. Scoped protected execution additionally requires a credential-capable provider and its required resource credentials; provider/MCP resource authentication is not implied by owner identity.
 
+VS Code renews an expired user-local relay identity through the connection's account-bound identity-token service, without requiring provider-discovery metadata in the expiry notification. Other protected resources retain their normal authentication-provider recovery. After identity renewal, the client restores open state subscriptions and filesystem watches on the existing transport. Filesystem authentication failures remain unavailable errors rather than being reported as missing files.
+
 Same-owner credential renewal before the current GitHub-reported deadline preserves in-flight requests and subscriptions. Expiry or a new handshake invalidates previously admitted work, even after successful reauthentication. Renewal checks the previous deadline before replacing it, so delayed expiry timers cannot hide a lapse.
 
 ### Native GitHub credential lifetimes
@@ -228,7 +230,7 @@ At most one new `userLocalRelaySessionOpen` outcome is emitted per ready user-lo
 
 Source files live alongside these documents. [MissionControlHost](./missionControlHost.ts) is an entry-owned DI adapter for native services, handler lifetime and authoritative mirror wiring. [MissionControlEnvironment](./missionControlEnvironment.ts) owns registration/recovery through a named host-options contract; it has no second runtime service graph.
 
-Registration and heartbeat request construction are separate methods. Local management IPC is distinct from AHP; host-management extension methods remain unavailable to relay clients. The same `ProtocolServerHandler` owns session operations on both local and relay transports.
+Registration and heartbeat request construction are separate methods. Local management IPC is distinct from AHP; host-management extension methods remain unavailable to relay clients. Each relay gets its own `ProtocolServerHandler` instance with Mission Control projections, separate from local handlers but sharing the state manager.
 
 ## Validation boundaries
 

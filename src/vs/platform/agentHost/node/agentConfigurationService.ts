@@ -10,6 +10,7 @@ import { equals } from '../../../base/common/objects.js';
 import { dirname } from '../../../base/common/path.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSandboxEnabledValue } from '../../sandbox/common/settings.js';
@@ -314,8 +315,10 @@ export interface IAgentConfigurationService {
 	getChatSandboxEnabled(target: IAgentChatConfigurationTarget): boolean | undefined;
 	/** The sessions and storages whose attachment snapshots the chat may read (see `AgentHostStateManager.getChatAttachmentScopes`). */
 	getChatAttachmentScopes(target: IAgentChatConfigurationTarget): readonly ProtocolURI[];
-	/** Records the enablement a chat's runtime applied, with an optional error for the client that requested it. */
-	setChatSandboxEnabled(target: IAgentChatConfigurationTarget, enabled: boolean, error?: ISessionSandboxState['error']): void;
+	/** Records or transfers applied enablement and errors; enablement can be unknown before the first successful update. */
+	setChatSandboxEnabled(target: IAgentChatConfigurationTarget, enabled: boolean | undefined, error?: ISessionSandboxState['error']): void;
+	/** Reports a background conflict without changing the last confirmed enablement or the requested selection. */
+	reportChatSandboxConflict(target: IAgentChatConfigurationTarget, message: string): void;
 	/**
 	 * Reports that a chat's runtime failed to apply the sandbox selection it read
 	 * as `values` and rolls the selection back where it was set (the chat's own
@@ -1094,8 +1097,8 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		}
 		const policyChanged = !equals(previousPolicy, policy);
 		if (policyChanged) {
-			// A previously unmanaged Off is not an authorized bypass of a new floor.
-			const meta = policy?.enabled && !previousPolicy?.enabled
+			// Retain confirmed Off only when the new floor permits bypass.
+			const meta = policy?.enabled && !previousPolicy?.enabled && policy.allowBypass !== true
 				? withSessionSandboxState(state._meta, undefined)
 				: state._meta;
 			this._stateManager.setSessionMeta(session, withSessionSandboxPolicy(meta, policy));
@@ -1140,13 +1143,13 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		return this._readChatSandboxState(target)?.enabled;
 	}
 
-	setChatSandboxEnabled(target: IAgentChatConfigurationTarget, enabled: boolean, error?: ISessionSandboxState['error']): void {
+	setChatSandboxEnabled(target: IAgentChatConfigurationTarget, enabled: boolean | undefined, error?: ISessionSandboxState['error']): void {
 		const state = this._stateManager.getSessionState(target.session);
 		if (!state) {
 			return;
 		}
 		const previous = this._readChatSandboxState(target);
-		if (previous?.enabled === enabled && !previous.error && !error && readChatSandboxState(state, target.chat)) {
+		if (previous && previous.enabled === enabled && !previous.error && !error && readChatSandboxState(state, target.chat)) {
 			return;
 		}
 		// A rejected selection stays reported until a new one is made.
@@ -1164,6 +1167,14 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			meta = withSessionSandboxState(meta, next);
 		}
 		this._stateManager.setSessionMeta(target.session, meta);
+	}
+
+	reportChatSandboxConflict(target: IAgentChatConfigurationTarget, message: string): void {
+		const previous = this._readChatSandboxState(target);
+		if (previous?.error && hasKey(previous.error, { id: true }) && previous.error.message === message) {
+			return;
+		}
+		this._writeChatSandboxState(target, { ...previous, error: { id: generateUuid(), message } });
 	}
 
 	/**
@@ -1194,7 +1205,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 
 	rejectChatSandboxChange(target: IAgentChatConfigurationTarget, values: Record<string, unknown> | undefined, origin: ActionOrigin, message: string): void {
 		const previous = this._readChatSandboxState(target);
-		if (!previous || this._chatSandboxChanges.get(target.chat) !== values) {
+		if (previous?.enabled === undefined || this._chatSandboxChanges.get(target.chat) !== values) {
 			return;
 		}
 		// Publish the failure before rollback so clients can notify before reconciling the toggle.

@@ -73,6 +73,8 @@ suite('CopilotCanvasesWidget', () => {
 		readonly contextAvailable?: boolean;
 		readonly ownerSuffix?: string;
 		readonly mutationGate?: Promise<void>;
+		readonly mutationError?: Error;
+		readonly onMutation?: () => void;
 		readonly plugins?: readonly IAgentPlugin[];
 	}) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.copilot-canvases-test.ai-customization-management-editor'));
@@ -140,6 +142,10 @@ suite('CopilotCanvasesWidget', () => {
 				if (!value) {
 					definitions = definitions.filter(canvas => canvas.extensionId !== extensionId);
 				}
+				options?.onMutation?.();
+				if (options?.mutationError) {
+					throw options.mutationError;
+				}
 				definitionsChanged.fire();
 			}
 		}();
@@ -167,6 +173,7 @@ suite('CopilotCanvasesWidget', () => {
 		}());
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 			override info(message: string): void { notifications.push(message); }
+			override error(message: string): void { notifications.push(message); }
 		}());
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override executeCommand<R = unknown>(id: string, ...args: unknown[]): Promise<R | undefined> {
@@ -567,6 +574,64 @@ suite('CopilotCanvasesWidget', () => {
 		});
 	});
 
+	test('refreshes committed enablement when Canvas listing also fails', async () => {
+		const preview = definition();
+		let failCanvasListing = false;
+		const harness = createHarness({
+			definitions: [preview],
+			listCanvases: async () => {
+				if (failCanvasListing) {
+					throw new Error('Canvas listing failed.');
+				}
+				return [preview];
+			},
+			onMutation: () => failCanvasListing = true,
+			mutationError: new Error('Canvas extension \'Preview Extension\' was disabled in settings, but couldn\'t be stopped in this chat. Reconciliation failed.'),
+		});
+		await timeout(20);
+		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable canvas extension \'Preview Extension\'"]');
+		assert.ok(disable);
+		const requestsBefore = harness.listRequests.length;
+		disable.click();
+		await timeout(20);
+		assert.deepStrictEqual({
+			refreshed: harness.listRequests.length > requestsBefore,
+			checked: harness.container.querySelector('[aria-label="Enable canvas extension \'Preview Extension\'"]')?.getAttribute('aria-checked'),
+			notifications: harness.notifications,
+		}, {
+			refreshed: true,
+			checked: 'false',
+			notifications: ['Canvas extension \'Preview Extension\' was disabled in settings, but couldn\'t be stopped in this chat. Reconciliation failed.'],
+		});
+	});
+
+	for (const scenario of [
+		{ name: 'successful enable', mutationError: undefined },
+		{ name: 'failed live reconciliation', mutationError: new Error('Canvas extension \'Preview Extension\' was enabled in settings, but couldn\'t be started in this chat. Reconciliation failed.') },
+	]) {
+		test(`restores toggle focus after ${scenario.name}`, async () => {
+			const preview = definition();
+			const harness = createHarness({
+				definitions: [preview],
+				extensionInventory: inventory([preview], 'disabled'),
+				mutationError: scenario.mutationError,
+			});
+			await timeout(20);
+			const enable = harness.container.querySelector<HTMLElement>('[aria-label="Enable canvas extension \'Preview Extension\'"]');
+			assert.ok(enable);
+			enable.focus();
+			enable.click();
+			await timeout(20);
+			assert.deepStrictEqual({
+				label: DOM.getActiveElement()?.getAttribute('aria-label'),
+				checked: DOM.getActiveElement()?.getAttribute('aria-checked'),
+			}, {
+				label: 'Disable canvas extension \'Preview Extension\'',
+				checked: 'true',
+			});
+		});
+	}
+
 	test('restores cached children after the Customizations widget is recreated while disabled', async () => {
 		const definitions = [
 			definition({ canvasId: 'review', extensionId: 'user:pr-tools', extensionSource: 'user', extensionName: 'PR Tools', displayName: 'PR Review Board' }),
@@ -654,11 +719,11 @@ suite('CopilotCanvasesWidget', () => {
 		assert.deepStrictEqual({
 			canvas: accessible.includes('Preview. Last known:'),
 			lastKnown: accessible.includes('Last known:'),
-			itemCounts: refreshed.itemCounts,
+			itemCount: refreshed.itemCounts.at(-1),
 		}, {
 			canvas: false,
 			lastKnown: false,
-			itemCounts: [0],
+			itemCount: 0,
 		});
 	});
 

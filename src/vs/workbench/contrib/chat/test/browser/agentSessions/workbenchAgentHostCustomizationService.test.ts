@@ -19,6 +19,7 @@ import { buildChatUri, buildDefaultChatUri } from '../../../../../../platform/ag
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
@@ -155,6 +156,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				new NullLogService(),
 				service,
 				store.add(new MockPromptsService()),
+				new class extends mock<ILabelService>() { }(),
 			));
 			const folders = await itemProvider.provideSourceFolders(session, PromptsType.skill, CancellationToken.None);
 			const toolInventory = service.getAgentFileToolInventory(session);
