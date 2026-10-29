@@ -7,18 +7,14 @@ import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { ClassNameReference, DynamicCssRules } from '../../../browser/editorDom.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
+import { ConfigurationChangedEvent, EditorOption } from '../../../common/config/editorOptions.js';
 import { countEOL } from '../../../common/core/misc/eolCounter.js';
 import { Range } from '../../../common/core/range.js';
+import { LineRange, LineRangeSet } from '../../../common/core/ranges/lineRange.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
 import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from '../../../common/model.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { IModelContentChangedEvent } from '../../../common/textModelEvents.js';
-
-interface LineRange {
-	readonly startLineNumber: number;
-	readonly endLineNumber: number;
-}
 
 export class ShrinkEmptyLinesController extends Disposable implements IEditorContribution {
 
@@ -40,38 +36,71 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 			if (event.hasChanged(EditorOption.effectiveShrinkEmptyLines)
 				|| event.hasChanged(EditorOption.fontInfo)
 				|| event.hasChanged(EditorOption.lineHeight)) {
-				this._updateDecorationOptions();
-				this._updateAllDecorations();
+				this._updateDecorationOptions(event);
 			}
 		}));
 		this._register(this.editor.onDidChangeModelContent(event => this._updateDecorations(event)));
 		this._updateDecorationOptions();
-		this._updateAllDecorations();
 	}
 
-	private _updateDecorationOptions(): void {
+	private _updateDecorationOptions(event?: ConfigurationChangedEvent): void {
 		const multiplier = this.editor.getOption(EditorOption.effectiveShrinkEmptyLines);
 		if (multiplier === 1) {
 			this._decorationOptions = undefined;
 			this._fontSizeRule.clear();
+			this._updateAllDecorations();
 			return;
 		}
+		const previousOptions = this._decorationOptions;
 		const fontSize = `${this.editor.getOption(EditorOption.fontInfo).fontSize * multiplier}px`;
-		this._fontSizeRule.value = this._ruleFactory.createClassNameRef({ fontSize });
-		this._decorationOptions = {
-			lineHeight: ModelDecorationOptions.createDynamic({
-				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-				description: 'shrink-empty-line-line-height',
-				isWholeLine: true,
-				lineHeight: multiplier,
-			}),
-			fontSize: ModelDecorationOptions.createDynamic({
+		let fontSizeOptions = previousOptions?.fontSize;
+		if (!fontSizeOptions || fontSizeOptions.fontSize !== fontSize) {
+			const fontSizeRule = this._ruleFactory.createClassNameRef({ fontSize });
+			this._fontSizeRule.value = fontSizeRule;
+			fontSizeOptions = ModelDecorationOptions.createDynamic({
 				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				description: 'shrink-empty-line-font-size',
 				fontSize,
-				inlineClassName: this._fontSizeRule.value.className
-			}),
+				inlineClassName: fontSizeRule.className
+			});
+		}
+		let lineHeightOptions = previousOptions?.lineHeight;
+		const lineHeightChanged = event?.hasChanged(EditorOption.lineHeight) ?? false;
+		if (!lineHeightOptions || lineHeightChanged || lineHeightOptions.lineHeight !== multiplier) {
+			lineHeightOptions = ModelDecorationOptions.createDynamic({
+				stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+				description: 'shrink-empty-line-line-height',
+				isWholeLine: true,
+				lineHeight: multiplier,
+			});
+		}
+		const decorationOptions = {
+			lineHeight: lineHeightOptions,
+			fontSize: fontSizeOptions,
 		};
+		this._decorationOptions = decorationOptions;
+		if (!previousOptions) {
+			this._updateAllDecorations();
+			return;
+		}
+		if (previousOptions.lineHeight === decorationOptions.lineHeight && previousOptions.fontSize === decorationOptions.fontSize) {
+			return;
+		}
+		const model = this.editor.getModel();
+		if (!model) {
+			return;
+		}
+		// Reuse ranges for style-only changes instead of rescanning the entire model with _updateAllDecorations.
+		this.editor.changeDecorations(accessor => {
+			for (const decorationId of this._decorationIds) {
+				const options = model.getDecorationOptions(decorationId);
+				if (options === previousOptions.lineHeight && options !== decorationOptions.lineHeight) {
+					accessor.changeDecorationOptions(decorationId, decorationOptions.lineHeight);
+				} else if (options === previousOptions.fontSize && options !== decorationOptions.fontSize) {
+					accessor.changeDecorationOptions(decorationId, decorationOptions.fontSize);
+				}
+			}
+		});
 	}
 
 	private _shouldShrinkLine(lineContent: string): boolean {
@@ -84,7 +113,7 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 			return decorations;
 		}
 		for (const range of ranges) {
-			for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
+			for (let lineNumber = range.startLineNumber; lineNumber < range.endLineNumberExclusive; lineNumber++) {
 				const lineContent = model.getLineContent(lineNumber);
 				if (this._shouldShrinkLine(lineContent)) {
 					decorations.push({
@@ -112,7 +141,7 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 		const model = this.editor.getModel();
 		let decorations: IModelDeltaDecoration[] = [];
 		if (model) {
-			decorations = this._getDecorations(model, [{ startLineNumber: 1, endLineNumber: model.getLineCount() }]);
+			decorations = this._getDecorations(model, [new LineRange(1, model.getLineCount() + 1)]);
 		}
 		this._replaceDecorations(Array.from(this._decorationIds), decorations);
 	}
@@ -127,29 +156,33 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 			return;
 		}
 		let lineDelta = 0;
-		const changedRanges: LineRange[] = [];
+		const changedRanges = new LineRangeSet();
 		// Changes use pre-edit coordinates and are ordered from bottom to top.
 		for (let i = event.changes.length - 1; i >= 0; i--) {
 			const change = event.changes[i];
 			const insertedLines = countEOL(change.text)[0];
 			const startLineNumber = change.range.startLineNumber + lineDelta;
-			changedRanges.push({ startLineNumber, endLineNumber: Math.min(startLineNumber + insertedLines, model.getLineCount()) });
+			changedRanges.addRange(new LineRange(startLineNumber, Math.min(startLineNumber + insertedLines + 1, model.getLineCount() + 1)));
 			lineDelta += insertedLines - (change.range.endLineNumber - change.range.startLineNumber);
 		}
 		const oldDecorations = new Set<string>();
-		for (const range of changedRanges) {
-			const modelRange = new Range(range.startLineNumber, 1, range.endLineNumber, model.getLineMaxColumn(range.endLineNumber));
+		for (const range of changedRanges.ranges) {
+			const endLineNumber = range.endLineNumberExclusive - 1;
+			const modelRange = new Range(range.startLineNumber, 1, endLineNumber, model.getLineMaxColumn(endLineNumber));
 			for (const decoration of model.getDecorationsInRange(modelRange)) {
 				if (this._decorationIds.has(decoration.id)) {
 					oldDecorations.add(decoration.id);
 				}
 			}
 		}
-		const newDecorations = this._getDecorations(model, changedRanges);
+		const newDecorations = this._getDecorations(model, changedRanges.ranges);
 		this._replaceDecorations(Array.from(oldDecorations), newDecorations);
 	}
 
 	private _replaceDecorations(oldDecorations: string[], newDecorations: readonly IModelDeltaDecoration[]): void {
+		if (oldDecorations.length === 0 && newDecorations.length === 0) {
+			return;
+		}
 		this.editor.changeDecorations(accessor => {
 			const newDecorationIds = accessor.deltaDecorations(oldDecorations, newDecorations);
 			for (const decorationId of oldDecorations) {

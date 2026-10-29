@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { getWindow } from '../../../../../base/browser/dom.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -55,6 +56,10 @@ suite('Shrink Empty Lines', () => {
 			editor.getFontSizeAtPosition({ lineNumber: index + 1, column: 1 }));
 	}
 
+	function getShrinkingDecorations(model: ITextModel) {
+		return model.getAllDecorations().filter(decoration => decoration.options.description.startsWith('shrink-empty-line-'));
+	}
+
 	test('uses regular line height by default', () => {
 		const { editor } = createEditor('a\n\n \n{\n}');
 
@@ -91,6 +96,27 @@ suite('Shrink Empty Lines', () => {
 		});
 	});
 
+	test('reuses classified ranges when the multiplier changes', () => {
+		const { editor, model } = createEditor(Array.from({ length: 1000 }, () => '{}').join('\n'), { shrinkEmptyLines: 0.5 });
+		const decorationIds = getShrinkingDecorations(model).map(decoration => decoration.id);
+		const getLineContent = spy(model, 'getLineContent');
+		disposables.add(toDisposable(() => getLineContent.restore()));
+
+		editor.updateOptions({ shrinkEmptyLines: 0.25 });
+
+		assert.deepStrictEqual({
+			scannedLastLine: getLineContent.calledWith(model.getLineCount()),
+			decorationIds: getShrinkingDecorations(model).map(decoration => decoration.id),
+			lineHeights: [1, 500, 1000].map(lineNumber => editor.getViewModel()!.viewLayout.getLineHeightForLineNumber(lineNumber)),
+			fontSize: editor.getFontSizeAtPosition({ lineNumber: 1000, column: 1 }),
+		}, {
+			scannedLastLine: false,
+			decorationIds,
+			lineHeights: [5, 5, 5],
+			fontSize: '3.5px',
+		});
+	});
+
 	test('renders proportional punctuation fonts after font and multiplier changes', () => {
 		const container = document.createElement('div');
 		document.body.appendChild(container);
@@ -105,6 +131,8 @@ suite('Shrink Empty Lines', () => {
 		editor.setModel(model);
 		disposables.add(new ShrinkEmptyLinesController(editor));
 		editor.layout({ width: 400, height: 200 });
+		let heightChanges = 0;
+		disposables.add(model.onDidChangeLineHeight(event => heightChanges += event.changes.length));
 
 		function getRenderedSizes() {
 			editor.render(true);
@@ -113,10 +141,13 @@ suite('Shrink Empty Lines', () => {
 				assert.ok(token);
 				return getWindow(container).getComputedStyle(token).fontSize;
 			});
-			return {
+			const result = {
 				fontSizes,
 				punctuationHeight: editor.getTopForLineNumber(3) - editor.getTopForLineNumber(2),
+				heightChanges,
 			};
+			heightChanges = 0;
+			return result;
 		}
 
 		const results = [getRenderedSizes()];
@@ -138,15 +169,15 @@ suite('Shrink Empty Lines', () => {
 		results.push(getRenderedSizes());
 
 		assert.deepStrictEqual(results, [
-			{ fontSizes: ['20px', '10px', '20px'], punctuationHeight: 15 },
-			{ fontSizes: ['20px', '5px', '20px'], punctuationHeight: 8 },
-			{ fontSizes: ['24px', '6px', '24px'], punctuationHeight: 8 },
-			{ fontSizes: ['24px', '18px', '24px'], punctuationHeight: 30 },
-			{ fontSizes: ['24px', '24px', '24px'], punctuationHeight: 40 },
-			{ fontSizes: ['24px', '18px', '24px'], punctuationHeight: 30 },
-			{ fontSizes: ['24px', '24px', '24px'], punctuationHeight: 40 },
-			{ fontSizes: ['24px', '6px', '24px'], punctuationHeight: 10 },
-			{ fontSizes: ['24px', '12px', '24px'], punctuationHeight: 20 },
+			{ fontSizes: ['20px', '10px', '20px'], punctuationHeight: 15, heightChanges: 0 },
+			{ fontSizes: ['20px', '5px', '20px'], punctuationHeight: 8, heightChanges: 1 },
+			{ fontSizes: ['24px', '6px', '24px'], punctuationHeight: 8, heightChanges: 0 },
+			{ fontSizes: ['24px', '18px', '24px'], punctuationHeight: 30, heightChanges: 1 },
+			{ fontSizes: ['24px', '24px', '24px'], punctuationHeight: 40, heightChanges: 1 },
+			{ fontSizes: ['24px', '18px', '24px'], punctuationHeight: 30, heightChanges: 1 },
+			{ fontSizes: ['24px', '24px', '24px'], punctuationHeight: 40, heightChanges: 1 },
+			{ fontSizes: ['24px', '6px', '24px'], punctuationHeight: 10, heightChanges: 1 },
+			{ fontSizes: ['24px', '12px', '24px'], punctuationHeight: 20, heightChanges: 1 },
 		]);
 	});
 
@@ -340,6 +371,72 @@ suite('Shrink Empty Lines', () => {
 
 		model.applyEdits([{ range: new Range(1, 2, 1, 2), text: '\n' }]);
 		assert.deepStrictEqual(getLineHeights(editor), [19, 10, 10, 19]);
+	});
+
+	test('retains the line height when punctuation is appended', () => {
+		const { editor, model } = createEditor('a\n{ }\n0', { shrinkEmptyLines: 0.5 });
+		const heightIds = getShrinkingDecorations(model).filter(decoration => typeof decoration.options.lineHeight === 'number').map(decoration => decoration.id);
+		let heightChanges = 0;
+		disposables.add(model.onDidChangeLineHeight(event => heightChanges += event.changes.length));
+
+		model.applyEdits([{ range: new Range(2, 4, 2, 4), text: ';' }]);
+
+		assert.deepStrictEqual({
+			heightIds: getShrinkingDecorations(model).filter(decoration => typeof decoration.options.lineHeight === 'number').map(decoration => decoration.id),
+			heightChanges,
+			lineHeights: getLineHeights(editor),
+			fontRanges: getShrinkingDecorations(model).filter(decoration => decoration.options.fontSize !== null).map(decoration => [decoration.range.startColumn, decoration.range.endColumn]),
+		}, {
+			heightIds,
+			heightChanges: 0,
+			lineHeights: [19, 10, 19],
+			fontRanges: [[1, 2], [3, 5]],
+		});
+	});
+
+	test('keeps retained height ranges correct when an edit adds wrapped lines', () => {
+		const { editor, model } = createEditor('{}\na', {
+			shrinkEmptyLines: 0.5,
+			wordWrap: 'wordWrapColumn',
+			wordWrapColumn: 2,
+			wrappingIndent: 'none',
+		});
+		const heightIds = getShrinkingDecorations(model).filter(decoration => typeof decoration.options.lineHeight === 'number').map(decoration => decoration.id);
+
+		model.applyEdits([{ range: new Range(1, 3, 1, 3), text: ';;' }]);
+
+		assert.deepStrictEqual({
+			heightIds: getShrinkingDecorations(model).filter(decoration => typeof decoration.options.lineHeight === 'number').map(decoration => decoration.id),
+			lineHeights: getLineHeights(editor),
+		}, {
+			heightIds,
+			lineHeights: [10, 10, 19],
+		});
+	});
+
+	test('merges edits on the same line without creating duplicate decorations', () => {
+		const { editor, model } = createEditor('a\n{}\n0', { shrinkEmptyLines: 0.5 });
+
+		model.applyEdits([
+			{ range: new Range(2, 1, 2, 1), text: ' ' },
+			{ range: new Range(2, 3, 2, 3), text: ';' },
+		]);
+
+		assert.deepStrictEqual({
+			text: model.getLineContent(2),
+			decorations: getShrinkingDecorations(model).map(decoration => ({
+				kind: typeof decoration.options.lineHeight === 'number' ? 'height' : 'font',
+				range: decoration.range.toString(),
+			})),
+			lineHeights: getLineHeights(editor),
+		}, {
+			text: ' {};',
+			decorations: [
+				{ kind: 'height', range: '[2,1 -> 2,5]' },
+				{ kind: 'font', range: '[2,2 -> 2,5]' },
+			],
+			lineHeights: [19, 10, 19],
+		});
 	});
 
 	test('shrinks blank lines inserted at multiple positions', () => {

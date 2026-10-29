@@ -60,7 +60,7 @@ export class CustomLine {
  *
  * The class optimizes performance by:
  * - Using binary search to locate lines in the ordered array
- * - Batching updates through a pending changes mechanism
+ * - Batching updates and sorting insertions once per batch
  * - Computing prefix sums for O(1) accumulated height lookup
  * - Tracking maximum height for lines with multiple decorations
  * - Efficiently handling document changes (line insertions and deletions)
@@ -202,19 +202,26 @@ export class LineHeightsManager {
 		if (stagedInserts.length === 0 && this._invalidIndex === Infinity) {
 			return;
 		}
+		let hasInserts = false;
 		for (const pendingChange of stagedInserts) {
 			if (pendingChange.deleted) {
 				continue;
 			}
-			const candidateInsertionIndex = this._binarySearchOverOrderedCustomLinesArray(pendingChange.lineNumber);
-			const insertionIndex = candidateInsertionIndex >= 0 ? candidateInsertionIndex : -(candidateInsertionIndex + 1);
-			this._orderedCustomLines.splice(insertionIndex, 0, pendingChange);
-			this._invalidIndex = Math.min(this._invalidIndex, insertionIndex);
+			this._orderedCustomLines.push(pendingChange);
+			hasInserts = true;
+		}
+		if (hasInserts) {
+			this._orderedCustomLines.sort((a, b) => a.lineNumber - b.lineNumber);
+			this._invalidIndex = 0;
 		}
 		stagedInserts.length = 0;
 		stagedIdMap.clear();
 		if (this._invalidIndex === Infinity) {
 			return;
+		}
+		// Rewind to recompute the maximum height of the line at the invalid index
+		while (this._invalidIndex > 0 && this._orderedCustomLines[this._invalidIndex - 1].lineNumber === this._orderedCustomLines[this._invalidIndex].lineNumber) {
+			this._invalidIndex--;
 		}
 		const newDecorationIDToSpecialLine = new ArrayMap<string, CustomLine>();
 		const newOrderedSpecialLines: CustomLine[] = [];
