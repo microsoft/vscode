@@ -16,16 +16,23 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IBrowserDeviceProfile } from '../../../../../platform/browserView/common/browserView.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
 import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget, IContainerLayout, IContainerLayoutOverride, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup } from '../browserEditor.js';
@@ -54,8 +61,240 @@ const CONTEXT_BROWSER_EMULATION_HAS_USER_AGENT = new RawContextKey<boolean>(
  * preserving the user's current scale.
  */
 export interface IBrowserDevicePreset {
+	readonly id?: string;
 	readonly name: string;
 	readonly device?: IBrowserDeviceProfile;
+	readonly isCustom?: boolean;
+}
+
+export interface IStoredCustomDevicePreset {
+	readonly id: string;
+	readonly name: string;
+	readonly width: number;
+	readonly height: number;
+	readonly deviceScaleFactor?: number;
+	readonly mobile?: boolean;
+	readonly userAgent?: string;
+}
+
+export class BrowserDevicePresetManager extends Disposable {
+	static readonly STORAGE_KEY = 'workbench.browser.customDevicePresets';
+	static readonly CONFIG_KEY = 'workbench.browser.customDevicePresets';
+
+	private readonly _onDidChangeCustomPresets = this._register(new Emitter<void>());
+	readonly onDidChangeCustomPresets = this._onDidChangeCustomPresets.event;
+
+	private _storedPresets: IStoredCustomDevicePreset[] = [];
+
+	constructor(
+		@IStorageService private readonly _storageService: IStorageService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+	) {
+		super();
+		this._load();
+
+		const storageListenerStore = this._register(new DisposableStore());
+		this._register(this._storageService.onDidChangeValue(
+			StorageScope.PROFILE,
+			BrowserDevicePresetManager.STORAGE_KEY,
+			storageListenerStore
+		)(() => {
+			this._load();
+			this._onDidChangeCustomPresets.fire();
+		}));
+
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(BrowserDevicePresetManager.CONFIG_KEY)) {
+				this._onDidChangeCustomPresets.fire();
+			}
+		}));
+	}
+
+	getCustomPresets(): readonly IBrowserDevicePreset[] {
+		const configuredRaw = this._configurationService.getValue<unknown[]>(BrowserDevicePresetManager.CONFIG_KEY);
+		const configuredPresets: IStoredCustomDevicePreset[] = [];
+		if (Array.isArray(configuredRaw)) {
+			for (const p of configuredRaw) {
+				const item = toStoredCustomDevicePreset(p);
+				if (item) {
+					configuredPresets.push(item);
+				}
+			}
+		}
+
+		const seenIds = new Set<string>();
+		const seenNames = new Set<string>();
+		const result: IBrowserDevicePreset[] = [];
+
+		for (const p of this._storedPresets) {
+			seenIds.add(p.id);
+			seenNames.add(p.name.toLowerCase());
+			result.push({
+				id: p.id,
+				name: p.name,
+				isCustom: true,
+				device: {
+					width: p.width,
+					height: p.height,
+					deviceScaleFactor: p.deviceScaleFactor,
+					mobile: p.mobile,
+					userAgent: p.userAgent,
+				}
+			});
+		}
+
+		for (const p of configuredPresets) {
+			if (!seenIds.has(p.id) && !seenNames.has(p.name.toLowerCase())) {
+				seenIds.add(p.id);
+				seenNames.add(p.name.toLowerCase());
+				result.push({
+					id: p.id,
+					name: p.name,
+					isCustom: true,
+					device: {
+						width: p.width,
+						height: p.height,
+						deviceScaleFactor: p.deviceScaleFactor,
+						mobile: p.mobile,
+						userAgent: p.userAgent,
+					}
+				});
+			}
+		}
+
+		return result;
+	}
+
+	getAllPresets(): readonly IBrowserDevicePreset[] {
+		return [...DEFAULT_BROWSER_DEVICE_PRESETS, ...this.getCustomPresets()];
+	}
+
+	addCustomPreset(preset: Omit<IStoredCustomDevicePreset, 'id'> & { id?: string }): IBrowserDevicePreset {
+		const newPreset: IStoredCustomDevicePreset = {
+			id: preset.id || generateUuid(),
+			name: preset.name.trim(),
+			width: Math.max(1, Math.min(9999, Math.round(preset.width))),
+			height: Math.max(1, Math.min(9999, Math.round(preset.height))),
+			deviceScaleFactor: typeof preset.deviceScaleFactor === 'number' && preset.deviceScaleFactor > 0
+				? Math.max(0.1, Math.min(8, preset.deviceScaleFactor))
+				: undefined,
+			mobile: preset.mobile,
+			userAgent: preset.userAgent?.trim() || undefined,
+		};
+
+		const idx = this._storedPresets.findIndex(p => p.id === newPreset.id || p.name.toLowerCase() === newPreset.name.toLowerCase());
+		if (idx >= 0) {
+			this._storedPresets[idx] = newPreset;
+		} else {
+			this._storedPresets.push(newPreset);
+		}
+		this._save();
+		return {
+			id: newPreset.id,
+			name: newPreset.name,
+			isCustom: true,
+			device: {
+				width: newPreset.width,
+				height: newPreset.height,
+				deviceScaleFactor: newPreset.deviceScaleFactor,
+				mobile: newPreset.mobile,
+				userAgent: newPreset.userAgent,
+			}
+		};
+	}
+
+	updateCustomPreset(id: string, updates: Partial<Omit<IStoredCustomDevicePreset, 'id'>>): boolean {
+		const idx = this._storedPresets.findIndex(p => p.id === id);
+		if (idx < 0) {
+			return false;
+		}
+		const existing = this._storedPresets[idx];
+		this._storedPresets[idx] = {
+			id: existing.id,
+			name: updates.name !== undefined ? updates.name.trim() : existing.name,
+			width: updates.width !== undefined ? Math.max(1, Math.min(9999, Math.round(updates.width))) : existing.width,
+			height: updates.height !== undefined ? Math.max(1, Math.min(9999, Math.round(updates.height))) : existing.height,
+			deviceScaleFactor: updates.deviceScaleFactor !== undefined
+				? (updates.deviceScaleFactor && updates.deviceScaleFactor > 0 ? Math.max(0.1, Math.min(8, updates.deviceScaleFactor)) : undefined)
+				: existing.deviceScaleFactor,
+			mobile: updates.mobile !== undefined ? updates.mobile : existing.mobile,
+			userAgent: updates.userAgent !== undefined ? (updates.userAgent.trim() || undefined) : existing.userAgent,
+		};
+		this._save();
+		return true;
+	}
+
+	deleteCustomPreset(id: string): boolean {
+		const initialLen = this._storedPresets.length;
+		this._storedPresets = this._storedPresets.filter(p => p.id !== id);
+		if (this._storedPresets.length !== initialLen) {
+			this._save();
+			return true;
+		}
+		return false;
+	}
+
+	private _load(): void {
+		const raw = this._storageService.get(BrowserDevicePresetManager.STORAGE_KEY, StorageScope.PROFILE);
+		if (!raw) {
+			this._storedPresets = [];
+			return;
+		}
+		try {
+			const parsed = JSON.parse(raw);
+			if (Array.isArray(parsed)) {
+				this._storedPresets = [];
+				for (const item of parsed) {
+					const converted = toStoredCustomDevicePreset(item);
+					if (converted) {
+						this._storedPresets.push(converted);
+					}
+				}
+			} else {
+				this._storedPresets = [];
+			}
+		} catch {
+			this._storedPresets = [];
+		}
+	}
+
+	private _save(): void {
+		this._storageService.store(
+			BrowserDevicePresetManager.STORAGE_KEY,
+			JSON.stringify(this._storedPresets),
+			StorageScope.PROFILE,
+			StorageTarget.USER
+		);
+		this._onDidChangeCustomPresets.fire();
+	}
+}
+
+function toStoredCustomDevicePreset(obj: unknown): IStoredCustomDevicePreset | undefined {
+	if (typeof obj !== 'object' || obj === null) {
+		return undefined;
+	}
+	const rec = obj as Record<string, unknown>;
+	if (
+		typeof rec.name !== 'string' ||
+		!rec.name.trim() ||
+		typeof rec.width !== 'number' ||
+		rec.width <= 0 ||
+		typeof rec.height !== 'number' ||
+		rec.height <= 0
+	) {
+		return undefined;
+	}
+	return {
+		id: typeof rec.id === 'string' && rec.id.trim() ? rec.id : generateUuid(),
+		name: rec.name.trim(),
+		width: Math.max(1, Math.min(9999, Math.round(rec.width))),
+		height: Math.max(1, Math.min(9999, Math.round(rec.height))),
+		deviceScaleFactor: typeof rec.deviceScaleFactor === 'number' && rec.deviceScaleFactor > 0
+			? Math.max(0.1, Math.min(8, rec.deviceScaleFactor))
+			: undefined,
+		mobile: typeof rec.mobile === 'boolean' ? rec.mobile : undefined,
+		userAgent: typeof rec.userAgent === 'string' && rec.userAgent.trim() ? rec.userAgent.trim() : undefined,
+	};
 }
 
 /**
@@ -338,6 +577,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 	private readonly _toolbarVisible: IContextKey<boolean>;
 	private readonly _isMobile: IContextKey<boolean>;
 	private readonly _hasUserAgent: IContextKey<boolean>;
+	readonly presetManager: BrowserDevicePresetManager;
 
 	/** Committed renderer-side scale; undefined = auto-fit. Not persisted in the device model (rides on the layout call). */
 	private _scale: number | undefined;
@@ -359,6 +599,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		this._toolbarVisible = CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE.bindTo(contextKeyService);
 		this._isMobile = CONTEXT_BROWSER_EMULATION_IS_MOBILE.bindTo(contextKeyService);
 		this._hasUserAgent = CONTEXT_BROWSER_EMULATION_HAS_USER_AGENT.bindTo(contextKeyService);
+		this.presetManager = this._register(instantiationService.createInstance(BrowserDevicePresetManager));
 
 		const actionsContainer = $('.browser-emulation-toolbar-actions');
 		const hoverDelegate = this._register(instantiationService.createInstance(
@@ -479,6 +720,8 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 
 	/** Current renderer-side scale; undefined = auto-fit. */
 	get scale(): number | undefined { return this._scale; }
+	/** All available device presets (built-in + custom). */
+	get presets(): readonly IBrowserDevicePreset[] { return this.presetManager.getAllPresets(); }
 	/** Convenience accessor for the toolbar — proxies the editor's model. */
 	get model(): IBrowserViewModel | undefined { return this.editor.model; }
 
@@ -776,7 +1019,7 @@ MenuRegistry.appendMenuItem(MenuId.BrowserEmulationToolbar, {
 	order: 20,
 });
 
-const DEFAULT_BROWSER_DEVICE_PRESETS: readonly IBrowserDevicePreset[] = [
+export const DEFAULT_BROWSER_DEVICE_PRESETS: readonly IBrowserDevicePreset[] = [
 	{
 		name: 'iPhone 15 Pro',
 		device: { width: 393, height: 852, mobile: true, deviceScaleFactor: 3, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' },
@@ -794,6 +1037,394 @@ const DEFAULT_BROWSER_DEVICE_PRESETS: readonly IBrowserDevicePreset[] = [
 		device: { width: 768, height: 1024, mobile: true, deviceScaleFactor: 2, userAgent: 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' },
 	},
 ];
+
+export async function showDevicePresetPicker(
+	support: BrowserEditorEmulationSupport,
+	quickInputService: IQuickInputService,
+	dialogService: IDialogService,
+): Promise<void> {
+	type PresetItem = IQuickPickItem & {
+		preset?: IBrowserDevicePreset;
+		isAdd?: boolean;
+		isManage?: boolean;
+	};
+
+	const disposables = new DisposableStore();
+	const quickPick = disposables.add(quickInputService.createQuickPick<PresetItem>({ useSeparators: true }));
+	quickPick.placeholder = localize('browser.devicePresets.placeholder', "Select a device preset");
+	quickPick.matchOnDescription = true;
+
+	const editButton: IQuickInputButton = {
+		iconClass: ThemeIcon.asClassName(Codicon.edit),
+		tooltip: localize('browser.devicePresets.editPreset', "Edit Preset"),
+	};
+
+	const deleteButton: IQuickInputButton = {
+		iconClass: ThemeIcon.asClassName(Codicon.trash),
+		tooltip: localize('browser.devicePresets.deletePreset', "Delete Preset"),
+	};
+
+	const buildItems = (): (PresetItem | IQuickPickSeparator)[] => {
+		const items: (PresetItem | IQuickPickSeparator)[] = [];
+
+		items.push({
+			type: 'separator',
+			label: localize('browser.devicePresets.builtIn', "Built-in Devices"),
+		});
+
+		for (const p of DEFAULT_BROWSER_DEVICE_PRESETS) {
+			items.push({
+				label: p.name,
+				description: p.device?.width && p.device?.height
+					? `${p.device.width}\u00D7${p.device.height}${p.device?.mobile ? ` \u2022 ${localize('browser.devicePresets.mobileTag', "mobile")}` : ''}`
+					: undefined,
+				preset: p,
+			});
+		}
+
+		const customPresets = support.presetManager.getCustomPresets();
+		if (customPresets.length > 0) {
+			items.push({
+				type: 'separator',
+				label: localize('browser.devicePresets.custom', "Custom Devices"),
+			});
+
+			for (const p of customPresets) {
+				const dims = p.device?.width && p.device?.height ? `${p.device.width}\u00D7${p.device.height}` : '';
+				const dpr = p.device?.deviceScaleFactor ? ` \u2022 DPR ${p.device.deviceScaleFactor}` : '';
+				const mobile = p.device?.mobile ? ` \u2022 ${localize('browser.devicePresets.mobileTag', "mobile")}` : '';
+				items.push({
+					label: p.name,
+					description: dims ? `${dims}${dpr}${mobile}` : undefined,
+					preset: p,
+					buttons: [editButton, deleteButton],
+				});
+			}
+		}
+
+		items.push({ type: 'separator' });
+
+		items.push({
+			label: localize('browser.devicePresets.addCustomDevice', "+ Add Custom Device"),
+			iconClass: ThemeIcon.asClassName(Codicon.add),
+			alwaysShow: true,
+			isAdd: true,
+		});
+
+		if (customPresets.length > 0) {
+			items.push({
+				label: localize('browser.devicePresets.manageDevices', "⚙ Manage Devices"),
+				iconClass: ThemeIcon.asClassName(Codicon.gear),
+				alwaysShow: true,
+				isManage: true,
+			});
+		}
+
+		return items;
+	};
+
+	quickPick.items = buildItems();
+
+	disposables.add(support.presetManager.onDidChangeCustomPresets(() => {
+		quickPick.items = buildItems();
+	}));
+
+	disposables.add(quickPick.onDidAccept(async () => {
+		const selected = quickPick.selectedItems[0];
+		if (!selected) {
+			return;
+		}
+		quickPick.hide();
+		if (selected.isAdd) {
+			await promptAddOrEditCustomDevice(support, quickInputService);
+		} else if (selected.isManage) {
+			await promptManageCustomDevices(support, quickInputService, dialogService);
+		} else if (selected.preset) {
+			support.applyPreset(selected.preset);
+		}
+	}));
+
+	disposables.add(quickPick.onDidTriggerItemButton(async ({ button, item }) => {
+		if (!item.preset?.id) {
+			return;
+		}
+		if (button === editButton) {
+			quickPick.hide();
+			await promptAddOrEditCustomDevice(support, quickInputService, item.preset);
+		} else if (button === deleteButton) {
+			const confirm = await dialogService.confirm({
+				message: localize('browser.deletePreset.confirm', "Are you sure you want to delete the device preset '{0}'?", item.preset.name),
+				primaryButton: localize('browser.deletePreset.delete', "Delete"),
+				type: 'question',
+			});
+			if (confirm.confirmed) {
+				support.presetManager.deleteCustomPreset(item.preset.id);
+			}
+		}
+	}));
+
+	disposables.add(quickPick.onDidHide(() => disposables.dispose()));
+	quickPick.show();
+}
+
+export async function promptManageCustomDevices(
+	support: BrowserEditorEmulationSupport,
+	quickInputService: IQuickInputService,
+	dialogService: IDialogService,
+): Promise<void> {
+	type ManageItem = IQuickPickItem & {
+		preset?: IBrowserDevicePreset;
+		isAdd?: boolean;
+	};
+
+	const disposables = new DisposableStore();
+	const quickPick = disposables.add(quickInputService.createQuickPick<ManageItem>({ useSeparators: true }));
+	quickPick.title = localize('browser.manageDevicePresets.title', "Manage Custom Device Presets");
+	quickPick.placeholder = localize('browser.manageDevicePresets.placeholder', "Select a preset to edit or delete");
+
+	const editButton: IQuickInputButton = {
+		iconClass: ThemeIcon.asClassName(Codicon.edit),
+		tooltip: localize('browser.devicePresets.editPreset', "Edit Preset"),
+	};
+
+	const deleteButton: IQuickInputButton = {
+		iconClass: ThemeIcon.asClassName(Codicon.trash),
+		tooltip: localize('browser.devicePresets.deletePreset', "Delete Preset"),
+	};
+
+	const buildItems = (): (ManageItem | IQuickPickSeparator)[] => {
+		const items: (ManageItem | IQuickPickSeparator)[] = [];
+		const customPresets = support.presetManager.getCustomPresets();
+		if (customPresets.length === 0) {
+			items.push({
+				label: localize('browser.manageDevicePresets.noPresets', "No custom device presets configured"),
+				description: localize('browser.manageDevicePresets.noPresetsDesc', "Select '+ Add Custom Device' to create one"),
+			});
+		} else {
+			for (const p of customPresets) {
+				const dims = p.device?.width && p.device?.height ? `${p.device.width}\u00D7${p.device.height}` : '';
+				const dpr = p.device?.deviceScaleFactor ? ` \u2022 DPR ${p.device.deviceScaleFactor}` : '';
+				const mobile = p.device?.mobile ? ` \u2022 ${localize('browser.devicePresets.mobileTag', "mobile")}` : '';
+				items.push({
+					label: p.name,
+					description: dims ? `${dims}${dpr}${mobile}` : undefined,
+					preset: p,
+					buttons: [editButton, deleteButton],
+				});
+			}
+		}
+
+		items.push({ type: 'separator' });
+		items.push({
+			label: localize('browser.devicePresets.addCustomDevice', "+ Add Custom Device"),
+			iconClass: ThemeIcon.asClassName(Codicon.add),
+			alwaysShow: true,
+			isAdd: true,
+		});
+
+		return items;
+	};
+
+	quickPick.items = buildItems();
+
+	disposables.add(support.presetManager.onDidChangeCustomPresets(() => {
+		quickPick.items = buildItems();
+	}));
+
+	disposables.add(quickPick.onDidAccept(async () => {
+		const selected = quickPick.selectedItems[0];
+		if (!selected) {
+			return;
+		}
+		if (selected.isAdd) {
+			quickPick.hide();
+			await promptAddOrEditCustomDevice(support, quickInputService);
+		} else if (selected.preset) {
+			quickPick.hide();
+			const action = await quickInputService.pick([
+				{ id: 'apply', label: localize('browser.devicePresets.apply', "Apply Preset") },
+				{ id: 'edit', label: localize('browser.devicePresets.edit', "Edit Preset") },
+				{ id: 'delete', label: localize('browser.devicePresets.delete', "Delete Preset") },
+			], {
+				placeHolder: localize('browser.devicePresets.actionPlaceholder', "Action for preset '{0}'", selected.preset.name),
+			});
+			if (action?.id === 'apply') {
+				support.applyPreset(selected.preset);
+			} else if (action?.id === 'edit') {
+				await promptAddOrEditCustomDevice(support, quickInputService, selected.preset);
+			} else if (action?.id === 'delete' && selected.preset.id) {
+				const confirm = await dialogService.confirm({
+					message: localize('browser.deletePreset.confirm', "Are you sure you want to delete the device preset '{0}'?", selected.preset.name),
+					primaryButton: localize('browser.deletePreset.delete', "Delete"),
+					type: 'question',
+				});
+				if (confirm.confirmed) {
+					support.presetManager.deleteCustomPreset(selected.preset.id);
+				}
+			}
+		}
+	}));
+
+	disposables.add(quickPick.onDidTriggerItemButton(async ({ button, item }) => {
+		if (!item.preset?.id) {
+			return;
+		}
+		if (button === editButton) {
+			quickPick.hide();
+			await promptAddOrEditCustomDevice(support, quickInputService, item.preset);
+		} else if (button === deleteButton) {
+			const confirm = await dialogService.confirm({
+				message: localize('browser.deletePreset.confirm', "Are you sure you want to delete the device preset '{0}'?", item.preset.name),
+				primaryButton: localize('browser.deletePreset.delete', "Delete"),
+				type: 'question',
+			});
+			if (confirm.confirmed) {
+				support.presetManager.deleteCustomPreset(item.preset.id);
+			}
+		}
+	}));
+
+	disposables.add(quickPick.onDidHide(() => disposables.dispose()));
+	quickPick.show();
+}
+
+export async function promptAddOrEditCustomDevice(
+	support: BrowserEditorEmulationSupport,
+	quickInputService: IQuickInputService,
+	existingPreset?: IBrowserDevicePreset,
+): Promise<IBrowserDevicePreset | undefined> {
+	const isEdit = !!existingPreset;
+	const title = isEdit
+		? localize('browser.editDevicePreset.title', "Edit Custom Device Preset")
+		: localize('browser.addDevicePreset.title', "Add Custom Device Preset");
+
+	const name = await quickInputService.input({
+		title,
+		prompt: localize('browser.devicePresetName.prompt', "Enter a name for the device preset"),
+		placeHolder: localize('browser.devicePresetName.placeholder', "e.g. iPhone 16 Pro Max, Laptop"),
+		value: existingPreset?.name ?? '',
+		validateInput: async (val) => {
+			const trimmed = val.trim();
+			if (!trimmed) {
+				return localize('browser.devicePresetName.empty', "Preset name cannot be empty");
+			}
+			return undefined;
+		}
+	});
+	if (name === undefined) {
+		return undefined;
+	}
+
+	const currentDevice = support.model?.device;
+
+	const defaultWidth = existingPreset?.device?.width ?? currentDevice?.width ?? 390;
+	const widthStr = await quickInputService.input({
+		title,
+		prompt: localize('browser.devicePresetWidth.prompt', "Enter viewport width in pixels"),
+		placeHolder: localize('browser.devicePresetWidth.placeholder', "e.g. 390"),
+		value: String(defaultWidth),
+		validateInput: async (val) => {
+			const num = Number(val.trim());
+			if (!val.trim() || isNaN(num) || !Number.isInteger(num) || num < 1 || num > 9999) {
+				return localize('browser.devicePresetWidth.invalid', "Width must be a whole number between 1 and 9999");
+			}
+			return undefined;
+		}
+	});
+	if (widthStr === undefined) {
+		return undefined;
+	}
+	const width = parseInt(widthStr.trim(), 10);
+
+	const defaultHeight = existingPreset?.device?.height ?? currentDevice?.height ?? 844;
+	const heightStr = await quickInputService.input({
+		title,
+		prompt: localize('browser.devicePresetHeight.prompt', "Enter viewport height in pixels"),
+		placeHolder: localize('browser.devicePresetHeight.placeholder', "e.g. 844"),
+		value: String(defaultHeight),
+		validateInput: async (val) => {
+			const num = Number(val.trim());
+			if (!val.trim() || isNaN(num) || !Number.isInteger(num) || num < 1 || num > 9999) {
+				return localize('browser.devicePresetHeight.invalid', "Height must be a whole number between 1 and 9999");
+			}
+			return undefined;
+		}
+	});
+	if (heightStr === undefined) {
+		return undefined;
+	}
+	const height = parseInt(heightStr.trim(), 10);
+
+	const defaultDpr = existingPreset?.device?.deviceScaleFactor ?? currentDevice?.deviceScaleFactor;
+	const dprStr = await quickInputService.input({
+		title,
+		prompt: localize('browser.devicePresetDpr.prompt', "Enter device pixel ratio (DPR, optional — leave blank for system default)"),
+		placeHolder: localize('browser.devicePresetDpr.placeholder', "e.g. 2, 3, or leave blank"),
+		value: defaultDpr !== undefined ? String(defaultDpr) : '',
+		validateInput: async (val) => {
+			const trimmed = val.trim();
+			if (!trimmed) {
+				return undefined;
+			}
+			const num = Number(trimmed);
+			if (isNaN(num) || num < 0 || num > 8) {
+				return localize('browser.devicePresetDpr.invalid', "DPR must be a number between 0 and 8");
+			}
+			return undefined;
+		}
+	});
+	if (dprStr === undefined) {
+		return undefined;
+	}
+	const deviceScaleFactor = dprStr.trim() ? Number(dprStr.trim()) : undefined;
+
+	type MobilePick = IQuickPickItem & { isMobile: boolean };
+	const isMobilePick = await quickInputService.pick<MobilePick>([
+		{ label: localize('browser.devicePresetMobile.mobile', "Mobile"), description: localize('browser.devicePresetMobile.mobileDesc', "Enable touch events and mobile viewport"), isMobile: true },
+		{ label: localize('browser.devicePresetMobile.desktop', "Desktop"), description: localize('browser.devicePresetMobile.desktopDesc', "Standard desktop viewport with pointer events"), isMobile: false },
+	], {
+		title,
+		placeHolder: localize('browser.devicePresetMobile.placeholder', "Select device type"),
+	});
+	if (isMobilePick === undefined) {
+		return undefined;
+	}
+	const mobile = isMobilePick.isMobile;
+
+	let result: IBrowserDevicePreset;
+	if (isEdit && existingPreset?.id) {
+		support.presetManager.updateCustomPreset(existingPreset.id, {
+			name: name.trim(),
+			width,
+			height,
+			deviceScaleFactor,
+			mobile,
+		});
+		result = {
+			id: existingPreset.id,
+			name: name.trim(),
+			isCustom: true,
+			device: {
+				width,
+				height,
+				deviceScaleFactor,
+				mobile,
+				userAgent: existingPreset.device?.userAgent,
+			}
+		};
+	} else {
+		result = support.presetManager.addCustomPreset({
+			name: name.trim(),
+			width,
+			height,
+			deviceScaleFactor,
+			mobile,
+		});
+	}
+
+	support.applyPreset(result);
+	return result;
+}
 
 class PickBrowserDevicePresetAction extends Action2 {
 	static readonly ID = 'workbench.action.browser.pickDevicePreset';
@@ -818,23 +1449,8 @@ class PickBrowserDevicePresetAction extends Action2 {
 			return;
 		}
 		const quickInputService = accessor.get(IQuickInputService);
-
-		type PresetItem = IQuickPickItem & { preset: IBrowserDevicePreset };
-		const items: PresetItem[] = DEFAULT_BROWSER_DEVICE_PRESETS.map(p => ({
-			label: p.name,
-			description: p.device?.width && p.device?.height
-				? `${p.device.width}\u00D7${p.device.height}${p.device?.mobile ? ` \u2022 ${localize('browser.devicePresets.mobileTag', "mobile")}` : ''}`
-				: undefined,
-			preset: p,
-		}));
-
-		const picked = await quickInputService.pick(items, {
-			placeHolder: localize('browser.devicePresets.placeholder', "Select a device preset"),
-			matchOnDescription: true,
-		});
-		if (picked) {
-			support.applyPreset(picked.preset);
-		}
+		const dialogService = accessor.get(IDialogService);
+		await showDevicePresetPicker(support, quickInputService, dialogService);
 	}
 }
 MenuRegistry.appendMenuItem(MenuId.BrowserEmulationToolbar, {
@@ -845,6 +1461,61 @@ MenuRegistry.appendMenuItem(MenuId.BrowserEmulationToolbar, {
 	},
 	order: 5,
 });
+
+class AddBrowserCustomDevicePresetAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.addCustomDevicePreset';
+
+	constructor() {
+		super({
+			id: AddBrowserCustomDevicePresetAction.ID,
+			title: localize2('browser.addCustomDevicePreset', 'Add Custom Device Preset...'),
+			category: BrowserActionCategory,
+			icon: Codicon.add,
+			f1: true,
+			precondition: BROWSER_EDITOR_ACTIVE,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (!(browserEditor instanceof BrowserEditor)) {
+			return;
+		}
+		const support = browserEditor.getContribution(BrowserEditorEmulationSupport);
+		if (!support) {
+			return;
+		}
+		const quickInputService = accessor.get(IQuickInputService);
+		await promptAddOrEditCustomDevice(support, quickInputService);
+	}
+}
+
+class ManageBrowserDevicePresetsAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.manageDevicePresets';
+
+	constructor() {
+		super({
+			id: ManageBrowserDevicePresetsAction.ID,
+			title: localize2('browser.manageDevicePresetsAction', 'Manage Custom Device Presets...'),
+			category: BrowserActionCategory,
+			icon: Codicon.gear,
+			f1: true,
+			precondition: BROWSER_EDITOR_ACTIVE,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (!(browserEditor instanceof BrowserEditor)) {
+			return;
+		}
+		const support = browserEditor.getContribution(BrowserEditorEmulationSupport);
+		if (!support) {
+			return;
+		}
+		const quickInputService = accessor.get(IQuickInputService);
+		const dialogService = accessor.get(IDialogService);
+		await promptManageCustomDevices(support, quickInputService, dialogService);
+	}
+}
 
 class SetBrowserUserAgentAction extends Action2 {
 	static readonly ID = 'workbench.action.browser.setUserAgent';
@@ -921,6 +1592,32 @@ MenuRegistry.appendMenuItem(MenuId.BrowserEmulationToolbar, {
 
 registerAction2(ToggleBrowserEmulationAction);
 registerAction2(PickBrowserDevicePresetAction);
+registerAction2(AddBrowserCustomDevicePresetAction);
+registerAction2(ManageBrowserDevicePresetsAction);
 registerAction2(SetBrowserUserAgentAction);
 registerAction2(ToggleBrowserMobileEmulationAction);
 registerAction2(ResetBrowserEmulationAction);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	...workbenchConfigurationNodeBase,
+	properties: {
+		'workbench.browser.customDevicePresets': {
+			type: 'array',
+			description: localize('browser.customDevicePresets', "User-defined device presets for responsive testing in the Integrated Browser."),
+			items: {
+				type: 'object',
+				required: ['name', 'width', 'height'],
+				properties: {
+					name: { type: 'string', description: localize('browser.customDevicePresets.name', "Device preset name.") },
+					width: { type: 'integer', minimum: 1, maximum: 9999, description: localize('browser.customDevicePresets.width', "Viewport width in pixels.") },
+					height: { type: 'integer', minimum: 1, maximum: 9999, description: localize('browser.customDevicePresets.height', "Viewport height in pixels.") },
+					deviceScaleFactor: { type: 'number', minimum: 0, maximum: 8, description: localize('browser.customDevicePresets.dpr', "Device pixel ratio (DPR).") },
+					mobile: { type: 'boolean', description: localize('browser.customDevicePresets.mobile', "Whether to emulate a mobile device (touch events, mobile viewport).") },
+					userAgent: { type: 'string', description: localize('browser.customDevicePresets.userAgent', "Custom user agent string.") },
+				}
+			},
+			default: [],
+			scope: ConfigurationScope.APPLICATION
+		}
+	}
+});
