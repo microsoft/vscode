@@ -436,7 +436,7 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly getWorktreeRoots: (workspace: URI) => Promise<readonly URI[]>;
 	readonly createSession: (config: IAgentCreateSessionConfig) => Promise<URI>;
 	readonly getModels: () => readonly IAgentModelInfo[];
-	readonly getCreationDefaults: (source: URI) => ISessionCreationDefaults | undefined;
+	readonly getCreationDefaults: (source: URI, sourceTurnId?: string) => ISessionCreationDefaults | undefined;
 	readonly startPrompt: (session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource) => Promise<void>;
 	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection; workingDirectories?: readonly URI[]; provider?: AgentProvider }, credentials?: IAgentHostCredentialSource) => Promise<void>;
 	/**
@@ -1153,7 +1153,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	const currentSession = source ? currentSessionUri(accessor, source.toString()) : undefined;
 	const supportsChatWorkingDirectories = currentSession === undefined || accessor.supportsChatWorkingDirectories(currentSession);
 	const sessions = await getCreateSessionCatalog(accessor, rawArgs, supportsChatWorkingDirectories);
-	const defaults = source ? accessor.getCreationDefaults(source) : undefined;
+	const defaults = source ? accessor.getCreationDefaults(source, sourceTurnId) : undefined;
 	const sessionProvider = defaults?.sessionProvider ?? (currentSession ? (await accessor.getSession(currentSession))?.provider ?? AgentSession.provider(currentSession) : undefined);
 	const harnessProvider = resolveCreateSessionHarness(accessor, rawArgs, currentSession, supportsChatWorkingDirectories);
 	// The agent a current-session chat is created on: the requested harness, else the session's (never the calling chat's).
@@ -1227,7 +1227,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 		...(workspace !== undefined ? { workingDirectories: [workspace] } : {}),
 		...(provider !== undefined ? { provider } : {}),
 		...(args.model !== undefined ? { model: { id: args.model.id } } : defaults?.model !== undefined ? { model: defaults.model } : {}),
-		...(inheritsSourceProvider && defaults?.activeClient !== undefined ? { activeClient: defaults.activeClient } : {}),
+		...(inheritsSourceProvider && defaults?.activeClient !== undefined ? { activeClient: { ...defaults.activeClient, tools: [] } } : {}),
 		...(configValues !== undefined ? { config: configValues } : {}),
 		...(currentSession !== undefined && source !== undefined ? {
 			_meta: withSessionCreationReference(undefined, {
@@ -1368,7 +1368,7 @@ export function getCreateChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedCreateChatArgs, source?: URI, sourceTurnId?: string, onChatAllocated?: (chat: URI) => Promise<void>): Promise<ICreateChatResult> {
 	const credentials = source ? accessor.getCredentialSource(source) : undefined;
 	const currentSession = source ? currentSessionUri(accessor, source.toString()) : undefined;
-	const defaults = source ? accessor.getCreationDefaults(source) : undefined;
+	const defaults = source ? accessor.getCreationDefaults(source, sourceTurnId) : undefined;
 	const targetProvider = args.provider ?? (await accessor.getSession(args.session))?.provider ?? AgentSession.provider(args.session);
 	// The calling chat's model is inherited only by a chat of the same agent.
 	const model = args.model !== undefined ? { id: args.model.id } : targetProvider === defaults?.provider ? defaults?.model : undefined;
