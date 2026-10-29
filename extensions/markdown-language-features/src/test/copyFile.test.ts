@@ -127,4 +127,12 @@ suite('isCopyDestinationInsideWorkspace', () => {
 			['${fileName}', 'images/', '../${fileName}'].map(dest => isInside(dest, () => undefined)),
 			[true, true, false]);
 	});
+
+	test('Ignores drive letter casing', () => {
+		const fileDocumentUri = vscode.Uri.file('c:\\project\\sub\\readme.md');
+		const folder = vscode.Uri.from({ scheme: 'file', path: '/C:/project' });
+		assert.deepStrictEqual(
+			['/c:/project/sub/img.png', '/C:/project/img.png', '/c:/other/img.png'].map(p => isCopyDestinationInsideWorkspace(fileDocumentUri, vscode.Uri.from({ scheme: 'file', path: p }), () => folder)),
+			[true, true, false]);
+	});
 });

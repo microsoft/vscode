@@ -54,8 +54,9 @@ export function isCopyDestinationInsideWorkspace(documentUri: vscode.Uri, destin
 		return false;
 	}
 
-	// Treat `\` as a separator too, since it is one on Windows file systems
-	const normalize = (p: string) => path.posix.normalize(p.replaceAll('\\', '/'));
+	// Treat `\` as a separator too, since it is one on Windows file systems.
+	// Drive letters may differ in case between URIs (`/C:/` vs `/c:/`).
+	const normalize = (p: string) => path.posix.normalize(p.replaceAll('\\', '/')).replace(/^\/([a-zA-Z]):/, (_, drive: string) => `/${drive.toLowerCase()}:`);
 	const rootPath = normalize(root.path).replace(/\/?$/, '/');
 	return normalize(destination.path).startsWith(rootPath);
 }
