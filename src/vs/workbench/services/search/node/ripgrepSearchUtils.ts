@@ -5,7 +5,7 @@
 
 import { promises as fs } from 'fs';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IExcludeException } from '../../../../base/common/glob.js';
+import { getFoldersSkippedByExcludeExceptions, IExcludeException } from '../../../../base/common/glob.js';
 import { join } from '../../../../base/common/path.js';
 import { isLinux } from '../../../../base/common/platform.js';
 import * as pfs from '../../../../base/node/pfs.js';
@@ -33,13 +33,19 @@ export interface IExcludeExceptionRun {
 	 * Globs, relative to the searched folder, that match the re-included paths.
 	 */
 	readonly globs: readonly string[];
+
+	/**
+	 * Names of folders that the run does not look into, see {@link getFoldersSkippedByExcludeExceptions}.
+	 */
+	readonly skippedFolders: readonly string[];
 }
 
 /**
  * Groups exclude exceptions into ripgrep runs rooted at their literal prefix, merging runs whose roots are nested.
  */
 export function getExcludeExceptionRuns(exceptions: readonly IExcludeException[], folder: string): IExcludeExceptionRun[] {
-	const runs: { root: string; globs: string[] }[] = [];
+	const runs: { root: string; globs: string[]; skippedFolders: readonly string[] }[] = [];
+	const skippedFolders = getFoldersSkippedByExcludeExceptions(exceptions);
 	const relativeExceptions = exceptions
 		.map(exception => toFolderRelativeExcludeException(exception, folder))
 		.filter((exception): exception is IExcludeException => !!exception)
@@ -51,7 +57,7 @@ export function getExcludeExceptionRuns(exceptions: readonly IExcludeException[]
 		if (run) {
 			run.globs.push(...globs);
 		} else {
-			runs.push({ root: exception.literalPrefix, globs });
+			runs.push({ root: exception.literalPrefix, globs, skippedFolders });
 		}
 	}
 

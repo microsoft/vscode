@@ -1344,6 +1344,16 @@ suite('Glob', () => {
 			assert.deepStrictEqual(beneath({ 'a': true }, ['a']), { 'a': false });
 			assert.deepStrictEqual(beneath({ 'a': true, '!{a/b,c}/keep.txt': true }, ['a', 'a/b', 'c']), { 'a': true, 'a/b': true, 'c': true });
 		});
+
+		test('couldExceptionMatchBeneath skips version control folders unless an exception names them', () => {
+			assert.deepStrictEqual({
+				unnamed: beneath({ '**/*': true, '!**/Scripts': true }, ['.git', 'a/.hg/b', 'a']),
+				named: beneath({ '**/*': true, '!**/Scripts': true, '!.git/hooks': true }, ['.git', 'a/.hg/b']),
+			}, {
+				unnamed: { '.git': false, 'a/.hg/b': false, 'a': true },
+				named: { '.git': true, 'a/.hg/b': false },
+			});
+		});
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

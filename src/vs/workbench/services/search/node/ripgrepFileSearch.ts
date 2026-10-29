@@ -49,6 +49,7 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 	// ripgrep cannot intersect them with the globs of the exceptions
 	const rgGlobs: IRgGlobResult = exceptionRun ? { globArgs: [], siblingClauses: {} } : foldersToRgExcludeGlobs([folderQuery], excludePattern, undefined, false);
 	if (exceptionRun) {
+		exceptionRun.skippedFolders.forEach(folder => pushGlob(`!**/${folder}`));
 		exceptionRun.globs.forEach(globArg => pushGlob(anchorGlob(globArg)));
 	} else {
 		// includePattern can't have siblingClauses

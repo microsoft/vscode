@@ -27,6 +27,8 @@ suite('RipgrepSymlinkLoopDetector', () => {
 suite('getExcludeExceptionRuns', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	const vcsFolders = ['.git', '.svn', '.hg', '.jj'];
+
 	test('groups exceptions by literal prefix and merges nested roots', () => {
 		const exceptions = getExcludeExceptions({
 			'node_modules': true,
@@ -37,9 +39,9 @@ suite('getExcludeExceptionRuns', () => {
 		});
 
 		assert.deepStrictEqual(getExcludeExceptionRuns(exceptions, '/workspace'), [
-			{ root: 'src', globs: ['src/*.js', 'src/*.js/**'] },
-			{ root: 'gulpfile.js', globs: ['gulpfile.js', 'gulpfile.js/**'] },
-			{ root: 'node_modules/@types', globs: ['node_modules/@types', 'node_modules/@types/**', 'node_modules/@types/node', 'node_modules/@types/node/**'] },
+			{ root: 'src', globs: ['src/*.js', 'src/*.js/**'], skippedFolders: vcsFolders },
+			{ root: 'gulpfile.js', globs: ['gulpfile.js', 'gulpfile.js/**'], skippedFolders: vcsFolders },
+			{ root: 'node_modules/@types', globs: ['node_modules/@types', 'node_modules/@types/**', 'node_modules/@types/node', 'node_modules/@types/node/**'], skippedFolders: vcsFolders },
 		]);
 	});
 
@@ -47,7 +49,7 @@ suite('getExcludeExceptionRuns', () => {
 		const exceptions = getExcludeExceptions({ '!node_modules/@types': true, '!**/Scripts': true });
 
 		assert.deepStrictEqual(getExcludeExceptionRuns(exceptions, '/workspace'), [
-			{ root: '', globs: ['**/Scripts', '**/Scripts/**', 'node_modules/@types', 'node_modules/@types/**'] },
+			{ root: '', globs: ['**/Scripts', '**/Scripts/**', 'node_modules/@types', 'node_modules/@types/**'], skippedFolders: vcsFolders },
 		]);
 	});
 
@@ -59,8 +61,12 @@ suite('getExcludeExceptionRuns', () => {
 			anchored: getExcludeExceptionRuns(exceptions, '/workspace'),
 			workspaceWide: getExcludeExceptionRuns(workspaceWideExceptions, '/workspace'),
 		}, {
-			anchored: [{ root: 'node_modules/@types', globs: ['node_modules/@types', 'node_modules/@types/**'] }],
-			workspaceWide: [{ root: '', globs: ['**/small.js', '**/small.js/**'] }],
+			anchored: [{ root: 'node_modules/@types', globs: ['node_modules/@types', 'node_modules/@types/**'], skippedFolders: vcsFolders }],
+			workspaceWide: [{ root: '', globs: ['**/small.js', '**/small.js/**'], skippedFolders: vcsFolders }],
 		});
+	});
+
+	test('version control folders are only searched when an exception names them', () => {
+		assert.deepStrictEqual(getExcludeExceptionRuns(getExcludeExceptions({ '!**/Scripts': true, '!.git/hooks': true }), '/workspace')[0].skippedFolders, ['.svn', '.hg', '.jj']);
 	});
 });

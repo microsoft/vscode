@@ -93,7 +93,7 @@ suite('Settings JSON policy descriptions', () => {
 suite('Settings JSON exclude exceptions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('suggests converting a false exclude pattern that disables nothing into an exception', async () => {
+	test('suggests converting a false exclude pattern that disables nothing into an exception and flags slow exceptions', async () => {
 		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 		if (!registry.getConfigurationProperties()['files.exclude']) {
 			const configurationNode: IConfigurationNode = { id: 'excludeExceptionsTest', properties: { 'files.exclude': { type: 'object', default: {} } } };
@@ -107,7 +107,7 @@ suite('Settings JSON exclude exceptions', () => {
 		const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
 		const markers = store.add(new MarkerService());
 		instantiationService.stub(IMarkerService, markers);
-		const textModel = store.add(createTextModel('{\n\t"files.exclude": {\n\t\t"out": false,\n\t\t"node_modules/foo": false,\n\t\t"!keep": false\n\t}\n}', 'jsonc'));
+		const textModel = store.add(createTextModel('{\n\t"files.exclude": {\n\t\t"out": false,\n\t\t"node_modules/foo": false,\n\t\t"!keep": false,\n\t\t"!**/Scripts": true\n\t}\n}', 'jsonc'));
 		const editor = store.add(createTestCodeEditor(textModel));
 		const settings = store.add(new SettingsEditorModel({
 			object: upcastPartial<ITextEditorModel>({ textEditorModel: textModel }),
@@ -131,9 +131,9 @@ suite('Settings JSON exclude exceptions', () => {
 			action: actions.map(({ title, kind, isPreferred }) => ({ title, kind, isPreferred })),
 			text: textModel.getValue(),
 		}, {
-			reported: [{ severity: MarkerSeverity.Info, startLineNumber: 4 }],
+			reported: [{ severity: MarkerSeverity.Info, startLineNumber: 4 }, { severity: MarkerSeverity.Info, startLineNumber: 6 }],
 			action: [{ title: 'Convert to Exception', kind: 'quickfix', isPreferred: true }],
-			text: '{\n\t"files.exclude": {\n\t\t"out": false,\n\t\t"!node_modules/foo": true,\n\t\t"!keep": false\n\t}\n}',
+			text: '{\n\t"files.exclude": {\n\t\t"out": false,\n\t\t"!node_modules/foo": true,\n\t\t"!keep": false,\n\t\t"!**/Scripts": true\n\t}\n}',
 		});
 	});
 });

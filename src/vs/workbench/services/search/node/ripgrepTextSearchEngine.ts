@@ -525,6 +525,7 @@ export function getRgArgs(query: TextSearchQuery2, options: RipgrepTextSearchOpt
 
 	if (exceptionRun) {
 		// Includes are applied to the results instead, because ripgrep cannot intersect them with the globs of the exceptions
+		exceptionRun.skippedFolders.forEach(folder => args.push('-g', `!**/${folder}`));
 		exceptionRun.globs.forEach(globArg => args.push('-g', anchorGlob(globArg)));
 	} else {
 		pushIncludeAndExcludeGlobs(args, options);

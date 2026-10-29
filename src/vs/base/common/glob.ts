@@ -601,6 +601,7 @@ export function parse(arg1: string | IExpression | IRelativePattern, options: IG
 
 const EXCLUDE_EXCEPTION_PREFIX = '!';
 const GLOB_SPECIAL_CHARACTERS = /[*?[\]{}]/;
+const VERSION_CONTROL_FOLDERS = ['.git', '.svn', '.hg', '.jj'];
 
 /**
  * Regular expression source that matches the keys of exclude exceptions, for use in JSON schemas.
@@ -650,7 +651,8 @@ export interface IParsedExcludeExpression {
 
 	/**
 	 * Whether an exception could match a path below the folder, so that the
-	 * folder must be traversed even when it is excluded.
+	 * folder must be traversed even when it is excluded. Version control folders
+	 * are skipped, see {@link getFoldersSkippedByExcludeExceptions}.
 	 */
 	couldExceptionMatchBeneath(folderPath: string): boolean;
 }
@@ -696,6 +698,14 @@ export function getExcludeExceptions(expression: IExpression | undefined): IExcl
 }
 
 /**
+ * Returns the version control folders (such as `.git`) that exclude exceptions do not look into, unless
+ * an exception names the folder, because they are large and rarely contain files to re-include.
+ */
+export function getFoldersSkippedByExcludeExceptions(exceptions: readonly IExcludeException[]): string[] {
+	return VERSION_CONTROL_FOLDERS.filter(folder => !exceptions.some(exception => splitGlobAware(exception.pattern, GLOB_SPLIT).includes(folder)));
+}
+
+/**
  * Returns a copy of the expression without exception keys, for consumers
  * that only understand plain exclude patterns.
  */
@@ -738,6 +748,7 @@ export function parseExcludeExpression(expression: IExpression, options: IGlobOp
 	const matchesException = parse(exceptionExpression, { ...options, trimForExclusions: false });
 	const isExcepted = (path: string, basename?: string) => !!matchesException(path, basename);
 	const exceptionSegments = exceptions.map(exception => parseSegmentMatchers(exception.pattern, !!options.ignoreCase));
+	const skippedFolders = new Set(getFoldersSkippedByExcludeExceptions(exceptions));
 
 	const matches: ParsedExpression = (path, basename, hasSibling) => {
 		const result = matchesExclude(path, basename, hasSibling);
@@ -756,6 +767,9 @@ export function parseExcludeExpression(expression: IExpression, options: IGlobOp
 		couldExceptionMatchBeneath: folderPath => {
 			const folderSegments = rtrim(rtrim(folderPath, GLOB_SPLIT), '\\');
 			const segments = folderSegments ? folderSegments.split(/[/\\]/) : [];
+			if (segments.some(segment => skippedFolders.has(segment))) {
+				return false;
+			}
 
 			return exceptionSegments.some(matchers => couldMatchBeneath(matchers, segments));
 		}

@@ -384,10 +384,11 @@ suite('RipgrepTextSearchEngine', () => {
 				maxResults: 1000,
 			};
 
-			assert.deepStrictEqual(getRgArgs({ pattern: 'test' }, options, { root: 'node_modules/@types', globs: ['node_modules/@types', 'node_modules/@types/**'] }), [
+			assert.deepStrictEqual(getRgArgs({ pattern: 'test' }, options, { root: 'node_modules/@types', globs: ['node_modules/@types', 'node_modules/@types/**'], skippedFolders: ['.git'] }), [
 				'--hidden',
 				'--no-require-git',
 				'--ignore-case',
+				'-g', '!**/.git',
 				'-g', '/node_modules/@types',
 				'-g', '/node_modules/@types/**',
 				'--no-ignore',

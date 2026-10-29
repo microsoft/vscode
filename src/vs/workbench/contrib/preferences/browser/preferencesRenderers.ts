@@ -48,7 +48,7 @@ import { IUserDataProfileService } from '../../../services/userDataProfile/commo
 import { EXPERIMENTAL_INDICATOR_DESCRIPTION, PREVIEW_INDICATOR_DESCRIPTION } from '../common/preferences.js';
 import { mcpConfigurationSection } from '../../mcp/common/mcpConfiguration.js';
 import { McpCommandIds } from '../../mcp/common/mcpCommandIds.js';
-import { IExpression, isExcludeException } from '../../../../base/common/glob.js';
+import { getExcludeExceptions, IExpression, isExcludeException } from '../../../../base/common/glob.js';
 import { parseTree } from '../../../../base/common/json.js';
 
 /**
@@ -567,7 +567,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 					const configuration = configurationRegistry[setting.key];
 					if (configuration) {
 						this.handleUnstableSettingConfiguration(setting, configuration, markerData);
-						this.handleDisabledExcludePatterns(setting, markerData);
+						this.handleExcludePatterns(setting, markerData);
 						if (this.handlePolicyConfiguration(setting, configuration, markerData)) {
 							continue;
 						}
@@ -725,10 +725,10 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 	}
 
 	/**
-	 * Flags `"pattern": false` entries of exclude settings that do not disable a pattern from another
-	 * scope, because users often expect them to show files that another pattern excludes.
+	 * Flags `"pattern": false` entries of exclude settings that do not disable a pattern from another scope, because
+	 * users often expect them to show files that another pattern excludes, and exceptions that make search slow.
 	 */
-	private handleDisabledExcludePatterns(setting: ISetting, markerData: IMarkerData[]): void {
+	private handleExcludePatterns(setting: ISetting, markerData: IMarkerData[]): void {
 		const inheritedSettings = EXCLUDE_SETTINGS_WITH_EXCEPTIONS.get(setting.key);
 		if (!inheritedSettings || !setting.value || typeof setting.value !== 'object') {
 			return;
@@ -753,11 +753,27 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		for (const property of valueNode?.children ?? []) {
 			const [keyNode, valueOfKeyNode] = property.children ?? [];
 			const pattern = keyNode?.value;
-			if (typeof pattern !== 'string' || valueOfKeyNode?.value !== false || isExcludeException(pattern) || isInheritedPattern(pattern)) {
+			if (typeof pattern !== 'string') {
 				continue;
 			}
 
 			const range = Range.fromPositions(model.getPositionAt(valueOffset + property.offset), model.getPositionAt(valueOffset + property.offset + property.length));
+			if (isExcludeException(pattern)) {
+				const exception = valueOfKeyNode?.value === true ? getExcludeExceptions({ [pattern]: true })[0] : undefined;
+				if (exception && !exception.literalPrefix) {
+					markerData.push({
+						severity: MarkerSeverity.Info,
+						...range,
+						message: nls.localize('unanchoredExcludeException', "Search looks through the whole folder, including excluded and ignored folders, to find files for this exception, which can be slow in large workspaces. An exception that starts with a folder path, for example \"!node_modules/@types\", only searches that folder.")
+					});
+				}
+				continue;
+			}
+
+			if (valueOfKeyNode?.value !== false || isInheritedPattern(pattern)) {
+				continue;
+			}
+
 			const marker: IMarkerData = {
 				severity: MarkerSeverity.Info,
 				...range,
