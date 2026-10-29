@@ -69,7 +69,7 @@ export function describeAutomationCron(expression: string, locale = language): s
 	const hours = [...cron.hour.values].sort((a, b) => a - b);
 	const clock = safeIntl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
 	const hourClock = safeIntl.DateTimeFormat(locale, { hour: 'numeric', timeZone: 'UTC' });
-	const monthNames = safeIntl.DateTimeFormat(locale, { month: 'long', timeZone: 'UTC' });
+	const monthNames = safeIntl.DateTimeFormat(locale, { month: 'long', calendar: 'gregory', timeZone: 'UTC' });
 	const weekdayNames = safeIntl.DateTimeFormat(locale, { weekday: 'long', timeZone: 'UTC' });
 	const formatClock = (hour: number, minute: number) => clock.value.format(new Date(Date.UTC(2024, 0, 1, hour, minute)));
 	const formatHour = (hour: number) => hourClock.value.format(new Date(Date.UTC(2024, 0, 1, hour)));

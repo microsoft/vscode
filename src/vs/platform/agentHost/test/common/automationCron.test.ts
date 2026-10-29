@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { safeIntl } from '../../../../base/common/date.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { describeAutomationCron, validateAutomationCron } from '../../common/automationCron.js';
 
@@ -84,6 +85,15 @@ suite('Automation cron descriptions', () => {
 	test('uses the requested clock convention without changing wall-clock values', () => {
 		assert.strictEqual(describeAutomationCron('3 3 3 5 7', 'en-GB'), 'In May, runs at 3:03 on day 3 of the month and also on Sunday.');
 	});
+
+	for (const locale of ['fa', 'en-US-u-ca-persian']) {
+		test(`uses Gregorian month names with ${locale}`, () => {
+			const january = new Date(Date.UTC(2024, 0, 1));
+			const month = safeIntl.DateTimeFormat(locale, { month: 'long', calendar: 'gregory', timeZone: 'UTC' }).value.format(january);
+			const time = safeIntl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }).value.format(january);
+			assert.strictEqual(describeAutomationCron('0 0 1 1 *', locale), `In ${month}, runs at ${time} on day 1 of the month.`);
+		});
+	}
 
 	test('rejects invalid expressions rather than describing guessed schedules', () => {
 		assert.throws(() => describeAutomationCron('0 24 * * *'), /Hour value is outside/);
