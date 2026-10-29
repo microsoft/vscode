@@ -1071,7 +1071,7 @@
 	padding: 0 var(--vscode-spacing-size40);
 	background: var(--vscode-input-background);
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-body2);
+	font-size: var(--vscode-fontSize-body2, 11px);
 	line-height: 1;
 }
 

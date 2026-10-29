@@ -2091,7 +2091,7 @@ suite('AgentHostAutomationStore', () => {
 			{ shape: 'daily', expression: '30 9 * * *', projected: { interval: 'daily' as const, scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 } },
 			{ shape: 'weekly', expression: '45 14 * * SUN', projected: { interval: 'weekly' as const, scheduleHour: 14, scheduleMinute: 45, scheduleDay: 0 } },
 			{ shape: 'weekdays', expression: '30 9 * * MON-FRI', projected: { interval: 'weekdays' as const, scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 } },
-			{ shape: 'cron', expression: '30 9 * * 1-6', projected: undefined },
+			{ shape: 'cron', expression: '  30 9 * * 1-6  ', projected: undefined },
 		]) {
 			test(`preserves ${shape} trigger semantics with ${variant}`, async () => {
 				const connection = disposables.add(new TestAutomationConnection());

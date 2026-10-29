@@ -908,6 +908,8 @@ suite('Automation dialog creation', () => {
 			select.dispatchEvent(new (DOM.getWindow(select).Event)('change'));
 			const cron = row.querySelector<HTMLElement>('.automation-form-cron-group');
 			const cronControl = cron?.querySelector<HTMLElement>('.automation-cron-segments');
+			cronControl!.style.font = '16px Arial, sans-serif';
+			cronControl!.style.setProperty('--vscode-fontSize-body2', 'initial');
 			const cronLabel = cron?.querySelector<HTMLElement>('.automation-form-label');
 			const timeZoneHint = cron?.querySelector<HTMLElement>('#automation-cron-hint');
 			const triggerBounds = trigger.getBoundingClientRect();
@@ -1008,6 +1010,7 @@ suite('Automation dialog creation', () => {
 				inputs[0].dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
 				const input = inputs[1];
 				input.focus();
+				input.dispatchEvent(new FocusEvent('focus'));
 				const dispatch = (type: string, repeated = false) => input.dispatchEvent(new KeyboardEvent(type, {
 					key: 'Escape', keyCode: 27, bubbles: true, cancelable: true, repeat: repeated,
 				}));

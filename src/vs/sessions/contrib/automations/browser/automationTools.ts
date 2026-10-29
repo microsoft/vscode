@@ -1016,7 +1016,7 @@ function parseSchedule(input: Record<string, unknown>, existing: IAutomationSche
 	const scheduleMinute = readOptionalInteger(value, 'scheduleMinute', 0, 59) ?? existing?.scheduleMinute ?? 0;
 	const scheduleDay = readOptionalInteger(value, 'scheduleDay', 0, 6) ?? existing?.scheduleDay ?? 1;
 	if (interval === 'cron') {
-		const cronExpression = readOptionalNonEmptyString(value, 'cronExpression') ?? existing?.cronExpression;
+		const cronExpression = readOptionalRequiredText(value, 'cronExpression') ?? existing?.cronExpression;
 		const cronTimeZone = readOptionalNonEmptyString(value, 'cronTimeZone') ?? existing?.cronTimeZone;
 		if (!cronExpression?.trim()) {
 			throw new AutomationToolInputError('"schedule.cronExpression" is required for cron schedules.');

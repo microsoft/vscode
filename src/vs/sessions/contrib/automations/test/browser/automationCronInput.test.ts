@@ -132,6 +132,8 @@ suite('Automation cron segmented input', () => {
 		const { container, input, elements, key } = create('15 1 * * MON-FRI', undefined, hoverService);
 		const fields = elements.map(element => {
 			element.focus();
+			// Hidden Electron test pages update activeElement without emitting native focus events.
+			element.dispatchEvent(new FocusEvent('focus'));
 			const hover = hovers.at(-1);
 			return {
 				content: hover?.content,
@@ -143,9 +145,12 @@ suite('Automation cron segmented input', () => {
 		const escape = key(4, 'Escape');
 		const dismissed = { active, prevented: escape.defaultPrevented, focused: DOM.getActiveDocument().activeElement === elements[4] };
 		elements[0].focus();
+		elements[0].dispatchEvent(new FocusEvent('focus'));
 		elements[0].blur();
+		elements[0].dispatchEvent(new FocusEvent('blur'));
 		const afterBlur = active;
 		elements[1].focus();
+		elements[1].dispatchEvent(new FocusEvent('focus'));
 		input.dispose();
 		assert.deepStrictEqual({
 			fields, dismissed, afterBlur, afterDispose: active,

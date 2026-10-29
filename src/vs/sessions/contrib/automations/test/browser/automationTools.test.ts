@@ -1155,9 +1155,10 @@ suite('AutomationTools', () => {
 	});
 
 	test('configureAutomation preserves cron fields on partial updates and removes them for presets', async () => {
-		const schedule: IAutomationSchedule = { interval: 'cron', cronExpression: '*/2 * * * MON-FRI', cronTimeZone: 'Europe/Berlin', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+		const schedule: IAutomationSchedule = { interval: 'cron', cronExpression: '  */2  * * * MON-FRI  ', cronTimeZone: 'Europe/Berlin', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 		const changes = [
 			{ name: 'Renamed' },
+			{ name: 'Renamed', schedule },
 			{ schedule: { cronExpression: '*/3 * * * MON-FRI' } },
 			{ schedule: { cronTimeZone: 'UTC' } },
 			{ schedule: { interval: 'daily', scheduleHour: 8 } },
@@ -1172,6 +1173,7 @@ suite('AutomationTools', () => {
 		}
 		assert.deepStrictEqual(results, [
 			{ status: 'updated', patch: { name: 'Renamed' } },
+			{ status: 'updated', patch: { name: 'Renamed', schedule } },
 			{ status: 'updated', patch: { schedule: { ...schedule, cronExpression: '*/3 * * * MON-FRI' } } },
 			{ status: 'updated', patch: { schedule: { ...schedule, cronTimeZone: 'UTC' } } },
 			{ status: 'updated', patch: { schedule: { interval: 'daily', scheduleHour: 8, scheduleMinute: 0, scheduleDay: 0 } } },
