@@ -10,8 +10,7 @@ import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DefaultConfiguration, PolicyConfiguration } from '../../common/configurations.js';
 import { IFileService } from '../../../files/common/files.js';
-import { FileService } from '../../../files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
@@ -147,9 +146,7 @@ suite('PolicyConfiguration', () => {
 	setup(async () => {
 		defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
 		await defaultConfiguration.initialize();
-		fileService = disposables.add(new FileService(new NullLogService()));
-		const diskFileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(policyFile.scheme, diskFileSystemProvider));
+		fileService = createInMemoryFileService(disposables, policyFile.scheme);
 		policyService = disposables.add(new FilePolicyService(policyFile, fileService, new NullLogService()));
 		testObject = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
 	});

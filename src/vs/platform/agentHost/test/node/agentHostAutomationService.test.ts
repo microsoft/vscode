@@ -37,6 +37,7 @@ import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporte
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
 import { AgentPluginManager } from '../../node/agentPluginManager.js';
 import { AUTOMATION_ACTIVE_CLIENT_ID, toAgentHostFileUri } from '../../common/agentPluginManager.js';
@@ -98,8 +99,7 @@ suite('AgentHostAutomationService', () => {
 		writeAttempts = 0;
 		writeGate = undefined;
 		telemetry = new RecordingAutomationTelemetry();
-		fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		fileService = createInMemoryFileService(disposables, Schemas.file);
 		disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, disposables.add(new InMemoryFileSystemProvider())));
 		pluginManager = new AgentPluginManager(URI.file('/userData'), fileService, new NullLogService());
 		const writer: IAgentHostStorageWriter = {

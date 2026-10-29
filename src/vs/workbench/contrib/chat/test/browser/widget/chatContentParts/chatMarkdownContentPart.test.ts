@@ -33,8 +33,8 @@ import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../../platform
 import { AgentHostFileSystemProvider, IRemoteFilesystemConnection } from '../../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { ContentEncoding, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceType } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import { createInMemoryFileService } from '../../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
@@ -439,8 +439,7 @@ suite('ChatMarkdownContentPart', () => {
 
 		setup(async () => {
 			resolveImage = undefined;
-			fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(AGENT_HOST_SCHEME, disposables.add(new InMemoryFileSystemProvider())));
+			fileService = createInMemoryFileService(disposables, AGENT_HOST_SCHEME);
 			useFileService(fileService);
 			disposables.add(chatSessionsService.registerChatSessionContentProvider('chat-session', {
 				provideChatSessionContent: async () => { throw new Error('Unexpected session resolution'); },

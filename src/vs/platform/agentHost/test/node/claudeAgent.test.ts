@@ -45,7 +45,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, fixedChatOwnerRef } from '../../common/agent.js';
@@ -1188,8 +1188,7 @@ function createTestContext(
 
 	// In-memory file service the session's customization scan / agent-name
 	// resolution runs against; exposed so tests can seed `.claude/**` files.
-	const fileService = disposables.add(new FileService(new NullLogService()));
-	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+	const fileService = createInMemoryFileService(disposables, Schemas.file);
 
 	const otelService = new RecordingOTelService();
 	const sdkDownloader = new RecordingAgentSdkDownloader();
@@ -1305,8 +1304,7 @@ function forkSourceMessages(sourceId: string): SessionMessage[] {
  * Spread into each test {@link ServiceCollection}.
  */
 function claudeFileEnvServices(disposables: Pick<DisposableStore, 'add'>): [typeof IFileService | typeof INativeEnvironmentService, IFileService | INativeEnvironmentService][] {
-	const fileService = disposables.add(new FileService(new NullLogService()));
-	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+	const fileService = createInMemoryFileService(disposables, Schemas.file);
 	return [
 		[IFileService, fileService],
 		[INativeEnvironmentService, { userHome: URI.file('/mock-home') } as INativeEnvironmentService],
@@ -8846,8 +8844,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			};
 		};
 
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 
 		const otelService = new RecordingOTelService();
 		const sdkDownloader = new RecordingAgentSdkDownloader();

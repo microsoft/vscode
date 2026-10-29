@@ -24,10 +24,8 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { Range } from '../../../../../../editor/common/core/range.js';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { IConfirmation, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -1026,8 +1024,7 @@ suite('aiCustomizationManagementEditor', () => {
 	test('backs up customization sources before launching an agent migration', async () => {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.inMemory);
 		const source = URI.from({ scheme: Schemas.inMemory, path: '/workspace/review.prompt.md' });
 		const recoveryRoot = URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage/workspace-id/customizationMigrations' });
 		await fileService.writeFile(source, VSBuffer.fromString('original'));
@@ -1081,8 +1078,7 @@ suite('aiCustomizationManagementEditor', () => {
 	test('does not launch an agent migration when backup preparation fails', async () => {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.inMemory);
 		editor.fileService = fileService;
 		editor.environmentService = { workspaceStorageHome: URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage' }) };
 		editor.customizationsByMigrationCategory.set(CustomizationMigrationCategoryId.PromptFiles, [
@@ -1125,8 +1121,7 @@ suite('aiCustomizationManagementEditor', () => {
 	test('unlocks stale running recoveries while preserving active ones', async () => {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.inMemory);
 		const workspaceStorageHome = URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage' });
 		const recoveryRoot = URI.joinPath(workspaceStorageHome, 'workspace-id', 'customizationMigrations');
 		editor.fileService = fileService;

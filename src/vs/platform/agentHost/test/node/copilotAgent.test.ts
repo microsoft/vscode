@@ -39,6 +39,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { FileChangesEvent, FileChangeType, IFileService, type IFileSystemWatcher, type IStat } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -3341,8 +3342,7 @@ suite('CopilotAgent', () => {
 
 	suite('discovered SDK customizations', () => {
 		test('runtime-first native MCP inventory acquires late discovery metadata and plugin ownership', async () => {
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 			const workspace = URI.file('/workspace');
 			const plugin = URI.file('/sdk-installed/native');
 			const source = URI.joinPath(plugin, '.mcp.json');
@@ -3427,8 +3427,7 @@ suite('CopilotAgent', () => {
 
 		for (const hasSkill of [false, true]) {
 			test(`deduplicates nested native MCP declarations without discarding unrelated contributions (${hasSkill})`, async () => {
-				const fileService = disposables.add(new FileService(new NullLogService()));
-				disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+				const fileService = createInMemoryFileService(disposables, Schemas.file);
 				const workspace = URI.file('/workspace');
 				const plugin = URI.file('/sdk-installed/native');
 				const source = URI.joinPath(plugin, '.mcp.json');
@@ -3468,8 +3467,7 @@ suite('CopilotAgent', () => {
 		}
 
 		test('refreshes SDK hooks and MCP inventory without forwarding definitions or manufacturing runtime intent', async () => {
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 			const workspace = URI.file('/remote-workspace');
 			const client = new TestCopilotClient([]);
 			let installed = true;
@@ -3550,8 +3548,7 @@ suite('CopilotAgent', () => {
 
 		for (const operation of ['catalog', 'legacy', 'enablement'] as const) {
 			test(`${operation} plugin mutations refresh and publish every session and chat anchor`, async () => {
-				const fileService = disposables.add(new FileService(new NullLogService()));
-				disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+				const fileService = createInMemoryFileService(disposables, Schemas.file);
 				const plugin = URI.file('/sdk-plugins/session-timeline');
 				const skill = URI.joinPath(plugin, 'skills', 'session-timeline', 'SKILL.md');
 				await fileService.writeFile(URI.joinPath(plugin, '.plugin', 'plugin.json'), VSBuffer.fromString(JSON.stringify({ name: 'session-timeline' })));
@@ -3634,8 +3631,7 @@ suite('CopilotAgent', () => {
 		}
 
 		test('plugin uninstall waits for superseding discovery scans to publish', async () => {
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 			const plugin = URI.file('/sdk-plugins/session-timeline');
 			const skill = URI.joinPath(plugin, 'skills', 'session-timeline', 'SKILL.md');
 			await fileService.writeFile(URI.joinPath(plugin, '.plugin', 'plugin.json'), VSBuffer.fromString(JSON.stringify({ name: 'session-timeline' })));
@@ -5934,8 +5930,7 @@ suite('CopilotAgent', () => {
 	});
 
 	test('computeFolderPickerDecision hides the picker unless multiple folders carry .github/hooks', async () => {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		const folder = (name: string) => URI.from({ scheme: Schemas.inMemory, path: `/${name}` });
 		const seedHook = (name: string, file = 'hook.json') => fileService.writeFile(URI.joinPath(folder(name), '.github', 'hooks', file), VSBuffer.fromString('{}'));
 		const [a, b, c] = [folder('wsA'), folder('wsB'), folder('wsC')];
@@ -16082,8 +16077,7 @@ suite('CopilotAgent', () => {
 						appenders: [],
 					}, TEST_PRODUCT_SERVICE)));
 					const sessionDataService = disposables.add(new TestSessionDataService());
-					const fileService = disposables.add(new FileService(new NullLogService()));
-					disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+					const fileService = createInMemoryFileService(disposables, Schemas.file);
 					const { agent, stateManager } = createTestAgentContext(disposables, {
 						copilotClient: client,
 						telemetryService,
@@ -20463,8 +20457,7 @@ suite('CopilotAgent', () => {
 		const preparedPlugin: ClientPluginCustomization = { type: CustomizationType.Plugin, id: preparedPluginDir.toString(), uri: preparedPluginDir.toString(), name: 'Plugin A' };
 
 		test('the prepared turn awaits a plugin sync that started after its preparation and relaunches with the plugin', async () => {
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 			await fileService.writeFile(URI.joinPath(preparedPluginDir, '.plugin', 'plugin.json'), VSBuffer.fromString(JSON.stringify({ name: 'Plugin A' })));
 			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
 			const launches: { kind: string; pluginDirectories: readonly string[] }[] = [];
@@ -21021,8 +21014,7 @@ suite('CopilotAgent', () => {
 		});
 
 		test('client plugin states shadow matching discovered plugins without hiding different same-named plugins', async () => {
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 
 			const workspace = URI.file('/workspace');
 			const sourcePlugin = URI.joinPath(workspace, 'plugins', 'azure-exp');
@@ -21206,8 +21198,7 @@ suite('CopilotAgent', () => {
 		});
 
 		test('host-configured plugins shadow matching discovered plugins', async () => {
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 
 			const workspace = URI.file('/workspace');
 			const plugin = URI.joinPath(workspace, 'plugins', 'azure-exp');
@@ -21260,8 +21251,7 @@ suite('CopilotAgent', () => {
 		});
 
 		test('getChatCustomizations publishes each discovered and live native MCP server once', async () => {
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 			const workspace = URI.file('/workspace');
 			const source = URI.joinPath(workspace, '.mcp.json');
 			await fileService.writeFile(source, VSBuffer.fromString('{"mcpServers":{"automation":{"command":"node"},"explorer":{"command":"node"}}}'));
@@ -21303,8 +21293,7 @@ suite('CopilotAgent', () => {
 		});
 
 		test('whole-list customization publishes derive root MCP provenance from the live session through removal, re-add and session replacement', async () => {
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 			const workspace = URI.file('/workspace');
 			const { agent, instantiationService, stateManager } = createTestAgentContext(disposables, {
 				fileService,
@@ -21397,8 +21386,7 @@ suite('CopilotAgent', () => {
 		});
 
 		test('getSessionCustomizations only forwards additional-root instructions and agents, leaving skills to SDK discovery', async () => {
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 
 			const workspace = URI.file('/workspace');
 			const additionalWorkspace = URI.file('/additional-workspace');
@@ -21581,8 +21569,7 @@ suite('CopilotAgent', () => {
 		});
 
 		test('getSessionCustomizations clears discovered files when the root disappears', async () => {
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 
 			const workspace = URI.file('/workspace');
 			const userHome = URI.file('/mock-home');
@@ -21639,8 +21626,7 @@ suite('CopilotAgent', () => {
 		});
 
 		test('getSessionCustomizations does not republish discovered directories when watcher changes are discovery-neutral', async () => {
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 
 			const workspace = URI.file('/workspace');
 			const userHome = URI.file('/mock-home');
@@ -21715,8 +21701,7 @@ suite('CopilotAgent', () => {
 		});
 
 		test('getSessionCustomizations coalesces burst watcher changes into one discovered refresh publish', async () => {
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 
 			const workspace = URI.file('/workspace');
 			const userHome = URI.file('/mock-home');
@@ -23272,8 +23257,7 @@ suite('CopilotAgent', () => {
 
 	suite('MCP configuration preparation', () => {
 		async function createHarness(options: { cold?: boolean; failSync?: boolean; syncGate?: Promise<void>; telemetryService?: ITelemetryService; sdkSessionId?: string; workspaceless?: boolean } = {}) {
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 			const pluginDirectory = URI.file('/late-plugin');
 			const healthyDirectory = URI.file('/healthy-plugin');
 			await fileService.writeFile(URI.joinPath(pluginDirectory, '.mcp.json'), VSBuffer.fromString('{"mcpServers":{"late-server":{"command":"late-server"},"other-server":{"command":"other-server"}}}'));
@@ -29859,8 +29843,7 @@ suite('CopilotAgent', () => {
 		});
 
 		test('retries resume without a custom agent when the SDK reports the stored agent is missing', async () => {
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 
 			const repo = URI.file('/repo');
 			const dataAgent = URI.joinPath(repo, '.github', 'agents', 'data.md');
@@ -30090,8 +30073,7 @@ suite('CopilotAgent', () => {
 	suite('standalone client customizations', () => {
 
 		test('restores a legacy singleton selection when other bundle filenames collide and updates persisted provider data', async () => {
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 			const root = URI.file('/cache/bundle/current');
 			const source = URI.parse('client-customizations:/bundle');
 			const paths = ['agents/solo.agent.md', 'agents/first/reviewer.agent.md', 'agents/second/reviewer.agent.md'];
@@ -30161,8 +30143,7 @@ suite('CopilotAgent', () => {
 		});
 
 		test('registers and switches between same-named agents inside one client bundle', async () => {
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 			const root = URI.file('/synced/extension-bundle');
 			const paths = ['first', 'second'].map(name => `agents/${name}/reviewer.agent.md`);
 			const uris = paths.map(path => URI.joinPath(root, path));
@@ -30225,8 +30206,7 @@ suite('CopilotAgent', () => {
 		});
 
 		test('registers and switches between forwarded definitions with identical display names', async () => {
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 			const roots = ['first', 'second'].map(source => URI.file(`/plugins/${source}`));
 			const uris = roots.map(root => URI.joinPath(root, 'agents', 'shared.agent.md'));
 			for (const [index, root] of roots.entries()) {
@@ -30273,8 +30253,7 @@ suite('CopilotAgent', () => {
 		});
 
 		test('passes a standalone client bundle through non-plugin SDK options and reserves built-in agent names', async () => {
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 			const pluginDir = URI.file('/plugins/plugin-a');
 			const standaloneDir = URI.file('/synced/standalone');
 			await fileService.writeFile(URI.joinPath(pluginDir, '.plugin', 'plugin.json'), VSBuffer.fromString(JSON.stringify({ name: 'Plugin A' })));
@@ -30499,8 +30478,7 @@ suite('CopilotAgent', () => {
 		});
 
 		test('materialization rewrites a repo agent to its worktree copy and persists it (no resolution stubbing)', async () => {
-			const fileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
 
 			const repoFolder = URI.file('/repo');
 			const worktreeFolder = URI.file('/repo.worktrees/agents-x');

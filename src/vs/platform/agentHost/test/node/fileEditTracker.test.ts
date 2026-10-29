@@ -14,9 +14,10 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
@@ -106,9 +107,7 @@ suite('FileEditTracker', () => {
 
 	setup(async () => {
 		fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
-		fileService = disposables.add(new FileService(new NullLogService()));
-		const sourceFs = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider('file', sourceFs));
+		fileService = createInMemoryFileService(disposables, Schemas.file);
 
 		db = disposables.add(await SessionDatabase.open(':memory:'));
 		await db.createTurn('turn-1');
