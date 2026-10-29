@@ -53,9 +53,14 @@ suite('getExcludeExceptionRuns', () => {
 
 	(isWindows ? test.skip : test)('absolute exceptions are made relative to the folder or ignored', () => {
 		const exceptions = getExcludeExceptions({ '!/workspace/node_modules/@types': true, '!/elsewhere/a': true });
+		const workspaceWideExceptions = getExcludeExceptions({ '!/workspace/**/small.js': true });
 
-		assert.deepStrictEqual(getExcludeExceptionRuns(exceptions, '/workspace'), [
-			{ root: 'node_modules/@types', globs: ['node_modules/@types', 'node_modules/@types/**'] },
-		]);
+		assert.deepStrictEqual({
+			anchored: getExcludeExceptionRuns(exceptions, '/workspace'),
+			workspaceWide: getExcludeExceptionRuns(workspaceWideExceptions, '/workspace'),
+		}, {
+			anchored: [{ root: 'node_modules/@types', globs: ['node_modules/@types', 'node_modules/@types/**'] }],
+			workspaceWide: [{ root: '', globs: ['**/small.js', '**/small.js/**'] }],
+		});
 	});
 });

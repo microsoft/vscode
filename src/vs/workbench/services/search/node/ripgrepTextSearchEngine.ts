@@ -10,8 +10,7 @@ import { coalesce, mapArrayOrNot, asArray } from '../../../../base/common/arrays
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { getExcludeExceptions, splitGlobAware } from '../../../../base/common/glob.js';
-import { join, normalize } from '../../../../base/common/path.js';
-import * as pfs from '../../../../base/node/pfs.js';
+import { normalize } from '../../../../base/common/path.js';
 import { createRegExp, escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -19,7 +18,7 @@ import { Progress } from '../../../../platform/progress/common/progress.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, ITextSearchPreviewOptions, SearchError, SearchErrorCode, serializeSearchError, TextSearchMatch } from '../common/search.js';
 import { Range, TextSearchComplete2, TextSearchCompleteMessageType, TextSearchContext2, TextSearchMatch2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2 } from '../common/searchExtTypes.js';
 import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
-import { anchorGlob, getExcludeExceptionRuns, IExcludeExceptionRun, IOutputChannel, MAX_RIPGREP_SYMLINK_LOOPS, Maybe, rangeToSearchRange, RipgrepSymlinkLoopDetector, searchRangeToRange } from './ripgrepSearchUtils.js';
+import { anchorGlob, getExcludeExceptionRuns, IExcludeExceptionRun, IOutputChannel, MAX_RIPGREP_SYMLINK_LOOPS, Maybe, rangeToSearchRange, resolveExcludeExceptionRunRoot, RipgrepSymlinkLoopDetector, searchRangeToRange } from './ripgrepSearchUtils.js';
 import type { RipgrepTextSearchOptions } from '../common/searchExtTypesInternal.js';
 import { newToOldPreviewOptions } from '../common/searchExtConversionTypes.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
@@ -83,12 +82,15 @@ export class RipgrepTextSearchEngine {
 				break;
 			}
 
-			if (exceptionRun.root && !await pfs.Promises.exists(join(options.folderOptions.folder.fsPath, exceptionRun.root))) {
+			const root = await resolveExcludeExceptionRunRoot(options.folderOptions.folder.fsPath, exceptionRun.root, options.folderOptions.followSymlinks);
+			if (root === undefined) {
 				continue;
 			}
 
+			// Results are filtered and deduplicated after ripgrep reports them, so the search manager limits the accepted results instead
+			const runOptions = { ...options, maxResults: Number.MAX_SAFE_INTEGER };
 			const runPaths = new Set<string>();
-			const runComplete = await this.searchWithRipgrep({ ...originalQuery }, options, reportNewResults(runPaths), token, exceptionRun);
+			const runComplete = await this.searchWithRipgrep({ ...originalQuery }, runOptions, reportNewResults(runPaths), token, { ...exceptionRun, root });
 			addReportedPaths(runPaths);
 			limitHit = !!runComplete.limitHit;
 			if (runComplete.message) {

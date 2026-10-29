@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { promises as fs } from 'fs';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IExcludeException } from '../../../../base/common/glob.js';
-import { isAbsolute } from '../../../../base/common/path.js';
+import { join } from '../../../../base/common/path.js';
 import { isLinux } from '../../../../base/common/platform.js';
-import { rtrim, startsWithIgnoreCase } from '../../../../base/common/strings.js';
-import { SearchRange } from '../common/search.js';
+import * as pfs from '../../../../base/node/pfs.js';
+import { SearchRange, toFolderRelativeExcludeException } from '../common/search.js';
 import * as searchExtTypes from '../common/searchExtTypes.js';
 
 export type Maybe<T> = T | null | undefined;
@@ -40,7 +41,7 @@ export interface IExcludeExceptionRun {
 export function getExcludeExceptionRuns(exceptions: readonly IExcludeException[], folder: string): IExcludeExceptionRun[] {
 	const runs: { root: string; globs: string[] }[] = [];
 	const relativeExceptions = exceptions
-		.map(exception => toFolderRelativeException(exception, folder))
+		.map(exception => toFolderRelativeExcludeException(exception, folder))
 		.filter((exception): exception is IExcludeException => !!exception)
 		.sort((a, b) => a.literalPrefix.length - b.literalPrefix.length);
 
@@ -57,22 +58,29 @@ export function getExcludeExceptionRuns(exceptions: readonly IExcludeException[]
 	return runs;
 }
 
-function toFolderRelativeException(exception: IExcludeException, folder: string): IExcludeException | undefined {
-	if (!isAbsolute(exception.pattern)) {
-		return exception;
+/**
+ * Resolves the root of an exception run to the casing it has on disk, so that its results match the paths of
+ * the other runs. Returns undefined if the root does not exist or, when symbolic links are not followed,
+ * passes through one, because ripgrep follows symbolic links that it is given as search paths.
+ */
+export async function resolveExcludeExceptionRunRoot(folder: string, root: string, followSymlinks: boolean): Promise<string | undefined> {
+	let resolved = '';
+	for (const segment of root ? root.split('/') : []) {
+		let name: string | undefined = segment;
+		if (!isLinux) {
+			const entries = await pfs.Promises.readdir(join(folder, resolved)).catch((): string[] => []);
+			name = entries.includes(segment) ? segment : entries.find(entry => entry.toLowerCase() === segment.toLowerCase());
+		}
+
+		const stat = name !== undefined ? await fs.lstat(join(folder, resolved, name)).catch(() => undefined) : undefined;
+		if (!stat || (!followSymlinks && stat.isSymbolicLink())) {
+			return undefined;
+		}
+
+		resolved = resolved ? `${resolved}/${name}` : name!;
 	}
 
-	const folderPath = rtrim(folder.replace(/\\/g, '/'), '/');
-	const prefix = exception.literalPrefix.replace(/\\/g, '/');
-	const isInFolder = isLinux ? prefix.startsWith(`${folderPath}/`) : startsWithIgnoreCase(prefix, `${folderPath}/`);
-	if (!isInFolder) {
-		return undefined;
-	}
-
-	return {
-		pattern: exception.pattern.replace(/\\/g, '/').substring(folderPath.length + 1),
-		literalPrefix: prefix.substring(folderPath.length + 1)
-	};
+	return resolved;
 }
 
 export function rangeToSearchRange(range: searchExtTypes.Range): SearchRange {

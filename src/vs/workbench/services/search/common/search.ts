@@ -9,7 +9,8 @@ import * as glob from '../../../../base/common/glob.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import * as objects from '../../../../base/common/objects.js';
 import * as extpath from '../../../../base/common/extpath.js';
-import { fuzzyContains, getNLines } from '../../../../base/common/strings.js';
+import { fuzzyContains, getNLines, rtrim, startsWithIgnoreCase } from '../../../../base/common/strings.js';
+import { isLinux } from '../../../../base/common/platform.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IFilesConfiguration } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -733,6 +734,47 @@ export function resolveExcludeExceptionsForProvider(globalPattern: glob.IExpress
 	return glob.getExcludeExceptions({ ...(globalPattern || {}), ...(folderPattern || {}) }).map(exception => exception.pattern);
 }
 
+/**
+ * Rewrites an absolute exclude exception that applies inside the folder to a folder-relative one, because
+ * searches match folder-relative paths. Returns undefined for absolute exceptions that apply elsewhere.
+ */
+export function toFolderRelativeExcludeException(exception: glob.IExcludeException, folder: string): glob.IExcludeException | undefined {
+	if (!paths.isAbsolute(exception.pattern)) {
+		return exception;
+	}
+
+	const folderPath = rtrim(folder.replace(/\\/g, '/'), '/');
+	const pattern = exception.pattern.replace(/\\/g, '/');
+	const startsWith = (value: string, prefix: string) => isLinux ? value.startsWith(prefix) : startsWithIgnoreCase(value, prefix);
+	if (!startsWith(pattern, `${folderPath}/`)) {
+		return undefined;
+	}
+
+	return glob.getExcludeExceptions({ [`!${pattern.substring(folderPath.length + 1)}`]: true })[0];
+}
+
+function relativizeExcludeExceptions(expression: glob.IExpression, folder: string): glob.IExpression {
+	const isAbsoluteException = (key: string) => glob.isExcludeException(key) && paths.isAbsolute(key.trimStart().substring(1));
+	if (!Object.keys(expression).some(isAbsoluteException)) {
+		return expression;
+	}
+
+	const result: glob.IExpression = Object.create(null);
+	for (const key of Object.keys(expression)) {
+		if (!isAbsoluteException(key)) {
+			result[key] = expression[key];
+			continue;
+		}
+
+		const exception = toFolderRelativeExcludeException({ pattern: key.trimStart().substring(1), literalPrefix: '' }, folder);
+		if (exception) {
+			result[`!${exception.pattern}`] = expression[key];
+		}
+	}
+
+	return result;
+}
+
 export class QueryGlobTester {
 
 	private _excludeExpression: glob.IExpression[]; // TODO: evaluate globs based on baseURI of pattern
@@ -757,7 +799,7 @@ export class QueryGlobTester {
 			this._excludeExpression = [config.excludePattern || {}];
 		}
 
-		this._parsedExcludeExpressionWithExceptions = this._excludeExpression.map(e => glob.parseExcludeExpression(e, globOptions));
+		this._parsedExcludeExpressionWithExceptions = this._excludeExpression.map(e => glob.parseExcludeExpression(relativizeExcludeExceptions(e, folderQuery.folder.fsPath), globOptions));
 		this._parsedExcludeExpression = this._parsedExcludeExpressionWithExceptions.map(e => e.matches);
 
 		// Empty includeExpression means include nothing, so no {} shortcuts

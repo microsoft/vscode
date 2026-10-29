@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { FileAccess } from '../../../../../base/common/network.js';
 import * as path from '../../../../../base/common/path.js';
+import { isLinux, isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { flakySuite, getRandomTestPath } from '../../../../../base/test/node/testUtils.js';
 import { IFileQuery, IFolderQuery, ISerializedFileMatch, ISerializedSearchProgressItem, isProgressMessage, QueryType } from '../../common/search.js';
@@ -186,5 +187,51 @@ flakySuite('FileSearch-integration', function () {
 			withFolderInclude: ['more/file.txt'],
 			withNestedRoot: ['examples/small.js'],
 		});
+	});
+
+	test('File - exists queries only count exclude exception results that pass the includes', async () => {
+		const exists = async (includePattern: string) => {
+			const svc = new SearchService();
+			const complete = await svc.doFileSearch({
+				type: QueryType.File,
+				folderQueries: [{ folder: URI.file(TEST_FIXTURES), includePattern: { [includePattern]: true } }],
+				excludePattern: { 'examples': true, '!examples/small.js': true },
+				exists: true
+			}, numThreads, () => { });
+			return complete.limitHit;
+		};
+
+		assert.deepStrictEqual([await exists('nonexistent/**'), await exists('examples/**')], [false, true]);
+	});
+
+	(isLinux ? test.skip : test)('File - exclude exception with different casing reports each file once with its casing on disk', async () => {
+		const paths = await getRelativePaths({
+			type: QueryType.File,
+			folderQueries: ROOT_FOLDER_QUERY,
+			filePattern: 'small',
+			ignoreGlobCase: true,
+			excludePattern: { '!EXAMPLES/small.js': true }
+		}, TEST_FIXTURES);
+
+		assert.deepStrictEqual(paths, ['examples/small.js']);
+	});
+
+	(isWindows ? test.skip : test)('File - exclude exception does not follow symbolic links when they are ignored', async () => {
+		const root = getRandomTestPath(tmpdir(), 'vsctests', 'filesearch-exclude-exception-symlinks');
+		try {
+			await fs.promises.mkdir(path.join(root, 'target'), { recursive: true });
+			await fs.promises.writeFile(path.join(root, 'target', 'file.txt'), '');
+			await fs.promises.symlink(path.join(root, 'target'), path.join(root, 'link'));
+
+			const paths = await getRelativePaths({
+				type: QueryType.File,
+				folderQueries: [{ folder: URI.file(root), ignoreSymlinks: true }],
+				excludePattern: { 'target': true, '!link': true }
+			}, root);
+
+			assert.deepStrictEqual(paths, []);
+		} finally {
+			await fs.promises.rm(root, { recursive: true, force: true });
+		}
 	});
 });

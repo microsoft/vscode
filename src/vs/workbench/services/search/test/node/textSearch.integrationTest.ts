@@ -184,6 +184,19 @@ flakySuite('TextSearch-integration', function () {
 		return doSearchTest(config, 414);
 	});
 
+	test('Text: exclude exception results that are filtered out do not use up the result limit', () => {
+		const config: ITextQuery = {
+			type: QueryType.Text,
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'e' },
+			includePattern: { 'examples/employee.js': true },
+			excludePattern: { 'examples': true, '!examples': true },
+			maxResults: 1
+		};
+
+		return doSearchTest(config, 1);
+	});
+
 	test('Text: exclude exception re-includes gitignored and excluded files once', async () => {
 		const root = getRandomTestPath(tmpdir(), 'vsctests', 'textsearch-exclude-exceptions');
 		try {

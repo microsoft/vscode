@@ -739,12 +739,21 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 			return;
 		}
 
+		let inheritedValues: (IExpression | undefined)[] | undefined;
+		const isInheritedPattern = (pattern: string) => {
+			inheritedValues ??= inheritedSettings.flatMap(key => {
+				const { defaultValue, applicationValue, userValue, workspaceValue, workspaceFolderValue } = this.configurationService.inspect<IExpression>(key, { resource: this.settingsEditorModel.uri });
+				return [defaultValue, applicationValue, userValue, workspaceValue, workspaceFolderValue];
+			});
+			return inheritedValues.some(value => !!value?.[pattern]);
+		};
+
 		const valueOffset = model.getOffsetAt(Range.lift(setting.valueRange).getStartPosition());
 		const valueNode = parseTree(model.getValueInRange(setting.valueRange));
 		for (const property of valueNode?.children ?? []) {
 			const [keyNode, valueOfKeyNode] = property.children ?? [];
 			const pattern = keyNode?.value;
-			if (typeof pattern !== 'string' || valueOfKeyNode?.value !== false || isExcludeException(pattern) || this.isInheritedExcludePattern(inheritedSettings, pattern)) {
+			if (typeof pattern !== 'string' || valueOfKeyNode?.value !== false || isExcludeException(pattern) || isInheritedPattern(pattern)) {
 				continue;
 			}
 
@@ -769,13 +778,6 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 				}
 			}]);
 		}
-	}
-
-	private isInheritedExcludePattern(settingKeys: readonly string[], pattern: string): boolean {
-		return settingKeys.some(key => {
-			const { defaultValue, applicationValue, userValue, workspaceValue, workspaceFolderValue } = this.configurationService.inspect<IExpression>(key, { resource: this.settingsEditorModel.uri });
-			return [defaultValue, applicationValue, userValue, workspaceValue, workspaceFolderValue].some(value => !!value?.[pattern]);
-		});
 	}
 
 	private generateUnsupportedApplicationSettingMarker(setting: ISetting): IMarkerData {

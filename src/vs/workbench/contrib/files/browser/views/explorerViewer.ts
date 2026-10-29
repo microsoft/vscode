@@ -1344,8 +1344,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		const globMatch = cached?.parsed.matchesExclude(relativePath, stat.name, name => !!(stat.parent?.getChild(name)));
 		// Small optimization to only run isHiddenResource (traverse gitIgnore) if the globMatch from fileExclude returned nothing
 		const isHiddenResource = globMatch ? true : this.isGitIgnored(stat.resource, stat.root.resource, stat.isDirectory);
-		const isParentExcluded = !!stat.parent && (stat.parent.isExcluded || this.foldersLeadingToExceptions.has(stat.parent));
-		if (isHiddenResource || isParentExcluded) {
+		if (isHiddenResource || (!!stat.parent && (stat.parent.isExcluded || this.foldersLeadingToExceptions.has(stat.parent)))) {
 			if (stat.isDirectory && cached?.parsed.couldExceptionMatchBeneath(relativePath)) {
 				this.foldersLeadingToExceptions.add(stat);
 				return true;

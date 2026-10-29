@@ -252,7 +252,7 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 
 					if (isFileSystemDirectoryHandle(handle)) {
 						dirs.push(processDirectory(handle, path + '/', ignoreFile, isExcluded));
-					} else if (isFileSystemFileHandle(handle) && !isExcluded && pathIncludedInQuery(queryProps, relativePath, extUri)) {
+					} else if (isFileSystemFileHandle(handle) && !isExcluded && isIncludedByQuery(queryProps, relativePath, extUri)) {
 						files.push(processFile(handle, path));
 					}
 				}
@@ -315,12 +315,11 @@ function reviveQueryProps(queryProps: ICommonQueryProps<UriComponents>): ICommon
 }
 
 
-function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, path: string, extUri: ExtUri): boolean {
+/**
+ * Checks the include patterns and search paths of the query. Excludes are evaluated during the walk.
+ */
+function isIncludedByQuery(queryProps: ICommonQueryProps<URI>, path: string, extUri: ExtUri): boolean {
 	const globOptions = queryProps.ignoreGlobCase ? { ignoreCase: true } : undefined;
-	if (queryProps.excludePattern && glob.parseExcludeExpression(queryProps.excludePattern, globOptions).matches(path)) {
-		return false;
-	}
-
 	if (queryProps.includePattern || queryProps.usingSearchPaths) {
 		if (queryProps.includePattern && glob.match(queryProps.includePattern, path, globOptions)) {
 			return true;

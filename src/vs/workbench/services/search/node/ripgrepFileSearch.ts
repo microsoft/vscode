@@ -70,7 +70,8 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 		args.push('--follow');
 	}
 
-	if (config.exists) {
+	// Exception runs list their candidates, because they are filtered further before existence is known
+	if (config.exists && !exceptionRun) {
 		args.push('--quiet');
 	}
 

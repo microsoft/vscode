@@ -784,7 +784,7 @@ function parseSegmentMatchers(pattern: string, ignoreCase: boolean): SegmentMatc
 		}
 
 		if (segment.includes(GLOB_SPLIT)) {
-			return () => true; // a brace expansion with a path separator, e.g. `{a/b,c}`
+			return GLOBSTAR; // a brace expansion with a path separator, e.g. `{a/b,c}`, can span any number of segments
 		}
 
 		try {

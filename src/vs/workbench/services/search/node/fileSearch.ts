@@ -18,10 +18,9 @@ import * as strings from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileQuery, IFolderQuery, IProgressMessage, ISearchEngineStats, IRawFileMatch, ISearchEngine, ISearchEngineSuccess, isFilePatternMatch, hasSiblingFn } from '../common/search.js';
 import { spawnRipgrepCmd } from './ripgrepFileSearch.js';
-import { getExcludeExceptionRuns, IExcludeExceptionRun, MAX_RIPGREP_SYMLINK_LOOPS, RipgrepSymlinkLoopDetector } from './ripgrepSearchUtils.js';
+import { getExcludeExceptionRuns, IExcludeExceptionRun, MAX_RIPGREP_SYMLINK_LOOPS, resolveExcludeExceptionRunRoot, RipgrepSymlinkLoopDetector } from './ripgrepSearchUtils.js';
 import { prepareQuery } from '../../../../base/common/fuzzyScorer.js';
 import { isThenable } from '../../../../base/common/async.js';
-import * as pfs from '../../../../base/node/pfs.js';
 
 interface IDirectoryEntry extends IRawFileMatch {
 	base: string;
@@ -233,13 +232,14 @@ export class FileWalker {
 					break;
 				}
 
-				if (exceptionRun.root && !await pfs.Promises.exists(path.join(rootFolder, exceptionRun.root))) {
+				const root = await resolveExcludeExceptionRunRoot(rootFolder, exceptionRun.root, !folderQuery.ignoreSymlinks);
+				if (root === undefined) {
 					continue;
 				}
 
 				this.excludeExceptionRuns++;
 				const exceptionRunSW = StopWatch.create(false);
-				err = await traverse({ seenPaths, exceptionRun });
+				err = await traverse({ seenPaths, exceptionRun: { ...exceptionRun, root } });
 				this.excludeExceptionTime += exceptionRunSW.elapsed();
 			}
 			cb(err);
@@ -362,7 +362,10 @@ export class FileWalker {
 
 			if (seenPaths) {
 				for (const relativePath of relativeFiles) {
-					seenPaths.add(relativePath);
+					// Exception runs only report excepted paths, so only those can be reported twice
+					if (exceptionRun || excludePattern.isExcepted(relativePath)) {
+						seenPaths.add(relativePath);
+					}
 				}
 			}
 
@@ -394,7 +397,7 @@ export class FileWalker {
 			if (!isRetrying && !this.isCanceled && !this.isLimitHit && symlinkLoopDetector.handleStderr(stderr)) {
 				retryWithoutFollowingSymlinks();
 			}
-		}));
+		}), !exceptionRun);
 	}
 
 	/**
@@ -454,7 +457,10 @@ export class FileWalker {
 		});
 	}
 
-	private collectStdout(cmd: childProcess.ChildProcess, encoding: BufferEncoding, onMessage: (message: IProgressMessage) => void, cb: (err: Error | null, stdout?: string, last?: boolean) => void, onStderr?: (stderr: string) => void): void {
+	/**
+	 * @param isExistsFromExitCode whether a successful exit means that a file exists, which is not the case when the results are filtered further
+	 */
+	private collectStdout(cmd: childProcess.ChildProcess, encoding: BufferEncoding, onMessage: (message: IProgressMessage) => void, cb: (err: Error | null, stdout?: string, last?: boolean) => void, onStderr?: (stderr: string) => void, isExistsFromExitCode = true): void {
 		let onData = (err: Error | null, stdout?: string, last?: boolean) => {
 			if (err || last) {
 				onData = () => { };
@@ -494,7 +500,7 @@ export class FileWalker {
 			if (!gotData && (stderrText = this.decodeData(stderr, encoding)) && rgErrorMsgForDisplay(stderrText)) {
 				onData(new Error(`command failed with error code ${code}: ${this.decodeData(stderr, encoding)}`));
 			} else {
-				if (this.exists && code === 0) {
+				if (this.exists && isExistsFromExitCode && code === 0) {
 					this.isLimitHit = true;
 				}
 				onData(null, '', true);

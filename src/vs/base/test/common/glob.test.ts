@@ -1342,6 +1342,7 @@ suite('Glob', () => {
 				'a/b/c/e/f': true
 			});
 			assert.deepStrictEqual(beneath({ 'a': true }, ['a']), { 'a': false });
+			assert.deepStrictEqual(beneath({ 'a': true, '!{a/b,c}/keep.txt': true }, ['a', 'a/b', 'c']), { 'a': true, 'a/b': true, 'c': true });
 		});
 	});
 

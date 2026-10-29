@@ -287,17 +287,16 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 				// adjust patterns to be absolute in case they aren't
 				// free floating (**/)
 				const adjustedConfig: glob.IExpression = {};
-				for (const key in excludesConfig) {
-					if (typeof excludesConfig[key] !== 'boolean') {
+				for (const pattern in excludesConfig) {
+					if (typeof excludesConfig[pattern] !== 'boolean') {
 						continue;
 					}
-					const isException = glob.isExcludeException(key);
-					const pattern = isException ? key.trimStart().substring(1) : key;
-					const patternAbs = pattern.indexOf('**/') !== 0
+					// exceptions stay relative because the filter matches folder-relative paths
+					const patternAbs = pattern.indexOf('**/') !== 0 && !glob.isExcludeException(pattern)
 						? posix.join(folder.uri.path, pattern)
 						: pattern;
 
-					adjustedConfig[isException ? `!${patternAbs}` : patternAbs] = excludesConfig[key];
+					adjustedConfig[patternAbs] = excludesConfig[pattern];
 				}
 				const ignoreCase = !fileService.hasCapability(folder.uri, FileSystemProviderCapabilities.PathCaseSensitive);
 				this._cachedExpressions.set(folder.uri.toString(), glob.parseExcludeExpression(adjustedConfig, { ignoreCase }));
