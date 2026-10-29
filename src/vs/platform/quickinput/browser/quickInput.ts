@@ -159,6 +159,7 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 	private _steps: number | undefined;
 	private _totalSteps: number | undefined;
 	private _enabled = true;
+	private _useNeutralSelection = false;
 	private _contextKey: string | undefined;
 	private _busy = false;
 	private _ignoreFocusOut = false;
@@ -249,6 +250,15 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 
 	set enabled(enabled: boolean) {
 		this._enabled = enabled;
+		this.update();
+	}
+
+	get useNeutralSelection() {
+		return this._useNeutralSelection;
+	}
+
+	set useNeutralSelection(useNeutralSelection: boolean) {
+		this._useNeutralSelection = useNeutralSelection;
 		this.update();
 	}
 
@@ -406,7 +416,9 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 			this.widgetUpdated = false;
 			dom.reset(this.ui.widget, ...(this._widget ? [this._widget] : []));
 			this.ui.container.classList.toggle('has-custom-widget', !!this._widget);
+			this.ui.list.setHasCustomWidget(!!this._widget);
 		}
+		this.ui.container.classList.toggle('neutral-selection', this.useNeutralSelection);
 		const title = this.getTitle();
 		if (title && this.ui.title.textContent !== title) {
 			this.ui.title.textContent = title;

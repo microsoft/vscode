@@ -29,7 +29,7 @@ import { Action, IAction, Separator } from '../../../../../base/common/actions.j
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { isWeb } from '../../../../../base/common/platform.js';
-import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginService, setAgentPluginEnablement } from '../../common/plugins/agentPluginService.js';
 import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../common/enablement.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { getInstalledPluginContextMenuActions, getPluginPolicyEnablement, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
@@ -420,7 +420,7 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 		}
 
 		templateData.container.classList.toggle('disabled', element.item.enabled === false);
-		templateData.metadata.textContent = localize('remotePluginMetadata', "Remote agent host");
+		templateData.metadata.textContent = localize('sessionPluginMetadata', "Agent host");
 		templateData.status.className = 'plugin-list-item-status';
 		if (element.item.enabled === false) {
 			templateData.status.textContent = getRemotePluginDisabledLabel(element.item);
@@ -743,9 +743,9 @@ export function getToggledPluginEnablementState(state: ContributionEnablementSta
 	}
 }
 
-export function setPluginEnablementAndReadEffective(model: IEnablementModel, key: string, state: ContributionEnablementState): ContributionEnablementState {
-	model.setEnabled(key, state);
-	return model.readEnabled(key);
+export async function setPluginEnablementAndReadEffective(model: IEnablementModel, plugin: IAgentPlugin, state: ContributionEnablementState): Promise<ContributionEnablementState> {
+	await setAgentPluginEnablement(plugin, model, state);
+	return model.readEnabled(plugin.uri.toString());
 }
 
 //#endregion
@@ -1183,7 +1183,7 @@ export class PluginListWidget extends Disposable {
 			DOM.clearNode(this.disabledMessage);
 			this.disabledLinkListener.clear();
 			if (policyLocked) {
-				this.disabledMessage.textContent = localize('pluginsDisabledByPolicy', "Plugin integration in chat is disabled by your organization. Contact your organization administrator for more information.");
+				this.disabledMessage.textContent = localize('pluginsDisabledByPolicy', "Plugin integration in chat is disabled by your organization. Contact your administrator for more information.");
 			} else {
 				this.disabledMessage.appendChild(document.createTextNode(localize('pluginsDisabledBySettingPrefix', "Plugins are disabled in settings. ")));
 				const link = DOM.append(this.disabledMessage, $('a.mcp-disabled-settings-link')) as HTMLAnchorElement;
@@ -1301,7 +1301,7 @@ export class PluginListWidget extends Disposable {
 
 	private getPluginEntryAriaLabel(element: IPluginListEntry): string | IObservable<string> {
 		if (element.type === 'group-header') {
-			return localize('pluginGroupAriaLabel', "{0}, {1} items", element.label, element.count);
+			return localize('pluginGroupAriaLabel2', "{0}, {1} items", element.label, element.count);
 		}
 		if (element.type === 'search-header') {
 			return element.label;
@@ -1319,8 +1319,8 @@ export class PluginListWidget extends Disposable {
 		if (element.type === 'remote-item') {
 			const statusLabel = getRemotePluginStatusLabel(element.item);
 			return statusLabel
-				? localize('pluginRemoteItemAriaLabelWithStatus', "{0}. Remote agent host. Status: {1}", nameAndDescription, statusLabel)
-				: localize('pluginRemoteItemAriaLabel', "{0}. Remote agent host", nameAndDescription);
+				? localize('pluginSessionItemAriaLabelWithStatus', "{0}. Agent host. Status: {1}", nameAndDescription, statusLabel)
+				: localize('pluginSessionItemAriaLabel', "{0}. Agent host", nameAndDescription);
 		}
 		const marketplaceLabel = localize('pluginMarketplaceItemAriaLabel', "{0}. From {1}", nameAndDescription, element.item.marketplace);
 		return this.pluginMarketplaceService.recommendedPlugins.get().has(getMarketplaceRecommendationKey(element.item))
@@ -1363,16 +1363,22 @@ export class PluginListWidget extends Disposable {
 			row.classList.toggle('disabled', !checked);
 		};
 		disposables.add(autorun(reader => update(item.plugin.enablement.read(reader), getPluginPolicyEnablement(item.plugin, reader))));
-		disposables.add(toggle.onChange(() => {
+		disposables.add(toggle.onChange(async () => {
 			const policyEnablement = getPluginPolicyEnablement(item.plugin);
 			if (policyEnablement !== undefined) {
 				update(renderedState, policyEnablement);
 				return;
 			}
 			const nextState = getToggledPluginEnablementState(renderedState);
-			const effectiveState = setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin.uri.toString(), nextState);
-			update(effectiveState, getPluginPolicyEnablement(item.plugin));
-			status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
+			toggle.disabled = true;
+			try {
+				await setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin, nextState);
+				status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
+			} catch (error) {
+				this.notificationService.error(localize('pluginEnablementFailed', "Unable to change plugin enablement: {0}", getErrorMessage(error)));
+			} finally {
+				update(item.plugin.enablement.get(), getPluginPolicyEnablement(item.plugin));
+			}
 		}));
 
 		const more = disposables.add(new Button(actions, {
@@ -1488,8 +1494,8 @@ export class PluginListWidget extends Disposable {
 			...workspaceDefinitions,
 			{
 				id: 'remote',
-				label: localize('remotePluginsSection', "Remote Session"),
-				description: localize('remotePluginsSectionDescription', "Plugins configured directly on the active remote agent host."),
+				label: localize('sessionPluginsSection', "Session"),
+				description: localize('sessionPluginsSectionDescription', "Plugins configured directly on the active agent host."),
 				icon: Codicon.remote,
 				children: remoteEntries,
 			},
@@ -1775,16 +1781,22 @@ export class PluginListWidget extends Disposable {
 			const state = item.plugin.enablement.read(reader);
 			update(state, getPluginPolicyEnablement(item.plugin, reader));
 		}));
-		this.cardDisposables.add(toggle.onChange(() => {
+		this.cardDisposables.add(toggle.onChange(async () => {
 			const policyEnablement = getPluginPolicyEnablement(item.plugin);
 			if (policyEnablement !== undefined) {
 				update(renderedState, policyEnablement);
 				return;
 			}
 			const nextState = getToggledPluginEnablementState(renderedState);
-			const effectiveState = setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin.uri.toString(), nextState);
-			update(effectiveState, getPluginPolicyEnablement(item.plugin));
-			status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
+			toggle.disabled = true;
+			try {
+				await setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin, nextState);
+				status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
+			} catch (error) {
+				this.notificationService.error(localize('pluginEnablementFailed', "Unable to change plugin enablement: {0}", getErrorMessage(error)));
+			} finally {
+				update(item.plugin.enablement.get(), getPluginPolicyEnablement(item.plugin));
+			}
 		}));
 		return switchElement;
 	}
@@ -1792,7 +1804,7 @@ export class PluginListWidget extends Disposable {
 	protected appendRemotePluginRow(parent: HTMLElement, item: ICustomizationItem): void {
 		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.plugin-remote-item'));
 		row.setAttribute('role', 'listitem');
-		row.setAttribute('aria-label', localize('pluginRemoteCardAria', "{0}. Remote plugin", item.name));
+		row.setAttribute('aria-label', localize('pluginSessionCardAria', "{0}. Session plugin", item.name));
 		row.classList.toggle('disabled', item.enabled === false);
 
 		const details = DOM.append(row, $('.plugin-list-item-details'));
@@ -1800,12 +1812,12 @@ export class PluginListWidget extends Disposable {
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
 		name.textContent = formatDisplayName(item.name);
 		const source = DOM.append(nameRow, $('.inline-badge.plugin-source-badge'));
-		source.textContent = localize('remotePluginSource', "Remote");
-		source.title = localize('remotePluginMetadata', "Remote agent host");
+		source.textContent = localize('sessionPluginSource', "Session");
+		source.title = localize('sessionPluginMetadata', "Agent host");
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		description.textContent = item.description || localize('pluginNoDescription', "No description provided.");
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
-		metadata.textContent = localize('remotePluginConfigurationSource', "Configured on the active remote agent host");
+		metadata.textContent = localize('sessionPluginConfigurationSource', "Configured on the active agent host");
 
 		const status = DOM.append(row, $('.plugin-list-item-status'));
 		const statusLabel = getRemotePluginStatusLabel(item);

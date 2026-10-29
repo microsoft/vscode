@@ -113,6 +113,61 @@ suite('AgentSessions', () => {
 			});
 		});
 
+		test('hides automation sessions from discovery while preserving direct lookup', async () => {
+			return runWithFakedTimers({}, async () => {
+				const ordinary = makeSimpleSessionItem('ordinary', { label: 'Ordinary Session' });
+				const automation = makeSimpleSessionItem('automation', {
+					label: 'Automation Run',
+					metadata: { isAutomation: true },
+				});
+				const controller = new StaticChatSessionItemController([ordinary, automation]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					visible: viewModel.sessions.map(session => session.label),
+					automationLookup: viewModel.getSession(automation.resource)?.label,
+				}, {
+					visible: ['Ordinary Session'],
+					automationLookup: 'Automation Run',
+				});
+			});
+		});
+
+		test('deduplicates legacy Automation twins before filtering discovery', async () => {
+			return runWithFakedTimers({}, async () => {
+				const legacy = makeSimpleSessionItem('shared', {
+					resource: URI.parse('copilotcli:/shared'),
+					label: 'Legacy Automation Twin',
+				});
+				const automation = makeSimpleSessionItem('shared', {
+					resource: URI.parse('agent-host-copilotcli:/shared'),
+					label: 'Automation Run',
+					metadata: { isAutomation: true },
+				});
+				const ordinary = makeSimpleSessionItem('ordinary', {
+					resource: URI.parse('agent-host-copilotcli:/ordinary'),
+					label: 'Ordinary Session',
+				});
+				mockChatSessionsService.registerChatSessionItemController('copilotcli', new StaticChatSessionItemController([legacy]));
+				mockChatSessionsService.registerChatSessionItemController('agent-host-copilotcli', new StaticChatSessionItemController([automation, ordinary]));
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					visible: viewModel.sessions.map(session => session.label),
+					legacyLookup: viewModel.getSession(legacy.resource)?.label,
+					automationLookup: viewModel.getSession(automation.resource)?.label,
+				}, {
+					visible: ['Ordinary Session'],
+					legacyLookup: 'Legacy Automation Twin',
+					automationLookup: 'Automation Run',
+				});
+			});
+		});
+
 		test('preserves a registered provider\'s sessions when a sibling provider refreshes with a partial list', async () => {
 			return runWithFakedTimers({}, async () => {
 				// Two providers registered only as item controllers (no static

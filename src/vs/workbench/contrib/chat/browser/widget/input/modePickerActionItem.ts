@@ -10,7 +10,7 @@ import { coalesce } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { groupBy } from '../../../../../../base/common/collections.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -23,6 +23,8 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
+import { logSettingExperimentTrigger } from '../../../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatMode, IChatMode, IChatModes } from '../../../common/chatModes.js';
@@ -41,6 +43,7 @@ export interface IModePickerDelegate {
 	readonly currentMode: IObservable<IChatMode>;
 	readonly currentChatModes: IObservable<IChatModes>;
 	readonly sessionResource: () => URI | undefined;
+	readonly supportsAttachContext?: boolean;
 	/** Direct mode-change callback for hosts without a registered IChatWidget (bypasses ToggleAgentModeActionId). */
 	readonly setMode?: (mode: IChatMode) => void;
 	/**
@@ -58,6 +61,17 @@ const builtinDefaultIcon = (mode: IChatMode) => {
 		default: return undefined;
 	}
 };
+
+export function createAgentPickerInAttachContext(delegate: IModePickerDelegate, configurationService: IConfigurationService, telemetryService: ITelemetryService): IObservable<boolean> {
+	const setting = observableConfigValue(ChatConfiguration.AgentsPickerInAttachContextMenu, false, configurationService);
+	return derived(delegate, reader => {
+		if (!delegate.supportsAttachContext || delegate.currentMode.read(reader).id !== ChatMode.Agent.id) {
+			return false;
+		}
+		logSettingExperimentTrigger(telemetryService, ChatConfiguration.AgentsPickerInAttachContextMenu);
+		return setting.read(reader);
+	});
+}
 
 export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 	constructor(
@@ -297,6 +311,14 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('chat-mode-picker-item');
+	}
+
+	get isConnected(): boolean {
+		return !!this.element?.isConnected;
+	}
+
+	override isFocused(): boolean {
+		return !!this.element && dom.isAncestorOfActiveElement(this.element);
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {

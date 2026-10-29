@@ -14,7 +14,8 @@ import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { GitHubIssue, GitHubIssueRef } from '../../../../platform/github/common/githubQueryService.js';
-import { PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../platform/github/common/githubPullRequestService.js';
+import { PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../platform/github/common/githubPullRequestService.js';
+import { getRequiredPullRequestChecksStatus } from '../../../../platform/github/common/pullRequestRequiredChecks.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchGitHubService } from '../../../services/github/common/githubService.js';
 import type { IActionListItemHover } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -385,7 +386,7 @@ export class GitHubResourceDetailsResolver extends Disposable {
 				includeChecks ||= request.interactive;
 				request.complete = includeChecks;
 				if (includeChecks) {
-					subscription.update({ priority: 'interactive', core: true, checks: { includeOptional: true } });
+					subscription.update({ priority: 'interactive', core: true, checks: { required: true, includeOptional: true } });
 					await subscription.refresh('checks', cancellation.token).catch(error => {
 						signal.throwIfAborted();
 						checksUnavailable = true;
@@ -593,33 +594,11 @@ function toPullRequestHoverModel(pullRequest: PullRequestCore): IGitHubPullReque
 	};
 }
 
+/** The status of the checks that count (see {@link getRequiredPullRequestChecksStatus}) for the pull request's current head. */
 function getChecksStatus(snapshot: PullRequestSnapshot): GitHubChecksStatus | undefined {
 	const checksValue = snapshot.checks.value;
 	if (!checksValue || checksValue.headSha !== snapshot.core.value?.headSha) {
 		return undefined;
 	}
-	const checks = checksValue.checks;
-	if (!checks.length) {
-		return undefined;
-	}
-	if (checks.some(isPendingCheck)) {
-		return 'pending';
-	}
-	return checks.some(isFailingCheck) ? 'failure' : 'success';
-}
-
-function isPendingCheck(check: PullRequestCheck): boolean {
-	return check.type === 'checkRun'
-		? check.status !== 'COMPLETED'
-		: check.status === 'PENDING' || check.status === 'EXPECTED';
-}
-
-function isFailingCheck(check: PullRequestCheck): boolean {
-	return check.type === 'checkRun'
-		? check.conclusion === 'FAILURE'
-		|| check.conclusion === 'TIMED_OUT'
-		|| check.conclusion === 'CANCELLED'
-		|| check.conclusion === 'ACTION_REQUIRED'
-		|| check.conclusion === 'STARTUP_FAILURE'
-		: check.status === 'FAILURE' || check.status === 'ERROR';
+	return getRequiredPullRequestChecksStatus(checksValue);
 }

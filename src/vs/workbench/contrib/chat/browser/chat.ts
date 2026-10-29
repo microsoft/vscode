@@ -8,6 +8,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { isMobile, isWeb } from '../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -17,6 +18,7 @@ import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PreferredGroup } from '../../../services/editor/common/editorService.js';
+import type { IChatPillSection } from '../../../browser/chatPills.js';
 import { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../common/attachments/chatVariables.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/participants/chatAgents.js';
@@ -34,6 +36,7 @@ import { ChatInputPart, IChatInputHostModelSelection, IChatInputHostSubmit } fro
 import { IChatWidgetContrib } from './widget/chatWidget.js';
 import { ICodeBlockActionContext, ICodeBlockRenderOptions } from './widget/chatContentParts/codeBlockPart.js';
 import { AgentSessionTarget } from './agentSessions/agentSessions.js';
+import type { IChatBackgroundShell } from '../common/sessionChatPills.js';
 import type { IResolvedResponseSelection } from './responseSelectionResolver.js';
 
 export { ChatOutline } from './chatOutline.js';
@@ -254,6 +257,25 @@ export function unwrapChatContextMenuActionContext(context: unknown): unknown {
 	return isChatContextMenuActionContext(context) ? context.item : context;
 }
 
+/** Who answers a chat, when that is not the agent its session type serves. */
+export interface IChatResponseIdentity {
+	readonly label: string;
+	readonly icon: ThemeIcon;
+}
+
+/** An agent answering a chat in place of the one its session type serves. */
+export interface IChatRespondent extends IChatResponseIdentity {
+	/** The session type whose models the chat selects from; `undefined` while not known, when none are offered. */
+	readonly modelSessionType: string | undefined;
+}
+
+/** In-progress work for the transcript status, independent of input-pill filters. */
+export interface IChatBackgroundActivityPillSections {
+	readonly subagents?: IObservable<readonly IChatPillSection[]>;
+	/** Shell metadata; each transcript part owns its detail views. */
+	readonly backgroundShells?: IObservable<readonly IChatBackgroundShell[]>;
+}
+
 export interface IChatListItemRendererOptions {
 	readonly renderStyle?: 'compact' | 'minimal';
 	readonly noHeader?: boolean;
@@ -268,6 +290,7 @@ export interface IChatListItemRendererOptions {
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAction?: IObservable<{ readonly label: string; readonly run: () => void } | undefined>;
+	readonly backgroundActivityPillSections?: IChatBackgroundActivityPillSections;
 	readonly contentHorizontalPadding?: number;
 	/** Collapses the first request under this label without changing its message or attachments. */
 	readonly firstRequestSummary?: string;
@@ -276,6 +299,8 @@ export interface IChatListItemRendererOptions {
 	 * so command/tool output pasted by the model wraps instead of overflowing).
 	 */
 	readonly codeBlockRenderOptions?: ICodeBlockRenderOptions;
+	/** Presents responses as coming from this identity instead of the responding agent's own. */
+	readonly responseIdentity?: IChatResponseIdentity;
 }
 
 export interface IChatWidgetViewOptions {
@@ -532,6 +557,8 @@ export interface IChatWidget {
 	refreshParsedInput(): void;
 	/** Floats persistent input content and reserves matching space below the transcript. */
 	setPersistentContentHeight(height: number | undefined): void;
+	/** Shares the host's background activity dropdowns with the transcript's running status. */
+	registerBackgroundActivityPillSections(sections: IChatBackgroundActivityPillSections): IDisposable;
 	logInputHistory(): void;
 	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
 	getSelectedModelRequestOptions(): Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>;

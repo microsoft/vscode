@@ -746,7 +746,8 @@ suite('createHostArtifactStream', () => {
 			contents.buffer.fill(position / size, position, position + size);
 			chunk.complete({ data: contents.slice(position, position + size), eof: false });
 		}
-		assert.deepStrictEqual((await result).buffer, contents.buffer);
+		// assert.deepStrictEqual compares typed arrays key by key in browsers, which takes seconds for 6 MB
+		assert.ok((await result).equals(contents));
 	});
 
 	test('downloads eight chunks in at most half the sequential round-trip time', async () => {

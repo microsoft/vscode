@@ -831,6 +831,10 @@
 		{
 			"name": "vs/sessions/contrib/getStarted",
 			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/worktreeSuggestion",
+			"project": "vscode-sessions"
 		}
 	]
 }

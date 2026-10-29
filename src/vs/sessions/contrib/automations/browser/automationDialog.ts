@@ -278,6 +278,7 @@ interface IRenderFormHandle {
 	readonly getBranch: () => string | undefined;
 	readonly waitForAutomationSessionSync: (token: CancellationToken) => Promise<void>;
 	readonly setSaving: (saving: boolean, committing?: boolean) => void;
+	readonly setOwnership: (ownership: IFormState['ownership']) => void;
 	readonly getCustomizationIds: () => readonly string[] | undefined;
 	readonly waitForCustomizationChoices: (token: CancellationToken) => Promise<void>;
 	readonly showTargetValidationError: (message: string | undefined) => void;
@@ -1126,6 +1127,10 @@ export function renderForm(
 		}
 	}));
 	DOM.append(cloudRow, cloudSwitch.domNode);
+	if (!isEdit) {
+		DOM.append(cloudRow, $('span.automation-cloud-preview', { id: 'automation-cloud-preview' }, localize('automation.form.cloudPreview', "Preview")));
+		cloudSwitch.domNode.setAttribute('aria-describedby', 'automation-cloud-preview');
+	}
 	const loadingHoverLifecycleOptions = { groupId: generateUuid() };
 	const cloudLoading = DOM.append(cloudRow, $('.automation-loading-spinner', {
 		role: 'status',
@@ -1293,14 +1298,6 @@ export function renderForm(
 			updateIntervalOptions(runInCloud.get());
 			revalidate();
 		}, () => cloudConfiguration.get()?.loadTriggers?.()));
-	disposables.add(autorun(reader => {
-		const configuration = cloudConfiguration.read(reader);
-		const catalog = configuration?.triggers?.read(reader);
-		if (catalog?.kind === 'loading') {
-			configuration?.loadTriggers?.();
-		}
-		triggerEditor.update(catalog, configuration !== undefined && configuration.triggers !== undefined);
-	}));
 	// Shown whenever cloud automations are enabled, decided once so the switch never appears or disappears
 	// while the dialog is open. Turning it on connects to the provider when it cannot create yet.
 	const showCloudSwitch = isEdit ? initialProviderConfiguration !== undefined : cloudProvider.get() !== undefined;
@@ -1315,6 +1312,15 @@ export function renderForm(
 	// A cloud draft (for example a duplicated cloud automation) has no local target to restore.
 	let localTarget = initialProviderConfiguration ? { ...state, folderUri: undefined, providerId: undefined, sessionTypeId: undefined } : { ...state };
 	const isolationModel = new AutomationIsolationModel(state);
+	disposables.add(autorun(reader => {
+		const configuration = cloudConfiguration.read(reader);
+		const catalog = configuration?.triggers?.read(reader);
+		const target = configuration?.getWorkspaceTarget(isolationModel.folderUriObs.read(reader)).read(reader);
+		if (catalog?.kind === 'loading') {
+			configuration?.loadTriggers?.();
+		}
+		triggerEditor.update(catalog, configuration !== undefined && configuration.triggers !== undefined, target?.allowReadAccessTriggers);
+	}));
 	const workspaceControlsVisible = derived(reader => !runInCloud.read(reader) && !isolationModel.isQuickChatObs.read(reader) && isolationModel.folderUriObs.read(reader)?.scheme !== GITHUB_REMOTE_FILE_SCHEME && isolationModel.folderUriObs.read(reader) !== undefined);
 	const sessionTypesChanged = observableSignalFromEvent(form, sessionsManagementService.onDidChangeSessionTypes);
 	const sessionTypes = derived(reader => {
@@ -2041,6 +2047,14 @@ export function renderForm(
 		items: ownerLabels.map((text, index) => ({ text, isActive: index === ownerIndex, disabled: isEdit })),
 	}));
 	DOM.append(ownerControl, ownerRadio.domNode);
+	const setOwnership = (ownership: IFormState['ownership']) => {
+		const index = ownership === 'repository' ? 1 : 0;
+		state.ownership = ownership;
+		ownerRadio.setActiveItem(index);
+		updateOwnerInfo(index);
+		setRepositoryWarningVisible(index === 1);
+		revalidate();
+	};
 	for (const [index, element] of ownerRadio.optionElements.entries()) {
 		const description = isEdit
 			? localize('automation.owner.immutableDescription', "{0} Ownership can't be changed after creation.", ownerDescriptions[index])
@@ -2052,12 +2066,7 @@ export function renderForm(
 	}
 	setRepositoryWarningVisible(ownerIndex === 1);
 	if (!isEdit) {
-		disposables.add(ownerRadio.onDidActivate(index => {
-			state.ownership = index === 1 ? 'repository' : 'user';
-			updateOwnerInfo(index);
-			setRepositoryWarningVisible(index === 1);
-			revalidate();
-		}));
+		disposables.add(ownerRadio.onDidActivate(index => setOwnership(index === 1 ? 'repository' : 'user')));
 		// The modal captures arrow keys before the Radio receives them.
 		disposables.add(DOM.addDisposableListener(DOM.getWindow(form), DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
 			const elements = ownerRadio.optionElements;
@@ -2141,6 +2150,7 @@ export function renderForm(
 			};
 		},
 		getBranch: () => isolationModel.persistedBranch,
+		setOwnership,
 		showScheduleValidationError: message => {
 			scheduleError.textContent = message ?? '';
 			setAutomationControlVisible(scheduleError, message !== undefined);
@@ -2620,10 +2630,6 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 			model.isQuickChatObs.read(reader);
 			this._updateTriggerLabel();
 		});
-	}
-
-	protected override _showTabs(): boolean {
-		return false;
 	}
 
 	protected override _buildListOptions(items: readonly IActionListItem<IWorkspacePickerItem>[], pickerWidth: number | undefined): IActionListOptions {

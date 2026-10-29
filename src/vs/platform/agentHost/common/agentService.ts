@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { AgentChatMoveDestination } from './agentHostChatMove.js';
-import type { IAgentHostWorktreeCleanupStatus } from './agentHostWorktreeCleanup.js';
+import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from './agentHostWorktreeCleanup.js';
 import type { CancellationToken } from '../../../base/common/cancellation.js';
 import type { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
@@ -262,6 +262,14 @@ export const AgentHostClaudeSdkRootEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_ROOT';
  * starters normally forward the resolved setting explicitly.
  */
 export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT_ENABLED';
+
+/**
+ * Environment variable form of `chat.agentHost.multipleChatProviders.enabled`, set by the local agent host starters
+ * only when the setting is on (`'true'`). The host seeds its root `multipleChatProviders.enabled` from it before its
+ * first handshake, so the first `initialize` can already advertise `multipleChatProviders`. The renderer's mirror of
+ * the setting stays authoritative afterwards. Not a control of its own: a mirror of the existing setting.
+ */
+export const AgentHostMultipleChatProvidersEnabledEnvVar = 'VSCODE_AGENT_HOST_MULTIPLE_CHAT_PROVIDERS_ENABLED';
 
 /**
  * Environment variable form of {@link AgentHostCodexAgentEnabledSettingId}.
@@ -743,6 +751,8 @@ export interface IAgentSdkStarterSettings {
 	readonly codexBinaryArgs?: readonly string[];
 	readonly claudeAgentEnabled?: boolean;
 	readonly codexAgentEnabled?: boolean;
+	/** `chat.agentHost.multipleChatProviders.enabled`; forwarded only when on, so with it off the env is unchanged. */
+	readonly multipleChatProvidersEnabled?: boolean;
 }
 
 export function buildAgentSdkEnv(
@@ -766,6 +776,9 @@ export function buildAgentSdkEnv(
 	}
 	if (settings.codexAgentEnabled !== undefined) {
 		setIfMissing(AgentHostCodexAgentEnabledEnvVar, settings.codexAgentEnabled ? 'true' : 'false');
+	}
+	if (settings.multipleChatProvidersEnabled === true) {
+		setIfMissing(AgentHostMultipleChatProvidersEnabledEnvVar, 'true');
 	}
 	return out;
 }
@@ -932,6 +945,7 @@ export interface IAgentHostManagementService {
 	listPluginInstallations(provider: AgentProvider, session?: URI, chat?: URI): Promise<readonly IAgentPluginInstallation[]>;
 	/** Local-only bridge for provider-owned plugin uninstall transactions. */
 	uninstallPlugin(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
+	setPluginEnabled(provider: AgentProvider, plugin: string, enabled: boolean): Promise<void>;
 	listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory>;
 	setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void>;
 	/** Returns `undefined` while the provider registry is unsettled; the provider must publish a canvas change after it settles. */
@@ -958,6 +972,11 @@ export interface IAgentHostManagementService {
 	 * machine is fully awake, rather than asleep or in a background maintenance wake.
 	 */
 	setSystemFullyAwake(fullyAwake: boolean): Promise<void>;
+	/**
+	 * Local-only bridge for the owning client process to report whether the network is online after a full wake, so
+	 * scheduled work waits for it.
+	 */
+	setSystemNetworkOnline(online: boolean): Promise<void>;
 	/**
 	 * Local-only bridge for the owning client process to report that macOS changed which apps it trusts to control the
 	 * computer through Accessibility.
@@ -1025,6 +1044,9 @@ export interface IAgentService {
 	readSavedChat?(session: URI, chat?: URI): Promise<IAgentHostSavedChat>;
 	/** Records a verified Copilot continuation and archives only safely covered saved chats. */
 	completeSavedChatContinuation?(request: IAgentHostSavedChatContinuation): Promise<IAgentHostSavedChatContinuationResult>;
+	/** Removes an Automation and returns exact backend session URIs deleted by this request. */
+	deleteAutomation?(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[], requestId?: string): Promise<readonly string[]>;
+	acknowledgeAutomationDeletion?(requestId: string): Promise<void>;
 	/** Permanently adopts an external session without sending a message. */
 	importSession?(session: URI): Promise<void>;
 	/** Removes a recorded artifact or reference, awaiting host metadata persistence. */
@@ -1042,6 +1064,7 @@ export interface IAgentService {
 	refreshCopilotConnectorSessions?(forceConnectorName?: string): Promise<void>;
 	listPluginInstallations?(provider: AgentProvider, session?: URI, chat?: URI): Promise<readonly IAgentPluginInstallation[]>;
 	uninstallPlugin?(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
+	setPluginEnabled?(provider: AgentProvider, plugin: string, enabled: boolean): Promise<void>;
 	listAgentExtensions?(session?: URI, chat?: URI): Promise<IAgentExtensionInventory>;
 	setAgentExtensionEnabled?(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void>;
 	/** Returns `undefined` while the provider registry is unsettled; the provider must publish a canvas change after it settles. */
@@ -1241,6 +1264,8 @@ export interface IAgentService {
 	readonly onDidNotification: Event<INotification>;
 
 	readonly automationCapabilities: AutomationCapabilities | undefined;
+	/** Whether chats of one session may use different agents (the `multipleChatProviders.enabled` host setting). */
+	readonly multipleChatProvidersEnabled?: boolean;
 	listAutomationTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult>;
 	runAutomation(params: RunAutomationParams): Promise<RunAutomationResult>;
 	fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult>;
@@ -1265,11 +1290,13 @@ export interface IAgentService {
 	 */
 	resourceList(uri: URI): Promise<ResourceListResult>;
 
-	/** Estimates reclaimable regular-file allocation using the host-wide scan budget across all protocol endpoints. */
-	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined>;
+	/** Estimates reclaimable allocation using the host-wide scan budget; an idle session enables persistent caching. */
+	measureWorktreeDiskUsage(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined>;
 
 	/** Reports background removal state, optionally retrying cleanup of an archived session. */
 	sessionWorktreeCleanup?(session: URI, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	listManagedWorktrees?(repositories: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
+	cleanupManagedWorktree?(repository: URI, worktree: URI, branch: string): Promise<void>;
 
 	/**
 	 * Read stored content by URI from the agent host (e.g. file edit snapshots,
@@ -1428,6 +1455,9 @@ export interface IAgentConnection {
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	/** Requires the Automation history capability; returns exact backend session URIs deleted by this request. */
+	deleteAutomation?(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[], requestId?: string): Promise<readonly string[]>;
+	acknowledgeAutomationDeletion?(requestId: string): Promise<void>;
 	/** Requires the VS Code session import capability advertised by initialize. */
 	importSession?(session: URI): Promise<void>;
 	/**
@@ -1546,9 +1576,11 @@ export interface IAgentConnection {
 	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult>;
 
 	// ---- Filesystem operations ----------------------------------------------
-	/** Estimates reclaimable regular-file allocation on local or remote hosts. Unsupported hosts must not fall back to per-file RPCs. */
-	measureWorktreeDiskUsage?(root: URI, token: CancellationToken): Promise<number | undefined>;
+	/** Estimates reclaimable allocation on local or remote hosts, optionally cached for an idle session. Unsupported hosts must not fall back to per-file RPCs. */
+	measureWorktreeDiskUsage?(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined>;
 	sessionWorktreeCleanup?(session: URI, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	listManagedWorktrees?(repositories: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
+	cleanupManagedWorktree?(repository: URI, worktree: URI, branch: string): Promise<void>;
 	resourceList(uri: URI): Promise<ResourceListResult>;
 	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
 	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult>;
@@ -1613,6 +1645,7 @@ export interface IAgentHostService extends IAgentConnection {
 	/** Uninstall a plugin through its local Agent Host provider. */
 	listPluginInstallations?(provider: AgentProvider, session?: URI, chat?: URI): Promise<readonly IAgentPluginInstallation[]>;
 	uninstallPlugin?(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
+	setPluginEnabled?(provider: AgentProvider, plugin: string, enabled: boolean): Promise<void>;
 	/** Install a plugin through its local Agent Host provider. */
 	installPlugin?(provider: AgentProvider, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
 	/** Retry the plugins a live chat's managed settings require through its local Agent Host provider. */

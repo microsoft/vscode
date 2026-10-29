@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { AgentHostWorktreeCleanupCapabilityMetaKey, supportsAgentHostWorktreeCleanup } from './vscode/agentHostWorktreeCleanupMeta.js';
+export { AgentHostWorktreeCleanupCapabilityMetaKey, ManagedWorktreesCapabilityMetaKey, supportsAgentHostManagedWorktrees, supportsAgentHostWorktreeCleanup } from './vscode/agentHostWorktreeCleanupMeta.js';

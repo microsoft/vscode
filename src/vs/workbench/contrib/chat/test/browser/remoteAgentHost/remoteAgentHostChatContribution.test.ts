@@ -34,6 +34,8 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
@@ -123,6 +125,8 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		instantiation.stub(IAgentHostTerminalService, {});
 		instantiation.stub(IAgentHostActiveClientService, {});
 		instantiation.stub(IWorkbenchEnvironmentService, { isSessionsWindow });
+		instantiation.stub(IEditorGroupsService, {});
+		instantiation.stub(IEditorService, {});
 		instantiation.stub(IProgressService, new class extends mock<IProgressService>() {
 			override withProgress<R>(options: Parameters<IProgressService['withProgress']>[0], task: (progress: { report(step: IProgressStep): void }) => Promise<R>): Promise<R> {
 				const steps: IProgressStep[] = [];

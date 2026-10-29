@@ -43,6 +43,9 @@ export interface IRemoteAgentHostConnectionCustomization {
 	/** Whether this managed connection requires workspace trust. Defaults to true. */
 	readonly requiresWorkspaceTrust?: boolean;
 
+	/** Optional provider-specific input hint supplied by the connection owner. */
+	readonly inputPlaceholder?: (provider: string) => string | undefined;
+
 	/**
 	 * Transform the outgoing `authenticate` request before it is sent. Must fail closed: throw rather
 	 * than forward a value that does not meet the host's contract. An expired challenge requires renewal.

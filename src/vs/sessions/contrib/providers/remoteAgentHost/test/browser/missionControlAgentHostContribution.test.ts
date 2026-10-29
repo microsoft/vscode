@@ -38,7 +38,7 @@ import { Menus } from '../../../../../browser/menus.js';
 import { RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostActions.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
-import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../chat/common/constants.js';
+import { getRemoteAgentHostPickerKey } from '../../browser/remoteAgentHostPickerVisibility.js';
 
 class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	override readonly connectionStatus = observableValue<RemoteAgentHostConnectionStatus>(this, RemoteAgentHostConnectionStatus.disconnected);
@@ -60,7 +60,7 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 suite('Mission Control native provider inventory', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('labels the remote picker entry and connect command as Environments', () => {
+	test('labels the remote picker entry as GitHub Environments and retains the connect command title', () => {
 		const labels = [
 			{ menu: Menus.SessionWorkspaceManage, command: RemoteAgentHostCommandIds.connectViaMissionControl },
 			{ menu: MenuId.CommandPalette, command: ConnectMissionControlEnvironmentCommand },
@@ -69,7 +69,7 @@ suite('Mission Control native provider inventory', () => {
 			assert.ok(item);
 			return typeof item.command.title === 'string' ? item.command.title : item.command.title.value;
 		});
-		assert.deepStrictEqual(labels, ['Environments...', 'Connect to Environment...']);
+		assert.deepStrictEqual(labels, ['GitHub Environments...', 'Connect to Environment...']);
 	});
 
 	for (const { name, quality, development, hostsEnabled, environmentsEnabled = true, chatEnabled, aiDisabled, available } of [
@@ -277,22 +277,18 @@ suite('Mission Control native provider inventory', () => {
 		});
 	});
 
-	test('publishes only local-disk picker recents and updates them when history or picker settings change', async () => {
+	test('publishes only local-disk picker recents and updates them when history or providers change', () => {
 		const f = fixture();
 		const first = URI.file('/home/test/code/first');
 		const second = URI.file('/another-drive/second');
 		f.setRecentFolders([first, URI.parse('vscode-agent-host://remote/remote-folder'), URI.parse('vscode-remote://ssh-remote+host/folder'), second]);
 		f.setRecentFolders([second]);
 		f.providerChanges.fire({ added: [], removed: [] });
-		await f.configuration.setUserConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING, true);
-		f.configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
-			affectsConfiguration: section => section === UNIFIED_WORKSPACE_PICKER_SETTING,
-		}));
 		assert.deepStrictEqual({
 			projects: f.sharedProjects,
 			lastQuery: f.recentQueries.at(-1),
 		}, {
-			projects: [[], [first.toString(), second.toString()], [second.toString()], [second.toString()], [second.toString()]],
+			projects: [[], [first.toString(), second.toString()], [second.toString()], [second.toString()]],
 			lastQuery: { includeVSCode: true, collapseWorktrees: true },
 		});
 	});
@@ -313,12 +309,14 @@ suite('Mission Control native provider inventory', () => {
 				addresses: created.map(entry => entry.provider.remoteAddress),
 				statuses: created.map(entry => entry.provider.connectionStatus.get().kind),
 				pickerVisibility: created.map(entry => entry.options.isVisibleInEnvironmentPicker?.get()),
+				pickerKeys: created.map(entry => entry.options.pickerVisibilityKey),
 				connects: actions.filter(action => action.startsWith('connect:')),
 				discoveries: actions.filter(action => action === 'discover').length,
 			}, {
 				addresses: ['cloudsandbox:online', 'cloudsandbox:offline'],
 				statuses: [connects ? 'connected' : 'disconnected', 'disconnected'],
 				pickerVisibility: [true, false],
+				pickerKeys: ['online', 'offline'].map(id => getRemoteAgentHostPickerKey(`cloudsandbox:${id}`, 'first')),
 				connects: connects ? ['connect:online'] : [],
 				discoveries: 1,
 			});

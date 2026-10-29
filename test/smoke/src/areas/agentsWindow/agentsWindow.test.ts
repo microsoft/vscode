@@ -75,8 +75,12 @@ function prepareDevContainerWorkspace(workspacePath: string, port: number, optio
 	}, null, 2));
 }
 
-function cleanupDevContainerWorkspace(workspacePath: string): void {
+function removeDevContainerConfiguration(workspacePath: string): void {
 	fs.rmSync(path.join(workspacePath, '.devcontainer'), { recursive: true, force: true });
+}
+
+function cleanupDevContainerWorkspace(workspacePath: string): void {
+	removeDevContainerConfiguration(workspacePath);
 	removeDevContainer(workspacePath);
 }
 
@@ -347,7 +351,9 @@ export function setup(logger: Logger, quality: Quality) {
 					'chat.remoteAgentHostsEnabled': true,
 				},
 				prepareWorkspace: (workspacePath, options) => prepareDevContainerWorkspace(workspacePath, context.mockServer.port, options),
-				cleanupWorkspace: cleanupDevContainerWorkspace,
+				// The WSL fixture removes its container from the Docker daemon in WSL, and the Windows host
+				// may have no Docker daemon of its own.
+				cleanupWorkspace: transport === 'wsl' ? removeDevContainerConfiguration : cleanupDevContainerWorkspace,
 			});
 
 			it(`Starts and reopens a Dev Container session over ${label}`, async function () {
@@ -830,6 +836,8 @@ function setupAgentHostSuite(logger: Logger, config: {
 				'chat.agentHost.copilotSdk.logLevel': 'trace',
 				// These suites exercise Agent Host and sandbox behavior, not Auto routing.
 				'chat.defaultModel': AGENT_HOST_MODEL,
+				// The mock server does not serve the `/meta` model catalog that dynamic Auto tiers read.
+				'chat.copilot.dynamicAutoTiers.enabled': false,
 				...config.settings,
 				...remoteFixture?.settings,
 			}, null, 2);

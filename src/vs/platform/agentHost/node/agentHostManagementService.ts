@@ -148,6 +148,13 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._agentService.listPluginInstallations(provider, session, chat);
 	}
 
+	setPluginEnabled(provider: AgentProvider, plugin: string, enabled: boolean): Promise<void> {
+		if (!this._agentService.setPluginEnabled) {
+			throw new Error('Agent Host plugin enablement is unavailable');
+		}
+		return this._runMutation(() => this._agentService.setPluginEnabled!(provider, plugin, enabled));
+	}
+
 	listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
 		if (!this._agentService.listAgentExtensions) {
 			throw new Error('Copilot extension inventory is unavailable.');
@@ -277,6 +284,11 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 	async setSystemFullyAwake(fullyAwake: boolean): Promise<void> {
 		this._logService.info(`[AgentHost] System is ${fullyAwake ? 'fully awake' : 'asleep or in a background wake'}`);
 		this._systemWake.setFullyAwake(fullyAwake);
+	}
+
+	async setSystemNetworkOnline(online: boolean): Promise<void> {
+		this._logService.info(`[AgentHost] Network is ${online ? 'online' : 'offline'}`);
+		this._systemWake.setNetworkOnline(online);
 	}
 
 	async reportMacAccessibilityTrustChange(): Promise<void> {

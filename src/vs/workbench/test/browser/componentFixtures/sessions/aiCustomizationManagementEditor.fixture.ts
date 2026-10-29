@@ -1077,6 +1077,7 @@ function createEmptyCustomizationMarketplaceInstallService(): ICustomizationMark
 	return new class extends mock<ICustomizationMarketplaceInstallService>() {
 		override readonly onDidChange = Event.None;
 		override readonly installations = constObservable(emptyCustomizationMarketplaceInstallationSnapshot);
+		override findInstallation() { return undefined; }
 	}();
 }
 
@@ -1266,6 +1267,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const mcpServerCompatibility = options.mcpServerCompatibility;
 	const marketplaceManagementProvider: ICustomizationMarketplaceManagementProvider | undefined = options.pluginMarketplaceMigration ? {
 		onDidChange: Event.None,
+		onDidChangeMarketplaces: Event.None,
 		list: async () => [],
 		add: async (_sessionResource, source) => ({ name: 'vscode-team-kit', source, isDefault: false, managed: false, available: true }),
 		queryMarketplace: async () => ({ items: [], total: 0 }),
@@ -1572,6 +1574,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				reg.defineInstance(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 					override readonly onDidChange = customizationMarketplaceInstallChanged.event;
 					override readonly installations = observableFromEvent(customizationMarketplaceInstallChanged.event, getCustomizationMarketplaceInstallations);
+					override findInstallation(resource: ICustomizationMarketplaceResource) {
+						return getCustomizationMarketplaceInstallations().findByResource(resource);
+					}
 					override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
 						// The outgoing Discover view may read installation state while the visibility change disposes it.
 						assert(sourceEnabled() || (options.toggleMarketplaceVisibility === true && customizationMarketplaceQueryCount > 0), 'A disabled Marketplace fixture must not request installation state.');
@@ -3614,6 +3619,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				label: 'Extensions',
 				icon: Codicon.extensions,
 				description: 'Choose which installed extensions run in the Agents window.',
+				separatorBefore: true,
 				supportsHarness: () => true,
 				getBadge: () => constObservable('Some installed extensions can be enabled in the Agents window.'),
 				create: () => ({ dispose: () => { } }),

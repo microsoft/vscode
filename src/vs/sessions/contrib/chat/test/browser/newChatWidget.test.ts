@@ -34,7 +34,7 @@ import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } 
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
 import type { ISessionOptionsIconOnlyPickers } from '../../browser/iconOnlySessionPickers.js';
 import { getNewSessionWelcomePhrases } from '../../common/welcomePhrases.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
@@ -55,8 +55,9 @@ import { SessionComparisonModelSelection } from '../../browser/sessionComparison
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { createSessionViewTestServices, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
-import { getDefaultSessionCreationEnvironment, ISessionCreationEnvironment } from '../../browser/sessionEnvironmentPicker.js';
+import { getDefaultSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment } from '../../browser/sessionEnvironmentPicker.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -342,7 +343,6 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 	_workspaceSessionOptionsHost: HTMLElement | undefined;
 	readonly _sessionOptionsExpanded: ReturnType<typeof observableValue<boolean>>;
 	_setSessionOptionsExpandedFromUser(expanded: boolean): void;
-	readonly _useExperimentalComposerLayout: ReturnType<typeof observableValue<boolean>>;
 	readonly _workspaceOptOutTarget: IObservable<ICreateNewSessionOptions | undefined>;
 	readonly _workspaceOptOutEnabled: ReturnType<typeof observableValue<boolean>>;
 	readonly _screenReaderOptimized: ReturnType<typeof observableValue<boolean>>;
@@ -365,7 +365,6 @@ interface ISelectNoWorkspaceHarness {
 
 interface INoWorkspaceOptionHarness {
 	readonly _environment: IObservable<ISessionCreationEnvironment | undefined>;
-	readonly _useConsolidatedRemoteWorkspaces: IObservable<boolean>;
 	readonly _isWorkspacePickerQuickChat: IObservable<boolean>;
 	readonly _session: IObservable<{ readonly providerId: string } | undefined>;
 	readonly sessionsProvidersService: { getProviders(): ISessionsProvider[] };
@@ -1139,6 +1138,42 @@ suite('NewChatWidget', () => {
 			assert.strictEqual(picked.get()?.id, cloud.id);
 		});
 
+		test('restores a hidden remote Dev Container draft without choosing This Computer or unhiding the host', () => {
+			const folder = URI.parse('vscode-agent-host://ssh__host/project');
+			const workspace = upcastPartial<ISessionWorkspace>({ folders: [{ root: folder, workingDirectory: folder, name: 'project', description: undefined }] });
+			const provider = upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-hidden', label: 'Hidden host', icon: Codicon.remote, environment: { id: 'remote', label: 'Remote' },
+				isVisibleInEnvironmentPicker: constObservable(false), isAvailableInEnvironmentPicker: constObservable(true),
+				connectionStatus: constObservable(RemoteAgentHostConnectionStatus.connected),
+				isDevContainerEnabled: () => true, resolveWorkspace: () => workspace,
+			});
+			const picked = observableValue<ISessionCreationEnvironment | undefined>('picked', undefined);
+			const selections: { providerId: string | undefined; preferDevContainer: boolean | undefined }[] = [];
+			const session = upcastPartial<IActiveSession>({ providerId: provider.id, sessionId: 'draft', workspace: constObservable(workspace) });
+			const widget = Object.assign(Object.create(NewChatWidget.prototype), {
+				_environment: derived(reader => picked.read(reader) ?? local),
+				_environments: constObservable([local]),
+				_pickedEnvironment: picked,
+				sessionsProvidersService: { getProvider: () => provider, getProviders: () => [provider] },
+				sessionsManagementService: { isQuickChatTargetAvailable: () => false },
+				_workspacePicker: {
+					selectedFolderUri: folder, getDevContainerWorkspaceAvailability: () => true,
+					setSelectedWorkspace: (_folder: URI, options: { providerId?: string; preferDevContainer?: boolean }) => selections.push({ providerId: options.providerId, preferDevContainer: options.preferDevContainer }),
+				},
+			});
+			syncWorkspacePickerDevContainerMode.call(widget, session, true, WorkspaceSelectionOrigin.RestoredDraft);
+			const environment = picked.get()!;
+			assert.deepStrictEqual({
+				environment: { id: environment.id, kind: environment.kind, providerIds: environment.providerIds },
+				canSend: derived(reader => canSendRequestToWorkspace.call(widget, session, environment, reader)).get(),
+				selection: selections.map(({ providerId, preferDevContainer }) => ({ providerId, preferDevContainer })),
+				picker: getSessionCreationEnvironments([provider]), hidden: provider.isVisibleInEnvironmentPicker?.get() === false,
+			}, {
+				environment: { id: `container:${provider.id}`, kind: 'container', providerIds: [provider.id] }, canSend: true,
+				selection: [{ providerId: provider.id, preferDevContainer: true }], picker: [], hidden: true,
+			});
+		});
+
 		for (const initial of [undefined, local, cloud, container]) {
 			test(`reconciles a provider-targeted workspace before harness selection with ${initial?.id ?? 'a restored local draft'}`, async () => {
 				const remote: ISessionCreationEnvironment = { id: 'agenthost-remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['agenthost-remote'] };
@@ -1225,8 +1260,6 @@ suite('NewChatWidget', () => {
 				_usage: new AgentsWindowUsage(storageService),
 				configurationService: {
 					getValue: <T>(key: string) => ({
-						[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
-						[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
 						[NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING]: expandedByDefault,
 					})[key] as T,
 				},
@@ -1307,7 +1340,6 @@ suite('NewChatWidget', () => {
 				_workspaceSessionOptionsHost: undefined,
 				_sessionOptionsExpanded: observableValue('expanded', true),
 				_setSessionOptionsExpandedFromUser: () => { },
-				_useExperimentalComposerLayout: observableValue('layout', false),
 				_workspaceOptOutTarget: target,
 				_workspaceOptOutEnabled: observableValue('optOut', enabled),
 				_screenReaderOptimized: observableValue('screenReader', false),
@@ -1319,15 +1351,10 @@ suite('NewChatWidget', () => {
 			disposables.add(renderWorkspacePicker.call(harness, container));
 			const snapshot = () => ({ clearable: clearable?.get(), triggers: [...telemetryService.triggers] });
 			const states = [snapshot()];
-			harness._useExperimentalComposerLayout.set(true, undefined);
-			states.push(snapshot());
 			selectedFolderUri = URI.file('/workspace');
 			selectionChanged.fire();
 			states.push(snapshot());
-			harness._useExperimentalComposerLayout.set(false, undefined);
 			target.set({ providerId: 'local', sessionTypeId: 'copilot' }, undefined);
-			states.push(snapshot());
-			harness._useExperimentalComposerLayout.set(true, undefined);
 			states.push(snapshot());
 			harness._workspaceOptOutEnabled.set(!enabled, undefined);
 			selectionChanged.fire();
@@ -1339,8 +1366,6 @@ suite('NewChatWidget', () => {
 		}
 		const trigger = `config.${WORKSPACE_OPT_OUT_SETTING}`;
 		assert.deepStrictEqual(results, [false, true].map(enabled => [
-			{ clearable: false, triggers: [] },
-			{ clearable: false, triggers: [] },
 			{ clearable: false, triggers: [] },
 			{ clearable: false, triggers: [] },
 			{ clearable: enabled, triggers: [trigger] },
@@ -1429,7 +1454,6 @@ suite('NewChatWidget', () => {
 			_workspaceSessionOptionsHost: undefined,
 			_sessionOptionsExpanded: observableValue('sessionOptionsExpanded', false),
 			_setSessionOptionsExpandedFromUser: expanded => harness._sessionOptionsExpanded.set(expanded, undefined),
-			_useExperimentalComposerLayout: observableValue('experimentalComposerLayout', false),
 			_workspaceOptOutTarget: constObservable(undefined),
 			_workspaceOptOutEnabled: observableValue('workspaceOptOutEnabled', false),
 			_screenReaderOptimized: observableValue('screenReaderOptimized', false),
@@ -1445,14 +1469,6 @@ suite('NewChatWidget', () => {
 		const details = harness._workspaceSessionOptionsHost!;
 		const toggle = container.querySelector<HTMLElement>('.new-chat-session-options-toggle')!;
 		assert.strictEqual(setupManagedHover.getCalls().find(call => call.args[1] === toggle)?.args[0], harness._newChatInput.pickerHoverDelegate);
-		const legacy = {
-			rowClass: harness._workspacePickerRow?.classList.contains('new-chat-session-options'),
-			detailsClass: details.classList.contains('legacy-session-options-details'),
-			hidden: details.hidden,
-			inert: details.inert,
-			toggleHidden: toggle.hidden,
-		};
-		harness._useExperimentalComposerLayout.set(true, undefined);
 		const snapshot = () => ({
 			hidden: details.hidden,
 			inert: details.inert,
@@ -1474,7 +1490,6 @@ suite('NewChatWidget', () => {
 			})),
 			workspaceTriggers,
 			workspaceVisibility,
-			legacy,
 			collapsed,
 			expanded,
 			collapsedAgain,
@@ -1488,13 +1503,6 @@ suite('NewChatWidget', () => {
 			],
 			workspaceTriggers: [{ tooltip: 'Choose where the new session runs', icon: isWeb ? 'repo' : 'project', attachesContext: false }],
 			workspaceVisibility: [false, true],
-			legacy: {
-				rowClass: false,
-				detailsClass: true,
-				hidden: false,
-				inert: false,
-				toggleHidden: true,
-			},
 			collapsed: { hidden: true, inert: true, expanded: 'false', label: 'Show Session Options', chevron: 'right' },
 			expanded: { hidden: false, inert: false, expanded: 'true', label: 'Hide Session Options', chevron: 'left' },
 			collapsedAgain: { hidden: true, inert: true, expanded: 'false', label: 'Show Session Options', chevron: 'right' },
@@ -1948,18 +1956,16 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('offers No workspace only when enabled and quick chats are available', () => {
+	test('offers Chat when quick chats are available', () => {
 		const cases = [
-			{ enabled: false, available: true, isWorkspacePickerQuickChat: false },
-			{ enabled: true, available: false, isWorkspacePickerQuickChat: false },
-			{ enabled: true, available: true, isWorkspacePickerQuickChat: false },
-			{ enabled: true, available: false, isWorkspacePickerQuickChat: true },
+			{ available: false, isWorkspacePickerQuickChat: false },
+			{ available: true, isWorkspacePickerQuickChat: false },
+			{ available: false, isWorkspacePickerQuickChat: true },
 		];
 
 		const options = cases.map(testCase => {
 			const option = getNoWorkspaceOption.call({
 				_environment: constObservable(undefined),
-				_useConsolidatedRemoteWorkspaces: constObservable(testCase.enabled),
 				_isWorkspacePickerQuickChat: constObservable(testCase.isWorkspacePickerQuickChat),
 				_session: constObservable(undefined),
 				sessionsProvidersService: { getProviders: () => [] },
@@ -1970,9 +1976,8 @@ suite('NewChatWidget', () => {
 		});
 
 		assert.deepStrictEqual(options, isWeb
-			? [undefined, undefined, undefined, undefined]
+			? [undefined, undefined, undefined]
 			: [
-				undefined,
 				undefined,
 				{ description: 'Start without a backing workspace', isSelected: false },
 				{ description: 'Start without a backing workspace', isSelected: true },
@@ -1997,7 +2002,6 @@ suite('NewChatWidget', () => {
 		];
 		const option = getNoWorkspaceOption.call({
 			_environment: constObservable(undefined),
-			_useConsolidatedRemoteWorkspaces: constObservable(true),
 			_isWorkspacePickerQuickChat: constObservable(false),
 			_session: constObservable(undefined),
 			sessionsProvidersService: { getProviders: () => providers },
@@ -2038,7 +2042,6 @@ suite('NewChatWidget', () => {
 			_environment: constObservable({
 				id: 'cloud', kind: 'cloud', label: 'Cloud', icon: Codicon.cloud, providerIds: [provider.id],
 			}),
-			_useConsolidatedRemoteWorkspaces: constObservable(true),
 			_isWorkspacePickerQuickChat: constObservable(false),
 			_session: constObservable(undefined),
 			sessionsProvidersService: { getProviders: () => [localProvider, provider] },
@@ -2073,7 +2076,6 @@ suite('NewChatWidget', () => {
 			_environment: constObservable<ISessionCreationEnvironment>({
 				id: 'container:local', kind: 'container', label: 'Dev Container', icon: Codicon.remote, providerIds: [provider.id],
 			}),
-			_useConsolidatedRemoteWorkspaces: constObservable(true),
 			_isWorkspacePickerQuickChat: constObservable(false),
 			_session: constObservable(undefined),
 			sessionsProvidersService: { getProviders: () => [provider] },
@@ -2103,7 +2105,6 @@ suite('NewChatWidget', () => {
 			'agenthost-missing',
 		].map(providerId => getNoWorkspaceOption.call({
 			_environment: constObservable(undefined),
-			_useConsolidatedRemoteWorkspaces: constObservable(true),
 			_isWorkspacePickerQuickChat: constObservable(true),
 			_session: constObservable({ providerId }),
 			sessionsProvidersService: { getProviders: () => providers },
@@ -2126,7 +2127,6 @@ suite('NewChatWidget', () => {
 			_environment: constObservable({
 				id: provider.id, kind: 'remote', label: provider.label, icon: Codicon.remote, providerIds: [provider.id],
 			}),
-			_useConsolidatedRemoteWorkspaces: constObservable(true),
 			_isWorkspacePickerQuickChat: isQuickChat,
 			_session: constObservable({ providerId: provider.id }),
 			sessionsProvidersService: { getProviders: () => [provider] },
@@ -2172,7 +2172,6 @@ suite('NewChatWidget', () => {
 		];
 		const harness: INoWorkspaceOptionHarness = {
 			_environment: constObservable(undefined),
-			_useConsolidatedRemoteWorkspaces: constObservable(true),
 			_isWorkspacePickerQuickChat: constObservable(true),
 			_session: constObservable({ providerId: 'agenthost-mission-control' }),
 			sessionsProvidersService: { getProviders: () => providers },
@@ -2218,7 +2217,6 @@ suite('NewChatWidget', () => {
 			const selections: Array<ICreateNewSessionOptions | undefined> = [];
 			const harness: INoWorkspaceOptionHarness = {
 				_environment: constObservable(undefined),
-				_useConsolidatedRemoteWorkspaces: constObservable(true),
 				_isWorkspacePickerQuickChat: constObservable(false),
 				_session: constObservable(undefined),
 				sessionsProvidersService: { getProviders: () => providers },
@@ -2252,7 +2250,6 @@ suite('NewChatWidget', () => {
 		}));
 		const option = getNoWorkspaceOption.call({
 			_environment: constObservable(undefined),
-			_useConsolidatedRemoteWorkspaces: constObservable(true),
 			_isWorkspacePickerQuickChat: constObservable(true),
 			_session: constObservable({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID }),
 			sessionsProvidersService: { getProviders: () => providers },
@@ -2280,7 +2277,6 @@ suite('NewChatWidget', () => {
 		});
 		const option = getNoWorkspaceOption.call({
 			_environment: constObservable(undefined),
-			_useConsolidatedRemoteWorkspaces: constObservable(true),
 			_isWorkspacePickerQuickChat: constObservable(false),
 			_session: constObservable(undefined),
 			sessionsProvidersService: { getProviders: () => [provider] },
@@ -2314,7 +2310,6 @@ suite('NewChatWidget', () => {
 			}),
 		];
 		const option = getNoWorkspaceOption.call({
-			_useConsolidatedRemoteWorkspaces: constObservable(true),
 			_isWorkspacePickerQuickChat: constObservable(false),
 			_session: constObservable(undefined),
 			sessionsProvidersService: { getProviders: () => providers },
@@ -3143,6 +3138,47 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual(results, [true, false, false, false, false, false]);
 	});
 
+	for (const quickChat of [false, true]) {
+		test(`hiding a selected remote preserves submission but offline and disconnected hosts remain blocked (quick chat: ${quickChat})`, () => {
+			const folder = URI.parse('vscode-agent-host://remote/project');
+			const workspace = upcastPartial<ISessionWorkspace>({
+				folders: [{ root: folder, workingDirectory: folder, name: 'project', description: undefined }],
+			});
+			const visible = observableValue('visible', true);
+			const available = observableValue('available', true);
+			const connection = observableValue<RemoteAgentHostConnectionStatus>('connection', RemoteAgentHostConnectionStatus.connected);
+			const provider = upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-selected', isAvailableInEnvironmentPicker: available,
+				isVisibleInEnvironmentPicker: visible, connectionStatus: connection, resolveWorkspace: () => workspace,
+			});
+			const session = upcastPartial<ISession>({
+				providerId: provider.id, workspace: constObservable(quickChat ? undefined : workspace), isQuickChat: constObservable(quickChat),
+			});
+			const environment: ISessionCreationEnvironment = {
+				id: provider.id, kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: [provider.id],
+			};
+			const canSend = derived(reader => canSendRequestToWorkspace.call({
+				_workspacePicker: {
+					selectedFolderUri: quickChat ? undefined : folder, matchesSelectedWorkspace: () => true,
+					getDevContainerWorkspaceAvailability: () => true,
+				},
+				sessionsProvidersService: { getProviders: () => [provider] },
+				sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			}, session, environment, reader));
+			const states: boolean[] = [];
+			disposables.add(autorun(reader => states.push(canSend.read(reader))));
+			visible.set(false, undefined);
+			const hiddenCanSend = canSend.get();
+			available.set(false, undefined);
+			available.set(true, undefined);
+			connection.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
+			connection.set(RemoteAgentHostConnectionStatus.connected, undefined);
+			assert.deepStrictEqual({ hiddenCanSend, states, remainsHidden: !visible.get() }, {
+				hiddenCanSend: true, states: [true, false, true, false, true], remainsHidden: true,
+			});
+		});
+	}
+
 	test('workspace-less submission requires an available quick-chat target, including in Cloud', () => {
 		const session = upcastPartial<ISession>({
 			providerId: 'default-copilot', sessionType: 'cloud',
@@ -3163,7 +3199,7 @@ suite('NewChatWidget', () => {
 						matchesSelectedWorkspace: () => assert.fail('A quick chat has no repository to resolve'),
 						getDevContainerWorkspaceAvailability: () => true,
 					},
-					sessionsProvidersService: { getProviders: () => [] },
+					sessionsProvidersService: { getProviders: () => [upcastPartial<ISessionsProvider>({ id: session.providerId })] },
 					sessionsManagementService: {
 						isQuickChatTargetAvailable: options => supportsQuickChats
 							&& options?.providerId === session.providerId && options.sessionTypeId === session.sessionType,
@@ -3370,11 +3406,11 @@ suite('NewChatWidget', () => {
 
 	test('clearing a workspace starts the same harness without a project when supported and preserves legacy fallback', async () => {
 		const results: string[][] = [];
-		for (const { experimentalLayout, supported, succeeds } of [
-			{ experimentalLayout: false, supported: true, succeeds: true },
-			{ experimentalLayout: true, supported: false, succeeds: true },
-			{ experimentalLayout: true, supported: true, succeeds: true },
-			{ experimentalLayout: true, supported: true, succeeds: false },
+		for (const { workspaceOptOutEnabled, supported, succeeds } of [
+			{ workspaceOptOutEnabled: false, supported: true, succeeds: true },
+			{ workspaceOptOutEnabled: true, supported: false, succeeds: true },
+			{ workspaceOptOutEnabled: true, supported: true, succeeds: true },
+			{ workspaceOptOutEnabled: true, supported: true, succeeds: false },
 		]) {
 			const events: string[] = [];
 			const pendingUpgrade = disposables.add(new MutableDisposable());
@@ -3392,7 +3428,7 @@ suite('NewChatWidget', () => {
 				_preferredDevContainerFolderUri: undefined,
 				_session: constObservable(undefined),
 				_comparisonSelection: { reset: () => events.push('resetComparison') },
-				_workspaceOptOutEnabled: constObservable(experimentalLayout),
+				_workspaceOptOutEnabled: constObservable(workspaceOptOutEnabled),
 				sessionsService: { unsetNewSession: () => events.push('unsetSession') },
 				notificationService: { error: () => events.push('error') },
 				selectNoWorkspace: (options, selectionOptions) => {
@@ -3411,23 +3447,23 @@ suite('NewChatWidget', () => {
 		]);
 	});
 
-	test('workspace selection retains picker focus after experimental clearing settles and preserves other input focus', async () => {
+	test('workspace selection retains picker focus after workspace clearing settles and preserves other input focus', async () => {
 		const container = append(mainWindow.document.body, $('div'));
 		disposables.add(toDisposable(() => container.remove()));
 		const picker = append(container, $('button', { type: 'button' }, 'Workspace'));
 		const input = append(container, $('textarea'));
 		const results: { pickerFocused: boolean; inputFocused: boolean; selections: number }[] = [];
-		for (const { experimentalLayout, folderUri, current } of [
-			{ experimentalLayout: false, folderUri: undefined, current: false },
-			{ experimentalLayout: true, folderUri: undefined, current: false },
-			{ experimentalLayout: true, folderUri: URI.file('/workspace'), current: false },
-			{ experimentalLayout: true, folderUri: URI.file('/workspace'), current: true },
+		for (const { workspaceOptOutEnabled, folderUri, current } of [
+			{ workspaceOptOutEnabled: false, folderUri: undefined, current: false },
+			{ workspaceOptOutEnabled: true, folderUri: undefined, current: false },
+			{ workspaceOptOutEnabled: true, folderUri: URI.file('/workspace'), current: false },
+			{ workspaceOptOutEnabled: true, folderUri: URI.file('/workspace'), current: true },
 		]) {
 			const selected = new DeferredPromise<void>();
 			let selections = 0;
 			const harness: IHandleWorkspaceSelectionHarness = {
 				_environment: constObservable(undefined),
-				_workspaceOptOutEnabled: constObservable(experimentalLayout),
+				_workspaceOptOutEnabled: constObservable(workspaceOptOutEnabled),
 				_newChatInput: { focus: () => input.focus() },
 				_isCurrentWorkspaceSelection: () => current,
 				_onWorkspaceSelected: async () => {

@@ -13,7 +13,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -63,7 +63,6 @@ import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
 import { getLabeledPickerResponsiveItems, hasSendableNewChatContent, IComposerRepositoryControls, INewChatComposerInputOptions, syncInputGitHubContextAttachments } from './newChatComposerInput.js';
 import { createSessionModelCommands, INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceInputDecorations } from './newChatVoice.js';
-import { createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
 import { INewSessionComposer, INewSessionComposerPicker, INewSessionPromptOptionsController, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { NewSessionPromptOptionsPresenter } from './newSessionPromptOptions.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
@@ -184,6 +183,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	/** Attachments added before the input renders, such as a host's initial context. */
 	private readonly _pendingAttachments: IChatRequestVariableEntry[] = [];
 	private readonly _sending = observableValue(this, false);
+	/** Whether the host is asking to confirm a send. Other sends stay blocked, but nothing shows progress yet. */
+	private readonly _confirmingSend = observableValue(this, false);
 	/** Releases the in-flight send's visibility tracking, also when the composer is disposed mid-send. */
 	private readonly _userInteractionSource = this._register(new MutableDisposable());
 
@@ -360,6 +361,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			onDidChange: Event.any(this.options.onDidChangeChatPetPlatform ?? Event.None, this.sessionTypePicker.onDidChangeChatPetPlatform),
 			getElements: () => [...(this.options.getChatPetPlatformElements?.() ?? []), ...this.sessionTypePicker.getChatPetPlatformElements()],
 			getBaseElement: this.options.getChatPetBasePlatformElement,
+			getJumpGameElement: this.options.getChatPetJumpGameElement,
 		}));
 
 		this._renderSessionControls(parent);
@@ -409,8 +411,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	/** Shows progress in the input toolbar while the draft initializes or the host sends, after a short delay. */
 	private _renderBusyState(busyContextKey: IContextKey<ComposerBusyState>): void {
 		const busy = derived<ComposerBusyState>(this, reader => {
-			const comparisonSending = this._sending.read(reader) && !!this.options.modelPickerComparison?.summary.read(reader);
-			return this._sending.read(reader) && !comparisonSending ? 'sending' : this.options.loading.read(reader) ? 'initializing' : '';
+			const sending = this._sending.read(reader) && !this._confirmingSend.read(reader);
+			const comparisonSending = sending && !!this.options.modelPickerComparison?.summary.read(reader);
+			return sending && !comparisonSending ? 'sending' : this.options.loading.read(reader) ? 'initializing' : '';
 		});
 		const delay = this._register(new MutableDisposable());
 		this._register(autorun(reader => {
@@ -435,9 +438,6 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			const inputVisible = this.options.inputVisible;
 			this._register(autorun(reader => bottomContainer.classList.toggle('hidden', !inputVisible.read(reader))));
 		}
-		const controlsContainer = dom.append(bottomContainer, dom.$('.new-chat-controls-container'));
-		let sessionControlsToolbar: MenuWorkbenchToolBar | undefined;
-
 		const secondaryControlsContainer = this._repositoryControlsHome = dom.append(bottomContainer, dom.$('.new-chat-secondary-controls-container'));
 		const repositoryControlsContainer = this._repositoryControlsContainer = dom.append(secondaryControlsContainer, dom.$('.new-chat-repo-config-container'));
 		this._register(dom.addDisposableListener(repositoryControlsContainer, dom.EventType.KEY_DOWN, event => this._navigateRepositionedRepositoryControls(event)));
@@ -477,13 +477,11 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		}));
 		statusToolbar.context = { widget: this._widget } satisfies IChatExecuteActionContext;
 
-		const useExperimentalLayout = this.options.useExperimentalLayout ?? constObservable(false);
 		const updateVisibility = () => {
-			const sessionControlCount = sessionControlsToolbar?.getItemsLength() ?? 0;
 			const repositoryControlCount = repositoryControlsContainer.parentElement === secondaryControlsContainer
 				? (repositoryToolbar?.getItemsLength() ?? 0) + (hostRepositoryControls?.visible.get() ? 1 : 0)
 				: 0;
-			bottomContainer.classList.toggle('empty', sessionControlCount + repositoryControlCount + statusToolbar.getItemsLength() === 0);
+			bottomContainer.classList.toggle('empty', repositoryControlCount + statusToolbar.getItemsLength() === 0);
 		};
 		this._updateBottomContainerVisibility = updateVisibility;
 		if (repositoryToolbar) {
@@ -503,23 +501,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				bottomPickerResponsiveLayout.layout();
 			}));
 		}
-		this._register(autorun(reader => {
-			const experimental = useExperimentalLayout.read(reader);
-			bottomContainer.classList.toggle('standard-new-session-composer-layout', !experimental);
-			controlsContainer.classList.toggle('hidden', experimental);
-			// The experimental layout shows the session controls in the input toolbar instead.
-			if (!experimental) {
-				const sessionControlsContainer = dom.append(controlsContainer, dom.$('.sessions-chat-config-toolbar.new-chat-session-controls'));
-				const toolbar = sessionControlsToolbar = reader.store.add(createNewSessionControlToolbar(sessionControlsContainer, this._scopedInstantiationService, localize('sessionsSharedChatInput.sessionControlsRow', "Session controls"), this.pickerHoverDelegate));
-				reader.store.add(toolbar.onDidChangeMenuItems(updateVisibility));
-				reader.store.add(toDisposable(() => {
-					sessionControlsToolbar = undefined;
-					sessionControlsContainer.remove();
-				}));
-			}
-			updateVisibility();
-			bottomPickerResponsiveLayout.layout();
-		}));
+		updateVisibility();
+		bottomPickerResponsiveLayout.layout();
 	}
 
 	private _layoutWidget(): void {
@@ -894,6 +877,33 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		}
 		if (!this._canSendRequest.get()) {
 			return false;
+		}
+		if (this.options.confirmSend) {
+			const hadFocus = widget.input.hasFocus();
+			transaction(tx => {
+				this._sending.set(true, tx);
+				this._confirmingSend.set(true, tx);
+			});
+			// The request is already captured, so edits made while the host confirms would be lost.
+			widget.input.setInputEnabled(false);
+			let confirmed = false;
+			try {
+				confirmed = await this.options.confirmSend(query);
+			} finally {
+				transaction(tx => {
+					this._sending.set(false, tx);
+					this._confirmingSend.set(false, tx);
+				});
+				if (this._widget === widget && widget.input) {
+					widget.input.setInputEnabled(true);
+					if (!confirmed && hadFocus) {
+						widget.input.focus();
+					}
+				}
+			}
+			if (!confirmed || this._widget !== widget) {
+				return false;
+			}
 		}
 
 		const userInteraction = background ? undefined : this.instantiationService.createInstance(NewChatUserInteraction, {

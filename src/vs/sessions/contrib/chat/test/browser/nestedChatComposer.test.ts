@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IManagedHoverContentOrFactory } from '../../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
+import { getBaseLayerHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -20,10 +23,16 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOp
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../../../services/sessions/common/sessionsProvider.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
+import { getNoWorkspaceChoicePresentation } from '../../browser/noWorkspaceChoice.js';
 import { INestedChatWorkspaceHost, NestedChatWorkspaceControls } from '../../browser/nestedChatWorkspacePicker.js';
 
 suite('Sessions - New Nested Session composer', () => {
@@ -37,16 +46,18 @@ suite('Sessions - New Nested Session composer', () => {
 	function support(sessionFolder: URI | undefined, multipleFolders = true): INestedChatWorkspaceSupport {
 		return {
 			sessionFolder,
+			sessionFolderWorktree: undefined,
 			multipleFolders,
 			browseActions: [{ label: 'Browse...', icon: Codicon.folderOpened, providerId: 'p', run: async () => undefined }],
 		};
 	}
 
 	/** Picks the list entry whose label matches, the way a user does in the action widget. */
-	function createControls(value: IObservable<INestedChatWorkspaceSupport | undefined>, folderInfo: INestedChatFolderInfo = git, host: Partial<Pick<INestedChatWorkspaceHost, 'describeFolder' | 'folderExists'>> & { recentFolders?: readonly URI[] } = {}) {
+	function createControls(value: IObservable<INestedChatWorkspaceSupport | undefined>, folderInfo: INestedChatFolderInfo = git, host: Partial<Pick<INestedChatWorkspaceHost, 'describeFolder' | 'describeNoWorkspace' | 'folderExists'>> & { recentFolders?: readonly URI[] } = {}) {
 		let pick: string | undefined;
 		const shown: string[][] = [];
-		const lists: { rows: string[]; options: { className: string | undefined; inlineDescription: boolean | undefined } }[] = [];
+		const accessibilityProviderKeys: string[][] = [];
+		const lists: { rows: string[]; icons: (string | undefined)[]; options: { className: string | undefined; inlineDescription: boolean | undefined } }[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		const hoverDelegate: IHoverDelegate = { placement: 'element', delay: 500, showHover: () => undefined };
 		const hovers = new Map<HTMLElement, { delegate: IHoverDelegate; content: IManagedHoverContentOrFactory }>();
@@ -54,10 +65,12 @@ suite('Sessions - New Nested Session composer', () => {
 			isVisible: false,
 			hide: () => { },
 			updateItems: () => { },
-			show: <T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, _anchor: HTMLElement, _container: HTMLElement | undefined, _actionBarActions: unknown, _accessibilityProvider: unknown, listOptions?: IActionListOptions) => {
+			show: <T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, _anchor: HTMLElement, _container: HTMLElement | undefined, _actionBarActions: unknown, accessibilityProvider: object | undefined, listOptions?: IActionListOptions) => {
+				accessibilityProviderKeys.push(Object.keys(accessibilityProvider ?? {}));
 				shown.push(items.map(item => item.label ?? ''));
 				lists.push({
 					rows: items.map(item => item.kind === ActionListItemKind.Separator ? '---' : `${item.label}${item.description ? ` · ${item.description}` : ''}`),
+					icons: items.map(item => item.group?.icon?.id),
 					options: { className: listOptions?.className, inlineDescription: listOptions?.inlineDescription },
 				});
 				const item = items.find(candidate => candidate.label === pick);
@@ -66,22 +79,33 @@ suite('Sessions - New Nested Session composer', () => {
 				}
 			},
 		} as Partial<IActionWidgetService>);
+		instantiationService.stub(IMenuService, { getMenuActions: () => [] });
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IKeybindingService, new MockKeybindingService());
+		instantiationService.stub(ICommandService, {});
 		instantiationService.stub(ILabelService, {
 			getUriBasenameLabel: (uri: URI) => uri.path.split('/').pop() ?? '',
 			getUriLabel: (uri: URI) => uri.path,
 		} as Partial<ILabelService>);
-		instantiationService.stub(IHoverService, {
+		const hoverService: Partial<IHoverService> = {
 			setupDelayedHover: () => toDisposable(() => { }),
 			setupManagedHover: (delegate, target, content) => {
 				hovers.set(target, { delegate, content });
 				return { dispose: () => hovers.delete(target), show: () => { }, hide: () => { }, update: () => { } };
 			},
-		} as Partial<IHoverService>);
+		};
+		instantiationService.stub(IHoverService, hoverService);
+		// Toolbar items set up their hovers through the base layer delegate.
+		// A test may create several controls: the latest takes over the stub.
+		(getBaseLayerHoverDelegate().setupManagedHover as Partial<sinon.SinonStub>).restore?.();
+		const setupManagedHover = sinon.stub(getBaseLayerHoverDelegate(), 'setupManagedHover').callsFake((delegate, target, content) => hoverService.setupManagedHover!(delegate, target, content));
+		store.add(toDisposable(() => setupManagedHover.restore()));
 		const controls = store.add(instantiationService.createInstance(NestedChatWorkspaceControls, {
 			support: value,
 			resolveFolder: async () => folderInfo,
 			getBranches: async () => ['main', 'release'],
 			getFolderSources: () => ({ recentFolders: host.recentFolders ?? [URI.file('/recent')], canOpenLocalFolder: true }),
+			describeNoWorkspace: host.describeNoWorkspace ?? (() => getNoWorkspaceChoicePresentation(undefined)),
 			describeFolder: host.describeFolder ?? (() => undefined),
 			folderExists: host.folderExists ?? (async () => true),
 			openLocalFolder: async () => URI.file('/opened'),
@@ -92,10 +116,12 @@ suite('Sessions - New Nested Session composer', () => {
 		const repositoryControls = store.add(controls.renderRepositoryControls(repositoryContainer, hoverDelegate));
 		const trigger = () => row.querySelector<HTMLElement>('.nested-chat-folder-picker .action-label')!;
 		return {
-			controls, shown, lists, trigger,
+			controls, shown, lists, accessibilityProviderKeys, trigger,
 			tooltip() {
-				const content = hovers.get(trigger())?.content;
-				return typeof content === 'function' ? content() : content;
+				const content = hovers.get(trigger().closest<HTMLElement>('.action-item')!)?.content;
+				const resolved = typeof content === 'function' ? content() : content;
+				const markdown = resolved && typeof resolved === 'object' ? Reflect.get(resolved, 'markdown') : undefined;
+				return typeof markdown === 'function' ? markdown() : resolved;
 			},
 			hoverPresentation() {
 				return Array.from(hovers, ([target, hover]) => ({
@@ -117,7 +143,7 @@ suite('Sessions - New Nested Session composer', () => {
 			state() {
 				const repository = repositoryContainer.querySelector<HTMLElement>('.nested-chat-repository-controls')!;
 				return {
-					visible: !trigger().parentElement!.hidden,
+					visible: !row.querySelector<HTMLElement>('.nested-chat-folder-picker')!.hidden,
 					folder: trigger().textContent,
 					canPickFolder: trigger().tabIndex === 0,
 					worktreeOffered: !repository.hidden && repositoryControls.visible.get(),
@@ -152,21 +178,46 @@ suite('Sessions - New Nested Session composer', () => {
 			singleFolder: { ...singleFolder.state(), items: singleFolder.shown[0] },
 			oldHostOrCloud: { visible: oldHostOrCloud.state().visible, worktreeOffered: oldHostOrCloud.state().worktreeOffered, petPlatforms: oldHostOrCloud.state().petPlatforms },
 		}, {
-			ws: { visible: true, folder: 'repo', canPickFolder: true, worktreeOffered: true, petPlatforms: 1, items: ['repo', 'recent', 'No Workspace', '', 'Browse...', 'Open Folder...'] },
-			wl: { visible: true, folder: 'No Workspace', canPickFolder: true, worktreeOffered: false, petPlatforms: 1, items: ['recent', 'No Workspace', '', 'Browse...', 'Open Folder...'] },
+			ws: { visible: true, folder: 'repo', canPickFolder: true, worktreeOffered: true, petPlatforms: 1, items: ['repo', 'recent', 'Chat', '', 'Browse...', 'Open Folder...'] },
+			wl: { visible: true, folder: 'Chat', canPickFolder: true, worktreeOffered: false, petPlatforms: 1, items: ['recent', 'Chat', '', 'Browse...', 'Open Folder...'] },
 			singleFolder: { visible: true, folder: 'repo', canPickFolder: false, worktreeOffered: true, petPlatforms: 1, items: undefined },
 			oldHostOrCloud: { visible: false, worktreeOffered: false, petPlatforms: 0 },
 		});
 	});
 
-	test('lists the session folder, recent folders and No Workspace like New Session', async () => {
+	test('lists the session folder, recent folders and Chat like New Session', async () => {
 		const recentFolders = ['a', 'repo', 'b', 'c', 'd', 'e', 'f'].map(name => URI.file(`/work/${name}`));
 		const h = createControls(constObservable(support(URI.file('/work/repo'))), git, { recentFolders, describeFolder: folder => folder.path === '/work/a' ? { label: 'a [host]', description: '/work' } : undefined });
 		await h.pickFolder('nothing');
 		assert.deepStrictEqual(h.lists, [{
-			rows: ['repo · /work', 'a [host] · /work', 'b · /work', 'c · /work', 'd · /work', 'e · /work', 'No Workspace · Start without a backing workspace', '---', 'Browse...', 'Open Folder...'],
+			icons: ['folder', 'folder', 'folder', 'folder', 'folder', 'folder', 'comment', undefined, 'folder-opened', 'folder-opened'],
+			rows: ['repo · /work', 'a [host] · /work', 'b · /work', 'c · /work', 'd · /work', 'e · /work', 'Chat · Start without a backing workspace', '---', 'Browse...', 'Open Folder...'],
 			options: { className: 'sessions-new-chat-picker-list', inlineDescription: true },
 		}]);
+	});
+
+	test('leaves the row\'s accessible label to the action list so the worktree note is announced', async () => {
+		const h = createControls(constObservable({ ...support(URI.file('/work/wt')), sessionFolderWorktree: { branch: 'agents/fix', repositoryLabel: 'repo' } }));
+		await h.pickFolder('nothing');
+		assert.deepStrictEqual(h.accessibilityProviderKeys, [['getWidgetAriaLabel']]);
+	});
+
+	test('presents Chat the way New Session does for the session\'s provider', async () => {
+		const present = async (provider: { id: string; label: string; icon: ThemeIcon } | undefined) => {
+			const h = createControls(constObservable(support(URI.file('/work/repo'))), git, { describeNoWorkspace: () => getNoWorkspaceChoicePresentation(provider) });
+			await h.pickFolder('nothing');
+			const row = h.lists[0].rows.findIndex(candidate => candidate.endsWith('Start without a backing workspace'));
+			return { row: h.lists[0].rows[row], icon: h.lists[0].icons[row] };
+		};
+		assert.deepStrictEqual({
+			standard: await present(undefined),
+			local: await present({ id: 'local-agent-host', label: 'Local', icon: Codicon.deviceDesktop }),
+			remote: await present({ id: 'remote-agent-host-dev', label: 'Dev Box', icon: Codicon.remote }),
+		}, {
+			standard: { row: 'Chat · Start without a backing workspace', icon: Codicon.comment.id },
+			local: { row: 'This Computer · Start without a backing workspace', icon: Codicon.deviceDesktop.id },
+			remote: { row: 'Chat [Dev Box] · Start without a backing workspace', icon: Codicon.remote.id },
+		});
 	});
 
 	test('a session folder that no longer exists is neither preselected nor offered, and the trigger says why', async () => {
@@ -175,19 +226,19 @@ suite('Sessions - New Nested Session composer', () => {
 		const singleFolder = createControls(constObservable(support(repo, false)), git, { folderExists: async () => false });
 		await new Promise(resolve => setTimeout(resolve, 0));
 		await missing.pickFolder('nothing');
-		const describe = (h: ReturnType<typeof createControls>) => ({ folder: h.state().folder, title: h.trigger().title, tooltip: h.tooltip(), description: h.trigger().getAttribute('aria-description'), workspace: h.controls.getWorkspace() });
+		const describe = async (h: ReturnType<typeof createControls>) => ({ folder: h.state().folder, title: h.trigger().title, tooltip: await h.tooltip(), description: h.trigger().getAttribute('aria-description'), workspace: h.controls.getWorkspace() });
 		assert.deepStrictEqual({
-			missing: { ...describe(missing), items: missing.shown[0] },
-			cannotTell: describe(cannotTell),
-			singleFolder: describe(singleFolder),
+			missing: { ...await describe(missing), items: missing.shown[0] },
+			cannotTell: await describe(cannotTell),
+			singleFolder: await describe(singleFolder),
 		}, {
 			missing: {
-				folder: 'No Workspace',
+				folder: 'Chat',
 				title: '',
-				tooltip: 'No Workspace. The session\'s folder repo no longer exists.',
+				tooltip: 'Chat. The session\'s folder repo no longer exists.',
 				description: 'The session\'s folder repo no longer exists.',
 				workspace: { kind: 'scratch' },
-				items: ['recent', 'No Workspace', '', 'Browse...', 'Open Folder...'],
+				items: ['recent', 'Chat', '', 'Browse...', 'Open Folder...'],
 			},
 			cannotTell: { folder: 'repo', title: '', tooltip: 'repo', description: null, workspace: undefined },
 			singleFolder: { folder: 'repo', title: '', tooltip: 'Folder for the Nested Session, repo', description: null, workspace: undefined },
@@ -236,7 +287,7 @@ suite('Sessions - New Nested Session composer', () => {
 		const value = observableValue<INestedChatWorkspaceSupport | undefined>('support', support(repo));
 		const h = createControls(value, git, { recentFolders: [other] });
 		const before = h.controls.getWorkspace();
-		await h.pickFolder('No Workspace');
+		await h.pickFolder('Chat');
 		const scratch = { workspace: h.controls.getWorkspace(), worktreeOffered: h.state().worktreeOffered };
 		await h.pickFolder('other');
 		const otherFolder = h.controls.getWorkspace();
@@ -251,7 +302,7 @@ suite('Sessions - New Nested Session composer', () => {
 			otherFolder: { kind: 'folder', folder: other, isolation: 'folder' },
 			afterFolderUpdate: { kind: 'folder', folder: other, isolation: 'folder' },
 			afterSessionChange: undefined,
-			label: 'No Workspace',
+			label: 'Chat',
 		});
 	});
 
@@ -303,6 +354,7 @@ suite('Sessions - New Nested Session composer', () => {
 			resolveFolder: async () => { resolves++; return git; },
 			getBranches: async () => [],
 			getFolderSources: () => ({ recentFolders: [], canOpenLocalFolder: false }),
+			describeNoWorkspace: () => getNoWorkspaceChoicePresentation(undefined),
 			describeFolder: () => undefined,
 			folderExists: async () => true,
 			openLocalFolder: async () => undefined,
@@ -314,15 +366,101 @@ suite('Sessions - New Nested Session composer', () => {
 		assert.deepStrictEqual({ unsupported, resolves }, { unsupported: { resolves: 0, workspace: undefined }, resolves: 1 });
 	});
 
+	test('refresh re-reads the chosen folder for the new agent, and falls back to the session folder when the choice is no longer offered', async () => {
+		const value = observableValue<INestedChatWorkspaceSupport | undefined>('support', support(repo));
+		let resolves = 0;
+		let info: INestedChatFolderInfo = git;
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { } } as Partial<IActionWidgetService>);
+		instantiationService.stub(ILabelService, { getUriBasenameLabel: (uri: URI) => uri.path.split('/').pop() ?? '' } as Partial<ILabelService>);
+		const controls = store.add(instantiationService.createInstance(NestedChatWorkspaceControls, {
+			support: value,
+			resolveFolder: async () => { resolves++; return info; },
+			getBranches: async () => [],
+			getFolderSources: () => ({ recentFolders: [], canOpenLocalFolder: false }),
+			describeNoWorkspace: () => getNoWorkspaceChoicePresentation(undefined),
+			describeFolder: () => undefined,
+			folderExists: async () => true,
+			openLocalFolder: async () => undefined,
+		}));
+		const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+		const h = { controls, pick: (folder: URI) => Reflect.get(controls, '_select').call(controls, { kind: 'folder', folder }) };
+		await settle();
+		h.pick(other);
+		await settle();
+		const resolvesBefore = resolves;
+
+		// The new agent still offers other folders, but this one has no worktrees for it.
+		info = { supportsWorktree: false, defaultBranch: undefined };
+		controls.refresh();
+		await settle();
+		const reread = { workspace: controls.getWorkspace(), resolves: resolves - resolvesBefore };
+
+		// The new agent works only in the session folder.
+		value.set(support(repo, false), undefined);
+		controls.refresh();
+		await settle();
+
+		assert.deepStrictEqual({ reread, fallback: controls.getWorkspace() }, {
+			reread: { workspace: { kind: 'folder', folder: other, isolation: 'folder' }, resolves: 1 },
+			// The default: the session folder without a worktree, which needs no request.
+			fallback: undefined,
+		});
+	});
+
+	test('a chat sent right after a refresh waits for the folder to be re-read, so its kept worktree choice is requested', async () => {
+		const answers: (() => void)[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { } } as Partial<IActionWidgetService>);
+		instantiationService.stub(ILabelService, { getUriBasenameLabel: (uri: URI) => uri.path.split('/').pop() ?? '' } as Partial<ILabelService>);
+		const controls = store.add(instantiationService.createInstance(NestedChatWorkspaceControls, {
+			support: constObservable(support(repo)),
+			resolveFolder: () => new Promise<INestedChatFolderInfo>(resolve => answers.push(() => resolve(git))),
+			getBranches: async () => [],
+			getFolderSources: () => ({ recentFolders: [], canOpenLocalFolder: false }),
+			describeNoWorkspace: () => getNoWorkspaceChoicePresentation(undefined),
+			describeFolder: () => undefined,
+			folderExists: async () => true,
+			openLocalFolder: async () => undefined,
+		}));
+		const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+		const answerAll = () => answers.splice(0).forEach(answer => answer());
+		Reflect.get(controls, '_select').call(controls, { kind: 'folder', folder: other });
+		answerAll();
+		await settle();
+		Reflect.get(controls, '_setWorktree').call(controls, true);
+
+		// The new chat's agent changed: the folder is re-read, and the chat is sent before that finishes.
+		controls.refresh();
+		const sent = controls.resolveWorkspace();
+		const whileReading = controls.getWorkspace();
+		answerAll();
+
+		assert.deepStrictEqual({ whileReading, sent: await sent }, {
+			whileReading: { kind: 'folder', folder: other, isolation: 'folder' },
+			sent: { kind: 'folder', folder: other, isolation: 'worktree', baseBranch: 'main' },
+		});
+	});
+
+	/** The input's shared harness picker, rendering its slot like the real one. */
+	function fakeHarnessPicker(isVisible: IObservable<boolean>) {
+		return {
+			isVisible,
+			render: (container: HTMLElement, options?: { className?: string }) => {
+				container.appendChild(mainWindow.document.createElement('div')).className = `sessions-chat-picker-slot ${options?.className}`;
+			},
+		};
+	}
+
 	test('renders the New Session structure: the options row in the centered content, the repository controls where New Session has them', () => {
-		const experimental = observableValue('experimental', false);
 		const supported = observableValue<INestedChatWorkspaceSupport | undefined>('support', support(repo));
 		const offersWorktree = observableValue('offersWorktree', true);
+		// Hidden unless the session offers its chats more than one harness (and behind the setting).
+		const harnessVisible = observableValue('harnessVisible', false);
 		const placements: (string | undefined)[] = [];
 		const parent = mainWindow.document.createElement('div');
 		const owner = {
 			_register: <T extends IDisposable>(disposable: T) => store.add(disposable),
-			_useExperimentalComposerLayout: experimental,
 			_screenReaderOptimized: constObservable(false),
 			_collapsedSessionOptionsShowIcons: constObservable(true),
 			_sessionOptionsExpanded: constObservable(true),
@@ -335,6 +473,7 @@ suite('Sessions - New Nested Session composer', () => {
 				render: (content: HTMLElement) => content.appendChild(mainWindow.document.createElement('div')).classList.add('new-chat-input-container'),
 				placeRepositoryControls: (host?: HTMLElement) => placements.push(host?.className),
 				hostNoticeContainerElement: undefined,
+				sessionTypePicker: fakeHarnessPicker(harnessVisible),
 			},
 			storageService: { getBoolean: () => true },
 			_renderSubSessionTip: Reflect.get(NewChatInSessionWidget.prototype, '_renderSubSessionTip'),
@@ -345,24 +484,23 @@ suite('Sessions - New Nested Session composer', () => {
 			const content = parent.querySelector('.new-chat-widget-content')!;
 			return [...content.children].map(child => [describe(child), ...[...child.querySelectorAll('.sessions-workspace-category-picker > *')].map(describe)]);
 		};
-		const standard = { structure: structure(), placements: placements.splice(0) };
-		experimental.set(true, undefined);
 		const experimentalLayout = { structure: structure(), placements: placements.splice(0) };
-		// "No workspace" or a folder without Git: no worktree, so no tray to show or hide.
+		// "Chat" or a folder without Git: no worktree, so no tray to show or hide.
 		offersWorktree.set(false, undefined);
 		const noWorktree = structure()[0];
 		supported.set(undefined, undefined);
 		const unsupported = structure()[0][0];
+		// More than one harness: the harness picker follows the repository controls in the tray, which it fills even
+		// without a worktree to offer, and keeps the row shown on a host without nested chat workspaces.
+		harnessVisible.set(true, undefined);
+		const details = parent.querySelector('.new-chat-session-options-details')!;
+		const withHarness = {
+			row: structure()[0][0],
+			tray: structure()[0][2],
+			trayChildren: [...details.children].map(child => child.className),
+		};
 
-		assert.deepStrictEqual({ standard, experimentalLayout, noWorktree, unsupported }, {
-			standard: {
-				structure: [
-					['new-session-workspace-picker-container', 'nested-chat-folder-picker', 'new-chat-session-options-details legacy-session-options-details', 'monaco-button new-chat-session-options-toggle codicon codicon-chevron-left-compact[hidden]'],
-					['new-chat-input-container'],
-				],
-				// Below the input, like New Session's standard layout.
-				placements: [undefined],
-			},
+		assert.deepStrictEqual({ experimentalLayout, noWorktree, unsupported, withHarness }, {
 			experimentalLayout: {
 				structure: [
 					['new-session-workspace-picker-container', 'nested-chat-folder-picker', 'new-chat-session-options-details', 'monaco-button new-chat-session-options-toggle codicon codicon-chevron-left-compact'],
@@ -373,6 +511,11 @@ suite('Sessions - New Nested Session composer', () => {
 			},
 			noWorktree: ['new-session-workspace-picker-container', 'nested-chat-folder-picker', 'new-chat-session-options-details[hidden]', 'monaco-button new-chat-session-options-toggle codicon codicon-chevron-left-compact[hidden]'],
 			unsupported: 'new-session-workspace-picker-container[hidden]',
+			withHarness: {
+				row: 'new-session-workspace-picker-container',
+				tray: 'new-chat-session-options-details',
+				trayChildren: ['new-chat-repository-controls-host', 'sessions-chat-picker-slot sessions-chat-session-type-picker sessions-workspace-category-picker-slot'],
+			},
 		});
 	});
 
@@ -382,13 +525,12 @@ suite('Sessions - New Nested Session composer', () => {
 		const parent = mainWindow.document.createElement('div');
 		const owner = {
 			_register: <T extends IDisposable>(disposable: T) => store.add(disposable),
-			_useExperimentalComposerLayout: constObservable(true),
 			_screenReaderOptimized: constObservable(false),
 			_collapsedSessionOptionsShowIcons: constObservable(false),
 			_sessionOptionsExpanded: observableValue('expanded', Reflect.get(NewChatInSessionWidget.prototype, '_getInitialSessionOptionsExpanded').call({ storageService: storage })),
 			_workspaceSupport: constObservable(support(repo)),
 			_workspaceControls: { renderFolderPicker: () => { }, offersWorktree: constObservable(true) },
-			_newChatInput: { render: () => { }, placeRepositoryControls: () => { }, hostNoticeContainerElement: undefined },
+			_newChatInput: { render: () => { }, placeRepositoryControls: () => { }, hostNoticeContainerElement: undefined, sessionTypePicker: fakeHarnessPicker(constObservable(false)) },
 			storageService: storage,
 			_renderSubSessionTip: () => { },
 		};

@@ -13,6 +13,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, ChatOriginKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSessionStatusRead, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
+import { SessionOriginKind } from '../../common/state/protocol/state.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../common/state/protocol/channels-chat/state.js';
 import { AgentHostStateManager, ChatRemovalReason, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
@@ -458,6 +459,38 @@ suite('AgentHostStateManager', () => {
 		}, {
 			sessionIsRead: true,
 			chatIsRead: true,
+			actions: [
+				{ channel: sessionChatUri, type: ActionType.ChatIsReadChanged, isRead: true },
+				{ channel: sessionUri, type: ActionType.SessionIsReadChanged, isRead: true },
+			],
+		});
+	});
+
+	test('a redundant read of a sole chat repairs a session left unread', () => {
+		// Restored unread while its sole chat is read, as a session promoted from a chat was.
+		manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource, { defaultChatIsRead: true });
+		const restored = {
+			sessionIsRead: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			chatIsRead: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+		};
+		const actions: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(action => actions.push(action)));
+
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatIsReadChanged, isRead: true });
+
+		assert.deepStrictEqual({
+			restored,
+			sessionIsRead: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			actions: actions
+				.filter(({ action }) => action.type === ActionType.ChatIsReadChanged || action.type === ActionType.SessionIsReadChanged)
+				.map(({ channel, action }) => ({
+					channel,
+					type: action.type,
+					isRead: action.type === ActionType.ChatIsReadChanged || action.type === ActionType.SessionIsReadChanged ? action.isRead : undefined,
+				})),
+		}, {
+			restored: { sessionIsRead: false, chatIsRead: true },
+			sessionIsRead: true,
 			actions: [
 				{ channel: sessionChatUri, type: ActionType.ChatIsReadChanged, isRead: true },
 				{ channel: sessionUri, type: ActionType.SessionIsReadChanged, isRead: true },
@@ -1352,6 +1385,21 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(changed[0].session, sessionUri);
 		assert.strictEqual(Object.prototype.hasOwnProperty.call(changed[0].changes, '_meta'), true);
 		assert.strictEqual(readSessionEhcliAdoptable(changed[0].changes._meta), false);
+	});
+
+	test('keeps automation origin across surfaced refresh and restore without re-announcing it', () => {
+		const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/a', run: 'ahp-automation-run:/r' } as const;
+		manager.announceSurfacedSession({ ...makeSessionSummary(), origin });
+		const notifications: INotification[] = [];
+		disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+		manager.updateSurfacedSessionMetadata(sessionUri, { title: 'Renamed', modifiedAt: new Date(0).toISOString(), project: undefined, workingDirectories: undefined, _meta: undefined });
+		const surfaced = manager.getSurfacedSessionSummary(sessionUri)?.origin;
+		manager.restoreSession({ ...makeSessionSummary(), origin }, [], creationTimeChatStorageResource);
+		const changed = notifications.filter(notification => notification.type === NotificationType.SessionSummaryChanged);
+		assert.deepStrictEqual({
+			surfaced, live: manager.getSessionSummary(sessionUri)?.origin,
+			originNotified: changed.some(notification => Object.prototype.hasOwnProperty.call(notification.changes, 'origin')),
+		}, { surfaced: origin, live: origin, originNotified: false });
 	});
 
 	test('publishing a restored session announces it to clients that never saw it', () => {
@@ -3482,7 +3530,8 @@ suite('AgentHostStateManager', () => {
 				sourceStatus: manager.getSessionState(sessionUri)!.status & SessionStatus.InProgress,
 				targetStatus: manager.getSessionState(target)!.status & SessionStatus.InProgress,
 			}, {
-				envelopes: ['source session/chatRemoved', 'source session/chatRemoved', 'target session/chatAdded', 'target session/chatAdded', 'target session/chatsReordered', 'root root/activeSessionsChanged', 'root root/activeSessionsChanged'],
+				// Each moved chat, its subagent included, then tells its own subscribers its new owner.
+				envelopes: ['source session/chatRemoved', 'source session/chatRemoved', 'target session/chatAdded', 'target session/chatAdded', 'target session/chatsReordered', 'other chat/moved', 'other chat/moved', 'root root/activeSessionsChanged', 'root root/activeSessionsChanged'],
 				owners: ['peer true', 'sub true'],
 				removalReasons: [ChatRemovalReason.Moved, ChatRemovalReason.Moved],
 				sourceChats: [sessionChatUri],
@@ -3565,7 +3614,7 @@ suite('AgentHostStateManager', () => {
 				targetActive: manager.getSessionState(target)!.status & SessionStatus.InProgress,
 			}, {
 				// The former default chat is announced as the movable peer it is now; its own state follows once the target lists it.
-				published: ['target session/chatAdded', 'target session/chatAdded', 'other chat/movableChanged', 'target session/chatsReordered', 'notification root/sessionRemoved'],
+				published: ['target session/chatAdded', 'target session/chatAdded', 'other chat/movableChanged', 'target session/chatsReordered', 'other chat/moved', 'other chat/moved', 'notification root/sessionRemoved'],
 				source: undefined,
 				targetChats: [[sessionChatUri, 'Moved session', true], [sub, '', false], [targetDefault, 'Test', false]],
 				movable: true,
@@ -3575,6 +3624,139 @@ suite('AgentHostStateManager', () => {
 				targetActive: SessionStatus.InProgress,
 			});
 			assert.throws(() => manager.transferSession(target, sessionUri, [targetDefault], undefined, true), /both sessions must be loaded/);
+		});
+
+		/** Marks chats read or unread as clients do: a session is read once its last unread chat is. */
+		function markChatsRead(read: readonly string[], unread: readonly string[]): void {
+			for (const chat of unread) {
+				manager.dispatchServerAction(chat, { type: ActionType.ChatIsReadChanged, isRead: false });
+			}
+			for (const chat of read) {
+				manager.dispatchServerAction(chat, { type: ActionType.ChatIsReadChanged, isRead: true });
+			}
+		}
+
+		function sessionsRead(sessions: Record<string, string>): Record<string, boolean> {
+			return Object.fromEntries(Object.entries(sessions).map(([name, session]) => [name, isSessionStatusRead(manager.getSessionState(session)!.status)]));
+		}
+
+		function recordSessionReadChanges(sessions: Record<string, string>): string[] {
+			const changes: string[] = [];
+			disposables.add(manager.onDidEmitEnvelope(({ channel, action }) => {
+				if (action.type === ActionType.SessionIsReadChanged) {
+					changes.push(`${Object.entries(sessions).find(([, session]) => session === channel)?.[0] ?? channel} ${action.isRead}`);
+				}
+			}));
+			return changes;
+		}
+
+		test('moving an unread chat makes the source read when its remaining counted chats are, and the destination unread', () => {
+			const { peer, sub, other } = setupTwoSessions();
+			const stays = buildChatUri(sessionUri, 'stays');
+			manager.addChat(sessionUri, stays, creationTimeChatStorageResource(sessionUri, stays, sessionChatUri));
+			const hidden = buildChatUri(sessionUri, 'hidden');
+			manager.addChat(sessionUri, hidden, creationTimeChatStorageResource(sessionUri, hidden, sessionChatUri), { interactivity: ChatInteractivity.Hidden });
+			// Neither the subagent moving along nor the hidden chat staying counts toward either session's read state.
+			markChatsRead([sessionChatUri, stays, targetDefault, other], [peer, sub, hidden]);
+			const sessions = { source: sessionUri, target };
+			const before = sessionsRead(sessions);
+			const changes = recordSessionReadChanges(sessions);
+
+			manager.transferChats(sessionUri, target, [peer, sub], undefined);
+
+			assert.deepStrictEqual({ before, after: sessionsRead(sessions), changes }, {
+				before: { source: false, target: true },
+				after: { source: true, target: false },
+				changes: ['source true', 'target false'],
+			});
+		});
+
+		test('sessions marked unread as a whole stay unread when a read chat moves out of one and into the other', () => {
+			const { peer, sub, other } = setupTwoSessions();
+			const stays = buildChatUri(sessionUri, 'stays');
+			manager.addChat(sessionUri, stays, creationTimeChatStorageResource(sessionUri, stays, sessionChatUri));
+			// The unread subagent moving along does not count: only read chats move.
+			markChatsRead([sessionChatUri, stays, peer, targetDefault, other], [sub]);
+			// Marked unread as a whole, as Mark as Unread does: the chats of a multi-chat session stay read.
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: false });
+			manager.dispatchServerAction(target, { type: ActionType.SessionIsReadChanged, isRead: false });
+			const sessions = { source: sessionUri, target };
+			const before = sessionsRead(sessions);
+			const changes = recordSessionReadChanges(sessions);
+
+			manager.transferChats(sessionUri, target, [peer, sub], undefined);
+
+			assert.deepStrictEqual({ before, after: sessionsRead(sessions), changes }, {
+				before: { source: false, target: false },
+				after: { source: false, target: false },
+				changes: [],
+			});
+		});
+
+		test('moving an unread session under another makes the destination unread; moving a read one leaves it alone', () => {
+			manager.createSession(makeSessionSummary(target));
+			const other = buildChatUri(target, 'other');
+			manager.addChat(target, other, creationTimeChatStorageResource(target, other, targetDefault));
+			const readSession = URI.from({ scheme: 'copilot', path: '/read-session' }).toString();
+			const unreadSession = URI.from({ scheme: 'copilot', path: '/unread-session' }).toString();
+			manager.createSession(makeSessionSummary(readSession));
+			manager.createSession(makeSessionSummary(unreadSession));
+			const readSub = buildChatUri(readSession, 'sub');
+			manager.addChat(readSession, readSub, creationTimeChatStorageResource(readSession, readSub, buildDefaultChatUri(readSession)), { origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(readSession), toolCallId: 'call' } });
+			markChatsRead([targetDefault, other, buildDefaultChatUri(readSession)], [readSub, buildDefaultChatUri(unreadSession)]);
+			const sessions = { target };
+			const before = sessionsRead(sessions);
+			const changes = recordSessionReadChanges(sessions);
+
+			manager.transferSession(readSession, target, [buildDefaultChatUri(readSession), readSub], undefined, true);
+			const afterReadSession = sessionsRead(sessions);
+			manager.transferSession(unreadSession, target, [buildDefaultChatUri(unreadSession)], undefined, true);
+
+			assert.deepStrictEqual({ before, afterReadSession, afterUnreadSession: sessionsRead(sessions), changes }, {
+				before: { target: true },
+				afterReadSession: { target: true },
+				afterUnreadSession: { target: false },
+				changes: ['target false'],
+			});
+		});
+
+		test('promoting the only unread chat makes the source read when all its remaining counted chats are', () => {
+			const { peer, sub } = setupTwoSessions();
+			const stays = buildChatUri(sessionUri, 'stays');
+			manager.addChat(sessionUri, stays, creationTimeChatStorageResource(sessionUri, stays, sessionChatUri));
+			markChatsRead([sessionChatUri, stays], [peer, sub]);
+			const sessions = { source: sessionUri };
+			const before = sessionsRead(sessions);
+			const changes = recordSessionReadChanges(sessions);
+
+			manager.promoteChats(sessionUri, { ...makeSessionSummary(URI.from({ scheme: 'copilot', path: '/promoted' }).toString()), defaultChat: peer }, undefined, [peer, sub]);
+
+			assert.deepStrictEqual({ before, after: sessionsRead(sessions), changes }, {
+				before: { source: false },
+				after: { source: true },
+				changes: ['source true'],
+			});
+		});
+
+		test('a session marked unread as a whole stays unread when a read chat is promoted out of it', () => {
+			const { peer, sub } = setupTwoSessions();
+			const stays = buildChatUri(sessionUri, 'stays');
+			manager.addChat(sessionUri, stays, creationTimeChatStorageResource(sessionUri, stays, sessionChatUri));
+			// The unread subagent promoted along does not count: only read chats leave.
+			markChatsRead([sessionChatUri, stays, peer], [sub]);
+			// Marked unread as a whole, as Mark as Unread does: the chats of a multi-chat session stay read.
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: false });
+			const sessions = { source: sessionUri };
+			const before = sessionsRead(sessions);
+			const changes = recordSessionReadChanges(sessions);
+
+			manager.promoteChats(sessionUri, { ...makeSessionSummary(URI.from({ scheme: 'copilot', path: '/promoted' }).toString()), defaultChat: peer }, undefined, [peer, sub]);
+
+			assert.deepStrictEqual({ before, after: sessionsRead(sessions), changes }, {
+				before: { source: false },
+				after: { source: false },
+				changes: [],
+			});
 		});
 
 		test('places the chat first without an anchor and refuses the default chat or a foreign chat', () => {
@@ -3598,6 +3780,34 @@ suite('AgentHostStateManager', () => {
 			}));
 			manager.promoteChats(sessionUri, { ...makeSessionSummary(promoted), defaultChat: peer }, undefined, [peer]);
 			assert.deepStrictEqual({ announced, defaultChat: manager.getSessionState(promoted)?.defaultChat }, { announced: [false], defaultChat: peer });
+		});
+
+		test('a promoted session is read exactly when the chats it takes are', () => {
+			const { peer, sub } = setupTwoSessions();
+			const unreadPeer = buildChatUri(sessionUri, 'unread-peer');
+			manager.addChat(sessionUri, unreadPeer, creationTimeChatStorageResource(sessionUri, unreadPeer, sessionChatUri));
+			manager.dispatchServerAction(unreadPeer, { type: ActionType.ChatIsReadChanged, isRead: false });
+			// A tool chat taken along does not count toward its session's read state.
+			manager.dispatchServerAction(sub, { type: ActionType.ChatIsReadChanged, isRead: false });
+			const promoted = URI.from({ scheme: 'copilot', path: '/promoted' }).toString();
+			const promotedUnread = URI.from({ scheme: 'copilot', path: '/promoted-unread' }).toString();
+			const announced: Record<string, boolean> = {};
+			disposables.add(manager.onDidEmitNotification(notification => {
+				if (notification.type === NotificationType.SessionAdded) {
+					announced[notification.summary.resource] = isSessionStatusRead(notification.summary.status);
+				}
+			}));
+
+			manager.promoteChats(sessionUri, { ...makeSessionSummary(promoted), defaultChat: peer }, undefined, [peer, sub]);
+			manager.promoteChats(sessionUri, { ...makeSessionSummary(promotedUnread), defaultChat: unreadPeer }, undefined, [unreadPeer]);
+
+			assert.deepStrictEqual({
+				announced,
+				state: [promoted, promotedUnread].map(session => isSessionStatusRead(manager.getSessionState(session)!.status)),
+			}, {
+				announced: { [promoted]: true, [promotedUnread]: false },
+				state: [true, false],
+			});
 		});
 
 		test('a deleted chat is removed for good', () => {

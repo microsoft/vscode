@@ -505,6 +505,11 @@ export function getBrowserViewSessionNetwork(options: IBrowserViewSessionOptions
 	return options.scope !== BrowserViewStorageScope.Global ? options.network : undefined;
 }
 
+/** The affinity requested by session options; only workspace and agent storage use one, and options without a scope keep theirs. */
+export function getBrowserViewSessionAffinity(options: { readonly scope?: BrowserViewStorageScope; readonly affinity?: string }): string | undefined {
+	return options.scope === BrowserViewStorageScope.Global || options.scope === BrowserViewStorageScope.Ephemeral ? undefined : options.affinity;
+}
+
 /** Keep only the network and affinity supported by the storage scope. */
 export function toBrowserViewSessionOptions(scope: BrowserViewStorageScope, affinity: string | undefined, network: IBrowserViewNetwork | undefined): IBrowserViewSessionOptions {
 	const networkOption = network ? { network } : {};

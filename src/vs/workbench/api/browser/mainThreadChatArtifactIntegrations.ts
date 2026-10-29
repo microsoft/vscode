@@ -12,11 +12,11 @@ import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../
 import { autorun, derived, observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { ArtifactAction, ArtifactAuthenticationRequiredError, ArtifactAutomationOption, ArtifactDetails, ArtifactRun, getArtifactRunInitiator, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegrationBinding } from '../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactAction, ArtifactAuthenticationRequiredError, ArtifactDetails, ArtifactRun, getArtifactRunInitiator, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegrationBinding } from '../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IArtifactIntegrationRegistry } from '../../../platform/artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { isArtifactIntegrationDescription, isArtifactIntegrationLabel, parseArtifactJsonValue } from '../../../platform/artifactIntegrations/common/artifactIntegrationValidation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { ChatArtifactActionContextDto, ChatArtifactActionDto, ChatArtifactAutomationRequestDto, ChatArtifactAutomationSnapshotDto, ChatArtifactIntegrationStateDto, ChatArtifactRunDto, ExtHostChatArtifactIntegrationsShape, ExtHostContext, MainContext, MainThreadChatArtifactIntegrationsShape } from '../common/extHost.protocol.js';
+import { ChatArtifactActionContextDto, ChatArtifactActionDto, ChatArtifactAutomationRequestDto, ChatArtifactAutomationSnapshotDto, ChatArtifactIntegrationProviderMetadataDto, ChatArtifactIntegrationStateDto, ChatArtifactRunDto, ExtHostChatArtifactIntegrationsShape, ExtHostContext, MainContext, MainThreadChatArtifactIntegrationsShape } from '../common/extHost.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 
 @extHostNamedCustomer(MainContext.MainThreadChatArtifactIntegrations)
@@ -40,11 +40,13 @@ export class MainThreadChatArtifactIntegrations extends Disposable implements Ma
 		this.proxy = context.getProxy(ExtHostContext.ExtHostChatArtifactIntegrations);
 	}
 
-	$registerProvider(handle: number, id: string, label: string, options: readonly ArtifactAutomationOption[], canSignIn: boolean, description?: string): void {
+	$registerProvider(handle: number, id: string, metadata: ChatArtifactIntegrationProviderMetadataDto): void {
+		const { label, description, groupLabel, automationOptions: options, canSignIn } = metadata;
 		if (this.providers.has(handle)) {
 			throw new Error('Duplicate artifact integration provider handle');
 		}
-		if (!isArtifactIntegrationLabel(label) || (description !== undefined && !isArtifactIntegrationDescription(description))) {
+		if (!isArtifactIntegrationLabel(label) || (description !== undefined && !isArtifactIntegrationDescription(description))
+			|| (groupLabel !== undefined && !isArtifactIntegrationLabel(groupLabel))) {
 			throw new Error('Invalid artifact integration provider label or description');
 		}
 		const store = new DisposableStore();
@@ -54,7 +56,7 @@ export class MainThreadChatArtifactIntegrations extends Disposable implements Ma
 		store.add(toDisposable(() => this.providerChanges.delete(handle)));
 		try {
 			store.add(this.registry.register({
-				id, label, ...(description ? { description } : {}), automationOptions: options, onDidChange: changes.event,
+				id, label, ...(description ? { description } : {}), ...(groupLabel ? { groupLabel } : {}), automationOptions: options, onDidChange: changes.event,
 				match: async (resource, token) => {
 					const result = await this.proxy.$match(handle, resource, token);
 					if (result?.kind === 'authenticationRequired') {

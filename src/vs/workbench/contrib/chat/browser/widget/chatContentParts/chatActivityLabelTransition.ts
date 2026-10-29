@@ -42,11 +42,6 @@ export class ChatActivityLabelTransition extends Disposable {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
-		this._register(accessibilityService.onDidChangeReducedMotion(() => {
-			if (this.phase !== 'idle' && accessibilityService.isMotionReduced()) {
-				this.finish();
-			}
-		}));
 	}
 
 	/** Shows the requested label, wiping to it when the delegate asks for animation. */
@@ -117,6 +112,11 @@ export class ChatActivityLabelTransition extends Disposable {
 			return false;
 		}
 
+		animation.add(this.accessibilityService.onDidChangeReducedMotion(() => {
+			if (this.accessibilityService.isMotionReduced()) {
+				this.finish();
+			}
+		}));
 		const settle = () => {
 			if (!animation.isDisposed) {
 				this.advance();
