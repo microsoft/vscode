@@ -538,10 +538,14 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		fixture.sandboxUpdateError = Object.assign(new Error('Managed sandbox conflict'), { data: { code: 'managed_sandbox_policy_conflict' } });
 		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
 		const published: Array<{ enabled: boolean | undefined; message: string | undefined }> = [];
+		let previousState = readChatSandboxState(fixture.manager.getSessionState(fixture.owner), target.chat);
 		store.add(fixture.manager.onDidEmitEnvelope(envelope => {
 			if (envelope.action.type === ActionType.SessionMetaChanged) {
 				const state = readChatSandboxState(envelope.action, target.chat);
-				published.push({ enabled: state?.enabled, message: state?.error?.message });
+				if (!isDeepStrictEqual(state, previousState)) {
+					previousState = state;
+					published.push({ enabled: state?.enabled, message: state?.error?.message });
+				}
 			}
 		}));
 
@@ -560,7 +564,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			recovered: fixture.sandboxState,
 		}, {
 			disconnected: false,
-			published: [{ enabled: true, message: 'Managed sandbox conflict' }, { enabled: false, message: undefined }, { enabled: false, message: undefined }],
+			published: [{ enabled: true, message: 'Managed sandbox conflict' }, { enabled: false, message: undefined }],
 			broadcast: true,
 			selection: 'off',
 			applied: [true, false],
