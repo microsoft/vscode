@@ -90,7 +90,8 @@ import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointServi
 import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from '../shared/persistSessionMetadata.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
-import { applyMcpServerEnablement, applyMcpServerRuntimeStates, buildMcpTopLevelCustomizationId, mergeMcpServerCustomizations, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
+import { applyMcpServerEnablement, applyMcpServerRuntimeStates, buildMcpTopLevelCustomizationId, getMcpServerCustomizations, mergeMcpServerCustomizations, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
+import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
 import { McpServerStatus, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
@@ -10500,13 +10501,27 @@ class SessionPluginController extends Disposable {
 			...clientCustomizations.map(item => this._projectForPublish(item.customization)),
 		];
 		const discovered = anchor?.discoveredEntry()?.currentCustomizations() ?? [];
+		const workspaceDefinitions = anchor?.mcpDiscoveryEntry()?.definitions ?? [];
+		const declaredMcpNames = new Set(getMcpServerCustomizations([
+			...result,
+			...workspaceDefinitions.map(definition => definition.customization),
+		]).map(server => server.name));
 		for (const customization of discovered) {
 			if (customization.type === CustomizationType.Plugin && explicitPluginIds.has(customization.id)) {
 				continue;
 			}
+			if (customization.type === CustomizationType.McpServer) {
+				if (!declaredMcpNames.has(customization.name)) {
+					result.push(this._projectForPublish({
+						...customization,
+						id: buildMcpTopLevelCustomizationId(COPILOT_CLI_AGENT_PROVIDER_ID, AgentSession.id(this._session), customization.name),
+					}));
+				}
+				continue;
+			}
 			result.push(this._projectForPublish(customization));
 		}
-		for (const definition of anchor?.mcpDiscoveryEntry()?.definitions ?? []) {
+		for (const definition of workspaceDefinitions) {
 			result.push(this._projectForPublish(definition.customization));
 		}
 		result.push(buildCopilotBuiltinAgentsContainer());
@@ -10955,6 +10970,9 @@ class SessionPluginController extends Disposable {
 	}
 
 	private _desiredEnabled(customization: Customization | ChildCustomization): boolean | undefined {
+		if (customization.type === CustomizationType.Hook && readCustomizationDiscoveryMeta(customization)?.hookType) {
+			return customization.enabled;
+		}
 		const exact = this._getDesiredCustomization(customization.id);
 		if (exact) {
 			return exact.type === CustomizationType.Plugin || exact.type === CustomizationType.McpServer

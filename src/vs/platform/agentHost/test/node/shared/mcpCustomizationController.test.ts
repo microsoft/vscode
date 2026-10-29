@@ -11,12 +11,13 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AgentSession } from '../../../common/agent.js';
 import { isCustomizationEnabled } from '../../../common/customizationEnablement.js';
 import { readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../common/meta/mcpCustomizationMeta.js';
+import { withCustomizationDiscoveryMeta } from '../../../common/meta/customizationDiscoveryMeta.js';
 import { ActionType } from '../../../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { buildDefaultChatUri, buildChatUri } from '../../../common/state/sessionState.js';
 import type { SessionAction } from '../../../common/state/sessionActions.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
-import { applyMcpServerRuntimeStates, buildMcpChannel, getEffectiveMcpServerCustomizations, mergeMcpServerCustomizations, McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type IMcpServerProvenance, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
+import { applyMcpServerEnablement, applyMcpServerRuntimeStates, buildMcpChannel, getEffectiveMcpServerCustomizations, mergeMcpServerCustomizations, McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type IMcpServerProvenance, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
 
 const SESSION_URI = AgentSession.uri('copilot', 'session-1');
 const CHAT_URI = URI.parse(buildChatUri(SESSION_URI, 'chat-1'));
@@ -126,6 +127,27 @@ suite('McpCustomizationController', () => {
 	}
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('live state preserves SDK discovery provenance and does not restore stale provider enablement', () => {
+		const declaration: McpServerCustomization = {
+			type: CustomizationType.McpServer, id: 'mcp-top-level:copilot:session-1:search',
+			uri: 'file:///host/mcp.json', name: 'search', state: stopped(),
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			_meta: withCustomizationDiscoveryMeta(withMcpServerSourcePluginMeta(withMcpServerSourceMeta(undefined, 'plugin'), 'native'), { source: 'plugin', defaultEnabled: false }),
+		};
+		const { controller } = harness(store, { customizations: [declaration] });
+		store.add(controller);
+		controller.applyAll([server('search', ready())]);
+		const live = controller.topLevelCustomizations();
+		const merged = applyMcpServerEnablement(mergeMcpServerCustomizations([declaration], live), [{ ...declaration, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] }]);
+		assert.deepStrictEqual({
+			live: live.map(item => ({ uri: item.uri, source: readMcpServerSource(item), plugin: readMcpServerSourcePlugin(item), state: item.state })),
+			merged: merged.filter(item => item.type === CustomizationType.McpServer).map(item => ({ id: item.id, enabled: isCustomizationEnabled(item) })),
+		}, {
+			live: [{ uri: declaration.uri, source: 'plugin', plugin: 'native', state: ready() }],
+			merged: [{ id: declaration.id, enabled: false }],
+		});
+	});
 
 	test('merges discovered and live native MCP identities while retaining metadata and distinct sources', () => {
 		const declaration: McpServerCustomization = {

@@ -212,6 +212,23 @@ suite('AgentHostCustomizationEnablementService', () => {
 		});
 	});
 
+	test('inherits provider enablement without persisting discovery as user intent', async () => {
+		const server: ICustomizationEnablementTarget = {
+			id: 'native-server', name: 'native-server', type: CustomizationType.McpServer,
+			source: URI.file('/plugins/native/.mcp.json'), defaultEnabled: false,
+		};
+		const before = service.resolve(session, server);
+		service.setEnablement(session, server, CustomizationEnablementKind.Workspace, true);
+		const overridden = service.resolve(session, server);
+		service.setEnablement(session, server, CustomizationEnablementKind.Workspace, false);
+		const inherited = service.resolve(session, { ...server, defaultEnabled: true });
+		assert.deepStrictEqual([before, overridden, inherited].map(serializableResolution), [
+			{ kind: 'resolved', enabled: false, workingDirectory: { kind: 'directory', uri: workspace.toString() }, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] },
+			{ kind: 'resolved', enabled: true, workingDirectory: { kind: 'directory', uri: workspace.toString() }, enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true }, { kind: CustomizationEnablementKind.Global, enabled: false }] },
+			{ kind: 'resolved', enabled: true, workingDirectory: { kind: 'directory', uri: workspace.toString() }, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
+		]);
+	});
+
 	test('resolves a global decision for a newly registered plugin MCP child', async () => {
 		const server: ICustomizationEnablementTarget = {
 			id: 'mcp-materialized-hash-one',

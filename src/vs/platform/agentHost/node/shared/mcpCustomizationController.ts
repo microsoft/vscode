@@ -10,7 +10,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { AgentSession } from '../../common/agent.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
-import { McpServerSource, readMcpServerDisplayName, withMcpServerConnectorNameMeta, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { McpServerSource, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerConnectorNameMeta, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
 import { CustomizationLoadStatus, CustomizationType, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import { DEFAULT_MCP_APP, DEFAULT_MCP_APP_CAPABILITIES } from '../../common/state/protocol/mcpAppDefaults.js';
 import { isAhpChatChannel } from '../../common/state/sessionState.js';
@@ -564,20 +565,21 @@ export class McpCustomizationController extends Disposable {
 			? { capabilities: this._options.capabilities }
 			: DEFAULT_MCP_APP;
 		const existing = this._findPublishedTopLevel(id);
-		// Provenance is derived from configuration on every build, never retained from earlier output.
+		const discovered = existing && readCustomizationDiscoveryMeta(existing) ? existing : undefined;
+		// Runtime configuration takes precedence over the SDK discovery declaration.
 		const provenance: IMcpServerProvenance = this._options.resolveProvenance?.(serverName) ?? { source: undefined };
 		// `SessionCustomizationUpdated` replaces the whole customization, so keep opaque entries owned by others.
 		const meta = withMcpServerConnectorNameMeta(
 			withMcpServerControllingSettingMeta(
 				withMcpServerSourcePluginMeta(
-					withMcpServerDisplayNameMeta(withMcpServerSourceMeta(existing?._meta, provenance.source), displayName),
-					provenance.sourcePlugin,
+					withMcpServerDisplayNameMeta(withMcpServerSourceMeta(existing?._meta, provenance.source ?? readMcpServerSource(discovered)), displayName),
+					provenance.sourcePlugin ?? readMcpServerSourcePlugin(discovered),
 				),
 				this._options.controllingSetting?.(serverName, provenance),
 			),
 			this._options.connectorName?.(serverName),
 		);
-		const uri = provenance.sourceUri ?? this._mintTopLevelId(serverName);
+		const uri = provenance.sourceUri ?? discovered?.uri ?? this._mintTopLevelId(serverName);
 		const customization: McpServerCustomization = {
 			type: CustomizationType.McpServer,
 			id,
@@ -663,6 +665,10 @@ export function applyMcpServerEnablement(customizations: readonly Customization[
 }
 
 function applyMcpEnablement(customization: McpServerCustomization, desiredById: ReadonlyMap<string, readonly CustomizationEnablement[] | undefined>): McpServerCustomization {
+	// SDK-backed declarations have already resolved current provider defaults and host decisions.
+	if (readCustomizationDiscoveryMeta(customization)?.defaultEnabled !== undefined) {
+		return customization;
+	}
 	if (!desiredById.has(customization.id)) {
 		return customization;
 	}

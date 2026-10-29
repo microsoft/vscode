@@ -115,6 +115,7 @@ import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestricte
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId, getMcpServerCustomizations, McpCustomizationController, type IMcpServerProvenance, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
+import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
 import { appendSdkToolResultContent, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents, persistSdkToolResultResources } from './mapSessionEvents.js';
 import { withPermissionDiff } from '../../common/meta/agentPermissionRequestMeta.js';
 import { COPILOT_FUSION_PHASE_AGENT_NAME, CopilotFusionProgress, formatFusionReviewContent, getFusionPhaseToolCallId, isProvisionalFusionConversationEvent, type CopilotFusionEvent, type FusionPhasePresentation, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
@@ -7274,16 +7275,24 @@ export class CopilotAgentSession extends Disposable {
 				const owningPluginSource = this._mcpCustomizations.pluginMcpServerSources?.get(server.name);
 				const source = customization.type === CustomizationType.Plugin ? customization.uri : owningPluginSource;
 				const applied = source === undefined || this._appliedPluginSources.has(URI.parse(source).toString());
+				const sdkDiscovered = readCustomizationDiscoveryMeta(server)?.defaultEnabled !== undefined;
+				// Observing SDK enablement is not a host request to change the runtime.
+				const hostDecision = sdkDiscovered ? this._customizationEnablementService.resolve(this.launchOwner.toString(), {
+					...targetForMcpServer(server, source, false), defaultEnabled: undefined,
+				}) : undefined;
+				const hasDecision = hostDecision?.kind === 'resolved' ? hostDecision.enablement.length > 0 : (server.enablement?.length ?? 0) > 0;
+				const explicit = this._declaredMcpServerNames.has(server.name) || this._projectedMcpServerLaunchEnablement.has(server.name)
+					|| this._hostDisabledMcpServerNames.has(server.name) || hasDecision
+					|| (customization.type === CustomizationType.Plugin && (customization.enablement?.length ?? 0) > 0);
+				if (sdkDiscovered && !explicit && hostDecision?.kind === 'resolved') {
+					continue;
+				}
 				let namedCandidates = candidates.get(server.name);
 				if (!namedCandidates) {
 					namedCandidates = [];
 					candidates.set(server.name, namedCandidates);
 				}
 				// A server this host disabled is restored when its decision returns to the inherited default.
-				const explicit = this._declaredMcpServerNames.has(server.name) || this._projectedMcpServerLaunchEnablement.has(server.name)
-					|| this._hostDisabledMcpServerNames.has(server.name)
-					|| (server.enablement?.length ?? 0) > 0
-					|| (customization.type === CustomizationType.Plugin && (customization.enablement?.length ?? 0) > 0);
 				namedCandidates.push({ server, applied, explicit });
 			}
 		}
