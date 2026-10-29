@@ -218,7 +218,7 @@ export interface ISessionsListSessionDropTarget {
 	readonly session: ISession;
 	readonly chat: IChat | undefined;
 	readonly quarter: ListViewTargetSector;
-	/** Whether `session` is in a section the user orders by hand: Pinned or a custom group. */
+	/** Whether `session` is in a section the user orders by hand: Pinned, a custom group, or a workspace, repository or environment section. */
 	isManuallyOrdered(): boolean;
 	/** Whether the row is the last one its section shows: its last session's row, or that session's last chat row. */
 	isLastInSection(): boolean;
@@ -241,7 +241,8 @@ export type SessionsListSessionDrop =
  * - anywhere on a session's row: under that session, at its end;
  * - on the top or bottom half of a session's nested chat row: under that session, before or after that row, anchored
  *   in the order of the session's chats.
- * In Pinned and custom groups, whose sessions the user orders by hand, the top quarter of a session's row places it
+ * In Pinned, custom groups and workspace, repository or environment sections, whose sessions the user orders by hand,
+ * the top quarter of a session's row places it
  * before that session, and the bottom quarter of the section's last row places it after the section's last session,
  * where the list accepts that placement; otherwise these quarters nest too.
  * When the list doesn't show the session's chats in that order (`positionsShown` false), a nested chat row is the

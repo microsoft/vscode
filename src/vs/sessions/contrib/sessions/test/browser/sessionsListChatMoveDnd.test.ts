@@ -20,7 +20,7 @@ import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../
 import { IChatMovedEvent, ISessionChangeEvent, SessionMoveRefusedError } from '../../../../services/sessions/common/sessionsProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { canMoveIntoSession, getChatMoveAnchorBefore, isCrossAgentChatMoveEnabled, getChatMoveAppendAnchor, getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, ISessionsListChatDropTarget, ISessionsListMoveDestination, runSessionsListMove, SessionsListChatDrop, SessionsListMove } from '../../browser/views/sessionsListChatMove.js';
-import { createListHarness, createTestSession, ITestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
+import { createListHarness, createTestSession, ITestSession, ITestSessionOptions, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -572,8 +572,8 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 	 * index in `ids` (so sorting by update time shows them in reverse). Each session is created before the previous
 	 * one, so the list shows them in the order they are made.
 	 */
-	function listSession(title: string, ids: readonly string[], main = listChat(`${title} main`)): ISession {
-		const test = createTestSession(title);
+	function listSession(title: string, ids: readonly string[], main = listChat(`${title} main`), options?: ITestSessionOptions): ISession {
+		const test = createTestSession(title, options);
 		test.capabilities.set({ supportsMultipleChats: true }, undefined);
 		const chats = observableValue<readonly IChat[]>(`chats-${title}`, [main, ...ids.map((id, index) => listChat(id, index + 1))]);
 		const created = new Date(createdAt--);
@@ -592,7 +592,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 	 * With `cappedGroup`, the group shows its first sessions behind "Show more", as after the user chose "Show less".
 	 * With `realGroups`, the `grouped` sessions are in a group of the real groups service.
 	 */
-	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[]; readonly grouped?: readonly string[]; readonly cappedGroup?: boolean; readonly sorting?: SessionsSorting; readonly height?: number; readonly simulateMoves?: boolean; readonly fixed?: readonly string[]; readonly realListModel?: boolean; readonly realGroups?: boolean }) {
+	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[]; readonly grouped?: readonly string[]; readonly cappedGroup?: boolean; readonly grouping?: SessionsGrouping; readonly sorting?: SessionsSorting; readonly height?: number; readonly simulateMoves?: boolean; readonly fixed?: readonly string[]; readonly realListModel?: boolean; readonly realGroups?: boolean }) {
 		const moves: string[] = [];
 		const group = { id: 'group', name: 'Move Demo', createdAt: 1 };
 		const harness = createListHarness(disposables, sessions, {
@@ -686,7 +686,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		const container = harness.createContainer(300, 600);
 		const findWidgetContainer = harness.createContainer(300, 40);
 		const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
-			grouping: () => SessionsGrouping.Date,
+			grouping: () => options?.grouping ?? SessionsGrouping.Date,
 			sorting: () => options?.sorting ?? SessionsSorting.Created,
 			findWidgetContainer,
 			onSessionOpen: () => { },
@@ -1012,15 +1012,27 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		});
 	});
 
-	/** Renders `Single` (a session that can nest) above `Tree` (with nested rows) and `Last`, all in `section`. */
-	function renderSection(section: 'pinned' | 'grouped' | 'none', options?: { readonly lastRows?: readonly string[] }) {
-		const single = listSession('Single', []);
-		const tree = listSession('Tree', ['t1', 't2']);
-		const last = listSession('Last', options?.lastRows ?? []);
+	/** The grouping section each grouping mode renders the sessions of {@link renderSection} in, with the session options that place them there. */
+	const groupingSections = {
+		workspace: { grouping: SessionsGrouping.Workspace, label: 'Workspace', options: undefined },
+		repository: { grouping: SessionsGrouping.Repository, label: 'project', options: { repository: 'owner/project' } },
+		environment: { grouping: SessionsGrouping.Environment, label: 'This Computer', options: { environment: 'local' } },
+	} as const;
+
+	/** Renders `Single` (a session that can nest) above `Tree` (with nested rows) and `Last`, all in `section`; `none` is a date section. */
+	function renderSection(section: 'pinned' | 'grouped' | keyof typeof groupingSections | 'none', options?: { readonly lastRows?: readonly string[] }) {
+		const groupingSection = section === 'workspace' || section === 'repository' || section === 'environment' ? groupingSections[section] : undefined;
+		const single = listSession('Single', [], undefined, groupingSection?.options);
+		const tree = listSession('Tree', ['t1', 't2'], undefined, groupingSection?.options);
+		const last = listSession('Last', options?.lastRows ?? [], undefined, groupingSection?.options);
 		const ids = [single, tree, last].map(session => session.sessionId);
-		const list = render([single, tree, last], { pinned: section === 'pinned' ? ids : undefined, grouped: section === 'grouped' ? ids : undefined });
+		const list = render([single, tree, last], {
+			pinned: section === 'pinned' ? ids : undefined,
+			grouped: section === 'grouped' ? ids : undefined,
+			grouping: groupingSection?.grouping,
+		});
 		if (section !== 'none') {
-			list.expandSection(section === 'pinned' ? 'Pinned' : 'Move Demo');
+			list.expandSection(section === 'pinned' ? 'Pinned' : section === 'grouped' ? 'Move Demo' : groupingSection!.label);
 		}
 		list.setExpanded('Tree', true);
 		if (options?.lastRows?.length) {
@@ -1041,9 +1053,9 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		return { feedback, moves: list.moves, reordered: list.sortChanges.length };
 	}
 
-	test('in Pinned and custom groups, the top quarter of a session row places a session before it; the rest of the row nests', async () => {
+	test('in Pinned, custom groups and workspace, repository and environment sections, the top quarter of a session row places a session before it; the rest of the row nests', async () => {
 		const results: Record<string, unknown> = {};
-		for (const section of ['pinned', 'grouped'] as const) {
+		for (const section of ['pinned', 'grouped', 'workspace', 'repository', 'environment'] as const) {
 			results[section] = await dragSingle(renderSection(section), 'Tree', [0.1, 0.4, 0.6, 0.9]);
 		}
 		const expected = {
@@ -1052,17 +1064,23 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			moves: ['session Single -> Tree after t2', 'session Single -> Tree after t2', 'session Single -> Tree after t2'],
 			reordered: 1,
 		};
-		assert.deepStrictEqual(results, { pinned: expected, grouped: expected });
+		assert.deepStrictEqual(results, { pinned: expected, grouped: expected, workspace: expected, repository: expected, environment: expected });
 	});
 
-	test('in Pinned and custom groups, the bottom quarter of the section\'s last row places a session after its last session', async () => {
+	test('in Pinned, custom groups and workspace, repository and environment sections, the bottom quarter of the section\'s last row places a session after its last session', async () => {
 		const collapsed = await dragSingle(renderSection('grouped'), 'Last', [0.9, 0.6]);
 		const expanded = await dragSingle(renderSection('pinned', { lastRows: ['l1'] }), 'l1', [0.9, 0.6]);
+		const groupingSectionResults: Record<string, unknown> = {};
+		for (const section of ['workspace', 'repository', 'environment'] as const) {
+			groupingSectionResults[section] = await dragSingle(renderSection(section), 'Last', [0.9, 0.6]);
+		}
 		const notLast = await dragSingle(renderSection('grouped'), 't2', [0.9]);
-		assert.deepStrictEqual({ collapsed, expanded, notLast }, {
+		const groupingSectionExpected = { feedback: ['move Last: drop-target-after', 'move Last: drop-target'], moves: ['session Single -> Last after Last main'], reordered: 1 };
+		assert.deepStrictEqual({ collapsed, expanded, groupingSections: groupingSectionResults, notLast }, {
 			collapsed: { feedback: ['move Last: drop-target-after', 'move Last: drop-target'], moves: ['session Single -> Last after Last main'], reordered: 1 },
 			// Below the last tree: a line at the sessions' indent; above that, the nested row's bottom half nests.
 			expanded: { feedback: ['move l1: drop-target-after', 'nested l1: drop-target-after'], moves: ['session Single -> Last after l1'], reordered: 1 },
+			groupingSections: { workspace: groupingSectionExpected, repository: groupingSectionExpected, environment: groupingSectionExpected },
 			// The bottom of another tree's last nested row nests after it.
 			notLast: { feedback: ['nested Last: drop-target-before'], moves: ['session Single -> Tree after t2'], reordered: 0 },
 		});
@@ -1081,7 +1099,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		});
 	});
 
-	test('outside Pinned and custom groups, a session row only nests, at every edge', async () => {
+	test('in date sections, a session row only nests, at every edge', async () => {
 		const list = renderSection('none');
 		const row = await dragSingle(list, 'Tree', [0.1, 0.9]);
 		const lastRow = await dragSingle(list, 'Last', [0.9]);

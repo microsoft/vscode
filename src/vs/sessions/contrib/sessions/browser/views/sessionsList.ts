@@ -3519,7 +3519,7 @@ interface ISessionsListDndDelegate {
 	moveChat(session: ISession, chat: IChat, drop: SessionsListChatDrop): void;
 	/** Move `session` under `target`, after its chat `after` (`undefined`: first). */
 	moveSessionUnder(session: ISession, target: ISession, after: IChat | undefined): void;
-	/** Whether the session is in a section the user orders by hand: Pinned or a custom group. */
+	/** Whether the session is in a section the user orders by hand: Pinned, a custom group, or a workspace, repository or environment section. */
 	isInManuallyOrderedSection(session: ISession): boolean;
 	/**
 	 * Whether the row is the last one its section shows (under a find filter, the last one that matches): its last
@@ -4695,7 +4695,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					canMoveSessionUnder: session => this.isChatMoveDndEnabled() && this._sessionsManagementService.canMoveSessionUnder(session),
 					moveChat: (session, chat, drop) => this.moveChatByDrop(session, chat, drop),
 					moveSessionUnder: (session, target, after) => this.moveSessionUnderByDrop(session, target, after),
-					isInManuallyOrderedSection: session => this.isSessionPinned(session) || this._sessionGroupsService.getGroupOfSession(session.sessionId) !== undefined,
+					isInManuallyOrderedSection: session => this.isSessionPinned(session) || this._sessionGroupsService.getGroupOfSession(session.sessionId) !== undefined || isSessionGroupingSection(this.getUngroupedSectionIds(session)[0]),
 					isLastRowOfSection: element => this.isLastRowOfSection(element),
 					setMoveDropFeedback: kind => {
 						this.listContainer.classList.toggle('move-drag', kind !== 'none');
