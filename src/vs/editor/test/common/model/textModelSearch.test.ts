@@ -115,14 +115,16 @@ suite('TextModelSearch', () => {
 
 	for (const isRegex of [false, true]) {
 		for (const matchCase of [false, true]) {
-			test(`issue #291591: whole-word matches overlapping rejected candidates (regex: ${isRegex}, matchCase: ${matchCase})`, () => {
+			test(`issue #291591: literal overlaps and unchanged regex behavior (regex: ${isRegex}, matchCase: ${matchCase})`, () => {
 				const text = '[1] aa-aa\n[2] xaa-aa-aa\n[3] aax-aa-aa\n[4] aa-aa-aa';
 				const ranges: [number, number, number, number][] = [
 					[1, 5, 1, 10],
-					[2, 9, 2, 14],
 					[3, 9, 3, 14],
 					[4, 5, 4, 10]
 				];
+				if (!isRegex) {
+					ranges.splice(1, 0, [2, 9, 2, 14]);
+				}
 				assertFindMatches(text, 'aa-aa', isRegex, matchCase, USUAL_WORD_SEPARATORS, ranges);
 
 				// The model's public search API also uses the piece tree's literal-search fast path.
@@ -143,12 +145,12 @@ suite('TextModelSearch', () => {
 		}
 	}
 
-	test('Whole-word search retries rejected candidates ending at the end of the text', () => {
-		assertFindMatches('xaa-aa-aa', 'a.*', true, false, USUAL_WORD_SEPARATORS, [[1, 5, 1, 10]]);
+	test('Whole-word literal search finds overlaps at the end of the text', () => {
+		assertFindMatches('xaa-aa-aa', 'aa-aa', false, false, USUAL_WORD_SEPARATORS, [[1, 5, 1, 10]]);
 	});
 
 	test('Whole-word search advances over surrogate pairs after rejected candidates', () => {
-		assertFindMatches('x\uD83D\uDCBB-\uD83D\uDCBB-\uD83D\uDCBB', '\uD83D\uDCBB-\uD83D\uDCBB', true, false, USUAL_WORD_SEPARATORS, [[1, 5, 1, 10]]);
+		assertFindMatches('x\uD83D\uDCBB-\uD83D\uDCBB-\uD83D\uDCBB', '\uD83D\uDCBB-\uD83D\uDCBB', false, false, USUAL_WORD_SEPARATORS, [[1, 5, 1, 10]]);
 	});
 
 	test('Whole-word search advances past rejected empty matches', () => {
@@ -163,6 +165,51 @@ suite('TextModelSearch', () => {
 
 	test('Whole-word search terminates when a regex ignores lastIndex', () => {
 		assert.strictEqual(new Searcher(usualWordSeparators, /abc/).next('xabc'), null);
+	});
+
+	test('Rejected non-global empty matches terminate', () => {
+		class LimitedRegExp extends RegExp {
+			private executions = 0;
+			override exec(text: string): RegExpExecArray | null {
+				assert.ok(++this.executions <= 2, 'Search must terminate instead of repeating an empty match');
+				return super.exec(text);
+			}
+		}
+		for (const source of ['$', '^', '(?:)', '(?=x)', '(?<=x)']) {
+			assert.strictEqual(new Searcher(usualWordSeparators, new LimitedRegExp(source)).next('x'), null);
+		}
+	});
+
+	test('Whole-word regex boundary failures do not rescan every suffix', () => {
+		class CountingRegExp extends RegExp {
+			public executions = 0;
+			override exec(text: string): RegExpExecArray | null {
+				this.executions++;
+				return super.exec(text);
+			}
+		}
+		const regex = new CountingRegExp('a.*b', 'gu');
+		assert.strictEqual(new Searcher(usualWordSeparators, regex).next('a '.repeat(8000) + 'bx'), null);
+		assert.ok(regex.executions <= 2, `Expected at most two scans, got ${regex.executions}`);
+	});
+
+	test('Accepted non-global empty matches terminate on the next call', () => {
+		const searcher = new Searcher(usualWordSeparators, /(?= )/);
+		assert.strictEqual(searcher.next(' ')?.index, 0);
+		assert.strictEqual(searcher.next(' '), null);
+	});
+
+	test('Global and sticky empty matches still advance', () => {
+		for (const regex of [/(?:)/g, /(?:)/y]) {
+			const searcher = new Searcher(usualWordSeparators, regex);
+			const indices: number[] = [];
+			let match: RegExpExecArray | null;
+			while ((match = searcher.next('  '))) {
+				indices.push(match.index);
+				assert.ok(indices.length <= 3);
+			}
+			assert.deepStrictEqual(indices, [0, 1, 2]);
+		}
 	});
 
 	test('/^/ find', () => {
@@ -654,6 +701,7 @@ suite('TextModelSearch', () => {
 		} else {
 			assert.deepStrictEqual(actual!.regex, expected.regex);
 			assert.deepStrictEqual(actual!.simpleSearch, expected.simpleSearch);
+			assert.strictEqual(actual!.isLiteralSearch, !isRegex);
 			if (wordSeparators) {
 				assert.ok(actual!.wordSeparators !== null);
 			} else {
