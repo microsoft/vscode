@@ -587,6 +587,26 @@ suite('getPermissionDisplay — cd-prefix stripping', () => {
 		});
 	});
 
+	test('names the escaped intention in shell confirmation titles', () => {
+		const title = (intention: string, requestSandboxBypass?: boolean, requestSandboxPermissive?: boolean) =>
+			getPermissionDisplay({ ...shellPermissionRequest('npm test', requestSandboxBypass, requestSandboxPermissive), intention }, wd).confirmationTitle;
+		assert.deepStrictEqual({
+			sandboxed: title('Run the unit tests'),
+			bypass: title('Run the unit tests', true),
+			permissive: title('Run the unit tests', true, true),
+			escaped: title('Find *.ts files outside node_modules $(alert)'),
+			whitespace: title('  Run\n the   unit tests '),
+			blank: title(' \n '),
+		}, {
+			sandboxed: { markdown: 'Run in terminal: Run the unit tests' },
+			bypass: { markdown: 'Run in terminal outside the sandbox: Run the unit tests' },
+			permissive: { markdown: 'Retry by allowing filesystem access inside the sandbox: Run the unit tests' },
+			escaped: { markdown: 'Run in terminal: Find \\*.ts files outside node\\_modules \\\\$\\(alert\\)' },
+			whitespace: { markdown: 'Run in terminal: Run the unit tests' },
+			blank: 'Run in terminal?',
+		});
+	});
+
 });
 
 suite('getPermissionDisplay — read permission display', () => {

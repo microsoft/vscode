@@ -159,6 +159,25 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, applicationFilter: true, moveToSession: true });
 	});
 
+	test('documents terminal command descriptions and Explain in confirmations', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+
+		assert.deepStrictEqual({
+			description: content.includes('the confirmation title includes that description, such as Run in terminal: followed by the description'),
+			explain: content.includes('use Tab to reach Explain and press Enter or Space to open a side chat'),
+			pending: content.includes('The confirmation stays pending until you allow or skip it'),
+		}, { description: true, explain: true, pending: true });
+	});
+
 	test('documents connector recommendations when the marketplace is available', () => {
 		const enabled = [false, true].map(value => {
 			const instantiationService = store.add(new TestInstantiationService());
@@ -729,7 +748,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			downloadSnapshot: content.includes('Only images ready when you start the download are included'),
 			imageNavigation: content.includes('use the Left and Right Arrow keys to browse generated images and user attachments'),
 			carouselDownload: content.includes('Images Preview offers Download for the selected image'),
-			artifactDownload: content.includes('Image rows in Artifacts and References offer Download Image'),
+			artifactDownload: content.includes('Files and folders from a remote device, such as one reached over SSH or a dev tunnel, offer Download... instead, as do other image rows'),
+			artifactReveal: content.includes('that are on this device offer Reveal in Finder, Reveal in File Explorer, or Open Containing Folder'),
 			draftImages: content.includes('includes all images attached to that draft'),
 			transcriptImages: content.includes('Images shown from the transcript do not offer Remove from Session unless they were also recorded as artifacts'),
 			singleItemActions: content.includes('pill hover actions or context menu'),
@@ -753,6 +773,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			imageNavigation: true,
 			carouselDownload: true,
 			artifactDownload: true,
+			artifactReveal: true,
 			draftImages: true,
 			transcriptImages: true,
 			singleItemActions: true,

@@ -7,6 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Verbosity } from '../../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { CanvasInput, ICanvas } from '../../common/canvas.js';
@@ -67,17 +68,35 @@ suite('CanvasInput', () => {
 		assert.deepStrictEqual({ main: input.canMove(1, 1), auxiliary: typeof input.canMove(1, 2) }, { main: true, auxiliary: 'string' });
 	});
 
-	test('describes only the reopen affordances of its window', () => {
-		const descriptions = [false, true].map(isSessionsWindow => store.add(new CanvasInput({
-			providerId: 'local',
-			session: URI.parse('session:/owner'),
-			chat: URI.parse('chat:/owner'),
-			canvas: URI.parse('canvas:/preview'),
-		}, undefined, editorGroupsService, environmentService(isSessionsWindow))).getDescription());
+	test('shows reopen instructions only in the long title', () => {
+		const labels = [false, true].map(isSessionsWindow => {
+			const input = store.add(new CanvasInput({
+				providerId: 'local',
+				session: URI.parse('session:/owner'),
+				chat: URI.parse('chat:/owner'),
+				canvas: URI.parse('canvas:/preview'),
+			}, undefined, editorGroupsService, environmentService(isSessionsWindow)));
+			return {
+				description: input.getDescription(),
+				shortTitle: input.getTitle(Verbosity.SHORT),
+				mediumTitle: input.getTitle(Verbosity.MEDIUM),
+				longTitle: input.getTitle(Verbosity.LONG),
+			};
+		});
 
-		assert.deepStrictEqual(descriptions, [
-			'Closing this tab hides the canvas. Reopen it from its canvas pill or ask the agent to open it again.',
-			'Closing this tab hides the canvas. Reopen it from the Canvas submenu in Add Tab, use its canvas pill, or ask the agent to open it again.',
+		assert.deepStrictEqual(labels, [
+			{
+				description: undefined,
+				shortTitle: 'Canvas',
+				mediumTitle: 'Canvas',
+				longTitle: 'Canvas - Closing this tab hides the canvas. Reopen it from its canvas pill or ask the agent to open it again.',
+			},
+			{
+				description: undefined,
+				shortTitle: 'Canvas',
+				mediumTitle: 'Canvas',
+				longTitle: 'Canvas - Closing this tab hides the canvas. Reopen it from the Canvas submenu in Add Tab, use its canvas pill, or ask the agent to open it again.',
+			},
 		]);
 	});
 });
