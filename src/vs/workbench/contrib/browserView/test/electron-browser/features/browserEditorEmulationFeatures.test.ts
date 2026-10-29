@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
@@ -194,6 +195,7 @@ suite('Browser Editor Emulation - Custom Device Presets', () => {
 		const custom = manager.getCustomPresets();
 		assert.strictEqual(custom.length, 1);
 		assert.strictEqual(custom[0].name, 'Configured Laptop');
+		assert.strictEqual(custom[0].isConfigured, true);
 		assert.strictEqual(custom[0].device?.width, 1366);
 		assert.strictEqual(custom[0].device?.height, 768);
 
@@ -204,9 +206,42 @@ suite('Browser Editor Emulation - Custom Device Presets', () => {
 			{ name: 'Configured Laptop', width: 1366, height: 768, mobile: false },
 			{ name: 'Configured Tablet', width: 800, height: 1280, mobile: true }
 		]);
+		configService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: (key: string) => key === BrowserDevicePresetManager.CONFIG_KEY,
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([BrowserDevicePresetManager.CONFIG_KEY]),
+			change: { keys: [BrowserDevicePresetManager.CONFIG_KEY], overrides: [] }
+		});
 
 		assert.strictEqual(changeCount, 1);
 		assert.strictEqual(manager.getCustomPresets().length, 2);
+		assert.strictEqual(manager.getCustomPresets()[1].isConfigured, true);
+	});
+
+	test('updateCustomPreset allows clearing DPR explicitly', () => {
+		const storageService = disposables.add(new TestStorageService());
+		const configService = new TestConfigurationService();
+		const manager = disposables.add(new BrowserDevicePresetManager(storageService, configService));
+
+		const added = manager.addCustomPreset({
+			name: 'High DPI Device',
+			width: 375,
+			height: 812,
+			deviceScaleFactor: 3,
+			mobile: true,
+		});
+
+		assert.strictEqual(manager.getCustomPresets()[0].device?.deviceScaleFactor, 3);
+		assert.strictEqual(manager.getCustomPresets()[0].isConfigured, false);
+
+		const updated = manager.updateCustomPreset(added.id!, {
+			deviceScaleFactor: undefined
+		});
+		assert.strictEqual(updated, true);
+
+		const result = manager.getCustomPresets().find(p => p.id === added.id);
+		assert.ok(result);
+		assert.strictEqual(result.device?.deviceScaleFactor, undefined);
 	});
 
 	test('clamps invalid dimensions and DPR values', () => {

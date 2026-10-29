@@ -27,6 +27,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -65,6 +66,7 @@ export interface IBrowserDevicePreset {
 	readonly name: string;
 	readonly device?: IBrowserDeviceProfile;
 	readonly isCustom?: boolean;
+	readonly isConfigured?: boolean;
 }
 
 export interface IStoredCustomDevicePreset {
@@ -133,6 +135,7 @@ export class BrowserDevicePresetManager extends Disposable {
 				id: p.id,
 				name: p.name,
 				isCustom: true,
+				isConfigured: false,
 				device: {
 					width: p.width,
 					height: p.height,
@@ -151,6 +154,7 @@ export class BrowserDevicePresetManager extends Disposable {
 					id: p.id,
 					name: p.name,
 					isCustom: true,
+					isConfigured: true,
 					device: {
 						width: p.width,
 						height: p.height,
@@ -193,6 +197,7 @@ export class BrowserDevicePresetManager extends Disposable {
 			id: newPreset.id,
 			name: newPreset.name,
 			isCustom: true,
+			isConfigured: false,
 			device: {
 				width: newPreset.width,
 				height: newPreset.height,
@@ -211,14 +216,14 @@ export class BrowserDevicePresetManager extends Disposable {
 		const existing = this._storedPresets[idx];
 		this._storedPresets[idx] = {
 			id: existing.id,
-			name: updates.name !== undefined ? updates.name.trim() : existing.name,
-			width: updates.width !== undefined ? Math.max(1, Math.min(9999, Math.round(updates.width))) : existing.width,
-			height: updates.height !== undefined ? Math.max(1, Math.min(9999, Math.round(updates.height))) : existing.height,
-			deviceScaleFactor: updates.deviceScaleFactor !== undefined
-				? (updates.deviceScaleFactor && updates.deviceScaleFactor > 0 ? Math.max(0.1, Math.min(8, updates.deviceScaleFactor)) : undefined)
+			name: 'name' in updates && updates.name !== undefined ? updates.name.trim() : existing.name,
+			width: 'width' in updates && updates.width !== undefined ? Math.max(1, Math.min(9999, Math.round(updates.width))) : existing.width,
+			height: 'height' in updates && updates.height !== undefined ? Math.max(1, Math.min(9999, Math.round(updates.height))) : existing.height,
+			deviceScaleFactor: 'deviceScaleFactor' in updates
+				? (typeof updates.deviceScaleFactor === 'number' && updates.deviceScaleFactor > 0 ? Math.max(0.1, Math.min(8, updates.deviceScaleFactor)) : undefined)
 				: existing.deviceScaleFactor,
-			mobile: updates.mobile !== undefined ? updates.mobile : existing.mobile,
-			userAgent: updates.userAgent !== undefined ? (updates.userAgent.trim() || undefined) : existing.userAgent,
+			mobile: 'mobile' in updates ? updates.mobile : existing.mobile,
+			userAgent: 'userAgent' in updates ? (updates.userAgent?.trim() || undefined) : existing.userAgent,
 		};
 		this._save();
 		return true;
@@ -265,7 +270,6 @@ export class BrowserDevicePresetManager extends Disposable {
 			StorageScope.PROFILE,
 			StorageTarget.USER
 		);
-		this._onDidChangeCustomPresets.fire();
 	}
 }
 
@@ -1042,6 +1046,7 @@ export async function showDevicePresetPicker(
 	support: BrowserEditorEmulationSupport,
 	quickInputService: IQuickInputService,
 	dialogService: IDialogService,
+	commandService?: ICommandService,
 ): Promise<void> {
 	type PresetItem = IQuickPickItem & {
 		preset?: IBrowserDevicePreset;
@@ -1093,11 +1098,13 @@ export async function showDevicePresetPicker(
 				const dims = p.device?.width && p.device?.height ? `${p.device.width}\u00D7${p.device.height}` : '';
 				const dpr = p.device?.deviceScaleFactor ? ` \u2022 DPR ${p.device.deviceScaleFactor}` : '';
 				const mobile = p.device?.mobile ? ` \u2022 ${localize('browser.devicePresets.mobileTag', "mobile")}` : '';
+				const configured = p.isConfigured ? ` \u2022 ${localize('browser.devicePresets.settingsTag', "settings")}` : '';
+				const desc = `${dims}${dpr}${mobile}${configured}`.trim();
 				items.push({
 					label: p.name,
-					description: dims ? `${dims}${dpr}${mobile}` : undefined,
+					description: desc.length > 0 ? (desc.startsWith('\u2022') ? desc.replace(/^\u2022\s*/, '') : desc) : undefined,
 					preset: p,
-					buttons: [editButton, deleteButton],
+					buttons: p.isConfigured ? [] : [editButton, deleteButton],
 				});
 			}
 		}
@@ -1138,14 +1145,14 @@ export async function showDevicePresetPicker(
 		if (selected.isAdd) {
 			await promptAddOrEditCustomDevice(support, quickInputService);
 		} else if (selected.isManage) {
-			await promptManageCustomDevices(support, quickInputService, dialogService);
+			await promptManageCustomDevices(support, quickInputService, dialogService, commandService);
 		} else if (selected.preset) {
 			support.applyPreset(selected.preset);
 		}
 	}));
 
 	disposables.add(quickPick.onDidTriggerItemButton(async ({ button, item }) => {
-		if (!item.preset?.id) {
+		if (!item.preset?.id || item.preset.isConfigured) {
 			return;
 		}
 		if (button === editButton) {
@@ -1171,6 +1178,7 @@ export async function promptManageCustomDevices(
 	support: BrowserEditorEmulationSupport,
 	quickInputService: IQuickInputService,
 	dialogService: IDialogService,
+	commandService?: ICommandService,
 ): Promise<void> {
 	type ManageItem = IQuickPickItem & {
 		preset?: IBrowserDevicePreset;
@@ -1205,11 +1213,13 @@ export async function promptManageCustomDevices(
 				const dims = p.device?.width && p.device?.height ? `${p.device.width}\u00D7${p.device.height}` : '';
 				const dpr = p.device?.deviceScaleFactor ? ` \u2022 DPR ${p.device.deviceScaleFactor}` : '';
 				const mobile = p.device?.mobile ? ` \u2022 ${localize('browser.devicePresets.mobileTag', "mobile")}` : '';
+				const configured = p.isConfigured ? ` \u2022 ${localize('browser.devicePresets.settingsTag', "settings")}` : '';
+				const desc = `${dims}${dpr}${mobile}${configured}`.trim();
 				items.push({
 					label: p.name,
-					description: dims ? `${dims}${dpr}${mobile}` : undefined,
+					description: desc.length > 0 ? (desc.startsWith('\u2022') ? desc.replace(/^\u2022\s*/, '') : desc) : undefined,
 					preset: p,
-					buttons: [editButton, deleteButton],
+					buttons: p.isConfigured ? [] : [editButton, deleteButton],
 				});
 			}
 		}
@@ -1241,6 +1251,24 @@ export async function promptManageCustomDevices(
 			await promptAddOrEditCustomDevice(support, quickInputService);
 		} else if (selected.preset) {
 			quickPick.hide();
+			if (selected.preset.isConfigured) {
+				type ConfiguredAction = IQuickPickItem & { id: string };
+				const actions: ConfiguredAction[] = [
+					{ id: 'apply', label: localize('browser.devicePresets.apply', "Apply Preset") },
+				];
+				if (commandService) {
+					actions.push({ id: 'openSettings', label: localize('browser.devicePresets.openSettings', "Edit in Settings...") });
+				}
+				const action = await quickInputService.pick<ConfiguredAction>(actions, {
+					placeHolder: localize('browser.devicePresets.configuredPlaceholder', "Preset '{0}' is configured in settings (read-only)", selected.preset.name),
+				});
+				if (action?.id === 'apply') {
+					support.applyPreset(selected.preset);
+				} else if (action?.id === 'openSettings') {
+					await commandService.executeCommand('workbench.action.openSettings', BrowserDevicePresetManager.CONFIG_KEY);
+				}
+				return;
+			}
 			const action = await quickInputService.pick([
 				{ id: 'apply', label: localize('browser.devicePresets.apply', "Apply Preset") },
 				{ id: 'edit', label: localize('browser.devicePresets.edit', "Edit Preset") },
@@ -1266,7 +1294,7 @@ export async function promptManageCustomDevices(
 	}));
 
 	disposables.add(quickPick.onDidTriggerItemButton(async ({ button, item }) => {
-		if (!item.preset?.id) {
+		if (!item.preset?.id || item.preset.isConfigured) {
 			return;
 		}
 		if (button === editButton) {
@@ -1317,7 +1345,7 @@ export async function promptAddOrEditCustomDevice(
 
 	const currentDevice = support.model?.device;
 
-	const defaultWidth = existingPreset?.device?.width ?? currentDevice?.width ?? 390;
+	const defaultWidth = isEdit ? (existingPreset.device?.width ?? 390) : (currentDevice?.width ?? 390);
 	const widthStr = await quickInputService.input({
 		title,
 		prompt: localize('browser.devicePresetWidth.prompt', "Enter viewport width in pixels"),
@@ -1334,9 +1362,9 @@ export async function promptAddOrEditCustomDevice(
 	if (widthStr === undefined) {
 		return undefined;
 	}
-	const width = parseInt(widthStr.trim(), 10);
+	const width = Math.round(Number(widthStr.trim()));
 
-	const defaultHeight = existingPreset?.device?.height ?? currentDevice?.height ?? 844;
+	const defaultHeight = isEdit ? (existingPreset.device?.height ?? 844) : (currentDevice?.height ?? 844);
 	const heightStr = await quickInputService.input({
 		title,
 		prompt: localize('browser.devicePresetHeight.prompt', "Enter viewport height in pixels"),
@@ -1353,9 +1381,9 @@ export async function promptAddOrEditCustomDevice(
 	if (heightStr === undefined) {
 		return undefined;
 	}
-	const height = parseInt(heightStr.trim(), 10);
+	const height = Math.round(Number(heightStr.trim()));
 
-	const defaultDpr = existingPreset?.device?.deviceScaleFactor ?? currentDevice?.deviceScaleFactor;
+	const defaultDpr = isEdit ? existingPreset.device?.deviceScaleFactor : currentDevice?.deviceScaleFactor;
 	const dprStr = await quickInputService.input({
 		title,
 		prompt: localize('browser.devicePresetDpr.prompt', "Enter device pixel ratio (DPR, optional — leave blank for system default)"),
@@ -1378,13 +1406,23 @@ export async function promptAddOrEditCustomDevice(
 	}
 	const deviceScaleFactor = dprStr.trim() ? Number(dprStr.trim()) : undefined;
 
+	const defaultMobile = isEdit ? (existingPreset.device?.mobile ?? true) : (currentDevice?.mobile ?? true);
 	type MobilePick = IQuickPickItem & { isMobile: boolean };
-	const isMobilePick = await quickInputService.pick<MobilePick>([
-		{ label: localize('browser.devicePresetMobile.mobile', "Mobile"), description: localize('browser.devicePresetMobile.mobileDesc', "Enable touch events and mobile viewport"), isMobile: true },
-		{ label: localize('browser.devicePresetMobile.desktop', "Desktop"), description: localize('browser.devicePresetMobile.desktopDesc', "Standard desktop viewport with pointer events"), isMobile: false },
-	], {
+	const mobilePick: MobilePick = {
+		label: localize('browser.devicePresetMobile.mobile', "Mobile"),
+		description: localize('browser.devicePresetMobile.mobileDesc', "Enable touch events and mobile viewport"),
+		isMobile: true
+	};
+	const desktopPick: MobilePick = {
+		label: localize('browser.devicePresetMobile.desktop', "Desktop"),
+		description: localize('browser.devicePresetMobile.desktopDesc', "Standard desktop viewport with pointer events"),
+		isMobile: false
+	};
+
+	const isMobilePick = await quickInputService.pick<MobilePick>([mobilePick, desktopPick], {
 		title,
 		placeHolder: localize('browser.devicePresetMobile.placeholder', "Select device type"),
+		activeItem: defaultMobile ? mobilePick : desktopPick,
 	});
 	if (isMobilePick === undefined) {
 		return undefined;
@@ -1450,7 +1488,8 @@ class PickBrowserDevicePresetAction extends Action2 {
 		}
 		const quickInputService = accessor.get(IQuickInputService);
 		const dialogService = accessor.get(IDialogService);
-		await showDevicePresetPicker(support, quickInputService, dialogService);
+		const commandService = accessor.get(ICommandService);
+		await showDevicePresetPicker(support, quickInputService, dialogService, commandService);
 	}
 }
 MenuRegistry.appendMenuItem(MenuId.BrowserEmulationToolbar, {
@@ -1513,7 +1552,8 @@ class ManageBrowserDevicePresetsAction extends Action2 {
 		}
 		const quickInputService = accessor.get(IQuickInputService);
 		const dialogService = accessor.get(IDialogService);
-		await promptManageCustomDevices(support, quickInputService, dialogService);
+		const commandService = accessor.get(ICommandService);
+		await promptManageCustomDevices(support, quickInputService, dialogService, commandService);
 	}
 }
 
