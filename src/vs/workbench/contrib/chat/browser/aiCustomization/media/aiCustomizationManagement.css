@@ -100,14 +100,17 @@
 
 .ai-customization-management-editor .sidebar-migration-shortcut {
 	flex-shrink: 0;
-	margin-top: var(--vscode-spacing-size80);
-	padding-top: var(--vscode-spacing-size40);
 }
 
 .ai-customization-management-editor .sidebar-migration-separator {
+	display: none;
 	height: var(--vscode-strokeThickness);
-	margin: 0 8px 6px;
+	margin: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 	background-color: var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+}
+
+.ai-customization-management-editor .sidebar-migration-shortcut.show-separator .sidebar-migration-separator {
+	display: block;
 }
 
 .ai-customization-management-editor .sidebar-migration-shortcut > button.sidebar-migration-button {

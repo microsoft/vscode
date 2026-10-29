@@ -810,6 +810,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				} : s);
 			}
 		}
+		this.updateSidebarMigrationSeparator();
 
 		// Update the list widget if it exists
 		if (this.sectionsList) {
@@ -1031,6 +1032,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		container.style.display = 'none';
 
 		DOM.append(container, $('div.sidebar-migration-separator'));
+		this.updateSidebarMigrationSeparator();
 
 		const button = this.migrationShortcutButton = DOM.append(container, $('button.sidebar-migration-button')) as HTMLButtonElement;
 		button.type = 'button';
@@ -1047,6 +1049,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.customizationMigrationTelemetryService.actionClicked('migrationOverviewClicked');
 			void this.startCustomizationMigration();
 		}));
+	}
+
+	private updateSidebarMigrationSeparator(): void {
+		this.migrationShortcutContainer?.classList.toggle('show-separator', !this.sections.some(section => section.separatorBefore));
 	}
 
 	private createWelcomePage(parent: HTMLElement): void {
