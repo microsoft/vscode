@@ -26,6 +26,9 @@ export const INLINE_ATTACHMENT_ANCHOR = '\uFFFC';
  */
 export const INLINE_ATTACHMENT_REFERENCE_PREFIX = 'attachment:';
 
+/** The prefix of the id of an attachment for a GitHub issue or pull request, which the link to it follows. */
+export const GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX = 'github-context:';
+
 /**
  * The text that mentions an attachment in the prompt, such as
  * `#attachment:index.ts`. A reference cannot span lines, so line breaks in the
@@ -279,10 +282,11 @@ export function getInlineRequestAttachments(parts: readonly IParsedChatRequestPa
 /**
  * Recovers the mentions of a request's attachments from its text, for a
  * request whose history kept its text and attachments but not its references,
- * as an agent host's history does. A mention of an attachment by name, see
- * {@link getAttachmentMention}, that is outside code becomes a reference to the
- * attachment again. Mentions of attachments that share a name are bound to
- * them in order.
+ * as an agent host's history does. A mention of an attachment that is outside
+ * code becomes a reference to the attachment again: its mention by name, see
+ * {@link getAttachmentMention}, the reference that a completion inserts for a
+ * file or folder, or the link of a GitHub issue or pull request. Mentions of
+ * attachments that share a name are bound to them in order.
  */
 export function recoverAttachmentMentions(message: IParsedChatRequest, variables: readonly IChatRequestVariableEntry[]): IParsedChatRequest {
 	const referencedIds = new Set<string>();
@@ -292,18 +296,28 @@ export function recoverAttachmentMentions(message: IParsedChatRequest, variables
 		}
 	}
 	const byMention = new Map<string, IChatRequestVariableEntry[]>();
+	const links = new Set<string>();
 	for (const variable of variables) {
-		if (!referencedIds.has(variable.id) && variable.name && canShowAttachmentInline(variable)) {
-			const mention = getAttachmentMention(variable.name);
+		if (referencedIds.has(variable.id) || !variable.name || !canShowAttachmentInline(variable)) {
+			continue;
+		}
+		const mentions = [getAttachmentMention(variable.name)];
+		if (variable.kind === 'file' || variable.kind === 'directory') {
+			mentions.push(`${chatVariableLeader}file:${variable.name}`, `${chatVariableLeader}${variable.name}`);
+		}
+		if (variable.id.startsWith(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX)) {
+			const link = variable.id.slice(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX.length);
+			mentions.push(link);
+			links.add(link);
+		}
+		for (const mention of mentions) {
 			byMention.set(mention, [...byMention.get(mention) ?? [], variable]);
 		}
 	}
-	if (!byMention.size || !message.parts.some(part => part instanceof ChatRequestTextPart && part.text.includes(chatVariableLeader + INLINE_ATTACHMENT_REFERENCE_PREFIX))) {
+	if (!byMention.size || !message.parts.some(part => part instanceof ChatRequestTextPart)) {
 		return message;
 	}
 
-	// A longer mention, such as that of `a.tsx`, is not taken for a shorter one that it starts with, such as that of `a.ts`.
-	const mentions = [...byMention.keys()].sort((a, b) => b.length - a.length);
 	const codeRanges = getMarkdownCodeRanges(message.text);
 	const positions = new PositionOffsetTransformer(message.text);
 	const toRange = (start: number, end: number) => Range.fromPositions(positions.getPosition(start), positions.getPosition(end));
@@ -314,24 +328,42 @@ export function recoverAttachmentMentions(message: IParsedChatRequest, variables
 			parts.push(part);
 			continue;
 		}
+
+		// A longer mention, such as that of `a.tsx`, is not taken for a shorter one that it starts with, such as that of `a.ts`.
+		const matches: { start: number; end: number; mention: string }[] = [];
+		for (const mention of byMention.keys()) {
+			for (let start = message.text.indexOf(mention, part.range.start); start !== -1 && start + mention.length <= part.range.endExclusive; start = message.text.indexOf(mention, start + 1)) {
+				let end = start + mention.length;
+				if (links.has(mention)) {
+					// A link goes on to the end of what was pasted, as for the link of a pull request's files.
+					while (end < part.range.endExclusive && !/\s/.test(message.text.charAt(end))) {
+						end++;
+					}
+				} else if (/[\p{L}\p{N}_-]/u.test(message.text.charAt(end))) {
+					continue;
+				}
+				if (!codeRanges.some(range => range.intersects(new OffsetRange(start, end)))) {
+					matches.push({ start, end, mention });
+				}
+			}
+		}
+		matches.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
+
 		let copiedUntil = part.range.start;
-		const text = message.text.slice(0, part.range.endExclusive);
-		for (let offset = text.indexOf(chatVariableLeader, part.range.start); offset !== -1; offset = text.indexOf(chatVariableLeader, offset + 1)) {
-			const mention = mentions.find(candidate => text.startsWith(candidate, offset) && !/[\p{L}\p{N}_-]/u.test(message.text.charAt(offset + candidate.length)));
-			const end = mention ? offset + mention.length : offset;
-			if (!mention || codeRanges.some(range => range.intersects(new OffsetRange(offset, end)))) {
+		for (const { start, end, mention } of matches) {
+			if (start < copiedUntil) {
 				continue;
 			}
 			const candidates = byMention.get(mention)!;
 			const occurrence = occurrences.get(mention) ?? 0;
 			occurrences.set(mention, occurrence + 1);
 			const variable = candidates[Math.min(occurrence, candidates.length - 1)];
-			if (offset > copiedUntil) {
-				parts.push(new ChatRequestTextPart(new OffsetRange(copiedUntil, offset), toRange(copiedUntil, offset), message.text.slice(copiedUntil, offset)));
+			if (start > copiedUntil) {
+				parts.push(new ChatRequestTextPart(new OffsetRange(copiedUntil, start), toRange(copiedUntil, start), message.text.slice(copiedUntil, start)));
 			}
-			parts.push(new ChatRequestDynamicVariablePart(new OffsetRange(offset, end), toRange(offset, end), mention, variable.id, variable.modelDescription, variable.value, variable.fullName, variable.icon, undefined, undefined, undefined, true));
+			const text = message.text.slice(start, end);
+			parts.push(new ChatRequestDynamicVariablePart(new OffsetRange(start, end), toRange(start, end), text, variable.id, variable.modelDescription, variable.value, variable.fullName, variable.icon, undefined, undefined, undefined, true));
 			copiedUntil = end;
-			offset = end - 1;
 		}
 		if (copiedUntil === part.range.start) {
 			parts.push(part);
@@ -341,6 +373,7 @@ export function recoverAttachmentMentions(message: IParsedChatRequest, variables
 	}
 	return { text: message.text, parts };
 }
+
 
 /**
  * The ranges of a prompt that Markdown renders as code: code blocks and code

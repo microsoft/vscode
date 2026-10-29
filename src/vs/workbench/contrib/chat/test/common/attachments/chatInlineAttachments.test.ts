@@ -176,13 +176,15 @@ suite('Chat inline attachments', () => {
 	});
 
 	test('recovers the mentions of attachments in a request whose history kept only its text', () => {
-		const text = 'compare #attachment:index.ts with #attachment:index.ts and #attachment:a.tsx, not `#attachment:a.ts`';
+		const text = 'compare #attachment:index.ts with #attachment:index.ts and #attachment:a.tsx, #b.ts, https://github.com/o/r/pull/1/files and not `#attachment:a.ts`';
 		const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] };
 		const variables: IChatRequestVariableEntry[] = [
 			{ kind: 'file', id: 'first', name: 'index.ts', value: URI.file('/a/index.ts') },
 			{ kind: 'file', id: 'second', name: 'index.ts', value: URI.file('/b/index.ts') },
 			{ kind: 'file', id: 'short', name: 'a.ts', value: URI.file('/a.ts') },
 			{ kind: 'file', id: 'long', name: 'a.tsx', value: URI.file('/a.tsx') },
+			{ kind: 'file', id: 'completed', name: 'b.ts', value: URI.file('/b.ts') },
+			{ kind: 'generic', id: 'github-context:https://github.com/o/r/pull/1', name: 'o/r#1', value: 'GitHub context: https://github.com/o/r/pull/1' },
 			{ kind: 'image', id: 'image', name: 'shot.png', value: new Uint8Array() },
 		];
 		const recovered = recoverAttachmentMentions(message, variables);
@@ -190,8 +192,8 @@ suite('Chat inline attachments', () => {
 			parts: recovered.parts.map(part => part instanceof ChatRequestDynamicVariablePart ? `[${part.id}]` : part.text),
 			inline: [...getInlineRequestAttachments(recovered.parts, variables, text).values()].map(variable => variable.id),
 		}, {
-			parts: ['compare ', '[first]', ' with ', '[second]', ' and ', '[long]', ', not `#attachment:a.ts`'],
-			inline: ['first', 'second', 'long'],
+			parts: ['compare ', '[first]', ' with ', '[second]', ' and ', '[long]', ', ', '[completed]', ', ', '[github-context:https://github.com/o/r/pull/1]', ' and not `#attachment:a.ts`'],
+			inline: ['first', 'second', 'long', 'completed', 'github-context:https://github.com/o/r/pull/1'],
 		});
 	});
 

@@ -35,7 +35,7 @@ import { KeybindingWeight } from '../../../../../../../platform/keybinding/commo
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { AccessibilityVerbositySettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
-import { canOpenAttachment, canShowAttachmentInline, getAttachmentMention, IInlineAttachmentAnchor, IInlineAttachmentProjection, INLINE_ATTACHMENT_ANCHOR, isInlineAttachmentCandidate, projectInlineAttachments, toRelativeRange } from '../../../../common/attachments/chatInlineAttachments.js';
+import { canOpenAttachment, canShowAttachmentInline, getAttachmentMention, GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX, IInlineAttachmentAnchor, IInlineAttachmentProjection, INLINE_ATTACHMENT_ANCHOR, isInlineAttachmentCandidate, projectInlineAttachments, toRelativeRange } from '../../../../common/attachments/chatInlineAttachments.js';
 import { IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { IDynamicVariable, toAttachedContextDynamicVariable } from '../../../../common/attachments/chatVariables.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
@@ -114,7 +114,6 @@ export interface IChatInlineAttachmentsHost {
 
 /** The smallest width that keeps the spacer after an anchor, which must exist to place the cursor after a pill at the end of a line. */
 const minWrapWidthInEm = 0.001;
-const githubContextIdPrefix = 'github-context:';
 const gitHubLinkPattern = /https?:\/\/github\.com\/[^\s/]+\/[^\s/]+\/(?:issues|pull)\/\d+[^\s]*/gi;
 
 /**
@@ -1087,7 +1086,7 @@ export class ChatInlineAttachments extends Disposable {
 			}
 		}
 
-		if (attachment.id.startsWith(githubContextIdPrefix)) {
+		if (attachment.id.startsWith(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX)) {
 			for (const match of value.matchAll(gitHubLinkPattern)) {
 				const link = match[0];
 				const range = toFreeRange(match.index, match.index + link.length);
