@@ -326,6 +326,48 @@ jobs:
           AGENT_HOST_TEST_PROFILE_REASON: ${{ inputs.agent_host_test_profile_reason }}
           VSCODE_SKIP_PRELAUNCH: '1'
 
+      # TEMPORARY EXPERIMENT, do not merge: reruns this shard's Agent Host E2E suites on the same
+      # machine with the temporary directory on the Dev Drive and/or SQLite in WAL mode, to measure
+      # why they take about twice as long as on Linux, where they use RAM-backed storage. Ends with a
+      # baseline rerun as the control, and never fails the job.
+      - name: 🧪 Agent Host E2E storage experiment (Electron)
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.AGENT_HOST_E2E_TESTS == 'true' && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
+        timeout-minutes: 90
+        shell: pwsh
+        run: |
+          $mount = Split-Path $env:GITHUB_WORKSPACE -Parent
+          fsutil devdrv query $mount | Out-Host
+          $devDriveTemp = Join-Path $mount 'agent-host-e2e-tmp'
+          New-Item -ItemType Directory -Force -Path $devDriveTemp | Out-Null
+          $osDiskTemp = $env:TEMP
+          $runList = if (Test-Path .build/test-plan/integration.txt) { @('--runList', '.build/test-plan/integration.txt') } else { @() }
+          $shard = if ([int]$env:AGENT_HOST_E2E_SHARD_TOTAL -gt 1) { @('--shard', "$env:AGENT_HOST_E2E_SHARD_INDEX/$env:AGENT_HOST_E2E_SHARD_TOTAL") } else { @() }
+          $variants = @(
+            [pscustomobject]@{ Name = 'devdrive-temp'; DevDrive = $true; Wal = $false }
+            [pscustomobject]@{ Name = 'sqlite-wal'; DevDrive = $false; Wal = $true }
+            [pscustomobject]@{ Name = 'devdrive-temp+sqlite-wal'; DevDrive = $true; Wal = $true }
+            [pscustomobject]@{ Name = 'baseline-repeat'; DevDrive = $false; Wal = $false }
+          )
+          $results = foreach ($variant in $variants) {
+            $env:TEMP = if ($variant.DevDrive) { $devDriveTemp } else { $osDiskTemp }
+            $env:TMP = $env:TEMP
+            $env:VSCODE_AGENT_HOST_SQLITE_WAL = if ($variant.Wal) { '1' } else { $null }
+            Write-Host "::group::Agent Host E2E experiment: $($variant.Name) (TEMP=$env:TEMP, VSCODE_AGENT_HOST_SQLITE_WAL=$env:VSCODE_AGENT_HOST_SQLITE_WAL)"
+            $watch = [System.Diagnostics.Stopwatch]::StartNew()
+            # The Agent Host E2E runner itself, which the script of the step above calls.
+            & node .\test\integration\agentHost\runner.ts --rerun-failed-files 2 @shard @runList | Out-Host
+            $exitCode = $LASTEXITCODE
+            Write-Host '::endgroup::'
+            [pscustomobject]@{ Variant = $variant.Name; Seconds = [math]::Round($watch.Elapsed.TotalSeconds); ExitCode = $exitCode }
+          }
+          Write-Output 'Agent Host E2E storage experiment results:'
+          $results | Format-Table -AutoSize | Out-String | Write-Output
+          exit 0
+        env:
+          AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
+          AGENT_HOST_TEST_PROFILE_REASON: ${{ inputs.agent_host_test_profile_reason }}
+          VSCODE_SKIP_PRELAUNCH: '1'
+
       # Runs even when Agent Host E2E failed in the same job, so that one does not hide the other.
       # Reruns the failed tests in a fresh window.
       - name: 🧪 Run integration tests (Electron)
