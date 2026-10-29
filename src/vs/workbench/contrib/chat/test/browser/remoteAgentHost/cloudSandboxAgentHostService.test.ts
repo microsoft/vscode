@@ -10,6 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -17,6 +18,7 @@ import { AgentHostProtocolClient, InitialAuthenticationError, type IAgentHostPro
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { WebPubSubRelayTransport, type IWebPubSubRelayTransportOptions } from '../../../../../../platform/agentHost/browser/webPubSubRelayTransport.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IProtocolTransport } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
+import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentHostAhpJsonlLoggingSettingId, IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import {
@@ -98,6 +100,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	const started = new DeferredPromise<void>();
 	let ready = new DeferredPromise<IRemoteAgentHostConnectionInfo>();
 	const events: { eventName: string; data?: ITelemetryData }[] = [];
+	const lifecycleEvents: { eventName: string; data?: ITelemetryData }[] = [];
 	const warnings: string[] = [];
 	const removed: string[] = [];
 	const instantiationService = store.add(new TestInstantiationService());
@@ -110,7 +113,9 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	let environmentKeys: readonly IHostEncryptionKey[] | undefined;
 	let environmentReads = 0;
 	const telemetry = store.add(new CloudSandboxTelemetryService(new class extends mock<ITelemetryService>() {
-		override publicLog2(eventName: string, data?: ITelemetryData): void { events.push({ eventName, data }); }
+		override publicLog2(eventName: string, data?: ITelemetryData): void {
+			(eventName === 'cloudSandboxLifecycle' ? lifecycleEvents : events).push({ eventName, data });
+		}
 	}()));
 	instantiationService.stub(ICloudSandboxTelemetryService, telemetry);
 	const powerSuspend = store.add(new Emitter<void>());
@@ -225,6 +230,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		environmentReads: () => environmentReads,
 		setEnvironmentKeys: (keys: readonly IHostEncryptionKey[] | undefined) => { environmentKeys = keys; },
 		events,
+		lifecycleEvents,
 		powerSuspend,
 		powerResume,
 		setReconnectResult: (value: CloudSandboxConnectResult | Error | Promise<CloudSandboxConnectResult>) => { reconnectResult = value; },
@@ -257,6 +263,40 @@ suite('CloudSandboxAgentHostService', () => {
 
 	teardown(() => sinon.restore());
 
+	test('forwards user-local reporting scope through initial credentials and factory recovery', () => runWithFakedTimers({}, async () => {
+		const environmentId = generateUuid();
+		const sessionId = generateUuid();
+		const connectionId = generateUuid();
+		const fixture = createService(store, [{ kind: 'token', token: clientToken(undefined, connectionId) }]);
+		fixture.service.connectThroughFactory = true;
+		const connecting = fixture.service.connect({ environmentId, sessionId, name: 'private host name', environmentKind: 'user-local' }, CancellationToken.None);
+		await fixture.started;
+		fixture.settle();
+		await connecting;
+		fixture.instantiationService.stubInstance(AgentHostProtocolClient, new class extends mock<AgentHostProtocolClient>() {
+			override readonly onDidConnectionDiagnostic = Event.None;
+			override readonly onDidAction = Event.None;
+			override getConnectionDiagnosticState() { return {}; }
+		}());
+		const spy = sinon.spy(fixture.instantiationService, 'createInstance');
+		const created = await fixture.getFactory().createConnection(fixture.entries()[0], { userInitiated: true });
+		assert.ok(created.transportDisposable);
+		store.add(created.transportDisposable);
+		const options = spy.getCalls().find(call => call.args[0] === AgentHostProtocolClient)?.args[3] as IAgentHostProtocolClientOptions;
+		assert.ok(options.prepareReconnect);
+		await options.prepareReconnect();
+		created.transportDisposable.dispose();
+		fixture.service.dispose();
+		assert.deepStrictEqual({
+			requests: fixture.requests.map(entry => [entry.method, entry.request.environmentId, entry.request.sessionId, entry.request.environmentKind]),
+			lifecycle: fixture.lifecycleEvents,
+			userLocalOutcome: fixture.events.filter(event => event.eventName === 'userLocalRelayConnectionOutcome').map(event => event.data?.outcome),
+		}, {
+			requests: [['connect', environmentId, sessionId, 'user-local'], ['reconnect', environmentId, sessionId, 'user-local']],
+			lifecycle: [], userLocalOutcome: ['success'],
+		});
+	}));
+
 	test('user-local hosts seal identity credentials after the handshake without requiring a broker envelope', async () => {
 		const key = { key_id: 'GpLyOFLckI0', public_key: 'pOCSkrZRwni5dyxWn1+puxPZBrRqtoyd+dwrRAn4ogk=', algorithm: 'x25519-sealedbox', use: 'auth-token' as const };
 		const fixture = createService(store, [{ kind: 'token', token: clientToken(undefined) }]);
@@ -269,6 +309,8 @@ suite('CloudSandboxAgentHostService', () => {
 		await connecting;
 		fixture.instantiationService.stubInstance(AgentHostProtocolClient, new class extends mock<AgentHostProtocolClient>() {
 			override readonly onDidConnectionDiagnostic = Event.None;
+			override readonly onDidAction = Event.None;
+			override getConnectionDiagnosticState() { return {}; }
 		}());
 		const spy = sinon.spy(fixture.instantiationService, 'createInstance');
 		const created = await fixture.getFactory().createConnection(fixture.entries()[0], { userInitiated: true });
@@ -306,6 +348,8 @@ suite('CloudSandboxAgentHostService', () => {
 				await connecting;
 				fixture.instantiationService.stubInstance(AgentHostProtocolClient, new class extends mock<AgentHostProtocolClient>() {
 					override readonly onDidConnectionDiagnostic = Event.None;
+					override readonly onDidAction = Event.None;
+					override getConnectionDiagnosticState() { return {}; }
 				}());
 				const spy = sinon.spy(fixture.instantiationService, 'createInstance');
 				const factory = fixture.getFactory();
@@ -366,6 +410,8 @@ suite('CloudSandboxAgentHostService', () => {
 				override dispose(): void { }
 				override readonly onDidChangeConnectionState = Event.None;
 				override readonly onDidConnectionDiagnostic = Event.None;
+				override readonly onDidAction = Event.None;
+				override getConnectionDiagnosticState() { return {}; }
 			}());
 			const spy = sinon.spy(fixture.instantiationService, 'createInstance');
 			const created = await fixture.getFactory().createConnection(fixture.entries()[0], { userInitiated: true });
@@ -430,6 +476,8 @@ suite('CloudSandboxAgentHostService', () => {
 		fixture.instantiationService.stubInstance(AgentHostProtocolClient, new class extends mock<AgentHostProtocolClient>() {
 			override readonly onDidChangeConnectionState = Event.None;
 			override readonly onDidConnectionDiagnostic = Event.None;
+			override readonly onDidAction = Event.None;
+			override getConnectionDiagnosticState() { return {}; }
 		}());
 		const spy = sinon.spy(fixture.instantiationService, 'createInstance');
 		store.add(toDisposable(() => spy.restore()));
@@ -495,17 +543,23 @@ suite('CloudSandboxAgentHostService', () => {
 
 	for (const isSessionsWindow of [false, true]) {
 		test(`wires protocol diagnostics and real window identity for ${isSessionsWindow ? 'Agents' : 'Editor'}`, () => runWithFakedTimers({}, async () => {
-			const fixture = createService(store, [{ kind: 'token', token: clientToken('copilot-sealed.v1.key.payload') }], undefined, isSessionsWindow);
+			const connectionId = generateUuid();
+			const environmentId = generateUuid();
+			const sessionId = generateUuid();
+			const fixture = createService(store, [{ kind: 'token', token: clientToken('copilot-sealed.v1.key.payload', connectionId) }], undefined, isSessionsWindow);
 			fixture.service.connectThroughFactory = true;
 			const diagnostics = store.add(new Emitter<IConnectionDiagnosticEvent>());
+			const actions = store.add(new Emitter<ActionEnvelope>());
 			fixture.instantiationService.stubInstance(AgentHostProtocolClient, {
 				dispose: () => { },
 				onDidConnectionDiagnostic: diagnostics.event,
+				onDidAction: actions.event,
+				getConnectionDiagnosticState: () => ({ connectionState: 'connected', authenticationRestorePending: false, lastSuccessfulResponseAgeMs: 25 }),
 			});
 			const createInstance = sinon.spy(fixture.instantiationService, 'createInstance');
 			const provisioningStartedAt = Date.now();
 			await timeout(100);
-			const connecting = fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox', connectionSource: 'created', provisioningStartedAt }, CancellationToken.None);
+			const connecting = fixture.service.connect({ environmentId, name: 'Sandbox', connectionSource: 'created', provisioningStartedAt }, CancellationToken.None);
 			await fixture.started;
 			const factory = fixture.getFactory();
 			const created = await factory.createConnection(factory.entries.get()[0], { userInitiated: true });
@@ -520,10 +574,17 @@ suite('CloudSandboxAgentHostService', () => {
 			await timeout(30);
 			fixture.settle();
 			await connecting;
+			await options.prepareReconnect?.();
+			actions.fire({ serverSeq: 1, channel: `ahp-session:/${sessionId}`, origin: undefined, action: { type: ActionType.SessionReady } });
 			created.transportDisposable.dispose();
 			created.connection.dispose();
 			fixture.service.dispose();
-			assert.deepStrictEqual({ client: options.clientInfo?.name, events: fixture.events, listening: diagnostics.hasListeners() }, {
+			assert.deepStrictEqual({
+				client: options.clientInfo?.name, events: fixture.events, listening: diagnostics.hasListeners() || actions.hasListeners(),
+				sessionObservations: fixture.lifecycleEvents.filter(event => event.data?.phase === 'session.ready').map(event => [event.data?.environmentId, event.data?.agentSessionId, event.data?.connectionId, event.data?.connectionState, event.data?.lastSuccessfulResponseAgeMs]),
+				protocolStates: fixture.lifecycleEvents.filter(event => event.data?.phase === 'protocol.authentication').map(event => [event.data?.connectionState, event.data?.authenticationRestorePending]),
+				credentialStates: fixture.lifecycleEvents.filter(event => event.data?.phase === 'credentials').map(event => [event.data?.outcome, event.data?.connectionState]),
+			}, {
 				client: isSessionsWindow ? 'vscode-agents-window' : 'vscode-editor-window',
 				events: [{
 					eventName: 'cloudSandboxConnectionOutcome', data: {
@@ -536,6 +597,9 @@ suite('CloudSandboxAgentHostService', () => {
 					},
 				}],
 				listening: false,
+				sessionObservations: [[environmentId, sessionId, connectionId, 'connected', 25]],
+				protocolStates: [['connected', false]],
+				credentialStates: [['started', undefined], ['succeeded', undefined], ['started', undefined], ['succeeded', undefined], ['started', 'connected'], ['succeeded', 'connected']],
 			});
 		}));
 	}
@@ -870,6 +934,8 @@ suite('CloudSandboxAgentHostService', () => {
 			dispose: () => { },
 			onDidChangeConnectionState: Event.None,
 			onDidConnectionDiagnostic: Event.None,
+			onDidAction: Event.None,
+			getConnectionDiagnosticState: () => ({}),
 		});
 		const createInstance = sinon.spy(fixture.instantiationService, 'createInstance');
 		const factory = fixture.getFactory();
@@ -1021,6 +1087,8 @@ suite('CloudSandboxAgentHostService', () => {
 			}());
 			fixture.instantiationService.stubInstance(AgentHostProtocolClient, new class extends mock<AgentHostProtocolClient>() {
 				override readonly onDidConnectionDiagnostic = Event.None;
+				override readonly onDidAction = Event.None;
+				override getConnectionDiagnosticState() { return {}; }
 				override dispose(): void { }
 			}());
 			const start = Date.now();

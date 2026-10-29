@@ -126,7 +126,6 @@ export interface INewChatComposerInputOptions {
 	readonly canSubmitWithoutSession?: IObservable<boolean>;
 	readonly hasAdditionalSendContent?: IObservable<boolean>;
 	readonly loading: IObservable<boolean>;
-	readonly useExperimentalLayout?: IObservable<boolean>;
 	readonly placeholder?: string;
 	/** Marks the input box as this onboarding spotlight target. */
 	readonly onboardingTargetId?: string;
@@ -144,6 +143,7 @@ export interface INewChatComposerInputOptions {
 	readonly petHostPreferred?: IObservable<boolean>;
 	readonly getChatPetPlatformElements?: () => readonly HTMLElement[];
 	readonly getChatPetBasePlatformElement?: () => HTMLElement | undefined;
+	readonly getChatPetJumpGameElement?: () => HTMLElement | undefined;
 	readonly onDidChangeChatPetPlatform?: Event<void>;
 	readonly setChatPetPlatformOccupation?: (occupation: IChatPetPlatformOccupation | undefined) => void;
 	/**

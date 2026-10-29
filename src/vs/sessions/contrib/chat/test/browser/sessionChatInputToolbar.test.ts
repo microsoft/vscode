@@ -27,7 +27,9 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../../..
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -38,7 +40,7 @@ import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/b
 import type { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IChatImageCarouselService } from '../../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
+import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility, type IChatBackgroundShell } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { TestEditorInput, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
@@ -49,7 +51,6 @@ import { IWorkbenchGitHubService } from '../../../../../workbench/services/githu
 import { IExternalUriOpener, IExternalUriOpenerService } from '../../../../../workbench/contrib/externalUriOpener/common/externalUriOpenerService.js';
 import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { externalUriOpenersSettingId } from '../../../../../workbench/contrib/externalUriOpener/common/configuration.js';
-import { SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -72,9 +73,9 @@ import { buildSessionArtifactSections, type ISessionArtifactActions } from '../.
 suite('SessionChatInputToolbar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createServices(artifactIntegrationsEnabled = false, gitHubActionsEnabled = true) {
+	function createServices(artifactIntegrationsEnabled = false) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		const configuration = new TestConfigurationService({ [ArtifactIntegrationsSettingId]: artifactIntegrationsEnabled, [SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING]: gitHubActionsEnabled });
+		const configuration = new TestConfigurationService({ [ArtifactIntegrationsSettingId]: artifactIntegrationsEnabled });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IChatService, upcastPartial<IChatService>({
@@ -110,8 +111,8 @@ suite('SessionChatInputToolbar', () => {
 		return { instantiationService, visibility, configuration };
 	}
 
-	async function createGitHubActivityBar(kind: SessionArtifactKind.PullRequest | SessionArtifactKind.Issue, providerId: string, getOpener?: IExternalUriOpenerService['getOpener'], gitHubActionsEnabled = true) {
-		const services = createServices(false, gitHubActionsEnabled);
+	async function createGitHubActivityBar(kind: SessionArtifactKind.PullRequest | SessionArtifactKind.Issue, providerId: string, getOpener?: IExternalUriOpenerService['getOpener']) {
+		const services = createServices();
 		const { instantiationService } = services;
 		const extensionsChanged = store.add(new Emitter<{ added: []; removed: [] }>());
 		instantiationService.stub(IExtensionService, 'onDidChangeExtensions', extensionsChanged.event);
@@ -194,24 +195,57 @@ suite('SessionChatInputToolbar', () => {
 		};
 	}
 
-	for (const suffix of ['#issuecomment-1', '?notification_referrer_id=1', '?notification_referrer_id=1#issuecomment-1']) {
-		test(`activity bar checks and reuses the canonical issue editor for ${suffix}`, async () => {
-			const { toolbar, artifacts, artifact, main, setEditor, setPaneVisible, opened, revealed } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID);
-			const issue = artifact(1, main);
-			artifacts.set([{ ...issue, link: URI.parse(`${issue.link}${suffix}`) }], undefined);
-			await timeout(0);
-			const editor = store.add(new TestEditorInput(issue.link!, 'test.githubEditor'));
-			setEditor(editor);
-			setPaneVisible(true);
-			const checked = toolbar.activityBarActions.get()[0].checked;
-			await toolbar.activityBarActions.get()[0].run();
-			assert.deepStrictEqual({ checked, opened, revealed }, {
-				checked: true, opened: [], revealed: [{ editor, groupId: 1 }],
-			});
+	test('activity bar retains PR availability without repeating opener checks on metadata refresh', async () => {
+		let lookups = 0;
+		const { toolbar, artifacts } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID, async () => {
+			lookups++;
+			return upcastPartial<IExternalUriOpener>({ id: 'supported' });
 		});
-	}
+		const before = lookups;
+		const counts: number[] = [];
+		for (let i = 0; i < 10; i++) {
+			artifacts.set(artifacts.get().map(entry => ({ ...entry, label: `Updated title ${i}` })), undefined);
+			counts.push(toolbar.activityBarActions.get().length);
+			await timeout(0);
+		}
+		assert.deepStrictEqual({ counts, lookups: lookups - before }, { counts: Array(10).fill(1), lookups: 0 });
+	});
 
-	for (const kind of [SessionArtifactKind.PullRequest, SessionArtifactKind.Issue] as const) {
+	test('activity bar retains supported PRs while opener revalidation is pending', async () => {
+		const { toolbar, instantiationService, extensionsChanged } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID);
+		let complete!: (value: IExternalUriOpener | undefined) => void;
+		instantiationService.stub(IExternalUriOpenerService, 'getOpener', () => new Promise<IExternalUriOpener | undefined>(resolve => { complete = resolve; }));
+		extensionsChanged.fire({ added: [], removed: [] });
+		const pending = toolbar.activityBarActions.get().length;
+		complete(undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ pending, unsupported: toolbar.activityBarActions.get().length }, { pending: 1, unsupported: 0 });
+	});
+
+	test('activity bar does not reuse opener support for a changed URL with the same artifact id', async () => {
+		let complete!: (value: IExternalUriOpener | undefined) => void;
+		const { toolbar, artifacts, instantiationService } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID);
+		instantiationService.stub(IExternalUriOpenerService, 'getOpener', () => new Promise<IExternalUriOpener | undefined>(resolve => { complete = resolve; }));
+		artifacts.set(artifacts.get().map(entry => ({ ...entry, link: URI.parse('https://github.com/owner/repo/pull/99') })), undefined);
+		const pending = toolbar.activityBarActions.get().length;
+		complete(undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ pending, unsupported: toolbar.activityBarActions.get().length }, { pending: 0, unsupported: 0 });
+	});
+
+	test('activity bar omits Issue actions and opener checks without removing composer pills', async () => {
+		let lookups = 0;
+		const { toolbar } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID, async () => {
+			lookups++;
+			return upcastPartial<IExternalUriOpener>({ id: 'supported' });
+		});
+		assert.deepStrictEqual({
+			actions: toolbar.activityBarActions.get().length, lookups,
+			pill: toolbar.element.querySelector('.chat-dropdown-pill-button')?.getAttribute('aria-label'),
+		}, { actions: 0, lookups: 0, pill: 'Open Issue #1: Item 1' });
+	});
+
+	for (const kind of [SessionArtifactKind.PullRequest] as const) {
 		test(`activity bar reveals a hidden ${kind} editor instead of toggling the Detail-only pane`, async () => {
 			const { toolbar, setEditor, setDetailVisible, artifact, main, opened } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID);
 			setEditor(store.add(new TestEditorInput(artifact(1, main).link!, 'test.githubEditor')));
@@ -221,7 +255,7 @@ suite('SessionChatInputToolbar', () => {
 			assert.deepStrictEqual({ before, after: toolbar.activityBarActions.get()[0].checked, opened }, { before: false, after: true, opened: [] });
 		});
 
-		test(`activity bar keeps ${kind} editors visible on repeated activation`, async () => {
+		test(`activity bar toggles ${kind} editors on repeated activation`, async () => {
 			const { toolbar, setEditor, setPaneVisible, artifact, main, opened } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID);
 			const editor = store.add(new TestEditorInput(artifact(1, main).link!, 'test.githubEditor'));
 			const states = [toolbar.activityBarActions.get()[0].checked];
@@ -234,7 +268,7 @@ suite('SessionChatInputToolbar', () => {
 			states.push(toolbar.activityBarActions.get()[0].checked);
 			setEditor(undefined);
 			states.push(toolbar.activityBarActions.get()[0].checked);
-			assert.deepStrictEqual({ states, opened }, { states: [false, true, true, true, false], opened: [] });
+			assert.deepStrictEqual({ states, opened }, { states: [false, true, false, true, false], opened: [] });
 		});
 
 		test(`activity bar reveals restored inactive ${kind} overview webviews instead of opening a reference`, async () => {
@@ -273,39 +307,24 @@ suite('SessionChatInputToolbar', () => {
 		});
 	}
 
-	for (const kind of [SessionArtifactKind.PullRequest, SessionArtifactKind.Issue] as const) {
-		test(`activity bar opts ${kind} actions in without changing composer pills`, async () => {
+	for (const kind of [SessionArtifactKind.PullRequest] as const) {
+		test(`activity bar shows supported ${kind} actions by default without changing composer pills`, async () => {
 			let lookups = 0;
-			const { toolbar, configuration, opened } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID,
+			const { toolbar } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID,
 				async () => {
 					lookups++;
 					return upcastPartial<IExternalUriOpener>({ id: 'supported' });
-				}, false);
-			const setEnabled = async (enabled: boolean | undefined) => {
-				await configuration.setUserConfiguration(SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING, enabled);
-				configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
-					affectsConfiguration: key => key === SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING,
-				}));
-				await timeout(0);
-			};
-			await setEnabled(undefined);
-			const before = { actions: toolbar.activityBarActions.get().length, lookups, pill: toolbar.element.querySelector('.chat-dropdown-pill-button')?.getAttribute('aria-label') };
-			await setEnabled(true);
-			const enabled = toolbar.activityBarActions.get().length;
-			const stale = toolbar.activityBarActions.get()[0];
-			await setEnabled(false);
-			await stale.run();
+				});
 			assert.deepStrictEqual({
-				before, enabled, disabled: toolbar.activityBarActions.get().length,
-				composerUnchanged: toolbar.element.querySelector('.chat-dropdown-pill-button')?.getAttribute('aria-label') === before.pill, opened,
+				actions: toolbar.activityBarActions.get().length, lookups,
+				pill: toolbar.element.querySelector('.chat-dropdown-pill-button')?.getAttribute('aria-label'),
 			}, {
-				before: { actions: 0, lookups: 0, pill: `Open ${kind === SessionArtifactKind.PullRequest ? 'Pull Request' : 'Issue'} #1: Item 1` },
-				enabled: 1, disabled: 0, composerUnchanged: true, opened: [],
+				actions: 1, lookups: 1, pill: 'Open Pull Request #1: Item 1',
 			});
 		});
 	}
 
-	for (const kind of [SessionArtifactKind.PullRequest, SessionArtifactKind.Issue] as const) {
+	for (const kind of [SessionArtifactKind.PullRequest] as const) {
 		test(`activity bar hides ${kind} without a contributed opener and preserves its composer pill`, async () => {
 			const { toolbar } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID, async () => undefined);
 			assert.deepStrictEqual({
@@ -332,7 +351,7 @@ suite('SessionChatInputToolbar', () => {
 
 	test('activity bar refreshes opener support after extension and opener-configuration changes', async () => {
 		let available = false;
-		const { toolbar, extensionsChanged, configuration, opened } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID,
+		const { toolbar, extensionsChanged, configuration, opened } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID,
 			async () => available ? upcastPartial<IExternalUriOpener>({ id: 'supported' }) : undefined);
 		const absent = toolbar.activityBarActions.get().length;
 		available = true;
@@ -344,13 +363,13 @@ suite('SessionChatInputToolbar', () => {
 		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
 			affectsConfiguration: key => key === externalUriOpenersSettingId,
 		}));
-		await stale.run();
 		await timeout(0);
+		await stale.run();
 		assert.deepStrictEqual({ absent, added, removed: toolbar.activityBarActions.get().length, opened }, { absent: 0, added: 1, removed: 0, opened: [] });
 	});
 
 	test('activity bar logs opener lookup failures and hides unsupported actions', async () => {
-		const { toolbar, instantiationService, extensionsChanged } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID);
+		const { toolbar, instantiationService, extensionsChanged } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID);
 		const error = new Error('Opener lookup failed');
 		const errors: Error[] = [];
 		instantiationService.stub(ILogService, 'error', (_message: string, reported: Error) => errors.push(reported));
@@ -362,7 +381,7 @@ suite('SessionChatInputToolbar', () => {
 
 	test('activity bar cancels pending opener checks on chat switches and disposal', async () => {
 		const pending: { token: CancellationToken; resolve: (opener: IExternalUriOpener) => void }[] = [];
-		const { toolbar, session, peer } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID,
+		const { toolbar, session, peer } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID,
 			(_uri, _context, token) => new Promise(resolve => pending.push({ token, resolve })));
 		const before = toolbar.activityBarActions.get().length;
 		toolbar.setSession(session, peer);
@@ -378,14 +397,11 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
-	test('disabling GitHub activity actions cancels pending checks and ignores late results', async () => {
+	test('hiding AI features cancels pending checks and ignores late results', async () => {
 		const pending: { token: CancellationToken; resolve: (opener: IExternalUriOpener) => void }[] = [];
-		const { toolbar, configuration } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID,
+		const { toolbar, sentiment } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID,
 			(_uri, _context, token) => new Promise(resolve => pending.push({ token, resolve })));
-		await configuration.setUserConfiguration(SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING, false);
-		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
-			affectsConfiguration: key => key === SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING,
-		}));
+		sentiment.set({ hidden: true }, undefined);
 		pending[0].resolve(upcastPartial<IExternalUriOpener>({ id: 'late' }));
 		await timeout(0);
 		assert.deepStrictEqual({
@@ -407,7 +423,7 @@ suite('SessionChatInputToolbar', () => {
 	});
 
 	test('activity bar removes AI-hidden actions and rejects stale invocations after hiding or disposal', async () => {
-		const { toolbar, sentiment, opened } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID);
+		const { toolbar, sentiment, opened } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID);
 		const action = toolbar.activityBarActions.get()[0];
 		sentiment.set({ hidden: true }, undefined);
 		const hidden = toolbar.activityBarActions.get().length;
@@ -421,7 +437,7 @@ suite('SessionChatInputToolbar', () => {
 	});
 
 	for (const providerId of [LOCAL_AGENT_HOST_PROVIDER_ID, `${REMOTE_AGENT_HOST_PROVIDER_PREFIX}test-host`]) {
-		for (const kind of [SessionArtifactKind.PullRequest, SessionArtifactKind.Issue] as const) {
+		for (const kind of [SessionArtifactKind.PullRequest] as const) {
 			test(`activity bar opens the single ${kind} of its own chat on ${providerId}`, async () => {
 				const { toolbar, session, main, peer, artifacts, opened } = await createGitHubActivityBar(kind, providerId);
 				const first = toolbar.activityBarActions.get()[0];
@@ -462,11 +478,11 @@ suite('SessionChatInputToolbar', () => {
 		}
 	}
 
-	for (const transition of ['switch', 'dispose', 'remove', 'remove-one', 'hide', 'opener', 'disable'] as const) {
+	for (const transition of ['switch', 'dispose', 'remove', 'remove-one', 'hide', 'opener'] as const) {
 		test(`activity bar resolves current references after ${transition}`, async () => {
 			let openerAvailable = true;
-			const { toolbar, session, peer, artifacts, artifact, main, opened, configuration, sentiment, extensionsChanged } = await createGitHubActivityBar(
-				SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID,
+			const { toolbar, session, peer, artifacts, artifact, main, opened, sentiment, extensionsChanged } = await createGitHubActivityBar(
+				SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID,
 				async () => openerAvailable ? upcastPartial<IExternalUriOpener>({ id: 'test-opener' }) : undefined,
 			);
 			artifacts.set([...artifacts.get(), artifact(4, main)], undefined);
@@ -487,11 +503,6 @@ suite('SessionChatInputToolbar', () => {
 				openerAvailable = false;
 				extensionsChanged.fire({ added: [], removed: [] });
 				await timeout(0);
-			} else if (transition === 'disable') {
-				await configuration.setUserConfiguration(SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING, false);
-				configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
-					affectsConfiguration: key => key === SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING,
-				}));
 			}
 			await selected.run();
 			assert.deepStrictEqual(opened.map(entry => entry.number), transition === 'remove-one' ? [4] : []);
@@ -1803,12 +1814,56 @@ suite('SessionChatInputToolbar', () => {
 			entry.select();
 		}
 
-		assert.deepStrictEqual({ singleLabels, multipleLabels, opened }, {
+		assert.deepStrictEqual({
+			singleLabels, multipleLabels, opened,
+			transcriptSections: toolbar.backgroundActivityPillSections.subagents?.get().map(section => ({ title: section.title, entries: section.entries.map(entry => entry.label) })),
+		}, {
 			singleLabels: ['1 Subagent'],
 			multipleLabels: ['3 Subagents'],
 			opened: [subagents[0], ...subagents].map(subagent => [
 				session, subagent.resource, { referenceChatResource: chat.resource },
 			]),
+			transcriptSections: [
+				{ title: 'Subagents: In Progress', entries: ['Waiting', 'Running'] },
+			],
+		});
+	});
+
+	test('shares live background shells with the transcript and clears them when switching chats', () => {
+		const { instantiationService } = createServices();
+		const shells = observableValue<readonly IChatBackgroundShell[]>('shells', [{
+			id: 'tests', description: 'Running tests', command: 'npm test', startedAt: new Date(0).toISOString(),
+		}]);
+		const workspace = constObservable(upcastPartial<ISessionWorkspace>({ folders: [] }));
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('chat:parent'),
+			title: constObservable('Parent'),
+			status: constObservable(SessionStatus.InProgress),
+			workspace,
+			changes: constObservable([]),
+			changesets: constObservable([]),
+			backgroundShells: shells,
+		});
+		const session = upcastPartial<IActiveSession>({
+			loading: constObservable(false),
+			sessionId: 'provider:session',
+			resource: URI.parse('session:1'),
+			capabilities: constObservable({ supportsMultipleChats: true }),
+			chats: constObservable([chat]),
+			workspace,
+		});
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		toolbar.setSession(session, chat);
+		const labels = () => toolbar.backgroundActivityPillSections.backgroundShells?.get().map(shell => shell.description);
+		const running = labels();
+		const initialShells = shells.get();
+		shells.set([], undefined);
+		const finished = labels();
+		shells.set(initialShells, undefined);
+		const resumed = labels();
+		toolbar.setSession(undefined, undefined);
+		assert.deepStrictEqual({ running, finished, resumed, switched: labels() }, {
+			running: ['Running tests'], finished: [], resumed: ['Running tests'], switched: [],
 		});
 	});
 
@@ -2483,7 +2538,7 @@ suite('SessionChatInputToolbar', () => {
 		}
 	}
 
-	test('promotes every matched artifact and reference, keeps unmatched entries grouped, and scopes removal to the clicked pill', async () => {
+	test('promotes matched artifacts and references, groups artifacts sharing an integration, keeps unmatched entries grouped, and scopes removal to the clicked pill', async () => {
 		const { instantiationService, configuration } = createServices();
 		const setEnabled = async (enabled: boolean) => {
 			await configuration.setUserConfiguration(ArtifactIntegrationsSettingId, enabled);
@@ -2556,24 +2611,30 @@ suite('SessionChatInputToolbar', () => {
 			}, undefined);
 		}
 		const integrated = [...toolbar.element.querySelectorAll<HTMLElement>('.artifact-integration-pill')];
+		const group = toolbar.element.querySelector<HTMLElement>('.artifact-integration-group-pill')!;
 		const promoted = {
 			labels: integrated.map(pill => pill.querySelector('.chat-pill-label')?.textContent),
+			// Artifacts sharing an integration share one pill; the reference keeps its own.
+			group: group.querySelector('.chat-pill-label')?.textContent,
 			referencesGrouped: !!toolbar.element.querySelector('[aria-label="Show 1 reference"]'),
 			artifactsGrouped: !!toolbar.element.querySelector('[aria-label="Show 3 artifacts"]'),
 		};
-		integrated[1].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+		group.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+		const groupRemovalIds = menu.filter(action => action.id.startsWith('sessions.artifacts.remove.')).map(action => action.id);
+		integrated[0].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
 		const removalIds = menu.filter(action => action.id.startsWith('sessions.artifacts.remove.')).map(action => action.id);
-		integrated[2].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
 		await menu.find(action => action.id === 'sessions.artifacts.remove.reference')!.run();
 		snapshots.get('two')!.set({ ...snapshots.get('two')!.get(), contributions: [], mainIntegrationId: undefined }, undefined);
 		assert.deepStrictEqual({
-			initial, promoted, removalIds, removed,
-			remaining: toolbar.element.querySelectorAll('.artifact-integration-pill').length,
+			initial, promoted, groupRemovalIds, removalIds, removed,
+			remaining: [...toolbar.element.querySelectorAll('.artifact-integration-pill .chat-pill-label')].map(label => label.textContent),
+			groupRemaining: !!toolbar.element.querySelector('.artifact-integration-group-pill'),
 			regrouped: !!toolbar.element.querySelector('[aria-label="Show 2 artifacts"]'),
 		}, {
 			initial: { integrated: 0, grouped: true, acquired: 0 },
-			promoted: { labels: ['one', 'two', 'reference'], referencesGrouped: false, artifactsGrouped: false },
-			removalIds: ['sessions.artifacts.remove.two'], removed: ['reference'], remaining: 1, regrouped: true,
+			promoted: { labels: ['reference'], group: 'Experiments (2)', referencesGrouped: false, artifactsGrouped: false },
+			groupRemovalIds: [], removalIds: ['sessions.artifacts.remove.reference'], removed: ['reference'],
+			remaining: ['one'], groupRemaining: false, regrouped: true,
 		});
 		await setEnabled(false);
 		const disabled = {
@@ -2586,13 +2647,91 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
+	test('pins an artifact out of its integration group from the dropdown and unpins it back from its own pill', async () => {
+		const { instantiationService } = createServices(true);
+		const host = mainWindow.document.body.appendChild(document.createElement('div'));
+		host.classList.add('monaco-workbench');
+		host.style.cssText = 'position:fixed;top:0;left:0;width:720px;height:600px;';
+		store.add(toDisposable(() => host.remove()));
+		instantiationService.stub(ILayoutService, upcastPartial<ILayoutService>({
+			mainContainer: host, activeContainer: host, onDidLayoutContainer: Event.None, getContainer: () => host,
+			get mainContainerDimension() { return { width: 720, height: 600 }; },
+		}));
+		instantiationService.stub(IContextViewService, store.add(instantiationService.createInstance(ContextViewService)));
+		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
+		const records: readonly ISessionArtifact[] = ['one', 'two', 'three'].map(id => ({
+			id, kind: SessionArtifactKind.Website, label: `Recorded ${id}`, isArtifact: true, link: URI.parse(`https://experiments.test/${id}`),
+		}));
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'quick-chat', providerId: 'provider', resource: URI.parse('session:quick-chat'), artifacts: constObservable(records),
+			loading: constObservable(false),
+			capabilities: constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true, supportsArtifactIntegrations: true }),
+			chats: constObservable([chat]), workspace: constObservable(undefined),
+		});
+		const priorities: Record<string, number> = { one: 1, two: 3, three: 2 };
+		let menu: readonly IAction[] = [];
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({}));
+		instantiationService.stub(IContextMenuService, {
+			showContextMenu: delegate => {
+				assert.ok(delegate.getActions);
+				menu = delegate.getActions();
+			},
+		});
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			onDidChangeSessions: Event.None,
+			acquireArtifactIntegration: async (_session, id) => new ImmortalReference(upcastPartial<IArtifactModel>({
+				snapshot: constObservable<ArtifactSnapshot>({
+					authority: { id: 'client', targetHost: 'vendor', location: 'client' }, session: 'vendor-session://opaque',
+					artifact: { id, label: `Recorded ${id}`, resource: `https://experiments.test/${id}`, isArtifact: true },
+					mainIntegrationId: 'experiments', runs: [],
+					contributions: [{
+						integrationId: 'experiments', label: 'Experiment', groupLabel: 'Experiments', actions: [], options: [],
+						configuration: { revision: 0, values: {}, generations: {}, disablements: {} },
+						view: {
+							availability: { kind: 'available' }, main: { icon: { id: 'beaker' }, label: id, detailsId: 'main' },
+							group: { icon: { id: priorities[id] === 3 ? 'error' : 'beaker' }, priority: priorities[id] },
+							sections: [], stateActions: [], generalActions: [], automationAvailability: [],
+						},
+					}],
+				}),
+			})),
+		}));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		host.appendChild(toolbar.element);
+		toolbar.setSession(session, chat);
+		await timeout(0);
+		const describe = () => ({
+			group: toolbar.element.querySelector('.artifact-integration-group-pill .chat-pill-label')?.textContent,
+			groupIcon: toolbar.element.querySelector('.artifact-integration-group-pill .codicon')?.classList.contains('codicon-error'),
+			singles: [...toolbar.element.querySelectorAll<HTMLElement>('.artifact-integration-pill')].map(pill => ({
+				label: pill.querySelector('.chat-pill-label')?.textContent,
+				unpin: pill.classList.contains('has-promoted-action') ? pill.querySelector('.chat-pill-promoted-action')?.getAttribute('aria-label') : undefined,
+			})),
+		});
+		const grouped = describe();
+		toolbar.element.querySelector<HTMLElement>('.artifact-integration-group-pill > .chat-pill-button')!.click();
+		const rows = [...host.querySelectorAll<HTMLElement>('.artifact-group-row')];
+		const pin = [...rows[1].querySelectorAll<HTMLElement>('.artifact-group-row-action')].find(action => action.getAttribute('aria-label') === 'Pin Recorded two')!;
+		pin.click();
+		await timeout(0);
+		const pinned = { ...describe(), dropdownRows: [...host.querySelectorAll('.artifact-group-row .artifact-group-row-label')].map(label => label.textContent) };
+		toolbar.element.querySelector<HTMLElement>('.artifact-integration-pill.has-promoted-action')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+		await menu.find(action => action.id.startsWith('chatInputPills.artifacts.unpin.'))!.run();
+		await timeout(0);
+		assert.deepStrictEqual({ grouped, pinned, unpinned: describe() }, {
+			grouped: { group: '3 Experiments', groupIcon: true, singles: [] },
+			pinned: { group: '2 Experiments', groupIcon: false, singles: [{ label: 'two', unpin: 'Unpin Recorded two' }], dropdownRows: ['one', 'three'] },
+			unpinned: { group: '3 Experiments', groupIcon: true, singles: [] },
+		});
+	});
+
 	test('decorates a promoted PR as a details disclosure and leaves reference links plain', async () => {
 		const { instantiationService } = createServices(true);
 		const link = URI.parse('https://github.com/microsoft/vscode/pull/42');
 		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
 		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', [
 			{ id: 'recorded', kind: SessionArtifactKind.PullRequest, label: 'Recorded title', isArtifact: true, isGitHub: true, link },
-			{ id: 'reference', kind: SessionArtifactKind.PullRequest, label: 'Reference title', isArtifact: false, isGitHub: true, link },
+			{ id: 'reference', kind: SessionArtifactKind.PullRequest, label: 'Reference title', isArtifact: false, isGitHub: true, link: URI.parse('https://github.com/microsoft/vscode/pull/43') },
 		]);
 		const session = upcastPartial<IActiveSession>({
 			sessionId: 'quick-chat', resource: URI.parse('session:quick-chat'), artifacts,

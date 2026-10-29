@@ -39,6 +39,8 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { createEditorTypeActions, getAvailableEditorTypes } from './editorTypePicker.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModel } from '../../../../editor/common/model.js';
 import { hash } from '../../../../base/common/hash.js';
 import { getMimeTypes } from '../../../../editor/common/services/languagesAssociations.js';
 import { extname, isEqual } from '../../../../base/common/resources.js';
@@ -175,7 +177,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IHostService private readonly hostService: IHostService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IFileService private readonly fileService: IFileService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IModelService private readonly modelService: IModelService
 	) {
 		super(themeService);
 
@@ -286,10 +289,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const groupActiveEditorCannotCloseContext = this.editorPartsView.bind(ActiveEditorCannotCloseContext, this);
 		const groupActiveEditorIsSideBySideEditorContext = this.editorPartsView.bind(SideBySideEditorActiveContext, this);
 
-		const activeEditorListener = this._register(new MutableDisposable());
+		const activeEditorListeners = this._register(new MutableDisposable<DisposableStore>());
 
 		const observeActiveEditor = () => {
-			activeEditorListener.clear();
+			const listeners = activeEditorListeners.value = new DisposableStore();
 
 			this.scopedContextKeyService.bufferChangeEvents(() => {
 				const activeEditor = this.activeEditor;
@@ -297,7 +300,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 				this.resourceContext.set(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }));
 
-				applyAvailableEditorIds(groupActiveEditorAvailableEditorIds, activeEditor, this.editorResolverService);
+				applyAvailableEditorIds(groupActiveEditorAvailableEditorIds, activeEditor, this.editorResolverService, this.modelService);
 
 				if (activeEditor) {
 					groupActiveEditorCanSplitInGroupContext.set(activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup));
@@ -305,9 +308,21 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 					groupActiveEditorIsSideBySideEditorContext.set(activeEditor.typeId === SideBySideEditorInput.ID);
 
 					groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
-					activeEditorListener.value = activeEditor.onDidChangeDirty(() => {
+					listeners.add(activeEditor.onDidChangeDirty(() => {
 						groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
-					});
+					}));
+
+					// The editors available for an untitled resource depend on the language of its text model
+					if (activeEditor.resource?.scheme === Schemas.untitled) {
+						const resource = activeEditor.resource;
+						const updateIfUntitledModel = (model: ITextModel) => {
+							if (isEqual(model.uri, resource)) {
+								applyAvailableEditorIds(groupActiveEditorAvailableEditorIds, activeEditor, this.editorResolverService, this.modelService);
+							}
+						};
+						listeners.add(this.modelService.onModelAdded(updateIfUntitledModel));
+						listeners.add(this.modelService.onModelLanguageChanged(e => updateIfUntitledModel(e.model)));
+					}
 				} else {
 					groupActiveEditorCanSplitInGroupContext.set(false);
 					groupActiveEditorCannotCloseContext.set(false);
@@ -2155,7 +2170,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// Preview). This mirrors the editor type dropdown shown in the breadcrumbs bar. It is
 			// built per group so it reflects that group's active editor.
 			if (menuId === MenuId.EditorTitle) {
-				const available = getAvailableEditorTypes(this.activeEditor, this.editorResolverService);
+				const available = getAvailableEditorTypes(this.activeEditor, this.editorResolverService, this.modelService);
 				if (available) {
 					const editorTypeActions = createEditorTypeActions(available, this, this.editorResolverService, this.commandService, this.editorService);
 					const reopenWithSubmenu = new SubmenuAction('editor.reopenWith', localize('reopenWith', "Reopen Editor With"), editorTypeActions);

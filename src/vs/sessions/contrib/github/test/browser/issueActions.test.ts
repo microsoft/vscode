@@ -12,14 +12,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
-import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IOpenURLOptions, IURLService } from '../../../../../platform/url/common/url.js';
 import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
-import { Menus, SessionActivityBarGroup } from '../../../../browser/menus.js';
-import { sessionActivityBarChatActionContext } from '../../../../common/contextkeys.js';
+import { Menus } from '../../../../browser/menus.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
@@ -81,27 +79,11 @@ suite('Issue Actions', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Open Issue is available in the activity bar only with an associated issue', () => {
+	test('Open Issue is not contributed to the activity bar', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBar)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === 'workbench.agentSessions.action.openIssue');
-		const withIssue = new Context(1, null);
-		withIssue.setValue(sessionActivityBarChatActionContext('workbench.agentSessions.action.openIssue').key, true);
-		const withoutIssue = new Context(2, null);
-
-		assert.deepStrictEqual(items.map(item => ({
-			group: item.group,
-			order: item.order,
-			icon: item.command.icon,
-			visibleWithIssue: item.when?.evaluate(withIssue),
-			visibleWithoutIssue: item.when?.evaluate(withoutIssue),
-		})), [{
-			group: SessionActivityBarGroup.SidePanel,
-			order: 101,
-			icon: Codicon.issues,
-			visibleWithIssue: true,
-			visibleWithoutIssue: false,
-		}]);
+		assert.deepStrictEqual(items, []);
 	});
 
 	test('Open Issue falls back to the active session without an explicit target', async () => {

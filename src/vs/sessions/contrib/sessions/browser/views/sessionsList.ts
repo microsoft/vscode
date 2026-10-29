@@ -44,13 +44,14 @@ import { UNKNOWN_SESSION_APPLICATION_ID } from '../../../../common/sessionApplic
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { parseGitHubPullRequestUrl } from '../../../../../platform/github/common/githubUrls.js';
+import { getGitHubRepositoryId, parseGitHubPullRequestUrl } from '../../../../../platform/github/common/githubUrls.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultToggleStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { chartsOrange } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
 import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -60,7 +61,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getHighestPriorityPullRequestIcon, getSessionFolderGitHubRepository, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind, hasMixedChatHarnesses } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
@@ -78,10 +79,10 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { getSessionComparisonHarnessLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsListModelService, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ISessionsListModelService, SessionSortEntry, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { getSessionGroupIdOfSection, getSessionGroupSectionId, ISessionGroup, ISessionGroupAppearance, ISessionGroupPlacement, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
-import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
+import { IInputOptions, InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { IOnboardingFocusTarget, markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../sessionComparison/common/sessionComparison.js';
@@ -106,13 +107,13 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfers } from '../../../../browser/dnd.js';
-import { getSessionsListChatDrop, getSessionsListSessionDrop, isChatMoveDndEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListMoveNotice, SessionsListSessionDrop } from './sessionsListChatMove.js';
+import { getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, isChatMoveDndEnabled, isCrossAgentChatMoveEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListMoveNotice, SessionsListSessionDrop } from './sessionsListChatMove.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { createSessionSummaryHover, getChatSummaryHoverData, getSessionDiffStats, getSessionSummaryHoverData } from '../sessionHoverContent.js';
+import { createSessionSummaryHover, getChatSummaryHoverData, getDistinctChatHarnessLabel, getSessionDiffStats, getSessionSummaryHoverData } from '../sessionHoverContent.js';
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
@@ -120,7 +121,7 @@ import { IAutomationService } from '../../../../../workbench/contrib/chat/common
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
-import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../customizationsConstants.js';
+import { IOpenAICustomizationsCommandOptions, OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../customizationsConstants.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 import { Menus } from '../../../../browser/menus.js';
 import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessionConversationGroups.js';
@@ -142,7 +143,7 @@ const SESSION_SHORTCUT_SECTION_TEMPLATE_ID = 'session-shortcut-section';
 const SESSION_SHORTCUT_ROW_HEIGHT = 28;
 const SESSION_SECTION_FOCUS_FROM_POINTER_CLASS = 'session-section-focus-from-pointer';
 const SESSION_HEADER_DROP_TARGET_CLASS = 'session-header-drop-target';
-/** Shared empty set used as the default "no session hierarchy is hovered/selected" value. */
+/** Shared empty set used when no session hierarchy is selected or focused. */
 const EMPTY_GUIDE_SESSION_IDS: ReadonlySet<string> = new Set();
 const SESSION_GROUP_DEPTH_PROPERTY = '--session-group-depth';
 
@@ -156,6 +157,8 @@ function setSessionGroupDepth(container: HTMLElement, depth: number): void {
 }
 
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
+/** The session context menu group that changes where a session is listed: Pin, then the group membership actions. */
+export const SessionItemOrganizeMenuGroup = '2_organize';
 export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const SessionGroupToolbarMenuId = new MenuId('SessionGroupToolbar');
 export const NEW_SESSION_FOR_WORKSPACE_ACTION_ID = 'sessionsView.sectionNewSession';
@@ -166,6 +169,8 @@ export const NEW_SESSION_IN_ENVIRONMENT_ACTION_ID = 'sessionsView.sectionNewSess
 export const SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING = 'sessions.list.showEmptyDefaultGroups';
 export const SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING = 'sessions.list.showUnreadInCollapsedSections';
 export const SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING = 'sessions.list.showArchivedByDefault';
+/** Controls whether the rows within a section are indented to show their hierarchy below the section header. */
+export const SESSIONS_LIST_INDENT_ITEMS_SETTING = 'sessions.list.indentItems';
 
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const SessionItemStatusContext = new RawContextKey<SessionStatus>('sessionItem.status', SessionStatus.Completed);
@@ -176,6 +181,10 @@ export const SessionChatItemCanArchiveContext = new RawContextKey<boolean>('sess
 export const SessionChatItemCanDeleteContext = new RawContextKey<boolean>('sessionChatItem.canDelete', false);
 /** Whether the chat item's chat can move out of its session, e.g. into a new session: its provider moves chats and the chat is movable. */
 export const SessionChatItemCanMoveContext = new RawContextKey<boolean>('sessionChatItem.canMove', false);
+/** Whether another session can take the chat item's chat as its last chat. */
+export const SessionChatItemHasMoveDestinationContext = new RawContextKey<boolean>('sessionChatItem.hasMoveDestination', false);
+/** Whether another session can take the session item's session as its last chat. */
+export const SessionItemHasMoveDestinationContext = new RawContextKey<boolean>('sessionItem.hasMoveDestination', false);
 export const SessionChatItemIsArchivedContext = new RawContextKey<boolean>('sessionChatItem.isArchived', false);
 export const SessionChatItemIsReadContext = new RawContextKey<boolean>('sessionChatItem.isRead', true);
 /** Whether the chat item's chat can be marked read or unread on its own: it is its session's main chat, or its session tracks read state per chat. */
@@ -191,6 +200,10 @@ export const SessionItemInGroupContext = new RawContextKey<boolean>('sessionItem
 export const SessionItemInExternalSectionContext = new RawContextKey<boolean>('sessionItem.inExternalSection', false);
 export const SessionItemIsCloudContext = new RawContextKey<boolean>('sessionItem.isCloud', false);
 export const SessionItemCanImportContext = new RawContextKey<boolean>('sessionItem.canImport', false);
+/** Whether the session item is the session of an automation run. */
+export const SessionItemIsAutomationContext = new RawContextKey<boolean>('sessionItem.isAutomation', false);
+/** Whether the session item belongs in the Sessions list. Automation sessions only do once they are shown there. */
+export const SessionItemIsInSessionsListContext = new RawContextKey<boolean>('sessionItem.isInSessionsList', false);
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
 export const SessionSectionHasGitHubRepositoryContext = new RawContextKey<boolean>('sessionSection.hasGitHubRepository', false);
 export const SessionSectionHasNonCloudRepositoryContext = new RawContextKey<boolean>('sessionSection.hasNonCloudRepository', false);
@@ -307,7 +320,7 @@ export class SessionChatItem {
 export type ISessionChatItem = SessionChatItem;
 
 export type SessionListItem = ISession | SessionChatItem | ISessionSection | ISessionGroupItem | ISessionShowMore | ISessionPlaceholder;
-type SessionGroupConnectorPosition = 'first' | 'middle' | 'last';
+type SessionGroupConnectorPosition = 'middle' | 'last';
 
 function isSessionChatItem(item: SessionListItem): item is ISessionChatItem {
 	return item instanceof SessionChatItem;
@@ -451,6 +464,31 @@ const ENVIRONMENT_SECTION_PREFIX = 'environment:';
 /** Whether a section lists one workspace, repository, or environment and can be reordered among custom groups. */
 function isSessionGroupingSection(sectionId: string): boolean {
 	return sectionId.startsWith('workspace:') || sectionId.startsWith(REPOSITORY_SECTION_PREFIX) || sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX);
+}
+
+/** The {@link SessionSectionTypeContext} value of a section: its grouping kind, or its id for the fixed sections. */
+function getSessionSectionType(sectionId: string): string {
+	return sectionId.startsWith('workspace:') ? 'workspace' : sectionId.startsWith(REPOSITORY_SECTION_PREFIX) ? 'repository' : sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX) ? 'environment' : sectionId;
+}
+
+/**
+ * Joins context menu groups with separators, merging groups of the same name in
+ * the order given and ordering the groups as the menu service does: `navigation`
+ * first, ungrouped actions last, and the rest by name. Lets the list merge its
+ * own actions into contributed groups.
+ */
+function joinContextMenuGroups(groups: readonly (readonly [string, readonly IAction[]])[]): IAction[] {
+	const merged = new Map<string, IAction[]>();
+	for (const [group, actions] of groups) {
+		let target = merged.get(group);
+		if (!target) {
+			target = [];
+			merged.set(group, target);
+		}
+		target.push(...actions);
+	}
+	const rank = (group: string) => group === 'navigation' ? 0 : group ? 1 : 2;
+	return Separator.join(...[...merged].sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b)).map(([, actions]) => actions));
 }
 
 function isSessionShowMore(item: SessionListItem): item is ISessionShowMore {
@@ -757,14 +795,17 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		private readonly compact: () => boolean,
 		private readonly onDidChangeUpdatedAt: () => void,
 		/**
-		 * Session IDs whose hierarchy indent/connector guides should be shown —
-		 * i.e. the session (or one of its chats) is currently hovered or
-		 * selected. Read reactively so guides appear only while the pointer or
-		 * selection is within this exact session's hierarchy.
+		 * Session IDs whose hierarchy indent/connector guides show while the
+		 * pointer is outside the Sessions pane, i.e. the session (or one of its
+		 * chats) is selected or keyboard-focused. While the pointer is over the
+		 * pane, CSS shows every hierarchy's guides.
 		 */
 		private readonly activeGuideSessionIds: IObservable<ReadonlySet<string>> = constObservable(EMPTY_GUIDE_SESSION_IDS),
 		/** How many groups deep the custom group whose rows include a chat row is nested; the row steps in by that many levels. */
 		private readonly getGroupDepth: (item: ISessionChatItem) => number = () => 0,
+		private readonly getComparisonConnectorPosition: (session: ISession) => SessionGroupConnectorPosition | undefined = () => undefined,
+		/** The Agent Merge configuration of the chat's folder, which decides how its pull request icon reads. */
+		private readonly getAgentMergeConfiguration: (item: ISessionChatItem) => IObservable<ISessionAgentMergeConfiguration | undefined> = () => constObservable(undefined),
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionChatItemTemplate {
@@ -827,19 +868,32 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		template.elementDisposables.add(toDisposable(() => template.container.classList.remove('renaming')));
 		template.container.classList.toggle('last-chat', element.isLast);
 		template.container.classList.toggle('standalone', !!element.standalone);
+		const comparisonConnectorPosition = element.standalone ? undefined : this.getComparisonConnectorPosition(element.session);
+		template.container.classList.toggle('session-comparison-chat', comparisonConnectorPosition !== undefined);
+		if (comparisonConnectorPosition === 'middle') {
+			const connector = DOM.append(template.container, $('span.session-comparison-chat-connector', { 'aria-hidden': 'true' }));
+			template.elementDisposables.add(toDisposable(() => connector.remove()));
+		}
 		template.isStandaloneContext.set(!!element.standalone);
+		let agentMergeConfiguration: IObservable<ISessionAgentMergeConfiguration | undefined> | undefined;
 		template.elementDisposables.add(autorun(reader => {
 			template.title.set(getChatTitle(element.chat, reader), createMatches(node.filterData));
 			const status = element.chat.status.read(reader);
 			const isArchived = element.chat.isArchived.read(reader);
 			const isRead = element.chat.isRead.read(reader);
-			const completedStateIcon = (element.session.workspace.read(reader)?.folders.length ?? 0) > 1
-				? getHighestPriorityPullRequestIcon(
-					element.chat.workspace.read(reader)?.folders.flatMap(folder =>
-						getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader)).map(pullRequest => pullRequest.icon)
-					) ?? []
-				)
-				: undefined;
+			const pullRequestIcon = element.chat.completedStateIcon
+				? element.chat.completedStateIcon.read(reader)
+				// Without provider attribution, only a multi-folder session's chats have pull requests of their own.
+				: (element.session.workspace.read(reader)?.folders.length ?? 0) > 1
+					? getHighestPriorityPullRequestIcon(
+						element.chat.workspace.read(reader)?.folders.flatMap(folder =>
+							getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader)).map(pullRequest => pullRequest.icon)
+						) ?? []
+					)
+					: undefined;
+			const completedStateIcon = pullRequestIcon && isAgentMergePullRequestIcon(pullRequestIcon)
+				? getAgentMergeAwarePullRequestIcon(pullRequestIcon, (agentMergeConfiguration ??= this.getAgentMergeConfiguration(element)).read(reader))
+				: pullRequestIcon;
 			const capabilities = getChatCapabilities(element.chat, element.session, reader);
 			template.canArchiveContext.set(capabilities.canArchive);
 			template.canDeleteContext.set(capabilities.canDelete);
@@ -1228,24 +1282,20 @@ class SessionItemActionRunner extends ActionRunner {
 	}
 }
 
-function renderInlineRenameInput(
+/**
+ * Creates the input box of an inline rename editor from its draft state. Rows
+ * are rerendered whenever the list updates, so the draft, selection, and focus
+ * are kept in `state` and restored instead of resetting to the original name.
+ */
+function createInlineRenameInputBox(
 	container: HTMLElement,
-	contextViewService: IContextViewService,
+	contextViewService: IContextViewService | undefined,
 	state: IInlineRenameValueState,
-	ariaLabel: string,
+	options: IInputOptions,
 	disposables: DisposableStore,
-	onFinish: (title: string | undefined, restoreListFocus: boolean) => void,
 ): InputBox {
 	DOM.clearNode(container);
-	const input = new InputBox(container, contextViewService, {
-		inputBoxStyles: defaultInputBoxStyles,
-		ariaLabel,
-		validationOptions: {
-			validation: value => value.trim()
-				? null
-				: { content: localize('inlineRename.empty', "Title cannot be empty"), type: MessageType.ERROR },
-		},
-	});
+	const input = new InputBox(container, contextViewService, options);
 	disposables.add(toDisposable(() => {
 		state.selection = {
 			start: input.inputElement.selectionStart ?? input.value.length,
@@ -1266,6 +1316,27 @@ function renderInlineRenameInput(
 		input.focus();
 		input.select();
 	}
+	disposables.add(DOM.addDisposableListener(input.inputElement, DOM.EventType.INPUT, () => state.value = input.value));
+	return input;
+}
+
+function renderInlineRenameInput(
+	container: HTMLElement,
+	contextViewService: IContextViewService,
+	state: IInlineRenameValueState,
+	ariaLabel: string,
+	disposables: DisposableStore,
+	onFinish: (title: string | undefined, restoreListFocus: boolean) => void,
+): InputBox {
+	const input = createInlineRenameInputBox(container, contextViewService, state, {
+		inputBoxStyles: defaultInputBoxStyles,
+		ariaLabel,
+		validationOptions: {
+			validation: value => value.trim()
+				? null
+				: { content: localize('inlineRename.empty', "Title cannot be empty"), type: MessageType.ERROR },
+		},
+	}, disposables);
 
 	let done = false;
 	const finish = (commit: boolean, restoreListFocus: boolean) => {
@@ -1287,7 +1358,6 @@ function renderInlineRenameInput(
 		onFinish(commit && title !== state.initialValue.trim() ? title : undefined, restoreListFocus);
 	};
 
-	disposables.add(DOM.addDisposableListener(input.inputElement, DOM.EventType.INPUT, () => state.value = input.value));
 	disposables.add(DOM.addStandardDisposableListener(input.inputElement, DOM.EventType.KEY_DOWN, event => {
 		if (event.equals(KeyCode.Enter)) {
 			event.preventDefault();
@@ -1325,7 +1395,6 @@ interface ISessionItemTemplate {
 	readonly renderedSession: ISettableObservable<ISession | undefined>;
 	readonly pendingVoiceIndicator: HTMLElement;
 	readonly comparisonAttemptStatus: HTMLElement;
-	readonly comparisonAttemptStatusIcon: HTMLElement;
 	readonly comparisonAttemptStatusLabel: HTMLElement;
 	readonly detailsRow: HTMLElement;
 	readonly approvalRow: HTMLElement;
@@ -1454,6 +1523,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 
 		container.classList.add('session-item');
 
+		DOM.append(container, $('span.session-group-connector', { 'aria-hidden': 'true' }));
 		const iconContainer = DOM.append(container, $('.session-icon'));
 		const statusIcon = disposables.add(this.instantiationService.createInstance(SessionStatusIcon, iconContainer));
 		const mainCol = DOM.append(container, $('.session-main'));
@@ -1480,8 +1550,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 		// is held until it is (mirrors the main window's sessions viewer).
 		const pendingVoiceIndicator = DOM.append(titleRow, $('.session-pending-voice-indicator'));
 		const comparisonAttemptStatus = DOM.append(titleRow, $('span.session-comparison-attempt-status'));
-		const comparisonAttemptStatusIcon = DOM.append(comparisonAttemptStatus, $('span.session-comparison-attempt-status-icon'));
-		comparisonAttemptStatusIcon.setAttribute('aria-hidden', 'true');
 		const comparisonAttemptStatusLabel = DOM.append(comparisonAttemptStatus, $('span.session-comparison-attempt-status-label'));
 		// The list opens a session on click and on Gesture `tap` (touch).
 		// DOM event propagation stops only cover mouse/pointer events; the
@@ -1552,7 +1620,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			}));
 		}
 
-		return { container, statusIcon, title, titleRow, titleContainer, externalApplicationBadge, externalApplicationBadgeLabel, titleInputContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, comparisonAttemptStatus, comparisonAttemptStatusIcon, comparisonAttemptStatusLabel, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, inputNeededRow, inputNeededLabel, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, isQuickChatContext, supportsMultipleChatsContext, supportsDeleteContext, disposables, elementDisposables };
+		return { container, statusIcon, title, titleRow, titleContainer, externalApplicationBadge, externalApplicationBadgeLabel, titleInputContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, comparisonAttemptStatus, comparisonAttemptStatusLabel, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, inputNeededRow, inputNeededLabel, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, isQuickChatContext, supportsMultipleChatsContext, supportsDeleteContext, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore | LabelFuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -1561,6 +1629,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			return;
 		}
 		this.renderSession(element, template, getSessionTitleMatches(element, node.filterData));
+	}
+
+	renderTwistie(element: SessionListItem, twistieElement: HTMLElement): boolean {
+		// The twistie is a sibling of the row contents, so it needs its own depth to step in with them.
+		setSessionGroupDepth(twistieElement, isSessionItem(element) ? this.options.getGroupDepth?.(element) ?? 0 : 0);
+		return false;
 	}
 
 	private renderSession(element: ISession, template: ISessionItemTemplate, matches?: IMatch[]): void {
@@ -1696,8 +1770,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			template.container.classList.toggle('pinned', isPinned && !isArchived);
 		}));
 
-		// Hierarchy indent/connector guides — visible only while this exact
-		// session (or one of its chat children) is hovered or selected.
+		// Hierarchy indent/connector guides — shown for this session while it (or
+		// one of its chat children) is selected or focused. While the pointer is
+		// over the Sessions pane, CSS shows every hierarchy's guides.
 		template.elementDisposables.add(autorun(reader => {
 			const showGuides = (this.options.activeGuideSessionIds?.read(reader) ?? EMPTY_GUIDE_SESSION_IDS).has(element.sessionId);
 			template.container.classList.toggle('session-hierarchy-guides-visible', showGuides);
@@ -1738,8 +1813,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			template.supportsMultipleChatsContext.set(capabilities.supportsMultipleChats);
 			template.supportsDeleteContext.set(capabilities.supportsDelete === true);
 			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-			let completedStateIcon = element.completedStateIcon?.read(reader)
-				?? getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
+			// A provider icon is authoritative: the workspace's pull requests may belong to other chats.
+			let completedStateIcon = element.completedStateIcon
+				? element.completedStateIcon.read(reader)
+				: getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
 			if (completedStateIcon && isAgentMergePullRequestIcon(completedStateIcon)) {
 				agentMergeConfiguration ??= getSessionAgentMergeConfigurationObservable(element, this.sessionsProvidersService, this.configurationService);
 				completedStateIcon = getAgentMergeAwarePullRequestIcon(completedStateIcon, agentMergeConfiguration.read(reader));
@@ -1752,11 +1829,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			template.container.classList.toggle('unread', !isRead && !isArchived);
 			template.container.classList.toggle('quick-chat', isQuickChat && this.options.useCompactQuickChatRows);
 			let showComparisonAttemptStatus = comparisonAttemptLabel !== undefined && (this.options.shouldShowComparisonAttemptStatus?.(element, reader) ?? true);
-			template.comparisonAttemptStatusIcon.className = 'session-comparison-attempt-status-icon';
 			switch (sessionStatus) {
 				case SessionStatus.InProgress:
-					template.comparisonAttemptStatusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
 					template.comparisonAttemptStatusLabel.textContent = '';
+					showComparisonAttemptStatus = false;
 					break;
 				case SessionStatus.NeedsInput:
 					template.comparisonAttemptStatusLabel.textContent = localize('comparisonAttemptNeedsInput', "Attention needed");
@@ -1799,7 +1875,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			template.externalApplicationBadge.classList.toggle('visible', showInTitle);
 			const badgeLabel = getExternalApplicationBadgeLabel(
 				element.application.read(reader).label,
-				this.options.externalApplicationBadgeShowFrom?.read(reader) ?? true,
+				this.options.externalApplicationBadgeShowFrom?.read(reader) ?? false,
 			);
 			template.externalApplicationBadgeLabel.textContent = badgeLabel;
 			if (showInTitle) {
@@ -1871,7 +1947,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 				const badgeEl = DOM.append(template.detailsRow, $('span.session-external-application-badge.session-external-application-badge-details'));
 				const badgeLabel = getExternalApplicationBadgeLabel(
 					element.application.read(reader).label,
-					this.options.externalApplicationBadgeShowFrom?.read(reader) ?? true,
+					this.options.externalApplicationBadgeShowFrom?.read(reader) ?? false,
 				);
 				DOM.append(badgeEl, $('span.session-external-application-badge-label', undefined, badgeLabel));
 				reader.store.add(this.hoverService.setupDelayedHoverAtMouse(badgeEl, { content: badgeLabel }));
@@ -2190,17 +2266,8 @@ function getChatWorkspaceBadgeLabel(sessionWorkspace: ISessionWorkspace | undefi
 }
 
 function getWorkspaceBadgeLabel(workspace: ISessionWorkspace): string | undefined {
-	const repository = getGitHubRemoteFileRepository(workspace.folders[0]?.root);
-	return repository ? `${repository.owner}/${repository.name}` : workspace.label;
-}
-
-/** The repository of a `github-remote-file` URI, such as a cloud session's workspace folder. */
-function getGitHubRemoteFileRepository(uri: URI | undefined): ISessionRepository | undefined {
-	if (uri?.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
-		return undefined;
-	}
-	const [owner, name] = uri.path.split('/').filter(Boolean);
-	return owner && name ? { owner, name } : undefined;
+	const repository = getGitHubRepositoryOfRemoteFile(workspace.folders[0]?.root);
+	return repository ? `${repository.owner}/${repository.repo}` : workspace.label;
 }
 
 interface ISessionRowLocationOptions {
@@ -2373,39 +2440,38 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 	private readonly renderedSections = new Map<ISessionSectionTemplate, ISessionSection>();
 	// TODO@BenV: Move automation-specific code into an AutomationSectionRenderer subclass.
 	readonly automationStatus = derived(this, reader => {
-		const runs = this.automationService.runs.read(reader);
 		const automationSessions = this.automationSessions.read(reader);
+		// A run whose session the Sessions list shows reports its status on that row instead,
+		// unless the row cannot: a cloud run can still be active while its session reports it finished.
+		const runs = this.automationService.runs.read(reader).map(run => {
+			const sessionResource = run.sessionResource;
+			const session = sessionResource && automationSessions.find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, sessionResource));
+			return { status: run.status, session };
+		}).filter(({ status, session }) => {
+			if (!session || !this.isSessionListed(session, reader)) {
+				return true;
+			}
+			const sessionStatus = session.status.read(reader);
+			return (status === 'pending' || status === 'running') && sessionStatus !== SessionStatus.InProgress && sessionStatus !== SessionStatus.NeedsInput;
+		});
 
 		// NeedsInput takes priority: any running automation whose session is waiting for input.
-		const hasNeedsInput = runs.some(run => {
-			if (run.status !== 'running' || !run.sessionResource) {
-				return false;
-			}
-			const session = automationSessions.find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, run.sessionResource));
-			return !!session && session.status.read(reader) === SessionStatus.NeedsInput;
-		});
-		if (hasNeedsInput) {
+		if (runs.some(({ status, session }) => status === 'running' && session?.status.read(reader) === SessionStatus.NeedsInput)) {
 			return SessionStatus.NeedsInput;
 		}
 
-		if (runs.some(run => run.status === 'pending' || run.status === 'running')) {
+		if (runs.some(({ status }) => status === 'pending' || status === 'running')) {
 			return SessionStatus.InProgress;
 		}
-		const hasUnreadRun = runs.some(run => {
-			if ((run.status !== 'completed' && run.status !== 'failed') || !run.sessionResource) {
-				return false;
-			}
-			const sessionResource = run.sessionResource;
-			const session = automationSessions.find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, sessionResource));
-			return !!session && !session.isRead.read(reader) && !session.isArchived.read(reader);
-		});
+		const hasUnreadRun = runs.some(({ status, session }) => (status === 'completed' || status === 'failed')
+			&& !!session && !session.isRead.read(reader) && !session.isArchived.read(reader));
 		if (hasUnreadRun) {
 			return SessionStatus.Completed;
 		}
 		return undefined;
 	});
 	private readonly customizationsIcon = derived(this, reader => this.customizationMigrationsAvailable.read(reader)
-		? { ...Codicon.circleFilled, color: themeColorFromId('activityWarningBadge.background') }
+		? { ...Codicon.circleFilled, color: themeColorFromId('activityBarBadge.background') }
 		: this.customizationExtensionSuggestionsAvailable.read(reader)
 			? { ...Codicon.circleFilled, color: themeColorFromId('activityBarBadge.background') }
 			: undefined);
@@ -2439,6 +2505,8 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly customizationExtensionSuggestionsAvailable: IObservable<boolean> = constObservable(false),
 		private readonly getGroupDepth: (section: ISessionSection) => number = () => 0,
 		private readonly getAppearance: (sectionId: string) => ISessionGroupAppearance | undefined = () => undefined,
+		/** Whether the Sessions list shows the session; the Automations entry ignores such runs. */
+		private readonly isSessionListed: (session: ISession, reader: IReader) => boolean = () => false,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionSectionTemplate {
@@ -2661,7 +2729,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 
 		// Set context key for section type so toolbar actions can use when clauses
-		const sectionType = element.id.startsWith('workspace:') ? 'workspace' : element.id.startsWith(REPOSITORY_SECTION_PREFIX) ? 'repository' : element.id.startsWith(ENVIRONMENT_SECTION_PREFIX) ? 'environment' : element.id;
+		const sectionType = getSessionSectionType(element.id);
 		SessionSectionTypeContext.bindTo(template.contextKeyService).set(sectionType);
 		const hasGitHubRepository = SessionSectionHasGitHubRepositoryContext.bindTo(template.contextKeyService);
 		const hasNonCloudRepository = SessionSectionHasNonCloudRepositoryContext.bindTo(template.contextKeyService);
@@ -2789,6 +2857,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 
 	/** Keyed by template because sticky scroll renders a second copy of a header while its tree row stays rendered. */
 	private readonly renderedGroups = new Map<ISessionGroupTemplate, ISessionGroupItem>();
+	private renameState: (IInlineRenameValueState & { readonly groupId: string }) | undefined;
 
 	constructor(
 		private readonly delegate: ISessionGroupRendererDelegate,
@@ -2797,6 +2866,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		private readonly headerStatusTrigger: ISessionHeaderStatusTrigger,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
+		private readonly configurationService: IConfigurationService,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionGroupTemplate {
@@ -2817,6 +2887,10 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		const toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, SessionGroupToolbarMenuId, {
 			menuOptions: { shouldForwardArgs: true },
 			telemetrySource: 'sessionsList.group',
+			actionViewItemProvider: createSessionActionViewItemProvider(scopedInstantiationService, this.configurationService, context => {
+				const group = context as ISessionGroupItem | undefined;
+				return !!group && !group.comparison?.launching && group.subtreeSessions.length > 0 && group.subtreeSessions.every(session => session.isArchived.get());
+			}),
 		}));
 
 		return { container, icon, collapsed: observableValue(this, false), labelContainer, label, description, inputContainer, toolbarContainer, toolbar, chevron, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
@@ -2871,6 +2945,9 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		if (element.editing) {
 			this.renderInput(element, template);
 		} else {
+			if (this.renameState?.groupId === element.group.id) {
+				this.renameState = undefined;
+			}
 			template.inputContainer.style.display = 'none';
 			template.labelContainer.style.display = '';
 		}
@@ -2879,15 +2956,14 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 	private renderInput(element: ISessionGroupItem, template: ISessionGroupTemplate): void {
 		template.labelContainer.style.display = 'none';
 		template.inputContainer.style.display = '';
-		DOM.clearNode(template.inputContainer);
 
-		const input = template.elementDisposables.add(new InputBox(template.inputContainer, undefined, {
+		if (this.renameState?.groupId !== element.group.id) {
+			this.renameState = { groupId: element.group.id, initialValue: element.group.name, value: element.group.name };
+		}
+		const input = createInlineRenameInputBox(template.inputContainer, undefined, this.renameState, {
 			inputBoxStyles: defaultInputBoxStyles,
 			ariaLabel: localize('sessionGroupName', "Group name"),
-		}));
-		input.value = element.group.name;
-		input.focus();
-		input.select();
+		}, template.elementDisposables);
 
 		let done = false;
 		const commit = () => {
@@ -2895,6 +2971,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 				return;
 			}
 			done = true;
+			this.renameState = undefined;
 			this.delegate.commitEdit(element.group, input.value.trim());
 		};
 		const cancel = () => {
@@ -2902,6 +2979,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 				return;
 			}
 			done = true;
+			this.renameState = undefined;
 			this.delegate.cancelEdit(element.group);
 		};
 
@@ -3084,6 +3162,8 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly reportExternalApplicationBadgeModeExperimentTrigger?: () => void;
 	readonly reportExternalApplicationBadgeShowFromExperimentTrigger?: () => void;
 	readonly getCompletedStatusMessage?: (session: ISession, reader: IReader | undefined) => string | undefined;
+	/** The harness label of a nested chat whose harness differs from its session's. */
+	readonly getChatHarnessLabel?: (session: ISession, chat: IChat, reader: IReader | undefined) => string | undefined;
 }
 
 class SessionsAccessibilityProvider {
@@ -3122,6 +3202,10 @@ class SessionsAccessibilityProvider {
 				const diffStats = chatStatus === SessionStatus.InProgress || chatStatus === SessionStatus.NeedsInput ? undefined : getChatListDiffStats(element.chat, reader);
 				if (diffStats) {
 					label = localize('sessionChatItemChangesAria', "{0}, {1} lines added, {2} lines removed", label, diffStats.insertions, diffStats.deletions);
+				}
+				const harnessLabel = this.options?.getChatHarnessLabel?.(element.session, element.chat, reader);
+				if (harnessLabel) {
+					label = localize('sessionChatItemHarnessAria', "{0}, uses harness {1}", label, harnessLabel);
 				}
 				const isArchived = element.chat.isArchived.read(reader);
 				const readLabel = !isArchived && !element.chat.isRead.read(reader)
@@ -3250,6 +3334,9 @@ class SessionsAccessibilityProvider {
 			if (eligible && badgeMode !== ExternalSessionApplicationBadgeMode.Off) {
 				this.options?.reportExternalApplicationBadgeShowFromExperimentTrigger?.();
 				label = localize('sessionItemExternalAria', "{0}, created in {1}", label, element.application.read(reader).label);
+			}
+			if (hasMixedChatHarnesses(element, reader)) {
+				label = localize('sessionItemMixedHarnessesAria', "{0}, chats use different harnesses", label);
 			}
 			if (!element.isArchived.read(reader) && !getSessionRowIsRead(element, reader, !!this.options?.deriveStatusFromMainChat)) {
 				label = localize('sessionItemUnreadAria', "{0}, unread", label);
@@ -3410,8 +3497,6 @@ interface ISessionsListDndDelegate {
 	getSessionDropEffect(sessions: readonly ISession[], destination: ISessionDropDestination): SessionDropEffect | undefined;
 	/** Move the sessions to the destination. */
 	moveSessions(sessions: readonly ISession[], destination: ISessionDropDestination): void;
-	/** Whether a group, or workspace or repository header can be dragged to move it. */
-	isHeaderReorderable(element: ISessionGroupItem | ISessionSection): boolean;
 	/** Highlight only the header that will receive the dragged sessions. */
 	setDropTargetHeader(header: ISessionDropTargetHeader | undefined): void;
 	/** Where a dragged header lands when dropped on the target in the given quarter of its row, or `undefined` when it can't land there. */
@@ -3424,6 +3509,10 @@ interface ISessionsListDndDelegate {
 	setHeaderInsertionDepth(depth: number | undefined): void;
 	/** The dragged chat row's chat, with its session, when moving chats by drag and drop is on and it can move. */
 	getMovableDraggedChat(item: ISessionChatItem): { readonly session: ISession; readonly chat: IChat } | undefined;
+	/** Whether nested chat rows are shown in their session's chat order, so that a position among them is a position in that order. */
+	areChatPositionsShown(): boolean;
+	/** Whether chats may also move into sessions of other agents that offer their harness (see {@link isCrossAgentChatMoveEnabled}). */
+	isCrossAgentChatMoveEnabled(): boolean;
 	/** Whether the session can move under another session, when moving chats by drag and drop is on. */
 	canMoveSessionUnder(session: ISession): boolean;
 	/** Move the chat of `session` as the drop says. */
@@ -3466,6 +3555,7 @@ interface IDraggedHeader {
 type SessionHeaderDrop =
 	| { readonly kind: 'topLevel'; readonly targetId: string; readonly position: 'before' | 'after' }
 	| { readonly kind: 'subgroup'; readonly parentId: string; readonly depth: number; readonly placement: ISessionGroupPlacement }
+	| { readonly kind: 'comparison'; readonly parent: ISessionSection | ISessionGroupItem; readonly anchor?: ISession | ISessionGroupItem; readonly position: 'before' | 'after'; readonly depth: number }
 	| { readonly kind: 'into'; readonly groupId: string };
 
 /** A resolved drop: its hover feedback and what dropping does. */
@@ -3492,12 +3582,12 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 
 	getDragURI(element: SessionListItem): string | null {
 		if (isSessionGroupItem(element)) {
-			return this.delegate.isHeaderReorderable(element) ? `sessionGroup:${element.group.id}` : null;
+			return `sessionGroup:${element.group.id}`;
 		}
 		if (isSessionSection(element)) {
 			// Only grouping sections are reorderable; Pinned, Done
 			// and the date sections stay fixed and are therefore not draggable.
-			return isSessionGroupingSection(element.id) && this.delegate.isHeaderReorderable(element) ? `sessionWorkspace:${element.id}` : null;
+			return isSessionGroupingSection(element.id) ? `sessionWorkspace:${element.id}` : null;
 		}
 		if (isSessionShowMore(element)) {
 			return null;
@@ -3598,7 +3688,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		if (elements.length > 0 && elements.every(isSessionChatItem)) {
 			// Only the provider orders nested chats: a chat it can't move, or several chats, can't be dropped.
 			const movable = elements.length === 1 ? this.movableChat(elements[0]) : undefined;
-			return movable ? this.resolveChatMove(movable, target, sector) : undefined;
+			return movable ? this.resolveChatMove(movable, target, targetIndex, sector) : undefined;
 		}
 		const sessions = elements.filter(isSessionItem);
 		if (sessions.length === 0) {
@@ -3608,7 +3698,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		if (nest?.kind === 'nest') {
 			const session = sessions[0];
 			return {
-				reaction: nest.position === 'over' ? intoSessionDropReaction() : toDropReaction({ position: toEffectPosition(nest.position) }),
+				reaction: nest.position === 'over' ? this.intoSessionDropReaction(target, targetIndex) : toDropReaction({ position: toEffectPosition(nest.position) }),
 				moveFeedback: nest.position === 'over' ? 'move' : 'nested',
 				run: () => this.delegate.moveSessionUnder(session, nest.session, nest.after),
 			};
@@ -3642,6 +3732,9 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		if (drop.kind === 'subgroup') {
 			return { reaction: toDropReaction(insertionFeedback(drop.placement.position)), insertionDepth: drop.depth, run };
 		}
+		if (drop.kind === 'comparison') {
+			return { reaction: toDropReaction(insertionFeedback(drop.position)), insertionDepth: drop.depth, run };
+		}
 		const isHeaderRow = isSessionGroupItem(target) && target.group.id === drop.groupId;
 		return {
 			reaction: toDropReaction(isHeaderRow ? { position: ListDragOverEffectPosition.Over } : undefined),
@@ -3659,14 +3752,14 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	 * Where a chat that its provider can move goes when dropped here (see {@link getSessionsListChatDrop}): within or
 	 * into a session, or into a new session. The provider then owns the chat order.
 	 */
-	private resolveChatMove(dragged: { readonly session: ISession; readonly chat: IChat }, targetElement: SessionListItem | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
+	private resolveChatMove(dragged: { readonly session: ISession; readonly chat: IChat }, targetElement: SessionListItem | undefined, targetIndex: number | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
 		let target: ISessionsListChatDropTarget | undefined;
 		if (targetElement && isSessionChatItem(targetElement)) {
 			target = { session: targetElement.session, chat: targetElement.chat, position: sectorToPosition(sector) };
 		} else if (targetElement && isSessionItem(targetElement)) {
 			target = { session: targetElement, chat: undefined, position: 'before' };
 		}
-		const drop = getSessionsListChatDrop(dragged.session, dragged.chat, target);
+		const drop = getSessionsListChatDrop(dragged.session, dragged.chat, target, this.delegate.areChatPositionsShown(), this.delegate.isCrossAgentChatMoveEnabled());
 		if (!drop) {
 			return undefined;
 		}
@@ -3675,7 +3768,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			// The whole list shows it receives the chat as a new session.
 			reaction = { accept: true, feedback: [-1], effect: { type: ListDragOverEffectType.Move, position: ListDragOverEffectPosition.Over } };
 		} else if (drop.position === 'over') {
-			reaction = intoSessionDropReaction();
+			reaction = this.intoSessionDropReaction(targetElement, targetIndex);
 		} else {
 			reaction = toDropReaction({ position: toEffectPosition(drop.position) });
 		}
@@ -3684,6 +3777,21 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			moveFeedback: drop.kind === 'session' && drop.position !== 'over' ? 'nested' : 'move',
 			run: () => this.delegate.moveChat(dragged.session, dragged.chat, drop),
 		};
+	}
+
+	/** Dropping into a session at its end highlights all of its rows, also when the pointer is over one of its nested chat rows. */
+	private intoSessionDropReaction(target: SessionListItem | undefined, targetIndex: number | undefined): ITreeDragOverReaction {
+		const reaction = intoSessionDropReaction();
+		if (!target || !isSessionChatItem(target) || targetIndex === undefined) {
+			return reaction;
+		}
+		const chatIndex = this.delegate.getVisibleChatRows(target.session).indexOf(target);
+		if (chatIndex < 0) {
+			return reaction;
+		}
+		const sessionIndex = targetIndex - chatIndex - 1;
+		const rowCount = this.delegate.getRenderedRowCount(target.session);
+		return { ...reaction, feedback: Array.from({ length: rowCount }, (_, i) => sessionIndex + i) };
 	}
 
 	/**
@@ -3706,7 +3814,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			isManuallyOrdered: () => this.delegate.isInManuallyOrderedSection(session),
 			isLastInSection: () => this.delegate.isLastRowOfSection(chatItem ?? session),
 			canPlace: position => !!this.resolveSessionDrop(sessions, session, undefined, position === 'before' ? ListViewTargetSector.TOP : ListViewTargetSector.BOTTOM),
-		});
+		}, this.delegate.areChatPositionsShown(), this.delegate.isCrossAgentChatMoveEnabled());
 	}
 
 	private resolveSessionDrop(sessions: readonly ISession[], target: SessionListItem | undefined, targetIndex: number | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
@@ -3824,11 +3932,11 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 
 	private draggedHeader(elements: readonly SessionListItem[]): IDraggedHeader | undefined {
 		const groupItem = elements.find(isSessionGroupItem);
-		if (groupItem && this.delegate.isHeaderReorderable(groupItem)) {
+		if (groupItem) {
 			return { id: getSessionGroupSectionId(groupItem.group.id), group: groupItem };
 		}
 		const section = elements.find((e): e is ISessionSection => isSessionSection(e) && isSessionGroupingSection(e.id));
-		if (section && this.delegate.isHeaderReorderable(section)) {
+		if (section) {
 			return { id: section.id };
 		}
 		return undefined;
@@ -3996,6 +4104,7 @@ export interface ISessionsList {
 	pinSession(session: ISession): void;
 	unpinSession(session: ISession): void;
 	isSessionPinned(session: ISession): boolean;
+	isSessionListed(session: ISession, reader?: IReader): boolean;
 	readonly filters: SessionsListFilters;
 	setExcludeArchived(exclude: boolean): void;
 	isExcludeArchived(): boolean;
@@ -4083,6 +4192,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * custom group: `true` lists every session, `false` caps the section.
 	 */
 	private static readonly SESSION_GROUP_EXPANSION_STATE_KEY = 'sessionsListControl.sessionGroupExpansionState';
+	/** Set once {@link SessionsList.migrateCloudSandboxRepositorySections} has run. */
+	private static readonly CLOUD_SANDBOX_REPOSITORY_SECTIONS_MIGRATED_KEY = 'sessionsListControl.cloudSandboxRepositorySectionsMigrated';
 	private static readonly DEFAULT_SESSION_GROUP_LIMIT = 5;
 
 	/**
@@ -4127,31 +4238,25 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly automationSessions = observableValue<readonly ISession[]>(this, []);
 	private readonly collapsedSessionIds = observableValue<ReadonlySet<string>>(this, new Set());
 	/**
-	 * Session IDs whose hierarchy indent/connector guides should be visible:
-	 * the union of the currently-hovered session (if any) and every session
-	 * that is the parent of, or itself, a currently selected or keyboard-focused
-	 * row. Focus is tracked separately from selection because arrow-key
-	 * navigation (via the workbench `list.focusUp`/`list.focusDown` commands)
-	 * moves the tree's focus without changing its selection.
-	 * Hovering, selecting, or focusing a chat child reveals its own parent's
-	 * guides only.
+	 * Session IDs whose hierarchy indent/connector guides show while the pointer
+	 * is outside the Sessions pane: every session that is the parent of, or
+	 * itself, a currently selected or keyboard-focused row. Focus is tracked
+	 * separately from selection because arrow-key navigation (via the workbench
+	 * `list.focusUp`/`list.focusDown` commands) moves the tree's focus without
+	 * changing its selection. While the pointer is over the pane, CSS shows
+	 * every hierarchy's guides.
 	 */
-	private readonly hoveredGuideSessionId = observableValue<string | undefined>(this, undefined);
 	private readonly selectedGuideSessionIds = observableValue<ReadonlySet<string>>(this, EMPTY_GUIDE_SESSION_IDS);
 	private readonly focusedGuideSessionIds = observableValue<ReadonlySet<string>>(this, EMPTY_GUIDE_SESSION_IDS);
 	private readonly activeGuideSessionIds = derived(this, reader => {
-		const hovered = this.hoveredGuideSessionId.read(reader);
 		const selected = this.selectedGuideSessionIds.read(reader);
 		const focused = this.focusedGuideSessionIds.read(reader);
-		if (!hovered && focused.size === 0) {
+		if (focused.size === 0) {
 			return selected;
 		}
 		const ids = new Set(selected);
 		for (const id of focused) {
 			ids.add(id);
-		}
-		if (hovered) {
-			ids.add(hovered);
 		}
 		return ids;
 	});
@@ -4181,7 +4286,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * Maximum number of sessions shown per workspace section or user group.
 	 */
 	private readonly sessionGroupLimit = observableValue<number>(this, SessionsList.DEFAULT_SESSION_GROUP_LIMIT);
-	private readonly renderedComparisonAttemptConnectorPositions = new Map<string, SessionGroupConnectorPosition>();
+	private readonly renderedComparisonParticipantConnectorPositions = new Map<string, SessionGroupConnectorPosition>();
 	private readonly renderedComparisonAttemptLabels = new Map<string, string>();
 	/** How many groups each rendered custom group is nested in, by group id. */
 	private readonly groupDepths = new Map<string, number>();
@@ -4284,6 +4389,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control.session-list-row-spacing'));
 		this.listContainer.classList.toggle('compact', this.isCompact());
+		this.updateIndentItems();
 		const markSectionFocusFromPointer = (element: HTMLElement) => this._register(DOM.addDisposableListener(element, DOM.EventType.POINTER_DOWN, () => {
 			element.classList.add(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
 		}));
@@ -4324,12 +4430,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (e.affectsConfiguration(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING) || e.affectsConfiguration(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING) || e.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)) {
 				this.update();
 			}
+			if (e.affectsConfiguration(SESSIONS_LIST_INDENT_ITEMS_SETTING)) {
+				this.updateIndentItems();
+			}
 		}));
 		// TEMPORARY (#320480): see the note on the `IAgentSessionsService` import.
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const voicePlaybackService = instantiationService.invokeFunction(accessor => accessor.get(IVoicePlaybackService));
 		const externalApplicationBadgeMode = observableConfigValue(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, ExternalSessionApplicationBadgeMode.Off, this.configurationService);
-		const externalApplicationBadgeShowFrom = observableConfigValue(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, true, this.configurationService);
+		const externalApplicationBadgeShowFrom = observableConfigValue(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, false, this.configurationService);
 		const reportExternalApplicationBadgeModeExperimentTrigger = () => logDefaultSettingExperimentTrigger(this.configurationService, this.telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING);
 		const reportExternalApplicationBadgeShowFromExperimentTrigger = () => logDefaultSettingExperimentTrigger(this.configurationService, this.telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING);
 		const sessionRenderer = new SessionItemRenderer(
@@ -4337,7 +4446,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				grouping: this.options.grouping,
 				isPinned: s => this.isSessionPinned(s),
 				isRenderedInCustomGroup: s => this.isRenderedInCustomGroup(s),
-				getGroupConnectorPosition: s => this.renderedComparisonAttemptConnectorPositions.get(s.sessionId),
+				getGroupConnectorPosition: s => this.renderedComparisonParticipantConnectorPositions.get(s.sessionId),
 				getComparisonAttemptLabel: s => this.renderedComparisonAttemptLabels.get(s.sessionId),
 				shouldShowComparisonAttemptStatus: (s, reader) => this.shouldShowComparisonAttemptStatus(s, reader),
 				isRenderedInExternalSection: s => this.isRenderedInExternalSection(s),
@@ -4414,6 +4523,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			},
 			this.activeGuideSessionIds,
 			item => this.getRowGroupDepth(item),
+			session => this.renderedComparisonParticipantConnectorPositions.get(session.sessionId),
+			item => getSessionAgentMergeConfigurationObservable(item.session, sessionsProvidersService, this.configurationService, item.chat),
 		);
 		this._chatRenderer = chatRenderer;
 		const selectHeader = (element: ISessionSection | ISessionGroupItem, event: MouseEvent) => {
@@ -4473,6 +4584,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			customizationExtensionSuggestionsAvailable,
 			section => this.getRowGroupDepth(section),
 			sectionId => this._sessionGroupsService.getSectionAppearance(sectionId),
+			(session, reader) => this._sessionsListModelService.isSessionListed(session, reader),
 		);
 		const sectionRenderer = createSectionRenderer(undefined, 'session-list-section-row');
 		const shortcutSectionRenderer = createSectionRenderer(SESSION_SHORTCUT_SECTION_TEMPLATE_ID, 'session-list-shortcut-row');
@@ -4482,7 +4594,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			cancelEdit: group => this.cancelGroupEdit(group),
 			select: selectHeader,
 			toggleCollapsed: element => this.tree.toggleCollapsed(element),
-		}, showUnreadInCollapsedSections, sessionsWithFailingCI, headerStatusTrigger, instantiationService, contextKeyService);
+		}, showUnreadInCollapsedSections, sessionsWithFailingCI, headerStatusTrigger, instantiationService, contextKeyService, this.configurationService);
 		this._groupRenderer = groupRenderer;
 
 		// Read (don't bind) `IsPhoneLayoutContext` from the parent context so we
@@ -4556,6 +4668,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			{
 				accessibilityProvider: new SessionsAccessibilityProvider(sectionRenderer.automationStatus, {
 					grouping: this.options.grouping,
+					getChatHarnessLabel: (session, chat, reader) => getDistinctChatHarnessLabel(session, chat, sessionsProvidersService, reader),
 					isPinned: session => this.isSessionPinned(session),
 					isRenderedInCustomGroup: session => this.isRenderedInCustomGroup(session),
 					getComparisonAttemptLabel: session => this.renderedComparisonAttemptLabels.get(session.sessionId),
@@ -4578,12 +4691,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 					getDateSections: () => this.getDateSections(),
 					getSessionDropEffect: (sessions, destination) => this.getSessionDropEffect(sessions, destination),
 					moveSessions: (sessions, destination) => this.moveSessions(sessions, destination).catch(onUnexpectedError),
-					isHeaderReorderable: element => this.isHeaderReorderable(element),
 					setDropTargetHeader: header => this.setDropTargetHeader(header),
 					getHeaderDrop: (header, target, sector) => this.getHeaderDrop(header, target, sector),
 					getRenderedRowCount: element => this.tree.hasElement(element) ? this.tree.getListRenderCount(element) : 1,
 					moveHeader: (header, drop) => this.moveHeader(header, drop),
 					getMovableDraggedChat: item => this.getMovableDraggedChat(item),
+					areChatPositionsShown: () => this.areChatPositionsShown(),
+					isCrossAgentChatMoveEnabled: () => isCrossAgentChatMoveEnabled(this.configurationService),
 					canMoveSessionUnder: session => this.isChatMoveDndEnabled() && this._sessionsManagementService.canMoveSessionUnder(session),
 					moveChat: (session, chat, drop) => this.moveChatByDrop(session, chat, drop),
 					moveSessionUnder: (session, target, after) => this.moveSessionUnderByDrop(session, target, after),
@@ -4682,9 +4796,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 				},
 				overrideStyles: this.options.overrideStyles,
 				renderIndentGuides: RenderIndentGuides.None,
-				twistieAdditionalCssClass: element => isSessionItem(element) && this.getRenderedSessionListChats(element).length > 0
-					? 'session-chat-twistie'
-					: 'force-no-twistie',
+				twistieAdditionalCssClass: element => {
+					if (!isSessionItem(element) || this.getRenderedSessionListChats(element).length === 0) {
+						return 'force-no-twistie';
+					}
+					if (this.renderedComparisonAttemptLabels.has(element.sessionId)) {
+						return 'session-comparison-attempt-twistie';
+					}
+					return this.renderedComparisonParticipantConnectorPositions.has(element.sessionId) ? 'session-comparison-twistie' : 'session-chat-twistie';
+				},
 			}
 		));
 		const focusedChatItemContext = SessionsListFocusedChatItemContext.bindTo(this.tree.contextKeyService);
@@ -4734,8 +4854,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		// Hierarchy guides: resolve any row (a session or one of its chats) to
-		// the session whose guides it belongs to, so hovering/selecting/focusing
-		// a chat child reveals only its own parent's guides, never an unrelated
+		// the session whose guides it belongs to, so selecting/focusing a chat
+		// child reveals only its own parent's guides, never an unrelated
 		// session's.
 		const guideOwnerSessionId = (element: SessionListItem | null): string | undefined => {
 			if (element && isSessionItem(element)) {
@@ -4756,17 +4876,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			return ids;
 		};
-		this._register(this.tree.onMouseOver(e => {
-			this.hoveredGuideSessionId.set(guideOwnerSessionId(e.element), undefined);
-		}));
-		this._register(this.tree.onMouseOut(e => {
-			// Only clear if the pointer left the row that set the hover, i.e. no
-			// unrelated `mouseout` (e.g. bubbling from a child element within the
-			// same row) resets a hover another row's `mouseover` just established.
-			if (guideOwnerSessionId(e.element) === this.hoveredGuideSessionId.get()) {
-				this.hoveredGuideSessionId.set(undefined, undefined);
-			}
-		}));
 		this._register(this.tree.onMouseClick(e => {
 			if (e.element && isSessionGroupItem(e.element) && e.element.comparison && e.browserEvent.button === 0) {
 				this.commandService.executeCommand(OPEN_SESSION_COMPARISON_COMMAND_ID, e.element.comparison.id);
@@ -5083,7 +5192,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		// Scope to the selected host's providers; an empty set (a declared
 		// group with no members yet) matches nothing rather than everything.
-		let filtered = this.sessions.filter(session => !isAutomationSession(session));
+		let filtered = this.sessions.filter(session => this._sessionsListModelService.isSessionListed(session));
 		const scopedProviderIds = this._agentHostFilterService.selectedHost?.providerIds;
 		if (scopedProviderIds) {
 			const scoped = new Set(scopedProviderIds);
@@ -5101,7 +5210,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// Keep the active user-facing session visible even when another filter excludes it.
 		for (const revealedSession of [activeSession, onboardingSession]) {
 			if (revealedSession && !filtered.some(s => s.sessionId === revealedSession.sessionId)) {
-				const match = this.sessions.find(s => s.sessionId === revealedSession.sessionId && !isAutomationSession(s));
+				const match = this.sessions.find(s => s.sessionId === revealedSession.sessionId && this._sessionsListModelService.isSessionListed(s));
 				if (match) {
 					filtered = [...filtered, match];
 				}
@@ -5151,11 +5260,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 				? sortComparisonGroupMembers(comparison, members, sorting, sortKeyForGrouping)
 				: sortSessions(members, sorting, sortKeyForGrouping)];
 		}));
-		this.renderedComparisonAttemptConnectorPositions.clear();
+		this.renderedComparisonParticipantConnectorPositions.clear();
 		this.renderedComparisonAttemptLabels.clear();
 		this.comparisonSectionIds.clear();
 		this.groupDepths.clear();
-		const topLevelGroupIds = topLevelGroups.map(group => getSessionGroupSectionId(group.id));
+		const topLevelGroupIds = topLevelGroups.filter(group => !comparisonsByGroupId.has(group.id)).map(group => getSessionGroupSectionId(group.id));
 
 		const archivedSectionLabel = getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService));
 		const environments = grouping === SessionsGrouping.Environment
@@ -5171,7 +5280,33 @@ export class SessionsList extends Disposable implements ISessionsList {
 			sections.push({ id: 'archived', label: archivedSectionLabel, sessions: [] });
 		}
 		const comparisonGroupsBySectionId = new Map<string, ISessionGroup[]>();
-		if (grouping !== SessionsGrouping.Date) {
+		const dateSectionByEntryId = new Map<string, string>();
+		if (grouping === SessionsGrouping.Date) {
+			const entries: SessionSortEntry[] = [
+				...forSections.filter(session => !session.isArchived.get() && !this.isSessionPinned(session) && !(this.groupExternalSessions && session.isExternal?.get())),
+				...topLevelGroups.filter(group => comparisonsByGroupId.has(group.id)).map(group => this.getComparisonSortEntry(group.id)),
+			];
+			const key = (entry: SessionSortEntry) => this._sessionsListModelService.getSortKey(entry, sortingToMode(sorting));
+			// A comparison counts as one entry when applying the Recent limit.
+			const [recent, older] = partitionByDate(entries.sort((a, b) => key(b) - key(a)), sorting, key, entry => entry.updatedAt.get().getTime());
+			for (const [id, entries] of [['recent', recent], ['older', older]] as const) {
+				const memberIds = new Set(entries.map(entry => entry.sessionId));
+				for (const entry of entries) {
+					dateSectionByEntryId.set(entry.sessionId, id);
+				}
+				const index = sections.findIndex(section => section.id === id);
+				const section: ISessionSection = {
+					id, label: id === 'recent' ? localize('recent', "Recent") : localize('older', "Older"),
+					sessions: sortSessions(forSections.filter(session => memberIds.has(session.sessionId)), sorting, sortKeyForGrouping),
+				};
+				if (index !== -1) {
+					sections.splice(index, 1, ...(entries.length > 0 ? [section] : []));
+				} else if (entries.length > 0) {
+					sections.push(section);
+				}
+			}
+		}
+		{
 			let addedRepositorySection = false;
 			for (const group of groups) {
 				const comparison = comparisonsByGroupId.get(group.id);
@@ -5194,8 +5329,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 					? comparisonSessions.map(sessionWorkspaceLabel).find(label => label !== localize('unknown', "Unknown"))
 					?? this.labelService.getWorkspaceLabel(comparison.workspace)
 					: localize('chatsSection', "Chats");
-				const sectionId = environment ? `${ENVIRONMENT_SECTION_PREFIX}${environment.id}` : !comparison.workspace ? QUICK_CHATS_SECTION_ID : repository ? getRepositorySectionId(repository) : `workspace:${workspaceLabel}`;
+				const sectionId = grouping === SessionsGrouping.Date
+					? dateSectionByEntryId.get(getSessionGroupSectionId(group.id))
+					: environment ? `${ENVIRONMENT_SECTION_PREFIX}${environment.id}` : !comparison.workspace ? QUICK_CHATS_SECTION_ID : repository ? getRepositorySectionId(repository) : `workspace:${workspaceLabel}`;
+				if (!sectionId) {
+					continue;
+				}
 				this.comparisonSectionIds.set(group.id, sectionId);
+				if (group.parentId !== undefined) {
+					continue;
+				}
 				let workspaceGroups = comparisonGroupsBySectionId.get(sectionId);
 				if (!workspaceGroups) {
 					workspaceGroups = [];
@@ -5204,16 +5347,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 				workspaceGroups.push(group);
 				let workspaceSection = sections.find(section => section.id === sectionId);
 				if (!workspaceSection) {
-					workspaceSection = environment
-						? { id: sectionId, label: environment.label, environment, sessions: [] }
-						: repository
-							? { id: sectionId, label: repository.name, repository, sessions: [] }
-							: {
-								id: sectionId,
-								collapseStateId: comparison.workspace ? `workspace:${comparison.workspace.toString()}` : QUICK_CHATS_SECTION_ID,
-								label: workspaceLabel,
-								sessions: [],
-							};
+					workspaceSection = grouping === SessionsGrouping.Date
+						? { id: sectionId, label: sectionId === 'recent' ? localize('recent', "Recent") : localize('older', "Older"), sessions: [] }
+						: environment
+							? { id: sectionId, label: environment.label, environment, sessions: [] }
+							: repository
+								? { id: sectionId, label: repository.name, repository, sessions: [] }
+								: {
+									id: sectionId,
+									collapseStateId: comparison.workspace ? `workspace:${comparison.workspace.toString()}` : QUICK_CHATS_SECTION_ID,
+									label: workspaceLabel,
+									sessions: [],
+								};
 					sections.push(workspaceSection);
 					addedRepositorySection ||= !!repository;
 				}
@@ -5238,7 +5383,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const groupItemsById = new Map<string, ISessionGroupItem>();
 		const buildGroupItem = (group: ISessionGroup, depth: number): ISessionGroupItem => {
 			const comparisonSectionId = this.comparisonSectionIds.get(group.id);
-			const comparisonParentId = comparisonSectionId ? this.getSectionParentId(comparisonSectionId) : undefined;
+			const comparisonParentId = group.parentId ?? (comparisonSectionId ? this.getSectionParentId(comparisonSectionId) : undefined);
 			if (comparisonParentId !== undefined) {
 				depth = groupTree.getPath(comparisonParentId).length;
 			}
@@ -5246,6 +5391,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const members = sortedMembersByGroupId.get(group.id)!;
 			const comparison = comparisonsByGroupId.get(group.id);
 			if (comparison) {
+				const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+				const sameHarness = attempts.every(participant =>
+					participant.harness.providerId === attempts[0].harness.providerId
+					&& participant.harness.sessionTypeId === attempts[0].harness.sessionTypeId);
 				for (const participant of comparison.participants) {
 					if (participant.role !== SessionComparisonParticipantRole.Attempt) {
 						continue;
@@ -5254,7 +5403,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 						? members.find(member => isEqual(member.resource, participant.sessionResource))
 						: undefined;
 					if (session) {
-						this.renderedComparisonAttemptLabels.set(session.sessionId, getSessionComparisonHarnessLabel(participant));
+						this.renderedComparisonAttemptLabels.set(session.sessionId, getSessionComparisonHarnessLabel(participant, !sameHarness));
 					}
 				}
 			}
@@ -5452,16 +5601,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const renderGroup = (groupItem: ISessionGroupItem): IObjectTreeElement<SessionListItem> => {
 			const sectionId = getSessionGroupSectionId(groupItem.group.id);
 			// Subgroups always render above the group's own sessions.
+			const comparisonChildren: IObjectTreeElement<SessionListItem>[] = [];
 			const subgroupChildren = this._sessionGroupsService.getChildIds(groupItem.group.id).flatMap(id => {
 				const subgroup = groupItemsById.get(id);
 				if (subgroup) {
+					if (subgroup.comparison) {
+						comparisonChildren.push(renderGroup(subgroup));
+						return [];
+					}
 					return [renderGroup(subgroup)];
 				}
 				const section = sectionById.get(id);
 				return section && this.getSectionParentId(section.id) === groupItem.group.id ? [renderWorkspaceSection(section)] : [];
 			});
 			const sessionChildren: IObjectTreeElement<SessionListItem>[] = groupItem.sessions.length === 0
-				? subgroupChildren.length === 0
+				? subgroupChildren.length === 0 && comparisonChildren.length === 0
 					? [{
 						element: {
 							placeholder: true as const,
@@ -5476,14 +5630,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 					? { stateId: sectionId, expandedByDefault: true }
 					: undefined);
 			const visibleGroupSessions = sessionChildren.map(child => child.element).filter(isSessionItem);
-			const connectorSessions = groupItem.comparison
-				? visibleGroupSessions.filter(session => this.renderedComparisonAttemptLabels.has(session.sessionId))
-				: [];
-			if (connectorSessions.length > 1) {
+			const connectorSessions = groupItem.comparison ? visibleGroupSessions : [];
+			if (connectorSessions.length > 0) {
 				for (let index = 0; index < connectorSessions.length; index++) {
-					this.renderedComparisonAttemptConnectorPositions.set(
+					this.renderedComparisonParticipantConnectorPositions.set(
 						connectorSessions[index].sessionId,
-						index === 0 ? 'first' : index === connectorSessions.length - 1 ? 'last' : 'middle',
+						index === connectorSessions.length - 1 ? 'last' : 'middle',
 					);
 				}
 			}
@@ -5491,7 +5643,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				element: groupItem,
 				collapsible: true,
 				collapsed: this.getSavedCollapseState(sectionId) ?? ObjectTreeElementCollapseState.PreserveOrExpanded,
-				children: [...subgroupChildren, ...sessionChildren],
+				children: [...subgroupChildren, ...(comparisonChildren.length > 0 ? this.sortComparisonChildren([...comparisonChildren, ...sessionChildren]) : sessionChildren)],
 			};
 		};
 
@@ -5504,10 +5656,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const renderedSection = renderSection(section, section.sessions.filter(session => !comparisonSessionIds.has(session.sessionId)));
 			return {
 				...renderedSection,
-				children: [
+				children: this.sortComparisonChildren([
 					...comparisonGroups.map(renderGroup),
 					...(renderedSection.children ?? []),
-				],
+				]),
 			};
 		};
 
@@ -5565,7 +5717,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				} else {
 					const section = sections.find(s => s.id === id);
 					if (section) {
-						children.push(renderSection(section));
+						children.push(renderWorkspaceSection(section));
 					}
 				}
 			}
@@ -5775,7 +5927,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 				await this.commandService.executeCommand('sessionsView.manageAutomations');
 				break;
 			case CUSTOMIZATIONS_SECTION_ID:
-				await this.commandService.executeCommand(OPEN_AI_CUSTOMIZATIONS_COMMAND_ID);
+				if (this.options.customizationMigrationsAvailable?.get()) {
+					await this.commandService.executeCommand(OPEN_AI_CUSTOMIZATIONS_COMMAND_ID, {
+						migration: true,
+					} satisfies IOpenAICustomizationsCommandOptions);
+				} else {
+					await this.commandService.executeCommand(OPEN_AI_CUSTOMIZATIONS_COMMAND_ID);
+				}
 				break;
 		}
 	}
@@ -6064,6 +6222,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.update();
 	}
 
+	private updateIndentItems(): void {
+		this.listContainer.classList.toggle('indent-items', this.configurationService.getValue<boolean>(SESSIONS_LIST_INDENT_ITEMS_SETTING) === true);
+	}
+
 	focus(): void {
 		this.tree.domFocus();
 
@@ -6191,7 +6353,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * section keeps a fixed order (archived sessions and comparison groups).
 	 */
 	private getReorderScope(session: ISession): string | undefined {
-		if (session.isArchived.get() || isAutomationSession(session)) {
+		if (session.isArchived.get() || !this._sessionsListModelService.isSessionListed(session)) {
 			return undefined;
 		}
 		if (this.isSessionPinned(session)) {
@@ -6278,6 +6440,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		runSessionsListMove(move, this._sessionsManagementService, this.notificationService, this.logService, {
 			notice: this.options.getMoveNotice?.(),
 			watch: watched => this.watchMoveForReveal(watched),
+			placementServices: { sessionsListModelService: this._sessionsListModelService, sessionGroupsService: this._sessionGroupsService },
 		}).catch(onUnexpectedError);
 	}
 
@@ -6398,16 +6561,23 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (placement.kind !== 'section' || !isDateSectionPlacement(placement)) {
 			return true;
 		}
+		const changes = destination.anchor && this.computeSessionReorder(this.sortInDisplayOrder(sessions), destination.anchor);
+		return this.canPlaceInDateSection(sessions, placement.sectionId, changes);
+	}
+
+	private canPlaceInDateSection(moved: readonly SessionSortEntry[], sectionId: string, changes: { set: ReadonlyMap<string, number>; clear: readonly string[] } | undefined): boolean {
 		const sorting = this.options.sorting();
 		const mode = sortingToMode(sorting);
-		const changes = destination.anchor && this.computeSessionReorder(this.sortInDisplayOrder(sessions), destination.anchor);
-		const getSortKey = (session: ISession) => changes?.set.get(session.sessionId)
+		const getSortKey = (session: SessionSortEntry) => changes?.set.get(session.sessionId)
 			?? (changes?.clear.includes(session.sessionId) ? this._sessionsListModelService.getNaturalSortKey(session, mode) : this._sessionsListModelService.getSortKey(session, mode));
-		const movedIds = new Set(sessions.map(session => session.sessionId));
-		const dateSessions = (this.getDateSections() ?? []).flatMap(section => section.sessions).filter(session => !movedIds.has(session.sessionId));
-		const sections = groupByDate(sortSessions([...dateSessions, ...sessions], sorting, getSortKey), sorting, getSortKey);
-		const target = sections.find(section => section.id === placement.sectionId);
-		return sessions.every(session => target?.sessions.includes(session));
+		const movedIds = new Set(moved.map(entry => entry.sessionId));
+		const entries: SessionSortEntry[] = [
+			...(this.getDateSections() ?? []).flatMap(section => section.sessions).filter(session => !this.isActiveComparisonSession(session)),
+			...this._sessionGroupsService.getGroups().filter(group => group.parentId === undefined && this.isComparisonGroup(group.id)).map(group => this.getComparisonSortEntry(group.id)),
+		].filter(entry => !movedIds.has(entry.sessionId)).concat(moved);
+		const [recent, older] = partitionByDate(entries.sort((a, b) => getSortKey(b) - getSortKey(a)), sorting, getSortKey, entry => entry.updatedAt.get().getTime());
+		const target = sectionId === 'recent' ? recent : older;
+		return moved.every(entry => target.includes(entry));
 	}
 
 	/** The sessions in the order the tree renders them, including collapsed sections. */
@@ -6486,21 +6656,24 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return undefined;
 		}
 		const mode = sortingToMode(this.options.sorting());
-		const getKey = (session: ISession) => this._sessionsListModelService.getSortKey(session, mode);
+		const getKey = (session: SessionSortEntry) => this._sessionsListModelService.getSortKey(session, mode);
 
 		// Neighbours come from every session that shares the anchor's sort order,
 		// including collapsed sections, so the slot matches the rendered order.
 		const draggedIds = new Set(sessions.map(session => session.sessionId));
-		const remaining = this.sessions
-			.filter(session => !draggedIds.has(session.sessionId) && this.getReorderScope(session) === scope)
-			.sort((a, b) => getKey(b) - getKey(a));
+		const remaining: SessionSortEntry[] = [
+			...this.sessions.filter(session => !draggedIds.has(session.sessionId) && this.getReorderScope(session) === scope),
+			...this._sessionGroupsService.getGroups()
+				.filter(group => this.isComparisonGroup(group.id) && this.getComparisonReorderScope(group) === scope)
+				.map(group => this.getComparisonSortEntry(group.id)),
+		].sort((a, b) => getKey(b) - getKey(a));
 		const anchorIndex = remaining.findIndex(session => session.sessionId === anchor.session.sessionId);
 		if (anchorIndex === -1) {
 			return undefined;
 		}
 		const insertIndex = anchor.position === 'before' ? anchorIndex : anchorIndex + 1;
-		const above: ISession | undefined = remaining[insertIndex - 1];
-		const below: ISession | undefined = remaining[insertIndex];
+		const above = remaining[insertIndex - 1];
+		const below = remaining[insertIndex];
 		let aboveKey = above && getKey(above);
 		let belowKey = below && getKey(below);
 		const now = Date.now();
@@ -6509,8 +6682,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			// An open boundary belongs to the first or last date section.
 			const dateSections = this.getDateSections() ?? [];
 			const anchorSection = dateSections.find(section => section.sessions.includes(anchor.session));
-			const isInAnchorSection = (neighbour: ISession | undefined, boundarySection: ISessionSection | undefined) =>
-				neighbour ? !!anchorSection?.sessions.includes(neighbour) : anchorSection === boundarySection;
+			const isInAnchorSection = (neighbour: SessionSortEntry | undefined, boundarySection: ISessionSection | undefined) =>
+				neighbour ? !!anchorSection?.sessions.some(session => session.sessionId === neighbour.sessionId)
+					|| this.comparisonSectionIds.get(getSessionGroupIdOfSection(neighbour.sessionId) ?? '') === anchorSection?.id : anchorSection === boundarySection;
 			const span = (sessions.length + 1) * ADJACENT_SORT_STEP_MS;
 			const anchorKey = getKey(anchor.session);
 			if (anchor.position === 'before' && !isInAnchorSection(above, dateSections.at(0))) {
@@ -6543,6 +6717,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 			.filter((element): element is ISessionChatItem => !!element && isSessionChatItem(element));
 	}
 
+	/** Nested chats are shown in their session's chat order, which the provider owns, only when sorting by creation. */
+	private areChatPositionsShown(): boolean {
+		return this.options.sorting() === SessionsSorting.Created;
+	}
+
 	/** The sibling chat row a nested chat swaps with when moved up or down, if any. */
 	private getAdjacentChatRow(item: ISessionChatItem, direction: 'up' | 'down'): ISessionChatItem | undefined {
 		const rows = this.getChatRows(item.session);
@@ -6555,9 +6734,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * there or its provider can't move the chat there. Only the provider orders nested chats.
 	 */
 	private getAdjacentChatMove(item: ISessionChatItem, direction: 'up' | 'down'): { readonly session: ISession; readonly chat: IChat; readonly drop: SessionsListChatDrop } | undefined {
-		const target = this.getAdjacentChatRow(item, direction);
+		const positionsShown = this.areChatPositionsShown();
+		const target = positionsShown ? this.getAdjacentChatRow(item, direction) : undefined;
 		const movable = target && this.getMovableDraggedChat(item);
-		const drop = target && movable && getSessionsListChatDrop(movable.session, movable.chat, { session: target.session, chat: target.chat, position: direction === 'up' ? 'before' : 'after' });
+		const drop = target && movable && getSessionsListChatDrop(movable.session, movable.chat, { session: target.session, chat: target.chat, position: direction === 'up' ? 'before' : 'after' }, positionsShown, isCrossAgentChatMoveEnabled(this.configurationService));
 		return movable && drop ? { session: movable.session, chat: movable.chat, drop } : undefined;
 	}
 
@@ -6789,9 +6969,80 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.update();
 	}
 
-	/** Comparison groups keep their place inside grouping sections; any other group or grouping header can be dragged. */
-	private isHeaderReorderable(element: ISessionGroupItem | ISessionSection): boolean {
-		return !isSessionGroupItem(element) || !element.comparison || this.options.grouping() === SessionsGrouping.Date;
+	private getComparisonSortEntry(groupId: string): SessionSortEntry {
+		const comparison = this.sessionComparisonService.comparisons.get().find(comparison => comparison.groupId === groupId)!;
+		const updatedAt = Math.max(comparison.createdAt, ...getComparisonSessions(comparison, this._sessionsManagementService).map(session => session.updatedAt.get().getTime()));
+		return { sessionId: getSessionGroupSectionId(groupId), createdAt: new Date(comparison.createdAt), updatedAt: constObservable(new Date(updatedAt)) };
+	}
+
+	private getComparisonReorderScope(group: ISessionGroup): string | undefined {
+		return group.parentId !== undefined ? getSessionGroupSectionId(group.parentId)
+			: this.options.grouping() === SessionsGrouping.Date ? DATE_SECTION_IDS[0] : this.comparisonSectionIds.get(group.id);
+	}
+
+	private getListSortEntry(element: ISession | ISessionGroupItem): SessionSortEntry {
+		return isSessionGroupItem(element) ? this.getComparisonSortEntry(element.group.id) : element;
+	}
+
+	private sortComparisonChildren(children: IObjectTreeElement<SessionListItem>[]): IObjectTreeElement<SessionListItem>[] {
+		const key = (child: IObjectTreeElement<SessionListItem>) => isSessionItem(child.element) || (isSessionGroupItem(child.element) && child.element.comparison)
+			? this._sessionsListModelService.getSortKey(this.getListSortEntry(child.element), sortingToMode(this.options.sorting()))
+			: Number.NEGATIVE_INFINITY;
+		return children.sort((a, b) => key(b) - key(a));
+	}
+
+	private getComparisonDrop(group: ISessionGroupItem, target: SessionListItem, sector: ListViewTargetSector | undefined): SessionHeaderDrop | undefined {
+		if (isSessionGroupItem(target) && !target.comparison) {
+			return this.canNestGroup(group.group.id, target.group.id) ? { kind: 'into', groupId: target.group.id } : undefined;
+		}
+		const anchor = isSessionChatItem(target) ? target.session
+			: isSessionItem(target) || (isSessionGroupItem(target) && target.comparison) ? target : undefined;
+		if (anchor === group || (anchor && isSessionItem(anchor) && this._sessionGroupsService.getGroupOfSession(anchor.sessionId) === group.group.id)) {
+			return undefined;
+		}
+		const parent = anchor ? this.tree.getParentElement(anchor) : target;
+		if (!parent || (!isSessionSection(parent) && !isSessionGroupItem(parent))) {
+			return undefined;
+		}
+		if (isSessionGroupItem(parent)) {
+			if (!this.canNestGroup(group.group.id, parent.group.id)) {
+				return undefined;
+			}
+		} else if (!DATE_SECTION_IDS.includes(parent.id) && parent.id !== this.comparisonSectionIds.get(group.group.id)) {
+			return undefined;
+		}
+		const sectionParentId = isSessionSection(parent) ? this.getSectionParentId(parent.id) : undefined;
+		const drop: Extract<SessionHeaderDrop, { kind: 'comparison' }> = {
+			kind: 'comparison', parent, anchor,
+			position: sector === ListViewTargetSector.TOP ? 'before' : 'after',
+			depth: isSessionGroupItem(parent) ? parent.depth + 1 : (sectionParentId ? this._sessionGroupsService.getTree().getPath(sectionParentId).length + 1 : 1),
+		};
+		return isSessionSection(parent) && DATE_SECTION_IDS.includes(parent.id)
+			&& !this.canPlaceInDateSection([this.getComparisonSortEntry(group.group.id)], parent.id, this.computeComparisonReorder(group.group.id, drop))
+			? undefined : drop;
+	}
+
+	private computeComparisonReorder(groupId: string, drop: Extract<SessionHeaderDrop, { kind: 'comparison' }>): { set: Map<string, number>; clear: string[] } {
+		const mode = sortingToMode(this.options.sorting());
+		const entry = this.getComparisonSortEntry(groupId);
+		const parent = drop.parent;
+		const siblings = this._sessionGroupsService.getGroups().filter(group => group.id !== groupId && this.isComparisonGroup(group.id)
+			&& (isSessionGroupItem(parent) ? group.parentId === parent.group.id : group.parentId === undefined && this.comparisonSectionIds.get(group.id) === parent.id));
+		const getKey = (entry: SessionSortEntry) => this._sessionsListModelService.getSortKey(entry, mode);
+		const remaining: SessionSortEntry[] = [
+			...parent.sessions.filter(session => !this.isActiveComparisonSession(session)),
+			...siblings.map(group => this.getComparisonSortEntry(group.id)),
+		].sort((a, b) => getKey(b) - getKey(a));
+		const anchorId = drop.anchor && this.getListSortEntry(drop.anchor).sessionId;
+		const anchorIndex = remaining.findIndex(entry => entry.sessionId === anchorId);
+		const index = anchorIndex === -1 ? (drop.position === 'before' ? 0 : remaining.length) : anchorIndex + (drop.position === 'after' ? 1 : 0);
+		return computeReorderSortChanges({
+			draggedIds: [entry.sessionId],
+			naturalKeys: [this._sessionsListModelService.getNaturalSortKey(entry, mode)],
+			aboveKey: index > 0 ? getKey(remaining[index - 1]) : undefined,
+			belowKey: index < remaining.length ? getKey(remaining[index]) : undefined,
+			now: Date.now(), fallbackStep: SORT_FALLBACK_STEP_MS,
+		});
 	}
 
 	/**
@@ -6802,6 +7053,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * that header's siblings. Groups only nest where {@link canNestGroup} allows.
 	 */
 	private getHeaderDrop(header: IDraggedHeader, target: SessionListItem, sector: ListViewTargetSector | undefined): SessionHeaderDrop | undefined {
+		if (header.group?.comparison) {
+			return this.getComparisonDrop(header.group, target, sector);
+		}
+		if (isSessionGroupItem(target) && target.comparison) {
+			const parent = this.tree.getParentElement(target);
+			return parent ? this.getHeaderDrop(header, parent, sector) : undefined;
+		}
 		const groupTree = this._sessionGroupsService.getTree();
 		const draggedId = header.group?.group.id;
 		const canNestIn = (groupId: string) => draggedId !== undefined
@@ -6809,7 +7067,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			: this.canHoldSubgroups(groupId);
 
 		if (isSessionGroupItem(target)) {
-			if (target.group.id === draggedId || !this.isHeaderReorderable(target)) {
+			if (target.group.id === draggedId) {
 				return undefined;
 			}
 			const node = this.tree.hasElement(target) ? this.tree.getNode(target) : undefined;
@@ -6856,6 +7114,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/** Moves the header with the given section id, the header of `groupId` when it is a group, to where `drop` says. */
 	private applyHeaderDrop(headerId: string, groupId: string | undefined, drop: SessionHeaderDrop): void {
+		if (groupId !== undefined && this.isComparisonGroup(groupId)) {
+			if (drop.kind === 'into') {
+				this.saveSectionCollapseState(getSessionGroupSectionId(drop.groupId), false);
+				this._sessionGroupsService.moveGroup(groupId, drop.groupId);
+			} else if (drop.kind === 'comparison') {
+				const mode = sortingToMode(this.options.sorting());
+				const changes = this.computeComparisonReorder(groupId, drop);
+				this._sessionsListModelService.applySortChanges(mode, changes.set, changes.clear);
+				this._sessionGroupsService.moveGroup(groupId, isSessionGroupItem(drop.parent) ? drop.parent.group.id : undefined);
+			}
+			return;
+		}
+		if (drop.kind === 'comparison') {
+			return;
+		}
 		if (drop.kind !== 'topLevel') {
 			const parentId = drop.kind === 'into' ? drop.groupId : drop.parentId;
 			if (groupId === undefined ? !this.canHoldSubgroups(parentId) : !this.canNestGroup(groupId, parentId)) {
@@ -6893,11 +7166,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/**
-	 * Whether a group can be nested in `parentId`: comparison groups neither nest
-	 * nor hold subgroups, and a group never nests in itself or its own subgroups.
+	 * Whether a group can be nested in `parentId`. Comparisons cannot hold
+	 * subgroups, and a group never nests in itself or its own subgroups.
 	 */
 	private canNestGroup(groupId: string, parentId: string, groupTree = this._sessionGroupsService.getTree()): boolean {
-		return !this.isComparisonGroup(groupId) && this.canHoldSubgroups(parentId) && groupTree.canMove(groupId, parentId);
+		return this.canHoldSubgroups(parentId) && groupTree.canMove(groupId, parentId);
 	}
 
 	/** Whether the group can hold subgroups: any group except a comparison group. */
@@ -7105,14 +7378,25 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (!this._sessionGroupsService.getGroup(groupId)) {
 				throw new Error(`Group "${headerId}" does not exist.`);
 			}
-			if (this.isComparisonGroup(groupId) && this.options.grouping() !== SessionsGrouping.Date) {
-				throw new Error(`Comparison group "${headerId}" keeps its place inside its grouping section.`);
-			}
 		} else if (!isSessionGroupingSection(headerId) || this.options.grouping() === SessionsGrouping.Date) {
 			throw new Error(`"${headerId}" cannot move: only custom groups and workspace, repository, or environment sections of the current grouping move.`);
 		}
 		if (sibling?.siblingId === headerId) {
 			throw new Error(`"${headerId}" cannot be positioned relative to itself.`);
+		}
+		if (groupId !== undefined && this.isComparisonGroup(groupId) && sibling) {
+			const groupItem = this.findTreeElement((element): element is ISessionGroupItem => isSessionGroupItem(element) && element.group.id === groupId);
+			const target = this.findTreeElement((element): element is ISessionGroupItem => isSessionGroupItem(element) && getSessionGroupSectionId(element.group.id) === sibling.siblingId);
+			const targetParent = target && this.tree.getParentElement(target);
+			const targetParentId = targetParent && isSessionGroupItem(targetParent) ? getSessionGroupSectionId(targetParent.group.id) : undefined;
+			const drop = groupItem && target && targetParentId === parentId
+				? this.getComparisonDrop(groupItem, target, sibling.position === 'before' ? ListViewTargetSector.TOP : ListViewTargetSector.BOTTOM)
+				: undefined;
+			if (!drop) {
+				throw new Error(`Comparison "${headerId}" can only be ordered next to comparisons in its destination.`);
+			}
+			this.applyHeaderDrop(headerId, groupId, drop);
+			return;
 		}
 
 		let drop: SessionHeaderDrop;
@@ -7307,6 +7591,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const contextOverlay: [string, boolean | string][] = [
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
 			[SessionItemIsMultiSelectionContext.key, selectedSessions.length > 1],
+			[SessionItemHasMoveDestinationContext.key, getSessionMoveDestinations(element, this._sessionsManagementService.getSessions(), this._sessionsManagementService, isCrossAgentChatMoveEnabled(this.configurationService)).length > 0],
 			[SessionItemHasUnreadNestedSessionsContext.key, selectedSessions.some(session =>
 				!session.isArchived.get()
 				&& session.capabilities.get().supportsIndependentChatReadState === true
@@ -7316,6 +7601,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionItemInGroupContext.key, inGroup],
 			[SessionItemInExternalSectionContext.key, this.isRenderedInExternalSection(element)],
 			[SessionItemCanImportContext.key, element.isExternal?.get() === true && element.capabilities.get().supportsImport === true],
+			[SessionItemIsAutomationContext.key, isAutomationSession(element)],
+			[SessionItemIsInSessionsListContext.key, this._sessionsListModelService.isSessionListed(element)],
 			[SessionTypeContext.key, element.sessionType],
 			[SessionProviderIdContext.key, element.providerId],
 			[SessionSupportsMultipleChatsContext.key, element.capabilities.get().supportsMultipleChats],
@@ -7361,9 +7648,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			});
 		};
 
-		const baseActions = Separator.join(...menu.getActions({ arg: selectedSessions, shouldForwardArgs: true }).map(([, actions]) => actions.map(wrapAction)));
-		const groupActions = this.getGroupSessionActions(selectedSessions);
-		const actions = groupActions.length > 0 ? [...baseActions, new Separator(), ...groupActions] : baseActions;
+		const menuGroups = menu.getActions({ arg: selectedSessions, shouldForwardArgs: true }).map(([group, actions]): [string, IAction[]] => [group, actions.map(wrapAction)]);
+		// Group membership actions depend on the list's groups, so they are built here and merged into the contributed Organize group.
+		const actions = joinContextMenuGroups([...menuGroups, [SessionItemOrganizeMenuGroup, this.getGroupSessionActions(selectedSessions)]]);
 		if (actions.length === 0) {
 			this._sessionContextMenuDisposables.clear();
 			return;
@@ -7397,6 +7684,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionChatItemCanMoveUpContext.key, this.getAdjacentChatMove(element, 'up') !== undefined],
 			[SessionChatItemCanMoveDownContext.key, this.getAdjacentChatMove(element, 'down') !== undefined],
 			[SessionChatItemCanMoveContext.key, this._sessionsManagementService.canMoveChat(element.session, element.chat)],
+			[SessionChatItemHasMoveDestinationContext.key, getChatMoveDestinations(element.session, element.chat, this._sessionsManagementService.getSessions(), this._sessionsManagementService, isCrossAgentChatMoveEnabled(this.configurationService)).length > 0],
 			[SessionProviderIdContext.key, element.session.providerId],
 		]);
 		const menu = this.menuService.createMenu(Menus.SessionChatItemContext, contextKeyService);
@@ -7425,10 +7713,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/**
-	 * Build the group-related context menu actions for the given session(s):
-	 * "Create Group", an "Add to Group"/"Move to Group" submenu listing the
-	 * groups in display order, named by their path, and "Remove from Group"
-	 * when applicable.
+	 * Build the group membership context menu actions for the given session(s):
+	 * an "Add to Group"/"Move to Group" submenu listing the other groups in
+	 * display order, named by their path, "Create Group", and "Remove from
+	 * Group" when applicable.
 	 */
 	private getGroupSessionActions(selected: ISession[]): IAction[] {
 		const actions: IAction[] = [];
@@ -7436,14 +7724,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return actions;
 		}
 
-		actions.push(this.getCreateGroupAction(selected));
-
 		const currentGroupIds = new Set(selected.map(s => this._sessionGroupsService.getGroupOfSession(s.sessionId)));
 		const currentGroupId = currentGroupIds.size === 1 ? [...currentGroupIds][0] : undefined;
 
-		const groups = this.getGroupsInDisplayOrder();
 		const groupTree = this._sessionGroupsService.getTree();
-		const targetGroups = groups.filter(g => g.id !== currentGroupId);
+		const targetGroups = this.getGroupsInDisplayOrder().filter(g => g.id !== currentGroupId);
 		if (targetGroups.length > 0) {
 			const subActions = targetGroups.map(g => toAction({
 				id: `sessions.addToGroup.${g.id}`,
@@ -7453,6 +7738,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const label = currentGroupId !== undefined ? localize('moveToGroupAction', "Move to Group") : localize('addToGroupAction', "Add to Group");
 			actions.push(new SubmenuAction('sessions.addToGroupSubmenu', label, subActions));
 		}
+
+		actions.push(this.getCreateGroupAction(selected));
 
 		if (currentGroupId !== undefined) {
 			actions.push(toAction({
@@ -7500,25 +7787,29 @@ export class SessionsList extends Disposable implements ISessionsList {
 			id: 'sessionsViewPane.markAllInSectionRead',
 			label: localize('markAllInSectionRead', "Mark All as Read"),
 			run: () => {
-				const sessions = getSessions().filter(session => !isAutomationSession(session) && !session.isArchived.get() && !session.isRead.get());
+				const sessions = getSessions().filter(session => this._sessionsListModelService.isSessionListed(session) && !session.isArchived.get() && !session.isRead.get());
 				return this._sessionsManagementService.markAllRead(sessions);
 			},
 		});
 	}
 
 	private showSectionContextMenu(section: ISessionSection, anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
-		const actions: IAction[] = [];
-		if (section.id === EXTERNAL_SESSIONS_SECTION_ID) {
-			const contextKeyService = this.contextKeyService.createOverlay([[SessionSectionTypeContext.key, EXTERNAL_SESSIONS_SECTION_ID]]);
-			actions.push(...getFlatContextMenuActions(this.menuService.getMenuActions(SessionSectionToolbarMenuId, contextKeyService, { arg: section, shouldForwardArgs: true })), new Separator());
-		}
+		const contextKeyService = this.contextKeyService.createOverlay([
+			[SessionSectionTypeContext.key, getSessionSectionType(section.id)],
+			[SessionSectionHasNonCloudRepositoryContext.key, section.sessions.some(session => session.workspace.get()?.folders.some(folder => folder.root.scheme !== GITHUB_REMOTE_FILE_SCHEME) ?? false)],
+		]);
+		const groups: [string, readonly IAction[]][] = [];
+		const organize: IAction[] = [];
 		const grouping = this.options.grouping();
+		if (grouping === SessionsGrouping.Date && DATE_SECTION_IDS.includes(section.id)) {
+			groups.push(['1_state', [this.getMarkAllSessionsReadAction(() => section.sessions)]]);
+		}
 		if (grouping !== SessionsGrouping.Date && isSessionGroupingSection(section.id)) {
-			actions.push(this.getMarkAllSessionsReadAction(() => this.sessions.filter(session => getSessionGroupingSectionId(session, grouping) === section.id)));
+			groups.push(['1_state', [this.getMarkAllSessionsReadAction(() => this.sessions.filter(session => getSessionGroupingSectionId(session, grouping) === section.id))]]);
 			const parentId = this.getSectionParentId(section.id);
-			const groups = this.getGroupsInDisplayOrder().filter(group => this.canHoldSubgroups(group.id));
-			if (groups.length > 0) {
-				actions.push(new Separator(), new SubmenuAction('sessions.moveSectionToGroup', localize('moveSectionToGroup', "Move to Group"), groups.map(group => toAction({
+			const groupsInDisplayOrder = this.getGroupsInDisplayOrder().filter(group => this.canHoldSubgroups(group.id));
+			if (groupsInDisplayOrder.length > 0) {
+				organize.push(new SubmenuAction('sessions.moveSectionToGroup', localize('moveSectionToGroup', "Move to Group"), groupsInDisplayOrder.map(group => toAction({
 					id: `sessions.moveSectionToGroup.${group.id}`,
 					label: getSessionGroupPathLabel(this._sessionGroupsService.getTree().getPath(group.id)),
 					checked: group.id === parentId,
@@ -7527,23 +7818,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}))));
 			}
 			if (parentId !== undefined) {
-				actions.push(toAction({
+				organize.push(toAction({
 					id: 'sessions.removeSectionFromGroup',
 					label: localize('removeSectionFromGroup', "Remove from Group"),
 					run: () => this.moveSectionToGroup(section, undefined),
 				}));
 			}
-			actions.push(new Separator(), ...this.getGroupAppearanceActions(
+			groups.push(['4_manage', this.getGroupAppearanceActions(
 				this._sessionGroupsService.getSectionAppearance(section.id),
 				icon => this._sessionGroupsService.setSectionIcon(section.id, icon),
 				color => this._sessionGroupsService.setSectionColor(section.id, color),
-			), new Separator());
+			)]);
 		}
-		actions.push(this.getCreateGroupAction());
-		this.contextMenuService.showContextMenu({
-			getActions: () => actions,
-			getAnchor: () => anchor,
-		});
+		organize.push(this.getCreateGroupAction());
+		groups.push(['2_organize', organize]);
+		this.showHeaderContextMenu(Menus.SessionSectionContext, contextKeyService, section, groups, anchor);
 	}
 
 	private moveSectionToGroup(section: ISessionSection, parentId: string | undefined): void {
@@ -7602,10 +7891,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private showGroupContextMenu(groupItem: ISessionGroupItem, anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
-		const actions: IAction[] = [];
 		const comparison = groupItem.comparison;
-		if (this.options.grouping() !== SessionsGrouping.Date && !groupItem.isEmpty) {
-			actions.push(this.getMarkAllSessionsReadAction(() => {
+		const contextKeyService = this.contextKeyService.createOverlay([
+			[SessionGroupHasVisibleSessionsContext.key, groupItem.subtreeSessions.length > 0 && comparison?.launching !== true],
+			[SessionGroupIsEmptyContext.key, groupItem.isEmpty],
+			[SessionGroupIsComparisonContext.key, !!comparison],
+		]);
+		const groups: [string, readonly IAction[]][] = [];
+		if (!groupItem.isEmpty) {
+			groups.push(['1_state', [this.getMarkAllSessionsReadAction(() => {
 				const subtree = this._sessionGroupsService.getTree().getSubtree(groupItem.group.id);
 				const sessionIds = new Set(subtree.flatMap(group => this._sessionGroupsService.getSessionIdsInGroup(group.id)));
 				const groupIds = new Set(subtree.map(group => group.id));
@@ -7618,46 +7912,89 @@ export class SessionsList extends Disposable implements ISessionsList {
 					return sessionIds.has(session.sessionId)
 						|| (!session.isArchived.get() && !this.isSessionPinned(session) && parentId !== undefined && groupIds.has(parentId));
 				});
-			}), new Separator());
+			})]]);
 		}
-		actions.push(this.canHoldSubgroups(groupItem.group.id) ? this.getCreateSubgroupAction(groupItem) : this.getCreateGroupAction());
+		if (this.canHoldSubgroups(groupItem.group.id)) {
+			groups.push(['2_organize', [this.getCreateSubgroupAction(groupItem)]]);
+		}
+		if (comparison) {
+			const move = (parentId: string | undefined) => {
+				this.moveHeaderTo(getSessionGroupSectionId(groupItem.group.id), parentId === undefined ? undefined : getSessionGroupSectionId(parentId), undefined);
+				aria.status(parentId === undefined
+					? localize('comparisonRemovedFromGroup', "Removed {0} from its group", comparison.title)
+					: localize('comparisonMovedToGroup', "Moved {0} to {1}", comparison.title, this._sessionGroupsService.getGroup(parentId)!.name));
+			};
+			const targets = this.getGroupsInDisplayOrder().filter(group => group.id !== groupItem.group.parentId && this.canNestGroup(groupItem.group.id, group.id));
+			const organize: IAction[] = [];
+			if (targets.length > 0) {
+				organize.push(new SubmenuAction('sessions.moveComparisonToGroup', localize('moveToGroupAction', "Move to Group"), targets.map(group => toAction({
+					id: `sessions.moveComparisonToGroup.${group.id}`,
+					label: group.name,
+					run: () => move(group.id),
+				}))));
+			}
+			if (groupItem.group.parentId !== undefined) {
+				organize.push(toAction({
+					id: 'sessions.removeComparisonFromGroup',
+					label: localize('removeFromGroupAction', "Remove from Group"),
+					run: () => move(undefined),
+				}));
+			}
+			groups.push(['2_organize', organize]);
+		}
 		if (!comparison) {
-			actions.push(
-				new Separator(),
+			groups.push(['4_manage', [
 				...this.getGroupAppearanceActions(
 					groupItem.group,
 					icon => this._sessionGroupsService.setGroupIcon(groupItem.group.id, icon),
 					color => this._sessionGroupsService.setGroupColor(groupItem.group.id, color),
 				),
-				new Separator(),
 				toAction({
 					id: 'sessions.renameGroupAction',
 					label: localize('renameGroupAction', "Rename..."),
 					run: () => this.beginRenameGroup(groupItem.group.id),
 				}),
 				this.getDeleteGroupAction(groupItem),
-			);
+			]]);
 		} else {
 			if (this.sessionComparisonService.canRetryJudge(comparison.id)) {
-				actions.push(
-					new Separator(),
-					toAction({
-						id: 'sessions.retryComparisonJudge',
-						label: localize('retryComparisonJudge', "Retry Judge"),
-						run: () => this.sessionComparisonService.retryJudge(comparison.id),
-					}),
-				);
+				groups.push(['navigation', [toAction({
+					id: 'sessions.retryComparisonJudge',
+					label: localize('retryComparisonJudge', "Retry Judge"),
+					run: () => this.sessionComparisonService.retryJudge(comparison.id),
+				})]]);
 			}
 			const comparisonRecord = this.sessionComparisonService.getComparison(comparison.id);
 			const comparisonSessions = comparisonRecord ? getComparisonSessions(comparisonRecord, this._sessionsManagementService) : [];
 			// Deleting while attempts are still launching would retire the comparison under its in-flight launches.
 			if (comparisonRecord?.launching !== true && !comparisonSessions.some(session => isSessionActive(session, undefined))) {
-				actions.push(new Separator(), this.getDeleteGroupAction(groupItem));
+				groups.push(['4_manage', [this.getDeleteGroupAction(groupItem)]]);
 			}
+		}
+		this.showHeaderContextMenu(Menus.SessionGroupContext, contextKeyService, groupItem, groups, anchor);
+	}
+
+	/** Shows a header's contributed context menu with the list's own header actions merged into its groups. */
+	private showHeaderContextMenu(menuId: MenuId, contextKeyService: IContextKeyService, arg: ISessionSection | ISessionGroupItem, groups: readonly (readonly [string, readonly IAction[]])[], anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
+		const disposables = new DisposableStore();
+		this._sessionContextMenuDisposables.value = disposables;
+		const menu = disposables.add(this.menuService.createMenu(menuId, contextKeyService));
+		const actions = joinContextMenuGroups([...groups, ...menu.getActions({ arg, shouldForwardArgs: true })]);
+		if (actions.length === 0) {
+			this._sessionContextMenuDisposables.clear();
+			return;
 		}
 		this.contextMenuService.showContextMenu({
 			getActions: () => actions,
 			getAnchor: () => anchor,
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id) ?? undefined,
+			onHide: () => {
+				if (this._sessionContextMenuDisposables.value === disposables) {
+					this._sessionContextMenuDisposables.clear();
+				} else {
+					disposables.dispose();
+				}
+			},
 		});
 	}
 
@@ -7687,6 +8024,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	isSessionPinned(session: ISession): boolean {
 		return this._sessionsListModelService.isSessionPinned(session);
+	}
+
+	/** Whether the list includes the session before filters apply. Automation sessions are only included once shown here. */
+	isSessionListed(session: ISession, reader?: IReader): boolean {
+		return this._sessionsListModelService.isSessionListed(session, reader);
 	}
 
 	getRenderedSessionGroup(session: ISession): ISessionGroup | undefined {
@@ -8049,6 +8391,123 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 	}
 
+	// -- One-time state migration --
+
+	/**
+	 * Repository grouping showed cloud sandbox sessions in their workspace section until they joined
+	 * their repository's section. Once ever, this gives each such repository section the list state
+	 * recorded for that workspace section, unless the repository section has its own: its custom
+	 * group and position there, top-level position, icon and color, collapse state, and show
+	 * more/show less choice. Nothing is removed, as Workspace grouping still shows the workspace section.
+	 *
+	 * A Copilot cloud session's workspace section is named `<owner>/<repo>` like a cloud sandbox
+	 * session's, so state keyed by that name (position, icon and color) is adopted only for
+	 * repositories that state keyed unambiguously shows had cloud sandbox sessions: a custom group
+	 * placement in Repository grouping, or a collapse or show more/show less choice keyed by an
+	 * `https://github.com/<owner>/<repo>` workspace, which Copilot cloud sessions never have.
+	 */
+	// TODO@benibenj Remove after 2027-01-26, once profiles have run it.
+	static migrateCloudSandboxRepositorySections(storageService: IStorageService, sessionGroupsService: ISessionGroupsService, sessionSectionOrderService: ISessionSectionOrderService): void {
+		if (storageService.getBoolean(SessionsList.CLOUD_SANDBOX_REPOSITORY_SECTIONS_MIGRATED_KEY, StorageScope.PROFILE, false)) {
+			return;
+		}
+		try {
+			// Workspace section ids, by the id of the repository section that adopts their state.
+			const workspaceSectionIds = new Map<string, Set<string>>();
+			const addWorkspaceSection = (repositorySectionId: string, workspaceSectionId: string) => {
+				let ids = workspaceSectionIds.get(repositorySectionId);
+				if (!ids) {
+					ids = new Set();
+					workspaceSectionIds.set(repositorySectionId, ids);
+				}
+				ids.add(workspaceSectionId);
+			};
+
+			for (const key of [SessionsList.SECTION_COLLAPSE_STATE_KEY, SessionsList.SESSION_GROUP_EXPANSION_STATE_KEY]) {
+				const state = readStoredBooleans(storageService, key);
+				let changed = false;
+				for (const [stateId, value] of Object.entries(state)) {
+					const repository = stateId.startsWith('workspace:https:') ? getGitHubRepositoryOfUrl(URI.parse(stateId.slice('workspace:'.length))) : undefined;
+					if (!repository) {
+						continue;
+					}
+					const repositorySectionId = getRepositorySectionId({ owner: repository.owner, name: repository.repo });
+					// A cloud sandbox session's workspace section is named after the repository it names by URL.
+					addWorkspaceSection(repositorySectionId, `workspace:${repository.owner}/${repository.repo}`);
+					if (state[repositorySectionId] === undefined) {
+						state[repositorySectionId] = value;
+						changed = true;
+					}
+				}
+				if (changed) {
+					storageService.store(key, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+				}
+			}
+
+			// Repository grouping placed a workspace section without a repository under `repository:workspace:<name>`.
+			const placements: { readonly key: string; readonly groupId: string; readonly repositorySectionId: string }[] = [];
+			for (const group of sessionGroupsService.getGroups()) {
+				for (const key of sessionGroupsService.getSectionIdsInGroup(group.id)) {
+					if (!key.startsWith(`${REPOSITORY_SECTION_PREFIX}workspace:`)) {
+						continue;
+					}
+					const workspaceSectionId = key.slice(REPOSITORY_SECTION_PREFIX.length);
+					const [owner, name] = getGitHubRepositoryId(workspaceSectionId.slice('workspace:'.length))?.split('/') ?? [];
+					if (owner && name) {
+						const repositorySectionId = getRepositorySectionId({ owner, name });
+						addWorkspaceSection(repositorySectionId, workspaceSectionId);
+						placements.push({ key, groupId: group.id, repositorySectionId });
+					}
+				}
+			}
+			for (const { key, groupId, repositorySectionId } of placements) {
+				// A promoted section was placed at the top level by the user, which `getGroupOfSection` does not record.
+				if (sessionGroupsService.getGroupOfSection(repositorySectionId) === undefined && !sessionSectionOrderService.isPromoted(repositorySectionId)) {
+					sessionGroupsService.moveSection(repositorySectionId, groupId, { siblingId: key, position: 'after' });
+				}
+			}
+
+			for (const [repositorySectionId, ids] of workspaceSectionIds) {
+				for (const workspaceSectionId of ids) {
+					sessionSectionOrderService.adoptPosition(workspaceSectionId, repositorySectionId);
+					const appearance = sessionGroupsService.getSectionAppearance(workspaceSectionId);
+					if (appearance && !sessionGroupsService.getSectionAppearance(repositorySectionId)) {
+						sessionGroupsService.setSectionIcon(repositorySectionId, appearance.icon);
+						sessionGroupsService.setSectionColor(repositorySectionId, appearance.color);
+					}
+				}
+			}
+		} finally {
+			storageService.store(SessionsList.CLOUD_SANDBOX_REPOSITORY_SECTIONS_MIGRATED_KEY, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
+	}
+}
+
+/** A stored JSON record of booleans, without its other values. */
+function readStoredBooleans(storageService: IStorageService, key: string): Record<string, boolean> {
+	try {
+		const parsed = JSON.parse(storageService.get(key, StorageScope.PROFILE) ?? '{}');
+		if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+			return Object.fromEntries(Object.entries(parsed).filter((entry): entry is [string, boolean] => typeof entry[1] === 'boolean'));
+		}
+	} catch {
+		// Ignore corrupt persisted state.
+	}
+	return {};
+}
+
+/** Migrates persisted sessions list state at startup, before the list restores it. */
+export class SessionsListStateMigrationContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessionsListStateMigration';
+
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@ISessionGroupsService sessionGroupsService: ISessionGroupsService,
+		@ISessionSectionOrderService sessionSectionOrderService: ISessionSectionOrderService,
+	) {
+		SessionsList.migrateCloudSandboxRepositorySections(storageService, sessionGroupsService, sessionSectionOrderService);
+	}
 }
 
 //#endregion
@@ -8371,6 +8830,7 @@ export function isAutomationSession(session: ISession): boolean {
 	return session.isAutomation?.get() ?? false;
 }
 
+/** Places sessions in the sections of the given grouping. Callers pass only the sessions the list includes. */
 export function groupSessionsForList(
 	sessions: ISession[],
 	grouping: SessionsGrouping,
@@ -8381,7 +8841,7 @@ export function groupSessionsForList(
 	groupExternalSessions = false,
 	normalizedEnvironments: readonly ISessionEnvironment[] = getSessionEnvironments([]),
 ): ISessionSection[] {
-	const sorted = sortSessions(sessions.filter(session => !isAutomationSession(session)), sorting, getSortKey);
+	const sorted = sortSessions(sessions, sorting, getSortKey);
 
 	// Archived and explicit pins take precedence over the automatic buckets.
 	const pinned: ISession[] = [];
@@ -8484,14 +8944,10 @@ function workspaceCollapseStateId(sessions: readonly ISession[]): string | undef
 		: undefined;
 }
 
-/**
- * The GitHub repository of a session's primary folder. A cloud session's folder names it
- * in its `github-remote-file` URI; other sessions report it through their Git metadata.
- */
+/** The GitHub repository of a session's primary folder, as {@link getSessionFolderGitHubRepository} describes. */
 export function getSessionRepository(session: ISession): ISessionRepository | undefined {
-	const folder = session.workspace.get()?.folders[0];
-	const gitHubInfo = folder?.gitRepository?.gitHubInfo.get();
-	return getGitHubRemoteFileRepository(folder?.root) ?? (gitHubInfo ? { owner: gitHubInfo.owner, name: gitHubInfo.repo } : undefined);
+	const repository = getSessionFolderGitHubRepository(session.workspace.get()?.folders[0]);
+	return repository && { owner: repository.owner, name: repository.repo };
 }
 
 function getRepositorySectionId(repository: ISessionRepository): string {
@@ -8578,12 +9034,23 @@ export interface INewSessionSource {
 }
 
 /**
+ * Whether a new session can start in a session's workspace. A folder that only names a repository
+ * by URL, like a cloud sandbox session's before its sandbox connects, has no checkout to start in.
+ */
+export function canStartNewSessionLike(session: ISession): boolean {
+	return !getGitHubRepositoryOfUrl(session.workspace.get()?.folders[0]?.root);
+}
+
+/**
  * The most recently created session of each available environment among `sessions`, in
  * Environment filter order. New sessions in a repository section start in their workspaces.
  */
 export function getNewSessionSources(sessions: readonly ISession[], sessionsProvidersService: ISessionsProvidersService): INewSessionSource[] {
 	const sources = new Map<string, INewSessionSource>();
 	for (const session of sessions) {
+		if (!canStartNewSessionLike(session)) {
+			continue;
+		}
 		const environment = sessionsProvidersService.getProvider(session.providerId)?.environment;
 		if (!environment || environment.isConnected?.get() === false) {
 			continue;
@@ -8603,17 +9070,29 @@ const RECENTLY_UPDATED_SESSION_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 
 export function groupByDate(sessions: ISession[], sorting: SessionsSorting, getSortKey?: (session: ISession, sorting: SessionsSorting) => number): ISessionSection[] {
 	const key = getSortKey ?? defaultSortKey;
+	const [recent, older] = partitionByDate(sessions, sorting, session => key(session, sorting), session => session.updatedAt.get().getTime());
+	const sections: ISessionSection[] = [];
+	if (recent.length > 0) {
+		sections.push({ id: 'recent', label: localize('recent', "Recent"), sessions: recent });
+	}
+	if (older.length > 0) {
+		sections.push({ id: 'older', label: localize('older', "Older"), sessions: older });
+	}
+	return sections;
+}
+
+function partitionByDate<T>(entries: readonly T[], sorting: SessionsSorting, getSortKey: (entry: T) => number, getUpdatedTime: (entry: T) => number): [T[], T[]] {
 	const now = new Date();
 	const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 	const startOfWeek = startOfToday - 7 * 86_400_000;
 	const recentlyUpdatedThreshold = now.getTime() - RECENTLY_UPDATED_SESSION_THRESHOLD_MS;
 
-	const recent: ISession[] = [];
-	const older: ISession[] = [];
+	const recent: T[] = [];
+	const older: T[] = [];
 
-	for (const session of sessions) {
-		const time = key(session, sorting);
-		const wasRecentlyUpdated = sorting === SessionsSorting.Created && session.updatedAt.get().getTime() >= recentlyUpdatedThreshold;
+	for (const session of entries) {
+		const time = getSortKey(session);
+		const wasRecentlyUpdated = sorting === SessionsSorting.Created && getUpdatedTime(session) >= recentlyUpdatedThreshold;
 		const isWithinRecentLimit = recent.length < RECENT_SESSIONS_LIMIT && time >= startOfWeek;
 		const isWithinUpdatedRecentLimit = recent.length < RECENT_SESSIONS_LIMIT_WITH_UPDATES && wasRecentlyUpdated;
 
@@ -8624,17 +9103,7 @@ export function groupByDate(sessions: ISession[], sorting: SessionsSorting, getS
 		}
 	}
 
-	const sections: ISessionSection[] = [];
-	const addGroup = (id: string, label: string, groupSessions: ISession[]) => {
-		if (groupSessions.length > 0) {
-			sections.push({ id, label, sessions: groupSessions });
-		}
-	};
-
-	addGroup('recent', localize('recent', "Recent"), recent);
-	addGroup('older', localize('older', "Older"), older);
-
-	return sections;
+	return [recent, older];
 }
 
 //#endregion
@@ -8755,7 +9224,7 @@ export class SessionsFlatList extends Disposable {
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const useCompactQuickChatRows = this.options.useCompactQuickChatRows ?? true;
 		const externalApplicationBadgeMode = observableConfigValue(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, ExternalSessionApplicationBadgeMode.Off, configurationService);
-		const externalApplicationBadgeShowFrom = observableConfigValue(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, true, configurationService);
+		const externalApplicationBadgeShowFrom = observableConfigValue(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, false, configurationService);
 		const reportExternalApplicationBadgeModeExperimentTrigger = () => logDefaultSettingExperimentTrigger(configurationService, telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING);
 		const reportExternalApplicationBadgeShowFromExperimentTrigger = () => logDefaultSettingExperimentTrigger(configurationService, telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING);
 
@@ -8875,6 +9344,8 @@ export class SessionsFlatList extends Disposable {
 			[SessionSupportsDeleteContext.key, session.capabilities.get().supportsDelete ?? false],
 			[IsQuickChatSessionContext.key, session.isQuickChat?.get() ?? false],
 			[SessionItemStatusContext.key, session.status.get()],
+			[SessionItemIsAutomationContext.key, isAutomationSession(session)],
+			[SessionItemIsInSessionsListContext.key, this._sessionsListModelService.isSessionListed(session)],
 			...(this.options.getAdditionalContextKeys?.(session, undefined) ?? []),
 		]);
 		const menu = disposables.add(this.menuService.createMenu(this.options.contextMenuId, contextKeyService));

@@ -17,6 +17,7 @@ import { IChatAgentRequest } from '../../../contrib/chat/common/participants/cha
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { ChatAgentResponseStream, ExtHostChatAgents2 } from '../../common/extHostChatAgents2.js';
 import { CommandsConverter, ExtHostCommands } from '../../common/extHostCommands.js';
+import { ExtHostLanguageModels } from '../../common/extHostLanguageModels.js';
 import { IChatAgentProgressShape, IChatProgressDto, MainThreadChatAgentsShape2, MainThreadCommandsShape } from '../../common/extHost.protocol.js';
 import { ChatRequestTurn, ChatResponseAnchorPart, ChatResponseTextEditPart, Range, TextEdit } from '../../common/extHostTypes.js';
 import { SingleProxyRPCProtocol } from './testRPCProtocol.js';
@@ -24,7 +25,7 @@ import { SingleProxyRPCProtocol } from './testRPCProtocol.js';
 suite('ExtHostChatAgents2', function () {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createParticipant(dynamic = false, enablePrivateApi = false) {
+	function createParticipant(dynamic = false, enablePrivateApi = false, handler: vscode.ChatExtendedRequestHandler = async () => ({})) {
 		let handle = -1;
 		let unregisterCount = 0;
 		const unregisteredCompletions: { handle: number; id: string }[] = [];
@@ -38,11 +39,14 @@ suite('ExtHostChatAgents2', function () {
 		const commands = new ExtHostCommands(SingleProxyRPCProtocol(new class extends mock<MainThreadCommandsShape>() {
 			override $registerCommand(): void { }
 		}), new NullLogService(), undefined!);
-		const agents = disposables.add(new ExtHostChatAgents2(SingleProxyRPCProtocol(proxy), new NullLogService(), commands, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!));
+		const languageModels = new class extends mock<ExtHostLanguageModels>() {
+			override async getLanguageModelForRequest() { return new (mock<vscode.LanguageModelChat>())(); }
+		};
+		const agents = disposables.add(new ExtHostChatAgents2(SingleProxyRPCProtocol(proxy), new NullLogService(), commands, undefined!, undefined!, languageModels, undefined!, undefined!, undefined!));
 		const extension = { ...nullExtensionDescription, enabledApiProposals: enablePrivateApi ? ['chatParticipantAdditions', 'chatParticipantPrivate'] as const : ['chatParticipantAdditions'] as const };
 		const participant = disposables.add(dynamic
-			? agents.createDynamicChatAgent(extension, 'test.participant', { name: 'Test', publisherName: 'Test' }, async () => ({}))
-			: agents.createChatAgent(extension, 'test.participant', async () => ({})));
+			? agents.createDynamicChatAgent(extension, 'test.participant', { name: 'Test', publisherName: 'Test' }, handler)
+			: agents.createChatAgent(extension, 'test.participant', handler));
 		return { agents, participant, commands, handle, unregisteredCompletions, unregisterCount: () => unregisterCount };
 	}
 
@@ -131,6 +135,29 @@ suite('ExtHostChatAgents2', function () {
 		participant.dispose();
 		participant.dispose();
 		assert.deepStrictEqual({ unregisterCount: unregisterCount(), unregisteredCompletions }, { unregisterCount: 1, unregisteredCompletions: [] });
+	});
+
+	test('applies yield requests that arrive before the request is invoked', async () => {
+		const seen: { prompt: string; yieldRequested: boolean }[] = [];
+		const { agents, handle } = createParticipant(false, false, (request, context) => {
+			seen.push({ prompt: request.prompt, yieldRequested: context.yieldRequested });
+			return {};
+		});
+		agents.$setYieldRequested('early', true);
+		agents.$setYieldRequested('reset', true);
+		agents.$setYieldRequested('reset', false);
+		for (const requestId of ['early', 'reset', 'none', 'early']) {
+			await agents.$invokeAgent(handle, {
+				sessionResource: URI.parse('chat-session:/test'), requestId, agentId: 'test.participant',
+				message: requestId, variables: { variables: [] }, location: ChatAgentLocation.Chat,
+			}, { history: [] }, CancellationToken.None);
+		}
+		assert.deepStrictEqual(seen, [
+			{ prompt: 'early', yieldRequested: true },
+			{ prompt: 'reset', yieldRequested: false },
+			{ prompt: 'none', yieldRequested: false },
+			{ prompt: 'early', yieldRequested: false },
+		]);
 	});
 
 	test('forwards the Auto tier on edit parts and omits it when unset', async () => {

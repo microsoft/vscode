@@ -7,7 +7,7 @@ import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/docum
 import { LanguageContextResponse } from '../../../platform/inlineEdits/common/dataTypes/languageContext';
 import { PromptSectionTokenCounts } from '../../../platform/inlineEdits/common/dataTypes/promptSectionTokens';
 import * as xtabPromptOptions from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
-import { AggressivenessLevel, CurrentFileOptions, GlobalBudgetOptions, isEagernessPrompt, isRejectedEditMemoryEnabled, PromptingStrategy, PromptOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, CurrentFileOptions, GlobalBudgetOptions, isEagernessPrompt, PromptingStrategy, PromptOptions, RejectedEditsMemoryMode } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { StatelessNextEditDocument } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { IXtabHistoryEntry, IXtabHistoryRejectedEditEntry } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { ContextKind, TraitContext } from '../../../platform/languageServer/common/languageContextService';
@@ -16,7 +16,7 @@ import { range } from '../../../util/vs/base/common/arrays';
 import { assertNever, softAssert } from '../../../util/vs/base/common/assert';
 import { StringEdit, StringReplacement } from '../../../util/vs/editor/common/core/edits/stringEdit';
 import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRange';
-import { getEditDiffHistory, REJECTED_EDIT_TAG } from './diffHistoryForPrompt';
+import { getEditDiffHistory, REJECTED_EDIT_TAG, selectRejectedEditsForPrompt } from './diffHistoryForPrompt';
 import { LintErrors } from './lintErrors';
 import { countTokensForLines, toUniquePath } from './promptCraftingUtils';
 import { appendLanguageContextSnippets, appendNeighborFileSnippets, AppendNeighborFileSnippetsResult, buildCodeSnippetsUsingPagedClipping, getRecentCodeSnippets, prepareRecentCodeSnippets, RecentlyViewedSubsectionSnippets } from './recentFilesForPrompt';
@@ -76,8 +76,8 @@ export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 	let neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
 	let editDiffHistory: string;
 	let nDiffsInPrompt: number;
-	const rejectedEditMemoryEnabled = isRejectedEditMemoryEnabled(opts);
-	const rejectedEditHistory = rejectedEditMemoryEnabled ? promptPieces.rejectedEditHistory : [];
+	const rejectedEditsMode = opts.memory?.rejectedEdits;
+	const rejectedEditHistory = selectRejectedEditsForPrompt(opts.memory, promptPieces.rejectedEditHistory, xtabHistory, activeDoc);
 
 	if (opts.globalBudget !== undefined) {
 		// Reuse a cascade the caller already ran (the provider runs it first so it can
@@ -99,7 +99,7 @@ export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 
 		docsInPrompt.add(activeDoc.id); // Add active document to the set of documents in prompt
 
-		const diff = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, opts.diffHistory, rejectedEditHistory);
+		const diff = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, opts.diffHistory, rejectedEditHistory, opts.memory);
 		editDiffHistory = diff.promptPiece;
 		nDiffsInPrompt = diff.nDiffs;
 	}
@@ -109,7 +109,8 @@ export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 	const currentFilePath = toUniquePath(activeDoc.id, activeDoc.workspaceRoot?.path);
 
 	const postScript = promptPieces.opts.includePostScript ? getPostScript(opts, currentFilePath, aggressivenessLevel) : '';
-	const rejectedEditMemoryInstruction = rejectedEditMemoryEnabled
+	// Only the tag mode needs an instruction; applied-then-undone uses ordinary history entries.
+	const rejectedEditMemoryInstruction = rejectedEditsMode === RejectedEditsMemoryMode.DiffWithTags
 		? `\n\nEdit history hunks whose header ends with \`${REJECTED_EDIT_TAG}\` are previous suggestions the developer rejected; avoid repeating them unless later context makes them clearly appropriate.`
 		: '';
 	const promptSuffix = postScript + rejectedEditMemoryInstruction;
@@ -313,7 +314,7 @@ export function runGlobalBudgetCascade(
 			}
 			case 'diffHistory': {
 				const overriddenDiff = { ...opts.diffHistory, maxTokens: budget };
-				const r = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, overriddenDiff, rejectedEditHistory);
+				const r = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, overriddenDiff, rejectedEditHistory, opts.memory);
 				editDiffHistory = r.promptPiece;
 				nDiffsInPrompt = r.nDiffs;
 				tokensConsumed = r.totalTokens;

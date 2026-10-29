@@ -25,6 +25,9 @@ export const RENAME_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.renameChat';
 /** Archives one or more sessions. Registered in `sessionsViewActions.ts`. */
 export const ARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.archiveSession';
 
+/** Archives all sessions in a custom group. Registered in `sessionsViewActions.ts`. */
+export const ARCHIVE_SESSION_GROUP_COMMAND_ID = 'sessionsView.markAllInGroupAsDone';
+
 /** Archives the given sessions and offers to undo it from the Sessions view. Registered in `sessionsViewActions.ts`. */
 export const ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID = 'sessionsViewPane.archiveSessionsWithUndo';
 
@@ -39,6 +42,12 @@ export const ARCHIVE_CHAT_COMMAND_ID = 'sessionsViewPane.archiveChat';
 
 /** Unarchives a chat independently of its session. Registered in `sessionsViewActions.ts`. */
 export const UNARCHIVE_CHAT_COMMAND_ID = 'sessionsViewPane.unarchiveChat';
+
+/** Shows automation sessions in the Sessions list in addition to Automations. Registered in `sessionsViewActions.ts`. */
+export const SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID = 'sessionsViewPane.showAutomationSessionInList';
+
+/** Lists automation sessions only in Automations again. Registered in `sessionsViewActions.ts`. */
+export const HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID = 'sessionsViewPane.hideAutomationSessionFromList';
 
 export const SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID = 'sessionsViewPane.showApplicationFilters';
 

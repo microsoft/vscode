@@ -146,6 +146,11 @@ const defaultHiddenKinds: readonly SessionChatPillKind[] = [
 	SessionChatPillKind.Subagents,
 ];
 
+/** Whether a pill kind starts hidden until the user turns it on. */
+export function isSessionChatPillHiddenByDefault(kind: SessionChatPillKind): boolean {
+	return defaultHiddenKinds.includes(kind);
+}
+
 const hiddenSessionChatPills = observableMemento<readonly string[]>({
 	defaultValue: defaultHiddenKinds,
 	key: 'sessions.chatPills.hidden',

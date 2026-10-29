@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { spy } from 'sinon';
 import { addDisposableListener, isActiveElement } from '../../../../base/browser/dom.js';
+import { getBaseLayerHoverDelegate, setBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { SubmenuAction, toAction } from '../../../../base/common/actions.js';
@@ -14,6 +15,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event as CommonEvent } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { IContextViewService } from '../../../contextview/browser/contextView.js';
@@ -580,6 +582,33 @@ suite('ActionListWidget', () => {
 		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'third');
 	});
 
+	test('pointer movement to a disabled hover row restores list focus before hiding the previous toolbar', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('enabled'), toolbarActions: [toAction({ id: 'configure', label: 'Configure', run: () => { } })] },
+				{ ...action('disabled'), disabled: true, hover: { content: 'Unavailable' } },
+			],
+			listOptions: { showFilter: false, tabThroughItemActions: true },
+		});
+		const rows = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row');
+		widget.focus();
+		rows[0].dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		widget.domNode.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!.focus();
+		const before = widget.getFocusedElement()?.item?.id;
+		rows[1].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		rows[1].dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		const after = widget.getFocusedElement()?.item?.id;
+		const focusRestored = document.activeElement === widget.domNode.querySelector('.monaco-list');
+		widget.focusNext();
+
+		assert.deepStrictEqual({ before, after, focusRestored, keyboardRecovered: widget.getFocusedElement()?.item?.id }, {
+			before: 'enabled',
+			after: undefined,
+			focusRestored: true,
+			keyboardRecovered: 'enabled',
+		});
+	});
+
 	for (const filterAsCombobox of [false, true]) {
 		test(`only keyboard navigation draws the selection border (combobox: ${filterAsCombobox})`, () => {
 			const widget = createActionListWidget(disposables, {
@@ -1112,6 +1141,53 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('shows only the row hover for a standalone toggle row that has one', () => {
+		const switchHovers = new Map<HTMLElement, string | undefined>();
+		const previous = getBaseLayerHoverDelegate();
+		setBaseLayerHoverDelegate({
+			...previous,
+			setupDelayedHover: (target, options, lifecycleOptions) => {
+				if (target.classList.contains('monaco-switch')) {
+					const content = (typeof options === 'function' ? options() : options).content;
+					switchHovers.set(target, typeof content === 'string' ? content : undefined);
+				}
+				return previous.setupDelayedHover(target, options, lifecycleOptions);
+			},
+		});
+		disposables.add(toDisposable(() => setBaseLayerHoverDelegate(previous)));
+
+		const required = 'Sandboxing is required by your organization';
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{
+					...action('Locked'),
+					disabled: true,
+					hover: { content: required },
+					standaloneToggle: { label: 'Locked', title: required, checked: true, disabled: true, onChange: () => { } },
+				},
+				{
+					...action('Unlocked'),
+					standaloneToggle: { label: 'Unlocked', title: 'Run commands in a sandbox', checked: false, onChange: () => { } },
+				},
+				{
+					...action('Default'),
+					hover: { content: 'Copilot asks before running tools' },
+					inlineToggle: { label: 'Sandboxing for terminal', title: 'Managed by your organization', checked: true, disabled: true, onChange: () => { } },
+				},
+			],
+			listOptions: { showFilter: false },
+		});
+
+		assert.deepStrictEqual([...widget.domNode.querySelectorAll<HTMLElement>('.monaco-switch')].map(toggle => ({
+			ariaLabel: toggle.getAttribute('aria-label'),
+			switchHover: switchHovers.get(toggle),
+		})), [
+			{ ariaLabel: required, switchHover: undefined },
+			{ ariaLabel: 'Run commands in a sandbox', switchHover: 'Run commands in a sandbox' },
+			{ ariaLabel: 'Managed by your organization', switchHover: 'Managed by your organization' },
+		]);
+	});
+
 	test('renders an optional information icon after the standalone toggle label', () => {
 		const label = 'Sandboxing in Dev Container';
 		const title = 'This relaxes the outer container isolation.';
@@ -1291,6 +1367,25 @@ suite('ActionListWidget', () => {
 		await timeout(0);
 		assert.ok(widget.domNode.textContent?.includes('server-ranked-result'));
 	}));
+
+	test('matches nonvisual filter text without rendering it', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('shared'), filterText: 'owner-one/shared' },
+				{ ...action('shared'), filterText: 'owner-two/shared' },
+			],
+		});
+
+		typeFilter(widget, 'owner-one/shared');
+
+		assert.deepStrictEqual({
+			rows: getVisibleRowText(widget),
+			nonvisualTextRendered: widget.domNode.textContent?.includes('owner-one/shared'),
+		}, {
+			rows: ['shared'],
+			nonvisualTextRendered: false,
+		});
+	});
 
 	test('ignores stale dynamic filter results', async () => {
 		const firstResult = new DeferredPromise<readonly IActionListItem<ITestActionItem>[]>();

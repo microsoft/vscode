@@ -41,8 +41,8 @@ import { IUnavailablePermissionLevel } from '../../../../../../workbench/contrib
 import { MobilePermissionPicker } from '../../browser/mobilePermissionPicker.js';
 import { PickerActionViewItem } from '../../../agentHost/browser/agentHostSessionConfigPicker.js';
 
-const POLICY_DESCRIPTION = '$(briefcase) Disabled by policy';
-const POLICY_HOVER = 'Your organization\'s policy doesn\'t allow this permission level.';
+const POLICY_DESCRIPTION = '$(briefcase) Disabled by your organization';
+const POLICY_HOVER = 'Your organization doesn\'t allow this permission level. Contact your administrator.';
 
 suite('Copilot PermissionPicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -261,7 +261,7 @@ suite('Copilot PermissionPicker', () => {
 					{ label: 'Default permissions', disabled: false, badge: undefined, detail: 'Asks when approval settings don\'t apply', ariaDescription: undefined, description: undefined, hover: undefined },
 					{
 						label: 'Assisted permissions', disabled: true, badge: undefined, detail: undefined,
-						ariaDescription: 'Disabled by policy. Your organization\'s policy doesn\'t allow this permission level.',
+						ariaDescription: 'Disabled by your organization. Contact your administrator.',
 						description: POLICY_DESCRIPTION, hover: POLICY_HOVER,
 					},
 					{
@@ -410,7 +410,7 @@ suite('Copilot PermissionPicker', () => {
 						disabled,
 						title: managed
 							? disabled ? 'Sandboxing is required by your organization' : 'Your organization allows you to turn sandboxing off for this session. Changes are subject to runtime approval.'
-							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.',
+							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against your organization\'s current requirements when restored.',
 						writes: disabled ? [] : (initiallyChecked ? [false, true] : [true]).map(enabled => ({ session: 'test-session', enabled })),
 					});
 				}
@@ -453,7 +453,7 @@ suite('Copilot PermissionPicker', () => {
 		assert.deepStrictEqual(visibleStates, [
 			{ disabled: true, rowDisabled: true, title: 'Sandboxing is required by your organization', hasHover: true },
 			{ disabled: false, rowDisabled: false, title: 'Your organization allows you to turn sandboxing off for this session. Changes are subject to runtime approval.', hasHover: false },
-			{ disabled: false, rowDisabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.', hasHover: false },
+			{ disabled: false, rowDisabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against your organization\'s current requirements when restored.', hasHover: false },
 			{ disabled: false, rowDisabled: false, title: 'Your organization allows you to turn sandboxing off for this session. Changes are subject to runtime approval.', hasHover: false },
 			{ disabled: true, rowDisabled: true, title: 'Sandboxing is required by your organization', hasHover: true },
 		]);

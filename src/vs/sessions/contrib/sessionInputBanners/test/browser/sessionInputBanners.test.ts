@@ -10,7 +10,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event, Emitter } from '../../../../../base/common/event.js';
 import { Disposable, ImmortalReference, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -38,7 +38,9 @@ import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackSe
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
-import { GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPullRequest, OPEN_PULL_REQUEST_ACTION_ID } from '../../../github/common/types.js';
+import { GitHubPullRequestState, IGitHubPullRequest, OPEN_PULL_REQUEST_ACTION_ID } from '../../../github/common/types.js';
+import { PullRequestCheck } from '../../../../../platform/github/common/githubPullRequestService.js';
+import { classifyRequiredPullRequestChecks } from '../../../../../platform/github/common/pullRequestRequiredChecks.js';
 import { SessionInputBanners } from '../../browser/sessionInputBanners.js';
 
 suite('SessionInputBanners', () => {
@@ -443,11 +445,11 @@ function unresolvedPullRequestModel(): GitHubPullRequestModel {
 	}();
 }
 
-function ciModel(checks: readonly IGitHubCICheck[]) {
+function ciModel(checks: readonly PullRequestCheck[]) {
 	return new class extends mock<GitHubPullRequestCIModel>() {
 		refreshCalls = 0;
 		startPollingCalls = 0;
-		override readonly checks = observableValue('checks', checks);
+		override readonly requiredChecks = constObservable(classifyRequiredPullRequestChecks({ headSha: 'head', checks, requirednessComplete: true, expectedSuites: [], expectedSuitesComplete: true }));
 		override readonly fixRequested = observableValue('fixRequested', false);
 		override refresh(): Promise<void> {
 			this.refreshCalls++;
@@ -462,16 +464,8 @@ function ciModel(checks: readonly IGitHubCICheck[]) {
 	}();
 }
 
-function failedCheck(id: number): IGitHubCICheck {
-	return {
-		id,
-		name: `Check ${id}`,
-		status: GitHubCheckStatus.Completed,
-		conclusion: GitHubCheckConclusion.Failure,
-		startedAt: undefined,
-		completedAt: undefined,
-		detailsUrl: undefined,
-	};
+function failedCheck(id: number): PullRequestCheck {
+	return { id: String(id), type: 'checkRun', name: `Check ${id}`, status: 'COMPLETED', conclusion: 'FAILURE' };
 }
 
 function prFeedback(id: string, sessionResource: URI, number: number): IAgentFeedback {

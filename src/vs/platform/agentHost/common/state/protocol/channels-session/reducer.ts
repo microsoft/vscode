@@ -175,7 +175,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 			if (idx < 0) {
 				return state;
 			}
-			const { resource: _ignored, ...changes } = action.changes;
+			const { resource: _resource, provider: _provider, ...changes } = action.changes;
 			const updated = list.slice();
 			updated[idx] = { ...list[idx], ...changes };
 			return { ...state, chats: updated };

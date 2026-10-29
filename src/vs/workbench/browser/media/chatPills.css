@@ -338,6 +338,23 @@
 	padding: var(--vscode-spacing-size20) 0 var(--vscode-spacing-size40) 0;
 }
 
+.chat-pills-row.can-scroll-left > .chat-pills-row-content {
+	mask-image: linear-gradient(to right, transparent, black var(--vscode-spacing-size160));
+}
+
+.chat-pills-row.can-scroll-right > .chat-pills-row-content {
+	mask-image: linear-gradient(to left, transparent, black var(--vscode-spacing-size160));
+}
+
+.chat-pills-row.can-scroll-left.can-scroll-right > .chat-pills-row-content {
+	mask-image: linear-gradient(to right, transparent, black var(--vscode-spacing-size160), black calc(100% - var(--vscode-spacing-size160)), transparent);
+}
+
+.monaco-workbench.hc-black .chat-pills-row > .chat-pills-row-content,
+.monaco-workbench.hc-light .chat-pills-row > .chat-pills-row-content {
+	mask-image: none;
+}
+
 .chat-pills-row-content > .chat-pills {
 	flex-shrink: 0;
 }
