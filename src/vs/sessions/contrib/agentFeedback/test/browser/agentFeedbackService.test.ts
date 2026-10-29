@@ -868,6 +868,26 @@ suite('AgentFeedbackService - State', () => {
 		assert.deepStrictEqual(service.getFeedback(session)[0].sourcePullRequest, sourcePullRequest);
 	});
 
+	test('retains the PR author through acceptance and source backfilling', () => {
+		const sourcePullRequest = { owner: 'owner', repo: 'repo', number: 42 };
+		const created = service.addFeedback(session, fileA, r(10), 'pending', undefined, undefined, 'thread-1', AgentFeedbackKind.PRReview, AgentFeedbackState.Created, sourcePullRequest, 'reviewer');
+		service.acceptFeedback(session, created.id);
+		service.updateFeedbackSourcePullRequest(session, created.id, sourcePullRequest, 'other-reviewer');
+
+		assert.deepStrictEqual({
+			author: service.getFeedback(session)[0].sourcePRReviewCommentAuthor,
+			state: service.getFeedback(session)[0].state,
+		}, { author: 'reviewer', state: AgentFeedbackState.Accepted });
+	});
+
+	test('backfills an empty PR author when the originating pull request is already known', () => {
+		const sourcePullRequest = { owner: 'owner', repo: 'repo', number: 42 };
+		const created = service.addFeedback(session, fileA, r(10), 'pending', undefined, undefined, 'thread-1', AgentFeedbackKind.PRReview, AgentFeedbackState.Created, sourcePullRequest, '');
+		service.updateFeedbackSourcePullRequest(session, created.id, sourcePullRequest, 'reviewer');
+
+		assert.strictEqual(service.getFeedback(session)[0].sourcePRReviewCommentAuthor, 'reviewer');
+	});
+
 	test('markFeedbackSubmitted resolves accepted items directly for non-agent-host sessions', () => {
 		const accepted = service.addFeedback(session, fileA, r(10), 'accepted');
 		const created = service.addFeedback(session, fileA, r(20), 'created', undefined, undefined, undefined, AgentFeedbackKind.AgentReview, AgentFeedbackState.Created);

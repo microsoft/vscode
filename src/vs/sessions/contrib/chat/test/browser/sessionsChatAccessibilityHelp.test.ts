@@ -45,6 +45,27 @@ import { getCloudSandboxPreparationAccessibilityHelp } from '../../../../../work
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents comment card previews, secondary actions and review states', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiation.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiation, configuration);
+		instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+
+		assert.deepStrictEqual({
+			preview: content.includes('See more or See less'),
+			keyboard: content.includes('Enter or Space to activate them'),
+			scrolling: content.includes('Tab to the scrollable comments region and use the arrow keys to scroll.'),
+			secondaryActions: content.includes('The More Actions menu includes Edit and Add to Comment.'),
+			states: content.includes('Accepted means it is ready to submit; Investigating means it has been submitted to the agent.'),
+		}, { preview: true, keyboard: true, scrolling: true, secondaryActions: true, states: true });
+	});
+
 	for (const { aiDisabled, hidden } of [{ aiDisabled: false, hidden: false }, { aiDisabled: true, hidden: false }, { aiDisabled: false, hidden: true }]) {
 		test(`documents View Mode only when AI is visible (disabled: ${aiDisabled}, hidden: ${hidden})`, () => {
 			const instantiation = store.add(new TestInstantiationService());
