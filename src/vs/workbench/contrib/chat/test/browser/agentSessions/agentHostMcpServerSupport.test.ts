@@ -548,6 +548,17 @@ suite('agentHostMcpServerSupport', () => {
 					oauth: { clientId: 'test-client-id' },
 				},
 			}),
+			makeMcpServer({
+				id: 'mcp.config.usrlocal.oauth-managed',
+				collectionId: 'mcp.config.usrlocal',
+				provenance: McpCollectionProvenance.UserProfile,
+				launch: {
+					type: McpServerTransportType.HTTP,
+					uri: URI.parse('https://example.com/mcp'),
+					headers: [],
+					oauth: { clientId: 'test-client-id', enterpriseManaged: true },
+				},
+			}),
 		], []);
 
 		assert.deepStrictEqual(result.servers[0].projectedConfiguration, {
@@ -558,6 +569,10 @@ suite('agentHostMcpServerSupport', () => {
 			oauth: { clientId: 'test-client-id' },
 		});
 		assert.deepStrictEqual(result.servers[0].compatibility, {
+			kind: 'supported',
+		});
+
+		assert.deepStrictEqual(result.servers[1].compatibility, {
 			kind: 'partiallySupported',
 			reasons: [AgentHostMcpSupportReason.OAuthClientConfigurationIgnored],
 		});

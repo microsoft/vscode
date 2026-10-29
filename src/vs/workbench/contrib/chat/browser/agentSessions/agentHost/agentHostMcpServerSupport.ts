@@ -735,7 +735,7 @@ function getPartialSupportReasons(launch: McpServerLaunch, sandboxEnabled: boole
 			reasons.push(AgentHostMcpSupportReason.SandboxConfigurationIgnored);
 		}
 	} else {
-		if (launch.oauth) {
+		if (launch.oauth && (!launch.oauth.clientId || launch.oauth.enterpriseManaged)) {
 			reasons.push(AgentHostMcpSupportReason.OAuthClientConfigurationIgnored);
 		}
 		if (launch.transport === 'sse') {
