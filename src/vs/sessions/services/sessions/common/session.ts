@@ -790,6 +790,11 @@ export const enum ChatModelSource {
 export interface IChat {
 	/** Resource URI identifying this chat. */
 	readonly resource: URI;
+	/**
+	 * The chat's harness identity, in the same identity space as {@link ISession.harness}.
+	 * Absent means the chat uses the session's harness.
+	 */
+	readonly harness?: string;
 	/** When the chat was created. */
 	readonly createdAt: Date;
 
@@ -889,6 +894,17 @@ export function isSideChatOf(chat: IChat, parentChat: URI): boolean {
 	return chat.origin?.kind === ChatOriginKind.SideChat
 		&& !!chat.origin.parentChat
 		&& isEqual(chat.origin.parentChat, parentChat);
+}
+
+/** The harness a chat of `session` uses: its own, or the session's when it reports none. */
+export function getChatHarness(session: Pick<ISession, 'harness'>, chat: Pick<IChat, 'harness'>): string {
+	return chat.harness ?? session.harness;
+}
+
+/** Whether the chats of a session use more than one harness; the session's harness is its main chat's. */
+export function hasMixedChatHarnesses(session: ISession, reader: IReader | undefined): boolean {
+	const mainHarness = getChatHarness(session, session.mainChat.read(reader));
+	return session.chats.read(reader).some(chat => getChatHarness(session, chat) !== mainHarness);
 }
 
 /**
@@ -1066,6 +1082,12 @@ export interface ISessionCapabilities {
 	readonly supportsCanvases?: boolean;
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
+	/**
+	 * Harness ids a new peer chat may choose in this session, in the same identity
+	 * space as {@link ISession.harness}. Absent or empty means choosing a harness
+	 * for a new peer chat is unsupported.
+	 */
+	readonly supportsChatHarnesses?: readonly string[];
 	/** Whether chats in this session can update their read state independently. */
 	readonly supportsIndependentChatReadState?: boolean;
 	/**

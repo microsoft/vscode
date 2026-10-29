@@ -52,7 +52,6 @@ import { ICustomViewService } from '../../../../services/customView/browser/cust
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
-import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { INewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
@@ -822,17 +821,11 @@ registerAction2(class NewQuickChatAction extends Action2 {
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const composerService = accessor.get(INewSessionComposerService);
 		composerService.notifyUserNavigation();
-		let activeSession;
-		if (accessor.get(IConfigurationService).getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)) {
-			if (accessor.get(ISessionsManagementService).isQuickChatTargetAvailable()) {
-				sessionsService.unsetNewSession();
-				sessionsPartService.getSessionView(undefined)?.selectNoWorkspace();
-			}
-			activeSession = sessionsService.activeSession.get();
-		} else {
-			composerService.notifyUserWorkspaceSelection();
-			activeSession = sessionsService.openQuickChat();
+		if (accessor.get(ISessionsManagementService).isQuickChatTargetAvailable()) {
+			sessionsService.unsetNewSession();
+			sessionsPartService.getSessionView(undefined)?.selectNoWorkspace();
 		}
+		const activeSession = sessionsService.activeSession.get();
 
 		// On mobile web, the sidebar drawer covers the viewport; close it so the
 		// new session composer becomes visible after creation.

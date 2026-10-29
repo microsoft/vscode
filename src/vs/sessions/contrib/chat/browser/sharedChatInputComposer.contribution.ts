@@ -14,12 +14,10 @@ import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { CHAT_ATTACH_CONTEXT_ACTION_ID } from '../../../../workbench/contrib/chat/common/constants.js';
 import { Menus } from '../../../browser/menus.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { getLabeledPickerResponsiveItems } from './newChatComposerInput.js';
 import { createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
 import { SharedChatInputComposerBusyContext } from './sharedChatInputComposer.js';
@@ -27,12 +25,6 @@ import { SharedChatInputComposerBusyContext } from './sharedChatInputComposer.js
 const COMPOSER_INITIALIZING_ACTION_ID = 'sessions.newChatComposer.initializing';
 const COMPOSER_SENDING_ACTION_ID = 'sessions.newChatComposer.sending';
 export const COMPOSER_SESSION_CONTROLS_ACTION_ID = 'sessions.newChatComposer.sessionControls';
-
-/** The experimental composer layout moves the session controls into the input toolbar. */
-const ExperimentalComposerLayout = ContextKeyExpr.and(
-	ContextKeyExpr.has(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`),
-	ContextKeyExpr.has(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`),
-);
 
 MenuRegistry.appendMenuItem(Menus.NewSessionChatInputToolbar, {
 	command: { id: CHAT_ATTACH_CONTEXT_ACTION_ID, title: localize('sessionsSharedChatInput.addContext', "Add Context..."), icon: Codicon.addCompact },
@@ -63,7 +55,7 @@ registerAction2(class extends Action2 {
 			id: COMPOSER_SESSION_CONTROLS_ACTION_ID,
 			title: localize2('sessionsSharedChatInput.sessionControls', "Session Controls"),
 			f1: false,
-			menu: { id: Menus.NewSessionChatInputToolbar, group: 'navigation', order: 0, when: ExperimentalComposerLayout },
+			menu: { id: Menus.NewSessionChatInputToolbar, group: 'navigation', order: 0 },
 		});
 	}
 	override run(): void { /* rendered by the action view item */ }
@@ -87,9 +79,8 @@ class ComposerBusyActionViewItem extends BaseActionViewItem {
 }
 
 /**
- * Hosts the session controls toolbar inside the input toolbar, for the
- * experimental composer layout. The nested pickers own pointer and keyboard
- * input, and focus moves into them.
+ * Hosts the session controls toolbar inside the input toolbar.
+ * The nested pickers own pointer and keyboard input, and focus moves into them.
  */
 class ComposerSessionControlsActionViewItem extends BaseActionViewItem {
 	private _controls: HTMLElement | undefined;

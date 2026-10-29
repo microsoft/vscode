@@ -16,7 +16,9 @@ import { Emitter, Event as VSCodeEvent } from '../../../../../base/common/event.
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -69,12 +71,12 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutConstants.js';
-import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, getChatRespondent, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NestedChatWorkspaceControls } from '../../browser/nestedChatWorkspacePicker.js';
+import { IChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -102,6 +104,56 @@ suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => sinon.restore());
+
+	test('a chat answered by another harness than its session\'s presents that harness and selects from its models once resolved', () => {
+		const sessionResource = URI.parse('agent-host-copilotcli:/session');
+		const chat = (fragment: string, harness?: string) => ({ resource: sessionResource.with({ fragment }), ...(harness ? { harness } : {}) } as IChat);
+		const main = chat('', 'copilot');
+		const sameHarness = chat('same');
+		const otherHarness = chat('other', 'claude');
+		const session = { sessionId: 'session', providerId: 'test', harness: 'copilot', resource: sessionResource, chats: constObservable([main, sameHarness, otherHarness]) } as unknown as ISession;
+		const known = observableValue<boolean>('known', false);
+		let otherTarget: string | undefined = undefined;
+		const onDidChangeModels = disposables.add(new Emitter<void>());
+		const provider = new class extends mock<ISessionsProvider>() {
+			override readonly onDidChangeModels = onDidChangeModels.event;
+			override readonly onDidChangeSessionTypes = VSCodeEvent.None;
+			override getModelsSnapshot(_sessionId: string, _desired?: string, chatResource?: URI) {
+				return { models: [], desiredModelResolution: { kind: 'notRequested' as const }, modelTarget: chatResource?.fragment === 'other' ? otherTarget : 'agent-host-copilotcli' };
+			}
+			override getHarnessPresentation(harness: string, reader?: IReader) {
+				return known.read(reader) && harness === 'claude' ? { label: 'Claude', icon: Codicon.claude } : undefined;
+			}
+		}();
+		const providers = new class extends mock<ISessionsProvidersService>() {
+			override getProvider<T extends ISessionsProvider>(): T | undefined {
+				return provider as unknown as T;
+			}
+		}();
+		const respondents: unknown[] = [];
+		disposables.add(autorun(reader => respondents.push(getChatRespondent(session, otherHarness.resource, providers, reader))));
+		// Not resolved apart from the session's own target yet, then resolved, then the harness presentation loads.
+		otherTarget = 'agent-host-copilotcli';
+		onDidChangeModels.fire();
+		otherTarget = 'agent-host-claude';
+		onDidChangeModels.fire();
+		known.set(true, undefined);
+
+		assert.deepStrictEqual({
+			main: getChatRespondent(session, main.resource, providers, undefined),
+			sameHarness: getChatRespondent(session, sameHarness.resource, providers, undefined),
+			otherHarness: respondents,
+		}, {
+			main: undefined,
+			sameHarness: undefined,
+			otherHarness: [
+				{ label: 'Other Harness', icon: Codicon.agent, modelSessionType: undefined },
+				{ label: 'Other Harness', icon: Codicon.agent, modelSessionType: undefined },
+				{ label: 'Other Harness', icon: Codicon.agent, modelSessionType: 'agent-host-claude' },
+				{ label: 'Claude', icon: Codicon.claude, modelSessionType: 'agent-host-claude' },
+			],
+		});
+	});
 
 	test('keeps the scroll arrow clickable above the ruler timeline', () => {
 		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
@@ -853,6 +905,7 @@ suite('Sessions - Chat View', () => {
 			_currentChatResource: resource,
 			_currentSessionObs: { get: () => undefined },
 			_modelRef: modelRef,
+			_respondentBinding: disposables.add(new MutableDisposable()),
 			_preparationModel: { value: undefined },
 			_loadChat: (chatResource: URI) => loads.push(chatResource),
 		}) as {
@@ -892,6 +945,7 @@ suite('Sessions - Chat View', () => {
 			_currentSessionObs: observableValue<ISession | undefined>('session', undefined),
 			_isPrimaryObs: constObservable(false),
 			_modelRef: { value: undefined },
+			_respondentBinding: disposables.add(new MutableDisposable()),
 			_interactiveDisposable: disposables.add(new MutableDisposable()),
 			_liveModelReady: liveModelReady,
 			_modelReadOnly: modelReadOnly,
@@ -991,6 +1045,7 @@ suite('Sessions - Chat View', () => {
 			_currentChatResource: resource,
 			_currentSessionObs: { get: () => undefined },
 			_modelRef: modelRef,
+			_respondentBinding: disposables.add(new MutableDisposable()),
 			_preparationModel: { value: undefined },
 			_loadCts: loadCts,
 			_openDiagnostics: disposables.add(new MutableDisposable()),
@@ -1277,6 +1332,7 @@ suite('Sessions - Chat View', () => {
 			_loadFailure: loadFailure,
 			_preparationModel: { value: undefined },
 			_modelRef: modelRef,
+			_respondentBinding: disposables.add(new MutableDisposable()),
 			_loadCts: loadCts,
 			_openDiagnostics: disposables.add(new MutableDisposable()),
 			chatOpenDiagnosticsService: disposables.add(new ChatOpenDiagnosticsService(new NullLogService())),
@@ -1587,6 +1643,7 @@ suite('Sessions - Chat View', () => {
 			_preparationModel: { value: undefined, clear: () => { } },
 			hasVisibleTranscriptContent: observableValue('transcript', false),
 			_modelRef: modelRef,
+			_respondentBinding: disposables.add(new MutableDisposable()),
 			_loadCts: loadCts,
 			_openDiagnostics: disposables.add(new MutableDisposable()),
 			element: dom.$('div'),
@@ -2242,7 +2299,7 @@ suite('Sessions - Chat View', () => {
 		let inputOptions: INewChatComposerInputOptions | undefined;
 		const repositoryControls = { visible: constObservable(true), dispose: () => { } };
 		const petPlatform = dom.$('a.action-label');
-		const input = Object.assign(Object.create(SharedChatInputComposer.prototype), { dispose: () => { } }) as SharedChatInputComposer;
+		const input = Object.assign(Object.create(SharedChatInputComposer.prototype), { dispose: () => { }, getDraft: () => ({ inputText: '', attachments: [] }) }) as SharedChatInputComposer;
 		const instantiationService = new class extends mock<IInstantiationService>() {
 			override createInstance = ((ctor: unknown, options: INewChatComposerInputOptions) => {
 				if (ctor === NestedChatWorkspaceControls) {
@@ -2256,7 +2313,7 @@ suite('Sessions - Chat View', () => {
 		// Another chat of the session is active, such as one open in another group.
 		const activeChat = upcastPartial<IChat>({ resource: URI.parse('chat:/active-elsewhere') });
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'session', activeChat: constObservable(activeChat) }));
+			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'session', activeChat: constObservable(activeChat), mainChat: constObservable(activeChat), isCreated: constObservable(false) }));
 		}();
 		const widget = disposables.add(new NewChatInSessionWidget(
 			{},
@@ -2272,6 +2329,7 @@ suite('Sessions - Chat View', () => {
 			disposables.add(new InMemoryStorageService()),
 			new TestAccessibilityService(),
 			new class extends mock<IFileService>() { }(),
+			new SessionsChatViewStateService(),
 		));
 		const beforeChat = inputOptions?.chat?.get();
 		const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), { _widget: widget });
@@ -2285,6 +2343,106 @@ suite('Sessions - Chat View', () => {
 			repositoryControls: typeof renderRepositoryControls === 'function' ? renderRepositoryControls(dom.$('div'), getDefaultHoverDelegate('element')) : renderRepositoryControls,
 			petPlatform: inputOptions?.getChatPetPlatformElements?.(),
 		}, { beforeChat: undefined, chat: 'chat:/composer', repositoryControls, petPlatform: [petPlatform] });
+	});
+
+	suite('unsent peer chat drafts', () => {
+
+		function createPeerChatWidgets() {
+			const viewStateService = new SessionsChatViewStateService();
+			return (restoredInput = '') => {
+				let draft: IChatDraft | undefined = restoredInput ? { inputText: restoredInput, attachments: [] } : undefined;
+				const input = upcastPartial<SharedChatInputComposer>({
+					dispose: () => { },
+					getDraft: () => draft ?? { inputText: '', attachments: [] },
+					setDraft: value => { draft = value; },
+				});
+				const instantiationService = new class extends mock<IInstantiationService>() {
+					override createInstance = ((ctor: unknown) => ctor === NestedChatWorkspaceControls
+						? { reset: () => { }, dispose: () => { } }
+						: input) as IInstantiationService['createInstance'];
+				}();
+				const sessionsService = new class extends mock<ISessionsService>() {
+					override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+				}();
+				const widget = disposables.add(new NewChatInSessionWidget(
+					{},
+					new TestConfigurationService(),
+					instantiationService,
+					new class extends mock<ILogService>() { }(),
+					new class extends mock<INotificationService>() { }(),
+					new class extends mock<ISessionsProvidersService>() { }(),
+					new class extends mock<ISessionsRecentWorkspacesService>() { }(),
+					new class extends mock<IFileDialogService>() { }(),
+					new class extends mock<ISessionsManagementService>() { }(),
+					sessionsService,
+					disposables.add(new InMemoryStorageService()),
+					new TestAccessibilityService(),
+					new class extends mock<IFileService>() { }(),
+					viewStateService,
+				));
+				return {
+					widget,
+					type: (inputText: string) => { draft = inputText ? { inputText, attachments: [] } : undefined; },
+					input: () => draft?.inputText ?? '',
+				};
+			};
+		}
+
+		const chat = (name: string) => upcastPartial<IChat>({ resource: URI.parse(`chat:/${name}`) });
+
+		test('a peer chat composer replaced by another view shows the unsent prompt when its chat is shown again', () => {
+			const create = createPeerChatWidgets();
+			const newChat = chat('new');
+			const first = create();
+			first.widget.setChat(newChat);
+			first.type('unsent prompt');
+			first.widget.dispose();
+
+			const second = create();
+			second.widget.setChat(newChat);
+
+			assert.strictEqual(second.input(), 'unsent prompt');
+		});
+
+		test('a cleared prompt is not replaced by the composer\'s restored global draft', () => {
+			const create = createPeerChatWidgets();
+			const newChat = chat('new');
+			const first = create();
+			first.widget.setChat(newChat);
+			first.type('sent prompt');
+			first.type('');
+			first.widget.dispose();
+
+			const second = create('stale global draft');
+			second.widget.setChat(newChat);
+
+			assert.strictEqual(second.input(), '');
+		});
+
+		test('a chat that was never shown keeps the input the composer restored', () => {
+			const create = createPeerChatWidgets();
+			const composer = create('restored global draft');
+			composer.widget.setChat(chat('new'));
+
+			assert.strictEqual(composer.input(), 'restored global draft');
+		});
+
+		test('one composer keeps a separate unsent prompt for each chat it shows', () => {
+			const create = createPeerChatWidgets();
+			const a = chat('a');
+			const b = chat('b');
+			const composer = create();
+			composer.widget.setChat(a);
+			composer.type('draft a');
+			composer.widget.setChat(b);
+			const inB = composer.input();
+			composer.type('draft b');
+			composer.widget.setChat(a);
+			const backInA = composer.input();
+			composer.widget.setChat(b);
+
+			assert.deepStrictEqual({ inB, backInA, backInB: composer.input() }, { inB: '', backInA: 'draft a', backInB: 'draft b' });
+		});
 	});
 
 	test('positions peer chat content for centered attachment growth', () => {
@@ -3614,6 +3772,110 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
+		test(`fades only the top edge of pinned progress without blurring text (${theme})`, () => {
+			const highContrast = theme === 'hc-black' || theme === 'hc-light';
+			const workbench = dom.$(`.monaco-workbench.agent-sessions-workbench.${theme}`);
+			workbench.style.setProperty('--vscode-chat-list-background', '#123456');
+			workbench.style.setProperty('--vscode-spacing-size20', '2px');
+			workbench.style.setProperty('--vscode-spacing-size160', '16px');
+			workbench.style.setProperty('--vscode-strokeThickness', '1px');
+			workbench.style.setProperty('--vscode-contrastBorder', '#ffffff');
+			const part = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
+			const chatView = dom.append(part, dom.$('.chat-view'));
+			const session = dom.append(chatView, dom.$('.interactive-session.chat-floating-persistent-content'));
+			const inputPart = dom.append(session, dom.$('.interactive-input-part'));
+			const persistentContent = dom.append(inputPart, dom.$('.chat-input-persistent-content.chat-persistent-content-visible'));
+			const sticky = dom.append(persistentContent, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+			const targetWindow = dom.getWindow(workbench);
+			targetWindow.document.body.appendChild(workbench);
+			disposables.add(toDisposable(() => workbench.remove()));
+			const empty = targetWindow.getComputedStyle(sticky, '::before').content;
+			const inputTop = inputPart.getBoundingClientRect().top;
+			const progress = dom.append(sticky, dom.$('.chat-working-progress', undefined, '1 confirmation pending'));
+			progress.style.height = '22px';
+			const fade = targetWindow.getComputedStyle(sticky, '::before');
+			const pinned = {
+				content: fade.content,
+				matchesSurface: fade.backgroundImage === 'linear-gradient(rgba(0, 0, 0, 0) 0px, rgb(18, 52, 86) 16px)',
+				aboveProgress: !highContrast && Number.parseFloat(fade.top) === -16 && fade.height === '16px',
+				pointerEvents: fade.pointerEvents,
+				textFilter: targetWindow.getComputedStyle(progress).filter,
+				outline: targetWindow.getComputedStyle(sticky).outlineStyle,
+				inputTop: inputPart.getBoundingClientRect().top,
+			};
+			progress.remove();
+			assert.deepStrictEqual({
+				empty,
+				pinned,
+				returnedInline: targetWindow.getComputedStyle(sticky, '::before').content,
+			}, {
+				empty: 'none',
+				pinned: {
+					content: highContrast ? 'none' : '""',
+					matchesSurface: true,
+					aboveProgress: !highContrast,
+					pointerEvents: 'none',
+					textFilter: 'none',
+					outline: highContrast ? 'solid' : 'none',
+					inputTop,
+				},
+				returnedInline: 'none',
+			});
+		});
+	}
+
+	for (const host of ['.part.sessionspart', '.chat-editor-relative']) {
+		test(`keeps sticky progress above the pills without changing their height or alignment (${host})`, () => {
+			const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+			workbench.style.setProperty('--vscode-spacing-size20', '2px');
+			workbench.style.setProperty('--vscode-spacing-size40', '4px');
+			workbench.style.setProperty('--vscode-spacing-size60', '6px');
+			workbench.style.setProperty('--vscode-spacing-size160', '16px');
+			workbench.style.setProperty('--vscode-spacing-size240', '24px');
+			workbench.style.setProperty('--vscode-chat-font-size-body-m', '13px');
+			const part = dom.append(workbench, dom.$(host));
+			const session = dom.append(part, dom.$('.interactive-session.chat-floating-persistent-content'));
+			session.style.cssText = 'position: relative; width: 500px; height: 400px;';
+			const response = dom.append(session, dom.$('.interactive-item-container.interactive-response.chat-persistent-progress'));
+			const value = dom.append(response, dom.$('.value'));
+			const emptyAnchor = dom.append(value, dom.$('.chat-working-progress-anchor'));
+			const inputPart = dom.append(session, dom.$('.interactive-input-part'));
+			inputPart.style.cssText = 'position: absolute; top: 300px; width: 500px; padding: 4px 24px; margin: 0; box-sizing: border-box;';
+			const persistentContent = dom.append(inputPart, dom.$('.chat-input-persistent-content.chat-persistent-content-visible'));
+			const pills = dom.append(persistentContent, dom.$('.chat-pills'));
+			pills.style.height = '28px';
+			dom.getWindow(workbench).document.body.appendChild(workbench);
+			disposables.add(toDisposable(() => workbench.remove()));
+			const before = { height: persistentContent.getBoundingClientRect().height, top: pills.getBoundingClientRect().top, left: pills.getBoundingClientRect().left };
+			const sticky = dom.prepend(persistentContent, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+			const progress = dom.append(sticky, dom.$('.chat-working-progress'));
+			progress.style.height = '22px';
+			const bounds = progress.getBoundingClientRect();
+			const withPills = {
+				position: dom.getWindow(sticky).getComputedStyle(sticky).position,
+				height: persistentContent.getBoundingClientRect().height,
+				pillTop: pills.getBoundingClientRect().top,
+				bottom: bounds.bottom,
+				left: bounds.left,
+			};
+			pills.style.display = 'none';
+			persistentContent.classList.remove('chat-persistent-content-visible');
+			session.classList.remove('chat-floating-persistent-content');
+			assert.deepStrictEqual({
+				withPills,
+				withoutPills: progress.getBoundingClientRect().bottom,
+				withoutPillsLeft: progress.getBoundingClientRect().left,
+				emptyAnchorHeight: emptyAnchor.getBoundingClientRect().height,
+			}, {
+				withPills: { position: 'absolute', height: before.height, pillTop: before.top, bottom: before.top - 2, left: before.left },
+				withoutPills: inputPart.getBoundingClientRect().top - 2,
+				withoutPillsLeft: bounds.left,
+				emptyAnchorHeight: 22,
+			});
+		});
+	}
+
 	test('keeps sticky request chrome transparent over chat backgrounds', () => {
 		const workbench = dom.$('.monaco-workbench.vs-dark.agent-sessions-workbench');
 		workbench.style.setProperty('--vscode-sideBar-background', '#ff0000');
@@ -4098,6 +4360,25 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('stores unsent drafts independently by chat resource', () => {
+		const service = new SessionsChatViewStateService();
+		const first = URI.parse('test:///first');
+		const second = URI.parse('test:///second');
+
+		service.setDraft(first, { inputText: 'first draft', attachments: [] });
+		service.setDraft(second, { inputText: 'second draft', attachments: [] });
+
+		assert.deepStrictEqual({
+			first: service.getDraft(first),
+			second: service.getDraft(second),
+			unknown: service.getDraft(URI.parse('test:///unknown')),
+		}, {
+			first: { inputText: 'first draft', attachments: [] },
+			second: { inputText: 'second draft', attachments: [] },
+			unknown: undefined,
+		});
+	});
+
 	test('stores view state independently by chat resource', () => {
 		const service = new SessionsChatViewStateService();
 		const first = URI.parse('test:///first');
@@ -4385,6 +4666,7 @@ suite('Sessions - Chat View', () => {
 			_openDiagnostics: viewStore.add(new MutableDisposable()),
 			chatOpenDiagnosticsService: viewStore.add(new ChatOpenDiagnosticsService(new NullLogService())),
 			_modelRef: viewStore.add(new MutableDisposable<IChatModelReference>()),
+			_respondentBinding: viewStore.add(new MutableDisposable()),
 			_preparationModel: { value: undefined },
 			isLoadingTranscript: observableValue('loading', false),
 			element: dom.$('div'),

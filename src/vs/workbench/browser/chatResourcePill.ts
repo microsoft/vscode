@@ -13,6 +13,7 @@ import { onUnexpectedError } from '../../base/common/errors.js';
 import { IObservable, autorun } from '../../base/common/observable.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { localize } from '../../nls.js';
+import { IAccessibilityService } from '../../platform/accessibility/common/accessibility.js';
 import { FileKind, IFileService } from '../../platform/files/common/files.js';
 import { IHoverService } from '../../platform/hover/browser/hover.js';
 import { ChatPillActionViewItemBase, getChatPillEntryHoverContents, getChatPillEntryHoverOptions, type IChatPillEntry } from './chatPills.js';
@@ -30,7 +31,7 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 
 	protected override get itemModifierClass(): string { return 'chat-resource-pill'; }
 	protected override get buttonModifierClass(): string { return 'chat-resource-pill-button'; }
-	private readonly _imageHoverContents = new WeakMap<IChatPillEntry, IManagedHoverContent>();
+	private readonly _mediaHoverContents = new WeakMap<IChatPillEntry, IManagedHoverContent>();
 
 	constructor(
 		action: IAction,
@@ -39,6 +40,7 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 		private readonly _resourceLabels: ResourceLabels,
 		@IFileService private readonly _fileService: IFileService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super(undefined, action, _resourcePillOptions);
 	}
@@ -49,7 +51,8 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 		this._register(autorun(reader => {
 			const entry = this._entry.read(reader);
 			if (entry?.resource) {
-				label.setResource({ resource: entry.resource, name: entry.label }, { fileKind: FileKind.FILE });
+				// The pill shows the entry's hover; a second one on the label would race it.
+				label.setResource({ resource: entry.resource, name: entry.label }, { fileKind: FileKind.FILE, hideHover: true });
 			}
 			this.updateTooltip();
 			this.updateAriaLabel();
@@ -72,7 +75,7 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
-		return getChatPillEntryHoverContents(this._entry.get(), this._fileService, this._imageHoverContents) ?? super.getHoverContents();
+		return getChatPillEntryHoverContents(this._entry.get(), this._fileService, this._mediaHoverContents, { isMotionReduced: () => this._accessibilityService.isMotionReduced() }) ?? super.getHoverContents();
 	}
 
 	protected override getHoverOptions(): IManagedHoverOptions | undefined {
