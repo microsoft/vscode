@@ -5,7 +5,7 @@
 
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
-import { isWeb } from '../../../../base/common/platform.js';
+import { isMacintosh, isWeb } from '../../../../base/common/platform.js';
 import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { getModePickerAccessibilityHelp } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { getBackgroundShellsPillAccessibilityHelp } from '../../../../workbench/contrib/chat/browser/sessionBackgroundShellsControl.js';
@@ -126,6 +126,9 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			? localize('sessionsChat.newSessionInputControls.agentInAttachContext', "When an Agent picker is available in a new or running session, it appears in Add Context when the default agent is selected. Open Add Context and choose Agent to select an agent. While a custom agent is selected, the Agent picker appears in its usual position. Selecting the default agent moves it back into Add Context. Other new-session controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.")
 			: localize('sessionsChat.newSessionInputControls.experimental', "Inside the new-session prompt, the controls appear in this order: Add Context, Agent, Mode and Permissions, and Model. Which controls are available depends on the selected harness. Use Tab to reach the controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker."));
 		content.push(localize('sessionsChat.compactSessionPickers', "When space is limited, the new-session pickers show icons instead of labels without moving to another row. The workspace name remains visible. Icon-only pickers retain their accessible names and tooltips; activate them to view and change the current selection."));
+		if (isMacintosh && !isWeb) {
+			content.push(localize('sessionsChat.systemWideKeybindingTip', "A chat tip can offer Ctrl+Cmd+A as a system-wide shortcut for opening the Agents window while VS Code is running, even when another application is active. Use Tab or Shift+Tab to reach Enable, then press Enter or Space to add the shortcut to your user keybindings."));
+		}
 		content.push(localize('sessionsChat.mcpAuthentication', "To focus pending chat confirmations or MCP authentication prompts, invoke Chat: Focus Chat Confirmation{0}. Use Tab to reach Authenticate and Enter or Space to activate it. Invoke the command again to return to the chat input.", '<keybinding:workbench.action.chat.focusConfirmation>'));
 		content.push(localize('sessionsChat.mcpAuthenticationProgress', "After you activate Authenticate, authentication progress and its outcome are announced. Errors are announced through notifications. An incomplete or cancelled attempt is not reported as a success."));
 		content.push(localize('sessionsChat.terminalConfirmationExplain', "When a terminal command needs approval and the agent describes what it is for, the confirmation title includes that description, such as Run in terminal: followed by the description. In a conversation that supports side chats, use Tab to reach Explain and press Enter or Space to open a side chat that explains what the command will do. The confirmation stays pending until you allow or skip it."));
