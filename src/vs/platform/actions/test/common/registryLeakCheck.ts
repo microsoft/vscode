@@ -8,7 +8,7 @@ import { IKeybindingItem, KeybindingsRegistry } from '../../../keybinding/common
 import { ICommandAction } from '../../../action/common/action.js';
 import { IMenuItem, isIMenuItem, ISubmenuItem, MenuId, MenuRegistry } from '../../common/actions.js';
 
-interface IRegistrySnapshot {
+export interface IRegistrySnapshot {
 	readonly commands: ReadonlyMap<string, ICommand>;
 	readonly menuCommands: ReadonlyMap<string, ICommandAction>;
 	readonly menuItems: ReadonlyMap<MenuId, ReadonlySet<IMenuItem | ISubmenuItem>>;
@@ -20,10 +20,16 @@ function getMenuIds(): Iterable<MenuId> {
 	return (MenuId as unknown as { readonly _instances: ReadonlyMap<string, MenuId> })._instances.values();
 }
 
-function takeSnapshot(): IRegistrySnapshot {
+export function takeRegistrySnapshot(): IRegistrySnapshot {
 	const menuItems = new Map<MenuId, ReadonlySet<IMenuItem | ISubmenuItem>>();
 	for (const id of getMenuIds()) {
-		const items = MenuRegistry.getMenuItems(id);
+		let items = MenuRegistry.getMenuItems(id);
+		if (id === MenuId.CommandPalette) {
+			// The command palette adds a new item for every command without an explicit one on each call.
+			// Keep only the registered items, which are the same on every call: menuCommands covers the others.
+			const registered = new Set(MenuRegistry.getMenuItems(id));
+			items = items.filter(item => registered.has(item));
+		}
 		if (items.length) {
 			menuItems.set(id, new Set(items));
 		}
@@ -56,7 +62,7 @@ function describeMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): string 
 	return `menu item '${isIMenuItem(item) ? item.command.id : `submenu ${item.submenu.id}`}' in '${menu.id}'`;
 }
 
-function diffSnapshots(before: IRegistrySnapshot, after: IRegistrySnapshot): string[] {
+export function diffRegistrySnapshots(before: IRegistrySnapshot, after: IRegistrySnapshot): string[] {
 	const changes: string[] = [];
 	diffMaps('command', before.commands, after.commands, changes);
 	diffMaps('menu command', before.menuCommands, after.menuCommands, changes);
@@ -123,7 +129,7 @@ export function installRegistryLeakCheck(root: Mocha.Suite): void {
 			return;
 		}
 		suite.beforeAll('Registry leak check: snapshot', () => {
-			snapshots.set(suite, takeSnapshot());
+			snapshots.set(suite, takeRegistrySnapshot());
 		});
 	});
 
@@ -143,7 +149,7 @@ export function installRegistryLeakCheck(root: Mocha.Suite): void {
 				if (!before) {
 					return;
 				}
-				const changes = diffSnapshots(before, takeSnapshot());
+				const changes = diffRegistrySnapshots(before, takeRegistrySnapshot());
 				if (changes.length) {
 					const reported = changes.slice(0, maxReportedChanges);
 					if (changes.length > reported.length) {
