@@ -250,7 +250,6 @@ export class NewChatInSessionWidget extends Disposable {
 		}
 	}
 
-	/** Whether `chat` is the one the pending harness switch produces, which keeps the composer's input. Only the first such chat does. */
 	private _consumeHarnessSwitchResult(chat: IChat): boolean {
 		const session = this._session.get();
 		if (!session || this._harnessSwitchTarget === undefined || getChatHarness(session, chat) !== this._harnessSwitchTarget) {
@@ -260,7 +259,6 @@ export class NewChatInSessionWidget extends Disposable {
 		return true;
 	}
 
-	/** Keeps what was typed but not sent, so returning to the chat finds it again. */
 	private _saveDraft(chat: IChat): void {
 		this.viewStateService.setDraft(chat.resource, this._newChatInput.getDraft());
 	}
