@@ -3,9 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../base/common/arrays.js';
 import { SequencerByKey } from '../../../base/common/async.js';
-import { Disposable, DisposableMap, IReference, ReferenceCollection } from '../../../base/common/lifecycle.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Disposable, DisposableMap, IDisposable, IReference, ReferenceCollection, toDisposable } from '../../../base/common/lifecycle.js';
+import { joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
+import { FileChangesEvent, IFileService } from '../../files/common/files.js';
+import { GIT_IGNORE_FILE_NAME, readGitIgnoreWatcherExcludes } from '../../files/common/watcherGitIgnore.js';
 import { buildUncommittedChangesetUri, changesetSession, parseChangesetUri } from '../common/changesetUri.js';
 import { isAhpChatChannel, parseSubagentSessionUri } from '../common/state/sessionState.js';
 import { DEFAULT_AGENT_HOST_WATCH_EXCLUDES, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
@@ -36,6 +41,14 @@ class WatchInterestReferenceCollection extends ReferenceCollection<string> {
 	}
 }
 
+/** A repository root's shared monitor acquisition. */
+interface IRootWatch extends IDisposable {
+	readonly repositoryRoot: URI;
+	readonly gitIgnoreResource: URI;
+	/** Excludes derived from the root `.gitignore` when the watcher was acquired. */
+	readonly gitIgnoreExcludes: readonly string[];
+}
+
 /**
  * Keeps static changeset catalogue entries fresh while a client is observing a
  * session or one of its static changeset resources.
@@ -51,6 +64,12 @@ class WatchInterestReferenceCollection extends ReferenceCollection<string> {
  * the turn are captured by the turn lifecycle, and the static changesets are
  * recomputed once when the turn completes. Watching during the turn would add
  * duplicate file-system noise without improving correctness.
+ *
+ * Root watchers exist only to refresh session Git state, so they also exclude
+ * the paths ignored by the root's `.gitignore` (build output such as `target/`
+ * would otherwise add watches for every file it churns). The `.gitignore` is
+ * read before each acquisition, and the watcher is re-acquired when a change
+ * to it alters the derived excludes.
  */
 export class ChangesetFileMonitorCoordinator extends Disposable {
 
@@ -73,7 +92,9 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	/** Repository-root URI string to sessions currently fanned out from that root. */
 	private readonly _rootSessions = new Map<string, Set<string>>();
 	/** Repository-root URI string to the shared monitor acquisition. */
-	private readonly _rootWatchAcquisitions = this._register(new DisposableMap<string>());
+	private readonly _rootWatches = this._register(new DisposableMap<string, IRootWatch>());
+	/** Repository-root URI string to the pending `.gitignore` read that (re)acquires its watcher; disposing it cancels the read. */
+	private readonly _rootWatchUpdates = this._register(new DisposableMap<string>());
 	/** Repository-root URI string to the canonical repository root URI. */
 	private readonly _rootUris = new Map<string, URI>();
 	/** Active session URI string to repository-root URI strings. */
@@ -92,8 +113,10 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
+		this._register(this._fileService.onDidFilesChange(event => this._onDidFilesChange(event)));
 	}
 
 	trackSessionChanges(subscriptionKey: string, sessionStr: string, sourceStr: string = sessionStr): void {
@@ -266,7 +289,6 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 			sessionRoots = new Set<string>();
 			this._sessionRoots.set(sessionStr, sessionRoots);
 		}
-		let allRootsWatched = true;
 		for (const [rootStr, repositoryRoot] of desiredRoots) {
 			let sessions = this._rootSessions.get(rootStr);
 			if (!sessions) {
@@ -276,17 +298,11 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 			}
 			sessions.add(sessionStr);
 			sessionRoots.add(rootStr);
-			if (!this._ensureRootWatcher(rootStr, repositoryRoot)) {
-				allRootsWatched = false;
-			}
+			this._ensureRootWatcher(rootStr, repositoryRoot);
 		}
-		// Cache the signature only when every root was watched; a failed
-		// acquisition is then retried on the next re-attach (not skipped).
-		if (allRootsWatched) {
-			this._sessionWorkingDirectories.set(sessionStr, signature);
-		} else {
-			this._sessionWorkingDirectories.delete(sessionStr);
-		}
+		// A root watcher whose acquisition fails later clears this signature
+		// (see `_onRootWatchFailed`), so the root is retried on the next re-attach.
+		this._sessionWorkingDirectories.set(sessionStr, signature);
 	}
 
 	private _releaseSessionRoots(sessionStr: string): void {
@@ -314,7 +330,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		if (sessions.size === 0) {
 			this._rootSessions.delete(rootStr);
 			this._rootUris.delete(rootStr);
-			this._rootWatchAcquisitions.deleteAndDispose(rootStr);
+			this._releaseRootWatcher(rootStr);
 		}
 	}
 
@@ -373,34 +389,90 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	}
 
 	/**
-	 * Ensures a shared watcher exists for a root. Returns false only when
-	 * acquisition failed (the caller retries that root later); an
-	 * already-watched or turn-suspended active root counts as handled.
+	 * Ensures a shared watcher exists, or is being acquired, for a root that has
+	 * attached sessions and no active turn. The watcher is acquired once the
+	 * root's `.gitignore` has been read.
 	 */
-	private _ensureRootWatcher(rootStr: string, repositoryRoot: URI): boolean {
-		if (this._isRootActive(rootStr) || this._rootWatchAcquisitions.has(rootStr)) {
-			return true;
+	private _ensureRootWatcher(rootStr: string, repositoryRoot: URI): void {
+		if (this._isRootActive(rootStr) || this._rootWatches.has(rootStr) || this._rootWatchUpdates.has(rootStr)) {
+			return;
 		}
 		const sessions = this._rootSessions.get(rootStr);
 		if (!sessions || sessions.size === 0) {
-			return true;
+			return;
 		}
-		const rootWatchAcquisition = this._fileMonitorService.acquire(repositoryRoot, () => this._onRootChanged(rootStr), {
-			excludes: DEFAULT_AGENT_HOST_WATCH_EXCLUDES,
-			debounceMs: 750,
-		});
-		if (!rootWatchAcquisition) {
-			for (const session of sessions) {
-				this._pendingWatchInterest.add(session);
-			}
-			return false;
-		}
-		this._rootWatchAcquisitions.set(rootStr, rootWatchAcquisition);
-		return true;
+		this._updateRootWatcher(rootStr, repositoryRoot);
 	}
 
-	private _suspendRootWatcher(rootStr: string): void {
-		this._rootWatchAcquisitions.deleteAndDispose(rootStr);
+	/**
+	 * Reads the root's `.gitignore` and acquires a watcher that excludes its
+	 * ignored paths, replacing the current watcher only if they changed. A newer
+	 * update, a turn suspending the root, or the root's last session detaching
+	 * cancels the pending read, so it never acquires a stale watcher.
+	 */
+	private _updateRootWatcher(rootStr: string, repositoryRoot: URI): void {
+		const cancellation = new CancellationTokenSource();
+		this._rootWatchUpdates.set(rootStr, toDisposable(() => cancellation.dispose(true)));
+		void this._doUpdateRootWatcher(rootStr, repositoryRoot, cancellation.token);
+	}
+
+	private async _doUpdateRootWatcher(rootStr: string, repositoryRoot: URI, token: CancellationToken): Promise<void> {
+		const gitIgnoreExcludes = await readGitIgnoreWatcherExcludes(this._fileService, repositoryRoot);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		this._rootWatchUpdates.deleteAndDispose(rootStr);
+		const current = this._rootWatches.get(rootStr);
+		if (current && equals(current.gitIgnoreExcludes, gitIgnoreExcludes)) {
+			return;
+		}
+		const acquisition = this._fileMonitorService.acquire(repositoryRoot, () => this._onRootChanged(rootStr), {
+			excludes: [...DEFAULT_AGENT_HOST_WATCH_EXCLUDES, ...gitIgnoreExcludes],
+			debounceMs: 750,
+		});
+		if (!acquisition) {
+			if (!current) {
+				this._onRootWatchFailed(rootStr);
+			}
+			return;
+		}
+		// Replacing the entry disposes the current watcher only after the new one
+		// is acquired, so the root never goes unwatched.
+		this._rootWatches.set(rootStr, {
+			repositoryRoot,
+			gitIgnoreResource: joinPath(repositoryRoot, GIT_IGNORE_FILE_NAME),
+			gitIgnoreExcludes,
+			dispose: () => acquisition.dispose(),
+		});
+		if (current) {
+			// The replaced watcher drops its pending debounce, which holds the `.gitignore` change itself.
+			this._onRootChanged(rootStr);
+		}
+	}
+
+	/**
+	 * Marks the root's sessions for a retry on their next re-attach, which then
+	 * re-resolves their roots instead of short-circuiting on the cached signature.
+	 */
+	private _onRootWatchFailed(rootStr: string): void {
+		for (const session of this._rootSessions.get(rootStr) ?? []) {
+			this._pendingWatchInterest.add(session);
+			this._sessionWorkingDirectories.delete(session);
+		}
+	}
+
+	private _onDidFilesChange(event: FileChangesEvent): void {
+		for (const [rootStr, watch] of this._rootWatches) {
+			if (event.contains(watch.gitIgnoreResource)) {
+				this._updateRootWatcher(rootStr, watch.repositoryRoot);
+			}
+		}
+	}
+
+	/** Disposes a root's watcher and cancels its pending acquisition. */
+	private _releaseRootWatcher(rootStr: string): void {
+		this._rootWatchUpdates.deleteAndDispose(rootStr);
+		this._rootWatches.deleteAndDispose(rootStr);
 	}
 
 	private async _markSessionActive(sessionStr: string): Promise<void> {
@@ -423,7 +495,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 			}
 			activeSessions.add(sessionStr);
 			this._rootUris.set(rootStr, repositoryRoot);
-			this._suspendRootWatcher(rootStr);
+			this._releaseRootWatcher(rootStr);
 		}
 		this._activeSessionRoots.set(sessionStr, rootStrs);
 		this._releaseSessionRoots(sessionStr);
