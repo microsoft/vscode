@@ -105,6 +105,7 @@ interface ICanvasRefreshBatch {
 	readonly generation: number;
 	readonly pendingOwnerKeys: Set<string>;
 	readonly notifyOnError: boolean;
+	readonly focusToRestore?: IFocusedCanvasAction;
 	errorMessage?: string;
 }
 
@@ -902,13 +903,14 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		return `${canvasOwnerKey(context.owner)}\u0000${source}\u0000${extensionId}`;
 	}
 
-	private refreshCanvases(notifyOnError = true): void {
+	private refreshCanvases(notifyOnError = true, focusToRestore?: IFocusedCanvasAction): void {
 		this.canvasErrors.clear();
 		const generation = this.canvasRefreshGeneration.get() + 1;
 		this.canvasRefreshBatch = {
 			generation,
 			pendingOwnerKeys: new Set(this.activeCanvasOwnerKeys),
 			notifyOnError,
+			focusToRestore,
 		};
 		this.canvasRefreshGeneration.set(generation, undefined);
 		status(localize('copilotCanvases.refreshing', "Refreshing Canvases."));
@@ -965,11 +967,19 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		} finally {
 			if (isCurrent()) {
 				this.loadingCanvasOwnerKeys.delete(ownerKey);
-				if (this.canvasRefreshBatch?.generation === refreshGeneration) {
-					this.canvasRefreshBatch.pendingOwnerKeys.delete(ownerKey);
-					this.completeCanvasRefreshIfReady();
+				const refresh = this.canvasRefreshBatch?.generation === refreshGeneration ? this.canvasRefreshBatch : undefined;
+				if (refresh) {
+					refresh.pendingOwnerKeys.delete(ownerKey);
 				}
 				this.render();
+				if (refresh) {
+					const focusToRestore = refresh.pendingOwnerKeys.size === 0 ? refresh.focusToRestore : undefined;
+					this.completeCanvasRefreshIfReady();
+					const activeElement = DOM.getActiveElement();
+					if (focusToRestore && DOM.isHTMLElement(activeElement) && activeElement === activeElement.ownerDocument.body) {
+						this.restoreFocusedAction(focusToRestore);
+					}
+				}
 			}
 		}
 	}
@@ -1103,7 +1113,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		} finally {
 			const shouldRestoreFocus = DOM.getActiveElement() === focusedMutationAction;
 			this.pendingExtensionMutations.delete(mutationKey);
-			this.refreshCanvases(!mutationFailed);
+			this.refreshCanvases(!mutationFailed, shouldRestoreFocus ? focusedAction : undefined);
 			if (shouldRestoreFocus) {
 				this.restoreFocusedAction(focusedAction);
 			}

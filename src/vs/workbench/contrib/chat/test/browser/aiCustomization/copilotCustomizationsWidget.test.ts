@@ -644,6 +644,28 @@ suite('CopilotCanvasesWidget', () => {
 		});
 	});
 
+	test('restores toggle focus after a failed enable refresh', async () => {
+		const preview = definition();
+		const harness = createHarness({
+			definitions: [preview],
+			extensionInventory: inventory([preview], 'disabled'),
+			mutationError: new Error('The preference was saved, but reconciliation failed.'),
+		});
+		await timeout(20);
+		const enable = harness.container.querySelector<HTMLElement>('[aria-label="Enable canvas extension \'Preview Extension\'"]');
+		assert.ok(enable);
+		enable.focus();
+		enable.click();
+		await timeout(20);
+		assert.deepStrictEqual({
+			label: DOM.getActiveElement()?.getAttribute('aria-label'),
+			checked: DOM.getActiveElement()?.getAttribute('aria-checked'),
+		}, {
+			label: 'Disable canvas extension \'Preview Extension\'',
+			checked: 'true',
+		});
+	});
+
 	test('restores cached children after the Customizations widget is recreated while disabled', async () => {
 		const definitions = [
 			definition({ canvasId: 'review', extensionId: 'user:pr-tools', extensionSource: 'user', extensionName: 'PR Tools', displayName: 'PR Review Board' }),
