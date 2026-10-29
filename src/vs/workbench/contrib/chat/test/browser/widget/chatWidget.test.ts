@@ -728,6 +728,7 @@ suite('ChatWidget', () => {
 			input: {
 				value: {
 					inputEditor: { getValue: () => currentInput },
+					getPromptText: () => currentInput,
 					attachmentModel: { getAttachmentIDs: () => new Set(currentAttachmentIds) },
 					focus: () => focusCount++,
 				}
@@ -903,6 +904,8 @@ suite('ChatWidget', () => {
 				getValue: () => 'original request', getModel: () => null, focus: () => { },
 				onDidChangeModelContent: Event.None, onDidChangeCursorSelection: Event.None,
 			}),
+			getPromptText: () => 'original request',
+			inlineAttachments: undefined,
 			attachmentModel: upcastPartial<ChatInputPart['attachmentModel']>({
 				attachments: [], getAttachmentIDs: () => new Set(), addContext: () => { },
 				updateContext: () => { counts.updateContext++; },
@@ -2340,6 +2343,8 @@ suite('ChatWidget - acceptInput submission', () => {
 		const contextKeyService = store.add(new MockContextKeyService());
 		const input = mockObject<ChatInputPart>()({
 			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({ getValue: () => parsedInput.text }),
+			getPromptText: () => parsedInput.text,
+			inlineAttachments: undefined,
 			currentModeKind: ChatModeKind.Ask,
 			currentModeInfo: upcastPartial<ChatInputPart['currentModeInfo']>({ kind: ChatModeKind.Ask, isBuiltin: true }),
 			currentLanguageModel: undefined,

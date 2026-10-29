@@ -11,6 +11,7 @@ import { isMobile, isWeb } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IPosition } from '../../../../editor/common/core/position.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js';
@@ -704,7 +705,18 @@ export const InstalledAgentPluginsViewId = 'workbench.views.agentPlugins.install
 export interface IChatAttachmentTarget {
 	readonly attachments: readonly IChatRequestVariableEntry[];
 
-	addAttachments(entries: readonly IChatRequestVariableEntry[]): void;
+	/**
+	 * @param dropPosition Where in the target's input the attachments were
+	 * dropped, see {@link getDropPosition}.
+	 */
+	addAttachments(entries: readonly IChatRequestVariableEntry[], dropPosition?: IPosition): void;
+
+	/**
+	 * The position in the target's input at a point in the window where
+	 * attachments are dropped, when the target places attachments in its input,
+	 * as it does for inline attachment pills.
+	 */
+	getDropPosition?(clientX: number, clientY: number): IPosition | undefined;
 }
 
 /**
@@ -719,6 +731,15 @@ export interface IChatPasteTarget extends IChatAttachmentTarget {
 
 	/** Inline references currently present in the input. */
 	readonly inlineReferences: readonly IDynamicVariable[];
+
+	/**
+	 * The prompt that a copied range of the input stands for when the input
+	 * shows attachments as pills inline with the prompt, with the references in
+	 * it relative to the copied text, and the attachments of pills outside the
+	 * range, which the copy leaves out. `undefined` when the input does not
+	 * show attachments inline.
+	 */
+	getCopiedInlinePrompt?(ranges: readonly IRange[]): { readonly text: string; readonly references: readonly IDynamicVariable[]; readonly excludedAttachmentIds: ReadonlySet<string> } | undefined;
 
 	removeAttachments(ids: readonly string[]): void;
 

@@ -665,6 +665,29 @@ suite('ChatRequestParser', () => {
 		await assertSnapshot(result);
 	});
 
+	test('a variable in the text of a reference does not start another part', () => {
+		// The name of an attachment, such as a terminal command, can mention a tool.
+		const text = 'run #attachment:echo #selection now';
+		variableService.setSelectedToolAndToolSets(testSessionUri, ToolAndToolSetEnablementMap.fromEntries([
+			[{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true],
+		] satisfies [IToolData | ToolSet, boolean][]));
+		variableService.setDynamicVariables(testSessionUri, [{
+			id: 'terminal-1',
+			fullName: 'echo #selection',
+			range: new Range(1, 5, 1, 32),
+			isAttachmentReference: true,
+			data: undefined,
+		}]);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, text);
+		assert.deepStrictEqual(result.parts.map(part => [part.kind, part.text]), [
+			['text', 'run '],
+			['dynamic', '#attachment:echo #selection'],
+			['text', ' now'],
+		]);
+	});
+
 	test('agents and tools and multiline', async () => {
 		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);

@@ -69,6 +69,7 @@ export enum ChatConfiguration {
 	EditRequests = 'chat.editRequests',
 	PasteAsAttachmentThreshold = 'chat.pasteAsAttachmentThreshold',
 	InlineReferencesStyle = 'chat.inlineReferences.style',
+	InlineAttachmentsEnabled = 'chat.inlineAttachments.enabled',
 	AutoReply = 'chat.autoReply',
 	GlobalAutoApprove = 'chat.tools.global.autoApprove',
 	AutoApproveEdits = 'chat.tools.edits.autoApprove',

@@ -135,7 +135,7 @@ import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider } fr
 import { getAgentSessionPullRequestContextValue } from '../../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
-import { IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentWidgetRegistry.js';
+import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentWidgetRegistry.js';
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, BrowserViewAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
 import { ChatImplicitContexts } from '../../attachments/chatImplicitContext.js';
 import { ImplicitContextAttachmentWidget, isImplicitContextAlreadyAttached } from '../../attachments/implicitContextAttachment.js';
@@ -160,6 +160,9 @@ import { ChatTodoListWidget } from '../chatContentParts/chatTodoListWidget.js';
 import { ChatArtifactsWidget } from '../chatArtifactsWidget.js';
 import { handleTerminalCommandPaste, isTerminalCommandInput, isTerminalCommandPaste as isTerminalCommandPasteContent } from '../../chatTerminalCommandPaste.js';
 import { ChatDynamicVariableModel } from '../../attachments/chatDynamicVariables.js';
+import { IDynamicVariable } from '../../../common/attachments/chatVariables.js';
+import { ChatInlineAttachments } from './editor/chatInlineAttachments.js';
+import { isInlineAttachmentCandidate } from '../../../common/attachments/chatInlineAttachments.js';
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
 import { getChatPetStackPlatform, IChatPetPlatform } from '../chatPetWidget.js';
 import { ChatFollowups } from './chatFollowups.js';
@@ -836,6 +839,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._inputEditor;
 	}
 
+	private _inlineAttachments: ChatInlineAttachments | undefined;
+
+	/** The attachments shown as pills inline with the prompt, once the input is rendered. */
+	get inlineAttachments(): ChatInlineAttachments | undefined {
+		return this._inlineAttachments;
+	}
+
+	/**
+	 * The prompt the input represents. It differs from the input editor's text
+	 * when inline attachment pills stand for text, see {@link ChatInlineAttachments}.
+	 */
+	getPromptText(): string {
+		return this._inlineAttachments?.project()?.text ?? this._inputEditor.getValue();
+	}
+
 	setHistoryKey(historyKey: string | undefined): void {
 		this.history.setHistoryKey(historyKey);
 	}
@@ -1277,7 +1295,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs, this._currentLanguageModel));
 		this.dnd = this._register(this.instantiationService.createInstance(ChatDragAndDrop, () => this._widget, {
 			get attachments() { return attachmentModel.attachments; },
-			addAttachments: (entries: readonly IChatRequestVariableEntry[]) => attachmentModel.addContext(...entries),
+			addAttachments: (entries: readonly IChatRequestVariableEntry[], dropPosition?: IPosition) => {
+				if (dropPosition && entries.some(isInlineAttachmentCandidate)) {
+					// The pills of inline attachments are inserted at the cursor.
+					this._inputEditor.setPosition(dropPosition);
+				}
+				attachmentModel.addContext(...entries);
+			},
+			getDropPosition: (clientX: number, clientY: number) => this._inlineAttachments?.isEnabled ? this._inlineAttachments.getPositionAtClientPoint(clientX, clientY) : undefined,
 		}, styles));
 
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
@@ -2479,6 +2504,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			contrib.getInputState?.(state.contrib);
 		}
 
+		// Persist the prompt that inline attachment pills stand for, rather than their anchors.
+		const isActiveInput = this._widget?.inputEditor === this._inputEditor;
+		const references = isActiveInput ? state.contrib[ChatDynamicVariableModel.ID] as IDynamicVariable[] | undefined : undefined;
+		const projection = this._inlineAttachments?.project(references ?? []);
+		if (projection) {
+			return {
+				...state,
+				inputText: projection.text,
+				selections: ChatInlineAttachments.projectSelections(state.selections, projection),
+				contrib: isActiveInput ? { ...state.contrib, [ChatDynamicVariableModel.ID]: projection.references } : state.contrib,
+			};
+		}
+
 		return state;
 	}
 
@@ -2687,15 +2725,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const historyEntry = previous ?
 			this.history.previous() : this.history.next();
 
-		await this.restoreAttachments(historyEntry?.attachments ?? []);
+		// Attachments are restored before the text and references that their pills stand for.
+		const inlineAttachmentsSuspension = this._inlineAttachments?.suspend();
+		try {
+			await this.restoreAttachments(historyEntry?.attachments ?? []);
 
-		const inputText = historyEntry?.inputText ?? '';
-		const contribData = historyEntry?.contrib ?? {};
-		aria.status(inputText);
-		this.setValue(inputText, true);
-		this._widget?.contribs.forEach(contrib => {
-			contrib.setInputState?.(contribData);
-		});
+			const inputText = historyEntry?.inputText ?? '';
+			const contribData = historyEntry?.contrib ?? {};
+			aria.status(inputText);
+			this.setValue(inputText, true);
+			this._widget?.contribs.forEach(contrib => {
+				contrib.setInputState?.(contribData);
+			});
+		} finally {
+			inlineAttachmentsSuspension?.dispose();
+		}
 		this._onDidLoadInputState.fire();
 
 		const model = this._inputEditor.getModel();
@@ -3837,6 +3881,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.updateInputEditorFontFamily();
 		this._register(addDisposableListener(this._inputEditorElement, dom.EventType.PASTE, e => this.handleTerminalCommandPaste(e), true));
 
+		const getWidget = () => this._widget;
+		this._inlineAttachments = this._register(this.instantiationService.createInstance(ChatInlineAttachments, this._inputEditor, this._attachmentModel, {
+			get widget() { return getWidget(); },
+			createAttachmentWidget: (attachment, container, attachmentOptions) => this.createAttachmentWidget(attachment, container, attachmentOptions),
+			removeAttachments: (attachments, explicit) => this.removeInlineAttachments(attachments, explicit),
+		}));
+		this._register(this._inlineAttachments.onDidChange(() => this.renderAttachedContext()));
+		// Pills render with the current model and file icon theme, as the attachments above the input do.
+		const inlineAttachments = this._inlineAttachments;
+		this._register(autorun(reader => {
+			this._currentLanguageModel.read(reader);
+			inlineAttachments.refresh();
+		}));
+		this._register(this.themeService.onDidFileIconThemeChange(() => inlineAttachments.refresh()));
+
 		const dictationRecording = ChatContextKeys.speechToTextRecording.bindTo(this.contextKeyService);
 		const dictationPreparing = ChatContextKeys.speechToTextPreparing.bindTo(this.contextKeyService);
 		const isDictationInputActive = observableFromEvent(
@@ -4628,7 +4687,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// contiguously over the rendered pills so the focus bookkeeping (which
 		// stores/compares indices and counts) stays aligned with the visible pills
 		// and not the model, which may contain non-rendered entries.
-		const attachments = this.getRenderableAttachments()
+		const renderableAttachments = this.getRenderableAttachments();
+		// Attachments shown as pills inline with the prompt are not repeated above it.
+		const attachments = renderableAttachments
+			.filter(attachment => !this.isAttachmentShownInline(attachment))
 			.map((attachment, index): [number, IChatRequestVariableEntry] => [index, attachment]);
 		const hasAttachments = Boolean(attachments.length);
 
@@ -4664,22 +4726,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Mark images that exceed the model-specific per-request limit so they render with a warning
 		const maxImagesPerRequest = getImageAttachmentLimit(this._currentLanguageModel.get()?.metadata);
-		const imageAttachments = attachments.filter(([, a]) => isImageVariableEntry(a));
+		const imageAttachments = renderableAttachments.filter(isImageVariableEntry);
 		if (maxImagesPerRequest !== undefined && imageAttachments.length > maxImagesPerRequest) {
 			const excessCount = imageAttachments.length - maxImagesPerRequest;
 			for (let i = 0; i < excessCount; i++) {
-				const attachment = imageAttachments[i][1];
+				const attachment = imageAttachments[i];
 				if (attachment.omittedState === OmittedState.NotOmitted || attachment.omittedState === OmittedState.ImageLimitExceeded) {
 					attachment.omittedState = OmittedState.ImageLimitExceeded;
 				}
 			}
 			for (let i = excessCount; i < imageAttachments.length; i++) {
-				if (imageAttachments[i][1].omittedState === OmittedState.ImageLimitExceeded) {
-					imageAttachments[i][1].omittedState = OmittedState.NotOmitted;
+				if (imageAttachments[i].omittedState === OmittedState.ImageLimitExceeded) {
+					imageAttachments[i].omittedState = OmittedState.NotOmitted;
 				}
 			}
 		} else {
-			for (const [, a] of imageAttachments) {
+			for (const a of imageAttachments) {
 				if (a.omittedState === OmittedState.ImageLimitExceeded) {
 					a.omittedState = OmittedState.NotOmitted;
 				}
@@ -4688,45 +4750,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 
 		for (const [index, attachment] of attachments) {
-			const resource = URI.isUri(attachment.value) ? attachment.value : isLocation(attachment.value) ? attachment.value.uri : undefined;
-			const range = isLocation(attachment.value) ? attachment.value.range : undefined;
 			const shouldFocusClearButton = index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, attachments.length - 1) && this._indexOfLastAttachedContextDeletedWithKeyboard > -1;
-
-			let attachmentWidget;
-			const options = { shouldFocusClearButton, supportsDeletion: true, isCurrentInput: true };
-			const lm = this._currentLanguageModel.get();
-			if (attachment.kind === 'tool' || attachment.kind === 'toolset') {
-				attachmentWidget = this.instantiationService.createInstance(ToolSetOrToolItemAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
-			} else if (resource && isNotebookOutputVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(NotebookCellOutputChatAttachmentWidget, resource, attachment, lm, options, container, this._contextResourceLabels);
-			} else if (isPromptFileVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(PromptFileAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
-			} else if (isPromptTextVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(PromptTextAttachmentWidget, attachment, undefined, options, container, this._contextResourceLabels);
-			} else if (resource && (attachment.kind === 'file' || attachment.kind === 'directory')) {
-				attachmentWidget = this.instantiationService.createInstance(FileAttachmentWidget, resource, range, attachment, undefined, lm, options, container, this._contextResourceLabels);
-			} else if (attachment.kind === 'terminalCommand') {
-				attachmentWidget = this.instantiationService.createInstance(TerminalCommandAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
-			} else if (isImageVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, lm, options, container, this._contextResourceLabels);
-			} else if (isElementVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(ElementChatAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
-			} else if (isPasteVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(PasteAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
-			} else if (isSCMHistoryItemVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(SCMHistoryItemAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
-			} else if (isSCMHistoryItemChangeVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(SCMHistoryItemChangeAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
-			} else if (isSCMHistoryItemChangeRangeVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(SCMHistoryItemChangeRangeAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
-			} else if (isBrowserViewVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(BrowserViewAttachmentWidget, attachment, lm, options, container, this._contextResourceLabels);
-			} else {
-				// The bound input model's session owns these attachments: restoring them renders before the widget's view model switches to it.
-				// The inline request-edit input part has no bound input model and falls back to the widget's session.
-				attachmentWidget = this._chatAttachmentWidgetRegistry.createWidget(attachment, options, container, this._inputModelSessionResource ?? this._widget?.viewModel?.sessionResource)
-					?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, undefined, lm, options, container, this._contextResourceLabels);
-			}
+			const attachmentWidget = this.createAttachmentWidget(attachment, container, { shouldFocusClearButton, supportsDeletion: true });
 
 			if (shouldFocusClearButton) {
 				attachmentWidget.element.focus();
@@ -4747,6 +4772,48 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		this._indexOfLastOpenedContext = -1;
+	}
+
+	/**
+	 * Creates the pill for an attachment, using the widget that matches its kind.
+	 * Used for the attachments above the input and for inline attachment pills.
+	 */
+	createAttachmentWidget(attachment: IChatRequestVariableEntry, container: HTMLElement, options: { shouldFocusClearButton: boolean; supportsDeletion: boolean }): IChatAttachmentWidgetInstance {
+		const resource = URI.isUri(attachment.value) ? attachment.value : isLocation(attachment.value) ? attachment.value.uri : undefined;
+		const range = isLocation(attachment.value) ? attachment.value.range : undefined;
+		const widgetOptions = { ...options, isCurrentInput: true };
+		const lm = this._currentLanguageModel.get();
+		if (attachment.kind === 'tool' || attachment.kind === 'toolset') {
+			return this.instantiationService.createInstance(ToolSetOrToolItemAttachmentWidget, attachment, lm, widgetOptions, container, this._contextResourceLabels);
+		} else if (resource && isNotebookOutputVariableEntry(attachment)) {
+			return this.instantiationService.createInstance(NotebookCellOutputChatAttachmentWidget, resource, attachment, lm, widgetOptions, container, this._contextResourceLabels);
+		} else if (isPromptFileVariableEntry(attachment)) {
+			return this.instantiationService.createInstance(PromptFileAttachmentWidget, attachment, lm, widgetOptions, container, this._contextResourceLabels);
+		} else if (isPromptTextVariableEntry(attachment)) {
+			return this.instantiationService.createInstance(PromptTextAttachmentWidget, attachment, undefined, widgetOptions, container, this._contextResourceLabels);
+		} else if (resource && (attachment.kind === 'file' || attachment.kind === 'directory')) {
+			return this.instantiationService.createInstance(FileAttachmentWidget, resource, range, attachment, undefined, lm, widgetOptions, container, this._contextResourceLabels);
+		} else if (attachment.kind === 'terminalCommand') {
+			return this.instantiationService.createInstance(TerminalCommandAttachmentWidget, attachment, lm, widgetOptions, container, this._contextResourceLabels);
+		} else if (isImageVariableEntry(attachment)) {
+			return this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, lm, widgetOptions, container, this._contextResourceLabels);
+		} else if (isElementVariableEntry(attachment)) {
+			return this.instantiationService.createInstance(ElementChatAttachmentWidget, attachment, lm, widgetOptions, container, this._contextResourceLabels);
+		} else if (isPasteVariableEntry(attachment)) {
+			return this.instantiationService.createInstance(PasteAttachmentWidget, attachment, lm, widgetOptions, container, this._contextResourceLabels);
+		} else if (isSCMHistoryItemVariableEntry(attachment)) {
+			return this.instantiationService.createInstance(SCMHistoryItemAttachmentWidget, attachment, lm, widgetOptions, container, this._contextResourceLabels);
+		} else if (isSCMHistoryItemChangeVariableEntry(attachment)) {
+			return this.instantiationService.createInstance(SCMHistoryItemChangeAttachmentWidget, attachment, lm, widgetOptions, container, this._contextResourceLabels);
+		} else if (isSCMHistoryItemChangeRangeVariableEntry(attachment)) {
+			return this.instantiationService.createInstance(SCMHistoryItemChangeRangeAttachmentWidget, attachment, lm, widgetOptions, container, this._contextResourceLabels);
+		} else if (isBrowserViewVariableEntry(attachment)) {
+			return this.instantiationService.createInstance(BrowserViewAttachmentWidget, attachment, lm, widgetOptions, container, this._contextResourceLabels);
+		}
+		// The bound input model's session owns these attachments: restoring them renders before the widget's view model switches to it.
+		// The inline request-edit input part has no bound input model and falls back to the widget's session.
+		return this._chatAttachmentWidgetRegistry.createWidget(attachment, widgetOptions, container, this._inputModelSessionResource ?? this._widget?.viewModel?.sessionResource)
+			?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, undefined, lm, widgetOptions, container, this._contextResourceLabels);
 	}
 
 	/**
@@ -4782,18 +4849,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._attachmentModel.delete(attachment.id);
 		this.removeInlineReferenceText(attachment);
-
-
-		if (this.configurationService.getValue<boolean>('chat.implicitContext.enableImplicitContext')) {
-			// if currently opened file is deleted, do not show implicit context
-			for (const implicitContext of (this._implicitContext?.values || [])) {
-				const implicitValue = URI.isUri(implicitContext?.value) && URI.isUri(attachment.value) && isEqual(implicitContext.value, attachment.value);
-
-				if (implicitContext?.isFile && implicitValue) {
-					implicitContext.enabled = false;
-				}
-			}
-		}
+		this.disableImplicitContextOf(attachment);
 
 		if (this.getRenderableAttachments().length === 0) {
 			this.focus();
@@ -4804,6 +4860,36 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
+	 * Removes the attachments of inline attachment pills that were removed from
+	 * the input, see {@link ChatInlineAttachments}.
+	 *
+	 * @param explicit Whether the user removed the pills, rather than undoing their addition.
+	 */
+	private removeInlineAttachments(attachments: readonly IChatRequestVariableEntry[], explicit: boolean): void {
+		this._attachmentModel.delete(...attachments.map(attachment => attachment.id));
+		if (explicit) {
+			for (const attachment of attachments) {
+				this.disableImplicitContextOf(attachment);
+			}
+		}
+		this._onDidChangeContext.fire({ removed: [...attachments] });
+	}
+
+	/** Stops sending the file of a removed attachment as implicit context, as it was removed on purpose. */
+	private disableImplicitContextOf(attachment: IChatRequestVariableEntry): void {
+		if (this.configurationService.getValue<boolean>('chat.implicitContext.enableImplicitContext')) {
+			// if currently opened file is deleted, do not show implicit context
+			for (const implicitContext of (this._implicitContext?.values || [])) {
+				const implicitValue = URI.isUri(implicitContext?.value) && URI.isUri(attachment.value) && isEqual(implicitContext.value, attachment.value);
+
+				if (implicitContext?.isFile && implicitValue) {
+					implicitContext.enabled = false;
+				}
+			}
+		}
+	}
+
+	/**
 	 * The attachments that are rendered as pills in the input. Agent-host
 	 * completion entries (skills/commands) live in the model so their `_meta`
 	 * reaches the outgoing message, but they are shown as inline decorations
@@ -4811,6 +4897,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	private getRenderableAttachments(): IChatRequestVariableEntry[] {
 		return this.attachmentModel.attachments.filter(attachment => !isAgentHostCompletionVariableEntry(attachment));
+	}
+
+	/**
+	 * Whether an attachment is shown as a pill inline with the prompt, see
+	 * {@link ChatInlineAttachments}. Images are always shown above the prompt.
+	 */
+	private isAttachmentShownInline(attachment: IChatRequestVariableEntry): boolean {
+		return !!this._inlineAttachments?.isShownInline(attachment);
 	}
 
 	private handleAttachmentOpen(index: number, attachment: IChatRequestVariableEntry): void {

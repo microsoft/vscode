@@ -2127,7 +2127,7 @@ export function renderForm(
 	}));
 
 	return {
-		getPrompt: () => chatInput.inputEditor.getValue(),
+		getPrompt: () => chatInput.getPromptText(),
 		getSessionConfiguration: async token => {
 			const captured = await automationSessionDraftSynchronizer.getSessionConfiguration(token);
 			const configuration = cloudConfiguration.get();

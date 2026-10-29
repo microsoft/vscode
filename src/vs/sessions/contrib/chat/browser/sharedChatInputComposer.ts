@@ -575,7 +575,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		const attachments = [...widget.attachmentModel.attachments];
 		const references = [...getDynamicVariablesForWidget(widget)];
 		widget.setModel(ref.object);
-		if (widget.getInput() !== inputText) {
+		// The references refer to the prompt, which differs from the input editor's text while it shows inline attachment pills.
+		if (widget.inputEditor.getValue() !== inputText) {
 			this.setInputValue(inputText);
 		}
 		widget.attachmentModel.clearAndSetContext(...attachments);

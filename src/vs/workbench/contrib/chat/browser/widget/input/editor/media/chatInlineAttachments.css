@@ -1,0 +1,82 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * The character that an inline attachment pill is laid out over. Its glyph is
+ * hidden, and its width, set per pill, reserves the pill's width in the line.
+ */
+.monaco-editor .chat-inline-attachment-anchor {
+	display: inline-block;
+	color: transparent;
+}
+
+.monaco-editor .chat-inline-attachment-wrap-width {
+	display: inline-block;
+	width: 0;
+}
+
+/*
+ * The pill is a content widget, which is absolutely positioned and would
+ * shrink to fit next to the right edge of the editor. It keeps its natural
+ * width instead, which the anchor reserves in the line.
+ */
+.monaco-editor .chat-inline-attachment {
+	width: max-content;
+	white-space: nowrap;
+}
+
+.interactive-session .monaco-editor .chat-inline-attachment > .chat-attached-context {
+	display: flex;
+	align-items: center;
+	height: 100%;
+}
+
+.interactive-session .monaco-editor .chat-inline-attachment .chat-attached-context-attachment {
+	max-width: 240px;
+}
+
+/*
+ * Icons drawn with a codicon, such as the folder icon, take the box of a file
+ * icon with the glyph centered in it, rather than a wider box that starts with
+ * the glyph and leaves a gap before the label.
+ */
+.interactive-session .chat-inline-attachment .chat-attached-context-attachment .monaco-icon-label.predefined-file-icon::before,
+.interactive-session .chat-request-inline-attachment .chat-attached-context-attachment .monaco-icon-label.predefined-file-icon::before {
+	width: 16px;
+	padding: 0;
+	text-align: center;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+/* Codicons in the label, as of tools and symbols, take the same box as the icons above. */
+.interactive-session .chat-inline-attachment .chat-attached-context-attachment .monaco-icon-label-container .codicon,
+.interactive-session .chat-request-inline-attachment .chat-attached-context-attachment .monaco-icon-label-container .codicon {
+	width: 16px;
+	text-align: center;
+}
+
+.monaco-editor .chat-inline-attachment.selected .chat-attached-context-attachment {
+	background-color: var(--vscode-editor-inactiveSelectionBackground);
+}
+
+.monaco-editor.focused .chat-inline-attachment.selected .chat-attached-context-attachment {
+	background-color: var(--vscode-editor-selectionBackground);
+}
+
+/* The pill right before the cursor, which Enter opens and Backspace deletes. */
+.monaco-editor.focused .chat-inline-attachment.active .chat-attached-context-attachment {
+	border-color: var(--vscode-focusBorder);
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+/* A tool that the request would not use, shown as implicit context that is not attached is. */
+.monaco-editor .chat-inline-attachment.unavailable .chat-attached-context-attachment {
+	border-style: dashed;
+}
+
+.monaco-editor .chat-inline-attachment.unavailable .chat-attached-context-attachment .monaco-icon-label .label-name {
+	font-style: italic;
+	opacity: 0.8;
+}
