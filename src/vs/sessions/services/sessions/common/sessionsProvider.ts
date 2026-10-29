@@ -717,9 +717,10 @@ export interface ISessionsProvider {
 	sessionWorktreeExists?(sessionId: string, token?: CancellationToken): Promise<boolean | undefined>;
 
 	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
-	sessionWorktreeCleanup?(sessionId: string, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	readonly supportsForceWorktreeCleanup?: boolean;
+	sessionWorktreeCleanup?(sessionId: string, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
 	listManagedWorktrees?(repositories?: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
-	cleanupManagedWorktree?(worktree: IAgentHostManagedWorktree): Promise<void>;
+	cleanupManagedWorktree?(worktree: IAgentHostManagedWorktree, force?: boolean): Promise<void>;
 	managedWorktreeExists?(worktree: IAgentHostManagedWorktree): Promise<boolean | undefined>;
 
 	/**

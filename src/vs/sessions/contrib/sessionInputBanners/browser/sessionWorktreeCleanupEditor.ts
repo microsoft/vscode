@@ -42,7 +42,7 @@ import { IEditorGroup } from '../../../../workbench/services/editor/common/edito
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { SessionWorktreeCleanupEditorFocusedContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, CLEANUP_THRESHOLD_BYTES, CLEANUP_THRESHOLD_WORKTREES, getWorktreeCleanupDiskUsage, getWorktreeCleanupId, getWorktreeCleanupTitle, ISessionWorktree, ISessionWorktreeCleanupCandidate, ISessionWorktreeCleanupService, ISessionWorktreeMeasurementProgress, SessionWorktreeCleanupState } from './sessionWorktreeCleanupService.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, CLEANUP_THRESHOLD_BYTES, CLEANUP_THRESHOLD_WORKTREES, getWorktreeCleanupDiskUsage, getWorktreeCleanupId, getWorktreeCleanupTitle, ISessionWorktree, ISessionWorktreeCleanupCandidate, ISessionWorktreeCleanupService, ISessionWorktreeMeasurementProgress, SessionWorktreeCleanupProgress, SessionWorktreeCleanupState } from './sessionWorktreeCleanupService.js';
 import { SessionWorktreeCleanupEditorInput } from './sessionWorktreeCleanupEditorInput.js';
 import './media/sessionWorktreeCleanupEditor.css';
 
@@ -51,7 +51,7 @@ const WORKTREE_ROW_HEIGHT = 44;
 const WORKTREE_HEADER_HEIGHT = 36;
 const WORKTREE_TABLE_MIN_WIDTH = 480;
 
-type WorktreeColumn = 'selection' | 'title' | 'workspace' | 'lastUsed' | 'storage';
+type WorktreeColumn = 'selection' | 'title' | 'workspace' | 'lastUsed' | 'storage' | 'actions';
 
 function getWorktreeWorkspace(worktree: ISessionWorktree): { uri: URI; label: string; description?: string } | undefined {
 	if (worktree.session) {
@@ -86,6 +86,11 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	private displayWorktreesById = new Map<string, ISessionWorktree>();
 	private mainWorktreeTable: WorkbenchTable<string> | undefined;
 	private unavailableWorktreeTable: WorkbenchTable<string> | undefined;
+	private progressWorktreeTable: WorkbenchTable<string> | undefined;
+	private progressSection: HTMLElement | undefined;
+	private progressHeading: HTMLElement | undefined;
+	private availableHeading: HTMLElement | undefined;
+	private sortOrder: 'size' | 'recent' = 'size';
 	private readonly tableDimensions = new WeakMap<WorkbenchTable<string>, dom.Dimension>();
 	private readonly tableFocusElements = new WeakMap<WorkbenchTable<string>, HTMLElement>();
 	private readonly tableScrollables = new Map<WorkbenchTable<string>, DomScrollableElement>();
@@ -167,7 +172,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const content = dom.append(this.container, dom.$('.session-worktree-cleanup-content'));
 
 		dom.append(content, dom.$('p.session-worktree-cleanup-intro', undefined,
-			localize('sessionWorktreeCleanup.filteredIntro', "Clean up worktrees to free disk space. Uncommitted changes are committed and sessions marked as done; restore a session to recreate its worktree. Managed worktrees with no matching session can also be selected for cleanup; their branches are kept.")));
+			localize('sessionWorktreeCleanup.filteredIntro', "Clean up worktrees to free disk space. Normal cleanup commits uncommitted changes and marks sessions as done; restore a session to recreate its worktree. Managed worktrees with no matching session can also be selected; their branches are kept. Force Remove permanently discards uncommitted changes after a separate confirmation.")));
 		dom.append(content, dom.$('p', undefined,
 			dom.$('strong', undefined, localize('sessionWorktreeCleanup.reopen', "You can return to this editor at any time by running Open Worktree Cleanup from the Command Palette."))));
 
@@ -199,9 +204,23 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			this.selectedSessionIds.clear();
 			this.renderRows();
 		}));
+		const sortLabel = dom.append(controls, dom.$('label', undefined, localize('sessionWorktreeCleanup.sortBy', "Sort by")));
+		const sortSelect = dom.append(sortLabel, dom.$<HTMLSelectElement>('select.session-worktree-cleanup-sort'));
+		dom.append(sortSelect, dom.$('option', { value: 'size' }, localize('sessionWorktreeCleanup.largestFirst', "Size (Largest First)")));
+		dom.append(sortSelect, dom.$('option', { value: 'recent' }, localize('sessionWorktreeCleanup.recentFirst', "Session Recency (Newest First)")));
+		this.editorDisposables.add(dom.addDisposableListener(sortSelect, dom.EventType.CHANGE, () => {
+			this.sortOrder = sortSelect.value === 'recent' ? 'recent' : 'size';
+			this.pinnedDisplayOrder = undefined;
+			this.renderRows();
+		}));
 
 		this.measurementProgress = dom.append(content, dom.$('p.session-worktree-cleanup-measurement-progress', { role: 'status', 'aria-live': 'polite' }));
 		dom.hide(this.measurementProgress);
+		this.progressSection = dom.append(content, dom.$('.session-worktree-cleanup-progress.hidden'));
+		this.progressHeading = dom.append(this.progressSection, dom.$('h2'));
+		const progressList = dom.append(this.progressSection, dom.$('.session-worktree-cleanup-list'));
+		this.progressWorktreeTable = this.createWorktreeTable(progressList, localize('sessionWorktreeCleanup.progressTable', "Worktrees in progress"));
+		this.availableHeading = dom.append(content, dom.$('h2.session-worktree-cleanup-available-heading'));
 		const summaryRow = this.summaryRow = dom.append(content, dom.$('.session-worktree-cleanup-summary-row'));
 		this.summary = dom.append(summaryRow, dom.$('.session-worktree-cleanup-summary'));
 		this.summaryMessage = dom.append(this.summary, dom.$('span', { role: 'status', 'aria-live': 'polite' }));
@@ -248,6 +267,9 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		}));
 		this.list = dom.append(content, dom.$('.session-worktree-cleanup-list'));
 		this.mainWorktreeTable = this.createWorktreeTable(this.list, localize('sessionWorktreeCleanup.tableLabel', "Agent session worktrees"));
+		if (this.progressSection) {
+			this.list.after(this.progressSection);
+		}
 		this.unavailableSection = dom.append(content, dom.$<HTMLDetailsElement>('details.session-worktree-cleanup-unavailable.hidden'));
 		this.unavailableSummary = dom.append(this.unavailableSection, dom.$('summary'));
 		this.editorDisposables.add(dom.addDisposableListener(this.unavailableSection, 'toggle', () => {
@@ -255,7 +277,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			this.updateScrollDimensions();
 		}));
 		this.unavailableList = dom.append(this.unavailableSection, dom.$('.session-worktree-cleanup-list.session-worktree-cleanup-unavailable-list'));
-		this.unavailableWorktreeTable = this.createWorktreeTable(this.unavailableList, localize('sessionWorktreeCleanup.unavailableTableLabel', "Worktrees unavailable for cleanup"));
+		this.unavailableWorktreeTable = this.createWorktreeTable(this.unavailableList, localize('sessionWorktreeCleanup.unavailableTableLabel', "Worktrees needing attention"), true);
 		this.emptyState = dom.append(content, dom.$('.session-worktree-cleanup-empty', { role: 'status' }));
 		const emptyStateIcon = dom.append(this.emptyState, renderIcon(Codicon.info));
 		emptyStateIcon.setAttribute('aria-hidden', 'true');
@@ -497,7 +519,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		}
 	}
 
-	private createWorktreeTable(container: HTMLElement, label: string): WorkbenchTable<string> {
+	private createWorktreeTable(container: HTMLElement, label: string, showActions = false): WorkbenchTable<string> {
 		const columns: (ITableColumn<string, string> & { templateId: WorktreeColumn })[] = [
 			{ label: '', weight: 0, minimumWidth: 40, maximumWidth: 40, templateId: 'selection', project: sessionId => sessionId },
 			{ label: localize('sessionWorktreeCleanup.sessionColumn', "Session"), weight: 0.4, minimumWidth: 140, templateId: 'title', project: sessionId => sessionId },
@@ -505,6 +527,9 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			{ label: localize('sessionWorktreeCleanup.lastUsedColumn', "Last Used"), weight: 0.2, minimumWidth: 100, templateId: 'lastUsed', project: sessionId => sessionId },
 			{ label: localize('sessionWorktreeCleanup.diskUsageColumn', "Disk Usage"), weight: 0.2, minimumWidth: 100, templateId: 'storage', project: sessionId => sessionId },
 		];
+		if (showActions) {
+			columns.splice(columns.length - 1, 0, { label: localize('sessionWorktreeCleanup.actionsColumn', "Actions"), weight: 0.2, minimumWidth: 130, templateId: 'actions', project: sessionId => sessionId });
+		}
 		const body = dom.$('.session-worktree-cleanup-table-body');
 		const scrollable = this.editorDisposables.add(new DomScrollableElement(body, {
 			horizontal: ScrollbarVisibility.Auto,
@@ -692,15 +717,15 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	}
 
 	private getVisibleWorktrees(): readonly ISessionWorktree[] {
-		return this.getMatchingWorktrees().filter(worktree => worktree.unlinkedWorktree || worktree.cleanupState === 'archived' || worktree.isMeasuring || worktree.sizeBytes !== undefined || this.cleanupBatch.has(getWorktreeCleanupId(worktree)));
+		return this.getMatchingWorktrees().filter(worktree => worktree.unlinkedWorktree || worktree.cleanupState === 'archived' || worktree.isMeasuring || worktree.measurementFailed || worktree.sizeBytes !== undefined || this.cleanupBatch.has(getWorktreeCleanupId(worktree)));
 	}
 
 	private renderRows(): void {
-		if (!this.list || !this.summaryMessage || !this.selectAllCheckbox || !this.mainWorktreeTable || !this.unavailableWorktreeTable || !this.unavailableSection || !this.unavailableSummary || !this.unavailableList) {
+		if (!this.list || !this.summaryMessage || !this.selectAllCheckbox || !this.mainWorktreeTable || !this.unavailableWorktreeTable || !this.progressWorktreeTable || !this.unavailableSection || !this.unavailableSummary || !this.unavailableList) {
 			return;
 		}
 		const activeElement = dom.getActiveElement();
-		const focusedTable = [this.mainWorktreeTable, this.unavailableWorktreeTable].find(table => this.tableFocusElements.get(table) === activeElement);
+		const focusedTable = [this.mainWorktreeTable, this.unavailableWorktreeTable, this.progressWorktreeTable].find(table => this.tableFocusElements.get(table) === activeElement);
 		const focusedRow = [...this.renderedCells].find(([, cells]) => [...cells.values()].some(cell => cell.container.contains(activeElement)));
 		const focusedSessionId = focusedTable?.getFocusedElements()[0] ?? focusedRow?.[0];
 		const focusedCheckbox = focusedRow?.[1].get('selection')?.container.contains(activeElement);
@@ -708,18 +733,28 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.renderWorkspaceOptions();
 		const visible = this.getVisibleWorktrees();
 		const selectable = visible.filter(worktree => this.isManuallySelectable(worktree));
-		const isInMainList = (worktree: ISessionWorktree) => !this.requiresSessionRearchive(worktree) && (this.isManuallySelectable(worktree)
-			|| this.cleanupBatch.has(getWorktreeCleanupId(worktree))
-			|| (this.cleaningSessionIds.has(getWorktreeCleanupId(worktree)) && this.hasPendingCleanup(worktree)));
-		const unavailable = visible.filter(worktree => !isInMainList(worktree));
+		const isInProgress = (worktree: ISessionWorktree) => this.isWorktreeInProgress(worktree);
+		const isInMainList = (worktree: ISessionWorktree) => !isInProgress(worktree) && !this.hasRemovalIssue(worktree) && this.isManuallySelectable(worktree);
+		const unavailable = visible.filter(worktree => !isInProgress(worktree) && !isInMainList(worktree));
+		if (this.progressSection && this.progressHeading) {
+			this.progressSection.classList.toggle('hidden', !visible.some(isInProgress));
+			this.progressHeading.textContent = localize('sessionWorktreeCleanup.inProgressHeading', "Progress and results ({0})", visible.filter(isInProgress).reduce((total, worktree) => total + worktree.worktreeCount, 0));
+		}
+		if (this.availableHeading) {
+			this.availableHeading.classList.toggle('hidden', !visible.some(isInMainList));
+			this.availableHeading.textContent = localize('sessionWorktreeCleanup.availableHeading', "Available for cleanup ({0})", visible.filter(isInMainList).reduce((total, worktree) => total + worktree.worktreeCount, 0));
+		}
 		const estimatedBytes = getWorktreeCleanupDiskUsage(selectable);
 		const selectableWorktrees = selectable.reduce((total, worktree) => total + worktree.worktreeCount, 0);
 		const totalWorktrees = visible.reduce((total, worktree) => total + (this.cleanupBatch.get(getWorktreeCleanupId(worktree))?.state === 'removed' ? 0 : worktree.worktreeCount), 0);
 		const isEmpty = visible.length === 0;
 		this.summaryRow?.classList.toggle('hidden', isEmpty);
-		this.list.classList.toggle('hidden', visible.length === unavailable.length);
+		this.list.classList.toggle('hidden', !visible.some(isInMainList));
 		this.unavailableSection.classList.toggle('hidden', unavailable.length === 0);
-		this.unavailableSummary.textContent = localize('sessionWorktreeCleanup.unavailableSection', "Unavailable for cleanup ({0})", unavailable.reduce((total, worktree) => total + worktree.worktreeCount, 0));
+		if (unavailable.some(worktree => this.hasRemovalIssue(worktree))) {
+			this.unavailableSection.open = true;
+		}
+		this.unavailableSummary.textContent = localize('sessionWorktreeCleanup.unavailableSection', "Needs attention ({0})", unavailable.reduce((total, worktree) => total + worktree.worktreeCount, 0));
 		this.emptyState?.classList.toggle('hidden', !isEmpty);
 		if (this.emptyStateMessage) {
 			this.emptyStateMessage.textContent = this.getMatchingWorktrees().length > 0
@@ -753,16 +788,20 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				}
 				return aPinnedIndex - bPinnedIndex;
 			}
+			if (this.sortOrder === 'recent') {
+				return (b.session?.updatedAt.get().getTime() ?? -1) - (a.session?.updatedAt.get().getTime() ?? -1);
+			}
 			return (b.cleanupState === 'archived' ? -1 : b.sizeBytes ?? -1) - (a.cleanupState === 'archived' ? -1 : a.sizeBytes ?? -1);
 		});
-		const ordered = [...sortedVisible.filter(isInMainList), ...sortedVisible.filter(worktree => !isInMainList(worktree))];
+		const ordered = [...sortedVisible.filter(isInMainList), ...sortedVisible.filter(isInProgress), ...sortedVisible.filter(worktree => !isInProgress(worktree) && !isInMainList(worktree))];
 		this.displayedSessionIds = ordered.map(worktree => getWorktreeCleanupId(worktree));
 		const nextWorktrees = new Map(visible.map(worktree => [getWorktreeCleanupId(worktree), worktree]));
 		for (const [sessionId, worktree] of nextWorktrees) {
 			this.displayWorktreesById.set(sessionId, worktree);
 		}
 		this.updateWorktreeTable(this.mainWorktreeTable, sortedVisible.filter(isInMainList).map(worktree => getWorktreeCleanupId(worktree)));
-		this.updateWorktreeTable(this.unavailableWorktreeTable, sortedVisible.filter(worktree => !isInMainList(worktree)).map(worktree => getWorktreeCleanupId(worktree)));
+		this.updateWorktreeTable(this.progressWorktreeTable, sortedVisible.filter(isInProgress).map(worktree => getWorktreeCleanupId(worktree)));
+		this.updateWorktreeTable(this.unavailableWorktreeTable, sortedVisible.filter(worktree => !isInProgress(worktree) && !isInMainList(worktree)).map(worktree => getWorktreeCleanupId(worktree)));
 		this.displayWorktreesById = nextWorktrees;
 		this.layoutWorktreeTables();
 		for (const sessionId of this.renderedCells.keys()) {
@@ -771,7 +810,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		if (focusedSessionId) {
 			const worktree = nextWorktrees.get(focusedSessionId);
 			if (worktree) {
-				const table = isInMainList(worktree) ? this.mainWorktreeTable : this.unavailableWorktreeTable;
+				const table = isInProgress(worktree) ? this.progressWorktreeTable : isInMainList(worktree) ? this.mainWorktreeTable : this.unavailableWorktreeTable;
 				if (table === this.unavailableWorktreeTable) {
 					this.unavailableSection.open = true;
 				}
@@ -799,7 +838,27 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		container.parentElement!.classList.add('session-worktree-cleanup-row');
 		let render: (worktree: ISessionWorktree) => void;
 		let focusTarget: HTMLElement | undefined;
-		if (column === 'selection') {
+		if (column === 'actions') {
+			const button = disposables.add(new Button(container, { ...defaultButtonStyles, secondary: true }));
+			button.label = localize('sessionWorktreeCleanup.forceRemove', "Force Remove");
+			button.element.classList.add('session-worktree-cleanup-force-remove');
+			focusTarget = button.element;
+			disposables.add(button.onDidClick(() => {
+				if (template.worktree && this.canForceCleanup(template.worktree)) {
+					void this.cleanupSelected([template.worktree], template.worktree);
+				}
+			}));
+			render = worktree => {
+				const visible = this.canForceCleanup(worktree);
+				if (visible && !container.contains(button.element)) {
+					container.appendChild(button.element);
+				} else if (!visible) {
+					button.element.remove();
+				}
+				button.enabled = visible && !this.isSchedulingCleanup;
+				button.element.setAttribute('aria-label', localize('sessionWorktreeCleanup.forceRemoveLabel', "Force remove {0}", getWorktreeCleanupTitle(worktree)));
+			};
+		} else if (column === 'selection') {
 			const checkbox = disposables.add(new Checkbox('', false, defaultCheckboxStyles));
 			const progress = renderIcon(ThemeIcon.modify(Codicon.loading, 'spin'));
 			progress.setAttribute('aria-hidden', 'true');
@@ -983,6 +1042,8 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			worktree.cleanupStatusError,
 			worktree.worktreeExists,
 			worktree.worktreeCheckError,
+			this.canForceCleanup(worktree),
+			this.isSchedulingCleanup,
 			batch?.state,
 			batch?.schedulingError,
 			this.selectedSessionIds.has(getWorktreeCleanupId(worktree)),
@@ -993,6 +1054,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	private clearRenderedRows(): void {
 		this.mainWorktreeTable?.splice(0, this.mainWorktreeTable.length);
 		this.unavailableWorktreeTable?.splice(0, this.unavailableWorktreeTable.length);
+		this.progressWorktreeTable?.splice(0, this.progressWorktreeTable.length);
 		this.renderedCells.clear();
 		this.displayedSessionIds = [];
 	}
@@ -1108,6 +1170,10 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	}
 
 	private isManuallySelectable(worktree: ISessionWorktree): boolean {
+		return !worktree.isMeasuring && this.canScheduleCleanup(worktree);
+	}
+
+	private canScheduleCleanup(worktree: ISessionWorktree): boolean {
 		const batch = this.cleanupBatch.get(getWorktreeCleanupId(worktree));
 		return worktree.worktreeExists !== false && !this.requiresSessionRearchive(worktree) && batch?.state !== 'queued' && batch?.state !== 'pending' && batch?.state !== 'removed'
 			&& (worktree.unlinkedWorktree
@@ -1115,6 +1181,22 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				: worktree.cleanupState === 'archived'
 					? !!worktree.cleanupStatus && !this.hasPendingCleanup(worktree)
 					: !worktree.session.isArchived.get() && worktree.sizeBytes !== undefined && (worktree.cleanupState === 'eligible' || worktree.cleanupState === 'active' || worktree.cleanupState === 'needsInput'));
+	}
+
+	private isWorktreeInProgress(worktree: ISessionWorktree): boolean {
+		const batch = this.cleanupBatch.get(getWorktreeCleanupId(worktree));
+		return worktree.isMeasuring === true || this.hasPendingCleanup(worktree) || batch?.state === 'queued' || batch?.state === 'pending' || batch?.state === 'removed';
+	}
+
+	private hasRemovalIssue(worktree: ISessionWorktree): boolean {
+		const batch = this.cleanupBatch.get(getWorktreeCleanupId(worktree));
+		return worktree.cleanupStatus?.state === 'failed' || worktree.cleanupStatus?.state === 'skipped' || worktree.cleanupStatus?.state === 'inUse'
+			|| !!worktree.worktreeCheckError || !!worktree.cleanupStatusError || worktree.measurementFailed === true
+			|| batch?.state === 'failed' || batch?.state === 'attention';
+	}
+
+	private canForceCleanup(worktree: ISessionWorktree): boolean {
+		return !this.isWorktreeInProgress(worktree) && this.cleanupService.canForceCleanup?.(worktree) === true;
 	}
 
 	private updateCleanupBatch(): void {
@@ -1142,7 +1224,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	private getRetryCandidates(): ISessionWorktreeCleanupCandidate[] {
 		return this.getVisibleWorktrees()
-			.filter(worktree => this.cleanupBatch.get(getWorktreeCleanupId(worktree))?.state === 'failed' && this.isManuallySelectable(worktree))
+			.filter(worktree => this.cleanupBatch.get(getWorktreeCleanupId(worktree))?.state === 'failed' && this.canScheduleCleanup(worktree))
 			.map(worktree => worktree.session
 				? { session: worktree.session, sizeBytes: worktree.sizeBytes, worktreeCount: worktree.worktreeCount }
 				: { unlinkedWorktree: worktree.unlinkedWorktree, sizeBytes: worktree.sizeBytes, worktreeCount: worktree.worktreeCount });
@@ -1184,7 +1266,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.retryButton.enabled = !this.isSchedulingCleanup && this.getRetryCandidates().length > 0;
 	}
 
-	private async cleanupSelected(selected = this.getSelected()): Promise<void> {
+	private async cleanupSelected(selected = this.getSelected(), forceWorktree?: ISessionWorktree): Promise<void> {
 		if (this.isSchedulingCleanup || selected.length === 0) {
 			return;
 		}
@@ -1204,7 +1286,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			this.renderRows();
 		};
 		try {
-			await this.cleanupService.cleanupWorktrees(selected, progress => {
+			const onProgress = (progress: SessionWorktreeCleanupProgress) => {
 				if (generation !== this.cleanupGeneration || this._store.isDisposed) {
 					return;
 				}
@@ -1220,7 +1302,12 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 						this.cleanupRenderScheduler.schedule();
 					}
 				}
-			});
+			};
+			if (forceWorktree) {
+				await this.cleanupService.forceCleanupWorktree(forceWorktree, onProgress);
+			} else {
+				await this.cleanupService.cleanupWorktrees(selected, onProgress);
+			}
 		} catch (error) {
 			if (generation === this.cleanupGeneration) {
 				for (const entry of this.cleanupBatch.values()) {

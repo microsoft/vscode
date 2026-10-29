@@ -26,7 +26,7 @@ import { ISessionsListModelService } from '../../../../services/sessions/browser
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { DEFAULT_CHAT_CAPABILITIES, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, IManagedSessionWorktree, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, getWorktreeCleanupId, getWorktreeCleanupTitle, SessionWorktreeCleanupProgress, SessionWorktreeCleanupService } from '../../browser/sessionWorktreeCleanupService.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, getWorktreeCleanupId, getWorktreeCleanupTitle, ISessionWorktree, SessionWorktreeCleanupProgress, SessionWorktreeCleanupService } from '../../browser/sessionWorktreeCleanupService.js';
 
 suite('SessionWorktreeCleanupService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1068,6 +1068,61 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	});
 
+	for (const confirmed of [false, true]) {
+		test(`force cleanup requires destructive confirmation (${confirmed})`, async () => {
+			const session = createSession('failed', oldDate(), SessionStatus.Completed, true);
+			const calls: { retry: boolean; force: boolean | undefined }[] = [];
+			const confirmations: string[] = [];
+			const service = disposables.add(createService([session], true, () => undefined, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+				canForceWorktreeCleanup: () => true,
+				dialogService: upcastPartial<IDialogService>({
+					confirm: async confirmation => {
+						confirmations.push(typeof confirmation.detail === 'string' ? confirmation.detail : confirmation.detail?.value ?? '');
+						return { confirmed };
+					},
+				}),
+				onCleanup: async (_session, retry, force) => {
+					calls.push({ retry, force });
+					return { state: 'unknown' };
+				},
+			}));
+			const worktree: ISessionWorktree = { session, sizeBytes: undefined, worktreeCount: 1, cleanupState: 'archived', worktreeExists: true, cleanupStatus: { state: 'failed' } };
+			const result = await service.forceCleanupWorktree(worktree);
+			assert.deepStrictEqual({
+				result, calls,
+				warnsAboutLoss: confirmations.length === 1 && confirmations[0].includes('all uncommitted changes') && confirmations[0].includes('cannot be undone'),
+			}, { result: confirmed, calls: confirmed ? [{ retry: true, force: true }] : [], warnsAboutLoss: true });
+		});
+	}
+
+	test('force cleanup is unavailable for in-use, running, unverified, or unsupported worktrees', async () => {
+		const session = createSession('failed', oldDate(), SessionStatus.Completed, true);
+		let supported = true;
+		const service = disposables.add(createService([session], true, () => undefined, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+			canForceWorktreeCleanup: () => supported,
+		}));
+		const worktree: ISessionWorktree = { session, sizeBytes: undefined, worktreeCount: 1, cleanupState: 'archived', worktreeExists: true, cleanupStatus: { state: 'failed' } };
+		const states = (['failed', 'skipped', 'inUse', 'pending', 'running', 'unknown'] as const).map(state => service.canForceCleanup({ ...worktree, cleanupStatus: { state } }));
+		supported = false;
+		await assert.rejects(service.forceCleanupWorktree(worktree), /cannot be forcibly removed/);
+		assert.deepStrictEqual({ states, unverified: service.canForceCleanup({ ...worktree, worktreeExists: undefined }) }, {
+			states: [true, true, false, false, false, false], unverified: false,
+		});
+	});
+
+	test('force cleanup rejects a session restored while confirmation was open', async () => {
+		const archived = observableValue('archived', true);
+		const session = createSession('restored', oldDate(), SessionStatus.Completed, true, true, 1, archived);
+		let cleanups = 0;
+		const service = disposables.add(createService([session], true, () => undefined, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+			canForceWorktreeCleanup: () => true,
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => { archived.set(false, undefined); return { confirmed: true }; } }),
+			onCleanup: async () => { cleanups++; return { state: 'unknown' }; },
+		}));
+		await assert.rejects(service.forceCleanupWorktree({ session, sizeBytes: undefined, worktreeCount: 1, cleanupState: 'archived', worktreeExists: true, cleanupStatus: { state: 'failed' } }), /Only sessions marked as done/);
+		assert.strictEqual(cleanups, 0);
+	});
+
 	test('reports cleanup scheduling progress after each archived session', async () => {
 		const archived: string[] = [];
 		const progressService = new TestProgressService();
@@ -1466,6 +1521,7 @@ function createService(
 		readonly dialogService?: IDialogService;
 		readonly onArchive?: (session: ISession) => Promise<void>;
 		readonly onCleanup?: ISessionsManagementService['sessionWorktreeCleanup'];
+		readonly canForceWorktreeCleanup?: ISessionsManagementService['canForceWorktreeCleanup'];
 		readonly onExists?: ISessionsManagementService['sessionWorktreeExists'];
 		readonly onDidArchiveSession?: Event<ISession>;
 		readonly listManagedWorktrees?: ISessionsManagementService['listManagedWorktrees'];
@@ -1479,6 +1535,7 @@ function createService(
 			getSessionWorktreeDiskUsage: async (session, token) => sizeForSession(session, token),
 			archiveSession: async session => overrides.onArchive?.(session),
 			sessionWorktreeCleanup: overrides.onCleanup,
+			canForceWorktreeCleanup: overrides.canForceWorktreeCleanup,
 			sessionWorktreeExists: overrides.onExists ?? (async () => true),
 			onDidArchiveSession: overrides.onDidArchiveSession ?? Event.None,
 			onDidChangeSessions,

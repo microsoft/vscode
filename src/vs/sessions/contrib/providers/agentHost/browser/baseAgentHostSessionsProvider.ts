@@ -40,6 +40,7 @@ import { supportsAgentHostArtifactRemoval, supportsAgentHostCreateChatWorkspace 
 import { supportsAgentHostSessionImport } from '../../../../../platform/agentHost/common/meta/agentHostSessionImportMeta.js';
 import { supportsAgentHostSessionMove } from '../../../../../platform/agentHost/common/meta/agentHostSessionMoveMeta.js';
 import { supportsAgentHostWorktreeDiskUsage } from '../../../../../platform/agentHost/common/meta/agentHostWorktreeDiskUsageMeta.js';
+import { supportsForceWorktreeCleanup } from '../../../../../platform/agentHost/common/meta/agentHostWorktreeCleanupMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { readCodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
@@ -7562,7 +7563,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._setSessionArchived(sessionId, false);
 	}
 
-	async sessionWorktreeCleanup(sessionId: string, retry: boolean) {
+	get supportsForceWorktreeCleanup(): boolean {
+		return supportsForceWorktreeCleanup(this.connection?.initializeResult.get());
+	}
+
+	async sessionWorktreeCleanup(sessionId: string, retry: boolean, force?: boolean) {
 		this._assertSessionAvailable(sessionId);
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const session = rawId ? this._sessionCache.get(rawId) : undefined;
@@ -7570,7 +7575,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (retry && (!session || !connection?.sessionWorktreeCleanup)) {
 			throw new Error(localize('worktreeCleanupUnavailable', "Connect to this session's host to retry worktree cleanup."));
 		}
-		return session && connection?.sessionWorktreeCleanup?.(session.backendUri, retry);
+		return session && connection?.sessionWorktreeCleanup?.(session.backendUri, retry, force);
 	}
 
 	async listManagedWorktrees(knownRepositories: readonly URI[] = []): Promise<IAgentHostManagedWorktree[]> {
@@ -7590,12 +7595,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}));
 	}
 
-	async cleanupManagedWorktree(worktree: IAgentHostManagedWorktree): Promise<void> {
+	async cleanupManagedWorktree(worktree: IAgentHostManagedWorktree, force?: boolean): Promise<void> {
 		const connection = this.connection;
 		if (!connection?.cleanupManagedWorktree) {
 			throw new Error(localize('managedWorktreeCleanupUnavailable', "Connect to this worktree's host to clean it up."));
 		}
-		await connection.cleanupManagedWorktree(fromAgentHostUri(URI.parse(worktree.repository)), fromAgentHostUri(URI.parse(worktree.worktree)), worktree.branch);
+		await connection.cleanupManagedWorktree(fromAgentHostUri(URI.parse(worktree.repository)), fromAgentHostUri(URI.parse(worktree.worktree)), worktree.branch, force);
 	}
 
 	async managedWorktreeExists(worktree: IAgentHostManagedWorktree): Promise<boolean | undefined> {

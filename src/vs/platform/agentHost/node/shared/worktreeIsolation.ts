@@ -132,7 +132,7 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	 * before the folder is removed. Throws when Git fails, so the removal can
 	 * be retried.
 	 */
-	removeRecordedWorktree(key: string, worktree: IRecordedWorktree, mode: WorktreeRemovalMode, canRemove?: () => Promise<boolean>): Promise<WorktreeRemovalOutcome>;
+	removeRecordedWorktree(key: string, worktree: IRecordedWorktree, mode: WorktreeRemovalMode, canRemove?: () => Promise<boolean>, discardChanges?: boolean): Promise<WorktreeRemovalOutcome>;
 	readWorktreeMetadata(sessionUri: URI): Promise<IWorktreeMetadata | undefined>;
 	adoptExistingWorktreeMetadata(sessionUri: URI, workingDirectory: URI): Promise<boolean>;
 	recordAdoptedWorktreeMetadata(sessionUri: URI, metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<void>;
@@ -1783,8 +1783,16 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		return worktree && { worktree: worktree.worktree, repositoryRoot: worktree.repositoryRoot, branchName: this._materializedWorktrees.get(key)?.branchName ?? '' };
 	}
 
-	async removeRecordedWorktree(key: string, recorded: IRecordedWorktree, mode: WorktreeRemovalMode, canRemove?: () => Promise<boolean>): Promise<WorktreeRemovalOutcome> {
+	async removeRecordedWorktree(key: string, recorded: IRecordedWorktree, mode: WorktreeRemovalMode, canRemove?: () => Promise<boolean>, discardChanges = false): Promise<WorktreeRemovalOutcome> {
 		const { worktree, branchName } = recorded;
+		if (discardChanges) {
+			if (canRemove && !await canRemove()) {
+				return 'inUse';
+			}
+			await this._gitService.removeWorktree(recorded.repositoryRoot, worktree, { force: true, discardChanges: true });
+			this._forgetRemovedWorktree(key);
+			return 'removed';
+		}
 		if (!await fileExists(worktree.fsPath)) {
 			// Prune its registration, so the branch is free and unarchive can recreate the folder.
 			if (await fileExists(recorded.repositoryRoot.fsPath)) {

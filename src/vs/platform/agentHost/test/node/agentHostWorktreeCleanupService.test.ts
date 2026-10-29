@@ -35,6 +35,7 @@ function recorded(name: string): IRecordedWorktree {
 /** Records the worktree work the clean-up service asks for, under a real per-key lock. */
 class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	readonly calls: string[] = [];
+	readonly forcedRemovals: string[] = [];
 	readonly sessions = new Map<string, IRecordedWorktree>([[SESSION.toString(), recorded('archived')]]);
 	readonly detached = new Map<string, IRecordedWorktree>([[HANDLE, recorded('detached')]]);
 	readonly retainedDetachedPaths: URI[] = [];
@@ -64,8 +65,8 @@ class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 		this.calls.push(`mark:${handle}:${archived}`);
 		return this.detached.has(handle);
 	}
-	override async removeRecordedWorktree(key: string, worktree: IRecordedWorktree, mode: WorktreeRemovalMode, canRemove?: () => Promise<boolean>): Promise<WorktreeRemovalOutcome> {
-		this.calls.push(`remove:${key}:${mode}:${worktree.branchName}`);
+	override async removeRecordedWorktree(key: string, worktree: IRecordedWorktree, mode: WorktreeRemovalMode, canRemove?: () => Promise<boolean>, discardChanges = false): Promise<WorktreeRemovalOutcome> {
+		this.calls.push(`remove:${key}:${mode}:${worktree.branchName}${discardChanges ? ':force' : ''}`);
 		this.removalStarted.complete();
 		await this.removal?.p;
 		if (this.failures > 0) {
@@ -75,6 +76,9 @@ class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 		if (canRemove && !await canRemove()) {
 			this.calls.push(`inUse:${key}`);
 			return 'inUse';
+		}
+		if (discardChanges) {
+			this.forcedRemovals.push(worktree.worktree.toString());
 		}
 		return this.outcome;
 	}
@@ -206,6 +210,81 @@ suite('AgentHostWorktreeCleanupService', () => {
 		assert.deepStrictEqual([beforeRestart, afterRestart].map(rows => rows.map(row => row.cleanupStatus)), [
 			[{ state: 'failed', message: 'git failed' }], [{ state: 'failed', message: 'git failed' }],
 		]);
+	});
+
+	test('force removal discards changes only for a verified unused managed worktree', async () => {
+		const { database, cleanup, worktree, repository, managed } = await createManagedInventory();
+		await cleanup.cleanupManagedWorktree(repository, managed, 'agents/recovered', true);
+		assert.deepStrictEqual({ forced: worktree.forcedRemovals, pending: await pending(database) }, {
+			forced: [managed.toString()], pending: [],
+		});
+	});
+
+	test('force removal protects live owners and retained detached worktrees', async () => {
+		const { database, cleanup, worktree, repository, managed } = await createManagedInventory();
+		worktree.retainedDetachedPaths.push(managed);
+		await assert.rejects(cleanup.cleanupManagedWorktree(repository, managed, 'agents/recovered', true), /still using/);
+		worktree.retainedDetachedPaths.length = 0;
+		await useWorktree(database, OTHER_SESSION, { repositoryRoot: repository, worktree: managed, branchName: 'agents/recovered' });
+		await assert.rejects(cleanup.cleanupManagedWorktree(repository, managed, 'agents/recovered', true), /still using/);
+		assert.deepStrictEqual(worktree.forcedRemovals, []);
+	});
+
+	test('force failures persist but automatic retries remain non-destructive', async () => {
+		const { database, cleanup, worktree, repository, managed, gitService } = await createManagedInventory();
+		worktree.failures = 1;
+		await assert.rejects(cleanup.cleanupManagedWorktree(repository, managed, 'agents/recovered', true), /git failed/);
+		const failure = (await database.listPendingWorktreeRemovals())[0]?.lastAttempt;
+		const restarted = disposables.add(new AgentHostWorktreeCleanupService({ now: () => Date.now() + 1_000_000 }, database, worktree, new NullLogService(), gitService));
+		await restarted.runPass();
+		assert.deepStrictEqual({
+			failure, forceAttempts: worktree.calls.filter(call => call.endsWith(':force')).length,
+			attempts: worktree.calls.filter(call => call.startsWith('remove:')).length, pending: await pending(database),
+		}, { failure: { state: 'failed', message: 'git failed' }, forceAttempts: 1, attempts: 2, pending: [] });
+	});
+
+	test('force removal rechecks usage at the final guard and surfaces failures', async () => {
+		const { database, cleanup, worktree, repository, managed } = await createManagedInventory();
+		worktree.removal = new DeferredPromise<void>();
+		const removal = cleanup.cleanupManagedWorktree(repository, managed, 'agents/recovered', true);
+		await worktree.removalStarted.p;
+		await useWorktree(database, OTHER_SESSION, { repositoryRoot: repository, worktree: managed, branchName: 'agents/recovered' });
+		await worktree.removal.complete();
+		await assert.rejects(removal, /could not be forcibly removed/);
+		assert.deepStrictEqual(worktree.forcedRemovals, []);
+	});
+
+	test('force removal of session worktrees requires an archived session and preserves its history', async () => {
+		const { database, cleanup, worktree, repository, managed } = await createManagedInventory();
+		const recorded = { repositoryRoot: repository, worktree: managed, branchName: 'agents/recovered' };
+		worktree.sessions.set(SESSION.toString(), recorded);
+		await useWorktree(database, SESSION, recorded);
+		await assert.rejects(cleanup.sessionWorktreeCleanup(SESSION, true, true), /Only archived/);
+		const state = await database.readSessionState(SESSION.toString());
+		assert.ok(state);
+		await database.writeSessionState(SESSION.toString(), state.header.revision, { values: { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, folders: [], chats: [], markPayloadDirty: false });
+		await cleanup.sessionWorktreeCleanup(SESSION, true, true);
+		assert.deepStrictEqual({
+			forced: worktree.forcedRemovals,
+			live: await database.isSessionLive(SESSION.toString()),
+			pending: await pending(database),
+		}, { forced: [managed.toString()], live: true, pending: [] });
+	});
+
+	test('force removal rechecks whether its owning session was restored', async () => {
+		const { database, cleanup, worktree, repository, managed } = await createManagedInventory();
+		const recorded = { repositoryRoot: repository, worktree: managed, branchName: 'agents/recovered' };
+		worktree.sessions.set(SESSION.toString(), recorded);
+		await useWorktree(database, SESSION, recorded, true);
+		worktree.removal = new DeferredPromise<void>();
+		const removal = cleanup.sessionWorktreeCleanup(SESSION, true, true);
+		await worktree.removalStarted.p;
+		const state = await database.readSessionState(SESSION.toString());
+		assert.ok(state);
+		await database.writeSessionState(SESSION.toString(), state.header.revision, { values: { [AH_META_IS_ARCHIVED_DB_KEY]: '' }, folders: [], chats: [], markPayloadDirty: false });
+		await worktree.removal.complete();
+		await assert.rejects(removal, /could not be forcibly removed/);
+		assert.deepStrictEqual(worktree.forcedRemovals, []);
 	});
 
 	test('refuses unlinked cleanup when a live session uses it, including a session absent from the UI', async () => {
