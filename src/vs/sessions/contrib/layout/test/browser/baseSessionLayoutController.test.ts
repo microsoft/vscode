@@ -64,7 +64,7 @@ suite('BaseLayoutController', () => {
 		return { owner: owner && { session: owner.sessionResource.toString(), chat: owner.chatResource?.toString() }, restoring, applying };
 	}
 
-	test('leaves the side panel toggle to the title bar, which the layout modes of the session activity bar replace', () => {
+	test('leaves the side panel toggle to the title bar where the main window has no Layout menu, whose Show Editor replaces it', () => {
 		const registration = BaseLayoutController.registerSidePaneToggleAction();
 		try {
 			const find = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).filter(item => item.command.id === 'workbench.action.agentToggleSidePanel');
@@ -80,6 +80,7 @@ suite('BaseLayoutController', () => {
 				// The activity bar shows at the edge of the editor while it is maximized; it is hidden in the phone layout.
 				editorMaximized: { ...base, editorMaximized: true },
 				phoneLayout: { ...base, sessionsIsPhoneLayout: true },
+				notDesktop: { ...base, agentSessionsDesktopLayout: false },
 			};
 			const shows = (item: IMenuItem | undefined, values: Record<string, ContextKeyValue>) => !!item && item.when?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;
 			const placement = Object.fromEntries(Object.entries(scenarios).map(([name, values]) => [name, [
@@ -93,10 +94,12 @@ suite('BaseLayoutController', () => {
 				appearance: { group: '2_workbench_layout', order: 2 },
 				placement: {
 					layoutActions: [],
-					layoutActionsOff: ['titleBar'],
-					activityBarOff: ['titleBar'],
+					// The Layout menu's Show Editor is the side pane's toggle of the main window.
+					layoutActionsOff: [],
+					activityBarOff: [],
 					editorMaximized: [],
 					phoneLayout: ['titleBar'],
+					notDesktop: ['titleBar'],
 				},
 			});
 		} finally {

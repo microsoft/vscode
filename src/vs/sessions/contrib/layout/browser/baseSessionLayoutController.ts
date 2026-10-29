@@ -17,6 +17,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -49,6 +50,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ChatLayoutOwnerKeyRegistry } from './chatLayoutOwnerKeys.js';
+import { MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS, MainWindowLayoutContext } from './desktop/desktopLayoutModeCoordinator.js';
 import { ISessionEditorWorkingSetOwner, ISessionEditorWorkingSetService } from '../common/sessionEditorWorkingSet.js';
 
 const secondarySidebarToggleClosedIcon = registerIcon('agent-secondary-sidebar-toggle-closed', Codicon.layoutSidebarRightOff, localize('agentSecondarySidebarToggleClosedIcon', "Icon for the sessions secondary sidebar when closed."));
@@ -773,7 +775,8 @@ export abstract class BaseLayoutController extends Disposable {
 							id: Menus.TitleBarSessionMenu,
 							group: 'navigation',
 							order: 11, // After Open in VS Code (7), Run Script (8), and Toggle Panel (10)
-							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionActivityBarLayoutActionsContext.negate())
+							// Not where the Layout menu's Show Editor is the side pane's toggle.
+							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionActivityBarLayoutActionsContext.negate(), MainWindowLayoutContext.negate())
 						},
 						{
 							id: MenuId.MenubarAppearanceMenu,
@@ -784,10 +787,20 @@ export abstract class BaseLayoutController extends Disposable {
 				});
 			}
 
-			run(accessor: ServicesAccessor): void {
-				const nowVisible = accessor.get(IAgentWorkbenchLayoutService).toggleSidePane();
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+				const telemetryService = accessor.get(ITelemetryService);
 
-				logSidePanelToggle(accessor.get(ITelemetryService), nowVisible);
+				// Where the main window has layout modes, the side pane is the editor: Show Editor toggles it, and announces it.
+				if (accessor.get(IContextKeyService).contextMatchesRules(MainWindowLayoutContext)) {
+					await accessor.get(ICommandService).executeCommand(MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS.editor);
+					logSidePanelToggle(telemetryService, layoutService.isSidePaneVisible());
+					return;
+				}
+
+				const nowVisible = layoutService.toggleSidePane();
+
+				logSidePanelToggle(telemetryService, nowVisible);
 
 				// Announce visibility change to screen readers
 				alert(nowVisible

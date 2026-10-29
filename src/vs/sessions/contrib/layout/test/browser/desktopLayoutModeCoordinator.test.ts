@@ -16,18 +16,21 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MenuId, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { NullCommandService } from '../../../../../platform/commands/test/common/nullCommandService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ChatLayoutMode } from '../../../../common/chatLayout.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../common/sessionConfig.js';
+import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionLayoutMode } from '../../../../common/sessionLayoutMode.js';
 import { CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID, ChatWindowContext, ChatWindowHasEditorAreaContext, IChatWindow } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { LayoutModeOwnerKind } from '../../../../services/layoutMode/common/sessionLayoutModeService.js';
@@ -237,7 +240,7 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 		});
 	});
 
-	test('shows the main window\'s Layout menu in one place: in its title bar after Toggle Side Panel, or in the Session Activity Bar while it shows its layout actions', async () => {
+	test('shows the main window\'s Layout menu in one place: in its title bar, in place of Toggle Side Panel, or in the Session Activity Bar while it shows its layout actions; Toggle Side Panel shows where there is no Layout menu', async () => {
 		const controller = createController('chat', sessionA);
 		await controller.whenRestored();
 		const contextKeys: Record<string, ContextKeyValue> = { agentSessionsDesktopLayout: true, 'sessions.layoutMode': SessionLayoutMode.SideBySide, 'sessions.splitLayout': SessionLayoutMode.SideBySide };
@@ -249,9 +252,51 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 			return { titleBar: titleBar(settings), strip: strip(settings) };
 		};
 
-		assert.deepStrictEqual({ off: where(false), on: where(true) }, {
-			off: { titleBar: ['Toggle Side Panel', 'Layout: Side by Side (menu)'], strip: [] },
+		const withoutLayoutModes = describeMenuGroup(store, Menus.TitleBarSessionMenu, 'navigation', { ...contextKeys, agentSessionsDesktopLayout: false }, { [SESSION_ACTIVITY_BAR_SETTING]: true, [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: false })
+			.filter(item => item.label.startsWith('Layout') || item.label === 'Toggle Side Panel').map(item => item.label);
+
+		assert.deepStrictEqual({ off: where(false), on: where(true), withoutLayoutModes }, {
+			off: { titleBar: ['Layout: Side by Side (menu)'], strip: [] },
 			on: { titleBar: [], strip: ['Layout: Side by Side'] },
+			withoutLayoutModes: ['Toggle Side Panel'],
+		});
+	});
+
+	test('Toggle Side Panel runs Show Editor in the main window, by its command and its keybinding: one toggle of the side pane', async () => {
+		const controller = createController('chat', sessionA);
+		await controller.whenRestored();
+		controller.layoutMode.setMode(SessionLayoutMode.SideBySide);
+		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
+		contextKeyService.createKey('agentSessionsDesktopLayout', true);
+		const ran: string[] = [];
+		const commandService = new class extends mock<ICommandService>() {
+			override async executeCommand<R>(id: string): Promise<R | undefined> {
+				ran.push(id);
+				return harness.instaService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor)) as R | undefined;
+			}
+		}();
+		const services = store.add(harness.instaService.createChild(new ServiceCollection([IContextKeyService, contextKeyService], [ICommandService, commandService])));
+		const steps: SessionLayoutMode[] = [];
+		const toggleSidePanel = async () => {
+			await services.invokeFunction(accessor => CommandsRegistry.getCommand(TOGGLE_SIDE_PANEL_COMMAND_ID)!.handler(accessor));
+			steps.push(controller.layoutMode.mode.get());
+		};
+
+		await toggleSidePanel();
+		await toggleSidePanel();
+		controller.layoutMode.setMode(SessionLayoutMode.EditorOnly);
+		await toggleSidePanel();
+
+		assert.deepStrictEqual({
+			steps,
+			ran: [...new Set(ran)],
+			// Its keybinding stays, on the same command.
+			keybindings: KeybindingsRegistry.getDefaultKeybindings().filter(item => item.command === TOGGLE_SIDE_PANEL_COMMAND_ID && !!item.keybinding).length,
+		}, {
+			// Hidden, shown again as both last showed, then from the editor alone to the chat.
+			steps: [SessionLayoutMode.ChatOnly, SessionLayoutMode.SideBySide, SessionLayoutMode.ChatOnly],
+			ran: [MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS.editor],
+			keybindings: 1,
 		});
 	});
 
