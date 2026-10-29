@@ -589,6 +589,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 			snapshot.set(key, [...snapshot.get(key) ?? [], entry]);
 		}
 		const eligible: RepositoryRef[] = [];
+		const missing: RepositoryRef[] = [];
 		for (const [key, repository] of repositories) {
 			try {
 				const configuration = await client.automations.getConfiguration(repository, signal, options);
@@ -606,11 +607,18 @@ export class GitHubCloudAutomationStore extends Disposable {
 				if (isCancellationError(error)) {
 					throw error;
 				}
+				if (error instanceof ApiRequestError && error.statusCode === 404) {
+					snapshot.delete(key);
+					this.repositoryConfigurations.delete(key);
+					missing.push(repository);
+					this.logService.info(`[CloudAutomations] Repository no longer available ${key}`);
+					continue;
+				}
 				this.logService.warn(`[CloudAutomations] Failed to refresh ${key}`, error);
 				errors.push(error);
 			}
 		}
-		this.rememberRepositories(account.accountName, eligible, signal);
+		this.rememberRepositories(account.accountName, eligible, signal, missing);
 		transaction(tx => {
 			this.cachedEntries.set([...snapshot.values()].flat(), tx);
 			this.cachedHistory.set(this.cachedHistory.get().filter(row => this.cachedEntries.get().some(entry => sameEntry(row.entry, entry))), tx);
@@ -757,9 +765,12 @@ export class GitHubCloudAutomationStore extends Disposable {
 		return repositories;
 	}
 
-	private rememberRepositories(account: string, repositories: readonly RepositoryRef[], signal: AbortSignal): void {
+	private rememberRepositories(account: string, repositories: readonly RepositoryRef[], signal: AbortSignal, missing: readonly RepositoryRef[] = []): void {
 		signal.throwIfAborted();
 		const known = this.readRepositories(account);
+		for (const repository of missing) {
+			known.delete(repositoryKey(repository));
+		}
 		for (const repository of repositories) {
 			known.set(repositoryKey(repository), repository);
 		}
