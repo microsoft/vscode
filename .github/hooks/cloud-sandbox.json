@@ -5,6 +5,7 @@
 			{
 				"type": "command",
 				"bash": "if [ -n \"${GITHUB_ENVIRONMENT_ID:-}\" ] && [ \"$(uname -s)\" = Linux ]; then node build/npm/cloudSandboxSetup.ts --agent-pid \"$PPID\"; fi",
+				"powershell": "exit 0",
 				"cwd": ".",
 				"timeoutSec": 1800
 			}

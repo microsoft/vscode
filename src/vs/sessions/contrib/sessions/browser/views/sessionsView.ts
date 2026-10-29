@@ -647,6 +647,7 @@ export class SessionsView extends ViewPane {
 			const options = getSessionFilterOptions(
 				this.sessionsManagementService.getSessions(),
 				environments,
+				(session, reader) => sessionsControl.isSessionListed(session, reader),
 				reader,
 			);
 			const environmentLabels = new Map(options

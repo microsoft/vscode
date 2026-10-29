@@ -296,6 +296,7 @@ export class MenuId {
 	static readonly ChatNewMenu = new MenuId('ChatNewMenu');
 	static readonly ChatEditingCodeBlockContext = new MenuId('ChatEditingCodeBlockContext');
 	static readonly ChatTitleBarMenu = new MenuId('ChatTitleBarMenu');
+	static readonly ChatViewMode = new MenuId('ChatViewMode');
 	static readonly ChatAttachmentsContext = new MenuId('ChatAttachmentsContext');
 	static readonly ChatTipContext = new MenuId('ChatTipContext');
 	static readonly ChatTipToolbar = new MenuId('ChatTipToolbar');
@@ -577,6 +578,8 @@ export class SubmenuItemAction extends SubmenuAction {
 
 export interface IMenuItemHide {
 	readonly isHidden: boolean;
+	/** Whether the visibility differs from the menu item's default (e.g. a hidden-by-default item that is shown). */
+	readonly isModifiedFromDefault: boolean;
 	readonly hide: IAction;
 	readonly toggle: IAction;
 }

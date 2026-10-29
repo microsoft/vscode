@@ -228,7 +228,7 @@ At most one new `userLocalRelaySessionOpen` outcome is emitted per ready user-lo
 
 Source files live alongside these documents. [MissionControlHost](./missionControlHost.ts) is an entry-owned DI adapter for native services, handler lifetime and authoritative mirror wiring. [MissionControlEnvironment](./missionControlEnvironment.ts) owns registration/recovery through a named host-options contract; it has no second runtime service graph.
 
-Registration and heartbeat request construction are separate methods. Local management IPC is distinct from AHP; host-management extension methods remain unavailable to relay clients. The same `ProtocolServerHandler` owns session operations on both local and relay transports.
+Registration and heartbeat request construction are separate methods. Local management IPC is distinct from AHP; host-management extension methods remain unavailable to relay clients. Each relay gets its own `ProtocolServerHandler` instance with Mission Control projections, separate from local handlers but sharing the state manager.
 
 ## Validation boundaries
 

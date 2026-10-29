@@ -158,6 +158,26 @@ suite('ExtHostTimeline', function () {
 		registration.dispose();
 	});
 
+	test('passes items created from a resource without a label', async function () {
+		const { timeline, processArgument } = createTimeline();
+		const resourceUri = URI.parse('git:/timeline.txt?ref');
+		const item: vscode.TimelineItem = new TimelineItem(resourceUri, 1);
+		const registration = store.add(timeline.registerTimelineProvider('file', { id: 'test-timeline', label: 'Test Timeline', provideTimeline: () => ({ items: [item] }) }, createExtension('test.owner').identifier, converter));
+		const result = await timeline.$getTimeline('test-timeline', uri, options, CancellationToken.None);
+		const copy = processArgument(toContext(result!.items[0].handle, 'test-timeline', uri), createExtension('test.other')) as vscode.TimelineItem;
+
+		assert.deepStrictEqual({
+			item: { label: item.label, resourceUri: item.resourceUri?.toString() },
+			converted: { label: result!.items[0].label, resourceUri: result!.items[0].resourceUri?.toString() },
+			copy: { label: copy.label, resourceUri: copy.resourceUri?.toString() },
+		}, {
+			item: { label: undefined, resourceUri: 'git:/timeline.txt?ref' },
+			converted: { label: undefined, resourceUri: 'git:/timeline.txt?ref' },
+			copy: { label: undefined, resourceUri: 'git:/timeline.txt?ref' },
+		});
+		registration.dispose();
+	});
+
 	test('changing a copy for another extension does not change the original item', async function () {
 		const { timeline, processArgument } = createTimeline();
 		const owner = createExtension('test.owner');

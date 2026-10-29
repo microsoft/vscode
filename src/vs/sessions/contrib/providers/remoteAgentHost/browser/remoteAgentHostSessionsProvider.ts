@@ -36,6 +36,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { IAgentHostMcpAppToolsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IRemoteAgentHostAuthenticationService } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -53,7 +54,7 @@ import { DevContainerAgentHostSessionsProvider } from '../../agentHost/browser/d
 import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { mapProtocolStatus } from '../../agentHost/browser/agentHostDiffs.js';
 import { ReconnectableAgentHostAutomationStore } from '../../agentHost/browser/reconnectableAgentHostAutomationStore.js';
-import type { INestedChatFolderInfo, INestedChatWorkspace, ISendRequestOptions, ISessionsProviderAutomations, SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
+import type { INestedChatFolderInfo, INestedChatWorkspace, ISendRequestOptions, ISessionsProviderAutomations, SessionResourceResolveReason, ICreateNewChatOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { remoteAgentHostSessionTypeAuthorityPrefix, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { readAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { INewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
@@ -299,6 +300,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionsService sessionsService: ISessionsService,
 		@IAgentHostActiveClientService activeClientService: IAgentHostActiveClientService,
+		@IAgentHostMcpAppToolsService mcpAppToolsService: IAgentHostMcpAppToolsService,
 		@IDialogService dialogService: IDialogService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
@@ -307,7 +309,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		@IRemoteAgentHostAuthenticationService remoteAuthenticationService: IRemoteAgentHostAuthenticationService,
 		@INewSessionComposerService private readonly _newSessionComposerService: INewSessionComposerService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, mcpAppToolsService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
 
 		this._connectionAuthority = agentHostAuthority(config.address);
 		const authenticationPending = this._register(remoteAuthenticationService.acquire(config.address)).object;
@@ -394,6 +396,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			sessionResource: resource => this.agentHostConnectionsService.findSessionResource(resource, this._connectionAuthority)
 				?? (AgentSession.provider(resource) || this._sessionSchemeAlias?.backend === resource.scheme
 					? this.agentHostConnectionsService.getSessionResource(resource, this._connectionAuthority) : undefined),
+			resolveBackendSession: resource => {
+				const identity = this.agentHostConnectionsService.resolveSessionResourceIdentity(resource);
+				return identity?.backendSessionIsAdvertised && identity.connectionAuthority === this._connectionAuthority ? identity.backendSession : undefined;
+			},
 			onDidChangeSessionResolution: this.agentHostConnectionsService.onDidChangeSessionResolution,
 			providerForSessionScheme: scheme => this._sessionSchemeAlias?.backend === scheme ? this._sessionSchemeAlias.ui : scheme,
 			providerForResourceScheme: scheme => {
@@ -500,19 +506,19 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}
 	}
 
-	override async createNewChat(chatId: string): Promise<IChat> {
+	override async createNewChat(chatId: string, prompt?: string, options?: ICreateNewChatOptions): Promise<IChat> {
 		await this._ensureDevContainerConnection();
-		return super.createNewChat(chatId);
+		return super.createNewChat(chatId, prompt, options);
 	}
 
-	override async resolveNestedChatFolder(sessionId: string, folder: URI, token: CancellationToken): Promise<INestedChatFolderInfo> {
+	override async resolveNestedChatFolder(sessionId: string, chat: URI, folder: URI, token: CancellationToken): Promise<INestedChatFolderInfo> {
 		await this._ensureDevContainerConnection();
-		return super.resolveNestedChatFolder(sessionId, folder, token);
+		return super.resolveNestedChatFolder(sessionId, chat, folder, token);
 	}
 
-	override async getNestedChatBranches(sessionId: string, folder: URI, query: string, token: CancellationToken): Promise<readonly string[]> {
+	override async getNestedChatBranches(sessionId: string, chat: URI, folder: URI, query: string, token: CancellationToken): Promise<readonly string[]> {
 		await this._ensureDevContainerConnection();
-		return super.getNestedChatBranches(sessionId, folder, query, token);
+		return super.getNestedChatBranches(sessionId, chat, folder, query, token);
 	}
 
 	override async applyNestedChatWorkspace(sessionId: string, chat: URI, workspace: INestedChatWorkspace, prompt: string): Promise<void> {

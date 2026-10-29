@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { vBoolean, vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../../base/common/validation.js';
+import { vArray, vBoolean, vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../../base/common/validation.js';
 
 export const SessionWorktreeCleanupExtensionMethod = 'vscode/sessionWorktreeCleanup';
 export const sessionWorktreeCleanupParamsValidator = vObj({ session: vString(), retry: vBoolean() });
@@ -13,3 +13,16 @@ export const sessionWorktreeCleanupStatusValidator = vObj({
 });
 
 export type IAgentHostWorktreeCleanupStatus = ValidatorType<typeof sessionWorktreeCleanupStatusValidator>;
+
+export const ListManagedWorktreesExtensionMethod = 'vscode/listManagedWorktrees';
+export const CleanupManagedWorktreeExtensionMethod = 'vscode/cleanupManagedWorktree';
+export const listManagedWorktreesParamsValidator = vObj({ repositories: vArray(vString()) });
+export const cleanupManagedWorktreeParamsValidator = vObj({ repository: vString(), worktree: vString(), branch: vString() });
+export const managedWorktreeValidator = vObj({
+	repository: vString(),
+	worktree: vString(),
+	branch: vString(),
+	cleanupStatus: sessionWorktreeCleanupStatusValidator,
+});
+export const managedWorktreesValidator = vArray(managedWorktreeValidator);
+export type IAgentHostManagedWorktree = ValidatorType<typeof managedWorktreeValidator>;

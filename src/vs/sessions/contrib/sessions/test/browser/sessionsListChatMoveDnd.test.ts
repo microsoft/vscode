@@ -20,7 +20,7 @@ import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } fro
 import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChatMovedEvent, ISessionChangeEvent, SessionMoveRefusedError } from '../../../../services/sessions/common/sessionsProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { canMoveIntoSession, getChatMoveAnchorBefore, getChatMoveAppendAnchor, getSessionsListChatDrop, getSessionsListSessionDrop, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListMoveNotice } from '../../browser/views/sessionsListChatMove.js';
+import { canMoveIntoSession, getChatMoveAnchorBefore, isCrossAgentChatMoveEnabled, getChatMoveAppendAnchor, getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, ISessionsListChatDropTarget, ISessionsListMoveDestination, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListMoveNotice } from '../../browser/views/sessionsListChatMove.js';
 import { createListHarness, createTestSession, ITestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -38,13 +38,15 @@ import { ISessionsListModelService, SessionsListModelService } from '../../../..
 import { ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { SessionsView, SessionsViewId, SessionsViewSortingContext } from '../../browser/views/sessionsView.js';
-import { PROMOTE_CHAT_TO_SESSION_ACTION_ID } from '../../browser/sessionsActions.js';
+import { MOVE_CHAT_TO_SESSION_ACTION_ID, MOVE_SESSION_INTO_SESSION_ACTION_ID, PROMOTE_CHAT_TO_SESSION_ACTION_ID } from '../../browser/sessionsActions.js';
+import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Menus } from '../../../../browser/menus.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IView } from '../../../../../workbench/common/views.js';
 import { SessionsListNotification } from '../../browser/views/sessionsListNotification.js';
+import { ChatProvidersSettingId } from '../../../../../platform/agentHost/common/agentHostChatProviders.js';
 
 
 function multiChatSession(title: string, options?: { readonly providerId?: string; readonly status?: SessionStatus; readonly isArchived?: boolean; readonly chats?: readonly IChat[] }): ITestSession {
@@ -283,6 +285,96 @@ suite('Move Chats Drag and Drop', () => {
 			archived: false,
 			untitled: false,
 			singleChat: false,
+		});
+	});
+
+	test('with chats on their own agents and Move Chats both on, also lists sessions of another agent that offer the moved chat\'s harness', () => {
+		const moving = { ...chat('moving', ChatOriginKind.User), harness: 'claude' };
+		const source = multiChatSession('Source', { chats: [chat('source-main'), moving] }).session;
+		// Another agent of the same provider, without and with the harnesses of the moved chat and the source's main chat.
+		const otherAgent = (title: string, harnesses: readonly string[]) => {
+			const test = multiChatSession(title, { chats: [chat(`${title}-main`)] });
+			test.capabilities.set({ supportsMultipleChats: true, supportsChatHarnesses: harnesses }, undefined);
+			return { ...test.session, sessionType: 'claude', harness: 'claude' };
+		};
+		const sessions = [
+			source,
+			otherAgent('Claude', ['claude', 'codex']),
+			otherAgent('Claude Copilot', ['claude', 'copilot']),
+			otherAgent('Codex', ['codex']),
+			{ ...otherAgent('Other Provider', ['claude', 'copilot']), providerId: 'other' },
+		];
+		const describeAll = (destinations: readonly ISessionsListMoveDestination[]) => destinations.map(destination => destination.session.title.get());
+		const destinations = (crossAgent: boolean | undefined) => ({
+			chat: describeAll(getChatMoveDestinations(source, moving, sessions, { canMoveChat: () => true }, crossAgent)),
+			chatDrop: sessions.flatMap(session => {
+				const drop = getSessionsListChatDrop(source, moving, { session, chat: undefined, position: 'after' }, true, crossAgent);
+				return drop?.kind === 'session' ? [drop.session.title.get()] : [];
+			}),
+			// A whole session moves with the harness of its main chat: the session's.
+			session: describeAll(getSessionMoveDestinations(source, sessions, { canMoveSessionUnder: () => true }, crossAgent)),
+			sessionDrop: sessions.flatMap(session => {
+				const drop = getSessionsListSessionDrop(source, { session, chat: undefined, quarter: ListViewTargetSector.CENTER_BOTTOM, isManuallyOrdered: () => false, isLastInSection: () => false, canPlace: () => false }, true, crossAgent);
+				return drop?.kind === 'nest' ? [drop.session.title.get()] : [];
+			}),
+		});
+		const configured = (moveChats: boolean, chatProviders: boolean) => isCrossAgentChatMoveEnabled(new TestConfigurationService({ [ChatMoveSettingId.Enabled]: moveChats, [ChatProvidersSettingId.Enabled]: chatProviders }));
+
+		assert.deepStrictEqual({
+			gates: { both: configured(true, true), moveChatsOnly: configured(true, false), chatProvidersOnly: configured(false, true) },
+			off: destinations(false),
+			on: destinations(true),
+		}, {
+			gates: { both: true, moveChatsOnly: false, chatProvidersOnly: false },
+			// Either setting off: only sessions of the same agent, as without chats on their own agents.
+			off: { chat: [], chatDrop: [], session: [], sessionDrop: [] },
+			on: {
+				chat: ['Claude', 'Claude Copilot'],
+				chatDrop: ['Claude', 'Claude Copilot'],
+				session: ['Claude Copilot'],
+				sessionDrop: ['Claude Copilot'],
+			},
+		});
+	});
+
+	test('lists the sessions a nested session or a session can move into, each at its end, by the rules a drop uses', () => {
+		const moving = chat('moving', ChatOriginKind.User);
+		const source = multiChatSession('Source', { chats: [chat('source-main'), moving] }).session;
+		const valid = multiChatSession('Valid', { chats: [chat('valid-main'), chat('valid-a', ChatOriginKind.User), chat('valid-tool', ChatOriginKind.Tool)] }).session;
+		const empty = multiChatSession('Empty').session;
+		const sessions = [
+			source,
+			valid,
+			multiChatSession('Archived', { isArchived: true }).session,
+			multiChatSession('Untitled', { status: SessionStatus.Untitled }).session,
+			multiChatSession('Other Provider', { providerId: 'other' }).session,
+			{ ...multiChatSession('Other Agent').session, sessionType: 'claude' },
+			createTestSession('Single Chat').session,
+			empty,
+		];
+		const describeAll = (destinations: readonly ISessionsListMoveDestination[]) => destinations.map(destination => `${destination.session.title.get()} after ${destination.after?.title.get() ?? '(first)'}`);
+		const dropChat = sessions.flatMap(session => {
+			const drop = getSessionsListChatDrop(source, moving, { session, chat: undefined, position: 'after' }, true);
+			return drop?.kind === 'session' && session !== source ? [drop] : [];
+		});
+		const dropSession = sessions.flatMap(session => {
+			const drop = getSessionsListSessionDrop(source, { session, chat: undefined, quarter: ListViewTargetSector.CENTER_BOTTOM, isManuallyOrdered: () => false, isLastInSection: () => false, canPlace: () => false }, true);
+			return drop?.kind === 'nest' ? [drop] : [];
+		});
+		assert.deepStrictEqual({
+			chat: describeAll(getChatMoveDestinations(source, moving, sessions, { canMoveChat: () => true })),
+			chatDrop: describeAll(dropChat),
+			session: describeAll(getSessionMoveDestinations(source, sessions, { canMoveSessionUnder: () => true })),
+			sessionDrop: describeAll(dropSession),
+			chatTheProviderCantMove: getChatMoveDestinations(source, moving, sessions, { canMoveChat: () => false }),
+			sessionTheProviderCantMove: getSessionMoveDestinations(source, sessions, { canMoveSessionUnder: () => false }),
+		}, {
+			chat: ['Valid after valid-a', 'Empty after (first)'],
+			chatDrop: ['Valid after valid-a', 'Empty after (first)'],
+			session: ['Valid after valid-a', 'Empty after (first)'],
+			sessionDrop: ['Valid after valid-a', 'Empty after (first)'],
+			chatTheProviderCantMove: [],
+			sessionTheProviderCantMove: [],
 		});
 	});
 
@@ -680,6 +772,14 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 					// The provider reorders its chats, which is the only order the list shows.
 					setChats(session, insertAfter(session.chats.get().filter(candidate => candidate !== chat), chat, destination.after));
 					sessionsChanged.fire({ added: [], removed: [], changed: [session] });
+					return;
+				}
+				if (options?.simulateMoves && destination.kind === 'session') {
+					const arrived = listChat(chat.title.get(), chat.updatedAt.get()?.getTime());
+					setChats(session, session.chats.get().filter(candidate => candidate !== chat));
+					setChats(destination.session, insertAfter(destination.session.chats.get(), arrived, destination.after));
+					sessionsChanged.fire({ added: [], removed: [], changed: [session, destination.session] });
+					chatMoved.fire({ from: { session, chat: chat.resource }, to: { session: destination.session, chat: arrived.resource } });
 					return;
 				}
 				if (!options?.simulateMoves || destination.kind !== 'newSession') {
@@ -1386,6 +1486,104 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			feedback: { moveDrag: false, list: false, rows: ['Target: drop-target-before'] },
 			moves: [],
 			reordered: 1,
+		});
+	});
+	suite('Move to Session... commands', () => {
+
+		/** Runs `commandId` with `argument`; the quick pick it shows picks the session titled `choice` and records what it showed. */
+		async function run(list: ReturnType<typeof render>, commandId: string, argument: unknown, choice: string | undefined, visibleView = true) {
+			const picks: { title: string | undefined; placeHolder: string | undefined; items: string[] }[] = [];
+			list.instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({
+				pick: async <T extends IQuickPickItem>(items: QuickPickInput<T>[] | Promise<QuickPickInput<T>[]>, options?: IPickOptions<T>) => {
+					const resolved = (await items).filter((item): item is T => item.type !== 'separator');
+					picks.push({ title: options?.title, placeHolder: options?.placeHolder, items: resolved.map(item => `${item.label} | ${item.description} | ${item.detail}`) });
+					return resolved.find(item => item.label === choice);
+				},
+			}));
+			list.instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+				override isViewVisible(id: string): boolean { return visibleView && id === SessionsViewId; }
+				override getViewWithId<T extends IView>(id: string): T | null {
+					return id === SessionsViewId ? upcastPartial<SessionsView>({ sessionsControl: list.list, listNotification: upcastPartial<SessionsListNotification>(list.notice) }) as unknown as T : null;
+				}
+			}());
+			const moved = await list.instantiationService.invokeFunction(CommandsRegistry.getCommand(commandId)!.handler, argument);
+			await settle();
+			return { moved, picks };
+		}
+
+		test('Move to Session... moves a nested session to the end of the picked session, most recently updated first, and shows its result with Undo', async () => {
+			const own = listSession('Own', ['moved']);
+			const target = listSession('Target', ['t1']);
+			const other = listSession('Other', []);
+			const list = render([own, target, other], { simulateMoves: true });
+
+			const result = await run(list, MOVE_CHAT_TO_SESSION_ACTION_ID, { session: own, chat: own.chats.get()[1] }, 'Other');
+
+			assert.deepStrictEqual({ ...result, moves: list.moves, notices: list.notices }, {
+				moved: true,
+				picks: [{
+					title: 'Move \'moved\' to Session',
+					placeHolder: 'Select the session to move \'moved\' into; it becomes the session\'s last chat',
+					items: ['Target | Workspace | 2 chats', 'Other | Workspace | 1 chat'],
+				}],
+				moves: ['moved -> Other after Other main'],
+				notices: ['progress: Moving \'moved\' into \'Other\'...', 'result: Moved \'moved\' into \'Other\' [Undo]'],
+			});
+		});
+
+		test('Move to Session... on a session nests it under the picked session, as its last chat', async () => {
+			const solo = listSession('Solo', []);
+			const target = listSession('Target', ['t1']);
+			const list = render([solo, target], { simulateMoves: true });
+
+			const result = await run(list, MOVE_SESSION_INTO_SESSION_ACTION_ID, solo, 'Target');
+
+			assert.deepStrictEqual({ ...result, moves: list.moves, notices: list.notices }, {
+				moved: true,
+				picks: [{
+					title: 'Move \'Solo\' into Session',
+					placeHolder: 'Select the session to nest \'Solo\' under; it becomes the session\'s last chat',
+					items: ['Target | Workspace | 2 chats'],
+				}],
+				moves: ['session Solo -> Target after t1'],
+				notices: ['progress: Moving session \'Solo\' into \'Target\'...', 'result: Moved session \'Solo\' into \'Target\' [Undo]'],
+			});
+		});
+
+		test('Move to Session... does nothing when the pick is cancelled or there is no session to move into, or the setting is off', async () => {
+			const solo = listSession('Solo', []);
+			const target = listSession('Target', []);
+			const list = render([solo, target]);
+			const cancelled = await run(list, MOVE_SESSION_INTO_SESSION_ACTION_ID, solo, undefined);
+			const noDestination = await run(render([solo]), MOVE_SESSION_INTO_SESSION_ACTION_ID, solo, 'Solo');
+			await (list.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatMoveSettingId.Enabled, false);
+			const settingOff = await run(list, MOVE_SESSION_INTO_SESSION_ACTION_ID, solo, 'Target');
+
+			assert.deepStrictEqual({ cancelled: cancelled.moved, noDestination, settingOff, moves: list.moves, notices: list.notices }, {
+				cancelled: false,
+				noDestination: { moved: false, picks: [] },
+				settingOff: { moved: false, picks: [] },
+				moves: [],
+				notices: [],
+			});
+		});
+
+		test('Move to Session... says in the notice why the host refused the move', async () => {
+			const own = listSession('Own', ['moved']);
+			const target = listSession('Target', []);
+			const list = render([own, target]);
+			list.instantiationService.stub(ISessionsManagementService, new class extends TestSessionsManagementService {
+				override readonly onDidMoveChat = Event.None;
+				override canMoveChat(): boolean { return true; }
+				override async moveChat(): Promise<void> { throw new SessionMoveRefusedError('Chats can\'t be moved out of an archived session.'); }
+			}([own, target]));
+
+			const result = await run(list, MOVE_CHAT_TO_SESSION_ACTION_ID, { session: own, chat: own.chats.get()[1] }, 'Target');
+
+			assert.deepStrictEqual({ moved: result.moved, notices: list.notices }, {
+				moved: false,
+				notices: ['progress: Moving \'moved\' into \'Target\'...', 'warning: Could not move \'moved\'. Chats can\'t be moved out of an archived session.'],
+			});
 		});
 	});
 });

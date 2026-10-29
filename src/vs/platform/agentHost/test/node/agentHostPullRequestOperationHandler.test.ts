@@ -116,6 +116,7 @@ class TestGitService implements IAgentHostGitService {
 	hasGitRoot() { return constObservable(undefined); }
 	async getRepositoryRoot(): Promise<URI | undefined> { return URI.file('/repo'); }
 	async getWorktreeRoots(): Promise<URI[]> { return []; }
+	async getWorktrees() { return []; }
 	async addWorktree(): Promise<void> { }
 	async copyWorktreeIncludeFiles(): Promise<void> { }
 	async symlinkWorktreeFolders(): Promise<readonly string[]> { return []; }
@@ -372,6 +373,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 	}() : gitHubClient;
 	const providerService = new class extends mock<IAgentHostProviderService>() {
 		override getProviderForSession() { return undefined; }
+		override getProviderForChat() { return undefined; }
 	}();
 	const utilityModelService = new AgentHostUtilityModelService(true, configurationService, copilotApiService, new NullByokLmBridgeRegistry(), providerService, stateManager, authenticationService, gitHubEndpointService, logService, createTestChatOwnershipService(stateManager), new class extends mock<IAgentHostSessionStateStore>() { override peek() { return undefined; } }());
 	return {

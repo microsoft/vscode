@@ -91,7 +91,7 @@ suite('AgentHostSandboxToggle', () => {
 			toggles: [
 				{
 					label: 'Sandboxing for terminal',
-					title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.',
+					title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against your organization\'s current requirements when restored.',
 					checked: false,
 					disabled: false,
 				},
