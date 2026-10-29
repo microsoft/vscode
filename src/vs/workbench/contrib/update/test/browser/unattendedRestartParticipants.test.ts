@@ -8,7 +8,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IEditorSerializer } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { hasNonEditorWindow, isRestorableEditor } from '../../browser/unattendedRestartParticipants.js';
+import { describeEditors, hasNonEditorWindow, isRestorableEditor } from '../../browser/unattendedRestartParticipants.js';
 
 suite('isRestorableEditor', () => {
 
@@ -36,6 +36,18 @@ suite('isRestorableEditor', () => {
 			serializesNothing: false,
 			serializes: true,
 		});
+	});
+});
+
+suite('describeEditors', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('names the editors with their kind', () => {
+		assert.strictEqual(describeEditors([
+			{ typeId: 'workbench.editors.webviewInput', editorId: 'releaseNotes', getName: () => 'Release Notes: 1.145.0' },
+			{ typeId: 'workbench.input.interactive', editorId: undefined, getName: () => 'Interactive-1' },
+		]), 'Release Notes: 1.145.0 [workbench.editors.webviewInput, releaseNotes], Interactive-1 [workbench.input.interactive]');
 	});
 });
 

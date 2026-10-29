@@ -36,6 +36,13 @@ suite('UnattendedRestartScheduler', () => {
 	const SECOND = 1000;
 	const update = { version: '0123456789abcdef0123456789abcdef01234567', productVersion: '1.145.0' };
 
+	class RecordingLogService extends NullLogService {
+		readonly messages: string[] = [];
+		override info(message: string): void {
+			this.messages.push(message);
+		}
+	}
+
 	interface ITestWindowOptions {
 		readonly isReady?: boolean;
 		readonly isSessionsWindow?: boolean;
@@ -91,6 +98,8 @@ suite('UnattendedRestartScheduler', () => {
 		readonly isWindowReady?: boolean;
 		/** Blockers that the window reports for consecutive checks; afterwards it reports none. */
 		readonly windowBlockers?: string[][];
+		/** What exactly blocks, which the window reports with its blockers. */
+		readonly windowDetails?: Record<string, string>;
 		/** A restart that the previous instance remembered when it shut down. */
 		readonly previousRestart?: unknown;
 		/** An update that a previous unattended restart did not install. */
@@ -157,9 +166,10 @@ suite('UnattendedRestartScheduler', () => {
 		configurationService.setUserConfiguration('update.enableWindowsBackgroundUpdates', true);
 
 		const windowBlockers = [...(options.windowBlockers ?? [])];
+		const logService = store.add(new RecordingLogService());
 		store.add(new UnattendedRestartScheduler(
 			{
-				getWindowReadiness: async () => ({ blockers: windowBlockers.shift() ?? [], enabled: (options.enabled ?? true) || (options.enabledByExperiment ?? false) }),
+				getWindowReadiness: async () => ({ blockers: windowBlockers.shift() ?? [], details: options.windowDetails, enabled: (options.enabled ?? true) || (options.enabledByExperiment ?? false) }),
 				host,
 				os: options.os ?? OperatingSystem.Macintosh,
 				argv: [],
@@ -171,7 +181,7 @@ suite('UnattendedRestartScheduler', () => {
 			configurationService,
 			upcastPartial<IEnvironmentMainService>({ args: { _: [] } }),
 			upcastPartial<IProductService>({ target: 'user', commit: options.commit ?? 'current' }),
-			store.add(new NullLogService()),
+			logService,
 			createRecordingTelemetryService(log),
 			upcastPartial<ILifecycleMainService>({ onWillShutdown: onWillShutdown.event }),
 			stateService,
@@ -179,6 +189,7 @@ suite('UnattendedRestartScheduler', () => {
 
 		return {
 			log,
+			messages: logService.messages,
 			lock: () => {
 				isLocked = true;
 				onDidLockScreen.fire();
@@ -313,6 +324,22 @@ suite('UnattendedRestartScheduler', () => {
 		assert.deepStrictEqual({ dialogOpen: dialogOpen.log, notReady: notReady.log }, {
 			dialogOpen: [outcome('blocked', 2, 3, 'app.dialogOpen,chat.sessionInProgress')],
 			notReady: [outcome('blocked', 2, 3, 'window.notReady')],
+		});
+	}));
+
+	test('logs what exactly blocks, but only reports the blockers', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createFixture({
+			windowBlockers: [['workbench.editorNotRestorable']],
+			windowDetails: { 'workbench.editorNotRestorable': 'Release Notes: 1.145.0 [workbench.editors.webviewInput, releaseNotes]' },
+		});
+
+		fixture.lock();
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 20 * SECOND);
+		fixture.unlock();
+
+		assert.deepStrictEqual({ log: fixture.log, messages: fixture.messages.filter(message => message.includes('not restarting')) }, {
+			log: [outcome('blocked', 1, 2, 'workbench.editorNotRestorable')],
+			messages: ['update#unattendedRestart - not restarting: workbench.editorNotRestorable (Release Notes: 1.145.0 [workbench.editors.webviewInput, releaseNotes])'],
 		});
 	}));
 

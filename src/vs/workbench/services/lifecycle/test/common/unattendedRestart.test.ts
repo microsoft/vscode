@@ -53,4 +53,27 @@ suite('UnattendedRestartService', () => {
 			cancelled: true,
 		});
 	}));
+
+	test('logs and passes on what exactly blocks', async () => {
+		class RecordingLogService extends NullLogService {
+			readonly messages: string[] = [];
+			override info(message: string): void {
+				this.messages.push(message);
+			}
+		}
+		const logService = store.add(new RecordingLogService());
+		const service = new UnattendedRestartService(logService);
+		store.add(service.registerParticipant({ check: () => 'terminal.runningProcess' }));
+		store.add(service.registerParticipant({ check: () => ({ id: 'workbench.editorNotRestorable', detail: 'Release Notes: 1.145.0 [workbench.editors.webviewInput, releaseNotes]' }) }));
+
+		const readiness = await service.canRestartUnattended();
+
+		assert.deepStrictEqual({ readiness, log: logService.messages }, {
+			readiness: {
+				blockers: ['terminal.runningProcess', 'workbench.editorNotRestorable'],
+				details: { 'workbench.editorNotRestorable': 'Release Notes: 1.145.0 [workbench.editors.webviewInput, releaseNotes]' },
+			},
+			log: ['[unattended restart] blocked by: terminal.runningProcess, workbench.editorNotRestorable (Release Notes: 1.145.0 [workbench.editors.webviewInput, releaseNotes])'],
+		});
+	});
 });

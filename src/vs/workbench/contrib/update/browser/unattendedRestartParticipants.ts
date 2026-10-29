@@ -17,7 +17,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
+import { IUnattendedRestartService, UnattendedRestartCheckResult } from '../../../services/lifecycle/common/unattendedRestart.js';
 
 /**
  * Blocks an unattended restart while the user left in the middle of an interaction
@@ -73,7 +73,7 @@ export class WorkbenchUnattendedRestartParticipants extends Disposable implement
 		return workspace.transient || isTemporaryWorkspace(workspace) ? 'workspace.notRestorable' : undefined; // the window would not be reopened as it is
 	}
 
-	private getEditorsBlocker(): string | undefined {
+	private getEditorsBlocker(): UnattendedRestartCheckResult {
 		if (this.editorGroupsService.activeModalEditorPart) {
 			return 'workbench.modalEditorOpen'; // the modal editor part is not persisted
 		}
@@ -87,12 +87,24 @@ export class WorkbenchUnattendedRestartParticipants extends Disposable implement
 		}
 
 		const editorFactory = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
-		if (this.editorService.editors.some(editor => !isRestorableEditor(editor, editorFactory.getEditorSerializer(editor)))) {
-			return 'workbench.editorNotRestorable';
+		const notRestorable = this.editorService.editors.filter(editor => !isRestorableEditor(editor, editorFactory.getEditorSerializer(editor)));
+		if (notRestorable.length > 0) {
+			return { id: 'workbench.editorNotRestorable', detail: describeEditors(notRestorable) };
 		}
 
 		return undefined;
 	}
+}
+
+/**
+ * Names editors with their kind for the log, for example
+ * `Release Notes: 1.145.0 [workbench.editors.webviewInput, releaseNotes]`.
+ */
+export function describeEditors(editors: readonly Pick<EditorInput, 'typeId' | 'editorId' | 'getName'>[]): string {
+	return editors.map(editor => {
+		const kind = editor.editorId && editor.editorId !== editor.typeId ? `${editor.typeId}, ${editor.editorId}` : editor.typeId;
+		return `${editor.getName()} [${kind}]`;
+	}).join(', ');
 }
 
 /**

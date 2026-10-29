@@ -20,6 +20,24 @@ export interface IUnattendedRestartReadiness {
 	 * of the conditions that prevent the restart.
 	 */
 	readonly blockers: readonly string[];
+
+	/**
+	 * What exactly blocks, by blocker, for example the editors that cannot be
+	 * restored. Only for the log: unlike the blockers, these are never sent in
+	 * telemetry, because they can contain names of files.
+	 */
+	readonly details?: Readonly<Record<string, string>>;
+}
+
+/**
+ * Describes blockers for the log, each with what exactly blocks if known, for
+ * example `workbench.editorNotRestorable (Release Notes: 1.145.0 [releaseNotes])`.
+ */
+export function describeUnattendedRestartBlockers(blockers: readonly string[], details: ReadonlyMap<string, string>): string {
+	return blockers.map(blocker => {
+		const detail = details.get(blocker);
+		return detail ? `${blocker} (${detail})` : blocker;
+	}).join(', ');
 }
 
 /**
