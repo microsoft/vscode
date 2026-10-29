@@ -34,7 +34,11 @@ export class WebviewDiagnostics {
 
 	private readonly onConsole = (message: ConsoleMessage) => {
 		if (message.type() === 'error') {
-			this.diagnostics.push(`Console error: ${message.text()}`);
+			const text = message.text();
+			this.diagnostics.push(`Console error: ${text}`);
+			if (text.startsWith('Webview fatal error:')) {
+				this.reportFailure(new Error(text));
+			}
 		}
 	};
 
@@ -49,6 +53,9 @@ export class WebviewDiagnostics {
 	}
 
 	private safeUrl(value: string): string {
+		if (!value) {
+			return '<not navigated>';
+		}
 		const url = new URL(value);
 		url.username = '';
 		url.password = '';
@@ -63,7 +70,7 @@ export class WebviewDiagnostics {
 		this.reportFailure(new Error(message));
 	}
 
-	/** Interrupt a render/load wait when the browser has already reported a resource failure. */
+	/** Interrupt a render/load wait when the browser reports a resource or fatal bootstrap failure. */
 	async waitFor<T>(operation: Promise<T>): Promise<T> {
 		return Promise.race([operation, this.failure.then(error => { throw error; })]);
 	}

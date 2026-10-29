@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { once } from 'events';
+import { createServer } from 'http';
 import { after, before, describe, it } from 'mocha';
 import { performance } from 'perf_hooks';
 import { chromium, type Browser } from 'playwright';
 import { WebviewDiagnostics } from './webviewDiagnostics.js';
 
 const bootstrap = 'https://test.vscode-cdn.net/insider/test-commit/out/vs/workbench/contrib/webview/browser/pre/index.html';
-const worker = bootstrap.replace('index.html', 'service-worker.js');
 const resource = 'https://file.vscode-resource.vscode-cdn.net/preview.js';
 
 describe('Webview sanity diagnostics', function () {
@@ -30,7 +31,6 @@ describe('Webview sanity diagnostics', function () {
 
 	for (const scenario of [
 		{ name: 'missing bootstrap', url: bootstrap, status: 404 },
-		{ name: 'unavailable service worker', url: worker, status: 503 },
 		{ name: 'denied preview resource', url: resource, status: 401 },
 		{ name: 'failed bootstrap connection', url: bootstrap, status: 0 },
 	]) {
@@ -65,6 +65,100 @@ describe('Webview sanity diagnostics', function () {
 			}
 		});
 	}
+
+	it('fails promptly when a real service-worker registration receives HTTP 503', async () => {
+		let workerRequests = 0;
+		const server = createServer((request, response) => {
+			if (request.url === '/service-worker.js') {
+				workerRequests++;
+				response.writeHead(503, { 'Content-Type': 'text/javascript' });
+				response.end('Service unavailable');
+			} else {
+				response.writeHead(200, { 'Content-Type': 'text/html' });
+				response.end('<script>navigator.serviceWorker.register("/service-worker.js", { type: "module", updateViaCache: "none" }).catch(error => console.error(`Webview fatal error: ${error}`));</script>');
+			}
+		});
+		const page = await browser.newPage();
+		const monitor = new WebviewDiagnostics(page, () => { });
+		try {
+			server.listen(0, '127.0.0.1');
+			await once(server, 'listening');
+			const address = server.address();
+			assert.ok(address && typeof address !== 'string');
+			const start = performance.now();
+			const outcome = assert.rejects(
+				monitor.waitFor(page.getByRole('heading', { name: 'Webview Sanity' }).waitFor({ timeout: 60_000 })),
+				/Webview fatal error:/
+			);
+			await page.goto(`http://127.0.0.1:${address.port}`);
+			await outcome;
+			assert.ok(performance.now() - start < 10_000, 'Must fail before the 60-second render timeout');
+			assert.deepStrictEqual({
+				workerRequests,
+				failedResources: monitor.failedResources,
+				fatalError: monitor.diagnostics.some(message => message.startsWith('Console error: Webview fatal error:')),
+				httpStatus: monitor.formatFailure().includes('503'),
+			}, { workerRequests: 1, failedResources: [], fatalError: true, httpStatus: true });
+		} finally {
+			monitor.dispose();
+			try {
+				await page.close();
+			} finally {
+				if (server.listening) {
+					await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+				}
+			}
+		}
+	});
+
+	it('preserves the unsupported-browser skip diagnostics when bootstrap fails', async () => {
+		const page = await browser.newPage();
+		const monitor = new WebviewDiagnostics(page, () => { });
+		try {
+			const message = 'Webview fatal error: Error: Could not register service worker: NotSupportedError: Failed to register a ServiceWorker';
+			const outcome = assert.rejects(monitor.waitFor(new Promise<void>(() => { })), /NotSupportedError/);
+			await page.evaluate(message => console.error(message), message);
+			await outcome;
+			assert.deepStrictEqual({
+				failedResources: monitor.failedResources,
+				diagnostics: monitor.diagnostics,
+			}, { failedResources: [], diagnostics: [`Console error: ${message}`] });
+		} finally {
+			monitor.dispose();
+			await page.close();
+		}
+	});
+
+	it('preserves the request failure while a newly attached frame has no URL', async () => {
+		const page = await browser.newPage();
+		const monitor = new WebviewDiagnostics(page, () => { });
+		try {
+			await page.route(bootstrap, route => route.fulfill({ status: 404, body: 'WebContentNotFound' }));
+			const outcome = assert.rejects(monitor.waitFor(new Promise<void>(() => { })), /HTTP 404/);
+			await page.setContent(`<iframe src="${bootstrap}"></iframe>`);
+			await outcome;
+			const snapshot = Promise.withResolvers<{ frameUrl: string; message: string }>();
+			page.once('frameattached', frame => {
+				try {
+					snapshot.resolve({ frameUrl: frame.url(), message: monitor.formatFailure() });
+				} catch (error) {
+					snapshot.reject(error);
+				}
+			});
+			const [, result] = await Promise.all([
+				page.evaluate(() => { document.body.appendChild(document.createElement('iframe')); }),
+				snapshot.promise,
+			]);
+			assert.deepStrictEqual({
+				frameUrl: result.frameUrl,
+				preservedFailure: result.message.includes(`HTTP 404 ${bootstrap}`),
+				placeholder: result.message.includes('<not navigated>'),
+			}, { frameUrl: '', preservedFailure: true, placeholder: true });
+		} finally {
+			monitor.dispose();
+			await page.close();
+		}
+	});
 
 	it('preserves successful nested-frame rendering and ignores unrelated HTTP failures', async () => {
 		const page = await browser.newPage();
