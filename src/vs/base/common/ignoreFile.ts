@@ -195,7 +195,9 @@ export interface IGitIgnorePattern {
 	/**
 	 * The pattern as a glob without leading or trailing `/`. Characters that git
 	 * matches literally but globs treat specially, such as `{` or escaped
-	 * characters, are put into brackets (`[{]`).
+	 * characters, are put into brackets (`[{]`). In a negation, bracket
+	 * expressions that globs cannot express are replaced by `?`, so that it
+	 * matches at least the paths that git re-includes.
 	 */
 	readonly glob: string;
 }
@@ -203,9 +205,9 @@ export interface IGitIgnorePattern {
 /**
  * Parses the contents of a `.gitignore` file. Blank lines and comments are
  * skipped, and so are patterns that cannot match any path, such as patterns
- * with an unclosed bracket expression, or that use bracket expressions which
- * are not supported (see `toBracketExpression`). Skipping a pattern means
- * ignoring less than git does, never more.
+ * with an unclosed bracket expression, and patterns that ignore paths with
+ * bracket expressions that globs cannot express (see `toBracketExpression`).
+ * The result therefore never ignores more than git does.
  */
 export function parseGitIgnore(contents: string): IGitIgnorePattern[] {
 	const patterns: IGitIgnorePattern[] = [];
@@ -245,7 +247,7 @@ function parseGitIgnoreLine(line: string): IGitIgnorePattern | undefined {
 		line = line.substring(1);
 	}
 
-	const globPattern = toGlob(line);
+	const globPattern = toGlob(line, negated);
 
 	return globPattern ? { negated, directoryOnly, anchored, glob: globPattern } : undefined;
 }
@@ -291,27 +293,31 @@ const LITERAL_CHARACTERS: { readonly [character: string]: string } = {
 /**
  * Converts the pattern of a line, without negation and leading or trailing
  * `/`, into a glob. Returns `undefined` for patterns that cannot match any
- * path.
+ * path, and for patterns that are not `negated` and use bracket expressions
+ * that globs cannot express.
  */
-function toGlob(pattern: string): string | undefined {
+function toGlob(pattern: string, negated: boolean): string | undefined {
 	let result = '';
 	for (let i = 0; i < pattern.length; i++) {
 		const char = pattern[i];
 		switch (char) {
 			case '\\': {
 				const escaped = pattern[++i];
-				if (escaped === undefined || escaped === '/') {
-					return undefined; // a trailing backslash never matches, escaped separators are not supported
+				if (escaped === undefined) {
+					return undefined; // a trailing backslash never matches
 				}
 				result += LITERAL_CHARACTERS[escaped] ?? escaped;
 				break;
 			}
 			case '[': {
 				const bracketExpression = toBracketExpression(pattern, i);
-				if (!bracketExpression) {
+				if (!bracketExpression || (bracketExpression.glob === undefined && !negated)) {
 					return undefined;
 				}
-				result += bracketExpression.glob;
+
+				// A bracket expression matches a single character other than `/`, as
+				// `?` does, so that a negation re-includes at least what git does
+				result += bracketExpression.glob ?? '?';
 				i = bracketExpression.end;
 				break;
 			}
@@ -350,30 +356,67 @@ function toGlob(pattern: string): string | undefined {
 const BRACKET_EXPRESSION_MEMBERS = /^(?:[^[\]\\/!^-](?:-[^[\]\\/!^-])?)+$/u;
 
 /**
- * Converts the bracket expression that starts at `start` into a glob and
- * returns it with the index of its closing bracket. Only characters and
- * ranges, optionally negated by a leading `!` or `^`, are supported. Returns
- * `undefined` for other expressions, which ignore files rarely use, such as
- * character classes, escapes or `]` as a member.
+ * Finds the end of the bracket expression that starts at `start` like git
+ * does and converts it into a glob. Returns `undefined` for an unclosed
+ * expression, which never matches.
+ *
+ * Globs only express characters and ranges, so the glob is `undefined` for
+ * other expressions, which ignore files rarely use: character classes,
+ * escapes, `]` as a member and reversed ranges. It is also `undefined` for
+ * expressions that can match a path separator in a glob but not in git: a
+ * negated expression, such as `[!a]`, and a range that includes `/` or `\`,
+ * such as `[+-0]`.
  */
-function toBracketExpression(pattern: string, start: number): { glob: string; end: number } | undefined {
-	let i = start + 1;
-	const negated = pattern[i] === '!' || pattern[i] === '^';
-	if (negated) {
-		i++;
-	}
-
-	const end = pattern.indexOf(']', i);
-	const members = end === -1 ? '' : pattern.substring(i, end);
-	if (!BRACKET_EXPRESSION_MEMBERS.test(members)) {
+function toBracketExpression(pattern: string, start: number): { glob: string | undefined; end: number } | undefined {
+	const end = findBracketExpressionEnd(pattern, start);
+	if (end === undefined) {
 		return undefined;
 	}
 
+	const members = pattern.substring(start + 1, end);
+	if (!BRACKET_EXPRESSION_MEMBERS.test(members)) {
+		return { glob: undefined, end };
+	}
+
 	for (const [, from, to] of members.matchAll(/(.)-(.)/gu)) {
-		if (from > to) {
-			return undefined; // globs reject reversed ranges
+		if (from > to || (from <= '/' && to >= '/') || (from <= '\\' && to >= '\\')) {
+			return { glob: undefined, end };
 		}
 	}
 
-	return { glob: `[${negated ? '^' : ''}${members}]`, end };
+	return { glob: `[${members}]`, end };
+}
+
+/**
+ * Returns the index of the `]` that closes the bracket expression that starts
+ * at `start`, following git's rules, or `undefined` when it is not closed.
+ */
+function findBracketExpressionEnd(pattern: string, start: number): number | undefined {
+	let i = start + 1;
+	if (pattern[i] === '!' || pattern[i] === '^') {
+		i++;
+	}
+	if (pattern[i] === ']') {
+		i++; // a `]` that comes first is a member
+	}
+
+	for (; i < pattern.length; i++) {
+		if (pattern[i] === ']') {
+			return i;
+		}
+
+		if (pattern[i] === '\\') {
+			i++; // the next character is a member
+		} else if (pattern[i] === '[' && pattern[i + 1] === ':') {
+			const classEnd = pattern.indexOf(']', i + 2);
+			if (classEnd === -1) {
+				return undefined;
+			}
+			if (classEnd > i + 2 && pattern[classEnd - 1] === ':') {
+				i = classEnd; // a character class such as `[:digit:]`, otherwise `[` is a member
+			}
+		}
+	}
+
+	return undefined;
 }

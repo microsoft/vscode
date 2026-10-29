@@ -674,6 +674,7 @@ suite('Parsing .gitignore files', () => {
 			braces: ignoredPaths('{a,b}\n', ['/{a,b}', '/a', '/b']),
 			parentheses: ignoredPaths('file (1).txt\n', ['/file (1).txt', '/file 1.txt']),
 			backslashes: ignoredPaths('\\\\x\ny\\\n', ['/\\x', '/x', '/y']),
+			escapedSlash: ignoredPaths('a\\/b\n\\/c\n', ['/a/b', '/ab', '/c']),
 			asterisks: ignoredPaths('a**b\n***/deep\n', ['/axb', '/ab', '/a/x/b', '/deep', '/x/y/deep']),
 		}, {
 			leadingSpace: ['/ leading'],
@@ -684,6 +685,7 @@ suite('Parsing .gitignore files', () => {
 			braces: ['/{a,b}'],
 			parentheses: ['/file (1).txt'],
 			backslashes: ['/\\x'],
+			escapedSlash: ['/a/b'],
 			asterisks: ['/axb', '/ab', '/deep', '/x/y/deep'],
 		});
 	});
@@ -691,13 +693,28 @@ suite('Parsing .gitignore files', () => {
 	test('matches bracket expressions like git and skips unsupported ones', () => {
 		assert.deepStrictEqual({
 			ranges: ignoredPaths('*.py[cod]\n[Dd]ebug/\n', ['/a.pyc', '/a.pyx', '/Debug/', '/debug/', '/xebug/']),
-			negated: ignoredPaths('[!a-c]\n[^x]y\n', ['/a', '/d', '/xy', '/zy']),
 			// Patterns with expressions that real-world ignore files do not use are skipped
-			skipped: ignoredPaths('*[[:digit:]].log\n[]a]\n[\\]]x\n[z-a]x\n[a-]\nfoo[\n', ['/a1.log', '/]', '/a', '/]x', '/zx', '/-', '/foo', '/foo[']),
+			skipped: ignoredPaths('*[[:digit:]].log\n[]a]\n[\\]]x\n[z-a]x\n[a-]\n[!a-c]\nfoo[\n', ['/a1.log', '/]', '/a', '/]x', '/zx', '/-', '/d', '/foo', '/foo[']),
+			// Negated expressions and ranges that include `/` would match a path separator in a glob
+			separators: ignoredPaths('/a[!x]b\n/c[+-0]d\n', ['/ayb', '/a/b', '/c5d', '/c/d']),
 		}, {
 			ranges: ['/a.pyc', '/Debug/', '/debug/'],
-			negated: ['/d', '/zy'],
 			skipped: [],
+			separators: [],
+		});
+	});
+
+	test('negations with unsupported bracket expressions re-include at least what git does', () => {
+		assert.deepStrictEqual({
+			characterClass: ignoredPaths('*.txt\n![[:digit:]].txt\n', ['/1.txt', '/a.txt', '/ab.txt']),
+			negatedExpression: ignoredPaths('/*\n!/[!a]\n', ['/a', '/b', '/ab']),
+			unclosed: ignoredPaths('*.txt\n!foo[.txt\n', ['/foo.txt', '/foo[.txt']),
+		}, {
+			// `?` re-includes `a.txt` as well, which is more than git does
+			characterClass: ['/ab.txt'],
+			negatedExpression: ['/ab'],
+			// An unclosed expression never matches, so the negation has no effect, as in git
+			unclosed: ['/foo.txt', '/foo[.txt'],
 		});
 	});
 

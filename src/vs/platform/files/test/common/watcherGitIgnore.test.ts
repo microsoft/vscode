@@ -54,14 +54,18 @@ suite('Watcher .gitignore excludes', () => {
 			'/{a,b}',
 			'/file (1).txt',
 			'/ leading',
-			'/*.[!o]',
+			'/*.[oa]',
 		].join('\n')), [
 			'#notes', '#notes/**',
 			'[{]a,b[}]', '[{]a,b[}]/**',
 			'file [(]1[)].txt', 'file [(]1[)].txt/**',
 			'[ ]leading', '[ ]leading/**',
-			'*.[^o]', '*.[^o]/**',
+			'*.[oa]', '*.[oa]/**',
 		]);
+	});
+
+	test('negations that use unsupported bracket expressions still skip the patterns before them', () => {
+		assert.deepStrictEqual(getWatcherExcludesFromGitIgnore('*.txt\n![[:digit:]].txt\n/out/\n'), ['out/**/*']);
 	});
 
 	test('skips patterns that could exclude paths git does not ignore', () => {
@@ -86,6 +90,8 @@ suite('Watcher .gitignore excludes', () => {
 			'foo[',
 			'[]a]',
 			'/foo]',
+			'/*.[!o]',
+			'/c[+-0]d',
 			'/out',
 		].join('\r\n')), ['target/**/*', 'out', 'out/**']);
 	});
