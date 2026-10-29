@@ -283,20 +283,22 @@ suite('GitHubCloudAutomationStore', () => {
 		}, { target: { workspace, repositoryLabel: 'microsoft/vscode-internalbacklog', allowReadAccessTriggers: false }, calls: ['capability'], entries: [], cached: true });
 	});
 
-	test('configuration 404 leaves an existing workspace target invalidated without poisoning readiness', async () => {
+	test('background configuration 404 invalidates an existing workspace target without poisoning readiness', async () => {
 		const { store, api } = setup(() => workspace);
 		const target = store.getWorkspaceTarget(URI.file('/repo'));
 		await timeout(0);
 
 		api.manageability.set(repository.repo, new ApiRequestError(404, 'notFound'));
-		await store.refresh();
+		await store.refresh({ background: true });
 
 		assert.deepStrictEqual({
 			target: target.get(),
 			state: store.catalogueState.get(),
 		}, {
 			target: {
-				disabledReason: 'Repository access must be verified again.',
+				disabledReason: 'Cloud automations cannot be managed for this repository.',
+				isRepository: true,
+				repositoryLabel: 'microsoft/vscode-internalbacklog',
 			},
 			state: 'ready',
 		});
@@ -1142,6 +1144,25 @@ suite('GitHubCloudAutomationStore', () => {
 			entries: [{ repository, definition: { ...definition, name: 'Updated' } }],
 			historyRepositories: [repository.repo],
 			state: 'ready',
+			stored: [storedRepository],
+		});
+	});
+
+	test('definition 404 retains persisted repositories for an explicit refresh retry', async () => {
+		const { store, api, storage } = setup();
+		storage.store(storageKey, JSON.stringify([storedRepository]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		await store.refresh();
+
+		api.definitions.set(repository.repo, new ApiRequestError(404, 'notFound'));
+		await assert.rejects(store.refresh(), /Some GitHub repositories/);
+
+		assert.deepStrictEqual({
+			entries: store.entries.get(),
+			state: store.catalogueState.get(),
+			stored: JSON.parse(storage.get(storageKey, StorageScope.PROFILE)!),
+		}, {
+			entries: [{ repository, definition }],
+			state: 'error',
 			stored: [storedRepository],
 		});
 	});

@@ -591,17 +591,10 @@ export class GitHubCloudAutomationStore extends Disposable {
 		const eligible: RepositoryRef[] = [];
 		const missing: RepositoryRef[] = [];
 		for (const [key, repository] of repositories) {
+			let configuration: AutomationRepositoryConfiguration;
 			try {
-				const configuration = await client.automations.getConfiguration(repository, signal, options);
+				configuration = await client.automations.getConfiguration(repository, signal, options);
 				signal.throwIfAborted();
-				this.setRepositoryConfiguration(key, configuration);
-				if (!configuration.can_manage_automations) {
-					snapshot.delete(key);
-					continue;
-				}
-				eligible.push(repository);
-				const definitions = await this.listDefinitions(client.automations, repository, signal, options);
-				snapshot.set(key, definitions.map(definition => ({ repository, definition })));
 			} catch (error) {
 				signal.throwIfAborted();
 				if (isCancellationError(error)) {
@@ -610,9 +603,28 @@ export class GitHubCloudAutomationStore extends Disposable {
 				if (error instanceof ApiRequestError && error.statusCode === 404) {
 					snapshot.delete(key);
 					this.repositoryConfigurations.delete(key);
+					this.updateRepositoryTargets(key);
 					missing.push(repository);
 					this.logService.info(`[CloudAutomations] Repository no longer available ${key}`);
 					continue;
+				}
+				this.logService.warn(`[CloudAutomations] Failed to refresh ${key}`, error);
+				errors.push(error);
+				continue;
+			}
+			this.setRepositoryConfiguration(key, configuration);
+			if (!configuration.can_manage_automations) {
+				snapshot.delete(key);
+				continue;
+			}
+			eligible.push(repository);
+			try {
+				const definitions = await this.listDefinitions(client.automations, repository, signal, options);
+				snapshot.set(key, definitions.map(definition => ({ repository, definition })));
+			} catch (error) {
+				signal.throwIfAborted();
+				if (isCancellationError(error)) {
+					throw error;
 				}
 				this.logService.warn(`[CloudAutomations] Failed to refresh ${key}`, error);
 				errors.push(error);
