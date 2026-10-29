@@ -283,6 +283,27 @@ suite('GitHubCloudAutomationStore', () => {
 		}, { target: { workspace, repositoryLabel: 'microsoft/vscode-internalbacklog', allowReadAccessTriggers: false }, calls: ['capability'], entries: [], cached: true });
 	});
 
+	test('background configuration 404 invalidates an existing workspace target without poisoning readiness', async () => {
+		const { store, api } = setup(() => workspace);
+		const target = store.getWorkspaceTarget(URI.file('/repo'));
+		await timeout(0);
+
+		api.manageability.set(repository.repo, new ApiRequestError(404, 'notFound'));
+		await store.refresh({ background: true });
+
+		assert.deepStrictEqual({
+			target: target.get(),
+			state: store.catalogueState.get(),
+		}, {
+			target: {
+				disabledReason: 'Cloud automations cannot be managed for this repository.',
+				isRepository: true,
+				repositoryLabel: 'microsoft/vscode-internalbacklog',
+			},
+			state: 'ready',
+		});
+	});
+
 	test('public repositories are identified without checking automation manageability', async () => {
 		const { store, api } = setup(() => workspace);
 		api.privateRepositories.set(repository.repo, false);
@@ -1098,6 +1119,77 @@ suite('GitHubCloudAutomationStore', () => {
 		await store.refresh();
 		assert.deepStrictEqual({ entries: store.entries.get(), state: store.catalogueState.get() }, {
 			entries: [{ repository, definition: { ...definition, name: 'Updated' } }], state: 'ready',
+		});
+	});
+
+	test('configuration 404 evicts a stale persisted repository without poisoning healthy readiness', async () => {
+		const { store, api, storage } = setup();
+		const stale = { owner: 'microsoft', repo: 'stale' };
+		storage.store(storageKey, JSON.stringify([storedRepository, { owner: stale.owner, name: stale.repo }]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		api.definitions.set(stale.repo, [{ ...definition, id: 'stale' }]);
+		api.tasks = [{ id: 'run', state: 'completed', created_at: definition.created_at, remote_steerable: true }];
+		await store.refresh();
+		await store.refreshHistory();
+
+		api.definitions.set(repository.repo, [{ ...definition, name: 'Updated' }]);
+		api.manageability.set(stale.repo, new ApiRequestError(404, 'notFound'));
+		await store.refresh();
+
+		assert.deepStrictEqual({
+			entries: store.entries.get(),
+			historyRepositories: store.history.get().map(row => row.entry.repository.repo),
+			state: store.catalogueState.get(),
+			stored: JSON.parse(storage.get(storageKey, StorageScope.PROFILE)!),
+		}, {
+			entries: [{ repository, definition: { ...definition, name: 'Updated' } }],
+			historyRepositories: [repository.repo],
+			state: 'ready',
+			stored: [storedRepository],
+		});
+	});
+
+	test('definition 404 retains persisted repositories for an explicit refresh retry', async () => {
+		const { store, api, storage } = setup();
+		storage.store(storageKey, JSON.stringify([storedRepository]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		await store.refresh();
+
+		api.definitions.set(repository.repo, new ApiRequestError(404, 'notFound'));
+		await assert.rejects(store.refresh(), /Some GitHub repositories/);
+
+		assert.deepStrictEqual({
+			entries: store.entries.get(),
+			state: store.catalogueState.get(),
+			stored: JSON.parse(storage.get(storageKey, StorageScope.PROFILE)!),
+		}, {
+			entries: [{ repository, definition }],
+			state: 'error',
+			stored: [storedRepository],
+		});
+	});
+
+	test('configuration failures retain persisted repositories for an explicit refresh retry', async () => {
+		const { store, api, storage } = setup();
+		storage.store(storageKey, JSON.stringify([storedRepository]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		await store.refresh();
+
+		api.manageability.set(repository.repo, new ApiRequestError(503, 'unknown'));
+		await assert.rejects(store.refresh(), /Some GitHub repositories/);
+		const failed = {
+			entries: store.entries.get(),
+			state: store.catalogueState.get(),
+			stored: JSON.parse(storage.get(storageKey, StorageScope.PROFILE)!),
+		};
+
+		api.manageability.delete(repository.repo);
+		await store.refresh();
+		assert.deepStrictEqual({
+			failed,
+			retriedConfigurations: api.calls.filter(call => call.method === 'capability').length,
+			state: store.catalogueState.get(),
+		}, {
+			failed: { entries: [{ repository, definition }], state: 'error', stored: [storedRepository] },
+			retriedConfigurations: 3,
+			state: 'ready',
 		});
 	});
 
