@@ -26,7 +26,7 @@ import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema, type AgentHostMcpServers, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
 import { isAgentHostWorkspaceTrusted } from '../../common/agentHostWorkspaceTrust.js';
 import { isWorktreeUnderRepository } from '../../common/worktreePaths.js';
-import { getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
+import { getCopilotApprovalPolicy, isManagedWorkspaceRetrievalWithheld, isWithheldClientTool, MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, type CopilotManagedSettingsActivityReporter, type CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { omitCopilotManagedModelDefaults, type CopilotManagedModelPolicy } from './copilotManagedModelConfiguration.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
@@ -208,6 +208,8 @@ interface ICopilotResolvedClientToolConfiguration {
 export interface ICopilotClientToolConfiguration {
 	readonly toolSearchActive: boolean;
 	readonly hostToolNames: ReadonlySet<string>;
+	/** Client tools withheld from the model under the launch's managed permission rules; live tool updates keep them withheld. */
+	readonly withheldToolNames: ReadonlySet<string>;
 	readonly sessionConfig: CopilotClientToolSessionConfig;
 	resolve(definitions: readonly ToolDefinition[], clientTools?: readonly Tool[]): ICopilotResolvedClientToolConfiguration;
 	replaceTools(session: CopilotSession, tools: Tool[]): Promise<void>;
@@ -323,8 +325,13 @@ export interface ICopilotSessionRuntime {
 	handleUserPromptSubmitted(): { readonly additionalContext: string } | undefined;
 	/** Shows a launch-time wait, such as slow managed settings, as the activity of the chat that owns this session; `undefined` clears it. */
 	readonly reportManagedSettingsActivity?: CopilotManagedSettingsActivityReporter;
+	/**
+	 * Creates the SDK tools for the session's client tools. `hostToolNames` are
+	 * implemented by the host instead; `withheldToolNames` are not offered to
+	 * the model at all.
+	 */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	createClientSdkTools(toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>): Tool<any>[];
+	createClientSdkTools(toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>, withheldToolNames?: ReadonlySet<string>): Tool<any>[];
 	configureClientTools?(configuration: ICopilotClientToolConfiguration): void;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createServerSdkTools(toolSearchActive?: boolean): Tool<any>[];
@@ -1522,12 +1529,20 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const bridgedPermissions = this._managedSettingsService.permissions;
 		const resolved = await resolveCopilotSessionManagedSettings(plan, runtime.cancellationToken, runtime.reportManagedSettingsActivity);
 		runtime.setApprovalPolicy?.(resolved.resolved, bridgedPermissions);
+		const withheldClientToolNames: ReadonlySet<string> = isManagedWorkspaceRetrievalWithheld(resolved.resolved)
+			? MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS
+			: new Set();
+		if (withheldClientToolNames.size) {
+			this._logService.info(`[Copilot:${plan.sessionId}] Managed permission rules are active; withholding client tools: ${[...withheldClientToolNames].join(', ')}`);
+		}
 		const managedSettingsPermissions = getCopilotApprovalPolicy(resolved.resolved,
 			this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true,
 			bridgedPermissions).permissions;
 		const additionalDirectories = plan.additionalDirectories?.map(d => d.fsPath);
 		const authoredCustomAgents = pluginCustomAgents.filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.name));
-		const resolveToolConfiguration = (definitions: readonly ToolDefinition[], clientTools: readonly Tool[] = []): ICopilotResolvedClientToolConfiguration => {
+		const resolveToolConfiguration = (published: readonly ToolDefinition[], clientTools: readonly Tool[] = []): ICopilotResolvedClientToolConfiguration => {
+			// Withheld tools are absent from every derived setting, so the runtime keeps its built-in replacement excluded.
+			const definitions = withheldClientToolNames.size ? published.filter(tool => !isWithheldClientTool(tool, withheldClientToolNames)) : published;
 			const names = filterClientToolNames(new Set(definitions.map(tool => tool.name)), availableTools, excludedTools);
 			const trustedNames = filterClientToolNames(trustedClientToolNames(definitions), availableTools, excludedTools);
 			const toolSearch = resolveToolSearch(trustedNames);
@@ -1555,10 +1570,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				},
 			};
 		};
-		const toolConfiguration = resolveToolConfiguration(plan.snapshot.tools, runtime.createClientSdkTools(toolSearchActive, hostToolNames));
+		const toolConfiguration = resolveToolConfiguration(plan.snapshot.tools, runtime.createClientSdkTools(toolSearchActive, hostToolNames, withheldClientToolNames));
 		runtime.configureClientTools?.({
 			toolSearchActive: toolConfiguration.sessionConfig.toolSearch.enabled === true,
 			hostToolNames,
+			withheldToolNames: withheldClientToolNames,
 			sessionConfig: toolConfiguration.sessionConfig,
 			resolve: resolveToolConfiguration,
 			replaceTools: async (session, tools) => {
