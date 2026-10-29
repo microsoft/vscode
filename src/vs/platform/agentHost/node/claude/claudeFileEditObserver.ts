@@ -98,7 +98,7 @@ export class ClaudeFileEditObserver extends Disposable {
 				continue;
 			}
 			this._editToolPaths.set(block.id, { filePath, toolName: block.name, toolInput: block.input, modelId, clientContext, chatUri });
-			void this._editTracker.trackEditStart(filePath, mode).catch(err =>
+			void this._editTracker.trackEditStart(filePath, mode, block.input).catch(err =>
 				this._logService.warn(`[ClaudeFileEditObserver] trackEditStart failed for ${filePath}: ${err}`));
 		}
 	}
@@ -131,7 +131,7 @@ export class ClaudeFileEditObserver extends Disposable {
 			}
 			this._editToolPaths.delete(block.tool_use_id);
 			try {
-				await this._editTracker.completeEdit(tracked.filePath);
+				await this._editTracker.completeEdit(tracked.filePath, tracked.toolInput);
 				const editChatUri = chat?.isSubagent ? chat.uri : tracked.chatUri ?? chat?.uri;
 				const fileEdit = await this._editTracker.takeCompletedEdit(turnId, block.tool_use_id, tracked.filePath, tracked.toolName, tracked.toolInput, tracked.modelId, chat?.isSubagent ?? false, tracked.clientContext, editChatUri);
 				if (fileEdit) {
