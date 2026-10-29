@@ -16,11 +16,13 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Link } from '../../../../platform/opener/browser/link.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ISessionInputPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { WorktreeSuggestionVariant } from '../common/worktreeSuggestion.js';
-import { getInlineHintMessage, getUseWorktreeLabel } from './worktreeSuggestionPresentation.js';
+import { getInlineHintMessage, getShowChangesLabel, getUseWorktreeLabel } from './worktreeSuggestionPresentation.js';
 import { IWorktreeSuggestion, IWorktreeSuggestionService, worktreeSuggestionEquals, WorktreeSpotlightChoice } from './worktreeSuggestionService.js';
 
 /** The parts of a new-session composer that the worktree suggestion reads. */
@@ -65,6 +67,7 @@ export class WorktreeSuggestionController extends Disposable {
 		container: HTMLElement,
 		private readonly _composer: IWorktreeSuggestionComposer,
 		@IWorktreeSuggestionService private readonly _service: IWorktreeSuggestionService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -131,6 +134,17 @@ export class WorktreeSuggestionController extends Disposable {
 		dom.append(element, renderIcon(Codicon.worktree)).setAttribute('aria-hidden', 'true');
 		const message = dom.append(element, dom.$('span.new-session-worktree-suggestion-message'));
 		message.id = `new-session-worktree-suggestion-message-${++messageIdPool}`;
+		const messageBefore = dom.append(message, dom.$('span'));
+		// The number of uncommitted files shows them, so the user can see which changes a worktree keeps apart.
+		const filesLink = this._register(this._instantiationService.createInstance(Link, message, { label: '', href: '#' }, {
+			opener: () => {
+				const suggestion = this._inlineSuggestion;
+				if (suggestion) {
+					void this._service.reviewChanges(WorktreeSuggestionVariant.InlineHint, suggestion);
+				}
+			},
+		}));
+		const messageAfter = dom.append(message, dom.$('span'));
 
 		const useWorktreeButton = this._register(new Button(element, { ...defaultButtonStyles, secondary: true, small: true }));
 		useWorktreeButton.label = getUseWorktreeLabel();
@@ -181,12 +195,15 @@ export class WorktreeSuggestionController extends Disposable {
 			if (!suggestion) {
 				return;
 			}
-			const text = getInlineHintMessage(suggestion);
-			message.textContent = text;
+			const { before, files, after } = getInlineHintMessage(suggestion);
+			messageBefore.textContent = before;
+			filesLink.link = { label: files, href: '#', title: getShowChangesLabel() };
+			filesLink.enabled = !!files;
+			messageAfter.textContent = after;
 			this._service.markShown(WorktreeSuggestionVariant.InlineHint, suggestion);
 			if (this._announcedSessionId !== suggestion.session.sessionId) {
 				this._announcedSessionId = suggestion.session.sessionId;
-				status(text);
+				status(before + files + after);
 			}
 		}));
 	}

@@ -132,12 +132,6 @@ export interface IWorktreeSuggestionService {
 	/** Stops showing the inline hint. */
 	closeHint(suggestion: IWorktreeSuggestion): void;
 
-	/** Whether the user closed the explanation above the isolation picker's uncommitted files, which then never shows again. */
-	isExplanationClosed(reader: IReader | undefined): boolean;
-
-	/** Stops showing the explanation above the isolation picker's uncommitted files, which stay listed. */
-	closeExplanation(suggestion: IWorktreeSuggestion): void;
-
 	/** Whether the spotlight may still run: once per user while automatic onboarding is enabled, or in a preview. */
 	canShowSpotlight(): boolean;
 
@@ -155,7 +149,7 @@ export interface IWorktreeSuggestionService {
 	 */
 	setPreview(variant: WorktreeSuggestionVariant | undefined): void;
 
-	/** Forgets earlier responses, so a closed hint or explanation and a spotlight that was shown can appear again. */
+	/** Forgets earlier responses, so a closed hint and a spotlight that was shown can appear again. */
 	reset(): void;
 }
 
@@ -166,13 +160,11 @@ const STATE_STORAGE_KEY = 'sessions.worktreeSuggestion.state';
 interface IWorktreeSuggestionState {
 	/** Whether the user closed the inline hint. */
 	readonly hintClosed: boolean;
-	/** Whether the user closed the explanation above the isolation picker's uncommitted files. */
-	readonly explanationClosed: boolean;
 }
 
-const INITIAL_STATE: IWorktreeSuggestionState = { hintClosed: false, explanationClosed: false };
+const INITIAL_STATE: IWorktreeSuggestionState = { hintClosed: false };
 
-type WorktreeSuggestionAction = 'shown' | 'opened' | 'reviewed' | 'accepted' | 'declined' | 'dismissed' | 'explanationClosed';
+type WorktreeSuggestionAction = 'shown' | 'opened' | 'reviewed' | 'accepted' | 'declined' | 'dismissed';
 
 type WorktreeSuggestionEvent = {
 	variant: string;
@@ -184,7 +176,7 @@ type WorktreeSuggestionClassification = {
 	owner: 'benibenj';
 	comment: 'Tracks exposure to and interaction with the suggestion to start a new Agents window session in a new worktree when its folder has uncommitted changes.';
 	variant: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the suggestion was presented: spotlightOnSend, inlineHint, or uncommittedFilesCount.' };
-	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the suggestion was shown, opened the isolation picker or listed the uncommitted files in it, was used to review the uncommitted changes, was accepted or declined for the session, was closed for good (the inline hint), or had the explanation above its uncommitted files closed for good.' };
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the suggestion was shown, opened the isolation picker or listed the uncommitted files in it, was used to review the uncommitted changes, was accepted or declined for the session, or was closed for good (the inline hint).' };
 	uncommittedChanges: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files with uncommitted changes in the folder of the new session.' };
 };
 
@@ -382,10 +374,11 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 			return {
 				kind: ActionListItemKind.Action,
 				label: label.name,
-				description: label.directory,
 				iconClasses: getIconClasses(this._modelService, this._languageService, getChangedFileUri(change), FileKind.FILE),
 				additionalBadges: [{ label: insertions, className: 'insertions' }, { label: deletions, className: 'deletions' }],
+				// The row leaves out the file's folder to stay compact, so its tooltip and screen readers name it.
 				ariaDescription: getChangedFileAriaDescription(change, label),
+				tooltip: label.path,
 				// Rows are styled as changed files wherever a picker lists them.
 				className: 'worktree-suggestion-changed-file show-file-icons',
 				item: { run: () => void this.reviewChanges(variant, suggestion, change) },
@@ -412,15 +405,6 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 	closeHint(suggestion: IWorktreeSuggestion): void {
 		this._updateState({ hintClosed: true });
 		this._report(WorktreeSuggestionVariant.InlineHint, 'dismissed', suggestion);
-	}
-
-	isExplanationClosed(reader: IReader | undefined): boolean {
-		return this._getState(reader).explanationClosed;
-	}
-
-	closeExplanation(suggestion: IWorktreeSuggestion): void {
-		this._updateState({ explanationClosed: true });
-		this._report(WorktreeSuggestionVariant.UncommittedFilesCount, 'explanationClosed', suggestion);
 	}
 
 	canShowSpotlight(): boolean {
@@ -514,10 +498,7 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 		}
 		this._stateChanged.read(reader);
 		const state = this._storageService.getObject<Partial<IWorktreeSuggestionState>>(STATE_STORAGE_KEY, StorageScope.PROFILE);
-		return {
-			hintClosed: state?.hintClosed === true,
-			explanationClosed: state?.explanationClosed === true,
-		};
+		return { hintClosed: state?.hintClosed === true };
 	}
 
 	private _updateState(update: Partial<IWorktreeSuggestionState>): void {
