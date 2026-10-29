@@ -119,9 +119,8 @@ export interface SandboxSeatbeltPolicy {
  * Optional toggles are forwarded only when supplied; absent values use runtime defaults.
  * Credential authentication defaults to enabled and uses the effective Copilot-only preferences.
  *
- * `extraReadonlyPaths` grants read access to session attachments and generated
- * shell init scripts when the effective sandbox is applied before each turn,
- * unless a managed read-only list is present.
+ * `extraReadonlyPaths` grants read access to session attachments, generated shell
+ * init scripts and applied plugin resources, unless a managed read-only list is present.
  */
 export function buildSandboxConfigForSdk(
 	platform: NodeJS.Platform,

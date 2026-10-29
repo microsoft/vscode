@@ -8,10 +8,8 @@ import { constObservable } from '../../../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { INativeHostService } from '../../../../../../platform/native/common/native.js';
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { INativeWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/electron-browser/environmentService.js';
@@ -62,7 +60,6 @@ suite('Local Agent Host Lifecycle', () => {
 				return { confirmed };
 			},
 		}));
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(INativeHostService, upcastPartial<INativeHostService>({
 			getWindowCount: async () => windowCount,
 		}));

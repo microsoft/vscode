@@ -144,7 +144,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 	function createProvider(
 		conn: IAgentConnection,
 		resolveBackendSession: () => URI | undefined = () => backendSession,
-		resolveBackendChat?: (sessionResource: URI) => URI | undefined,
+		resolveBackendChat?: (sessionResource: URI, sessionState?: SessionState) => URI | undefined,
 	): AgentHostResponseFileChangesProvider {
 		return new AgentHostResponseFileChangesProvider(conn, authority, resolveBackendSession, resolveBackendChat, new NullLogService());
 	}
@@ -232,6 +232,38 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			});
 		});
 	}
+
+	test('a chat resource whose chat is unresolved when asked subscribes only its own chat, not every chat in the catalog', () => {
+		const peers = Array.from({ length: 6 }, (_, index) => URI.parse(buildChatUri(backendSession.toString(), `peer-${index}`)).toString());
+		const subscribedChats = (resolveAtRequest: boolean) => {
+			const conn = new FakeAgentConnection();
+			conn.setState(backendSession.toString(), {
+				defaultChat: defaultChatUri.toString(),
+				// Unopened peers, half of them archived.
+				chats: peers.map((resource, index) => createChatState({
+					resource,
+					title: `Peer ${index}`,
+					status: index % 2 ? SessionStatus.Idle | SessionStatus.IsArchived : SessionStatus.Idle,
+					modifiedAt: new Date(0).toISOString(),
+				})),
+			} as unknown as SessionState);
+			// As after a reconnect, the session handler can resolve the chat only once its session state loads; until
+			// then the provider resolves it from its own session state.
+			const provider = store.add(createProvider(conn, () => backendSession, (_resource, state) => resolveAtRequest || state ? defaultChatUri : undefined));
+			const observed = observe(provider, store.add(new DisposableStore()));
+			conn.setState(defaultChatUri.toString(), { ...chatStateWithTurnSupport(), turns: [{ ...completedTurn('t1'), responseParts: [] }] });
+			conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Ready, files: [{ id: 'edited', edit: fileEdit('/repo/a.ts', 3) }] } satisfies ChangesetState);
+			return {
+				chats: [defaultChatUri.toString(), ...peers].filter(chat => conn.getSubscriptionCount(chat) > 0),
+				files: observed.latest().map(diff => fromAgentHostUri(diff.modifiedURI).path),
+			};
+		};
+
+		assert.deepStrictEqual({ unresolved: subscribedChats(false), resolved: subscribedChats(true) }, {
+			unresolved: { chats: [defaultChatUri.toString()], files: ['/repo/a.ts'] },
+			resolved: { chats: [defaultChatUri.toString()], files: ['/repo/a.ts'] },
+		});
+	});
 
 	function fileEdit(path: string, added = 1, onRead?: () => void): ISessionFileDiff {
 		const uri = URI.file(path).toString();

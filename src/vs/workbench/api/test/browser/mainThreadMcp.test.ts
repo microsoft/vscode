@@ -517,7 +517,7 @@ suite('MainThreadMcp - request policy', () => {
 			denied: [{ serverUrl: 'https://${REDIRECTED}/mcp' }],
 			env: { INITIAL: 'allowed.example', REDIRECTED: 'redirected.example' },
 		});
-		await assert.rejects(fetch(), /blocked by your organization's policy/);
+		await assert.rejects(fetch(), /blocked by your organization\./);
 		assert.deepStrictEqual(requests, [initialUrl]);
 	});
 
@@ -529,7 +529,7 @@ suite('MainThreadMcp - request policy', () => {
 
 	test('a destination denial overrides a matching server name allowlist', async () => {
 		const { fetch, requests } = createConnection({ allowed: [{ serverName: name }], denied: [{ serverUrl: redirectedUrl }] });
-		await assert.rejects(fetch(), /blocked by your organization's policy/);
+		await assert.rejects(fetch(), /blocked by your organization\./);
 		assert.deepStrictEqual(requests, [initialUrl]);
 	});
 
@@ -547,7 +547,7 @@ suite('MainThreadMcp - request policy', () => {
 
 	test('enforces configured server name denials before dispatch', async () => {
 		const { fetch, requests } = createConnection({ denied: [{ serverName: name }] });
-		await assert.rejects(fetch(), /blocked by your organization's policy/);
+		await assert.rejects(fetch(), /blocked by your organization\./);
 		assert.deepStrictEqual(requests, []);
 	});
 

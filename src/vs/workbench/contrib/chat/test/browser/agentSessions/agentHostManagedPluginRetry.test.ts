@@ -55,7 +55,7 @@ suite('AgentHostManagedPluginRetry', () => {
 		return { requests, progress, notifications };
 	}
 
-	const progress = [{ telemetry: 'plugins.managed.retry', title: 'Preparing plugins required by your organization admin...' }];
+	const progress = [{ telemetry: 'plugins.managed.retry', title: 'Preparing plugins required by your organization...' }];
 	const request = [['copilotcli', 'copilotcli:/owner', 'copilotcli:/owner#peer']];
 
 	test('reports the failed plugins with their errors as a warning', async () => {
@@ -70,7 +70,7 @@ suite('AgentHostManagedPluginRetry', () => {
 			notifications: [{
 				severity: Severity.Warning,
 				telemetry: 'plugins.managed.retry.complete',
-				message: 'Some plugins required by your organization admin could not be prepared. linter@contoso: network error; audit@contoso',
+				message: 'Some plugins required by your organization could not be prepared. linter@contoso: network error; audit@contoso',
 			}],
 		});
 	});
@@ -79,8 +79,8 @@ suite('AgentHostManagedPluginRetry', () => {
 		const deferred = await retry([{ spec: 'docs@contoso', status: 'deferred', error: 'Another session is changing plugins' }, { spec: 'linter@contoso', status: 'updated' }]);
 		const ready = await retry([{ spec: 'linter@contoso', status: 'already_present' }, { spec: 'old@contoso', status: 'not_required' }]);
 		assert.deepStrictEqual({ deferred: deferred.notifications, ready: ready.notifications }, {
-			deferred: [{ severity: Severity.Info, telemetry: 'plugins.managed.retry.complete', message: 'Some plugins required by your organization admin will be prepared before your next message.' }],
-			ready: [{ severity: Severity.Info, telemetry: 'plugins.managed.retry.complete', message: 'Plugins required by your organization admin are ready.' }],
+			deferred: [{ severity: Severity.Info, telemetry: 'plugins.managed.retry.complete', message: 'Some plugins required by your organization will be prepared before your next message.' }],
+			ready: [{ severity: Severity.Info, telemetry: 'plugins.managed.retry.complete', message: 'Plugins required by your organization are ready.' }],
 		});
 	});
 
@@ -91,7 +91,7 @@ suite('AgentHostManagedPluginRetry', () => {
 			notifications: [{
 				severity: Severity.Error,
 				telemetry: 'plugins.managed.retry.error',
-				message: 'Could not retry plugins required by your organization admin: Managed plugins are not prepared for this session',
+				message: 'Could not retry plugins required by your organization: Managed plugins are not prepared for this session',
 			}],
 		});
 	});

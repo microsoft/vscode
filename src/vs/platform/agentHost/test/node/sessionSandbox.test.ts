@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../base/common/async.js';
+import { ChatProvidersConfigKey } from '../../common/agentHostChatProviders.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -909,6 +911,29 @@ suite('Session sandbox configuration', () => {
 				session: { enabled: true },
 				peerState: { enabled: false },
 				sessionApplied: true,
+			});
+		});
+
+		test('with chats with their own agents on, the session\'s "Disable sandboxing" replaces the default chat\'s own selection, not a peer\'s, and the default chat follows a managed floor', async () => {
+			const { manager, configuration, owner, peer, defaultTarget, peerTarget } = setupChats({ sandboxEnabled: 'on' });
+			configuration.updateRootConfig({ [ChatProvidersConfigKey.Enabled]: true });
+			await timeout(0);
+			manager.dispatchClientAction(defaultTarget.chat, { type: ActionType.ChatConfigChanged, config: { sandboxEnabled: 'on' } }, { clientId: 'client', clientSeq: 1 });
+			manager.dispatchClientAction(peer, { type: ActionType.ChatConfigChanged, config: { sandboxEnabled: 'on' } }, { clientId: 'client', clientSeq: 2 });
+			manager.dispatchClientAction(owner, { type: ActionType.SessionConfigChanged, config: { sandboxEnabled: 'off' } }, { clientId: 'client', clientSeq: 3 });
+			const read = () => ({
+				enabled: [defaultTarget, peerTarget].map(target => getSessionSandboxConfig(configuration, target).enabled),
+				published: manager.getChatConfig(defaultTarget.chat)?.values.sandboxEnabled,
+				defaultOwn: configuration.getChatPersistedConfigValues(defaultTarget.chat)?.sandboxEnabled,
+				peerOwn: configuration.getChatOwnConfigValues(peerTarget).sandboxEnabled,
+			});
+			const disabled = read();
+			// A managed floor without bypass rolls the session's off back; the default chat follows it.
+			configuration.setSessionSandboxPolicy(owner, { enabled: true });
+			assert.deepStrictEqual({ disabled, floored: read(), session: configuration.getSessionConfigValues(owner)?.sandboxEnabled }, {
+				disabled: { enabled: ['off', 'on'], published: 'off', defaultOwn: undefined, peerOwn: 'on' },
+				floored: { enabled: ['on', 'on'], published: 'on', defaultOwn: undefined, peerOwn: 'on' },
+				session: 'on',
 			});
 		});
 

@@ -286,6 +286,11 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		this._systemWake.setFullyAwake(fullyAwake);
 	}
 
+	async setSystemNetworkOnline(online: boolean): Promise<void> {
+		this._logService.info(`[AgentHost] Network is ${online ? 'online' : 'offline'}`);
+		this._systemWake.setNetworkOnline(online);
+	}
+
 	async reportMacAccessibilityTrustChange(): Promise<void> {
 		this._logService.info('[AgentHost] macOS changed which apps it trusts for Accessibility');
 		this._macAccessibilityTrust.reportChange();

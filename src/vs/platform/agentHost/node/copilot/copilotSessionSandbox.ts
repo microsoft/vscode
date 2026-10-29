@@ -57,6 +57,7 @@ interface ICopilotSessionSandboxOptions {
 	readonly rotateCertificate: (getConfig: () => SandboxConfig, scopeId: string) => Promise<void>;
 	readonly removeCertificate: (scopeId: string, validate: () => void) => Promise<void>;
 	readonly getShellInitDirectory: () => URI | undefined;
+	readonly getAppliedPluginDirectories: () => readonly URI[];
 	readonly shellManager: ShellManager | undefined;
 	readonly onDidChangeRuntimeConfig?: () => void;
 }
@@ -223,12 +224,12 @@ export class CopilotSessionSandbox extends Disposable {
 		const target = this._target();
 		const sandbox = getSessionSandboxConfig(this._configurationService, target, this._options.platform);
 		const policy = this._configurationService.getSessionSandboxPolicy(target.session);
-		const readonlyPaths = getVSCodeSandboxReadRoots({
+		const readonlyPaths = [...getVSCodeSandboxReadRoots({
 			sessionDataDirectories: [this._options.ownerSession.toString(), this._options.storage.toString(), ...this._configurationService.getChatAttachmentScopes(target)]
 				.filter((scope, index, scopes) => scopes.indexOf(scope) === index)
 				.map(scope => this._sessionDataService.getSessionDataDir(URI.parse(scope))),
 			shellInitDirectory: this._options.getShellInitDirectory(),
-		}).map(root => root.fsPath);
+		}), ...this._options.getAppliedPluginDirectories()].map(root => root.fsPath);
 		return buildSandboxConfigForSdk(this._options.platform, sandbox, readonlyPaths, policy);
 	}
 

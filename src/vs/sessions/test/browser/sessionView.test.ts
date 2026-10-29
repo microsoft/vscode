@@ -840,7 +840,6 @@ suite('Sessions - Session View', () => {
 		configurationService.setUserConfiguration(SESSION_ACTIVITY_BAR_SETTING, true);
 		const chatLayout = () => ({
 			width: chatViews.at(-1)?.layouts.at(-1)?.width,
-			contentInset: chatViews.at(-1)?.element.style.getPropertyValue('--session-activity-bar-reserved-width'),
 			headerWidth: view.element.querySelector<HTMLElement>('.session-view-centered-content')?.style.width,
 		});
 		const session = createTestActiveSession('draft', false);
@@ -861,9 +860,10 @@ suite('Sessions - Session View', () => {
 		const inactiveSession = { ...activityBars(), chatLayout: chatLayout() };
 
 		assert.deepStrictEqual({ draft, created, inactiveSession }, {
-			draft: { standalone: true, group: false, chatLayout: { width: 1000, contentInset: '30px', headerWidth: '1000px' } },
-			created: { standalone: false, group: true, chatLayout: { width: 1000, contentInset: '30px', headerWidth: '1000px' } },
-			inactiveSession: { standalone: false, group: false, chatLayout: { width: 1000, contentInset: '30px', headerWidth: '1000px' } },
+			// The chat to the left of the strip's column; the header spans the full width.
+			draft: { standalone: true, group: false, chatLayout: { width: 966, headerWidth: '1000px' } },
+			created: { standalone: false, group: true, chatLayout: { width: 966, headerWidth: '1000px' } },
+			inactiveSession: { standalone: false, group: false, chatLayout: { width: 966, headerWidth: '1000px' } },
 		});
 	});
 

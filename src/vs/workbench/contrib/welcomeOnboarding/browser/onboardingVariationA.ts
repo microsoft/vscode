@@ -645,7 +645,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				case GheParseResultKind.Invalid:
 					inputBox.element.classList.add('error');
 					message.classList.add('error');
-					message.textContent = localize('onboarding.signIn.enterprise.invalid', "Enter a GHE.com instance name or HTTPS URL.");
+					message.textContent = localize('onboarding.signIn.enterprise.invalid2', "Enter a GHE.com instance name or HTTPS URL.");
 					submitAction.enabled = false;
 					return false;
 			}

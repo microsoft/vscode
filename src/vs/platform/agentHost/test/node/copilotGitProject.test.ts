@@ -30,6 +30,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 		this.worktreeRootCalls++;
 		return this.worktreeRoots;
 	}
+	async getWorktrees() { return []; }
 	async addWorktree(): Promise<void> { }
 	async copyWorktreeIncludeFiles(): Promise<void> { }
 	async symlinkWorktreeFolders(): Promise<readonly string[]> { return []; }

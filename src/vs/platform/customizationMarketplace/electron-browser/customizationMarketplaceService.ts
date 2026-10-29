@@ -11,14 +11,14 @@ import { InstantiationType, registerSingleton } from '../../instantiation/common
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IMcpGalleryManifestService } from '../../mcp/common/mcpGalleryManifest.js';
 import { IPlatformCustomizationMarketplaceService } from '../common/platformCustomizationMarketplaceService.js';
-import { CustomizationMarketplaceQueryProgressCallback, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from '../common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceQueryProgressCallback, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourcesChangeEvent } from '../common/customizationMarketplaceService.js';
 import { queryEnabledCustomizationMarketplaceSources } from '../common/customizationMarketplaceSources.js';
 import { createMcpGalleryMarketplaceProviders, getAllMcpGalleryMarketplaceSourceInfos, getCustomizationMarketplaceSourceInfos } from '../common/mcpGalleryMarketplaceProvider.js';
 
 export class NativeCustomizationMarketplaceService implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
 	readonly allSources = getAllMcpGalleryMarketplaceSourceInfos();
-	readonly onDidChangeSources: Event<void>;
+	readonly onDidChangeSources: Event<ICustomizationMarketplaceSourcesChangeEvent>;
 	get sources() { return getCustomizationMarketplaceSourceInfos(this.mcpGalleryManifestService.mcpGalleryManifestStatus); }
 	private readonly service: Lazy<CustomizationMarketplaceService>;
 
@@ -27,7 +27,7 @@ export class NativeCustomizationMarketplaceService implements ICustomizationMark
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMcpGalleryManifestService private readonly mcpGalleryManifestService: IMcpGalleryManifestService,
 	) {
-		this.onDidChangeSources = Event.map(mcpGalleryManifestService.onDidChangeMcpGalleryManifestStatus, () => undefined);
+		this.onDidChangeSources = Event.map(mcpGalleryManifestService.onDidChangeMcpGalleryManifestStatus, () => ({ sourceIds: this.allSources.map(source => source.id) }));
 		void mcpGalleryManifestService.getMcpGalleryManifest();
 		this.service = new Lazy(() => new CustomizationMarketplaceService([
 			...createMcpGalleryMarketplaceProviders(instantiationService),

@@ -113,8 +113,8 @@
 }
 
 .session-comparison-result-tag.recommended {
-	background-color: color-mix(in srgb, var(--vscode-textLink-foreground) 12%, transparent);
-	color: var(--vscode-textLink-foreground);
+	background-color: var(--vscode-agentsBadge-background);
+	color: var(--vscode-agentsBadge-foreground);
 }
 
 /* Scorecard: one grid template keeps every column aligned across the header and the rows. */
@@ -243,8 +243,8 @@
 }
 
 .session-comparison-result-metric-winner {
-	background-color: var(--vscode-agentsBadge-background);
-	color: var(--vscode-agentsBadge-foreground);
+	background-color: color-mix(in srgb, var(--vscode-textLink-foreground) 12%, transparent);
+	color: var(--vscode-textLink-foreground);
 }
 
 /* A thin neutral meter compares time or tokens without implying good or bad. */

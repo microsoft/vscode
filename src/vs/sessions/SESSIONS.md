@@ -42,6 +42,8 @@ The registry:
 
 Logical providers own creation choices. A provider can also own internal, connection-bound session backends, which use the same operation contract without contributing creation targets. Default enumeration returns only logical providers; existing-session consumers explicitly include backends. Lookup preserves existing sessions' backend routing identifiers. Backends are available only while their logical owner is registered, regardless of discovery order, and registration notifications include their availability changes.
 
+An existing-session provider may supply a creation target for New Session gestures when its execution workspace or backend is not reusable. The target is inherited only while its logical provider still advertises creation for that workspace.
+
 It does not aggregate sessions, choose a provider for an operation, or own UI state.
 
 ### `ISessionsManagementService`
@@ -77,6 +79,12 @@ Visible-session slots have stable identities independent of list position. The v
 ### Scoped session context
 
 Surfaces that can represent a session other than the window-global active session use `ISessionContext`. Commands and menus resolve their target through that scope rather than assuming the active session.
+
+### Browser networks
+
+`SessionBrowserNetworkContribution` registers the browser network resolver before editors are restored. A new browser tab captures its network synchronously: the agent host of its owning chat's session (agent tabs), the active session, or the composer's draft (user tabs). It also captures a storage affinity from the host and the session's folder roots, which selects a partition of the Agents window's workspace storage, so a folder's worktrees share persistent storage; workspace-less sessions have per-tab in-memory storage. Sessions on the local (ambient) agent host and sessions not backed by an agent host use the local network. Local dev container and WSL hosts are proxied, so the browser always shares the agent host's network. Drafts resolve through their provider's host until the host knows the session.
+
+A tab's network is fixed for its lifetime. Tabs opened from the composer follow the draft they were opened for: when that draft is replaced with another host or folders, or starts on a different host, the tab is recreated on the new network at the same URL, keeping its storage scope. Tabs of other drafts, such as one still starting in the background, and tabs hidden with a session that is not shown are unaffected. Switching the active session or activating an existing tab never retargets it.
 
 ## Domain model
 
@@ -248,6 +256,8 @@ A chat view binds its transcript to the content provider serving the chat's sess
 ### Multiple chats
 
 Creating or forking a peer chat in the same session is a capability-gated provider operation routed by the management service. Provider-neutral fork options may carry an optional initial title; each provider decides whether its transport supports that option. An older Agent Host omits the unsupported title and performs an ordinary fork rather than failing. A fork that includes a first user message requires the owning Agent Host's composed-operation capability; an unsupported host does not silently create a fork without that message.
+
+A chat may expose its own harness identity in the same identity space as the session's; absent means the session's harness. Creating a peer chat may request a harness among the choices the session advertises through its capabilities; shared code gates that choice on the advertised capability, never on provider ids. Reusing an unsent chat for such a request requires that chat to use the requested harness. Providers present a harness id (label and icon) through the optional `getHarnessPresentation`, so shared surfaces can show a chat's harness without knowing provider ids.
 
 Opening an existing chat is view orchestration: `ISessionsService` activates the session, resolves the chat from `session.chats`, and updates visible and active state. Chat-tab presentation remains view-owned configuration and is not carried through service open options.
 

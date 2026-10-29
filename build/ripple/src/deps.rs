@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use serde_json::{Map, Value};
 
-use crate::config::Config;
+use crate::config::{Config, Scope};
 
 /// `package.json` fields that only describe the package. Code that reads the manifest at runtime
 /// (see `injectedGlobals` in the configuration) can see the other fields, except `scripts`.
@@ -37,6 +37,9 @@ const DEP_FIELDS: &[&str] = &[
 #[derive(Debug, Default)]
 pub struct DepImpact {
 	pub run_all: Option<String>,
+	/// Why every integration test must run: a package that only the scripts of
+	/// `runEveryIntegrationTest` load changed.
+	pub run_all_integration: Option<String>,
 	pub packages: HashSet<String>,
 	/// A `package.json` field that code can read at runtime changed.
 	pub package_json: bool,
@@ -175,10 +178,11 @@ impl DepImpact {
 		}
 	}
 
-	/// Adds the packages that depend on the ones installed differently, and runs every unit test for
-	/// a toolchain package or for a package in `runners`: the packages loaded by files that every
-	/// unit test depends on, with the reason to report.
-	pub fn finish(&mut self, config: &Config, runners: &HashMap<String, String>) {
+	/// Adds the packages that depend on the ones installed differently, and runs every test for a
+	/// toolchain package or for a package in `runners`: the packages loaded by files that every
+	/// unit test, or every integration test (`Scope::Integration`), depends on, with the reason to
+	/// report.
+	pub fn finish(&mut self, config: &Config, runners: &HashMap<String, (Scope, String)>) {
 		let mut queue: VecDeque<String> = self.installed.drain().collect();
 		let mut seen: HashSet<String> = HashSet::new();
 		while let Some(name) = queue.pop_front() {
@@ -190,17 +194,24 @@ impl DepImpact {
 			}
 		}
 		self.packages.extend(seen);
+		let mut packages: Vec<&String> = self.packages.iter().collect();
+		packages.sort();
 		if self.run_all.is_none() {
-			let mut packages: Vec<&String> = self.packages.iter().collect();
-			packages.sort();
-			self.run_all = packages.into_iter().find_map(|p| {
+			self.run_all = packages.iter().find_map(|p| {
 				if config.toolchain.contains(p.as_str()) {
 					Some(format!("toolchain package '{p}'"))
 				} else {
-					runners.get(p).cloned()
+					match runners.get(p.as_str()) {
+						Some((Scope::All, reason)) => Some(reason.clone()),
+						_ => None,
+					}
 				}
 			});
 		}
+		self.run_all_integration = packages.iter().find_map(|p| match runners.get(p.as_str()) {
+			Some((Scope::Integration, reason)) => Some(reason.clone()),
+			_ => None,
+		});
 	}
 }
 
@@ -319,14 +330,40 @@ mod tests {
 		let after = r#"{"packages":{"":{},"node_modules/server":{"version":"1","dependencies":{"mime":"^1"}},"node_modules/mime":{"version":"2"}}}"#;
 		let runners = HashMap::from([(
 			"server".to_owned(),
-			"test runner package 'server' (test/runner.js)".to_owned(),
+			(
+				Scope::All,
+				"test runner package 'server' (test/runner.js)".to_owned(),
+			),
 		)]);
 		let mut i = DepImpact::default();
 		i.add_lockfile(Some(before), Some(after));
 		i.finish(for_tests(), &runners);
 		assert_eq!(
-			i.run_all.as_deref(),
-			Some("test runner package 'server' (test/runner.js)")
+			(i.run_all.as_deref(), i.run_all_integration),
+			(Some("test runner package 'server' (test/runner.js)"), None)
+		);
+	}
+
+	#[test]
+	fn packages_of_files_every_integration_test_depends_on_run_every_integration_test() {
+		let before = r#"{"packages":{"":{},"node_modules/launcher":{"version":"1"}}}"#;
+		let after = r#"{"packages":{"":{},"node_modules/launcher":{"version":"2"}}}"#;
+		let runners = HashMap::from([(
+			"launcher".to_owned(),
+			(
+				Scope::Integration,
+				"integration test runner package 'launcher' (scripts/integration.ts)".to_owned(),
+			),
+		)]);
+		let mut i = DepImpact::default();
+		i.add_lockfile(Some(before), Some(after));
+		i.finish(for_tests(), &runners);
+		assert_eq!(
+			(i.run_all, i.run_all_integration.as_deref()),
+			(
+				None,
+				Some("integration test runner package 'launcher' (scripts/integration.ts)")
+			)
 		);
 	}
 
