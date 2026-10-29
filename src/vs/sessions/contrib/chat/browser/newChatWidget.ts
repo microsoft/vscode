@@ -101,6 +101,11 @@ import { filterConfigurationToSchema } from '../../../../workbench/contrib/chat/
 
 /** Minimum number of started sessions required before showing tips and promotions. */
 const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
+
+export function shouldShowNewSessionChatTip(hasAgentHost: boolean, hasEnoughSessions: boolean, foregroundSessionCount: number | undefined): boolean {
+	return hasAgentHost && hasEnoughSessions && foregroundSessionCount === 1;
+}
+
 const WELCOME_PHRASE_INDEX_STORAGE_KEY = 'agentSessions.newSession.welcomePhraseIndex';
 const githubProfileNames = new Map<string, Promise<string | undefined>>();
 
@@ -889,20 +894,14 @@ export class NewChatWidget extends Disposable {
 				container: chatTipContainer,
 				// Reset tip rotation the first time this composer becomes the only
 				// foreground surface, so a returning user gets a fresh tip.
-				onBeforeUpdate: () => {
-					if (this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) !== 0) {
-						this._isChatTipSessionInitialized = false;
-					} else if (!this._isChatTipSessionInitialized) {
-						this._isChatTipSessionInitialized = true;
-						this.chatTipService.resetSession();
-					}
-				},
-				// No tip in the no-agent-host empty state: there is no usable composer.
-				// Tips also stay away until the user has actually started a couple of
-				// sessions, so a first-run composer is not busy.
-				isEligible: () => !chatWidgetContent.classList.contains('no-agent-host')
-					&& this._hasEnoughSessionsForFirstRunNotices()
-					&& this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) === 0,
+				onBeforeUpdate: () => this._prepareChatTipSession(),
+				// The composer owns one foreground chat widget itself. Another foreground
+				// widget raises the count above one and suppresses the tip.
+				isEligible: () => shouldShowNewSessionChatTip(
+					!chatWidgetContent.classList.contains('no-agent-host'),
+					this._hasEnoughSessionsForFirstRunNotices(),
+					this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key),
+				),
 				focusInput: () => this.focusInput(),
 			},
 			this._newChatInput.noticeHost,
@@ -1154,6 +1153,15 @@ export class NewChatWidget extends Disposable {
 
 	private _clearChatTip(): void {
 		this._chatTipPresenter.value?.clear();
+	}
+
+	private _prepareChatTipSession(): void {
+		if (this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) !== 1) {
+			this._isChatTipSessionInitialized = false;
+		} else if (!this._isChatTipSessionInitialized) {
+			this._isChatTipSessionInitialized = true;
+			this.chatTipService.resetSession();
+		}
 	}
 
 	private _hasEnoughSessionsForFirstRunNotices(): boolean {
