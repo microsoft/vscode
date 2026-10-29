@@ -120,6 +120,11 @@ export interface INewChatComposerInputOptions {
 	readonly onDidChangeWorkspaceSelection?: Event<void>;
 	readonly canApplyWorkspaceDefault?: () => boolean;
 	readonly sendRequest: (request: INewChatInputSendRequest) => Promise<boolean>;
+	/**
+	 * Asks the host about a request before it is sent. Answering is not part of the request's latency,
+	 * so it runs before the request is measured. Resolves `false` to cancel the send.
+	 */
+	readonly confirmSend?: (query: string) => Promise<boolean>;
 	readonly inputVisible?: IObservable<boolean>;
 	readonly hostVisible?: IObservable<boolean>;
 	readonly canSendRequest: IObservable<boolean>;

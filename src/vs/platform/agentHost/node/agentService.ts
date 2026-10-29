@@ -2206,7 +2206,7 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				return models;
 			},
-			getCreationDefaults: source => this._getServerToolCreationDefaults(source),
+			getCreationDefaults: (source, sourceTurnId) => this._getServerToolCreationDefaults(source, sourceTurnId),
 			startPrompt: (session, chat, prompt, delegation, credentials) => this._startSessionPrompt(session, chat, prompt, delegation, credentials),
 			getChatHarnesses: session => this._getServerToolChatHarnesses(session),
 			canCreateSessions: provider => this._canCreateServerToolSessions(provider),
@@ -2538,7 +2538,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * model are its own, and so are its agent (`provider`) and, for a chat whose agent differs from its session's, its
 	 * config. `sessionProvider` is the agent of the session it belongs to.
 	 */
-	private _getServerToolCreationDefaults(source: URI): ISessionCreationDefaults | undefined {
+	private _getServerToolCreationDefaults(source: URI, sourceTurnId?: string): ISessionCreationDefaults | undefined {
 		const session = this._stateManager.getSessionState(source.toString());
 		if (!session) {
 			return undefined;
@@ -2558,6 +2558,13 @@ export class AgentService extends Disposable implements IAgentService {
 			: this._configurationService.getChatConfigValues({ session: owner, chat: source.toString() }) ?? session.config?.values);
 		const config = this._providerService.getProvider(chatProvider)?.getInheritedChatConfig(sourceConfig);
 		const isolation = getNonMergeSessionConfigValues(session.config?.values)[SessionConfigKey.Isolation];
+		const initiatorClientId = sourceTurnId ? this._turnTracker.getInitiatorClientId(source.toString(), sourceTurnId) : undefined;
+		let activeClient;
+		if (chatProvider === session.provider) {
+			activeClient = initiatorClientId !== undefined
+				? session.activeClients.find(client => client.clientId === initiatorClientId)
+				: session.activeClients.length === 1 ? session.activeClients[0] : undefined;
+		}
 		return {
 			provider: chatProvider,
 			sessionProvider: session.provider,
@@ -2565,6 +2572,7 @@ export class AgentService extends Disposable implements IAgentService {
 			...(config !== undefined ? { config } : {}),
 			...(isolation === 'folder' || isolation === 'worktree' ? { isolation } : {}),
 			...(session.project ? { project: URI.parse(session.project.uri) } : {}),
+			...(activeClient !== undefined ? { activeClient } : {}),
 		};
 	}
 

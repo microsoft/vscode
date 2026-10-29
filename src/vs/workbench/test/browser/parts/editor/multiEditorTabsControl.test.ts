@@ -3712,6 +3712,62 @@ suite('MultiEditorTabsControl', () => {
 		});
 	});
 
+	test('preserves the first Connected tab edge without duplicating the editor frame when scrolled', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#334455');
+		root.style.setProperty('--vscode-contrastBorder', '#334455');
+		root.style.setProperty('--vscode-focusBorder', '#334455');
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fixed', tabSizingFixedMinWidth: 160, tabSizingFixedMaxWidth: 160, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		const third = disposables.add(new TestFileEditorInput(URI.file('/path/third.ts'), 'testEditorInput'));
+		model.openEditor(third, { pinned: true, active: false });
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		const results = [];
+		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+			root.classList.add(theme);
+			for (const compact of [false, true]) {
+				root.classList.toggle('modern-ui-compact', compact);
+				for (const zoom of [1, 1.25]) {
+					root.style.zoom = String(zoom);
+					for (const index of [0, 1, 0]) {
+						model.openEditor(model.getEditorByIndex(index)!, { active: true });
+						control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+						await layoutConnectedGroup(group, 240);
+						const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
+						tabs.classList.add('scroll');
+						tabs.scrollLeft = index === 0 ? 40 : 200;
+						tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+						const cap = container.querySelector<HTMLElement>('.tab.active > .tab-connected-edge')!;
+						const overflow = container.querySelector<HTMLElement>('.tab-connected-overflow-edge')!;
+						const sourceStyle = mainWindow.getComputedStyle(cap);
+						const clippedStyle = mainWindow.getComputedStyle(overflow, '::before');
+						results.push({
+							theme, compact, zoom, index,
+							clipped: overflow.classList.contains('connected-tab-left-clipped'),
+							sourceHasLeadingStroke: Number.parseFloat(sourceStyle.borderLeftWidth) > 0,
+							matchingLeadingStroke: clippedStyle.borderLeftWidth === sourceStyle.borderLeftWidth,
+							matchingLeadingRadius: clippedStyle.borderTopLeftRadius === sourceStyle.borderTopLeftRadius,
+						});
+					}
+				}
+			}
+			root.classList.remove(theme);
+		}
+		root.classList.remove('modern-ui-connected-editor-tabs');
+		await layoutConnectedGroup(group, 240);
+		assert.deepStrictEqual({
+			results,
+			squareLeftCleared: !container.querySelector('.tab-connected-overflow-edge.connected-tab-square-left'),
+		}, {
+			results: results.map(result => ({
+				...result, clipped: true, sourceHasLeadingStroke: result.index !== 0, matchingLeadingStroke: true, matchingLeadingRadius: true,
+			})),
+			squareLeftCleared: true,
+		});
+	});
+
 	test('keeps the connected outline inside the visible scroll area', async () => {
 		const root = $('.monaco-workbench.modern-ui.modern-ui-tabs.modern-ui-connected-editor-tabs');
 		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-small: 4px; --vscode-editor-background: #ffffff; --modern-ui-connected-tab-surface: #333333; --modern-ui-editor-tab-custom-active-background: #333333; --modern-ui-editor-tab-custom-active-hover-background: #654321;';
@@ -3940,7 +3996,7 @@ suite('MultiEditorTabsControl', () => {
 		}, {
 			clippedHover: { hovered: true, background: 'rgb(101, 67, 33)' },
 			clippedHoverReset: { hovered: false, background: 'rgb(51, 51, 51)' },
-			clippedLeft: { edge: true, clipped: true, fillOffset: '', edgeOffset: ['0px', '0px'], inset: 0, stationaryParent: true, ownCapTop: true, edgeOverlay: ['none', 'block', '8', '5px', '5px', 'border-box', '1px', '1px', 'rgb(51, 51, 51)'] },
+			clippedLeft: { edge: true, clipped: true, fillOffset: '', edgeOffset: ['0px', '0px'], inset: 0, stationaryParent: true, ownCapTop: true, edgeOverlay: ['none', 'block', '8', '5px', '0px', 'border-box', '0px', '1px', 'rgb(51, 51, 51)'] },
 			multiSelected: { clipping: '0px', edge: 'block', radius: '0px 5px 0px 0px', connectedClass: true },
 			singleSelected: { clipping: '0px', connectedClass: true },
 			terminalOutline: { right: '1px', rightShoulder: '""', rightMask: 'none' },

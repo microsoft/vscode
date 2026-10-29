@@ -56,7 +56,7 @@ import { IAgentHostFilterService } from '../../../services/agentHostFilter/commo
 import { IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { WorkspaceSelectionOrigin } from '../../../common/workspaceSelection.js';
-import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
+import { ISessionPickerFocusOptions, ISessionPickerVisibility, noSessionPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { buildNewSessionPrompt } from '../../agentFeedback/browser/agentFeedbackAttachmentEntry.js';
 import { SessionInputBannerWidget } from '../../sessionInputBanners/browser/sessionInputBannerWidget.js';
@@ -87,6 +87,7 @@ import { isAutoModel, isHydraFusionModel } from '../../../../workbench/contrib/c
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { NewChatMigrationNotice } from './newChatMigrationNotice.js';
+import { WorktreeSuggestionController } from '../../worktreeSuggestion/browser/worktreeSuggestionController.js';
 import { NewChatConnectorRecommendations } from './newChatConnectorRecommendations.js';
 import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
@@ -100,6 +101,11 @@ import { filterConfigurationToSchema } from '../../../../workbench/contrib/chat/
 
 /** Minimum number of started sessions required before showing tips and promotions. */
 const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
+
+export function shouldShowNewSessionChatTip(hasAgentHost: boolean, hasEnoughSessions: boolean, foregroundSessionCount: number | undefined): boolean {
+	return hasAgentHost && hasEnoughSessions && foregroundSessionCount === 1;
+}
+
 const WELCOME_PHRASE_INDEX_STORAGE_KEY = 'agentSessions.newSession.welcomePhraseIndex';
 const githubProfileNames = new Map<string, Promise<string | undefined>>();
 
@@ -142,6 +148,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _environmentPicker: SessionEnvironmentPicker;
 	private _changingEnvironment = false;
 	private readonly _chatTipPresenter = this._register(new MutableDisposable<ChatInputTipPresenter>());
+	private _worktreeSuggestion: WorktreeSuggestionController | undefined;
 	private _isChatTipSessionInitialized = false;
 	private _aquariumToggle: IMountedToggleHandle | undefined;
 
@@ -488,6 +495,7 @@ export class NewChatWidget extends Disposable {
 			onDidChangeWorkspaceSelection: Event.any(this._workspacePicker.onDidChangeSelection, Event.fromObservableLight(this._isQuickChatComposer)),
 			canApplyWorkspaceDefault: () => this._canApplyWorkspaceDefault(),
 			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),
+			confirmSend: async query => this._comparisonSelection.enabled.get() || !this._worktreeSuggestion || this._worktreeSuggestion.confirmBeforeSend(query),
 			modelPickerComparison: this._comparisonSelection,
 			sendButtonLabel: derived(this, reader => this._comparisonSelection.enabled.read(reader)
 				? localize('comparisonPicker.runAttempts', "Run {0} Attempts", this._comparisonSelection.attemptModelIds.read(reader).length)
@@ -870,26 +878,30 @@ export class NewChatWidget extends Disposable {
 		const chatTipContainer = dom.$(`.new-session-getting-started-tip.new-session-getting-started-tip-below.chat-getting-started-tip-container.${chatInputStackSlotClass}`);
 		belowInputSurfaces.prepend(chatTipContainer);
 		this._register(this.instantiationService.createInstance(NewChatMigrationNotice, belowInputSurfaces, this._session, () => this.focusInput()));
+		this._worktreeSuggestion = this._register(this.instantiationService.createInstance(WorktreeSuggestionController, belowInputSurfaces, {
+			session: this._session,
+			pickerVisibility: this._newChatInput.pickerVisibility,
+			visible: derived(this, reader => (this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true)),
+			getInputValue: () => this._newChatInput.getInputValue(),
+			onDidChangeInput: this._newChatInput.onDidChangeInput,
+			focusInput: () => this.focusInput(),
+			revealIsolationPicker: () => this._sessionOptionsExpanded.set(true, undefined),
+			openIsolationPicker: () => this.focusWorktreePicker({ focusValue: 'worktree' }),
+		}));
 		this._chatTipPresenter.value = this.instantiationService.createInstance(
 			ChatInputTipPresenter,
 			{
 				container: chatTipContainer,
 				// Reset tip rotation the first time this composer becomes the only
 				// foreground surface, so a returning user gets a fresh tip.
-				onBeforeUpdate: () => {
-					if (this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) !== 0) {
-						this._isChatTipSessionInitialized = false;
-					} else if (!this._isChatTipSessionInitialized) {
-						this._isChatTipSessionInitialized = true;
-						this.chatTipService.resetSession();
-					}
-				},
-				// No tip in the no-agent-host empty state: there is no usable composer.
-				// Tips also stay away until the user has actually started a couple of
-				// sessions, so a first-run composer is not busy.
-				isEligible: () => !chatWidgetContent.classList.contains('no-agent-host')
-					&& this._hasEnoughSessionsForFirstRunNotices()
-					&& this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) === 0,
+				onBeforeUpdate: () => this._prepareChatTipSession(),
+				// The composer owns one foreground chat widget itself. Another foreground
+				// widget raises the count above one and suppresses the tip.
+				isEligible: () => shouldShowNewSessionChatTip(
+					!chatWidgetContent.classList.contains('no-agent-host'),
+					this._hasEnoughSessionsForFirstRunNotices(),
+					this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key),
+				),
 				focusInput: () => this.focusInput(),
 			},
 			this._newChatInput.noticeHost,
@@ -1141,6 +1153,15 @@ export class NewChatWidget extends Disposable {
 
 	private _clearChatTip(): void {
 		this._chatTipPresenter.value?.clear();
+	}
+
+	private _prepareChatTipSession(): void {
+		if (this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) !== 1) {
+			this._isChatTipSessionInitialized = false;
+		} else if (!this._isChatTipSessionInitialized) {
+			this._isChatTipSessionInitialized = true;
+			this.chatTipService.resetSession();
+		}
 	}
 
 	private _hasEnoughSessionsForFirstRunNotices(): boolean {
@@ -1770,9 +1791,9 @@ export class NewChatWidget extends Disposable {
 		this._newChatInput.pickerVisibility.focusPicker('branch');
 	}
 
-	focusWorktreePicker(): void {
+	focusWorktreePicker(options?: ISessionPickerFocusOptions): void {
 		this._sessionOptionsExpanded.set(true, undefined);
-		this._newChatInput.pickerVisibility.focusPicker('worktree');
+		this._newChatInput.pickerVisibility.focusPicker('worktree', options);
 	}
 
 	focusSyncAction(): void {

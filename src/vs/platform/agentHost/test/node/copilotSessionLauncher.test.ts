@@ -5,6 +5,7 @@
 
 import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest, ResumeSessionConfig, SessionConfig, Tool, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
+import { hasKey } from '../../../../base/common/types.js';
 import { isDeepStrictEqual } from 'util';
 import { useFakeTimers } from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
@@ -28,7 +29,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabl
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { withAgentToolFullReferenceName, withAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
-import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
+import { readChatSandboxState, readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
@@ -39,7 +40,7 @@ import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from
 import { COPILOT_DEFAULT_AVAILABLE_TOOLS } from '../../node/copilot/copilotBuiltinToolAllowlist.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
@@ -54,7 +55,8 @@ import { CopilotSessionSandbox } from '../../node/copilot/copilotSessionSandbox.
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
 import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAutoTier, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
-import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 import { createSentinelContribution, FakeLocalModelProvider, MAI_ROW } from './localModelBridge/fakeLocalModelProvider.js';
 
@@ -519,14 +521,227 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		}));
 		const runtime: ICopilotSessionRuntime = {
 			...testRuntime,
-			getLaunchSandboxConfig: () => sandbox.getLaunchConfig(),
-			applyLaunchSandbox: async session => {
-				await sandbox.applyLaunchConfig(session);
+			getLaunchSandboxConfig: isResume => sandbox.getLaunchConfig(isResume),
+			applyLaunchSandbox: async (session, isResume) => {
+				await sandbox.applyLaunchConfig(session, isResume);
 				attachedSession = session;
 			},
 		};
-		return { configuration, owner, updates, commands, launcher, plan, runtime, sandbox, logService, get sandboxState() { return readSessionSandboxState(manager.getSessionState(owner)); }, get disconnected() { return disconnected; }, get captured() { return captured; } };
+		return { manager, configuration, owner, updates, commands, launcher, plan, runtime, sandbox, logService, set sandboxUpdateError(error: Error | undefined) { sandboxUpdateError = error; }, get sandboxState() { return readSessionSandboxState(manager.getSessionState(owner)); }, get disconnected() { return disconnected; }, get captured() { return captured; } };
 	}
+
+	test('background sandbox conflicts are broadcast without disconnecting or claiming the rejected state', async () => {
+		const fixture = setup('create');
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'on' });
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+		fixture.sandboxUpdateError = Object.assign(new Error('Managed sandbox conflict'), { data: { code: 'managed_sandbox_policy_conflict' } });
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+		const published: Array<{ enabled: boolean | undefined; message: string | undefined }> = [];
+		let previousState = readChatSandboxState(fixture.manager.getSessionState(fixture.owner), target.chat);
+		store.add(fixture.manager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionMetaChanged) {
+				const state = readChatSandboxState(envelope.action, target.chat);
+				if (!isDeepStrictEqual(state, previousState)) {
+					previousState = state;
+					published.push({ enabled: state?.enabled, message: state?.error?.message });
+				}
+			}
+		}));
+
+		await fixture.sandbox.applyConfig();
+		await fixture.sandbox.applyConfig();
+		const failed = fixture.sandboxState;
+		fixture.sandboxUpdateError = undefined;
+		await fixture.sandbox.applyConfig();
+
+		assert.deepStrictEqual({
+			disconnected: fixture.disconnected,
+			published,
+			broadcast: failed?.error !== undefined && hasKey(failed.error, { id: true }),
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
+			recovered: fixture.sandboxState,
+		}, {
+			disconnected: false,
+			published: [{ enabled: true, message: 'Managed sandbox conflict' }, { enabled: false, message: undefined }],
+			broadcast: true,
+			selection: 'off',
+			applied: [true, false],
+			recovered: { enabled: false },
+		});
+	});
+
+	test('create broadcasts a sandbox conflict even before any enablement has been confirmed', async () => {
+		const error = Object.assign(new Error('Managed sandbox conflict'), { data: { code: 'managed_sandbox_policy_conflict' } });
+		const fixture = setup('create', true, false, false, undefined, error);
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+		assert.deepStrictEqual({
+			disconnected: fixture.disconnected,
+			enabled: fixture.sandboxState?.enabled,
+			message: fixture.sandboxState?.error?.message,
+			broadcast: fixture.sandboxState?.error !== undefined && hasKey(fixture.sandboxState.error, { id: true }),
+		}, { disconnected: false, enabled: undefined, message: error.message, broadcast: true });
+	});
+
+	test('resume preserves confirmed bypass with unchanged managed policy without changing sibling chats', async () => {
+		const fixture = setup('resume', true, true, true);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		const sibling = { session: fixture.owner, chat: buildChatUri(fixture.owner, 'sibling') };
+		fixture.manager.addChat(fixture.owner, sibling.chat, creationTimeChatStorageResource(fixture.owner, sibling.chat, target.chat));
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.setChatSandboxEnabled(sibling, false);
+		fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'off' });
+		const published: boolean[] = [];
+		store.add(fixture.manager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionMetaChanged) {
+				const state = readChatSandboxState(envelope.action, target.chat);
+				if (state?.enabled !== undefined) {
+					published.push(state.enabled);
+				}
+			}
+		}));
+
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+		await fixture.sandbox.applyConfig();
+
+		assert.deepStrictEqual({
+			opened: fixture.captured?.sandboxConfig?.enabled,
+			applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			published,
+			state: fixture.sandboxState,
+			siblingSelection: fixture.configuration.getChatConfigValues(sibling)?.sandboxEnabled,
+			siblingState: fixture.configuration.getChatSandboxEnabled(sibling),
+			commands: fixture.commands,
+		}, {
+			opened: undefined,
+			applied: [],
+			selection: 'off',
+			published: [],
+			state: { enabled: false },
+			siblingSelection: 'off',
+			siblingState: false,
+			commands: ['disable session'],
+		});
+	});
+
+	test('resume preserves confirmed off when bypass is first allowed during open', async () => {
+		const fixture = setup('resume', true, true, true);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+		assert.deepStrictEqual({
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			state: fixture.sandboxState,
+			applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
+			commands: fixture.commands,
+		}, { selection: 'off', state: { enabled: false }, applied: [], commands: ['disable session'] });
+	});
+
+	test('resume enforces on when bypass is revoked during open', async () => {
+		const fixture = setup('resume', true, true, false);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+		assert.deepStrictEqual({
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			state: fixture.sandboxState,
+			applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
+			commands: fixture.commands,
+		}, { selection: 'on', state: { enabled: true }, applied: [true], commands: [] });
+	});
+
+	test('resume honors a newer on selection over previously confirmed off metadata', async () => {
+		const fixture = setup('resume', true, true, true);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'on' });
+
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+		assert.deepStrictEqual({
+			opened: fixture.captured?.sandboxConfig?.enabled,
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			state: fixture.sandboxState,
+		}, { opened: true, selection: 'on', state: { enabled: true } });
+	});
+
+	test('resume disconnects when the runtime rejects restoring confirmed bypass', async () => {
+		const error = new Error('Session sandbox bypass rejected');
+		const fixture = setup('resume', true, true, true);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+		const runtime: ICopilotSessionRuntime = {
+			...fixture.runtime,
+			applyLaunchSandbox: async (session, isResume) => {
+				session.rpc.commands.invoke = async () => ({ kind: 'text', text: error.message });
+				await fixture.runtime.applyLaunchSandbox(session, isResume);
+			},
+		};
+
+		await assert.rejects(() => fixture.launcher.launch(fixture.plan, runtime), error);
+
+		assert.deepStrictEqual({
+			disconnected: fixture.disconnected,
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			state: fixture.sandboxState,
+			applied: fixture.updates.filter(update => update.sandboxConfig),
+		}, { disconnected: true, selection: 'off', state: { enabled: false }, applied: [] });
+	});
+
+	test('resume does not overwrite a newer selection while applying the resolved sandbox', async () => {
+		const fixture = setup('resume', true, true, true);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+		const runtime: ICopilotSessionRuntime = {
+			...fixture.runtime,
+			applyLaunchSandbox: async (session, isResume) => {
+				const invoke = session.rpc.commands.invoke;
+				session.rpc.commands.invoke = async params => {
+					const result = await invoke(params);
+					fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'default' });
+					return result;
+				};
+				await fixture.runtime.applyLaunchSandbox(session, isResume);
+			},
+		};
+
+		store.add(await fixture.launcher.launch(fixture.plan, runtime));
+
+		assert.deepStrictEqual({
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			state: fixture.sandboxState,
+		}, { selection: 'default', state: { enabled: false } });
+	});
+
+	test('resume still honors a new pending bypass request', async () => {
+		const fixture = setup('resume', true, true, true);
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		fixture.configuration.setChatSandboxEnabled({ session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) }, true);
+		await fixture.sandbox.applyConfig(true, 'off');
+
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+		assert.deepStrictEqual({
+			commands: fixture.commands,
+			state: fixture.sandboxState,
+		}, { commands: ['disable session'], state: { enabled: false } });
+	});
 
 	test('sandbox config changes during launch apply to the launched session before attachment', async () => {
 		const fixture = setup('create', true, true, true);
@@ -813,24 +1028,34 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			['message', new Error('Sandbox configuration update violates managed policy. Contact your administrator for more information.')],
 			['wrapped message', new Error('Request session.options.update failed with message: Sandbox configuration update violates managed policy. Contact your administrator for more information.')],
 		] as const) {
-			test(`${kind} logs a ${format} sandbox conflict without disconnecting or publishing the rejected state`, async () => {
+			test(`${kind} ${kind === 'resume' ? 'rejects' : 'tolerates'} a ${format} sandbox conflict without publishing the rejected state`, async () => {
 				const fixture = setup(kind, true, false, false, undefined, error);
 				fixture.configuration.setChatSandboxEnabled({ session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) }, true);
 
-				store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+				if (kind === 'resume') {
+					await assert.rejects(() => fixture.launcher.launch(fixture.plan, fixture.runtime), error);
+				} else {
+					store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+				}
 
 				assert.deepStrictEqual({
 					disconnected: fixture.disconnected,
-					published: fixture.sandboxState,
+					published: fixture.sandboxState?.enabled,
+					conflict: fixture.sandboxState?.error?.message,
+					broadcast: fixture.sandboxState?.error !== undefined && hasKey(fixture.sandboxState.error, { id: true }),
 					applied: fixture.updates.filter(update => update.sandboxConfig),
 					warnings: fixture.logService.warnings,
 					loggedSuccess: fixture.logService.infos.some(message => message.includes('Applied SDK sandboxConfig')),
 				}, {
-					disconnected: false,
-					published: { enabled: true },
+					disconnected: kind === 'resume',
+					published: true,
+					conflict: kind === 'resume' ? undefined : error.message,
+					broadcast: kind === 'create',
 					applied: [],
 					warnings: [{
-						message: '[Copilot:sess-1] SDK sandboxConfig update conflicts with managed policy; continuing with the runtime\'s existing sandbox configuration',
+						message: kind === 'resume'
+							? '[Copilot:sess-1] Failed to apply SDK sandboxConfig'
+							: '[Copilot:sess-1] SDK sandboxConfig update conflicts with managed policy; continuing with the runtime\'s existing sandbox configuration',
 						args: [error],
 					}],
 					loggedSuccess: false,
@@ -3822,6 +4047,62 @@ suite('CopilotSessionLauncher resume config', () => {
 			[[...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], defaultDisabledTools, [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`, ...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
 		);
 		store.dispose();
+	});
+
+	test('withholds the semantic-search override while managed permission rules are active', async () => {
+		const store = disposables.add(new DisposableStore());
+		const launcher = createLauncher(store, {});
+		const build = async (permissions: Record<string, string[]> | undefined, failClosed = false) => {
+			const withheld: (string[] | undefined)[] = [];
+			let configuration: ICopilotClientToolConfiguration | undefined;
+			const managedSettings = new class extends mock<CopilotClient['rpc']['managedSettings']>() {
+				override resolve = async () => ({
+					resolved: { source: 'none' as const, serverManaged: permissions !== undefined, deviceManaged: false, clientManaged: false, failClosed, bypassPermissionsDisabled: false, managedKeys: permissions ? ['permissions'] : [], ...(permissions ? { settings: { permissions } } : {}) },
+					layers: [], diagnostics: [],
+				});
+			}();
+			const { config } = await (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ config: ResumeSessionConfig }> })._buildSessionConfig({
+				kind: 'resume',
+				client: { rpc: { managedSettings }, createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
+				extensionSdkPath: '/copilot-sdk',
+				sessionId: 'sess-1',
+				workingDirectory: URI.file('/workspace'),
+				resolvedAgentName: undefined,
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [{ name: SEMANTIC_SEARCH_TOOL_NAME }], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(),
+				shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
+				fallback: { model: undefined },
+			}, {
+				createClientSdkTools: (_toolSearchActive: boolean, _hostToolNames?: ReadonlySet<string>, withheldToolNames?: ReadonlySet<string>) => {
+					withheld.push(withheldToolNames && [...withheldToolNames]);
+					return [];
+				},
+				configureClientTools: (value: ICopilotClientToolConfiguration) => { configuration = value; },
+				createServerSdkTools: () => [],
+			}, () => { });
+			const builtinExcluded = (excludedTools: SessionConfig['excludedTools']) => Array.isArray(excludedTools) && excludedTools.includes(`builtin:${SEMANTIC_SEARCH_TOOL_NAME}`);
+			assert.ok(configuration);
+			return {
+				withheld,
+				liveUpdateWithheld: [...configuration.withheldToolNames],
+				builtinExcluded: builtinExcluded(config.excludedTools),
+				// A live update republishing the tool keeps the runtime's built-in excluded.
+				liveUpdateBuiltinExcluded: builtinExcluded(configuration.resolve([{ name: SEMANTIC_SEARCH_TOOL_NAME }]).sessionConfig.excludedTools),
+			};
+		};
+
+		assert.deepStrictEqual({
+			unmanaged: await build(undefined),
+			ask: await build({ ask: ['Shell'] }),
+			readDenied: await build({ deny: ['Read(/denied/**)'] }),
+			failClosed: await build(undefined, true),
+		}, {
+			unmanaged: { withheld: [[]], liveUpdateWithheld: [], builtinExcluded: false, liveUpdateBuiltinExcluded: false },
+			ask: { withheld: [[SEMANTIC_SEARCH_TOOL_NAME]], liveUpdateWithheld: [SEMANTIC_SEARCH_TOOL_NAME], builtinExcluded: true, liveUpdateBuiltinExcluded: true },
+			readDenied: { withheld: [[SEMANTIC_SEARCH_TOOL_NAME]], liveUpdateWithheld: [SEMANTIC_SEARCH_TOOL_NAME], builtinExcluded: true, liveUpdateBuiltinExcluded: true },
+			failClosed: { withheld: [[SEMANTIC_SEARCH_TOOL_NAME]], liveUpdateWithheld: [SEMANTIC_SEARCH_TOOL_NAME], builtinExcluded: true, liveUpdateBuiltinExcluded: true },
+		});
 	});
 
 	test('forwards a configured override on resume and leaves the effort untouched otherwise', async () => {

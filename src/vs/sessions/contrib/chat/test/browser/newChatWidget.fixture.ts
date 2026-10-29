@@ -87,6 +87,8 @@ import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../
 import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, ISessionsChatBackground, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IWorktreeSuggestionService } from '../../../worktreeSuggestion/browser/worktreeSuggestionService.js';
+import { NullWorktreeSuggestionService } from '../../../worktreeSuggestion/test/browser/worktreeSuggestionTestUtils.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -542,6 +544,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly extUri = extUri;
 			}());
 			reg.defineInstance(INewSessionComposerService, composerService);
+			reg.defineInstance(IWorktreeSuggestionService, new NullWorktreeSuggestionService());
 			reg.defineInstance(IChatTipService, new class extends mock<IChatTipService>() {
 				private readonly _onDidChangeTip = disposableStore.add(new Emitter<void>());
 				override readonly onDidChangeTip = this._onDidChangeTip.event;
@@ -760,7 +763,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		},
 	});
 	if (showTip || connectorRecommendations) {
-		ChatContextKeys.foregroundSessionCount.bindTo(instantiationService.get(IContextKeyService)).set(0);
+		ChatContextKeys.foregroundSessionCount.bindTo(instantiationService.get(IContextKeyService)).set(1);
 	}
 	await instantiationService.get(IConfigurationService).updateValue(COMPARE_AGENTS_ENABLED_SETTING, true);
 
@@ -1143,7 +1146,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}
 	if (showTip) {
 		const tip = view.element.querySelector<HTMLElement>('.chat-tip-widget');
-		assert(!!tip && targetWindow.getComputedStyle(tip).display !== 'none', 'The getting-started tip must be visible.');
+		assert(!!tip && targetWindow.getComputedStyle(tip).display !== 'none' && tip.getBoundingClientRect().height > 0, 'The getting-started tip must be visible.');
 	}
 	if (connectorRecommendations && showTip && migrationCount > 0) {
 		const tip = view.element.querySelector<HTMLElement>('.chat-tip-widget');

@@ -17,15 +17,19 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { CustomizationType, type AgentCustomization, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { ChatMode, CustomChatMode } from '../../../common/chatModes.js';
 import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
+import { withCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
+import { hasReadableCustomizationContent } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { expandHookFileItems } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
+import { TestPathService } from '../../../../../test/browser/workbenchTestServices.js';
 
 function makePromptsService(): IPromptsService {
 	return upcastPartial<IPromptsService>({
@@ -37,6 +41,61 @@ function makePromptsService(): IPromptsService {
 
 suite('AgentCustomizationItemProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shows discovery errors even when no hook actions could be loaded', async () => {
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomizations(): readonly Customization[] {
+				return [{
+					type: CustomizationType.Directory, id: 'hooks', uri: 'agent-discovery://copilot/hooks',
+					name: 'Hooks', contents: CustomizationType.Hook, enabled: true, writable: false, children: [],
+					load: { kind: CustomizationLoadStatus.Error, message: 'SDK hook discovery failed' },
+				}];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'remote', undefined, undefined, upcastPartial<IFileService>({}),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(),
+		));
+		const items = await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None);
+		assert.deepStrictEqual(items.map(item => ({ name: item.name, status: item.status, message: item.statusMessage, readable: hasReadableCustomizationContent(item.uri) })),
+			[{ name: 'Hooks', status: 'error', message: 'SDK hook discovery failed', readable: false }]);
+	});
+
+	test('shows host-discovered plugin hooks without reading client files and preserves individual enablement', async () => {
+		let readCount = 0;
+		const fileService = upcastPartial<IFileService>({ readFile: async () => { readCount++; throw new Error('Must not read client files'); } });
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomizations(): readonly Customization[] {
+				return [{
+					type: CustomizationType.Directory, id: 'hooks', uri: 'agent-discovery://copilot/hooks',
+					name: 'Hooks', contents: CustomizationType.Hook, enabled: true, writable: false,
+					children: [true, false].map((enabled, index) => ({
+						type: CustomizationType.Hook, id: `hook-${index}`, uri: `agent-discovery://copilot/hooks#${index}`,
+						name: 'sessionStart', enabled,
+						_meta: withCustomizationDiscoveryMeta(undefined, { source: 'plugin', sourceLabel: 'Remote plugin', hookType: 'sessionStart' }),
+					})),
+				}];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'remote', undefined, undefined, fileService,
+			new NullLogService(), new TestCustomizationService(), makePromptsService(),
+		));
+		const items = await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None);
+		const expanded = await expandHookFileItems(items, upcastPartial<IAICustomizationWorkspaceService>({ getActiveProjectRoot: () => undefined }), fileService,
+			new TestPathService(URI.file('/client-home')));
+		assert.deepStrictEqual({
+			readCount, items: expanded.map(item => ({
+				key: item.itemKey, name: item.name, source: item.source, description: item.description,
+				enabled: item.enabled, readable: hasReadableCustomizationContent(item.uri),
+			}))
+		}, {
+			readCount: 0, items: [true, false].map((enabled, index) => ({
+				key: `hook-${index}`, name: 'Session Start', source: AICustomizationSources.plugin, description: 'Remote plugin — Source file unavailable',
+				enabled, readable: false,
+			}))
+		});
+	});
 
 	test('provides synced client tools and MCP namespaces without runtime discovery', async () => {
 		let inventoryReads = 0;

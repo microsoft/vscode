@@ -220,7 +220,7 @@ A timeline should deduplicate by `eventId`, sort by `observedAtUnixMs` with repo
 
 Agent Host owns transport routing, optional interception and persistence, resource normalization, and cross-provider trace context. Each provider owns the telemetry it produces:
 
-- **Copilot:** the Rust-native OTel lifecycle in `github/copilot-agent-runtime`. Its `docs/developer-docs/monitor.md` is the exhaustive signal and configuration reference. Audit it at the `@github/copilot` version pinned in the root `package-lock.json`, not at an arbitrary runtime `main`; cite an immutable commit permalink in the resulting issue or pull request.
+- **Copilot:** the Rust-native OTel lifecycle in `github/copilot-agent-runtime`. Its `docs/developer-docs/monitor.md` is the exhaustive signal and configuration reference. Audit it at the `copilotRuntimeVersion` pinned in the root `package.json`, not at an arbitrary runtime `main`; cite an immutable commit permalink in the resulting issue or pull request.
 - **Claude:** the Claude runtime's native OTel implementation and launch environment.
 - **Codex:** the Codex app-server's native OTel implementation and launch overrides.
 

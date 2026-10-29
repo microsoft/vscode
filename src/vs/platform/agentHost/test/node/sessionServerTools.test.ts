@@ -15,7 +15,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, ChatInteractivity, ChatOriginKind, getAgentHostChatId, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionWorkspaceless, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, ChatInteractivity, ChatOriginKind, getAgentHostChatId, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionWorkspaceless, type ModelSelection, type ResponsePart, type SessionActiveClient, type ToolCallState, type ToolDefinition, type Turn } from '../../common/state/sessionState.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import type { AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
@@ -1423,11 +1423,12 @@ suite('SessionServerTools', () => {
 
 	test('create_session inherits the calling chat model, permission config, and isolation for the same project', async () => {
 		const source = URI.parse(buildChatUri('copilot:/caller', 'peer'));
-		let creationSource: URI | undefined;
+		const activeClient: SessionActiveClient = { clientId: 'client-1', tools: [{ name: 'client-tool', description: 'Client tool', inputSchema: { type: 'object' } }] };
+		let creationSource: { uri: URI; turnId: string | undefined } | undefined;
 		let created: IAgentCreateSessionConfig | undefined;
 		const accessor = createAccessor({
-			getCreationDefaults: uri => {
-				creationSource = uri;
+			getCreationDefaults: (uri, turnId) => {
+				creationSource = { uri, turnId };
 				return {
 					provider: 'copilot',
 					model: { id: 'gpt-inherited' },
@@ -1437,6 +1438,7 @@ suite('SessionServerTools', () => {
 					},
 					isolation: 'folder',
 					project: workspace,
+					activeClient,
 				};
 			},
 			onCreate: config => { created = config; },
@@ -1445,20 +1447,22 @@ suite('SessionServerTools', () => {
 		const group = createSessionServerToolGroup(accessor);
 		const store = new DisposableStore();
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
-		await group.execute(stateManager, { sessionUri: 'copilot:/caller', chatUri: source.toString() }, SessionServerToolName.CreateSession, { relationship: 'independent', workspace: workspace.toString(), prompt: 'do it', title: 'Inherited Task' });
+		await group.execute(stateManager, { sessionUri: 'copilot:/caller', chatUri: source.toString(), turnId: 'source-turn' }, SessionServerToolName.CreateSession, { relationship: 'independent', workspace: workspace.toString(), prompt: 'do it', title: 'Inherited Task' });
 
 		assert.deepStrictEqual({
-			creationSource: creationSource?.toString(),
+			creationSource: creationSource && { uri: creationSource.uri.toString(), turnId: creationSource.turnId },
 			created: createConfigSnapshot(created),
 		}, {
-			creationSource: source.toString(),
+			creationSource: { uri: source.toString(), turnId: 'source-turn' },
 			created: {
 				workingDirectories: [workspace.toString()],
 				provider: 'copilot',
 				model: { id: 'gpt-inherited' },
+				activeClient: { ...activeClient, tools: [] },
 				createdBySession: {
 					session: 'copilot:/caller',
 					chat: source.toString(),
+					turnId: 'source-turn',
 				},
 				config: {
 					autoApprove: 'autoApprove',
@@ -1666,7 +1670,7 @@ suite('SessionServerTools', () => {
 				project: { uri: remoteProject, displayName: 'Remote App' },
 			}],
 			getModels: () => [claudeModel],
-			getCreationDefaults: () => ({ provider: 'copilot', model: { id: 'gpt-4o' }, config: { autoApprove: 'autoApprove' }, isolation: 'folder', project: remoteProject }),
+			getCreationDefaults: () => ({ provider: 'copilot', model: { id: 'gpt-4o' }, config: { autoApprove: 'autoApprove' }, isolation: 'folder', project: remoteProject, activeClient: { clientId: 'client-1', tools: [] } }),
 			onCreate: config => { created = config; },
 		});
 

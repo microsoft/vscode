@@ -302,6 +302,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	}
 	if (type !== 'inlineChat' && type !== 'quickChat') {
 		content.push(localize('chat.btw', "In a conversation that supports side chats, type /btw followed by a question to open a side chat with the prior conversation as context. You can ask while a response is in progress without stopping it."));
+		content.push(localize('chat.terminalConfirmationExplain', "When a terminal command needs approval and the agent describes what it is for, the confirmation title includes that description, such as Run in terminal: followed by the description. In a conversation that supports side chats, use Tab to reach Explain and press Enter or Space to open a side chat that explains what the command will do. The confirmation stays pending until you allow or skip it."));
 		if (responseSelectionSupported) {
 			content.push(isSessionsWindow
 				? localize('sessions.selectionSideChat', 'When you select text within an assistant response, an Ask Question input or selected text actions appear near the selection. Choose Ask in a Side Chat if a menu appears. Type a question and press Enter to start a new side chat scoped to that selection. Escape closes the input and returns focus to the response.')
