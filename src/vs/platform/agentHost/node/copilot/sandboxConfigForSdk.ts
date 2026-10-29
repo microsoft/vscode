@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { homedir } from 'os';
+import { posix, win32 } from '../../../../base/common/path.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import type { URI } from '../../../../base/common/uri.js';
 import { AgentSandboxEnabledValue, type IAgentSandboxMaskedCredentials, normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
@@ -202,6 +203,8 @@ export interface ISandboxAttachedPaths {
 	readonly paths: readonly string[];
 	/** The working directory the runtime grants read/write when `addCurrentWorkingDirectory` is on. */
 	readonly workingDirectory?: string;
+	/** Further working directories the session was launched with; the runtime grants them read/write. */
+	readonly additionalWorkingDirectories?: readonly string[];
 }
 
 /** How the sandbox treats the paths of the user's attachments. */
@@ -210,6 +213,8 @@ export interface ISandboxAttachedPathGrants {
 	readonly granted: readonly string[];
 	/** Paths the effective policy keeps unreadable: under a denied path, or outside a managed read-only list. */
 	readonly blocked: readonly string[];
+	/** Folders not granted because they contain a writable folder, which a read-only grant could make read-only. */
+	readonly containsWritable: readonly string[];
 }
 
 /**
@@ -224,6 +229,12 @@ export interface ISandboxAttachedPathGrants {
  *  - A path already readable (inside a read-only or read/write grant, or the
  *    granted working directory) is left alone, so a granted read-only entry
  *    never downgrades a writable file.
+ *  - A folder that contains a writable folder (the working directory, an
+ *    additional working directory, or a read/write path) is not granted, so
+ *    the read-only entry can't make that folder read-only.
+ *
+ * Paths are compared after resolving `.` and `..` segments with `platform`'s
+ * path rules, and granted in that normalized form.
  *
  * Returns no grants when sandboxing is off.
  */
@@ -234,7 +245,7 @@ export function resolveAttachedPathGrants(
 	attachedPaths: ISandboxAttachedPaths | undefined,
 ): ISandboxAttachedPathGrants {
 	if (sandbox?.[AgentHostSandboxKey.Enabled] !== AgentSandboxEnabledValue.On) {
-		return { granted: [], blocked: [] };
+		return { granted: [], blocked: [], containsWritable: [] };
 	}
 	const os = toOperatingSystem(platform);
 	return partitionAttachedPaths(os, sandbox, resolveUserPaths(sandbox, os), managedPolicy, attachedPaths);
@@ -279,35 +290,48 @@ function partitionAttachedPaths(
 ): ISandboxAttachedPathGrants {
 	const granted: string[] = [];
 	const blocked: string[] = [];
+	const containsWritable: string[] = [];
 	if (!attachedPaths?.paths.length) {
-		return { granted, blocked };
+		return { granted, blocked, containsWritable };
 	}
-	const readable = [...userPaths.readonly, ...userPaths.readwrite];
-	if (attachedPaths.workingDirectory && (sandbox?.[AgentHostSandboxKey.AddCurrentWorkingDirectory] ?? true)) {
-		readable.push(normalizeSandboxFileSystemPath(attachedPaths.workingDirectory, os));
-	}
-	for (const path of new Set(attachedPaths.paths.map(path => normalizeSandboxFileSystemPath(path, os)))) {
+	const workingDirectories = [
+		...(attachedPaths.workingDirectory && (sandbox?.[AgentHostSandboxKey.AddCurrentWorkingDirectory] ?? true) ? [attachedPaths.workingDirectory] : []),
+		...attachedPaths.additionalWorkingDirectories ?? [],
+	].map(path => normalizeSandboxFileSystemPath(path, os));
+	const writable = [...userPaths.readwrite, ...workingDirectories];
+	const readable = [...userPaths.readonly, ...writable];
+	for (const path of new Set(attachedPaths.paths.map(path => normalizePathForPlatform(normalizeSandboxFileSystemPath(path, os), os)))) {
 		if ([...userPaths.denied].some(denied => isEqualOrInside(path, denied, os))) {
 			blocked.push(path);
 		} else if (readable.some(root => isEqualOrInside(path, root, os))) {
 			continue;
+		} else if (writable.some(root => isEqualOrInside(root, path, os))) {
+			containsWritable.push(path);
 		} else if (managedPolicy?.readonlyPaths !== undefined) {
 			blocked.push(path);
 		} else {
 			granted.push(path);
 		}
 	}
-	return { granted, blocked };
+	return { granted, blocked, containsWritable };
 }
 
-/** Whether `path` is `root` or inside it; `~` in `root` refers to the Agent Host user's home. */
+/** Resolves `.` and `..` segments and drops a trailing separator, using `os`'s path rules. */
+function normalizePathForPlatform(path: string, os: OperatingSystem): string {
+	const separator = os === OperatingSystem.Windows ? '\\' : '/';
+	let result = os === OperatingSystem.Windows ? win32.normalize(path) : posix.normalize(path);
+	while (result.length > 1 && result.endsWith(separator) && !/^[a-zA-Z]:\\$/.test(result)) {
+		result = result.slice(0, -1);
+	}
+	return result;
+}
+
+/** Whether `path` is `root` or inside it; `~` refers to the Agent Host user's home. */
 function isEqualOrInside(path: string, root: string, os: OperatingSystem): boolean {
 	const separator = os === OperatingSystem.Windows ? '\\' : '/';
 	const normalize = (value: string) => {
-		let result = value === '~' || value.startsWith(`~${separator}`) ? normalizeSandboxFileSystemPath(homedir(), os) + value.slice(1) : value;
-		while (result.length > 1 && result.endsWith(separator) && !/^[a-zA-Z]:\\$/.test(result)) {
-			result = result.slice(0, -1);
-		}
+		const expanded = value === '~' || value.startsWith(`~${separator}`) ? normalizeSandboxFileSystemPath(homedir(), os) + value.slice(1) : value;
+		const result = normalizePathForPlatform(expanded, os);
 		return os === OperatingSystem.Linux ? result : result.toLowerCase();
 	};
 	const p = normalize(path);

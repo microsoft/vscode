@@ -14258,6 +14258,57 @@ suite('CopilotAgentSession', () => {
 				});
 			});
 
+			test(`sandbox holds a steering message until the grant for its attachment is applied, even when another message recorded it first, on ${platform}`, async () => {
+				const { session, mockSession } = await createAgentSession(disposables, {
+					platform,
+					workingDirectory: URI.file('/workspace'),
+					rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				});
+				const desktopFile = URI.file('/home/u/Desktop/mockup.txt');
+				const attachments: MessageAttachment[] = [{ type: MessageAttachmentKind.Resource, uri: desktopFile.toString(), label: 'mockup.txt', displayKind: 'file' }];
+				const steering = (id: string) => ({ id, message: { text: id, origin: { kind: MessageKind.User as const }, attachments } });
+				session.resetTurnState('turn-1');
+				const updatesBefore = mockSession.sandboxConfigUpdates.length;
+				const release = new DeferredPromise<void>();
+				mockSession.sandboxConfigUpdateGate = release.p;
+
+				const first = session.sendSteering(steering('first'));
+				const second = session.sendSteering(steering('second'));
+				await timeout(10);
+				const sentWhileUpdatePending = mockSession.sendRequests.length;
+				release.complete();
+				await Promise.all([first, second]);
+
+				assert.deepStrictEqual({
+					sentWhileUpdatePending,
+					updates: mockSession.sandboxConfigUpdates.length - updatesBefore,
+					sent: mockSession.sendRequests.map(request => (request as { prompt?: string }).prompt),
+				}, { sentWhileUpdatePending: 0, updates: 1, sent: ['first', 'second'] });
+			});
+
+			test(`sandbox does not grant an attached folder containing the working directory and tells the model why on ${platform}`, async () => {
+				const { session, mockSession } = await createAgentSession(disposables, {
+					platform,
+					workingDirectory: URI.file('/home/u/demo'),
+					rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				});
+				const parent = URI.file('/home/u');
+				const nativePath = platform === 'win32' ? parent.path.replace(/\//g, '\\') : parent.path;
+
+				await session.send('summarize', [{ type: MessageAttachmentKind.Resource, uri: parent.toString(), label: 'u', displayKind: 'directory' }], 'turn-1');
+				const additionalContext = session.handleUserPromptSubmitted()?.additionalContext ?? '';
+
+				assert.deepStrictEqual({
+					readonlyPaths: (mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig).userPolicy?.filesystem?.readonlyPaths,
+					namesFolder: additionalContext.includes(`- ${nativePath}`),
+					explainsWritable: additionalContext.includes('contain the session\'s working directory or another writable folder'),
+				}, {
+					readonlyPaths: [platform === 'win32' ? TEST_SESSION_ATTACHMENTS_DIR.replace(/\//g, '\\') : TEST_SESSION_ATTACHMENTS_DIR],
+					namesFolder: true,
+					explainsWritable: true,
+				});
+			});
+
 			test(`sandbox keeps attachments outside a managed read-only list unreadable and tells the model why on ${platform}`, async () => {
 				const { session, mockSession } = await createAgentSession(disposables, {
 					platform,

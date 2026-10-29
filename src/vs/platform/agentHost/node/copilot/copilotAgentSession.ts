@@ -2183,6 +2183,7 @@ export class CopilotAgentSession extends Disposable {
 			getShellInitDirectory: () => this._shellInitScriptMaterialized ? this._shellInitScriptDirectory() : undefined,
 			getAppliedPluginDirectories: () => this._appliedPluginDirectories,
 			getWorkingDirectory: () => this._workingDirectory,
+			getAdditionalWorkingDirectories: () => this._appliedAdditionalDirectories,
 			shellManager: options.shellManager,
 			onDidChangeRuntimeConfig: () => this._recordRuntimeMutation('sandboxUpdate'),
 		}));
@@ -5937,16 +5938,27 @@ export class CopilotAgentSession extends Disposable {
 	 * them instead of asking the user to change a policy they may not control.
 	 */
 	private _sandboxBlockedAttachmentReminder(attachments: readonly MessageAttachment[] | undefined): string | undefined {
-		const blocked = this._sandbox.getBlockedAttachmentPaths(attachments);
-		if (!blocked.length) {
+		const { blocked, containsWritable } = this._sandbox.getUnreadableAttachments(attachments);
+		if (!blocked.length && !containsWritable.length) {
 			return undefined;
 		}
-		this._logService.info(`[Copilot:${this.sessionId}] Sandbox policy keeps ${blocked.length} attachment(s) unreadable`);
-		return 'The sandbox policy for this session does not allow reading the following attached paths, '
-			+ 'because they are denied or outside the read-only paths set by the sandbox policy:\n'
-			+ blocked.map(path => `- ${path}`).join('\n')
-			+ '\nIf you need their contents, tell the user that the sandbox policy blocks access to them and ask them to paste the relevant content instead. '
-			+ 'Do not ask the user to change the sandbox policy, which may be managed by their organization.';
+		this._logService.info(`[Copilot:${this.sessionId}] Sandbox keeps ${blocked.length} attachment(s) unreadable by policy and ${containsWritable.length} folder(s) containing a writable folder ungranted`);
+		const parts: string[] = [];
+		if (blocked.length) {
+			parts.push('The sandbox policy for this session does not allow reading the following attached paths, '
+				+ 'because they are denied or outside the read-only paths set by the sandbox policy:\n'
+				+ blocked.map(path => `- ${path}`).join('\n')
+				+ '\nIf you need their contents, tell the user that the sandbox policy blocks access to them and ask them to paste the relevant content instead. '
+				+ 'Do not ask the user to change the sandbox policy, which may be managed by their organization.');
+		}
+		if (containsWritable.length) {
+			parts.push('The following attached folders contain the session\'s working directory or another writable folder, '
+				+ 'so the sandbox does not make them readable as a whole, which could make that folder read-only:\n'
+				+ containsWritable.map(path => `- ${path}`).join('\n')
+				+ '\nFiles inside the writable folders stay readable. If you need other files in these folders, ask the user to attach those files or subfolders directly. '
+				+ 'Do not ask the user to change the sandbox policy.');
+		}
+		return parts.join('\n\n');
 	}
 
 	private _snapshotReadonlyReminder(attachments: readonly MessageAttachment[] | undefined): string | undefined {
@@ -6711,7 +6723,8 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			await this._reconcileMcpServerEnablement();
 			if (this._sandbox.addAttachments(steeringMessage.message.attachments)) {
-				// Steering joins the running turn, so grant its new attachments before sending it.
+				// Steering joins the running turn, so its attachments must be granted before it is sent, even when an
+				// earlier message recorded the same path and its update is still in flight. An unchanged config isn't re-sent.
 				await this._sandbox.applyConfig(false);
 			}
 			const sdkAttachments = await this._toSdkAttachments(steeringMessage.message.attachments);

@@ -519,6 +519,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			getShellInitDirectory: () => undefined,
 			getAppliedPluginDirectories: () => [],
 			getWorkingDirectory: () => undefined,
+			getAdditionalWorkingDirectories: () => [],
 			shellManager: undefined,
 		}));
 		const runtime: ICopilotSessionRuntime = {

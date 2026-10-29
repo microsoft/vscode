@@ -34,7 +34,7 @@ import { CopilotSandboxDiagnostics } from './copilotSandboxDiagnostics.js';
 import { CopilotSandboxCertificateDiagnostics } from './copilotSandboxCertificateDiagnostics.js';
 import { applySandboxConfig } from './copilotSessionLauncher.js';
 import type { ShellManager } from './copilotShellTools.js';
-import { buildSandboxConfigForSdk, resolveAttachedPathGrants, toSandboxFileSystemPath, type ISandboxAttachedPaths, type SandboxConfig } from './sandboxConfigForSdk.js';
+import { buildSandboxConfigForSdk, resolveAttachedPathGrants, toSandboxFileSystemPath, type ISandboxAttachedPathGrants, type ISandboxAttachedPaths, type SandboxConfig } from './sandboxConfigForSdk.js';
 
 /** A config change of the chat this SDK session runs. */
 interface ISandboxConfigChange {
@@ -62,6 +62,8 @@ interface ICopilotSessionSandboxOptions {
 	readonly getAppliedPluginDirectories: () => readonly URI[];
 	/** The working directory the runtime grants when `addCurrentWorkingDirectory` is on. */
 	readonly getWorkingDirectory: () => URI | undefined;
+	/** Further working directories the SDK session was launched with; the runtime grants them read/write. */
+	readonly getAdditionalWorkingDirectories: () => readonly URI[];
 	readonly shellManager: ShellManager | undefined;
 	readonly onDidChangeRuntimeConfig?: () => void;
 }
@@ -184,26 +186,29 @@ export class CopilotSessionSandbox extends Disposable {
 
 	/**
 	 * Records the local files and folders of a user message so the next applied
-	 * config grants them read-only. Returns whether any path is new.
+	 * config grants them read-only. Returns whether the message attaches any
+	 * local path, new or not: a caller that sends before the next turn must then
+	 * await {@link applyConfig}, which also waits for an update still in flight.
 	 */
 	addAttachments(attachments: readonly MessageAttachment[] | undefined): boolean {
-		const size = this._attachedPaths.size;
-		for (const uri of getAttachedLocalPaths(attachments)) {
+		const uris = getAttachedLocalPaths(attachments);
+		for (const uri of uris) {
 			this._attachedPaths.set(uri.toString(), uri);
 		}
-		return this._attachedPaths.size !== size;
+		return uris.length > 0;
 	}
 
-	/** The local attachment paths the effective sandbox policy keeps unreadable (denied, or outside a managed read-only list). */
-	getBlockedAttachmentPaths(attachments: readonly MessageAttachment[] | undefined): readonly string[] {
+	/** The local attachments the sandbox can't make readable: those the effective policy blocks, and folders containing a writable folder. */
+	getUnreadableAttachments(attachments: readonly MessageAttachment[] | undefined): Pick<ISandboxAttachedPathGrants, 'blocked' | 'containsWritable'> {
 		const paths = getAttachedLocalPaths(attachments);
 		if (!paths.length || this._disabledForSession) {
-			return [];
+			return { blocked: [], containsWritable: [] };
 		}
 		const target = this._target();
 		const sandbox = getSessionSandboxConfig(this._configurationService, target, this._options.platform);
 		const policy = this._configurationService.getSessionSandboxPolicy(target.session);
-		return resolveAttachedPathGrants(this._options.platform, sandbox, policy, this._attachedPathsFor(paths)).blocked;
+		const { blocked, containsWritable } = resolveAttachedPathGrants(this._options.platform, sandbox, policy, this._attachedPathsFor(paths));
+		return { blocked, containsWritable };
 	}
 
 	/** Uses the session's platform rather than `URI.fsPath`, whose syntax follows the OS of the current process. */
@@ -212,6 +217,7 @@ export class CopilotSessionSandbox extends Disposable {
 		return {
 			paths: uris.map(uri => toSandboxFileSystemPath(uri, this._options.platform)),
 			...(workingDirectory ? { workingDirectory: toSandboxFileSystemPath(workingDirectory, this._options.platform) } : {}),
+			additionalWorkingDirectories: this._options.getAdditionalWorkingDirectories().map(uri => toSandboxFileSystemPath(uri, this._options.platform)),
 		};
 	}
 

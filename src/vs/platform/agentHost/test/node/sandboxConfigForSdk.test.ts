@@ -505,7 +505,7 @@ suite('buildSandboxConfigForSdk', () => {
 				grants: resolveAttachedPathGrants('linux', sandbox('linux', AgentSandboxEnabledValue.On), undefined, attach(['/home/u/Desktop/mockup.txt', '/home/u/notes'])),
 			}, {
 				filesystem: { readonlyPaths: ['/data/attachments', '/home/u/Desktop/mockup.txt', '/home/u/notes'] },
-				grants: { granted: ['/home/u/Desktop/mockup.txt', '/home/u/notes'], blocked: [] },
+				grants: { granted: ['/home/u/Desktop/mockup.txt', '/home/u/notes'], blocked: [], containsWritable: [] },
 			});
 		});
 
@@ -517,7 +517,7 @@ suite('buildSandboxConfigForSdk', () => {
 				grants: resolveAttachedPathGrants('linux', config, undefined, attached),
 			}, {
 				filesystem: { deniedPaths: ['/home/u/secret', '/home/u/Desktop/private.txt'], readonlyPaths: ['/home/u/secretive.txt'] },
-				grants: { granted: ['/home/u/secretive.txt'], blocked: ['/home/u/secret', '/home/u/secret/key.txt', '/home/u/Desktop/private.txt'] },
+				grants: { granted: ['/home/u/secretive.txt'], blocked: ['/home/u/secret', '/home/u/secret/key.txt', '/home/u/Desktop/private.txt'], containsWritable: [] },
 			});
 		});
 
@@ -525,6 +525,7 @@ suite('buildSandboxConfigForSdk', () => {
 			assert.deepStrictEqual(resolveAttachedPathGrants('linux', sandbox('linux', AgentSandboxEnabledValue.On, { deniedPaths: ['~/.ssh'] }), undefined, attach([`${homedir()}/.ssh/id_rsa`])), {
 				granted: [],
 				blocked: [`${homedir()}/.ssh/id_rsa`],
+				containsWritable: [],
 			});
 		});
 
@@ -538,9 +539,9 @@ suite('buildSandboxConfigForSdk', () => {
 					grants: resolveAttachedPathGrants('linux', config, policy, attached),
 				};
 			}), [
-				{ filesystem: { readonlyPaths: ['/home/u/Desktop/mockup.txt', '/managed/inside.txt'] }, grants: { granted: ['/home/u/Desktop/mockup.txt', '/managed/inside.txt'], blocked: [] } },
-				{ filesystem: { readonlyPaths: ['/managed'] }, grants: { granted: [], blocked: ['/home/u/Desktop/mockup.txt'] } },
-				{ filesystem: undefined, grants: { granted: [], blocked: ['/home/u/Desktop/mockup.txt', '/managed/inside.txt'] } },
+				{ filesystem: { readonlyPaths: ['/home/u/Desktop/mockup.txt', '/managed/inside.txt'] }, grants: { granted: ['/home/u/Desktop/mockup.txt', '/managed/inside.txt'], blocked: [], containsWritable: [] } },
+				{ filesystem: { readonlyPaths: ['/managed'] }, grants: { granted: [], blocked: ['/home/u/Desktop/mockup.txt'], containsWritable: [] } },
+				{ filesystem: undefined, grants: { granted: [], blocked: ['/home/u/Desktop/mockup.txt', '/managed/inside.txt'], containsWritable: [] } },
 			]);
 		});
 
@@ -562,8 +563,34 @@ suite('buildSandboxConfigForSdk', () => {
 				linux: resolveAttachedPathGrants('linux', sandbox('linux', AgentSandboxEnabledValue.On, { deniedPaths: ['/home/u/Secret'] }), undefined, attach(['/home/u/secret/a.txt'])),
 			}, {
 				win32: { deniedPaths: ['C:\\Secret'], readonlyPaths: ['C:\\Users\\u\\Desktop\\b.txt'] },
-				darwin: { granted: [], blocked: ['/users/u/secret/a.txt'] },
-				linux: { granted: ['/home/u/secret/a.txt'], blocked: [] },
+				darwin: { granted: [], blocked: ['/users/u/secret/a.txt'], containsWritable: [] },
+				linux: { granted: ['/home/u/secret/a.txt'], blocked: [], containsWritable: [] },
+			});
+		});
+
+		test('does not grant a folder that contains a writable folder, so the writable folder stays writable', () => {
+			const config = sandbox('linux', AgentSandboxEnabledValue.On, { readwritePaths: ['/scratch/out'] });
+			const attached = { paths: ['/home/u', '/home/u/demo', '/home', '/scratch', '/data', '/home/u/Desktop/mockup.txt'], workingDirectory: '/home/u/demo', additionalWorkingDirectories: ['/data/extra'] };
+			assert.deepStrictEqual({
+				filesystem: buildSandboxConfigForSdk('linux', config, undefined, undefined, attached)?.userPolicy?.filesystem,
+				grants: resolveAttachedPathGrants('linux', config, undefined, attached),
+				withoutWorkingDirectoryGrant: resolveAttachedPathGrants('linux', { ...config, addCurrentWorkingDirectory: false }, undefined, attached).granted,
+			}, {
+				filesystem: { readonlyPaths: ['/home/u/Desktop/mockup.txt'], readwritePaths: ['/scratch/out'] },
+				grants: { granted: ['/home/u/Desktop/mockup.txt'], blocked: [], containsWritable: ['/home/u', '/home', '/scratch', '/data'] },
+				withoutWorkingDirectoryGrant: ['/home/u', '/home/u/demo', '/home', '/home/u/Desktop/mockup.txt'],
+			});
+		});
+
+		test('resolves dot segments with the target platform rules before comparing and granting', () => {
+			assert.deepStrictEqual({
+				linux: resolveAttachedPathGrants('linux', sandbox('linux', AgentSandboxEnabledValue.On, { deniedPaths: ['/home/u/./secret/'] }), undefined,
+					{ paths: ['/workspace/../outside.txt', '/workspace/./src/../a.ts', '/home/u/notes/../secret/key.txt', '/home/u/notes/./'], workingDirectory: '/workspace' }),
+				win32: resolveAttachedPathGrants('win32', sandbox('win32', AgentSandboxEnabledValue.On), undefined,
+					{ paths: ['C:\\work\\..\\out.txt', 'C:\\work\\src\\..\\a.ts'], workingDirectory: 'C:\\work' }),
+			}, {
+				linux: { granted: ['/outside.txt', '/home/u/notes'], blocked: ['/home/u/secret/key.txt'], containsWritable: [] },
+				win32: { granted: ['C:\\out.txt'], blocked: [], containsWritable: [] },
 			});
 		});
 
@@ -571,7 +598,7 @@ suite('buildSandboxConfigForSdk', () => {
 			assert.deepStrictEqual({
 				config: buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.Off), undefined, undefined, attach(['/home/u/a.txt'])),
 				grants: resolveAttachedPathGrants('linux', sandbox('linux', AgentSandboxEnabledValue.Off), undefined, attach(['/home/u/a.txt'])),
-			}, { config: undefined, grants: { granted: [], blocked: [] } });
+			}, { config: undefined, grants: { granted: [], blocked: [], containsWritable: [] } });
 		});
 	});
 });
@@ -595,6 +622,14 @@ suite('getAttachedLocalPaths', () => {
 			{ type: MessageAttachmentKind.Simple, label: 'simple', modelRepresentation: 'text' },
 		];
 		assert.deepStrictEqual(getAttachedLocalPaths(attachments).map(uri => uri.toString()), [file, folder, file, URI.file('/home/u/wrapped.txt')].map(uri => uri.toString()));
+	});
+
+	test('resolves dot segments in attached URIs', () => {
+		const attachments: MessageAttachment[] = [
+			{ type: MessageAttachmentKind.Resource, uri: 'file:///workspace/../outside.txt', label: 'outside.txt', displayKind: 'file' },
+			{ type: MessageAttachmentKind.Resource, uri: 'file:///home/u/./notes/', label: 'notes', displayKind: 'directory' },
+		];
+		assert.deepStrictEqual(getAttachedLocalPaths(attachments).map(uri => uri.path), ['/outside.txt', '/home/u/notes/']);
 	});
 });
 

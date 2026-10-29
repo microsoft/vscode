@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../base/common/network.js';
+import { normalizePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from './agentHostUri.js';
 import { isHostSnapshotAttachment } from './meta/agentSnapshotAttachmentMeta.js';
@@ -14,7 +15,7 @@ import { MessageAttachmentKind, type MessageAttachment } from './state/protocol/
  * the exact file, or the folder itself for a directory. Host-created snapshots
  * (already readable from the session data folder), embedded content, and
  * non-`file` resources are ignored. A client-wrapped `vscode-agent-host` URI is
- * unwrapped to the host URI it stands for.
+ * unwrapped to the host URI it stands for. `.` and `..` segments are resolved.
  */
 export function getAttachedLocalPaths(attachments: readonly MessageAttachment[] | undefined): URI[] {
 	const paths: URI[] = [];
@@ -32,7 +33,7 @@ export function getAttachedLocalPaths(attachments: readonly MessageAttachment[] 
 			uri = fromAgentHostUri(uri);
 		}
 		if (uri.scheme === Schemas.file && uri.path.length > 1) {
-			paths.push(uri);
+			paths.push(normalizePath(uri));
 		}
 	}
 	return paths;
