@@ -31,7 +31,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { type AutomationCatalogueState, type IAutomationProviderDescriptor, type IAutomationRefreshOptions, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationCatalogueState, type AutomationHistoryState, type IAutomationProviderDescriptor, type IAutomationRefreshOptions, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
@@ -182,7 +182,7 @@ interface IAutomationHistoryGroup {
 
 interface IAutomationHistoryOwnerRow extends IDisposable {
 	readonly element: HTMLElement;
-	update(run: IAutomationRun, name: string, state: 'retained' | 'deleting', canDelete: boolean): void;
+	update(run: IAutomationRun, name: string, state: AutomationHistoryState, canDelete: boolean): void;
 }
 
 interface IAutomationHistorySessionList extends IDisposable {
@@ -1759,12 +1759,17 @@ class AutomationHistorySection extends Disposable {
 			update: (nextRun, name, state, canDelete) => {
 				run = nextRun;
 				title.textContent = name;
-				const retrying = state === 'deleting';
-				description.textContent = retrying
-					? localize('automationHistoryDeletionInterrupted', "Run history deletion was interrupted.")
-					: localize('automationHistoryRetained', "Run history is retained.");
-				button.label = retrying ? localize('retryDeleteHistory', "Retry Delete Run History") : localize('deleteHistory', "Delete Run History");
-				button.enabled = canDelete;
+				description.textContent = state === 'deleting'
+					? localize('automationHistoryDeleting', "Deleting run history...")
+					: state === 'interrupted'
+						? localize('automationHistoryDeletionInterrupted', "Run history deletion was interrupted.")
+						: localize('automationHistoryRetained', "Run history is retained.");
+				button.label = state === 'deleting'
+					? localize('deletingHistory', "Deleting...")
+					: state === 'interrupted'
+						? localize('retryDeleteHistory', "Retry Delete Run History")
+						: localize('deleteHistory', "Delete Run History");
+				button.enabled = state !== 'deleting' && canDelete;
 				element.setAttribute('aria-label', localize('automationHistoryOwnerState', "{0}, {1}", name, description.textContent));
 			},
 			dispose: () => {
@@ -2104,7 +2109,7 @@ class AutomationHistorySection extends Disposable {
 
 	private async confirmAndDeleteHistory(run: IAutomationRun): Promise<void> {
 		const name = this.getAutomationName(run);
-		const retrying = this.automationService.getAutomationHistoryState?.(run.automationId) === 'deleting';
+		const retrying = this.automationService.getAutomationHistoryState?.(run.automationId) === 'interrupted';
 		const confirmed = await this.dialogService.confirm({
 			message: retrying
 				? localize('confirmRetryDeleteAutomationHistory', "Retry deleting run history for \"{0}\"?", name)
@@ -2745,7 +2750,7 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 			},
 			group: '2_delete',
 			order: 1,
-			when: AutomationRunHistoryStateContext.isEqualTo('deleting'),
+			when: AutomationRunHistoryStateContext.isEqualTo('interrupted'),
 		}),
 	);
 }

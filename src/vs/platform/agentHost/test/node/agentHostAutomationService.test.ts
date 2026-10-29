@@ -528,6 +528,10 @@ suite('AgentHostAutomationService', () => {
 		assert.deepStrictEqual({
 			deleted: deleted.length,
 			remaining: storageService.get<{ historyDeletions: object[] }>('automations')?.historyDeletions,
+			owner: {
+				state: getAgentHostAutomationHistoryState(stateManager.getAutomationCatalogState()!.entries[0]),
+				operations: stateManager.getAutomationCatalogState()!.entries[0].operations,
+			},
 			history: stateManager.getAutomationCatalogState()!.entries[0].runs.length,
 			secondary: service.getLegacySessionOrigin('ahp-session:/secondary-0', 'codex')?.run,
 		}, {
@@ -537,6 +541,7 @@ suite('AgentHostAutomationService', () => {
 				sessions: [{ session: 'ahp-session:/0', provider: 'codex' }],
 				deletedSessions: deleted,
 			}],
+			owner: { state: 'deleting', operations: [AutomationOperation.Remove] },
 			history: 50,
 			secondary: runs[0].resource,
 		});
@@ -819,7 +824,7 @@ suite('AgentHostAutomationService', () => {
 			}, {
 				providers: { [run.resource]: 'codex' },
 				origin: { kind: SessionOriginKind.Automation, automation, run: run.resource },
-				owner: existingOwner ? { title: 'Review changes', enabled: true, state: undefined } : { title: 'Deleted automation', enabled: false, state: 'retained' },
+				owner: existingOwner ? { title: 'Review changes', enabled: true, state: undefined } : { title: 'Deleted automation (name unavailable)', enabled: false, state: 'retained' },
 			});
 		});
 	}
