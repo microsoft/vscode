@@ -1113,11 +1113,6 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.verbose', "Show request and completion timestamps. Hover over a completion timestamp to show the elapsed response time."),
 		},
-		[ChatConfiguration.ProgressBorder]: {
-			type: 'boolean',
-			default: true,
-			markdownDescription: nls.localize('chat.progressBorder.enabled', "Show an animated gradient border around the chat input while the agent is working or thinking. Has no effect when reduced motion is enabled."),
-		},
 		...chatProgressConfigurationProperties,
 		[ChatConfiguration.SessionStateIndicatorEnabled]: {
 			type: 'boolean',
@@ -1208,7 +1203,7 @@ configurationRegistry.registerConfiguration({
 					{ required: ['serverCommand'] },
 				],
 			},
-			markdownDescription: nls.localize('chat.mcp.allowedServers', "Enterprise-managed allowlist that controls which Model Context Protocol servers may be installed and run. Local servers must match a command entry when any command entries exist; remote servers must match a URL entry when any URL entries exist. Otherwise, servers may match a literal name entry. An empty list allows no servers; omit entirely to allow all servers, subject to the deny list. Gallery checks evaluate available installation candidates; the selected command or URL is checked again after resolution. Delivered via enterprise policy for governance; this setting is not surfaced to end users."),
+			markdownDescription: nls.localize('chat.mcp.allowedServers', "Enterprise-managed allowlist that controls which Model Context Protocol servers may be installed and run. When enforced by enterprise policy, this list replaces registry-only access restrictions, but MCP disablement and deny rules still apply. Local servers must match a command entry when any command entries exist; remote servers must match a URL entry when any URL entries exist. Otherwise, servers may match a literal name entry. An empty list allows no servers. If omitted, no allowlist restriction applies; the access setting (including registry-only access) and deny list still apply. Gallery checks evaluate available installation candidates; the selected command or URL is checked again after resolution. Delivered via enterprise policy for governance; this setting is not surfaced to end users."),
 			default: null,
 			scope: ConfigurationScope.APPLICATION,
 			// Governance-only: delivered via the `ChatAllowedMcpServers` enterprise policy and hidden
@@ -2022,7 +2017,7 @@ configurationRegistry.registerConfiguration({
 				"Instructions File Locations",
 			),
 			markdownDescription: nls.localize(
-				'chat.instructions.config.locations.description',
+				'chat.instructions.config.locations.description2',
 				"Specify location(s) of instructions files (`*{0}`) that can be attached in Chat sessions. [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.\n\nLocations configured here are only observed by the Local agent harness. Other harnesses running in VS Code receive instructions from all additional locations configured here, in addition to their built-in locations. To use instructions with independent agent harnesses, such as Copilot CLI, review the {2} in the Agent Customizations editor to migrate them to supported locations.",
 				INSTRUCTION_FILE_EXTENSION,
 				getDocumentationUrl(PromptsType.instructions),
@@ -2098,7 +2093,7 @@ configurationRegistry.registerConfiguration({
 			default: {
 				[LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true,
 			},
-			markdownDeprecationMessage: nls.localize('chat.mode.config.locations.deprecated', "This setting and the Local agent harness will be removed in a future release. Chat modes are now called custom agents and are located in `.github/agents`. Review the {0} in the Agent Customizations editor to move them into supported locations.", migrationsTabLink),
+			markdownDeprecationMessage: nls.localize('chat.mode.config.locations.deprecated2', "This setting and the Local agent harness will be removed in a future release. Chat modes are now called custom agents and are located in `.github/agents`. Review the {0} in the Agent Customizations editor to move them into supported locations.", migrationsTabLink),
 			deprecationMessageSeverity: 'info',
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
@@ -2121,7 +2116,7 @@ configurationRegistry.registerConfiguration({
 				"Agent File Locations",
 			),
 			markdownDescription: nls.localize(
-				'chat.agents.config.locations.description',
+				'chat.agents.config.locations.description2',
 				"Specify location(s) of custom agent files (`*{0}`). [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.\n\nLocations configured here are only observed by the Local agent harness. Other harnesses running in VS Code receive agents from all additional locations configured here, in addition to their built-in locations. To use agents with independent agent harnesses, such as Copilot CLI, review the {2} in the Agent Customizations editor to migrate them to supported locations.",
 				AGENT_FILE_EXTENSION,
 				getDocumentationUrl(PromptsType.agent),
@@ -2230,7 +2225,7 @@ configurationRegistry.registerConfiguration({
 			type: 'object',
 			title: nls.localize('chat.agentSkillsLocations.title', "Agent Skills Locations",),
 			markdownDescription: nls.localize(
-				'chat.agentSkillsLocations.description',
+				'chat.agentSkillsLocations.description2',
 				"Specify location(s) of agent skills (`{0}`) that can be used in Chat Sessions. [Learn More]({1}).\n\nEach path should contain skill subfolders with SKILL.md files (e.g., add `my-skills` if you have `my-skills/skillA/SKILL.md`). Relative paths are resolved from the root folder(s) of your workspace.\n\nLocations configured here are only observed by the Local agent harness. Other harnesses running in VS Code receive skills from all additional locations configured here, in addition to their built-in locations. To use skills with independent agent harnesses, such as Copilot CLI, review the {2} in the Agent Customizations editor to migrate them to supported locations.",
 				SKILL_FILENAME,
 				getDocumentationUrl(PromptsType.skill),

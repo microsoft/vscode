@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { append, DisposableResizeObserver, getWindow, h } from '../../../../../../../base/browser/dom.js';
-import { HoverStyle } from '../../../../../../../base/browser/ui/hover/hover.js';
-import { HoverPosition } from '../../../../../../../base/browser/ui/hover/hoverWidget.js';
+import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { Separator } from '../../../../../../../base/common/actions.js';
 import { asArray } from '../../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
@@ -20,7 +19,6 @@ import { ConfirmationOption, ConfirmationOptionKind } from '../../../../../../..
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
-import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -91,7 +89,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITerminalChatService private readonly terminalChatService: ITerminalChatService,
-		@IHoverService hoverService: IHoverService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IChatToolRiskAssessmentService private readonly riskAssessmentService: IChatToolRiskAssessmentService,
 	) {
@@ -105,6 +102,8 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 
 		const { title, message, disclaimer, terminalCustomActions } = state.confirmationMessages;
+		const titleText = typeof title === 'string' ? title : title.value;
+		const messageText = typeof message === 'string' ? message : message ? renderAsPlaintext(message).trim() : undefined;
 
 		const cdPrefix = terminalData.confirmation?.cdPrefix ?? '';
 		const originalContent = terminalData.confirmation?.commandLine ?? (terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
@@ -112,6 +111,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		const initialContent = terminalData.presentationOverrides?.commandLine
 			?? (userEdited?.startsWith(cdPrefix) ? userEdited.slice(cdPrefix.length) : userEdited)
 			?? originalContent;
+		const hasDistinctMessage = !!messageText?.trim() && messageText.trim() !== initialContent.trim();
 		// When presentationOverrides is set, the editor should be read-only since the displayed content
 		// differs from the actual command (e.g., extracted Python code vs full python -c command).
 		// A producer that cannot apply an edited command opts out the same way.
@@ -161,7 +161,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				wordWrap: 'on',
 				readOnly: isReadOnly,
 				tabFocusMode: true,
-				ariaLabel: typeof title === 'string' ? title : title.value
+				ariaLabel: hasDistinctMessage ? localize('chat.terminal.confirmation.ariaLabel', "{0}\n{1}", titleText, messageText) : titleText
 			}
 		};
 		const languageId = this.languageService.getLanguageIdByLanguageName(terminalData.presentationOverrides?.language ?? terminalData.language ?? 'sh') ?? 'shellscript';
@@ -198,9 +198,15 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		}
 		const elements = h('.chat-confirmation-message-terminal', [
 			h('.chat-confirmation-message-terminal-editor@editor'),
+			h('.chat-confirmation-message-terminal-reason@reason'),
 			h('.chat-confirmation-message-terminal-disclaimer@disclaimer'),
 		]);
 		append(elements.editor, editor.object.element);
+		if (message && hasDistinctMessage) {
+			this._appendMarkdownPart(elements.reason, typeof message === 'string' ? new MarkdownString().appendText(message) : message, codeBlockRenderOptions);
+		} else {
+			elements.reason.remove();
+		}
 		const editorResizeObserver = this._register(new DisposableResizeObserver('ChatTerminalToolConfirmationSubPart.editor', entries => {
 			const width = entries[0]?.contentRect.width;
 			if (width) {
@@ -208,12 +214,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			}
 		}, getWindow(this.context.container)));
 		this._register(editorResizeObserver.observe(elements.editor));
-		this._register(hoverService.setupDelayedHover(elements.editor, {
-			content: message || '',
-			style: HoverStyle.Pointer,
-			position: { hoverPosition: HoverPosition.LEFT },
-		}));
-
 		const riskBadge = createApprovalReasonBadge(this._store, this.instantiationService, state.confirmationMessages.approvalReason)
 			?? createToolRiskBadge(this._store, this.instantiationService, this.riskAssessmentService, this.languageModelToolsService, this.toolInvocation.toolId, state.parameters, 'terminal');
 
@@ -580,12 +580,13 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			this.context,
 			this.editorPool,
 			false,
-			this.codeBlockStartIndex,
+			this.codeBlockStartIndex + this.codeblocks.length,
 			this.renderer,
 			undefined,
 			this.currentWidthDelegate,
 			{ codeBlockRenderOptions },
 		));
+		this.codeblocks.push(...part.codeblocks);
 		append(container, part.domNode);
 	}
 }

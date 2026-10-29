@@ -95,7 +95,7 @@ export interface IFixtureMessage {
 		| { kind: 'mcpStarting'; servers: readonly string[]; local?: boolean; blocking?: boolean; background?: boolean }
 		| { kind: 'terminal'; command: string; output?: string; intention?: string; complete?: boolean; exitCode?: number; background?: boolean }
 		| { kind: 'subagent'; id: string; description: string; complete?: boolean }
-		| { kind: 'terminalConfirmation'; command: string; title?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string } }
+		| { kind: 'terminalConfirmation'; command: string; title?: string; message?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string } }
 		| { kind: 'elicitation'; title: string; message: string; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string }; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
 	>;
 	readonly details?: string;
@@ -159,6 +159,7 @@ export interface IChatWidgetFixtureOptions {
 	readonly hostLayoutMode?: 'none' | 'listOnly' | 'stackedFull' | 'stackedTargeted';
 	/** Mirrors `IChatWidgetViewOptions.persistentContentHeight` for content mounted by {@link IChatWidgetFixtureOptions.decorateInputPart}. */
 	readonly persistentContentHeight?: number;
+	readonly stickyProgress?: boolean;
 	/** Enables or disables both settings required by the real tree-based sticky-scroll path. */
 	readonly stickyScroll?: boolean;
 	/** Enables the response-level persistent progress indicator. */
@@ -614,7 +615,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 						{
 							invocationMessage: new MarkdownString(`Running \`${part.command}\``),
 							pastTenseMessage: message.responseComplete === false ? undefined : new MarkdownString(`Ran \`${part.command}\``),
-							confirmationMessages: confirmation ? { title, message: new MarkdownString(`\`${part.command}\``), disclaimer: confirmation.disclaimer ? new MarkdownString(confirmation.disclaimer, { supportThemeIcons: true }) : undefined } : undefined,
+							confirmationMessages: confirmation ? { title, message: confirmation.message ?? new MarkdownString(`\`${part.command}\``), disclaimer: confirmation.disclaimer ? new MarkdownString(confirmation.disclaimer, { supportThemeIcons: true }) : undefined } : undefined,
 							toolSpecificData,
 						},
 						fixtureToolData,
@@ -753,6 +754,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			},
 			location: ChatAgentLocation.Chat,
 			paddingBottom: options.persistentContentHeight,
+			stickyProgress: options.stickyProgress,
 			rendererOptions: {
 				contentHorizontalPadding: options.contentHorizontalPadding,
 				progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
@@ -760,6 +762,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		},
 	));
 
+	if (options.stickyProgress) {
+		listWidget.setStickyProgressContainer(inputPart.persistentContentContainerElement);
+	}
 	listWidget.setViewModel(viewModel);
 	listWidget.setVisible(true);
 	disposableStore.add(Event.runAndSubscribe(Event.accumulate(viewModel.onDidChange), () => listWidget.refresh()));
@@ -1108,6 +1113,7 @@ const PERSISTENT_PROGRESS_TERMINAL_CONFIRMATION: IFixtureMessage[] = [{
 		kind: 'terminalConfirmation',
 		command: 'npm install',
 		title: 'Run `npm install`?',
+		message: 'Review dependency installation before running this command.',
 	}],
 	responseComplete: false,
 }];

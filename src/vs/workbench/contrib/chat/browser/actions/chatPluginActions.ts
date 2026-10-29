@@ -340,7 +340,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 					const allowed = !marketplaceService.isStrictMarketplacePolicyActive() || marketplaceService.isMarketplaceTrusted(reference);
 					const descriptions = [
 						defaultCanonicalIds.has(reference.canonicalId) ? localize('defaultMarketplace', "Default") : undefined,
-						policyCanonicalIds.has(reference.canonicalId) ? localize('managedMarketplace', "Managed by Organization") : undefined,
+						policyCanonicalIds.has(reference.canonicalId) ? localize('managedMarketplaceDescription', "Managed by Organization") : undefined,
 						!allowed ? localize('disabledMarketplace', "Disabled by Organization") : undefined,
 					].filter((description): description is string => description !== undefined);
 					return {
@@ -473,7 +473,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 					label: marketplace.name,
 					description: [
 						marketplace.isDefault ? localize('defaultMarketplace', "Default") : undefined,
-						marketplace.managed ? localize('managedMarketplace', "Managed by Organization") : undefined,
+						marketplace.managed ? localize('managedMarketplaceDescription', "Managed by Organization") : undefined,
 						!marketplace.available ? localize('unavailableMarketplace', "Unavailable") : undefined,
 					].filter((description): description is string => !!description).join(', ') || undefined,
 					detail: marketplace.source,
