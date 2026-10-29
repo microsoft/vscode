@@ -1240,7 +1240,7 @@ export class ChatView extends AbstractChatView {
 		}, {
 			inputContainer: inputContainerEl,
 			isActive: this._isActiveObs,
-			getCurrentResource: () => this._currentChatResource,
+			getCurrentResource: reader => this._currentChatResourceObs.read(reader),
 			currentVoiceInputResource: this.newChatVoiceTargetService.currentVoiceInputResource,
 		}));
 	}
