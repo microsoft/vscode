@@ -14,7 +14,7 @@ import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-mai
 import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
-import { IUnattendedRestartWindowReadiness } from '../../lifecycle/common/unattendedRestart.js';
+import { describeUnattendedRestartBlockers, IUnattendedRestartWindowReadiness } from '../../lifecycle/common/unattendedRestart.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { SystemIdleState, ThermalState } from '../../native/common/native.js';
@@ -33,6 +33,11 @@ export const UNATTENDED_RESTART_LOCKED_DURATION = 2 * 60 * 1000;
 
 const RETRY_INTERVAL = 60 * 1000;
 const WINDOW_READINESS_TIMEOUT = 10 * 1000;
+
+/**
+ * How much of what exactly blocks a window reports is logged.
+ */
+const MAX_DETAIL_LENGTH = 1000;
 
 /**
  * Some platforms blur the focused window right before they report the screen lock.
@@ -413,14 +418,14 @@ export class UnattendedRestartScheduler extends Disposable {
 		try {
 			this.attempts++;
 			const inBackground = !this.activeWhenLocked;
-			const { blockers, enabled } = await this.getBlockers(inBackground);
+			const { blockers, details, enabled } = await this.getBlockers(inBackground);
 			if (this.lockedSince !== lockedSince || !this.hasUpdateState(StateType.Ready)) {
 				return; // unlocked or update changed while checking
 			}
 
 			if (blockers.length > 0) {
 				if (!equals(blockers, this.lastBlockers)) {
-					this.logService.info(`update#unattendedRestart - not restarting: ${blockers.join(', ')}`); // retried every minute, so only log changes
+					this.logService.info(`update#unattendedRestart - not restarting: ${describeUnattendedRestartBlockers(blockers, details)}`); // retried every minute, so only log changes
 				}
 				this.lastBlockers = blockers;
 				this.evaluation.schedule(RETRY_INTERVAL);
@@ -461,7 +466,7 @@ export class UnattendedRestartScheduler extends Disposable {
 		return this.configurationService.getValue<boolean>(RESTART_WHEN_IDLE_SETTING) === true;
 	}
 
-	private async getBlockers(inBackground: boolean): Promise<{ readonly blockers: string[]; readonly enabled: boolean }> {
+	private async getBlockers(inBackground: boolean): Promise<{ readonly blockers: string[]; readonly details: ReadonlyMap<string, string>; readonly enabled: boolean }> {
 		const windows = this.windowsMainService.getWindows();
 		const blockers = new Set(getWindowBlockers(windows, this.auxiliaryWindowsMainService.getWindows(), this.os, inBackground));
 		if (this.dialogMainService.hasOpenDialogs()) {
@@ -488,14 +493,25 @@ export class UnattendedRestartScheduler extends Disposable {
 		// Ask the windows even when something else blocks already, so that the outcome tells everything
 		// that prevented the restart. Windows that are not ready block already and cannot answer yet.
 		const readiness = await Promise.all(windows.filter(window => window.isReady).map(window => this.getWindowReadiness(window)));
-		for (const blocker of readiness.flatMap(windowReadiness => windowReadiness.blockers)) {
-			blockers.add(blocker);
+		const details = new Map<string, string>();
+		for (const windowReadiness of readiness) {
+			for (const blocker of windowReadiness.blockers) {
+				blockers.add(blocker);
+			}
+
+			// What exactly blocks, only for the log
+			for (const [blocker, detail] of Object.entries(windowReadiness.details ?? {})) {
+				if (typeof detail === 'string' && windowReadiness.blockers.includes(blocker)) {
+					const known = details.get(blocker);
+					details.set(blocker, known ? `${known}; ${detail.slice(0, MAX_DETAIL_LENGTH)}` : detail.slice(0, MAX_DETAIL_LENGTH));
+				}
+			}
 		}
 
 		// Windows resolve experiments, which can enable the setting by default
 		const enabled = readiness.every(windowReadiness => windowReadiness.enabled);
 
-		return { blockers: Array.from(blockers).sort(), enabled };
+		return { blockers: Array.from(blockers).sort(), details, enabled };
 	}
 
 	private async getWindowReadiness(window: ICodeWindow): Promise<IUnattendedRestartWindowReadiness> {
