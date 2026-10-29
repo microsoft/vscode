@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as fs from 'fs';
+import { Color } from '../../../../../base/common/color.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -27,23 +28,34 @@ suite('Default theme colors', () => {
 		const editorBackground = theme.getColor('editor.background')!;
 		const quoteBackground = theme.getColor('textBlockQuote.background')!.makeOpaque(editorBackground);
 		const codeBackground = theme.getColor('textPreformat.background')!;
+		const codeForeground = theme.getColor('textPreformat.foreground')!;
 		const quoteCodeBackground = codeBackground.makeOpaque(quoteBackground);
-		const textContrast = ['editor.background', 'sideBar.background', 'editorWidget.background', 'textBlockQuote.background'].flatMap(surface => {
+		const textContrast = ['editor.background', 'sideBar.background', 'editorWidget.background', 'textBlockQuote.background'].map(surface => {
 			const background = theme.getColor(surface)!.makeOpaque(editorBackground);
 			const renderedBackground = codeBackground.makeOpaque(background);
-			return ['textPreformat.foreground', 'textLink.foreground', 'textLink.activeForeground'].map(foreground => ({
+			return {
 				surface,
-				foreground,
-				readable: theme.getColor(foreground)!.makeOpaque(renderedBackground).getContrastRatio(renderedBackground) >= 4.5,
-			}));
+				readable: codeForeground.makeOpaque(renderedBackground).getContrastRatio(renderedBackground) >= 4.5,
+			};
 		});
+		const linkDistinction = ['textLink.foreground', 'textLink.activeForeground'].map(foreground => ({
+			foreground,
+			distinctFromText: theme.getColor(foreground)!.getContrastRatio(theme.getColor('foreground')!) >= 3,
+		}));
+		const keywordForeground = theme.tokenColors.findLast(rule => rule.scope === 'keyword')?.settings.foreground;
+		assert.ok(keywordForeground);
+		const codeBlockBackground = theme.getColor('textCodeBlock.background')!.makeOpaque(editorBackground);
 
 		assert.deepStrictEqual({
 			distinctFromQuote: quoteCodeBackground.getContrastRatio(quoteBackground) >= 1.3,
 			textContrast,
+			linkDistinction,
+			readableCodeBlockKeyword: Color.fromHex(keywordForeground).getContrastRatio(codeBlockBackground) >= 4.5,
 		}, {
 			distinctFromQuote: true,
 			textContrast: textContrast.map(result => ({ ...result, readable: true })),
+			linkDistinction: linkDistinction.map(result => ({ ...result, distinctFromText: true })),
+			readableCodeBlockKeyword: true,
 		});
 	});
 });

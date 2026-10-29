@@ -135,8 +135,13 @@
 				max-height: 100%;
 			}
 
-			a, a code {
+			a {
 				color: var(--vscode-textLink-foreground);
+			}
+
+			a code {
+				color: var(--vscode-textPreformat-foreground);
+				text-decoration: underline;
 			}
 
 			p > a {
@@ -164,6 +169,7 @@
 			}
 
 			pre code {
+				background-color: transparent;
 				padding: 0;
 			}
 
