@@ -6980,7 +6980,7 @@ suite('AutomationsWorkspacePicker', () => {
 		await sheet;
 	});
 
-	test('mobile workspace search reveals older recents and restores the compact list when cleared', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('mobile workspace picker shows and searches the full recent list like Open Recent', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const workbench = document.createElement('div');
 		document.body.append(workbench);
 		disposables.add(toDisposable(() => workbench.remove()));
@@ -7013,9 +7013,9 @@ suite('AutomationsWorkspacePicker', () => {
 		workbench.querySelector<HTMLButtonElement>('.mobile-picker-sheet-item')?.click();
 		await sheet;
 		assert.deepStrictEqual({ initial, matching, cleared, selected: dispatched.map(item => item.folderUri?.path) }, {
-			initial: Array.from({ length: 10 }, (_, index) => `folder-${index}`),
+			initial: Array.from({ length: 12 }, (_, index) => `folder-${index}`),
 			matching: ['folder-11'],
-			cleared: Array.from({ length: 10 }, (_, index) => `folder-${index}`),
+			cleared: Array.from({ length: 12 }, (_, index) => `folder-${index}`),
 			selected: ['/folder-11'],
 		});
 	}));
@@ -7085,7 +7085,7 @@ class TestablePicker extends WorkspacePicker {
 	}
 
 	getItemLabels(): string[] {
-		return this.getItems().flatMap(entry => entry.label && !entry.showOnlyWhenFiltering ? [entry.label] : []);
+		return this.getItems().flatMap(entry => entry.label ? [entry.label] : []);
 	}
 
 	showsFilter(): boolean {
@@ -7455,7 +7455,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		}, { useFullHeight: true, showFilter: true });
 	});
 
-	test('caps recent workspaces in the unified picker so Remote remains visible', () => {
+	test('shows the full recent list in the unified picker like Open Recent', () => {
 		const storage = disposables.add(new TestStorageService());
 		seedStorage(storage, Array.from({ length: 11 }, (_, index) => ({
 			uri: URI.file(`/local/folder-${index}`),
@@ -7469,11 +7469,10 @@ suite('WorkspacePicker - Tab discovery', () => {
 		const picker = createTestablePicker(disposables, providersService, true, {}, undefined, storage);
 
 		assert.deepStrictEqual(picker.getItemLabels(), [
-			...Array.from({ length: 10 }, (_, index) => `local/folder-${index}`),
+			...Array.from({ length: 11 }, (_, index) => `local/folder-${index}`),
 			'Open Folder...',
 			'Select Remote',
 		]);
-		assert.deepStrictEqual(picker.getItems().filter(entry => entry.showOnlyWhenFiltering).map(entry => entry.label), ['local/folder-10']);
 	});
 
 	test('strips only trailing ellipses from unified browse action labels', () => {
@@ -7614,7 +7613,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		]);
 	});
 
-	test('keeps older session workspaces searchable beyond the ten visible recents', () => {
+	test('includes older session workspaces in the full recent list', () => {
 		const provider = createMockProvider('local');
 		providersService.setProviders([provider]);
 		const recentWorkspaces = Array.from({ length: 12 }, (_, index) => ({
@@ -7624,13 +7623,10 @@ suite('WorkspacePicker - Tab discovery', () => {
 		}));
 		const picker = createTestablePicker(disposables, providersService);
 		picker.setRecentWorkspaces(recentWorkspaces);
-		assert.deepStrictEqual({
-			visible: picker.getItems().filter(entry => !entry.showOnlyWhenFiltering).flatMap(entry => entry.item?.folderUri?.path ?? []),
-			searchable: picker.getItems().flatMap(entry => entry.item?.folderUri?.path ?? []),
-		}, {
-			visible: recentWorkspaces.slice(0, 10).map(({ workspace }) => workspace.uri.path),
-			searchable: recentWorkspaces.map(({ workspace }) => workspace.uri.path),
-		});
+		assert.deepStrictEqual(
+			picker.getItems().flatMap(entry => entry.item?.folderUri?.path ?? []),
+			recentWorkspaces.map(({ workspace }) => workspace.uri.path),
+		);
 	});
 
 	test('keeps unified action dispatch stable when GitHub actions are hidden', async () => {

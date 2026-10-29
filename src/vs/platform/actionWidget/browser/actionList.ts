@@ -164,8 +164,6 @@ export interface IActionListItem<T> {
 	readonly description?: string | IMarkdownString;
 	/** Additional nonvisual text matched by the built-in filter. */
 	readonly filterText?: string;
-	/** Include this item only while the built-in text filter has a nonempty query. */
-	readonly showOnlyWhenFiltering?: boolean;
 	/**
 	 * Optional accessible description used in place of {@link description} for
 	 * screen reader labels. Useful when the visual description contains icons
@@ -1712,9 +1710,6 @@ export class ActionListWidget<T> extends Disposable {
 			flushFilteredSection();
 		} else {
 			for (const item of this._allMenuItems) {
-				if (item.showOnlyWhenFiltering) {
-					continue;
-				}
 				if (item.kind === ActionListItemKind.Header) {
 					visible.push(item);
 					continue;

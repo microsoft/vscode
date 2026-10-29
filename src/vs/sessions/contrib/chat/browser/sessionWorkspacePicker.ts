@@ -95,7 +95,6 @@ export const WORKSPACE_PICKER_LIST_OPTIONS = {
  * selection than leave the user staring at an unreachable workspace.
  */
 const RESTORE_CONNECT_GRACE_MS = 5000;
-const MAX_NEW_PICKER_RECENT_WORKSPACES = 10;
 /**
  * A touch tap fires a Gesture Tap and, shortly after, a browser "ghost" click at the same position.
  * The picker may render under that position before the click arrives, so the click can be retargeted
@@ -1738,7 +1737,7 @@ export class WorkspacePicker extends Disposable {
 		];
 
 		let previousRecentWorkspaceIsRepository: boolean | undefined;
-		for (const [index, { workspace, providerId, repositoryId }] of orderedRecentWorkspaceEntries.entries()) {
+		for (const { workspace, providerId, repositoryId } of orderedRecentWorkspaceEntries) {
 			const folderUri = workspace.folders[0]?.root;
 			if (!folderUri) {
 				continue;
@@ -1774,7 +1773,6 @@ export class WorkspacePicker extends Disposable {
 				: undefined;
 			items.push({
 				kind: ActionListItemKind.Action,
-				showOnlyWhenFiltering: index >= MAX_NEW_PICKER_RECENT_WORKSPACES,
 				label: environmentProvider ? this._getWorkspaceLabel(workspace, environmentProvider.id) : workspace.label,
 				description: workspace.description,
 				group: { title: '', icon },
