@@ -15,9 +15,9 @@ suite('Automation cron validation', () => {
 		'* * * * *', '*/2 * * * *', '0,59 0,23 1,31 1,12 0,7',
 		'0-59/2 0-23/3 * jan-dec mon-fri', '0 0 29 FEB *',
 		'0 0 30 FEB MON', '  0\t9  * * Mon  ', '*/100 * * * *',
-		'15 * * * *', '2,10 4,5 * * *', '30 4-6 * * *', '20/15 * * * *',
-		'0 9/6 * * *', '0 9 5/10 * *', '0 9 5 3/4 *', '0 9 * * 1/2',
-		'0 9 * MAR/3 MON', '0 9 * * 7/2',
+		'15 * * * *', '2,10 4,5 * * *', '30 4-6 * * *', '20-59/15 * * * *',
+		'0 9-23/6 * * *', '0 9 5-31/10 * *', '0 9 5 3-12/4 *',
+		'0 9 * MAR-DEC/3 MON', '0 9 * * 1-6/2', '0 9 * * 7-7/2',
 	]) {
 		test(`accepts ${JSON.stringify(expression)}`, () => {
 			assert.doesNotThrow(() => validateAutomationCron(expression, 'UTC'));
@@ -37,7 +37,12 @@ suite('Automation cron validation', () => {
 		['0,,1 * * * *', /empty list item/], ['0, * * * *', /empty list item/],
 		['*/0 * * * *', /positive integer/], ['*/1.5 * * * *', /positive integer/],
 		['*/2/3 * * * *', /invalid step/], ['20/0 * * * *', /positive integer/],
-		['60/15 * * * *', /Minute value is outside/], ['20/1.5 * * * *', /positive integer/],
+		['60-59/15 * * * *', /Minute value is outside/], ['20/1.5 * * * *', /positive integer/],
+		['20/15 * * * *', /steps require '\*' or a range/], ['0 9/6 * * *', /steps require '\*' or a range/],
+		['0 9 5/10 * *', /steps require '\*' or a range/], ['0 9 5 3/4 *', /steps require '\*' or a range/],
+		['0 9 * * 1/2', /steps require '\*' or a range/], ['0 9 * MAR/3 MON', /steps require '\*' or a range/],
+		['0 9 * * MON/2', /steps require '\*' or a range/], ['0 9 * * 7/2', /steps require '\*' or a range/],
+		['0,20/15 * * * *', /steps require '\*' or a range/],
 		['5-1 * * * *', /ascending/], ['1-2-3 * * * *', /invalid range/],
 		['0 0 30 FEB *', /real calendar date/], ['0 0 * FOO *', /outside/],
 	] as const) {
@@ -62,8 +67,8 @@ suite('Automation cron descriptions', () => {
 		['0 */2 * * *', 'Runs every 2 hours every day.'],
 		['3 3 3 5 7', 'In May, runs at 3:03 AM on day 3 of the month and also on Sunday.'],
 		['3 3 5 5 2', 'In May, runs at 3:03 AM on day 5 of the month and also on Tuesday.'],
-		['20/15 * * * *', 'Runs at minutes 20, 35 and 50 of every hour every day.'],
-		['0 9 * * 1/2', 'Runs at 9:00 AM on Monday, Wednesday and Friday.'],
+		['20-59/15 * * * *', 'Runs at minutes 20, 35 and 50 of every hour every day.'],
+		['0 9 * * 1-6/2', 'Runs at 9:00 AM on Monday, Wednesday and Friday.'],
 		['0 12 * * 0,7,SUN', 'Runs at 12:00 PM on Sunday.'],
 		['30 9 * * MON-FRI', 'Runs at 9:30 AM on Monday through Friday.'],
 		['0 8 1 JAN *', 'In January, runs at 8:00 AM on day 1 of the month.'],
@@ -97,5 +102,6 @@ suite('Automation cron descriptions', () => {
 
 	test('rejects invalid expressions rather than describing guessed schedules', () => {
 		assert.throws(() => describeAutomationCron('0 24 * * *'), /Hour value is outside/);
+		assert.throws(() => describeAutomationCron('20/15 * * * *'), /steps require '\*' or a range/);
 	});
 });

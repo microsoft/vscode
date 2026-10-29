@@ -970,7 +970,15 @@ suite('Automation dialog creation', () => {
 		const pasted = snapshot();
 		inputs[0].value = '20/15';
 		inputs[0].dispatchEvent(new InputEvent('input'));
-		const startingStep = snapshot();
+		const startingStep = {
+			summary: snapshot(),
+			value: inputs[0].value,
+			invalid: inputs[0].getAttribute('aria-invalid'),
+			error: dialog.container.querySelector('.automation-form-cron-error')?.textContent,
+		};
+		inputs[0].value = '20-59/15';
+		inputs[0].dispatchEvent(new InputEvent('input'));
+		const rangeStep = snapshot();
 		inputs[0].value = '7';
 		inputs[0].dispatchEvent(new InputEvent('input'));
 		const edited = snapshot();
@@ -986,10 +994,11 @@ suite('Automation dialog creation', () => {
 		dialog.cancelButton.click();
 		await dialog.result;
 		const hidden = { text: '', visible: false, role: 'status' };
-		assert.deepStrictEqual({ before, empty, pasted, startingStep, edited, invalid, preset, restored }, {
+		assert.deepStrictEqual({ before, empty, pasted, startingStep, rangeStep, edited, invalid, preset, restored }, {
 			before: hidden, empty: hidden,
 			pasted: { text: 'Runs every 5 minutes every day.', visible: true, role: 'status' },
-			startingStep: { text: 'Runs at minutes 20, 35 and 50 of every hour every day.', visible: true, role: 'status' },
+			startingStep: { summary: hidden, value: '20/15', invalid: 'true', error: 'Minute steps require \'*\' or a range: 20/15' },
+			rangeStep: { text: 'Runs at minutes 20, 35 and 50 of every hour every day.', visible: true, role: 'status' },
 			edited: { text: 'Runs at minute 7 of every hour every day.', visible: true, role: 'status' },
 			invalid: hidden, preset: hidden,
 			restored: { text: 'Runs at minute 7 of every hour every day.', visible: true, role: 'status' },
@@ -4100,7 +4109,7 @@ suite('Automation dialog target validation', () => {
 		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
 		const form = DOM.$('form');
 		const saveButton = disposables.add(new Button(form, defaultButtonStyles));
-		const results = ['', '  ', '0 24 * * *', '*/2 * * * *'].map(expression => {
+		const results = ['', '  ', '0 24 * * *', '20/15 * * * *', '20-59/15 * * * *', '*/2 * * * *'].map(expression => {
 			state.cronExpression = expression;
 			updateSaveButtonState(saveButton, state, validation, form, () => 'prompt', () => undefined, service);
 			return { enabled: saveButton.enabled, error: validation.cronError };
@@ -4112,6 +4121,8 @@ suite('Automation dialog target validation', () => {
 			{ enabled: false, error: undefined },
 			{ enabled: false, error: undefined },
 			{ enabled: false, error: 'Hour value is outside 0-23: 24' },
+			{ enabled: false, error: 'Minute steps require \'*\' or a range: 20/15' },
+			{ enabled: true, error: undefined },
 			{ enabled: true, error: undefined },
 			{ enabled: true, error: undefined },
 		]);

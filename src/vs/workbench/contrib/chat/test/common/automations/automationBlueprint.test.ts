@@ -203,6 +203,7 @@ suite('Automation blueprints', () => {
 			'---\nversion: 1\nid: review\nname: Review\nenabled: true\nschedule:\n  kind: manual\n---\nReview.',
 			'---\nversion: 1\nid: review\nname: Review\nschedule:\n  kind: cron\n  expression: "20 * * * * *"\n  timeZone: local\n---\nReview.',
 			'---\nversion: 1\nid: review\nname: Review\nschedule:\n  kind: cron\n  expression: "0 24 * * *"\n  timeZone: local\n---\nReview.',
+			'---\nversion: 1\nid: review\nname: Review\nschedule:\n  kind: cron\n  expression: "20/15 * * * *"\n  timeZone: local\n---\nReview.',
 			'---\nversion: 1\nid: review\nname: Review\nschedule:\n  kind: cron\n  expression: "0 9 * * 1"\n  timeZone: Europe/Berlin\n---\nReview.',
 		];
 
@@ -221,6 +222,7 @@ suite('Automation blueprints', () => {
 			{ code: 'unknownProperty', property: 'enabled' },
 			{ code: 'unsupportedSchedule', property: '20 * * * * *' },
 			{ code: 'unsupportedSchedule', property: '0 24 * * *' },
+			{ code: 'unsupportedSchedule', property: '20/15 * * * *' },
 			{ code: 'unsupportedTimeZone', property: 'Europe/Berlin' },
 		]);
 	});

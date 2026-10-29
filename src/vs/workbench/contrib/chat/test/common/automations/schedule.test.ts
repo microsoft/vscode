@@ -12,8 +12,8 @@ suite('Automation cron input validation', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('keeps empty input neutral and reports the host validation message', () => {
-		assert.deepStrictEqual(['', '   ', '*/2 * * * *', '0 24 * * *'].map(expression => getAutomationCronValidationError(expression, 'UTC')), [
-			undefined, undefined, undefined, 'Hour value is outside 0-23: 24',
+		assert.deepStrictEqual(['', '   ', '*/2 * * * *', '0 24 * * *', '20/15 * * * *', '20-59/15 * * * *'].map(expression => getAutomationCronValidationError(expression, 'UTC')), [
+			undefined, undefined, undefined, 'Hour value is outside 0-23: 24', 'Minute steps require \'*\' or a range: 20/15', undefined,
 		]);
 	});
 });

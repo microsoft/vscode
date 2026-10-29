@@ -1483,7 +1483,7 @@ suite('AgentHostAutomationStore', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
 		const schedule = {
-			interval: 'cron' as const, cronExpression: '20/15 * * * MON-FRI', cronTimeZone: 'Europe/Berlin',
+			interval: 'cron' as const, cronExpression: '20-59/15 * * * MON-FRI', cronTimeZone: 'Europe/Berlin',
 			scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0,
 		};
 		const created = await store.createAutomation({

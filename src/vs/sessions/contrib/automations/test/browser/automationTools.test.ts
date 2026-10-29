@@ -1130,7 +1130,7 @@ suite('AutomationTools', () => {
 	test('configureAutomation validates cron schedules with the host parser', async () => {
 		const service = new FakeAutomationService();
 		const tool = createConfigureAutomationTool(service, new FakeSessionsManagementService(createSession({ quickChat: true }), true), createConfigurationService());
-		const expressions = ['*/2 * * * *', '20/15 * * * *'];
+		const expressions = ['*/2 * * * *', '20-59/15 * * * *'];
 		const statuses = [];
 		for (const cronExpression of expressions) {
 			const valid = await invoke(tool, {
@@ -1178,6 +1178,22 @@ suite('AutomationTools', () => {
 			{ status: 'updated', patch: { schedule: { ...schedule, cronTimeZone: 'UTC' } } },
 			{ status: 'updated', patch: { schedule: { interval: 'daily', scheduleHour: 8, scheduleMinute: 0, scheduleDay: 0 } } },
 		]);
+	});
+
+	test('configureAutomation rejects starting-value steps before approval or mutation', async () => {
+		const existing = createAutomation();
+		const service = new FakeAutomationService([existing]);
+		const tool = createConfigureAutomationTool(service, new FakeSessionsManagementService(createSession({ quickChat: true }), true), createConfigurationService());
+		const results = [];
+		for (const identity of [{ name: 'Cron', prompt: 'Review changes' }, { automationId: existing.id }]) {
+			const parameters = { ...identity, schedule: { interval: 'cron', cronExpression: '20/15 * * * *' } };
+			const result = await invoke(tool, parameters, CHAT_RESOURCE);
+			results.push({ error: !!result.toolResultError, message: getText(result).includes('steps require \'*\' or a range') });
+			await assert.rejects(tool.prepareToolInvocation({ toolCallId: 'cron-starting-step', parameters, chatSessionResource: SESSION_RESOURCE }, CancellationToken.None), /steps require '\*' or a range/);
+		}
+		assert.deepStrictEqual({ results, creates: service.created, updates: service.updated }, {
+			results: [{ error: true, message: true }, { error: true, message: true }], creates: [], updates: [],
+		});
 	});
 
 	test('configureAutomation rejects missing cron expressions and invalid time zones without mutation', async () => {
