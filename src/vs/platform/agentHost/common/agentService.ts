@@ -250,6 +250,14 @@ export const AgentHostClaudeSdkRootEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_ROOT';
 export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT_ENABLED';
 
 /**
+ * Environment variable form of `chat.agentHost.multipleChatProviders.enabled`, set by the local agent host starters
+ * only when the setting is on (`'true'`). The host seeds its root `multipleChatProviders.enabled` from it before its
+ * first handshake, so the first `initialize` can already advertise `multipleChatProviders`. The renderer's mirror of
+ * the setting stays authoritative afterwards. Not a control of its own: a mirror of the existing setting.
+ */
+export const AgentHostMultipleChatProvidersEnabledEnvVar = 'VSCODE_AGENT_HOST_MULTIPLE_CHAT_PROVIDERS_ENABLED';
+
+/**
  * Environment variable form of {@link AgentHostCodexAgentEnabledSettingId}.
  * Set by the agent host starters from the setting. Accepts `'true'` /
  * `'false'`; absent uses the host-level fallback (`false`), independently of
@@ -263,6 +271,9 @@ export const AgentHostSessionResidencyLimitEnvVar = 'VSCODE_AGENT_HOST_SESSION_R
 
 /** Overrides the retry delay after a provider temporarily vetoes session release. Primarily used by integration tests. */
 export const AgentHostSessionReleaseRetryMsEnvVar = 'VSCODE_AGENT_HOST_SESSION_RELEASE_RETRY_MS';
+
+/** Overrides how long a changeset read waits for the file snapshots of a running Codex turn. Primarily used by integration tests. */
+export const AgentHostCodexTurnEditsWaitMsEnvVar = 'VSCODE_AGENT_HOST_CODEX_TURN_EDITS_WAIT_MS';
 
 /**
  * Resolves the effective enable state for a Claude/Codex provider from the
@@ -728,6 +739,8 @@ export interface IAgentSdkStarterSettings {
 	readonly codexBinaryArgs?: readonly string[];
 	readonly claudeAgentEnabled?: boolean;
 	readonly codexAgentEnabled?: boolean;
+	/** `chat.agentHost.multipleChatProviders.enabled`; forwarded only when on, so with it off the env is unchanged. */
+	readonly multipleChatProvidersEnabled?: boolean;
 }
 
 export function buildAgentSdkEnv(
@@ -751,6 +764,9 @@ export function buildAgentSdkEnv(
 	}
 	if (settings.codexAgentEnabled !== undefined) {
 		setIfMissing(AgentHostCodexAgentEnabledEnvVar, settings.codexAgentEnabled ? 'true' : 'false');
+	}
+	if (settings.multipleChatProvidersEnabled === true) {
+		setIfMissing(AgentHostMultipleChatProvidersEnabledEnvVar, 'true');
 	}
 	return out;
 }
@@ -1236,6 +1252,8 @@ export interface IAgentService {
 	readonly onDidNotification: Event<INotification>;
 
 	readonly automationCapabilities: AutomationCapabilities | undefined;
+	/** Whether chats of one session may use different agents (the `multipleChatProviders.enabled` host setting). */
+	readonly multipleChatProvidersEnabled?: boolean;
 	listAutomationTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult>;
 	runAutomation(params: RunAutomationParams): Promise<RunAutomationResult>;
 	fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult>;

@@ -28,7 +28,7 @@ import { getSessionReferenceResource } from './sessionReference.js';
 import { IChatDeletedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IManagedSessionWorktree, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, IPreparedNewSession, NestedChatWorkspaceError, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionCreationTarget, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
-import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot } from '../common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot, getChatHarness } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -723,12 +723,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// `forceNew` skips reuse so callers can reset the composer right after
 		// sending a chat (which may still transiently report `Untitled`).
 		if (!options?.forceNew) {
-			const existingUntitled = session.chats.get().find(c => c.status.get() === SessionStatus.Untitled);
+			// Reuse only a draft using the requested harness; a different harness needs a chat of its own.
+			const requestedHarness = options?.harness ?? session.harness;
+			const existingUntitled = session.chats.get().find(c => c.status.get() === SessionStatus.Untitled && getChatHarness(session, c) === requestedHarness);
 			if (existingUntitled) {
 				return existingUntitled;
 			}
 		}
-		const created = await provider.createNewChat(session.sessionId);
+		const created = await provider.createNewChat(session.sessionId, undefined, options);
 		return created;
 	}
 
@@ -1470,7 +1472,25 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async markAllRead(sessions: readonly ISession[]): Promise<void> {
-		await Promise.all(sessions.map(session => this.setSessionReadState(session, true)));
+		// Hand each provider its sessions in one call so it can publish a single
+		// change instead of one per session, which listeners answer with a full refresh.
+		const byProvider = new Map<ISessionsProvider, string[]>();
+		for (const session of sessions) {
+			this._explicitlyMarkedUnreadChats.delete(session.resource);
+			const provider = this._getProvider(session);
+			if (!provider) {
+				continue;
+			}
+			const sessionIds = byProvider.get(provider);
+			if (sessionIds) {
+				sessionIds.push(session.sessionId);
+			} else {
+				byProvider.set(provider, [session.sessionId]);
+			}
+		}
+		await Promise.all(Array.from(byProvider, ([provider, sessionIds]) => provider.setSessionsReadState
+			? provider.setSessionsReadState(sessionIds, true)
+			: Promise.all(sessionIds.map(sessionId => provider.setSessionReadState(sessionId, true)))));
 	}
 
 	async deleteSession(session: ISession): Promise<void> {

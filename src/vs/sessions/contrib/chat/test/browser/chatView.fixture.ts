@@ -14,14 +14,17 @@ import { createSessionComparisonJudgePrompt } from '../../../../../platform/agen
 import { buildAgentMergePrompt } from '../../../../../platform/agentHost/common/agentMergePrompt.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, ChatPillsRow, ChatPillsWidget } from '../../../../../workbench/browser/chatPills.js';
 import { ForkConversationActionId } from '../../../../../workbench/contrib/chat/browser/actions/chatForkActions.js';
 import { RestoreCheckpointActionId } from '../../../../../workbench/contrib/chat/browser/chatEditing/chatEditingActions.js';
 import { systemNotificationToChatPart } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { ChatInputPart } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
+import { ChatProgressAnimation } from '../../../../../workbench/contrib/chat/common/constants.js';
 import type { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import type { IChatWidgetFixtureOptions } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import type { IChatWidgetFixtureHandle, IChatWidgetFixtureOptions } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
+import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { getSessionChatItemHorizontalPadding } from '../../browser/chatView.js';
@@ -167,6 +170,25 @@ async function renderPhoneChatComposer(context: ComponentFixtureContext): Promis
 	}
 }
 
+function renderStatusPills(inputPart: ChatInputPart, instantiationService: IInstantiationService, disposableStore: DisposableStore): void {
+	const row = disposableStore.add(new ChatPillsRow('ChatView.fixture', {
+		compact: 'auto',
+		targetWindow: dom.getWindow(inputPart.element),
+	}));
+	const pills = disposableStore.add(instantiationService.createInstance(ChatPillsWidget, {
+		pills: constObservable([
+			{ action: toAction({ id: 'fixture.mode', label: 'Interactive', class: ThemeIcon.asClassName(Codicon.commentDiscussion), run: () => { } }) },
+			{ action: toAction({ id: 'fixture.permissions', label: 'Default Permissions', class: ThemeIcon.asClassName(Codicon.shield), run: () => { } }) },
+		]),
+	}, { ariaLabel: 'Session status' }));
+	const persistentContent = inputPart.persistentContentContainerElement;
+	persistentContent.appendChild(row.element);
+	persistentContent.classList.add('chat-persistent-content-visible');
+	row.content.appendChild(pills.element);
+	row.observe(persistentContent);
+	row.observe(pills.element, () => pills.getPillElements());
+}
+
 async function renderAssistantResponse(context: ComponentFixtureContext, withBackground: boolean): Promise<void> {
 	const { disposableStore } = context;
 	await renderChatView(context, withBackground, {
@@ -174,25 +196,50 @@ async function renderAssistantResponse(context: ComponentFixtureContext, withBac
 			user: 'Show how assistant responses read over a custom background.',
 			assistant: [{ kind: 'markdown', text: assistantResponse }],
 		}],
-		decorateInputPart: (inputPart, instantiationService) => {
-			const row = disposableStore.add(new ChatPillsRow('ChatView.fixture', {
-				compact: 'auto',
-				targetWindow: dom.getWindow(inputPart.element),
-			}));
-			const pills = disposableStore.add(instantiationService.createInstance(ChatPillsWidget, {
-				pills: constObservable([
-					{ action: toAction({ id: 'fixture.mode', label: 'Interactive', class: ThemeIcon.asClassName(Codicon.commentDiscussion), run: () => { } }) },
-					{ action: toAction({ id: 'fixture.permissions', label: 'Default Permissions', class: ThemeIcon.asClassName(Codicon.shield), run: () => { } }) },
-				]),
-			}, { ariaLabel: 'Session status' }));
-			const persistentContent = inputPart.persistentContentContainerElement;
-			persistentContent.appendChild(row.element);
-			persistentContent.classList.add('chat-persistent-content-visible');
-			row.content.appendChild(pills.element);
-			row.observe(persistentContent);
-			row.observe(pills.element, () => pills.getPillElements());
-		},
+		decorateInputPart: (inputPart, instantiationService) => renderStatusPills(inputPart, instantiationService, disposableStore),
 	});
+}
+
+async function renderStickyProgress(context: ComponentFixtureContext, options: { pills?: boolean; inline?: boolean; background?: boolean }): Promise<void> {
+	let handle: IChatWidgetFixtureHandle | undefined;
+	await renderChatView(context, !!options.background, {
+		height: 540,
+		stickyProgress: true,
+		persistentProgress: ChatProgressAnimation.Draw,
+		thinkingPhrases: ['Working'],
+		messages: [{
+			user: 'Review the earlier implementation while the agent keeps working.',
+			assistant: [{ kind: 'markdown', text: stickyAssistantResponse }],
+		}, {
+			user: 'Check the remaining work and keep me updated.',
+			assistant: [{ kind: 'markdown', text: 'I am checking the remaining changes and their tests.' }],
+			responseComplete: false,
+		}],
+		decorateInputPart: options.pills ? (inputPart, instantiationService) => renderStatusPills(inputPart, instantiationService, context.disposableStore) : undefined,
+		onRendered: value => handle = value,
+	});
+	if (!handle) {
+		throw new Error('Sticky progress fixture did not create the chat');
+	}
+	const { listWidget } = handle;
+	let previousHeight = -1;
+	await waitForFixtureCondition(() => {
+		const height = listWidget.scrollHeight;
+		const settled = height === previousHeight && height > listWidget.renderHeight;
+		previousHeight = height;
+		return settled;
+	}, 'Sticky progress fixture transcript did not settle');
+	if (options.inline) {
+		listWidget.scrollToEnd();
+	} else {
+		listWidget.scrollTop = 0;
+	}
+	await waitForFixtureCondition(() => {
+		const progress = context.container.querySelector<HTMLElement>('.chat-working-progress');
+		const host = progress?.parentElement;
+		return !!progress && progress.getBoundingClientRect().height > 0
+			&& !!host?.classList.contains(options.inline ? 'chat-working-progress-anchor' : 'chat-sticky-progress');
+	}, 'Sticky progress fixture did not reach its requested position');
 }
 
 async function renderStickyBackgroundContinuity(context: ComponentFixtureContext): Promise<void> {
@@ -381,6 +428,31 @@ async function renderCheckpointControlsBackground(context: ComponentFixtureConte
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
+	StickyProgressWithPills: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		render: context => renderStickyProgress(context, { pills: true }),
+	}),
+	StickyProgressWithoutPills: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		render: context => renderStickyProgress(context, {}),
+	}),
+	StickyProgressInline: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		render: context => renderStickyProgress(context, { pills: true, inline: true }),
+	}),
+	StickyProgressWithBackground: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		render: context => renderStickyProgress(context, { pills: true, background: true }),
+	}),
 	ComparisonJudgeInstructions: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],

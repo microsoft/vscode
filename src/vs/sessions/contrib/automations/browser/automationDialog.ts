@@ -2632,10 +2632,6 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		});
 	}
 
-	protected override _showTabs(): boolean {
-		return false;
-	}
-
 	protected override _buildListOptions(items: readonly IActionListItem<IWorkspacePickerItem>[], pickerWidth: number | undefined): IActionListOptions {
 		const options = super._buildListOptions(items, pickerWidth);
 		return this.cloudMode?.get() ? {

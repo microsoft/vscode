@@ -21,7 +21,7 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionType, SessionStatus } from '../../../services/sessions/common/session.js';
+import { getChatHarness, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionType, SessionStatus } from '../../../services/sessions/common/session.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -120,6 +120,17 @@ export interface ISessionTypePickerOptions {
 	};
 	/** Restricts new-session choices to the provider selected by the creation destination. */
 	readonly providerId?: IObservable<string | undefined>;
+	/**
+	 * Picks the harness of a new peer chat of the active session instead of a new session's type.
+	 * While `chat` is set and the session offers more than one of its `supportsChatHarnesses`, the
+	 * picker offers those harnesses' session types and shows `chat`'s harness; otherwise it stays
+	 * hidden. A pick is never persisted; it is handed to `selectHarness`.
+	 */
+	readonly peerChat?: {
+		/** The session's unsent peer chat whose harness is picked, or `undefined` when there is none. */
+		readonly chat: IObservable<IChat | undefined>;
+		readonly selectHarness: (harness: string) => Promise<void>;
+	};
 }
 
 /**
@@ -177,6 +188,11 @@ export class SessionTypePicker extends Disposable {
 
 	/** Session types the active session's folder can be served by, across all providers. */
 	protected _folderSessionTypes: IProviderSessionType[] = [];
+	/**
+	 * Peer-chat mode: the harness behind each offered session type. Filled whenever the offered types are
+	 * resolved (see {@link _resolvePeerChatSessionTypes}), so readers run after a resolve, as `_folderSessionTypes`'.
+	 */
+	private readonly _peerChatHarnesses = new Map<string, string>();
 
 	/** Folder that drives the available session types when set via {@link setFolderSource}; `undefined` keeps session-driven behavior. */
 	private _folderSource: IObservable<URI | undefined> | undefined;
@@ -222,7 +238,11 @@ export class SessionTypePicker extends Disposable {
 		this._picked = this._readStoredPick();
 
 		this._register(autorun(reader => {
-			this._session.read(reader);
+			const session = this._session.read(reader);
+			if (this._options?.peerChat) {
+				this._options.peerChat.chat.read(reader);
+				session?.capabilities.read(reader);
+			}
 			this._options?.providerId?.read(reader);
 			this._options?.allowedProviders?.read(reader);
 			this._options?.presentation?.read(reader);
@@ -276,6 +296,10 @@ export class SessionTypePicker extends Disposable {
 	}
 
 	private _resolveUnfilteredSessionTypes(): IProviderSessionType[] {
+		const peerChatTypes = this._resolvePeerChatSessionTypes();
+		if (peerChatTypes) {
+			return peerChatTypes;
+		}
 		const providerId = this._options?.providerId?.get();
 		if (providerId) {
 			const provider = this.sessionsProvidersService.getProvider(providerId);
@@ -314,9 +338,42 @@ export class SessionTypePicker extends Disposable {
 		return session ? this._sessionTypesForSession(session) : [];
 	}
 
+	/**
+	 * Peer-chat mode: the session types of the harnesses the active session offers its peer chat,
+	 * or `undefined` when choosing one does not apply (the picker then resolves as without the mode, hidden).
+	 */
+	private _resolvePeerChatSessionTypes(): IProviderSessionType[] | undefined {
+		this._peerChatHarnesses.clear();
+		const session = this._session.get();
+		const chat = this._options?.peerChat?.chat.get();
+		if (!session || !chat) {
+			return undefined;
+		}
+		const provider = this.sessionsProvidersService.getProvider(session.providerId);
+		const types: IProviderSessionType[] = [];
+		for (const harness of session.capabilities.get().supportsChatHarnesses ?? []) {
+			const sessionType = provider?.getHarnessSessionType?.(harness);
+			if (sessionType && !this._peerChatHarnesses.has(sessionType.id)) {
+				this._peerChatHarnesses.set(sessionType.id, harness);
+				types.push({ providerId: session.providerId, sessionType });
+			}
+		}
+		if (types.length < 2) {
+			this._peerChatHarnesses.clear();
+			return undefined;
+		}
+		return types;
+	}
+
 	/** The pick to display for the current source: the active session's type, otherwise the folder or stored default. */
 	protected _computeCurrentPick(): IPreferredSessionType | undefined {
 		const session = this._session.get();
+		const peerChat = this._options?.peerChat?.chat.get();
+		if (session && peerChat && this._peerChatHarnesses.size > 0) {
+			const harness = getChatHarness(session, peerChat);
+			const sessionTypeId = [...this._peerChatHarnesses].find(([, candidate]) => candidate === harness)?.[0];
+			return sessionTypeId ? { providerId: session.providerId, sessionTypeId } : undefined;
+		}
 		if (this._pendingExplicitPick) {
 			if (!this._pickServedByFolder(this._pendingExplicitPick)) {
 				this._pendingExplicitPick = undefined;
@@ -587,7 +644,7 @@ export class SessionTypePicker extends Disposable {
 		this._updateModelTargetChatSessionType();
 
 		const additionalAction = this._getVisibleAdditionalAction();
-		if (folderTypes.length <= 1 && this._pickServedByFolder(this._picked) && !additionalAction) {
+		if (this._isHiddenPeerChatPicker() || (folderTypes.length <= 1 && this._pickServedByFolder(this._picked) && !additionalAction)) {
 			return;
 		}
 
@@ -709,10 +766,15 @@ export class SessionTypePicker extends Disposable {
 				getAriaLabel: (element) => element.item?.kind === 'sessionType' && element.item.groupLabel
 					? localize('sessionTypePicker.itemAriaLabel', "{0}, {1}", element.label ?? '', element.item.groupLabel)
 					: (element.label ?? ''),
-				getWidgetAriaLabel: () => localize('sessionTypePicker.ariaLabel', "Session Type"),
+				getWidgetAriaLabel: () => this._options?.peerChat ? localize('sessionTypePicker.peerChatAriaLabel', "Harness for New Chat") : localize('sessionTypePicker.ariaLabel', "Session Type"),
 			},
 			{ className: 'sessions-new-chat-picker-list', minWidth: 200 },
 		);
+	}
+
+	/** Peer-chat mode while choosing a peer chat's harness does not apply: the picker stays hidden. */
+	protected _isHiddenPeerChatPicker(): boolean {
+		return !!this._options?.peerChat && this._peerChatHarnesses.size === 0;
 	}
 
 	protected _getVisibleAdditionalAction(): NonNullable<ISessionTypePickerOptions['additionalAction']> | undefined {
@@ -757,7 +819,8 @@ export class SessionTypePicker extends Disposable {
 			return;
 		}
 		this._pendingInitialPick = undefined;
-		const stored = this._readStoredPick();
+		const peerChatHarness = this._options?.peerChat ? this._peerChatHarnesses.get(pick.sessionTypeId) : undefined;
+		const stored = this._options?.peerChat ? undefined : this._readStoredPick();
 		const beforeId = stored?.sessionTypeId ?? this._picked?.sessionTypeId;
 		const beforeLabel = this._folderSessionTypes.find(t => t.sessionType.id === beforeId)?.sessionType.label;
 		const afterLabel = this._folderSessionTypes.find(t => t.providerId === pick.providerId && t.sessionType.id === pick.sessionTypeId)?.sessionType.label;
@@ -788,7 +851,7 @@ export class SessionTypePicker extends Disposable {
 			this._hasResolvedFolderPick = true;
 		}
 		this._updateModelTargetChatSessionType();
-		if (this._options?.persistSelection !== false) {
+		if (this._options?.persistSelection !== false && !this._options?.peerChat) {
 			if (isDefault) {
 				this._clearStoredPick();
 			} else {
@@ -802,6 +865,14 @@ export class SessionTypePicker extends Disposable {
 		if (visiblePickChanged) {
 			this._onDidSelectSessionType.fire(pick);
 			this._onDidChangeSelectedPick.fire(this._picked);
+			if (peerChatHarness) {
+				// The peer chat's harness is the source of truth: show it again once it is switched (or not).
+				this._options!.peerChat!.selectHarness(peerChatHarness).finally(() => {
+					if (!this._store.isDisposed) {
+						this._recompute();
+					}
+				});
+			}
 		}
 	}
 
@@ -872,7 +943,7 @@ export class SessionTypePicker extends Disposable {
 		this._triggerSlot?.toggleAttribute('hidden', this._folderSessionTypes.length === 0);
 		dom.clearNode(this._triggerElement);
 
-		if (this._folderSessionTypes.length === 0) {
+		if (this._folderSessionTypes.length === 0 || this._isHiddenPeerChatPicker()) {
 			this._triggerElement.classList.add('hidden');
 			this._triggerSlot?.classList.remove('disabled');
 			this._isVisible.set(false, undefined);
@@ -902,8 +973,10 @@ export class SessionTypePicker extends Disposable {
 			chevron.classList.add('sessions-chat-dropdown-chevron');
 		}
 
-		this._triggerElement.ariaLabel = disabled
-			? localize('sessionTypePicker.disabledTriggerAriaLabel', "Session Type, {0}", modeLabel)
-			: localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
+		this._triggerElement.ariaLabel = this._options?.peerChat
+			? localize('sessionTypePicker.peerChatTriggerAriaLabel', "Pick Harness for New Chat, {0}", modeLabel)
+			: disabled
+				? localize('sessionTypePicker.disabledTriggerAriaLabel', "Session Type, {0}", modeLabel)
+				: localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
 	}
 }

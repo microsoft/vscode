@@ -111,6 +111,7 @@ suite('AgentHostUtilityModelService', () => {
 		});
 		const providerService = new class extends mock<IAgentHostProviderService>() {
 			override getProviderForSession() { return agent; }
+			override getProviderForChat() { return agent; }
 		}();
 		const authenticationService = scenario.authenticationService ?? disposables.add(new class extends AgentHostAuthenticationService {
 			override getSessionCredentialSource(resource: string) {

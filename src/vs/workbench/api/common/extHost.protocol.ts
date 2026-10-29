@@ -2443,6 +2443,7 @@ export interface ExtHostChatArtifactIntegrationsShape {
 	$disposeIntegration(handle: number): void;
 	$acquireDetails(resourceHandle: number, detailsHandle: number, detailsId: string): Promise<{ readonly details: ArtifactDetails; readonly canLoadMore: boolean }>;
 	$loadMoreDetails(detailsHandle: number, token: CancellationToken): Promise<void>;
+	$runItemAction(detailsHandle: number, itemId: string, actionId: string, token: CancellationToken): Promise<void>;
 	$disposeDetails(detailsHandle: number): void;
 	$prepareAction(handle: number, actionId: string, context: ChatArtifactActionContextDto, token: CancellationToken): Promise<{ readonly kind: 'ready' } | { readonly kind: 'skip'; readonly reason: string }>;
 	$runAction(handle: number, actionId: string, context: ChatArtifactActionContextDto, token: CancellationToken): Promise<ChatArtifactActionResultDto | undefined>;

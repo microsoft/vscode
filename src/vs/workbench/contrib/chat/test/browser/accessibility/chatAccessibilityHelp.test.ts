@@ -15,6 +15,29 @@ import { isResponseSelectionSupported } from '../../../browser/chat.js';
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents the file chooser on chat surfaces with Add Context', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('editsView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
+		].map(help => help.includes('choose Files')
+			&& help.includes('<keybinding:workbench.action.chat.attachContext>')
+			&& help.includes('checkboxes or Space to select items')
+			&& help.includes('Closing the dialog returns focus to the chat input')), [true, true, true, true, true, true]);
+	});
+
+	test('explains source labels for same-named Agent Host agents', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
+		].map(help => help.includes('each entry includes its source') && help.includes('file name or location')), [true, true, false, false]);
+	});
+
 	test('documents optional Agent placement in Add Context only on editor chat surfaces', () => {
 		assert.deepStrictEqual([
 			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
@@ -55,6 +78,19 @@ suite('Chat Accessibility Help', () => {
 			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
 			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
 		].map(help => help.includes('/btw followed by a question') && help.includes('while a response is in progress')), [true, true, true, true, false, false]);
+	});
+
+	test('documents terminal command descriptions and Explain wherever side chats are documented', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('editsView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
+		].map(help => help.includes('the confirmation title includes that description, such as Run in terminal: followed by the description')
+			&& help.includes('use Tab to reach Explain')
+			&& help.includes('The confirmation stays pending until you allow or skip it')), [true, true, true, true, false, false]);
 	});
 
 	test('documents private early preparation and the pending Send handoff', () => {

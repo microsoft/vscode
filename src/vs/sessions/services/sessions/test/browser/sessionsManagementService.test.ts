@@ -52,7 +52,7 @@ import { TestLifecycleService } from '../../../../../workbench/test/common/workb
 import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IChatMovedEvent, ISessionChatMoveDestination, type IForkChatOptions, type INestedChatWorkspace, NestedChatWorkspaceError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
+import { IChatMovedEvent, ISessionChatMoveDestination, type IForkChatOptions, type INestedChatWorkspace, NestedChatWorkspaceError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, type ICreateNewChatOptions } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { VisibleSessions } from '../../browser/visibleSessions.js';
 import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
@@ -2605,6 +2605,40 @@ suite('SessionsManagementService', () => {
 				{ readBeforeActive, readWhileActive: session.isRead.get(), activeId: view.activeSession.get()?.sessionId, readChanges },
 				{ readBeforeActive: false, readWhileActive: false, activeId: 'unread', readChanges: [] },
 			);
+		});
+
+		test('markAllRead hands each provider its sessions in one call', async () => {
+			const batched1 = stubSession({ sessionId: 'b1', providerId: 'batched' });
+			const batched2 = stubSession({ sessionId: 'b2', providerId: 'batched' });
+			const single1 = stubSession({ sessionId: 's1', providerId: 'single' });
+			const single2 = stubSession({ sessionId: 's2', providerId: 'single' });
+			const calls: string[] = [];
+			const batched = new class extends TestSessionsProvider {
+				override readonly id = 'batched';
+				override getSessions(): ISession[] { return [batched1, batched2]; }
+				override async setSessionReadState(sessionId: string, isRead: boolean): Promise<void> {
+					calls.push(`batched one ${sessionId} ${isRead}`);
+				}
+				override async setSessionsReadState(sessionIds: readonly string[], isRead: boolean): Promise<void> {
+					calls.push(`batched all ${sessionIds.join(',')} ${isRead}`);
+				}
+			}(batched1);
+			const single = new class extends TestSessionsProvider {
+				override readonly id = 'single';
+				override getSessions(): ISession[] { return [single1, single2]; }
+				override async setSessionReadState(sessionId: string, isRead: boolean): Promise<void> {
+					calls.push(`single one ${sessionId} ${isRead}`);
+				}
+			}(single1);
+			const { service } = createSessionsManagementService(batched1, disposables, [batched, single]);
+
+			await service.markAllRead([batched1, single1, batched2, single2]);
+
+			assert.deepStrictEqual(calls, [
+				'batched all b1,b2 true',
+				'single one s1 true',
+				'single one s2 true',
+			]);
 		});
 
 		test('preserves an explicit unread active single chat until the chat advances', async () => {
@@ -7591,6 +7625,63 @@ suite('SessionsManagementService', () => {
 			}, {
 				reused: true,
 				createNewChatCalls: 0,
+			});
+		});
+
+		test('without a harness, reuses only a draft of the main harness and creates a chat of the main harness', async () => {
+			const otherDraft: IChat = { ...stubChat, resource: URI.parse('test:///other-draft'), harness: 'other', status: constObservable(SessionStatus.Untitled) };
+			const createdChat: IChat = { ...stubChat, resource: URI.parse('test:///created') };
+			const session = stubSession({ sessionId: 'main-harness-reuse', providerId: 'test', harness: 'main', chats: constObservable([otherDraft]) });
+			const requests: (ICreateNewChatOptions | undefined)[] = [];
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(session); }
+				override async createNewChat(_sessionId?: string, _prompt?: string, options?: ICreateNewChatOptions): Promise<IChat> {
+					requests.push(options);
+					return createdChat;
+				}
+			};
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			// The New Chat action passes no options; the composer resets with `forceNew` after a background send.
+			const fromAction = await service.createNewChatInSession(session);
+			const afterSend = await service.createNewChatInSession(session, { forceNew: true });
+
+			assert.deepStrictEqual({
+				fromAction: fromAction?.resource.toString(),
+				afterSend: afterSend?.resource.toString(),
+				requestedHarnesses: requests.map(options => options?.harness),
+			}, {
+				fromAction: createdChat.resource.toString(),
+				afterSend: createdChat.resource.toString(),
+				requestedHarnesses: [undefined, undefined],
+			});
+		});
+
+		test('reuses an untitled chat only when it uses the requested harness', async () => {
+			const untitledChat: IChat = { ...stubChat, resource: URI.parse('test:///untitled'), status: constObservable(SessionStatus.Untitled) };
+			const createdChat: IChat = { ...stubChat, resource: URI.parse('test:///created'), harness: 'other' };
+			const session = stubSession({ sessionId: 'harness-reuse', providerId: 'test', harness: 'main', chats: constObservable([untitledChat]) });
+			const requests: (string | undefined)[] = [];
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(session); }
+				override async createNewChat(_sessionId?: string, _prompt?: string, options?: ICreateNewChatOptions): Promise<IChat> {
+					requests.push(options?.harness);
+					return createdChat;
+				}
+			};
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			const sameHarness = await service.createNewChatInSession(session, { harness: 'main' });
+			const otherHarness = await service.createNewChatInSession(session, { harness: 'other' });
+
+			assert.deepStrictEqual({
+				sameHarnessReused: sameHarness === untitledChat,
+				otherHarness: otherHarness?.resource.toString(),
+				requests,
+			}, {
+				sameHarnessReused: true,
+				otherHarness: createdChat.resource.toString(),
+				requests: ['other'],
 			});
 		});
 
