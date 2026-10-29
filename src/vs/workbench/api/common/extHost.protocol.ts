@@ -2758,6 +2758,12 @@ export interface ExtHostFileSystemEventServiceShape {
 	$onFileEvent(events: FileSystemEvents): void;
 	$onWillRunFileOperation(operation: files.FileOperation, files: readonly SourceTargetPair[], timeout: number, token: CancellationToken): Promise<IWillRunFileOperationParticipation | undefined>;
 	$onDidRunFileOperation(operation: files.FileOperation, files: readonly SourceTargetPair[]): void;
+	/**
+	 * Accepts the patterns that the workspace watcher additionally excludes for
+	 * a workspace folder because of `files.watcherExcludeGitIgnore`, relative
+	 * to that folder. An empty array means that nothing is excluded.
+	 */
+	$acceptGitIgnoreWatcherExcludes(folder: UriComponents, excludes: readonly string[]): void;
 }
 
 export interface ExtHostLanguagesShape {

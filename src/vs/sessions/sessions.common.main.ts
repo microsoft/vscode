@@ -112,6 +112,7 @@ import '../workbench/services/workingCopy/common/workingCopyService.js';
 import '../workbench/services/workingCopy/common/workingCopyFileService.js';
 import '../workbench/services/workingCopy/common/workingCopyEditorService.js';
 import '../workbench/services/filesConfiguration/common/filesConfigurationService.js';
+import '../workbench/services/files/common/gitIgnoreWatcherExcludesService.js';
 import '../workbench/services/views/browser/viewDescriptorService.js';
 import '../workbench/services/views/browser/viewsService.js';
 import '../workbench/services/quickinput/browser/quickInputService.js';

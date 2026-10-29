@@ -24,6 +24,10 @@ import { IEnvironmentService } from '../../../platform/environment/common/enviro
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { reviveWorkspaceEditDto } from './mainThreadBulkEdits.js';
 import { UriComponents, URI } from '../../../base/common/uri.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { equals } from '../../../base/common/arrays.js';
+import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
+import { IGitIgnoreWatcherExcludesService } from '../../services/files/common/gitIgnoreWatcherExcludesService.js';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystemEventService)
 export class MainThreadFileSystemEventService implements MainThreadFileSystemEventServiceShape {
@@ -34,6 +38,9 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 
 	private readonly _listener = new DisposableStore();
 	private readonly _watches = new DisposableMap<number>();
+	private readonly _watchRequests = new Map<number /* session */, number /* request */>();
+	private _watchRequestCounter = 0;
+	private readonly _sentGitIgnoreWatcherExcludes: ResourceMap<readonly string[]>;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -47,8 +54,11 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 		@IEnvironmentService envService: IEnvironmentService,
 		@IUriIdentityService uriIdentService: IUriIdentityService,
 		@ILogService private readonly _logService: ILogService,
+		@IGitIgnoreWatcherExcludesService private readonly _gitIgnoreWatcherExcludesService: IGitIgnoreWatcherExcludesService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
+		this._sentGitIgnoreWatcherExcludes = new ResourceMap(resource => uriIdentService.extUri.getComparisonKey(resource));
 
 		this._listener.add(_fileService.onDidFilesChange(event => {
 			this._proxy.$onFileEvent({
@@ -205,10 +215,37 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 
 		// AFTER file operation
 		this._listener.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => this._proxy.$onDidRunFileOperation(e.operation, e.files)));
+
+		// The extension host applies the excludes of `files.watcherExcludeGitIgnore`
+		// to its watch requests like `files.watcherExclude`, so that extensions
+		// neither miss events nor receive duplicate events
+		this._listener.add(this._gitIgnoreWatcherExcludesService.onDidChangeExcludes(folder => this._sendGitIgnoreWatcherExcludes(folder)));
+		for (const folder of contextService.getWorkspace().folders) {
+			this._sendGitIgnoreWatcherExcludes(folder.uri);
+		}
+	}
+
+	private _sendGitIgnoreWatcherExcludes(folder: URI): void {
+		const excludes = this._gitIgnoreWatcherExcludesService.getExcludes(folder) ?? [];
+		if (equals(this._sentGitIgnoreWatcherExcludes.get(folder) ?? [], excludes)) {
+			return;
+		}
+
+		if (excludes.length > 0) {
+			this._sentGitIgnoreWatcherExcludes.set(folder, excludes);
+		} else {
+			this._sentGitIgnoreWatcherExcludes.delete(folder);
+		}
+		this._proxy.$acceptGitIgnoreWatcherExcludes(folder, excludes);
 	}
 
 	async $watch(extensionId: string, session: number, resource: UriComponents, unvalidatedOpts: IWatchOptions, correlate: boolean): Promise<void> {
 		const uri = URI.revive(resource);
+
+		// A session may request to watch again with different options while
+		// a previous request is still pending, so remember the latest one
+		const request = ++this._watchRequestCounter;
+		this._watchRequests.set(session, request);
 
 		const canHandleWatcher = await this._fileService.canHandleResource(uri);
 		if (!canHandleWatcher) {
@@ -232,6 +269,14 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 			} catch (error) {
 				// ignore
 			}
+		}
+
+		// Ignore the request if a newer request, `$unwatch` or disposal
+		// happened meanwhile, otherwise it would replace a newer watcher
+		// or never be disposed
+		if (this._watchRequests.get(session) !== request) {
+			this._logService.trace(`MainThreadFileSystemEventService#$watch(): ignoring an outdated request to start watching (extension: ${extensionId}, path: ${uri.toString(true)}, session: ${session})`);
+			return;
 		}
 
 		// Correlated file watching: use an exclusive `createWatcher()`
@@ -263,6 +308,8 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 	}
 
 	$unwatch(session: number): void {
+		this._watchRequests.delete(session);
+
 		if (this._watches.has(session)) {
 			this._logService.trace(`MainThreadFileSystemEventService#$unwatch(): request to stop watching (session: ${session})`);
 			this._watches.deleteAndDispose(session);
@@ -272,6 +319,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 	dispose(): void {
 		this._listener.dispose();
 		this._watches.dispose();
+		this._watchRequests.clear();
 	}
 }
 
