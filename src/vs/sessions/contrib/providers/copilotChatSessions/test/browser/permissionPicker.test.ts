@@ -622,6 +622,79 @@ suite('Copilot PermissionPicker', () => {
 		});
 	}
 
+	for (const { supported, requestedOn } of [{ supported: undefined, requestedOn: false }, { supported: false, requestedOn: true }]) {
+		test(`links Dev Container sandbox guidance to its documentation from a keyboard-reachable hover action${supported === false ? ' when the container lacks sandbox support' : ''}`, () => {
+			const configuration = new TestConfigurationService();
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.set(IKeybindingService, new MockKeybindingService());
+			instantiationService.set(IHoverService, NullHoverService);
+			instantiationService.set(IOpenerService, NullOpenerService);
+			let widget: ActionListWidget<IAction> | undefined;
+			let onHide: (() => void) | undefined;
+			const actionWidget = new class extends mock<IActionWidgetService>() {
+				override readonly isVisible = false;
+				override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
+					onHide = delegate.onHide;
+					widget = store.add(instantiationService.createInstance(
+						ActionListWidget<IAction>, 'testPermissionPicker', false, items as readonly IActionListItem<IAction>[],
+						{ onSelect: () => { }, onHide: () => { } }, undefined, { showFilter: false },
+					));
+					document.body.appendChild(widget.domNode);
+					store.add(toDisposable(() => widget?.domNode.remove()));
+					widget.layout(400, 350);
+				}
+				override hide(): void { onHide?.(); }
+			}();
+			const opened: string[] = [];
+			const openerService = new class extends mock<IOpenerService>() {
+				override async open(resource: URI | string): Promise<boolean> {
+					opened.push(resource.toString());
+					return true;
+				}
+			}();
+			const picker = store.add(new PermissionPicker({
+				availableLevels: [ChatPermissionLevel.Default],
+				currentPermissionLevel: constObservable(ChatPermissionLevel.Default),
+				getPermissionLevelMeta: (_level, meta) => meta,
+				setPermissionLevel: () => { },
+				isSandboxToggleApplicable: () => true,
+				getSandboxToggleProvider: () => 'copilotcli',
+				getSandboxToggleSettingId: () => 'test.sandbox.enabled',
+				sandboxEnabled: constObservable(requestedOn),
+				sandboxDevContainer: constObservable(true),
+				sandboxDevContainerSupported: constObservable(supported),
+				setSandboxEnabled: () => { },
+			}, actionWidget, configuration, new TestDialogService(), openerService, store.add(new TestStorageService()),
+				NullTelemetryService, NullHoverService, unmanagedEnablementService));
+			const container = dom.append(document.body, dom.$('div'));
+			store.add(toDisposable(() => container.remove()));
+			picker.render(container);
+			picker.showPicker();
+			const toggleTitle = picker['_getSandboxStandaloneToggle']()?.title;
+
+			widget!.focus();
+			widget!.focusNext();
+			widget!.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+			const footerAction = widget!.domNode.querySelector<HTMLElement>('.action-list-submenu-panel .action-container');
+			const tabFocused = !!footerAction && document.activeElement === footerAction;
+			footerAction?.click();
+
+			assert.deepStrictEqual({
+				explanation: widget!.domNode.querySelector('.action-list-submenu-hover-header')?.textContent,
+				footerActions: [...widget!.domNode.querySelectorAll('.action-list-submenu-panel .action-container')].map(action => action.textContent),
+				tabFocused,
+				opened,
+			}, {
+				explanation: toggleTitle,
+				footerActions: ['Learn More'],
+				tabFocused: true,
+				opened: ['https://aka.ms/vscode-sandboxing-devcontainers'],
+			});
+			onHide!();
+		});
+	}
+
 	test('updates the shield icon when sandbox configuration finishes resolving', () => {
 		const sandboxSettingId = 'test.sandbox.enabled';
 		const configurationService = new TestConfigurationService();
