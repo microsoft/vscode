@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { addDisposableListener, EventType } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { IconSelectBox } from '../../../../base/browser/ui/icons/iconSelectBox.js';
 import { ObjectTree } from '../../../../base/browser/ui/tree/objectTree.js';
@@ -1492,6 +1492,24 @@ suite('QuickInput item hover layout', () => {
 			contextViewFixedClass: false,
 			contextViewPointerEvents: 'auto',
 		});
+	});
+
+	test('keeps the item hover above positioned list contents such as sticky headers and the scrollbar', async () => {
+		await showPicker(['first']);
+		await settle();
+		controller.toggleHover();
+		const hover = fixture.querySelector<HTMLElement>('.workbench-hover');
+		const list = fixture.querySelector<HTMLElement>('.quick-input-list');
+		assert.ok(hover && list);
+
+		// Stands in for the list's sticky headers (z-index: 13) and scrollbar (z-index: 14) overlapping the hover
+		const rect = hover.getBoundingClientRect();
+		const overlay = append(list, $('div'));
+		Object.assign(overlay.style, { position: 'fixed', zIndex: '14', left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` });
+		const hit = mainWindow.document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+		overlay.remove();
+
+		assert.strictEqual(!!hit && hover.contains(hit), true);
 	});
 
 	test('dismisses the item hover when the picker moves and keeps it when relaid out in place', async () => {

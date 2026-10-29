@@ -75,6 +75,9 @@
 	position: fixed;
 	inset: 0;
 	pointer-events: none;
+	/* The host is a stacking context, so it needs the hover's stack level (see ContextView) to stay
+	above positioned list contents such as sticky headers and the scrollbar */
+	z-index: 2575;
 }
 
 .quick-input-list-hover-host > .context-view {
