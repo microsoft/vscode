@@ -6,7 +6,7 @@
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableSignal, runOnChange } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -24,24 +24,181 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../browserView/common/browserView.js';
 import { CanvasInput, canvasOwnerKey, getCanvasReferenceKey, ICanvas, ICanvasContextService, ICanvasModelResolution, ICanvasOwner, ICanvasReference, ICanvasReopenTarget, ICanvasService, ICanvasWorkingSetOwner, ICanvasWorkingSetState, isCanvasOwner } from '../common/canvas.js';
 
-interface ICanvasPresentation {
+type CanvasMembershipState =
+	| { readonly kind: 'unknown' }
+	| { readonly kind: 'hydrating'; readonly canvas: ICanvas }
+	| { readonly kind: 'available'; readonly canvas: ICanvas; readonly source: URI }
+	| { readonly kind: 'unavailable'; readonly canvas: ICanvas }
+	| { readonly kind: 'removed' };
+
+class CanvasPresentation extends Disposable {
+
+	readonly key: string;
 	readonly reference: ICanvasReference;
 	readonly serializationId: string;
-	admitted: boolean;
-	opened: boolean;
-	restoreActive: boolean;
-	requestId: string | undefined;
-	canvas: ICanvas | undefined;
-	model: IBrowserViewModel | undefined;
-	modelSource: URI | undefined;
-	modelPromise: { readonly source: URI; readonly value: Promise<IBrowserViewModel> } | undefined;
-	modelDisposeListener: IDisposable | undefined;
-	modelGeneration: number;
-}
+	private _admitted = false;
+	private _opened = false;
+	private _restoreActive = false;
+	private _requestId: string | undefined;
+	private _membership: CanvasMembershipState;
+	private _canvas: ICanvas | undefined;
+	private _model: IBrowserViewModel | undefined;
+	private _modelSource: URI | undefined;
+	private _modelPromise: { readonly source: URI; readonly value: Promise<IBrowserViewModel> } | undefined;
+	private readonly _modelDisposeListener = this._register(new MutableDisposable());
+	private _modelGeneration = 0;
 
-interface ICanvasLookup {
-	readonly known: boolean;
-	readonly canvas: ICanvas | undefined;
+	constructor(
+		reference: ICanvasReference,
+		membership: CanvasMembershipState,
+		private readonly browserViewService: IBrowserViewWorkbenchService,
+	) {
+		super();
+		this.key = getCanvasReferenceKey(reference);
+		this.reference = reference;
+		this.serializationId = generateUuid();
+		this._membership = { kind: 'unknown' };
+		this.updateMembership(membership);
+	}
+
+	get admitted(): boolean {
+		return this._admitted;
+	}
+
+	get opened(): boolean {
+		return this._opened;
+	}
+
+	get restoreActive(): boolean {
+		return this._restoreActive;
+	}
+
+	get requestId(): string | undefined {
+		return this._requestId;
+	}
+
+	get inputCanvas(): ICanvas | undefined {
+		switch (this._membership.kind) {
+			case 'available':
+			case 'unavailable':
+				return this._canvas;
+			case 'unknown':
+			case 'hydrating':
+				return this._canvas && { ...this._canvas, source: undefined };
+			case 'removed':
+				return undefined;
+		}
+	}
+
+	get membershipPending(): boolean {
+		return this._membership.kind === 'unknown' || this._membership.kind === 'hydrating';
+	}
+
+	updateMembership(membership: CanvasMembershipState): void {
+		this._membership = membership;
+		if (membership.kind === 'available' || membership.kind === 'unavailable') {
+			this._updateCanvas(membership.canvas);
+		}
+	}
+
+	private _updateCanvas(canvas: ICanvas): void {
+		const disposeModel = !canvas.source || this._modelSource && !isEqual(this._modelSource, canvas.source);
+		this._canvas = canvas;
+		if (disposeModel) {
+			this._disposeModel();
+		}
+	}
+
+	acknowledgeRequest(requestId: string | undefined): void {
+		this._requestId = requestId;
+	}
+
+	markAdmitted(requestId: string | undefined): void {
+		this._admitted = true;
+		this._opened = true;
+		this._restoreActive = false;
+		this._requestId = requestId;
+	}
+
+	markRestored(): void {
+		this._opened = true;
+	}
+
+	prepareForSuspension(active: boolean): void {
+		this._restoreActive = this._opened && active;
+	}
+
+	markSuspended(): void {
+		this._opened = false;
+	}
+
+	reconcileOpened(opened: boolean): boolean {
+		if (!this._opened || opened) {
+			return false;
+		}
+		this._opened = false;
+		return true;
+	}
+
+	resolveModel(source: URI): Promise<ICanvasModelResolution> {
+		if (this._store.isDisposed || this._membership.kind !== 'available' || !isEqual(this._membership.source, source)) {
+			return Promise.reject(new CancellationError());
+		}
+		if (this._model && isEqual(this._modelSource, source)) {
+			return Promise.resolve({ model: this._model, reused: true });
+		}
+		if (this._modelPromise && isEqual(this._modelPromise.source, source)) {
+			return this._modelPromise.value.then(model => ({ model, reused: true }));
+		}
+		this._disposeModel();
+		const generation = ++this._modelGeneration;
+		const value = this.browserViewService.createExternalBrowserView(source.toString(true), 'canvas', { type: 'agent', sessionId: this.reference.chat.toString() }).then(model => {
+			const retained = !this._store.isDisposed
+				&& this._modelGeneration === generation
+				&& this._membership.kind === 'available'
+				&& isEqual(this._membership.source, source);
+			if (retained) {
+				this._model = model;
+				this._modelSource = source;
+				this._modelDisposeListener.value = Event.once(model.onWillDispose)(() => {
+					if (this._model !== model) {
+						return;
+					}
+					this._model = undefined;
+					this._modelSource = undefined;
+					this._modelDisposeListener.clear();
+					this._modelGeneration++;
+				});
+			} else {
+				model.dispose();
+			}
+			return model;
+		}).finally(() => {
+			if (this._modelPromise?.value === value) {
+				this._modelPromise = undefined;
+			}
+		});
+		this._modelPromise = { source, value };
+		return value.then(model => ({ model, reused: false }));
+	}
+
+	override dispose(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		this._disposeModel();
+		super.dispose();
+	}
+
+	private _disposeModel(): void {
+		this._modelGeneration++;
+		this._modelPromise = undefined;
+		this._modelDisposeListener.clear();
+		const model = this._model;
+		this._model = undefined;
+		this._modelSource = undefined;
+		model?.dispose();
+	}
 }
 
 const settledWorkingSet: ICanvasWorkingSetState = Object.freeze({ owner: undefined, restoring: false, applying: false });
@@ -55,8 +212,8 @@ export class CanvasService extends Disposable implements ICanvasService {
 	private readonly inputs = this._register(new DisposableMap<string, CanvasInput>());
 	private readonly inputLifetimes = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly dismissed = new Map<string, { readonly reference: ICanvasReference; readonly requestId: string | undefined }>();
-	private readonly presentations = new Map<string, ICanvasPresentation>();
-	private readonly presentationsBySerializationId = new Map<string, ICanvasPresentation>();
+	private readonly presentations = new Map<string, CanvasPresentation>();
+	private readonly presentationsBySerializationId = new Map<string, CanvasPresentation>();
 	private readonly requests = new Map<string, string | undefined>();
 	private readonly opening = new Map<CanvasInput, { readonly value: Promise<void>; readonly restoreFallback: boolean }>();
 	private readonly programmaticCloses = new Set<CanvasInput>();
@@ -95,7 +252,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 				}
 				const context = contextService.contexts.read(reader).find(context => isCanvasOwner(context.owner, reference));
 				const canvas = context?.canvases.read(reader)?.find(canvas => isEqual(canvas.resource, reference.canvas));
-				if (canvas?.source !== undefined) {
+				if (canvas && getCanvasMembershipState(canvas).kind === 'available') {
 					targets.push({ reference, canvas });
 				}
 			}
@@ -119,9 +276,11 @@ export class CanvasService extends Disposable implements ICanvasService {
 		}
 		this._register(toDisposable(() => this.restoreSettled?.complete(false)));
 		this._register(toDisposable(() => {
+			this.presentationsBySerializationId.clear();
 			for (const presentation of this.presentations.values()) {
-				this.disposePresentationModel(presentation);
+				presentation.dispose();
 			}
+			this.presentations.clear();
 		}));
 		this._register(autorun(reader => {
 			this.presentationsChanged.read(reader);
@@ -148,26 +307,28 @@ export class CanvasService extends Disposable implements ICanvasService {
 					liveKeys.add(key);
 					const existingInput = this.inputs.get(key);
 					const presentation = this.presentations.get(key);
-					const membershipPending = canvas.instanceId === undefined;
-					existingInput?.setCanvas(membershipPending && presentation?.canvas ? { ...presentation.canvas, source: undefined } : canvas, membershipPending);
+					const membership = getCanvasMembershipState(canvas);
+					if (existingInput && presentation) {
+						existingInput.setCanvas(presentation.inputCanvas, presentation.membershipPending);
+					}
 					const request = canvas.instanceId ? requests?.get(canvas.instanceId) : undefined;
 					if (request || !this.requests.has(key)) {
 						this.requests.set(key, request?.id);
 					}
 					const requestId = this.requests.get(key);
 					const dismissed = this.dismissed.get(key);
-					if (!visible || !workingSetPresented || canvas.source === undefined
+					if (!visible || !workingSetPresented || membership.kind !== 'available'
 						|| (dismissed && (dismissed.requestId === requestId || !request?.succeeded))
 						|| (presentation?.opened && (presentation.requestId === requestId || !request?.succeeded))) {
 						continue;
 					}
-					const input = existingInput ?? this.getOrCreateInput(reference, canvas);
+					const input = existingInput ?? this.getOrCreateInput(reference, membership);
 					if (this.opening.has(input)) {
 						continue;
 					}
 					this.deleteDismissed(key);
 					if (presentation?.opened && request?.succeeded && this.editorService.isVisible(input)) {
-						presentation.requestId = requestId;
+						presentation.acknowledgeRequest(requestId);
 						continue;
 					}
 					void this.openInput(key, input, presentation?.admitted === true && !presentation.opened)
@@ -215,11 +376,11 @@ export class CanvasService extends Disposable implements ICanvasService {
 		}
 		const key = getCanvasReferenceKey(reference);
 		this.deleteDismissed(key);
-		if (canvas.source === undefined) {
+		const membership = getCanvasMembershipState(canvas);
+		if (membership.kind !== 'available') {
 			return;
 		}
-		const input = this.getOrCreateInput(reference, canvas);
-		input.setCanvas(canvas);
+		const input = this.getOrCreateInput(reference, membership);
 		await this.openInput(key, input);
 	}
 
@@ -238,66 +399,27 @@ export class CanvasService extends Disposable implements ICanvasService {
 			|| !workingSetIncludes(owner, presentation.reference)) {
 			return undefined;
 		}
-		const lookup = this.lookupCanvas(presentation.reference);
-		if (!lookup) {
+		const membership = this.resolveMembership(presentation.reference);
+		if (!membership) {
 			return undefined;
 		}
-		if (lookup.known && !lookup.canvas) {
+		if (membership.kind === 'removed') {
 			this.removePresentation(presentation);
 			return undefined;
 		}
-		const membershipPending = !lookup.known || lookup.canvas?.instanceId === undefined;
-		const canvas = membershipPending
-			? presentation.canvas && { ...presentation.canvas, source: undefined }
-			: lookup.canvas;
-		const input = this.getOrCreateInput(presentation.reference, canvas, membershipPending);
-		input.setCanvas(canvas, membershipPending);
+		const input = this.getOrCreateInput(presentation.reference, membership);
 		input.setSerializationId(serializationId);
-		presentation.opened = true;
+		presentation.markRestored();
 		return input;
 	}
 
 	resolveCanvasModel(reference: ICanvasReference, source: URI): Promise<ICanvasModelResolution> {
 		const key = getCanvasReferenceKey(reference);
 		const presentation = this.presentations.get(key);
-		if (this._store.isDisposed || !presentation || !isEqual(presentation.canvas?.source, source)) {
+		if (this._store.isDisposed || !presentation) {
 			return Promise.reject(new CancellationError());
 		}
-		if (presentation.model && isEqual(presentation.modelSource, source)) {
-			return Promise.resolve({ model: presentation.model, reused: true });
-		}
-		if (presentation.modelPromise && isEqual(presentation.modelPromise.source, source)) {
-			return presentation.modelPromise.value.then(model => ({ model, reused: true }));
-		}
-		this.disposePresentationModel(presentation);
-		const generation = ++presentation.modelGeneration;
-		const value = this.browserViewService.createExternalBrowserView(source.toString(true), 'canvas', { type: 'agent', sessionId: reference.chat.toString() }).then(model => {
-			const retained = this.presentations.get(key) === presentation
-				&& presentation.modelGeneration === generation
-				&& isEqual(presentation.canvas?.source, source);
-			if (retained) {
-				presentation.model = model;
-				presentation.modelSource = source;
-				presentation.modelDisposeListener = Event.once(model.onWillDispose)(() => {
-					if (presentation.model !== model) {
-						return;
-					}
-					presentation.model = undefined;
-					presentation.modelSource = undefined;
-					presentation.modelDisposeListener = undefined;
-					presentation.modelGeneration++;
-				});
-			} else {
-				model.dispose();
-			}
-			return model;
-		}).finally(() => {
-			if (presentation.modelPromise?.value === value) {
-				presentation.modelPromise = undefined;
-			}
-		});
-		presentation.modelPromise = { source, value };
-		return value.then(model => ({ model, reused: false }));
+		return presentation.resolveModel(source);
 	}
 
 	private async waitForWorkingSetRestore(): Promise<boolean> {
@@ -324,11 +446,10 @@ export class CanvasService extends Disposable implements ICanvasService {
 	}
 
 	private async doOpenInput(key: string, input: CanvasInput, restoreFallback: boolean): Promise<void> {
-		const canvas = input.canvas.get();
-		if (!canvas) {
+		const presentation = this.presentations.get(key);
+		if (!presentation) {
 			throw new Error(localize('canvas.closed', "This canvas is no longer available."));
 		}
-		const presentation = this.getOrCreatePresentation(input.reference, canvas);
 		const suppression = restoreFallback ? this.contextService.workingSets?.suppressEditorPartAutoVisibility() : undefined;
 		try {
 			if (!this.isOwnerPresentable(input.reference)) {
@@ -352,10 +473,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 			if (!opened) {
 				throw new Error(localize('canvas.openFailed', "Canvas editor failed to open"));
 			}
-			presentation.admitted = true;
-			presentation.opened = true;
-			presentation.restoreActive = false;
-			presentation.requestId = this.requests.get(key);
+			presentation.markAdmitted(this.requests.get(key));
 			input.setSerializationId(presentation.serializationId);
 			this.presentationsChanged.trigger(undefined);
 			if (!this.isOwnerPresentable(input.reference)) {
@@ -374,15 +492,16 @@ export class CanvasService extends Disposable implements ICanvasService {
 		}
 	}
 
-	private getOrCreateInput(reference: ICanvasReference, canvas: ICanvas | undefined, membershipPending = false): CanvasInput {
+	private getOrCreateInput(reference: ICanvasReference, membership: CanvasMembershipState): CanvasInput {
 		const key = getCanvasReferenceKey(reference);
-		const presentation = this.getOrCreatePresentation(reference, membershipPending ? undefined : canvas);
+		const presentation = this.getOrCreatePresentation(reference, membership);
 		const existing = this.inputs.get(key);
 		if (existing && !existing.isDisposed()) {
+			existing.setCanvas(presentation.inputCanvas, presentation.membershipPending);
 			return existing;
 		}
-		const input = this.instantiationService.createInstance(CanvasInput, reference, canvas);
-		input.setCanvas(canvas, membershipPending);
+		const input = this.instantiationService.createInstance(CanvasInput, reference, presentation.inputCanvas);
+		input.setCanvas(presentation.inputCanvas, presentation.membershipPending);
 		if (presentation.admitted) {
 			input.setSerializationId(presentation.serializationId);
 		}
@@ -401,7 +520,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 					this.rememberDismissed(key, reference);
 					this.deletePresentation(key);
 				} else if (presentation?.admitted) {
-					presentation.opened = false;
+					presentation.markSuspended();
 					this.presentationsChanged.trigger(undefined);
 				}
 			}
@@ -416,30 +535,15 @@ export class CanvasService extends Disposable implements ICanvasService {
 		return input;
 	}
 
-	private getOrCreatePresentation(reference: ICanvasReference, canvas?: ICanvas): ICanvasPresentation {
+	private getOrCreatePresentation(reference: ICanvasReference, membership: CanvasMembershipState): CanvasPresentation {
 		const key = getCanvasReferenceKey(reference);
 		let presentation = this.presentations.get(key);
 		if (presentation) {
-			if (canvas) {
-				this.setPresentationCanvas(presentation, canvas);
-			}
+			presentation.updateMembership(membership);
 			return presentation;
 		}
-		presentation = {
-			reference,
-			serializationId: generateUuid(),
-			admitted: false,
-			opened: false,
-			restoreActive: false,
-			requestId: undefined,
-			canvas,
-			model: undefined,
-			modelSource: undefined,
-			modelPromise: undefined,
-			modelDisposeListener: undefined,
-			modelGeneration: 0,
-		};
-		this.presentations.set(key, presentation);
+		presentation = new CanvasPresentation(reference, membership, this.browserViewService);
+		this.presentations.set(presentation.key, presentation);
 		this.presentationsBySerializationId.set(presentation.serializationId, presentation);
 		return presentation;
 	}
@@ -448,7 +552,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 		for (const [key, input] of this.inputs) {
 			const presentation = this.presentations.get(key);
 			if (presentation) {
-				presentation.restoreActive = presentation.opened && this.editorService.activeEditor === input;
+				presentation.prepareForSuspension(this.editorService.activeEditor === input);
 			}
 			this.workingSetSuspensions.add(input);
 		}
@@ -465,8 +569,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 			}
 			const input = this.inputs.get(key);
 			const opened = !!input && this.editorService.findEditors(input.resource).some(identifier => identifier.editor === input && !input.isDisposed());
-			if (!opened) {
-				presentation.opened = false;
+			if (presentation.reconcileOpened(opened)) {
 				changed = true;
 			}
 		}
@@ -477,33 +580,31 @@ export class CanvasService extends Disposable implements ICanvasService {
 
 	private reconcilePresentations(reader: IReader): void {
 		for (const [key, presentation] of this.presentations) {
-			const lookup = this.lookupCanvas(presentation.reference, reader);
-			if (!lookup) {
+			const membership = this.resolveMembership(presentation.reference, reader);
+			if (!membership) {
 				continue;
 			}
 			const input = this.inputs.get(key);
-			if (lookup.known && !lookup.canvas) {
+			if (membership.kind === 'removed') {
 				this.removePresentation(presentation);
 				continue;
 			}
-			if (lookup.canvas?.instanceId === undefined) {
-				input?.setCanvas(presentation.canvas && { ...presentation.canvas, source: undefined }, true);
-				continue;
-			}
-			this.setPresentationCanvas(presentation, lookup.canvas);
-			input?.setCanvas(lookup.canvas, false);
+			presentation.updateMembership(membership);
+			input?.setCanvas(presentation.inputCanvas, presentation.membershipPending);
 		}
 	}
 
-	private lookupCanvas(reference: ICanvasReference, reader?: IReader): ICanvasLookup | undefined {
+	private resolveMembership(reference: ICanvasReference, reader?: IReader): CanvasMembershipState | undefined {
 		const canvases = this.contextService.getContext(reference, reader)?.canvases;
 		if (!canvases) {
 			return undefined;
 		}
 		const current = canvases.read(reader);
-		return current === undefined
-			? { known: false, canvas: undefined }
-			: { known: true, canvas: current.find(candidate => isEqual(candidate.resource, reference.canvas)) };
+		if (current === undefined) {
+			return { kind: 'unknown' };
+		}
+		const canvas = current.find(candidate => isEqual(candidate.resource, reference.canvas));
+		return canvas ? getCanvasMembershipState(canvas) : { kind: 'removed' };
 	}
 
 	private removeOwner(owner: ICanvasOwner): void {
@@ -536,7 +637,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 		this.deleteDismissed(key);
 		const presentation = this.presentations.get(key);
 		if (suspend && presentation?.admitted) {
-			presentation.opened = false;
+			presentation.markSuspended();
 			this.presentationsChanged.trigger(undefined);
 		} else {
 			this.deletePresentation(key);
@@ -564,14 +665,13 @@ export class CanvasService extends Disposable implements ICanvasService {
 		return this.editorService.closeEditors(this.editorService.findEditors(input.resource).filter(editor => editor.editor === input), { preserveFocus: true });
 	}
 
-	private removePresentation(presentation: ICanvasPresentation): void {
-		const key = getCanvasReferenceKey(presentation.reference);
-		const input = this.inputs.get(key);
-		this.deleteDismissed(key);
+	private removePresentation(presentation: CanvasPresentation): void {
+		const input = this.inputs.get(presentation.key);
+		this.deleteDismissed(presentation.key);
 		if (input) {
-			void this.closeInput(key, input).catch(error => this.reportError('Failed to close canvas', error));
+			void this.closeInput(presentation.key, input).catch(error => this.reportError('Failed to close canvas', error));
 		} else {
-			this.deletePresentation(key);
+			this.deletePresentation(presentation.key);
 		}
 	}
 
@@ -584,27 +684,8 @@ export class CanvasService extends Disposable implements ICanvasService {
 		if (this.presentationsBySerializationId.get(presentation.serializationId) === presentation) {
 			this.presentationsBySerializationId.delete(presentation.serializationId);
 		}
-		this.disposePresentationModel(presentation);
+		presentation.dispose();
 		this.presentationsChanged.trigger(undefined);
-	}
-
-	private setPresentationCanvas(presentation: ICanvasPresentation, canvas: ICanvas): void {
-		const disposeModel = !canvas.source || presentation.modelSource && !isEqual(presentation.modelSource, canvas.source);
-		presentation.canvas = canvas;
-		if (disposeModel) {
-			this.disposePresentationModel(presentation);
-		}
-	}
-
-	private disposePresentationModel(presentation: ICanvasPresentation): void {
-		presentation.modelGeneration++;
-		presentation.modelPromise = undefined;
-		presentation.modelDisposeListener?.dispose();
-		presentation.modelDisposeListener = undefined;
-		const model = presentation.model;
-		presentation.model = undefined;
-		presentation.modelSource = undefined;
-		model?.dispose();
 	}
 
 	private reportError(message: string, error: Error): void {
@@ -623,6 +704,16 @@ export class CanvasService extends Disposable implements ICanvasService {
 			this.dismissedChanged.trigger(undefined);
 		}
 	}
+}
+
+function getCanvasMembershipState(canvas: ICanvas): CanvasMembershipState {
+	if (canvas.instanceId === undefined) {
+		return { kind: 'hydrating', canvas };
+	}
+	if (canvas.source === undefined) {
+		return { kind: 'unavailable', canvas };
+	}
+	return { kind: 'available', canvas, source: canvas.source };
 }
 
 function workingSetIncludes(owner: ICanvasWorkingSetOwner, canvasOwner: ICanvasOwner): boolean {
