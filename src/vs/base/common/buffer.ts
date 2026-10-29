@@ -286,7 +286,7 @@ export function readUInt32LE(source: Uint8Array, offset: number): number {
 		((source[offset + 1] << 8) >>> 0) |
 		((source[offset + 2] << 16) >>> 0) |
 		((source[offset + 3] << 24) >>> 0)
-	);
+	) >>> 0;
 }
 
 export function writeUInt32LE(destination: Uint8Array, value: number, offset: number): void {
