@@ -12,6 +12,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../../../../base/common/network.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
@@ -272,6 +273,33 @@ suite('ChatPetWidget', () => {
 			platforms: true,
 		});
 	});
+
+	for (const width of [320, 800]) {
+		test(`renders inline jump game keybinding labels at ${width}px`, async () => {
+			const { root, button, layout } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+			await waitForPetAnimation(() => button.dataset.state === 'idle');
+			button.click();
+			root.style.width = `${width}px`;
+			layout();
+			const hint = root.querySelector<HTMLElement>('.chat-pet-jump-hint')!;
+			const keybindings = [...hint.querySelectorAll<HTMLElement>('.monaco-keybinding')];
+			const left = isMacintosh ? '\u2190' : 'LeftArrow';
+			const right = isMacintosh ? '\u2192' : 'RightArrow';
+			assert.deepStrictEqual({
+				text: hint.textContent,
+				keys: keybindings.map(label => label.querySelector('.monaco-keybinding-key')?.textContent),
+				inline: keybindings.every(label => mainWindow.getComputedStyle(label).display === 'inline-flex'),
+				fits: hint.scrollWidth <= hint.clientWidth,
+				accessibleLabel: button.getAttribute('aria-label'),
+			}, {
+				text: `Hold Space to charge, release to jump. ${left} / ${right} to hop or aim. Escape to exit.`,
+				keys: ['Space', left, right, 'Escape'],
+				inline: true,
+				fits: true,
+				accessibleLabel: 'Blobby\'s jump game. Hold Space to charge and release to jump. Use Left and Right Arrow to hop or aim. Press Escape to exit.',
+			});
+		});
+	}
 
 	for (const reducedMotion of [false, true]) {
 		test(`starts the game from the normal input surface through the pet menu (reduced motion: ${reducedMotion})`, async () => {

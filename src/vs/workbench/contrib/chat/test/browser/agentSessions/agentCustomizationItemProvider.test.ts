@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
@@ -666,10 +667,86 @@ suite('AgentCustomizationItemProvider', () => {
 		const first = await provider.provideSourceFolders(sessionResource, PromptsType.agent, CancellationToken.None);
 		const second = await provider.provideSourceFolders(sessionResource, PromptsType.instructions, CancellationToken.None);
 
-		assert.deepStrictEqual({ first, second, readinessCalls: customizationService.readinessCalls }, {
+		assert.deepStrictEqual({ first, second, readiness: provider.getSourceFolderReadiness(sessionResource), readinessCalls: customizationService.readinessCalls }, {
 			first: [],
 			second: [],
+			readiness: 'loading',
 			readinessCalls: 1,
+		});
+	});
+
+	test('updates source folder readiness after a bounded wait completes', async () => {
+		const readiness = new DeferredPromise<boolean>();
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override whenCustomizationsReady(): Promise<boolean> {
+				return readiness.p;
+			}
+		}
+		class TestAgentCustomizationItemProvider extends AgentCustomizationItemProvider {
+			protected override readonly _sourceFolderReadinessTimeoutMs = 1;
+		}
+
+		const provider = disposables.add(new TestAgentCustomizationItemProvider(
+			'local',
+			undefined,
+			undefined,
+			upcastPartial<IFileService>({}),
+			new NullLogService(),
+			new TestCustomizationService(),
+			makePromptsService(),
+			labelService,
+		));
+		const sessionResource = URI.parse('agent-host-copilotcli:///session');
+
+		await provider.provideSourceFolders(sessionResource, PromptsType.agent, CancellationToken.None);
+		const whileLoading = provider.getSourceFolderReadiness(sessionResource);
+		readiness.complete(true);
+		await readiness.p;
+
+		assert.deepStrictEqual({
+			whileLoading,
+			afterSnapshot: provider.getSourceFolderReadiness(sessionResource),
+		}, {
+			whileLoading: 'loading',
+			afterSnapshot: 'ready',
+		});
+	});
+
+	test('retries source folder readiness after an unavailable result', async () => {
+		const results = [false, true];
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			readinessCalls = 0;
+
+			override whenCustomizationsReady(): Promise<boolean> {
+				return Promise.resolve(results[this.readinessCalls++]);
+			}
+		}
+
+		const customizationService = new TestCustomizationService();
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'local',
+			undefined,
+			undefined,
+			upcastPartial<IFileService>({}),
+			new NullLogService(),
+			customizationService,
+			makePromptsService(),
+			labelService,
+		));
+		const sessionResource = URI.parse('agent-host-copilotcli:///session');
+
+		await provider.provideSourceFolders(sessionResource, PromptsType.agent, CancellationToken.None);
+		const first = provider.getSourceFolderReadiness(sessionResource);
+		await provider.provideSourceFolders(sessionResource, PromptsType.agent, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			first,
+			second: provider.getSourceFolderReadiness(sessionResource),
+			readinessCalls: customizationService.readinessCalls,
+		}, {
+			first: 'unavailable',
+			second: 'ready',
+			readinessCalls: 2,
 		});
 	});
 

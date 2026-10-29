@@ -81,6 +81,7 @@ interface IRecreateHarness {
 
 /** The collaborators `_createSessionNow` reads while assembling the `openNewSession` options. */
 interface ICreateSessionNowHarness {
+	readonly _preserveCustomView?: boolean;
 	readonly _environment: IObservable<ISessionCreationEnvironment | undefined>;
 	readonly _newChatInput: {
 		readonly sessionTypePicker: {
@@ -364,6 +365,7 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 }
 
 interface ISelectNoWorkspaceHarness {
+	readonly _preserveCustomView?: boolean;
 	readonly _environment: IObservable<ISessionCreationEnvironment | undefined>;
 	readonly _workspaceOptOutTarget: IObservable<ICreateNewSessionOptions | undefined>;
 	readonly _pendingPreferredUpgrade: MutableDisposable<IDisposable>;
@@ -663,7 +665,10 @@ suite('NewChatWidget', () => {
 			const workspace = upcastPartial<ISessionWorkspace>({ folders: [{ root: folder, workingDirectory: folder, name: 'project', description: undefined }] });
 			const providers = [LOCAL_AGENT_HOST_PROVIDER_ID, 'cloud'].map(id => upcastPartial<ISessionsProvider>({
 				id,
-				resolveWorkspace: () => id === 'cloud' && !compatible ? undefined : workspace,
+				resolveWorkspace: uri => id === 'cloud' && !compatible ? undefined : {
+					...workspace,
+					folders: workspace.folders.map(folder => ({ ...folder, root: uri, workingDirectory: uri })),
+				},
 				getSessionTypes: () => [{ id: 'copilot', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.GitHub, supportsWorktreeConfiguration: true }],
 				setIsolationMode: async (_sessionId, isolation) => { calls.push(`isolation:${isolation}`); },
 			}));
@@ -674,6 +679,7 @@ suite('NewChatWidget', () => {
 			};
 			const harness = {
 				_environment: derived(reader => picked.read(reader) ?? local),
+				_environmentWorkspaces: new Map<string, URI>(),
 				_environmentWorkspaceChanged: { trigger: () => { } },
 				_pickedEnvironment: picked,
 				_session: constObservable({ sessionId: 'draft', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: 'copilot', isCreated: constObservable(false) }),
@@ -687,13 +693,14 @@ suite('NewChatWidget', () => {
 				newSessionComposerService: { notifyUserWorkspaceSelection: () => calls.push('userSelection') },
 				_workspacePicker: {
 					get selectedFolderUri() { return selectedFolder; },
-					getEnvironmentWorkspace: (environment: ISessionCreationEnvironment) => {
+					getEnvironmentWorkspace: (environment: ISessionCreationEnvironment, _reader?: IReader, preferredFolderUri?: URI) => {
 						const provider = providers.find(provider => environment.providerIds.includes(provider.id));
-						const workspace = selectedFolder && provider?.resolveWorkspace(selectedFolder);
+						const folderUri = preferredFolderUri ?? selectedFolder;
+						const workspace = folderUri && provider?.resolveWorkspace(folderUri);
 						return workspace && provider ? { workspace, providerId: provider.id } : undefined;
 					},
 					clearSelection: () => { selectedFolder = undefined; calls.push('clearWorkspace'); },
-					setSelectedWorkspace: (_uri: URI, options: { providerId: string; preferDevContainer: boolean }): void => { calls.push(`workspace:${options.providerId}:${options.preferDevContainer}`); },
+					setSelectedWorkspace: (uri: URI, options: { providerId: string; preferDevContainer: boolean }): void => { selectedFolder = uri; calls.push(`workspace:${options.providerId}:${options.preferDevContainer}`); },
 				},
 				sessionsProvidersService: { getProviders: () => providers, getProvider: (id: string) => providers.find(provider => provider.id === id) },
 				_isPreferredServable: () => false,
@@ -722,6 +729,37 @@ suite('NewChatWidget', () => {
 				environment: 'cloud', folder,
 				calls: ['saveDraft', 'cancelUpgrade', 'cancelCreation', 'cancelRestore', 'userSelection', 'workspace:cloud:false', 'createDraft', 'Environment: Cloud'],
 			});
+
+		});
+
+		test('restores the previous project after an incompatible environment clears it', async () => {
+			const { harness, select } = createHarness(false);
+			const remote: ISessionCreationEnvironment = { id: 'wsl', kind: 'remote', label: 'WSL', icon: Codicon.remote, providerIds: ['wsl'] };
+			await select(remote);
+			const remoteFolder = harness._workspacePicker.selectedFolderUri;
+			await select(local);
+			assert.deepStrictEqual({
+				remoteFolder,
+				environment: harness._pickedEnvironment.get()?.id,
+				folder: harness._workspacePicker.selectedFolderUri,
+			}, { remoteFolder: undefined, environment: 'local', folder });
+		});
+
+		test('remembers each environment project independently and updates it after a new selection', async () => {
+			const { harness, select } = createHarness(true);
+			const cloudFolder = URI.file('/cloud-project');
+			const updatedLocalFolder = URI.file('/updated-project');
+			await select(cloud);
+			harness._workspacePicker.setSelectedWorkspace(cloudFolder, { providerId: 'cloud', preferDevContainer: false });
+			await select(local);
+			const restoredLocal = harness._workspacePicker.selectedFolderUri;
+			harness._workspacePicker.setSelectedWorkspace(updatedLocalFolder, { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, preferDevContainer: false });
+			await select(cloud);
+			const restoredCloud = harness._workspacePicker.selectedFolderUri;
+			await select(local);
+			assert.deepStrictEqual({
+				restoredLocal, restoredCloud, updatedLocal: harness._workspacePicker.selectedFolderUri,
+			}, { restoredLocal: folder, restoredCloud: cloudFolder, updatedLocal: updatedLocalFolder });
 		});
 
 		test('does not announce a superseded destination after late draft creation', async () => {
@@ -776,6 +814,7 @@ suite('NewChatWidget', () => {
 			const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
 				_environment: picked,
 				_environments: constObservable([local, cloud, container, remote, tunnel]),
+				_environmentWorkspaces: new Map<string, URI>(),
 				_pickedEnvironment: picked,
 				_session: session,
 				_workspaceOptOutEnabled: constObservable(optOutEnabled),
@@ -2732,6 +2771,41 @@ suite('NewChatWidget', () => {
 		};
 		await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
 		assert.deepStrictEqual(calls, []);
+	});
+
+	test('a custom-view composer preserves its host when preparing workspace and quick-chat drafts', async () => {
+		const folder = URI.file('/project');
+		const requests: IOpenNewSessionOptions[] = [];
+		const quickChatNavigation: (boolean | undefined)[] = [];
+		const harness: ICreateSessionNowHarness = {
+			_preserveCustomView: true,
+			_environment: constObservable(undefined),
+			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined } },
+			_workspacePicker: { selectedResolved: { providerId: 'local' } },
+			sessionsService: {
+				openNewSession: async options => {
+					requests.push(options);
+					return { session: undefined, trustDeclined: false };
+				},
+			},
+			_isPreferredServable: () => true,
+			logService: { error: () => assert.fail('unexpected creation error') },
+		};
+		await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
+		openQuickChat.call(upcastPartial<ISelectNoWorkspaceHarness>({
+			_preserveCustomView: true,
+			_environment: constObservable(undefined),
+			sessionsService: {
+				openQuickChat: (_options, preserveNavigation) => {
+					quickChatNavigation.push(preserveNavigation);
+					return { sessionId: 'quick' };
+				},
+			},
+		}));
+		assert.deepStrictEqual({ requests, quickChatNavigation }, {
+			requests: [{ folderUri: folder, preserveNavigation: true, preserveCustomView: true, providerId: 'local' }],
+			quickChatNavigation: [true],
+		});
 	});
 
 	test('requires container execution for every draft after harness changes and provider discovery', async () => {

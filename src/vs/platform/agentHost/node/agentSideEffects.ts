@@ -1649,6 +1649,7 @@ export class AgentSideEffects extends Disposable {
 					pastTenseMessage: toolCall.pastTenseMessage,
 					content: toolCall.content,
 					structuredContent: toolCall.structuredContent,
+					resultMetadata: toolCall.resultMetadata,
 					error: toolCall.error,
 				};
 			} else if (action.type === ActionType.ChatToolCallResultConfirmed && !action.approved && toolCall?.status === ToolCallStatus.Cancelled && toolCall.reason === ToolCallCancellationReason.ResultDenied) {

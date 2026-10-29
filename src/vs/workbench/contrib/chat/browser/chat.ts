@@ -286,6 +286,8 @@ export interface IChatListItemRendererOptions {
 	readonly editable?: boolean;
 	/** Whether the chat is read-only, independently of whether request editing is enabled. */
 	readonly readOnly?: boolean;
+	/** Whether to render questions, confirmations, and other requests for user input. Defaults to true. */
+	readonly renderInputRequests?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
@@ -304,6 +306,8 @@ export interface IChatListItemRendererOptions {
 }
 
 export interface IChatWidgetViewOptions {
+	/** Whether this widget can host the chat pet. Defaults to true. */
+	readonly renderChatPet?: boolean;
 	readonly firstRequestSummary?: IObservable<string | undefined>;
 	autoScroll?: boolean | ((mode: ChatModeKind) => boolean);
 	renderInputOnTop?: boolean;

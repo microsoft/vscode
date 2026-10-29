@@ -2662,7 +2662,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 
 	/** In cloud mode the base picker's recent-workspace limit applies to repository candidates only. */
 	protected override _getRecentWorkspaces(): IResolvedFolderWorkspace[] {
-		const recents = super._getRecentWorkspaces();
+		const recents = super._getRecentWorkspaces(this.cloudMode?.get() || this._workspaceFilter.length > 0);
 		if (!this.cloudMode?.get()) {
 			return recents;
 		}

@@ -11,7 +11,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { getErrorCode, isCancellationError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event } from '../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -502,7 +502,7 @@ class KeyboardInteractiveConnectTestService extends SSHRemoteAgentHostMainServic
 
 suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: TestableSSHRemoteAgentHostMainService;
 
 	setup(() => {
@@ -519,10 +519,6 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		);
 		disposables.add(service);
 	});
-
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const { name, error, expectedMessage } of [
 		{
@@ -1847,11 +1843,7 @@ class AuthAttemptsTestService extends SSHRemoteAgentHostMainService {
 
 suite('SSHRemoteAgentHostMainService - resolveSSHConfig', () => {
 
-	const disposables = new DisposableStore();
-
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	class ResolveConfigTestService extends SSHRemoteAgentHostMainService {
 		readonly resolvedHosts: string[] = [];
@@ -1907,11 +1899,7 @@ suite('SSHRemoteAgentHostMainService - resolveSSHConfig', () => {
 
 suite('SSHRemoteAgentHostMainService - WebSocket relay', () => {
 
-	const disposables = new DisposableStore();
-
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Runs the real relay over a loopback TCP socket standing in for the forwarded SSH channel. */
 	class RelayTestService extends SSHRemoteAgentHostMainService {
@@ -1985,7 +1973,7 @@ suite('SSHRemoteAgentHostMainService - WebSocket relay', () => {
 
 suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: AuthAttemptsTestService;
 
 	setup(() => {
@@ -2002,10 +1990,6 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		);
 		disposables.add(service);
 	});
-
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const RSA = Buffer.from('rsa-key-bytes');
 	const ED = Buffer.from('ed25519-key-bytes');

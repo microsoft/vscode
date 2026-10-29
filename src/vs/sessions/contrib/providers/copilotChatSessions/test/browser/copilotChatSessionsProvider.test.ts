@@ -2345,6 +2345,19 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	});
 
+	test('search catalog enumeration does not allocate or evict Git metadata', () => {
+		const provider = createProvider(disposables, model);
+		const folder = URI.file('/test/selected');
+		const selectedRepository = provider.resolveWorkspace(folder)?.folders[0].gitRepository;
+		const uncachedRepositories = Array.from({ length: 100 }, (_, index) =>
+			provider.resolveWorkspace(URI.file(`/test/older-${index}`), { resolveMetadata: false })?.folders[0].gitRepository);
+		assert.deepStrictEqual({
+			allocated: uncachedRepositories.filter(repository => repository !== undefined).length,
+			retained: provider.resolveWorkspace(folder)?.folders[0].gitRepository?.gitHubInfo === selectedRepository?.gitHubInfo,
+			cached: provider.resolveWorkspace(folder, { resolveMetadata: false })?.folders[0].gitRepository?.gitHubInfo === selectedRepository?.gitHubInfo,
+		}, { allocated: 0, retained: true, cached: true });
+	});
+
 	test('resolveWorkspace retries unresolved GitHub metadata', async () => {
 		let readConfigCalls = 0;
 		let config = '[core]\n\trepositoryformatversion = 0';

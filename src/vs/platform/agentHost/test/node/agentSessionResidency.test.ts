@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
@@ -25,7 +24,7 @@ import { AgentSessionResidency, type IAgentSessionReleaseDelegate } from '../../
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 suite('AgentSessionResidency', () => {
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const logService = new NullLogService();
 	let stateManager: AgentHostStateManager;
 	let releaseHold: Emitter<string>;
@@ -60,8 +59,6 @@ suite('AgentSessionResidency', () => {
 		residency = createResidency(10);
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createResidency(limit: number, releaseRetryMs = 30_000): AgentSessionResidency {
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(

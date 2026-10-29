@@ -308,7 +308,7 @@ class TestStorageService extends InMemoryStorageService {
 
 suite('RemoteAgentHostService', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let configService: TestConfigurationService;
 	let createdClients: MockProtocolClient[];
 	let createdClientInfos: (Implementation | undefined)[];
@@ -411,8 +411,6 @@ suite('RemoteAgentHostService', () => {
 		}), entries);
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Wait for a connection to reach Connected status. */
 	async function waitForConnected(): Promise<void> {

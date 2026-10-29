@@ -1462,12 +1462,8 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 
 suite('AgentHostChangesetService - materialization refresh', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => {
-		disposables.clear();
-	});
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('recomputes an uncommitted subscription added after worktree pending clears but before materialization', async () => {
 		const sessionStr = AgentSession.uri('mock', 'session-materialization').toString();
@@ -1540,13 +1536,9 @@ class RecordingLogService extends NullLogService {
 
 suite('AgentHostChangesetService - turn changeset lifecycle', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const sessionStr = AgentSession.uri('mock', 'session-turn-lifecycle').toString();
 
-	teardown(() => {
-		disposables.clear();
-	});
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('marks a cached empty turn changeset as recomputing until recomputation completes', async () => {
 		const firstComputeGate = new DeferredPromise<void>();

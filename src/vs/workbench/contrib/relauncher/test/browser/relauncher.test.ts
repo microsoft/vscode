@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -18,7 +17,7 @@ import { SettingsChangeRelauncher } from '../../browser/relauncher.contribution.
 
 suite('SettingsChangeRelauncher', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let restartCount: number;
 	let confirmResult: boolean;
@@ -64,10 +63,6 @@ suite('SettingsChangeRelauncher', () => {
 		restartCount = 0;
 		confirmCount = 0;
 		confirmResult = false;
-	});
-
-	teardown(() => {
-		disposables.clear();
 	});
 
 	test('prompts to restart when chat.agentHost.claudeAgent.enabled changes', async () => {
@@ -147,5 +142,4 @@ suite('SettingsChangeRelauncher', () => {
 		assert.strictEqual(restartCount, 0);
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
 });
