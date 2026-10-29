@@ -6,6 +6,7 @@
 import './media/chatEditorController.css';
 
 import { getTotalWidth } from '../../../../../base/browser/dom.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, autorunSelfDisposable, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
@@ -745,6 +746,9 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 
 	private readonly _domNode: HTMLElement;
 	private readonly _store = new DisposableStore();
+	// Match the opacity transition in chatEditorController.css.
+	private readonly _hideToolbarScheduler = this._store.add(new RunOnceScheduler(() => this._hideToolbar(), 200));
+	private readonly _toolbarStore = this._store.add(new DisposableStore());
 	private _toolbar: MenuWorkbenchToolBar | undefined;
 	private _toolbarVisible = false;
 	private _runningActions = 0;
@@ -770,7 +774,7 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 		if (this._toolbar) {
 			return;
 		}
-		const toolbar = this._store.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._domNode, MenuId.ChatEditingEditorHunk, {
+		const toolbar = this._toolbarStore.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._domNode, MenuId.ChatEditingEditorHunk, {
 			telemetrySource: 'chatEditingEditorHunk',
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: { primaryGroup: () => true, },
@@ -798,24 +802,27 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 		}));
 
 		this._toolbar = toolbar;
-		this._store.add(toolbar.actionRunner.onWillRun(() => {
+		this._toolbarStore.add(toolbar.actionRunner.onWillRun(() => {
 			this._runningActions++;
 			this._editor.focus();
 		}));
-		this._store.add(toolbar.actionRunner.onDidRun(() => {
-			this._runningActions--;
-			if (!this._toolbarVisible) {
-				this._hideToolbar();
-			}
+		this._toolbarStore.add(toolbar.actionRunner.onDidRun(() => {
+			// Keep the runner alive until every completion listener has received the result.
+			queueMicrotask(() => {
+				this._runningActions--;
+				if (!this._toolbarVisible) {
+					this._hideToolbar();
+				}
+			});
 		}));
 	}
 
 	private _hideToolbar(): void {
 		// Resolving a hunk can hide its toolbar before the action reports completion.
-		if (this._runningActions > 0) {
+		if (this._toolbarVisible || this._runningActions > 0 || this._hideToolbarScheduler.isScheduled()) {
 			return;
 		}
-		this._store.clear();
+		this._toolbarStore.clear();
 		this._toolbar = undefined;
 	}
 
@@ -862,6 +869,7 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 
 	remove(): void {
 		this._toolbarVisible = false;
+		this._hideToolbarScheduler.cancel();
 		this._hideToolbar();
 		this._editor.removeOverlayWidget(this);
 		this._removed = true;
@@ -871,11 +879,13 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 		if (this._store.isDisposed || this._removed) {
 			return;
 		}
+		const wasVisible = this._toolbarVisible;
 		this._toolbarVisible = show;
 		if (show) {
+			this._hideToolbarScheduler.cancel();
 			this._showToolbar();
-		} else {
-			this._hideToolbar();
+		} else if (wasVisible) {
+			this._hideToolbarScheduler.schedule();
 		}
 		this._domNode.classList.toggle('hover', show);
 		if (this._lastStartLineNumber) {
