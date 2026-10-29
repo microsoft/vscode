@@ -749,6 +749,12 @@ export class QuickInputList extends Disposable {
 	*/
 	readonly onKeyDown: Event<StandardKeyboardEvent> = this._onKeyDown.event;
 
+	private readonly _onWillShowItemHover = this._register(new Emitter<void>());
+	/**
+	 * Fires synchronously before an item hover is shown and measured.
+	 */
+	readonly onWillShowItemHover: Event<void> = this._onWillShowItemHover.event;
+
 	private readonly _onLeave = this._register(new Emitter<void>());
 	/**
 	 * Event that is fired when the tree would no longer have focus.
@@ -801,7 +807,6 @@ export class QuickInputList extends Disposable {
 		private parent: HTMLElement,
 		private hoverDelegate: IHoverDelegate,
 		private linkOpenerDelegate: (content: string) => void,
-		private readonly prepareForItemHover: () => void,
 		id: string,
 		private styles: IQuickInputStyles,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -1664,9 +1669,7 @@ export class QuickInputList extends Disposable {
 		if (!element.element || !element.saneTooltip) {
 			return;
 		}
-		// The hover is positioned relative to the viewport, which requires that the
-		// quick input widget is not a containing block for it before it is measured
-		this.prepareForItemHover();
+		this._onWillShowItemHover.fire();
 		this._lastHover = this.hoverDelegate.showHover({
 			content: element.saneTooltip,
 			target: element.element,

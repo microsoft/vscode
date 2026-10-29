@@ -260,7 +260,10 @@ export class QuickInputController extends Disposable {
 
 		// List
 		const listId = this.idPrefix + 'list';
-		const list = this._register(this.instantiationService.createInstance(QuickInputList, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, () => this.settleOpenAnimation(container), listId, this.styles));
+		const list = this._register(this.instantiationService.createInstance(QuickInputList, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId, this.styles));
+		// The item hover is positioned relative to the viewport, which requires that the
+		// widget is not a containing block for it when it is measured
+		this._register(list.onWillShowItemHover(() => this.settleOpenAnimation(container)));
 		inputBox.setAttribute('aria-controls', listId);
 		this._register(list.onDidChangeFocus(() => {
 			if (inputBox.hasFocus()) {

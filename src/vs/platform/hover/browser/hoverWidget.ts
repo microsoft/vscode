@@ -53,7 +53,12 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private readonly _linkHandler: ((url: string) => void) | undefined;
 
 	private _isDisposed: boolean = false;
+	/** The side the hover is currently laid out on, after falling back if it did not fit. */
 	private _hoverPosition: HoverPosition;
+	/**
+	 * The side the hover was asked to show on. Each layout starts from it again, so a hover that
+	 * had to fall back (e.g. while its image was loading) can return once it fits.
+	 */
 	private readonly _requestedHoverPosition: HoverPosition;
 	private _forcePosition: boolean = false;
 	private _x: number = 0;
