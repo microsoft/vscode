@@ -1709,6 +1709,7 @@ suite('getCopilotAgentSelectionName', () => {
 		const plugin = {
 			format: PluginFormat.OpenPlugin, sourceUri, nonce: 'current', pluginDir: root,
 			agents: [
+				toParsedAgent({ uri: URI.joinPath(root, 'agents', 'Solo.agent.md'), name: 'Case-distinct Solo' }),
 				toParsedAgent({ uri, name: 'Solo' }),
 				...['first', 'second'].map(key => toParsedAgent({ uri: URI.joinPath(root, 'agents', key, 'reviewer.agent.md'), name: 'Reviewer' })),
 			],

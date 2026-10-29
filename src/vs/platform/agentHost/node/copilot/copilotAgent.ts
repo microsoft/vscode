@@ -10203,6 +10203,8 @@ class PluginController extends Disposable {
 			};
 		}
 
+		const materializedRoot = URI.parse(pluginDir.toString());
+		const sourceRoot = URI.parse(baseCustomization.uri);
 		return {
 			customization: {
 				...baseCustomization,
@@ -10211,13 +10213,12 @@ class PluginController extends Disposable {
 						return child;
 					}
 					const resource = URI.parse(child.uri);
-					const path = extUriBiasedIgnorePathCase.isEqualOrParent(resource, pluginDir)
-						? extUriBiasedIgnorePathCase.relativePath(pluginDir, resource) : undefined;
+					const path = isEqualOrParent(resource, materializedRoot) ? relativePath(materializedRoot, resource) : undefined;
 					return path === undefined ? child : {
 						...child,
 						_meta: {
 							...child._meta,
-							...toAgentCustomizationMeta({ 'vscode.sourceUri': resourceJoinPath(URI.parse(baseCustomization.uri), path).toString() }),
+							...toAgentCustomizationMeta({ 'vscode.sourceUri': resourceJoinPath(sourceRoot, path).toString() }),
 						},
 					};
 				}),

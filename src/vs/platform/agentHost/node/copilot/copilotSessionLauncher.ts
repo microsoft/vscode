@@ -9,7 +9,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
-import { basename, dirname, extUriBiasedIgnorePathCase, isEqual, joinPath } from '../../../../base/common/resources.js';
+import { basename, dirname, extUri, getComparisonKey, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -246,20 +246,21 @@ export function getCopilotAgentSelection(customizations: ICopilotAppliedCustomiz
 	}
 	const matches = new Map<string, { uri: string; name: string }>();
 	for (const plugin of customizations.plugins) {
-		const root = plugin.pluginDir ?? plugin.resourceDir;
+		const materializedRoot = plugin.pluginDir ?? plugin.resourceDir;
+		const root = materializedRoot && URI.parse(materializedRoot.toString());
 		if (!plugin.sourceUri || plugin.sourceUri.scheme === AGENT_HOST_FILE_SCHEME || !plugin.nonce || !root || root.scheme !== Schemas.file || basename(root) !== plugin.nonce
-			|| !extUriBiasedIgnorePathCase.isEqualOrParent(resource, dirname(root))) {
+			|| !extUri.isEqualOrParent(resource, dirname(root))) {
 			continue;
 		}
 		// The host materializer owns this cache namespace; only restore a flat file in another revision of it.
-		const parts = extUriBiasedIgnorePathCase.relativePath(dirname(root), resource)?.split('/');
+		const parts = extUri.relativePath(dirname(root), resource)?.split('/');
 		if (parts?.length !== 3 || !parts[0] || parts[0] === '..' || parts[0] === '.' || parts[1] !== 'agents') {
 			continue;
 		}
 		const current = joinPath(root, parts[1], parts[2]);
-		const agent = agents.find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.uri, current));
+		const agent = agents.find(candidate => isEqual(candidate.uri, current));
 		if (agent) {
-			matches.set(extUriBiasedIgnorePathCase.getComparisonKey(agent.uri), {
+			matches.set(getComparisonKey(agent.uri), {
 				uri: agent.uri.toString(), name: agent.sdkName ?? getSdkCustomAgentName(agent.uri),
 			});
 		}
