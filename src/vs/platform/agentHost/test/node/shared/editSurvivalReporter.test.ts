@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../files/common/fileService.js';
@@ -28,7 +27,7 @@ class RecordingTelemetryService extends NullTelemetryServiceShape {
 
 suite('agentHost editSurvivalReporter', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: FileService;
 	let telemetry: RecordingTelemetryService;
 	let factory: EditSurvivalReporterFactory;
@@ -39,12 +38,6 @@ suite('agentHost editSurvivalReporter', () => {
 		telemetry = new RecordingTelemetryService();
 		factory = new EditSurvivalReporterFactory(fileService, new NullLogService(), telemetry);
 	});
-
-	teardown(() => {
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('emits a sample at t=0 with the right shape', async () => {
 		await fileService.writeFile(URI.file('/workspace/a.ts'), VSBuffer.fromString('after-text'));

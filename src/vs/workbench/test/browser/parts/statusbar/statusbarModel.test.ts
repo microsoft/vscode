@@ -8,15 +8,10 @@ import { IStatusbarViewModelEntry, StatusbarViewModel } from '../../../../browse
 import { TestStorageService } from '../../../common/workbenchTestServices.js';
 import { StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
 suite('Workbench status bar model', () => {
 
-	const disposables = new DisposableStore();
-
-	teardown(() => {
-		disposables.clear();
-	});
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('basics', () => {
 		const container = document.createElement('div');
@@ -296,5 +291,4 @@ suite('Workbench status bar model', () => {
 		assert.strictEqual(entries[2].id, 'entry1');
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

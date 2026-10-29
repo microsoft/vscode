@@ -573,7 +573,7 @@ function waitForResponse(transport: MockProtocolTransport, id: number): Promise<
 
 suite('ProtocolServerHandler', () => {
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let stateManager: AgentHostStateManager;
 	let server: MockProtocolServer;
 	let agentService: MockAgentService;
@@ -645,7 +645,6 @@ suite('ProtocolServerHandler', () => {
 	}
 
 	setup(() => {
-		disposables = new DisposableStore();
 		stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		server = disposables.add(new MockProtocolServer());
 		agentService = new MockAgentService();
@@ -672,12 +671,6 @@ suite('ProtocolServerHandler', () => {
 			new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
 		));
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('pulls client certificates lazily over reverse RPC without changing the AH environment', async () => {
 		const environment = { ...process.env };

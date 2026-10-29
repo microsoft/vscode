@@ -8,7 +8,6 @@ import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/a
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../base/common/observable.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -59,7 +58,7 @@ class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 
 suite('AgentHostAutomationService', () => {
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let stateManager: AgentHostStateManager;
 	let storageService: AgentHostStorageService;
 	let writeFailures: number;
@@ -74,7 +73,6 @@ suite('AgentHostAutomationService', () => {
 	let authenticationResult: Promise<boolean>;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		clientConnections = disposables.add(new AgentHostClientConnectionService());
 		systemWake = disposables.add(new AgentHostSystemWakeService(new NullLogService()));
 		authenticationRequests = [];
@@ -124,8 +122,6 @@ suite('AgentHostAutomationService', () => {
 		));
 	});
 
-	teardown(() => disposables.dispose());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function definition(): AutomationDefinition {
 		return {
