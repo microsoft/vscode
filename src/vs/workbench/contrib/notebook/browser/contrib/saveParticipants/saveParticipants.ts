@@ -392,21 +392,13 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 
 		// run notebook code actions
 		if (notebookCodeActionsOnSave.length) {
-			const nbDisposable = new DisposableStore();
 			progress.report({ message: localize('notebookSaveParticipants.notebookCodeActions', "Running 'Notebook' code actions") });
 			try {
-				const cell = notebookModel.cells[0];
-				const ref = await this.textModelService.createModelReference(cell.uri);
-				nbDisposable.add(ref);
-
-				const textEditorModel = ref.object.textEditorModel;
-
-				await this.instantiationService.invokeFunction(CodeActionParticipantUtils.applyOnSaveGenericCodeActions, textEditorModel, notebookCodeActionsOnSave, excludedActions, progress, token);
+				await this.instantiationService.invokeFunction(CodeActionParticipantUtils.applyOnSaveNotebookCodeActions, notebookModel, notebookCodeActionsOnSave, excludedActions, progress, token);
 			} catch {
 				this.logService.error('Failed to apply notebook code action on save');
 			} finally {
 				progress.report({ increment: 100 });
-				nbDisposable.dispose();
 			}
 		}
 
@@ -475,13 +467,9 @@ export class CodeActionParticipantUtils {
 		let formatResult: boolean = false;
 		progress.report({ message: localize('notebookSaveParticipants.formatCodeActions', "Running 'Format' code actions") });
 		try {
-			const cell = notebookModel.cells[0];
-			const ref = await textModelService.createModelReference(cell.uri);
-			formatDisposable.add(ref);
-			const textEditorModel = ref.object.textEditorModel;
-
 			const defaultFormatterExtId = configurationService.getValue<string | undefined>(NotebookSetting.defaultFormatter);
-			formatResult = await instantiationService.invokeFunction(CodeActionParticipantUtils.applyOnSaveFormatCodeAction, textEditorModel, new HierarchicalKind('notebook.format'), [], defaultFormatterExtId, progress, token);
+			formatResult = await CodeActionParticipantUtils.tryNotebookCodeActionCells(textModelService, notebookModel, formatDisposable, token, textEditorModel =>
+				instantiationService.invokeFunction(CodeActionParticipantUtils.applyOnSaveFormatCodeAction, textEditorModel, new HierarchicalKind('notebook.format'), [], defaultFormatterExtId, progress, token));
 		} catch {
 			logService.error('Failed to apply notebook format action on save');
 		} finally {
@@ -491,13 +479,75 @@ export class CodeActionParticipantUtils {
 		return formatResult;
 	}
 
+	static async applyOnSaveNotebookCodeActions(
+		accessor: ServicesAccessor,
+		notebookModel: NotebookTextModel,
+		codeActionsOnSave: readonly HierarchicalKind[],
+		excludes: readonly HierarchicalKind[],
+		progress: IProgress<IProgressStep>,
+		token: CancellationToken): Promise<void> {
+
+		const instantiationService: IInstantiationService = accessor.get(IInstantiationService);
+		const textModelService: ITextModelService = accessor.get(ITextModelService);
+
+		const disposables = new DisposableStore();
+		try {
+			for (const codeActionKind of codeActionsOnSave) {
+				await CodeActionParticipantUtils.tryNotebookCodeActionCells(textModelService, notebookModel, disposables, token, textEditorModel =>
+					instantiationService.invokeFunction(CodeActionParticipantUtils.applyOnSaveGenericCodeActions, textEditorModel, [codeActionKind], excludes, progress, token));
+				if (token.isCancellationRequested) {
+					return;
+				}
+			}
+		} finally {
+			disposables.dispose();
+		}
+	}
+
+	/**
+	 * Notebook-scoped code actions are requested against the text model of a single cell, so only providers
+	 * registered for that cell's language are asked (e.g. a markdown first cell never reaches a Python provider).
+	 * Tries the first cell of each language, code cells first, until `tryCell` succeeds.
+	 */
+	private static async tryNotebookCodeActionCells(
+		textModelService: ITextModelService,
+		notebookModel: NotebookTextModel,
+		disposables: DisposableStore,
+		token: CancellationToken,
+		tryCell: (model: ITextModel) => Promise<boolean>): Promise<boolean> {
+
+		const cells = [
+			...notebookModel.cells.filter(cell => cell.cellKind === CellKind.Code),
+			...notebookModel.cells.filter(cell => cell.cellKind !== CellKind.Code),
+		];
+		const triedLanguages = new Set<string>();
+		for (const cell of cells) {
+			if (token.isCancellationRequested) {
+				return false;
+			}
+			if (triedLanguages.has(cell.language)) {
+				continue;
+			}
+			triedLanguages.add(cell.language);
+
+			const ref = disposables.add(await textModelService.createModelReference(cell.uri));
+			if (await tryCell(ref.object.textEditorModel)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * @returns whether the model was provided any valid code actions of the given kinds.
+	 */
 	static async applyOnSaveGenericCodeActions(
 		accessor: ServicesAccessor,
 		model: ITextModel,
 		codeActionsOnSave: readonly HierarchicalKind[],
 		excludes: readonly HierarchicalKind[],
 		progress: IProgress<IProgressStep>,
-		token: CancellationToken): Promise<void> {
+		token: CancellationToken): Promise<boolean> {
 
 		const instantiationService: IInstantiationService = accessor.get(IInstantiationService);
 		const languageFeaturesService: ILanguageFeaturesService = accessor.get(ILanguageFeaturesService);
@@ -523,11 +573,15 @@ export class CodeActionParticipantUtils {
 			}
 		};
 
+		let foundActions = false;
 		for (const codeActionKind of codeActionsOnSave) {
 			const actionsToRun = await CodeActionParticipantUtils.getActionsToRun(model, codeActionKind, excludes, languageFeaturesService, getActionProgress, token);
 			if (token.isCancellationRequested) {
 				actionsToRun.dispose();
-				return;
+				return foundActions;
+			}
+			if (actionsToRun.validActions.length) {
+				foundActions = true;
 			}
 
 			try {
@@ -553,7 +607,7 @@ export class CodeActionParticipantUtils {
 					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
 					await instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave, {}, token);
 					if (token.isCancellationRequested) {
-						return;
+						return foundActions;
 					}
 				}
 			} catch {
@@ -562,6 +616,7 @@ export class CodeActionParticipantUtils {
 				actionsToRun.dispose();
 			}
 		}
+		return foundActions;
 	}
 
 	static async applyOnSaveFormatCodeAction(
