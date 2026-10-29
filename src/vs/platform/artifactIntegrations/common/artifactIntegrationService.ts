@@ -12,7 +12,7 @@ import { autorun, constObservable, derived, IObservable, observableSignal, obser
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { ArtifactActor, ArtifactAuthenticationRequest, ArtifactAuthenticationRequiredError, ArtifactAutomationConfiguration, ArtifactAutomationOption, artifactBindingId, ArtifactContributionSnapshot, ArtifactContributionView, ArtifactRecord, ArtifactSnapshot, getArtifactMainContribution, IArtifactDetailsModel, IArtifactIntegrationAccess, IArtifactModel, isArtifactOptionEnabled, isArtifactRunSettled } from './artifactIntegration.js';
+import { ArtifactActor, ArtifactAuthenticationRequest, ArtifactJsonValue, ArtifactAuthenticationRequiredError, ArtifactAutomationConfiguration, ArtifactAutomationOption, artifactBindingId, ArtifactContributionSnapshot, ArtifactContributionView, ArtifactRecord, ArtifactSnapshot, getArtifactMainContribution, IArtifactDetailsModel, IArtifactIntegrationAccess, IArtifactModel, isArtifactOptionEnabled, isArtifactRunSettled } from './artifactIntegration.js';
 import { applyArtifactAutomationSelection, artifactOptionConsent, disableArtifactAutomation, emptyArtifactConfiguration, reconcileArtifactAutomationOptions, validateArtifactAutomationSelection } from './artifactAutomationConfiguration.js';
 import { isArtifactActionDescriptor, isArtifactAuthenticationRequest, isArtifactJsonValue } from './artifactIntegrationValidation.js';
 import { hasValidArtifactPresentationReferences, isArtifactContributionView, isArtifactDetails } from './artifactPresentationValidation.js';
@@ -189,7 +189,7 @@ export class ArtifactIntegrationService extends Disposable implements IArtifactI
 					snapshot: model.snapshot,
 					requestAuthentication: integrationId => hold(() => model.requestAuthentication(integrationId)),
 					configure: (integrationId, revision, values, actor) => hold(() => model.configure(integrationId, revision, values, actor)),
-					invoke: (integrationId, actionId, chat, requestId, actor) => hold(() => model.invoke(integrationId, actionId, chat, requestId, actor)),
+					invoke: (integrationId, actionId, chat, requestId, actor, input) => hold(() => model.invoke(integrationId, actionId, chat, requestId, actor, input)),
 					cancel: runId => hold(() => model.cancel(runId)),
 					reconcile: runId => hold(() => model.reconcile(runId)),
 					getRuns: (before, limit) => hold(() => model.getRuns(before, limit)),
@@ -453,10 +453,10 @@ class ArtifactModel extends Disposable implements IArtifactModel {
 		this.executor.wake();
 	}
 
-	async invoke(integrationId: string, actionId: string, chat: string, requestId: string, actor: ArtifactActor = { kind: 'user' }) {
+	async invoke(integrationId: string, actionId: string, chat: string, requestId: string, actor: ArtifactActor = { kind: 'user' }, input?: ArtifactJsonValue) {
 		// Runs are recorded against a stored binding.
 		await this.bindings.get(integrationId)?.ensureStored();
-		return this.executor.invoke(artifactBindingId(this.runtime.authority.id, this.session, this.artifact.id, integrationId), actionId, chat, requestId, actor);
+		return this.executor.invoke(artifactBindingId(this.runtime.authority.id, this.session, this.artifact.id, integrationId), actionId, chat, requestId, actor, input);
 	}
 
 	async requestAuthentication(integrationId: string): Promise<ArtifactAuthenticationRequest | undefined> {
