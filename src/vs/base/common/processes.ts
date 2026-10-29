@@ -93,6 +93,7 @@ export interface ProcessItem {
 	pid: number;
 	ppid: number;
 	load: number;
+	/** Memory usage in bytes. */
 	mem: number;
 
 	children?: ProcessItem[];
