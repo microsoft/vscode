@@ -9,6 +9,8 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { errorHandler } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { normalizeDriveLetter } from '../../../../../base/common/labels.js';
+import { isWindows } from '../../../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -283,7 +285,7 @@ suite('WorkspaceTrustedUrisTable', () => {
 	let trustService: FakeWorkspaceTrustManagementService;
 	let table: WorkspaceTrustedUrisTable;
 
-	const folder = (name: string) => URI.file(`/trusted/${name}`);
+	const folder = (name: string) => URI.file(isWindows ? `c:\\trusted\\${name}` : `/trusted/${name}`);
 	const label = (element: Element | null | undefined) => element?.getAttribute('aria-label')?.match(/[\\/]trusted[\\/](?<name>[^\s\\/]+) on /)?.groups?.name;
 
 	setup(() => {
@@ -437,7 +439,7 @@ suite('WorkspaceTrustedUrisTable', () => {
 		for (const existing of [['c-two', 'z-last'], ['c-two', 'm-middle', 'z-last']]) {
 			container.replaceChildren();
 			createTable(existing);
-			trustService.canonicalize = uri => uri.with({ path: uri.path.replace(/^\/alias\//, '/trusted/') });
+			trustService.canonicalize = uri => uri.with({ path: uri.path.replace(/^\/alias\//, folder('').path) });
 			selectRow('z-last');
 			await addFolder([URI.file('/alias/m-middle')]);
 			results.push(getState());
@@ -576,9 +578,9 @@ suite('WorkspaceTrustedUrisTable', () => {
 			label: container.querySelector('.path-label')!.textContent,
 			trustedUris: trustService.getTrustedUris().map(uri => uri.toString()),
 		}, {
-			pendingLabel: folder('c-two').fsPath,
+			pendingLabel: normalizeDriveLetter(folder('c-two').fsPath),
 			pendingUris: [folder('c-two').toString()],
-			label: folder('verified-source').fsPath,
+			label: normalizeDriveLetter(folder('verified-source').fsPath),
 			trustedUris: [folder('verified-source').toString()],
 		});
 	});
@@ -607,9 +609,9 @@ suite('WorkspaceTrustedUrisTable', () => {
 			label: container.querySelector('.path-label')!.textContent,
 			trustedUris: trustService.getTrustedUris().map(uri => uri.toString()),
 		}, {
-			pendingLabel: folder('c-two').fsPath,
+			pendingLabel: normalizeDriveLetter(folder('c-two').fsPath),
 			errors: [trustService.failure],
-			label: folder('c-two').fsPath,
+			label: normalizeDriveLetter(folder('c-two').fsPath),
 			trustedUris: [folder('c-two').toString()],
 		});
 	});
