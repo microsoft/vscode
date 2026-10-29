@@ -376,8 +376,9 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 				label: label.name,
 				iconClasses: getIconClasses(this._modelService, this._languageService, getChangedFileUri(change), FileKind.FILE),
 				additionalBadges: [{ label: insertions, className: 'insertions' }, { label: deletions, className: 'deletions' }],
-				// The row leaves out the file's folder to stay compact, so only screen readers hear it.
+				// The row leaves out the file's folder to stay compact, so its tooltip and screen readers name it.
 				ariaDescription: getChangedFileAriaDescription(change, label),
+				tooltip: label.path,
 				// Rows are styled as changed files wherever a picker lists them.
 				className: 'worktree-suggestion-changed-file show-file-icons',
 				item: { run: () => void this.reviewChanges(variant, suggestion, change) },

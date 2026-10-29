@@ -397,8 +397,8 @@ suite('WorktreeSuggestionService', () => {
 			uri: URI.file(`/repo/${path}`), modifiedUri: URI.file(`/repo/${path}`), insertions: index + 1, deletions: index,
 		}));
 		const list = (count: number) => service.getUncommittedChangesListItems(variant, service.getSuggestion(createSession({ changes: changes(count) }), undefined)!, 3);
-		// Rows show their label and lines added and removed, but no folder, which only screen readers hear, and keep a file icon for alignment.
-		const describe = (row: IActionListItem<IUncommittedChangesListItem>) => [row.label, row.description, ...(row.additionalBadges?.map(badge => badge.label) ?? []), row.ariaDescription, `[${row.className}]`, `{${row.iconClasses?.filter(name => name === 'file-icon').join(' ')}}`].filter(Boolean).join(' ');
+		// Rows show their label and lines added and removed, but no folder, which their tooltip and screen readers name, and keep a file icon for alignment.
+		const describe = (row: IActionListItem<IUncommittedChangesListItem>) => [row.label, row.description, ...(row.additionalBadges?.map(badge => badge.label) ?? []), row.ariaDescription, row.tooltip && `(${row.tooltip})`, `[${row.className}]`, `{${row.iconClasses?.filter(name => name === 'file-icon').join(' ')}}`].filter(Boolean).join(' ');
 
 		const five = list(5);
 		five[1].item!.run();
@@ -413,9 +413,9 @@ suite('WorktreeSuggestionService', () => {
 			opened: opened.map(entry => (entry as { reveal?: string }).reveal).filter(Boolean),
 		}, {
 			three: [
-				'README.md +1 -0 +1 -0 [worktree-suggestion-changed-file show-file-icons] {file-icon}',
-				'app.ts +2 -1 src, +2 -1 [worktree-suggestion-changed-file show-file-icons] {file-icon}',
-				'todo.ts +3 -2 src, +3 -2 [worktree-suggestion-changed-file show-file-icons] {file-icon}',
+				'README.md +1 -0 +1 -0 (README.md) [worktree-suggestion-changed-file show-file-icons] {file-icon}',
+				'app.ts +2 -1 src, +2 -1 (src/app.ts) [worktree-suggestion-changed-file show-file-icons] {file-icon}',
+				'todo.ts +3 -2 src, +3 -2 (src/todo.ts) [worktree-suggestion-changed-file show-file-icons] {file-icon}',
 			],
 			four: ['README.md', 'app.ts', 'todo.ts', 'store.ts'],
 			five: ['README.md', 'app.ts', 'todo.ts', '2 more'],
