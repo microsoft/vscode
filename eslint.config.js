@@ -192,6 +192,7 @@ export default defineConfig(
 	{
 		files: [
 			'src/vs/workbench/api/browser/mainThreadMcp.ts',
+			'src/vs/workbench/api/common/extHostQuickOpen.ts',
 		],
 		rules: {
 			'local/code-prefer-event-or-observable': 'warn',

@@ -140,10 +140,11 @@ suite('code-prefer-event-or-observable configuration', () => {
 			.map(message => message.messageId)), ['constructorCallback', 'methodCallback']);
 	});
 
-	test('enforces only the migrated MCP main-thread bridge', async () => {
+	test('enforces only the migrated API modules', async () => {
 		const eslint = new ESLint();
 		const files = [
 			'src/vs/workbench/api/browser/mainThreadMcp.ts',
+			'src/vs/workbench/api/common/extHostQuickOpen.ts',
 			'src/vs/workbench/api/common/extHostMcp.ts',
 			'src/vs/workbench/api/browser/mainThreadAuthentication.ts',
 			'src/vs/workbench/api/test/browser/mainThreadMcp.test.ts',
@@ -154,6 +155,7 @@ suite('code-prefer-event-or-observable configuration', () => {
 				.filter(message => message.ruleId === 'local/code-prefer-event-or-observable')
 				.map(message => ({ messageId: message.messageId, severity: message.severity })));
 		})), [
+			[{ messageId: 'constructorCallback', severity: 1 }, { messageId: 'methodCallback', severity: 1 }],
 			[{ messageId: 'constructorCallback', severity: 1 }, { messageId: 'methodCallback', severity: 1 }],
 			[],
 			[],

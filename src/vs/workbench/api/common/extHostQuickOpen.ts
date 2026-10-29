@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { dispose, IDisposable } from '../../../base/common/lifecycle.js';
 import { ExtHostCommands } from './extHostCommands.js';
 import { IExtHostWorkspaceProvider } from './extHostWorkspace.js';
@@ -212,14 +212,16 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		// ---- QuickInput
 
 		createQuickPick<T extends QuickPickItem>(extension: IExtensionDescription): QuickPick<T> {
-			const session: ExtHostQuickPick<T> = new ExtHostQuickPick(extension, () => this._sessions.delete(session._id));
+			const session = new ExtHostQuickPick<T>(extension);
 			this._sessions.set(session._id, session);
+			Event.once(session.onDidDispose)(() => this._sessions.delete(session._id));
 			return session;
 		}
 
 		createInputBox(extension: IExtensionDescription): InputBox {
-			const session: ExtHostInputBox = new ExtHostInputBox(extension, () => this._sessions.delete(session._id));
+			const session = new ExtHostInputBox(extension);
 			this._sessions.set(session._id, session);
+			Event.once(session.onDidDispose)(() => this._sessions.delete(session._id));
 			return session;
 		}
 
@@ -287,6 +289,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private readonly _onDidChangeValueEmitter = new Emitter<string>();
 		private readonly _onDidTriggerButtonEmitter = new Emitter<QuickInputButton>();
 		private readonly _onDidHideEmitter = new Emitter<void>();
+		private readonly _onDidDisposeEmitter = new Emitter<void>();
 		private _updateTimeout: Timeout | undefined;
 		private _pendingUpdate: TransferQuickInput = { id: this._id };
 
@@ -295,11 +298,14 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			this._onDidTriggerButtonEmitter,
 			this._onDidHideEmitter,
 			this._onDidAcceptEmitter,
-			this._onDidChangeValueEmitter
+			this._onDidChangeValueEmitter,
+			this._onDidDisposeEmitter
 		];
 
-		constructor(protected _extension: IExtensionDescription, private _onDidDispose: () => void) {
+		constructor(protected _extension: IExtensionDescription) {
 		}
+
+		readonly onDidDispose = this._onDidDisposeEmitter.event;
 
 		get title() {
 			return this._title;
@@ -465,12 +471,12 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			}
 			this._disposed = true;
 			this._fireDidHide();
+			this._onDidDisposeEmitter.fire();
 			this._disposables = dispose(this._disposables);
 			if (this._updateTimeout) {
 				clearTimeout(this._updateTimeout);
 				this._updateTimeout = undefined;
 			}
-			this._onDidDispose();
 			proxy.$dispose(this._id);
 		}
 
@@ -521,8 +527,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private readonly _onDidChangeSelectionEmitter = new Emitter<T[]>();
 		private readonly _onDidTriggerItemButtonEmitter = new Emitter<QuickPickItemButtonEvent<T>>();
 
-		constructor(extension: IExtensionDescription, onDispose: () => void) {
-			super(extension, onDispose);
+		constructor(extension: IExtensionDescription) {
+			super(extension);
 			this._disposables.push(
 				this._onDidChangeActiveEmitter,
 				this._onDidChangeSelectionEmitter,
@@ -698,8 +704,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private _prompt: string | undefined;
 		private _validationMessage: string | InputBoxValidationMessage | undefined;
 
-		constructor(extension: IExtensionDescription, onDispose: () => void) {
-			super(extension, onDispose);
+		constructor(extension: IExtensionDescription) {
+			super(extension);
 			this.update({ type: 'inputBox' });
 		}
 

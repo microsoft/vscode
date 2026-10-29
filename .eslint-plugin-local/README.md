@@ -162,7 +162,7 @@ Only loops that do nothing but wait are reported: the body consists solely of aw
 
 The rule is opt-in. Enabling it checks class constructors and public methods by default, including parameter properties, optional and nullable callbacks, and inline function defaults. Public-method checks include implicit-public, static, abstract, and function-valued class properties, as well as interface/object-type method signatures. Private and protected methods are excluded. Use `['warn', { checkPublicMethods: false }]` to check only constructors.
 
-The [MCP main-thread bridge](../src/vs/workbench/api/browser/mainThreadMcp.ts) is the first opted-in area. Other areas remain disabled until their callback dependencies are migrated.
+The [MCP main-thread bridge](../src/vs/workbench/api/browser/mainThreadMcp.ts) and [extension-host quick-input API](../src/vs/workbench/api/common/extHostQuickOpen.ts) are opted-in areas. Other areas remain disabled until their callback dependencies are migrated.
 
 Enable it for a chosen area in `eslint.config.js`, or use an ESLint directive in an individual file:
 
