@@ -2449,7 +2449,7 @@ suite('CopilotAgent', () => {
 				if (scenario.succeeds) {
 					await mutation;
 				} else {
-					await assert.rejects(mutation, /The preference was saved/);
+					await assert.rejects(mutation, /The extension is (?:enabled|disabled) in settings/);
 				}
 				assert.deepStrictEqual({
 					persisted: scenario.enabled ? client.extensionEnableRequests : client.extensionDisableRequests,
@@ -2662,7 +2662,7 @@ suite('CopilotAgent', () => {
 				originalReconcileCalls,
 				replacementReconcileCalls,
 			}, {
-				errorMessage: 'The preference was saved. The selected chat stopped or was replaced before its extension state could be updated.',
+				errorMessage: 'The extension is disabled in settings. The selected chat stopped or was replaced before its extension state could be updated.',
 				disableRequests: [{ ids: ['user:preview'] }],
 				originalReconcileCalls: 0,
 				replacementReconcileCalls: 0,

@@ -3013,7 +3013,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return this._reconcileExtensionEnablement(currentSession, extensionId, enabled);
 			});
 		} catch (error) {
-			throw new Error(localize('copilot.extensionReconcileFailed', "The preference was saved. {0}", getErrorMessage(error)));
+			throw new Error(enabled
+				? localize('copilot.extensionEnableReconcileFailed', "The extension is enabled in settings. {0}", getErrorMessage(error))
+				: localize('copilot.extensionDisableReconcileFailed', "The extension is disabled in settings. {0}", getErrorMessage(error)));
 		}
 	}
 
