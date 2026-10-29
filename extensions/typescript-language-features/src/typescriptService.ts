@@ -174,6 +174,7 @@ export interface ITypeScriptServiceClient {
 	onReady(f: () => void): Promise<void>;
 
 	showVersionPicker(): void;
+	showNodeVersionPicker(): void;
 
 	readonly apiVersion: API;
 
