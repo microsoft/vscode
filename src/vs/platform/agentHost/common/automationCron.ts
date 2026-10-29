@@ -116,12 +116,12 @@ export function describeAutomationCron(expression: string, locale = language): s
 	} else if (cron.dayOfWeek.unrestricted) {
 		date = monthDays;
 	} else {
-		date = localize('automationCron.description.eitherDay', "{0} or {1}", monthDays, weekDays);
+		date = localize('automationCron.description.additionalDays', "{0} and also {1}", monthDays, weekDays);
 	}
 	if (cron.month.values.size !== 12) {
 		const months = [...cron.month.values].sort((a, b) => a - b);
-		date = localize('automationCron.description.months', "{0} in {1}", date,
-			describeCronValues(months, month => monthNames.value.format(new Date(Date.UTC(2024, month - 1, 1)))));
+		return localize('automationCron.description.inMonths', "In {0}, runs {1} {2}.",
+			describeCronValues(months, month => monthNames.value.format(new Date(Date.UTC(2024, month - 1, 1)))), time, date);
 	}
 	return localize('automationCron.description', "Runs {0} {1}.", time, date);
 }
@@ -186,7 +186,8 @@ function parseAutomationCron(expression: string): IAutomationCron {
 		hour: parseField(fields[1], localize('automationCron.hour', "Hour"), 0, 23),
 		dayOfMonth: parseField(fields[2], localize('automationCron.dayOfMonth', "Day of month"), 1, 31),
 		month: parseField(fields[3], localize('automationCron.month', "Month"), 1, 12, MONTH_NAMES),
-		dayOfWeek: parseField(fields[4], localize('automationCron.dayOfWeek', "Day of week"), 0, 7, WEEKDAY_NAMES, value => value === 7 ? 0 : value),
+		// Implicit weekday steps end at Saturday; explicit 7 remains a Sunday compatibility alias.
+		dayOfWeek: parseField(fields[4], localize('automationCron.dayOfWeek', "Day of week"), 0, 7, WEEKDAY_NAMES, value => value === 7 ? 0 : value, 6),
 	};
 	if (!hasPossibleCalendarDay(cron)) {
 		throw new Error(localize('automationCron.calendar', "Automation schedule cannot match a real calendar date: {0}", expression));
@@ -217,6 +218,7 @@ function parseField(
 	maximum: number,
 	names: ReadonlyMap<string, number> = new Map(),
 	normalize: (value: number) => number = value => value,
+	stepMaximum = maximum,
 ): ICronField {
 	const values = new Set<number>();
 	for (const segment of field.split(',')) {
@@ -237,11 +239,8 @@ function parseField(
 		} else {
 			const range = base.split('-');
 			if (range.length === 1) {
-				if (stepParts.length > 1) {
-					throw new Error(localize('automationCron.stepBase', "{0} steps require '*' or a range: {1}", label, segment));
-				}
 				start = parseValue(range[0], label, minimum, maximum, names);
-				end = start;
+				end = stepParts[1] === undefined ? start : Math.max(start, stepMaximum);
 			} else if (range.length === 2) {
 				start = parseValue(range[0], label, minimum, maximum, names);
 				end = parseValue(range[1], label, minimum, maximum, names);

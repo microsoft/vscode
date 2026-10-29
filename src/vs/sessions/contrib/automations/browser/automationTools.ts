@@ -539,7 +539,7 @@ The change uses the current tool-approval policy. When approval is required, the
 							},
 							cronExpression: {
 								type: 'string',
-								description: 'Required for cron: five fields (minute, hour, day of month, month, day of week). Supports *, lists, ascending ranges, and positive steps on * or ranges; JAN-DEC and SUN-SAT names are accepted.',
+								description: 'Required for cron: five fields (minute, hour, day of month, month, day of week). Supports *, lists, ascending ranges, and positive steps from a starting value or on * and ranges (for example 20/15 or */5); JAN-DEC and SUN-SAT names are accepted. Weekdays use 0-6; explicit 7 is also accepted as Sunday. The month limits both day alternatives; restricted day-of-month and weekday fields are combined with OR.',
 							},
 							cronTimeZone: {
 								type: 'string',

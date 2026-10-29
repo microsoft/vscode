@@ -964,6 +964,9 @@ suite('Automation dialog creation', () => {
 		data.setData('text/plain', '*/5 * * * *');
 		inputs[0].dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
 		const pasted = snapshot();
+		inputs[0].value = '20/15';
+		inputs[0].dispatchEvent(new InputEvent('input'));
+		const startingStep = snapshot();
 		inputs[0].value = '7';
 		inputs[0].dispatchEvent(new InputEvent('input'));
 		const edited = snapshot();
@@ -979,9 +982,10 @@ suite('Automation dialog creation', () => {
 		dialog.cancelButton.click();
 		await dialog.result;
 		const hidden = { text: '', visible: false, role: 'status' };
-		assert.deepStrictEqual({ before, empty, pasted, edited, invalid, preset, restored }, {
+		assert.deepStrictEqual({ before, empty, pasted, startingStep, edited, invalid, preset, restored }, {
 			before: hidden, empty: hidden,
 			pasted: { text: 'Runs every 5 minutes every day.', visible: true, role: 'status' },
+			startingStep: { text: 'Runs at minutes 20, 35 and 50 of every hour every day.', visible: true, role: 'status' },
 			edited: { text: 'Runs at minute 7 of every hour every day.', visible: true, role: 'status' },
 			invalid: hidden, preset: hidden,
 			restored: { text: 'Runs at minute 7 of every hour every day.', visible: true, role: 'status' },

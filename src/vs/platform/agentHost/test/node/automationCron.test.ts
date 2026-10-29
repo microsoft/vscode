@@ -30,6 +30,28 @@ suite('Automation cron', () => {
 		);
 	});
 
+	test('matches GitHub-documented POSIX steps and month-scoped day alternatives', () => {
+		const cases = [
+			['20/15 * * * *', '2027-01-01T00:00:00Z', ['2027-01-01T00:20:00.000Z', '2027-01-01T00:35:00.000Z', '2027-01-01T00:50:00.000Z', '2027-01-01T01:20:00.000Z']],
+			['0 9/6 * * *', '2027-05-01T08:00:00Z', ['2027-05-01T09:00:00.000Z', '2027-05-01T15:00:00.000Z', '2027-05-01T21:00:00.000Z', '2027-05-02T09:00:00.000Z']],
+			['0 9 5/10 * *', '2027-05-01T00:00:00Z', ['2027-05-05T09:00:00.000Z', '2027-05-15T09:00:00.000Z', '2027-05-25T09:00:00.000Z', '2027-06-05T09:00:00.000Z']],
+			['0 9 5 3/4 *', '2027-01-01T00:00:00Z', ['2027-03-05T09:00:00.000Z', '2027-07-05T09:00:00.000Z', '2027-11-05T09:00:00.000Z', '2028-03-05T09:00:00.000Z']],
+			['0 9 * * 1/2', '2026-10-31T00:00:00Z', ['2026-11-02T09:00:00.000Z', '2026-11-04T09:00:00.000Z', '2026-11-06T09:00:00.000Z', '2026-11-09T09:00:00.000Z']],
+			['3 3 5 5 2', '2026-10-31T00:00:00Z', ['2027-05-04T03:03:00.000Z', '2027-05-05T03:03:00.000Z', '2027-05-11T03:03:00.000Z', '2027-05-18T03:03:00.000Z', '2027-05-25T03:03:00.000Z', '2028-05-02T03:03:00.000Z']],
+		] as const;
+		const actual = cases.map(([expression, after, expected]) => {
+			let cursor = new Date(after);
+			return {
+				expression,
+				occurrences: expected.map(() => {
+					cursor = nextAutomationCronOccurrence(expression, 'UTC', cursor);
+					return cursor.toISOString();
+				}),
+			};
+		});
+		assert.deepStrictEqual(actual, cases.map(([expression, , occurrences]) => ({ expression, occurrences })));
+	});
+
 	test('weekdays skip weekends and retain local time across DST changes', () => {
 		const next = (after: string) => nextAutomationCronOccurrence('30 9 * * 1-5', 'America/Los_Angeles', new Date(after)).toISOString();
 		assert.deepStrictEqual({
