@@ -110,7 +110,7 @@ export const cacheWarmingJobs: Readonly<Record<string, ICacheWarmingJob>> = {
  * depends on the home directory of the runners and is part of the cache version.
  */
 const electronCachePaths: Readonly<Record<RunnerOs, string>> = {
-	Linux: '/home/cloudtest/.cache/electron',
+	Linux: '/home/runner/.cache/electron',
 	macOS: '/Users/runner/Library/Caches/electron',
 	Windows: 'C:\\Users\\runneradmin\\AppData\\Local\\electron\\Cache',
 };

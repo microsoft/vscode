@@ -733,7 +733,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			if (event.affectsConfiguration('markdown.experimental.richLinks.enabled', document.uri)) {
 				reloadWebview();
 			}
-			if (event.affectsConfiguration('markdown.editor.highlightActiveBlock', document.uri) && editorWebview.ready) {
+			if ((event.affectsConfiguration('markdown.editor.highlightActiveBlock', document.uri)
+				|| event.affectsConfiguration('markdown.editor.renderWhitespace', document.uri)) && editorWebview.ready) {
 				postConfiguration();
 			}
 		});
@@ -1199,6 +1200,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	#getEditorConfiguration(resource: vscode.Uri): MarkdownEditorConfiguration {
 		return {
 			highlightActiveBlock: vscode.workspace.getConfiguration('markdown.editor', resource).get<boolean>('highlightActiveBlock', true),
+			renderWhitespace: vscode.workspace.getConfiguration('markdown.editor', resource).get<boolean>('renderWhitespace', false),
 		};
 	}
 }

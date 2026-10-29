@@ -19,7 +19,7 @@ import { IAgentHostChatV2MetadataData, decodeChatV2Metadata, encodeChatV2Metadat
 import type { ChatStorageRole } from './sessionStorageIdentity.js';
 import { AgentHostSessionStateTables, deleteSessionStateRows, IAgentHostSessionStateDatabase, ISessionStateSqlConnection, ISessionStateSqlHost, SESSION_STATE_MIGRATION_VERSION, SESSION_STATE_SCHEMA_SQL, checkSessionChatStateTransfer, IAgentHostSessionChatStateTransfer, transferSessionChatStateRows, checkSessionChatStatePromotion, IAgentHostSessionChatStatePromotion, promoteSessionChatStateRows } from './agentHostSessionStateDatabase.js';
 import { AgentHostScratchFolderTables, IAgentHostScratchFolderDatabase, markScratchFoldersRemoving, markUnusedScratchFoldersRemoving, SCRATCH_FOLDER_MIGRATION_VERSION, SCRATCH_FOLDER_SCHEMA_SQL } from './agentHostScratchFolderDatabase.js';
-import { AgentHostWorktreeRemovalTables, IAgentHostWorktreeRemovalDatabase, insertPendingWorktreeRemovals, insertWorktreeCoOwners, IWorktreeCoOwnedFolder, IWorktreeRemovalRequest, rekeyWorktreeCoOwners, WORKTREE_CO_OWNER_MIGRATION_SQL, WORKTREE_CO_OWNER_MIGRATION_VERSION, WORKTREE_CO_OWNER_SCHEMA_SQL, WORKTREE_REMOVAL_MIGRATION_VERSION, WORKTREE_REMOVAL_SCHEMA_SQL } from './agentHostWorktreeRemovalDatabase.js';
+import { AgentHostWorktreeRemovalTables, IAgentHostWorktreeRemovalDatabase, insertPendingWorktreeRemovals, insertWorktreeCoOwners, IWorktreeCoOwnedFolder, IWorktreeRemovalRequest, rekeyWorktreeCoOwners, WORKTREE_CO_OWNER_MIGRATION_SQL, WORKTREE_CO_OWNER_MIGRATION_VERSION, WORKTREE_CO_OWNER_SCHEMA_SQL, WORKTREE_REMOVAL_MIGRATION_VERSION, WORKTREE_REMOVAL_SCHEMA_SQL, WORKTREE_REMOVAL_STATUS_MIGRATION_VERSION } from './agentHostWorktreeRemovalDatabase.js';
 
 /**
  * Durable origin used to resolve competing registrations for the same session.
@@ -423,6 +423,15 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	 * storage identity record gets one.
 	 */
 	recordChatStorageIdentity(session: string, chat: string, role: ChatStorageRole): void;
+	/**
+	 * The agents of chats whose agent differs from their session's, keyed by chat URI. Kept in `metadata` under
+	 * `chatAgentProvider:<chat>`, outside every validated catalog payload, so older builds never see them.
+	 */
+	readChatAgentProviders?(): Promise<ReadonlyMap<string, string>>;
+	/** Records the agent of a chat whose agent differs from its session's. */
+	recordChatAgentProvider?(chat: string, provider: string): Promise<void>;
+	/** Forgets the agents of deleted chats. */
+	deleteChatAgentProviders?(chats: readonly string[]): Promise<void>;
 
 	/**
 	 * Records an identity in the legacy session registry for compatibility.
@@ -781,6 +790,17 @@ async function migrateChatV2Schema(database: Database): Promise<void> {
 		CREATE INDEX IF NOT EXISTS chats_v2_parent ON chats_v2(parent_chat) WHERE tombstoned = 0`);
 }
 
+async function migrateWorktreeRemovalStatusSchema(database: Database): Promise<void> {
+	await exec(database, WORKTREE_REMOVAL_SCHEMA_SQL);
+	const columns = await all(database, 'PRAGMA table_info(pending_worktree_removals)', []);
+	if (!columns.some(column => column.name === 'last_attempt_state')) {
+		await exec(database, `ALTER TABLE pending_worktree_removals ADD COLUMN last_attempt_state TEXT CHECK (last_attempt_state IN ('failed', 'skipped'))`);
+	}
+	if (!columns.some(column => column.name === 'last_attempt_message')) {
+		await exec(database, 'ALTER TABLE pending_worktree_removals ADD COLUMN last_attempt_message TEXT');
+	}
+}
+
 const migrations = [
 	{
 		version: 1,
@@ -860,6 +880,10 @@ const migrations = [
 	{
 		version: SCRATCH_FOLDER_MIGRATION_VERSION,
 		sql: SCRATCH_FOLDER_SCHEMA_SQL,
+	},
+	{
+		version: WORKTREE_REMOVAL_STATUS_MIGRATION_VERSION,
+		sql: '',
 	},
 ] as const;
 
@@ -1177,6 +1201,9 @@ function hiddenSessionKey(session: string): string {
 /** Metadata key prefixes of the records that map runtime identities to their storage spelling. */
 export type StorageIdentityMetadataPrefix = 'sessionStorageIdentity:' | 'chatStorageIdentity:';
 
+/** Metadata key prefix of the agent of a chat whose agent differs from its session's. */
+const CHAT_AGENT_PROVIDER_KEY_PREFIX = 'chatAgentProvider:';
+
 function isStorageIdentityMetadataKey(key: string): boolean {
 	return key.startsWith('sessionStorageIdentity:') || key.startsWith('chatStorageIdentity:');
 }
@@ -1293,6 +1320,23 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 
 	recordChatStorageIdentity(_session: string, _chat: string, _role: ChatStorageRole): void {
 		// This database stores runtime identities as they are.
+	}
+
+	async readChatAgentProviders(): Promise<ReadonlyMap<string, string>> {
+		// `;` follows `:`, so the range holds exactly the keys starting with the prefix.
+		const rows = await all(await this._ensureDatabase(), 'SELECT key, value FROM metadata WHERE key >= ? AND key < ?', [CHAT_AGENT_PROVIDER_KEY_PREFIX, CHAT_AGENT_PROVIDER_KEY_PREFIX.slice(0, -1) + ';']);
+		return new Map(rows.map(row => [(row.key as string).slice(CHAT_AGENT_PROVIDER_KEY_PREFIX.length), row.value as string]));
+	}
+
+	recordChatAgentProvider(chat: string, provider: string): Promise<void> {
+		return this._run('INSERT INTO metadata (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', [CHAT_AGENT_PROVIDER_KEY_PREFIX + chat, provider]);
+	}
+
+	async deleteChatAgentProviders(chats: readonly string[]): Promise<void> {
+		for (let offset = 0; offset < chats.length; offset += SESSION_CHAT_INSERT_BATCH_SIZE) {
+			const batch = chats.slice(offset, offset + SESSION_CHAT_INSERT_BATCH_SIZE);
+			await this._run(`DELETE FROM metadata WHERE key IN (${batch.map(() => '?').join(', ')})`, batch.map(chat => CHAT_AGENT_PROVIDER_KEY_PREFIX + chat));
+		}
 	}
 
 
@@ -4477,6 +4521,8 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 									await migrateChatV2Schema(database);
 								} else if (migration.version === CHAT_ORIGIN_MIGRATION_VERSION) {
 									await migrateChatOriginSchema(database);
+								} else if (migration.version === WORKTREE_REMOVAL_STATUS_MIGRATION_VERSION) {
+									await migrateWorktreeRemovalStatusSchema(database);
 								} else {
 									await exec(database, migration.sql);
 								}
@@ -4513,6 +4559,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 							if (currentVersion >= SCRATCH_FOLDER_MIGRATION_VERSION) {
 								await exec(database, SCRATCH_FOLDER_SCHEMA_SQL);
 							}
+							await migrateWorktreeRemovalStatusSchema(database);
 							await exec(database, 'COMMIT');
 						} catch (error) {
 							return this._rollback(database, error, 'Failed to complete normalized catalog schema');

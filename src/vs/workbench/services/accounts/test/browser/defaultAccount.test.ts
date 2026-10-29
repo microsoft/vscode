@@ -1755,6 +1755,49 @@ suite('DefaultAccountProvider', () => {
 		});
 	});
 
+	test('MCP registry policy survives failed refreshes and is cleared only by an affirmative answer', async () => {
+		const refreshWithRegistryResponse = async (registryResponse: () => IRequestContext) => {
+			let useRegistryResponse = false;
+			const requestService = new TestRequestService(async request => useRegistryResponse && request.callSite === 'defaultAccount.mcpRegistryProvider' ? registryResponse() : enterpriseResponse(request));
+			const provider = await createProvider(requestService, {}, {}, undefined, { getSessions: async () => [enterpriseSession('b')] }, enterpriseConfiguration());
+			const fetchedAt = provider['_policyData']?.mcpRegistryDataFetchedAt;
+			useRegistryResponse = true;
+			await provider.refresh({ forceRefresh: true });
+			return {
+				url: provider.policyData?.mcpRegistryUrl,
+				access: provider.policyData?.mcpAccess,
+				keptFetchedAt: fetchedAt !== undefined && provider['_policyData']?.mcpRegistryDataFetchedAt === fetchedAt,
+			};
+		};
+		const failures: { name: string; response: () => IRequestContext }[] = [
+			{ name: 'no response', response: () => { throw new Error('MCP registry unavailable'); } },
+			{ name: 'malformed', response: () => jsonResponse({}) },
+			{ name: '401', response: () => jsonResponse({}, 401) },
+			{ name: '403', response: () => jsonResponse({}, 403) },
+			{ name: '429', response: () => jsonResponse({}, 429) },
+			{ name: '500', response: () => jsonResponse({}, 500) },
+		];
+		const answers: { name: string; response: () => IRequestContext }[] = [
+			{ name: '404', response: () => jsonResponse({}, 404) },
+			{ name: 'no registries', response: () => jsonResponse({ mcp_registries: [] }) },
+		];
+
+		const outcomes = [];
+		for (const { name, response } of failures) {
+			outcomes.push({ name, ...await refreshWithRegistryResponse(response) });
+		}
+		for (const { name, response } of answers) {
+			const { url, access } = await refreshWithRegistryResponse(response);
+			outcomes.push({ name, url, access });
+		}
+
+		// A failure keeps the last known registry policy and its original timestamp; only an answer from the service clears it.
+		assert.deepStrictEqual(outcomes, [
+			...failures.map(({ name }) => ({ name, url: 'https://registry.example.test', access: 'registry_only', keptFetchedAt: true })),
+			...answers.map(({ name }) => ({ name, url: undefined, access: undefined })),
+		]);
+	});
+
 	function enterpriseSession(host: string): AuthenticationSession {
 		return {
 			...sessions[0],

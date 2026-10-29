@@ -547,6 +547,18 @@
 	border: none !important;
 }
 
+.chat-confirmation-message-terminal-reason {
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+
+	.chat-markdown-part > :first-child {
+		margin-top: 0;
+	}
+
+	.chat-markdown-part > :last-child {
+		margin-bottom: 0;
+	}
+}
+
 .chat-confirmation-message-terminal .chat-confirmation-message-terminal-disclaimer p:last-child {
 	margin-bottom: 0 !important;
 	padding: 4px 8px 0 8px;
