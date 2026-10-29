@@ -334,6 +334,48 @@ export class ChatInlineAttachments extends Disposable {
 	}
 
 	/**
+	 * The references that pills stand for, with ranges that cover their
+	 * anchors in the input. While a pill stands for a reference, the input's
+	 * {@link ChatDynamicVariableModel} does not have the reference.
+	 */
+	getPillReferences(): IDynamicVariable[] {
+		const model = this._editor.getModel();
+		if (!model) {
+			return [];
+		}
+		const references: IDynamicVariable[] = [];
+		for (const pill of this._pills) {
+			const range = pill.range;
+			if (pill.data.reference && range && isAnchorRange(model, range)) {
+				references.push({ ...pill.data.reference, range });
+			}
+		}
+		// Pills that this controller's edit adds exist only while it edits, which is when the input's references change.
+		for (const anchor of this._pendingAnchors) {
+			const range = Range.fromPositions(model.getPositionAt(anchor.offset), model.getPositionAt(anchor.offset + 1));
+			if (anchor.reference && isAnchorRange(model, range)) {
+				references.push({ ...anchor.reference, range });
+			}
+		}
+		return references;
+	}
+
+	/** The text of the prompt that a range of the input stands for, in which each pill is expanded to the text it stands for. */
+	getPromptText(range: IRange): string {
+		const model = this._editor.getModel();
+		if (!model) {
+			return '';
+		}
+		const projection = this.project();
+		if (!projection) {
+			return model.getValueInRange(range);
+		}
+		return projection.text.slice(
+			projection.toPromptOffset(model.getOffsetAt(Range.getStartPosition(range))),
+			projection.toPromptOffset(model.getOffsetAt(Range.getEndPosition(range))));
+	}
+
+	/**
 	 * Projects the input onto the prompt it represents, in which every pill is
 	 * expanded to the text it stands for.
 	 *

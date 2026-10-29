@@ -35,7 +35,7 @@ import { ChatInlineAttachments } from '../../../../../browser/widget/input/edito
 import { IChatWidgetContrib } from '../../../../../browser/widget/chatWidget.js';
 import { ChatContextKeys } from '../../../../../common/actions/chatContextKeys.js';
 import { IChatRequestVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
-import { IDynamicVariable } from '../../../../../common/attachments/chatVariables.js';
+import { IDynamicVariable, toAttachedContextDynamicVariable } from '../../../../../common/attachments/chatVariables.js';
 import { ChatConfiguration } from '../../../../../common/constants.js';
 import { IParsedChatRequest } from '../../../../../common/requestParser/chatParserTypes.js';
 
@@ -357,5 +357,32 @@ suite('ChatInlineAttachments', () => {
 		const undone = input.state();
 
 		assert.deepStrictEqual({ added, removed, undone: undone.attachments.length, mentions: undone.prompt.split('#attachment:').length - 1 }, { added: 60, removed: 0, undone: 60, mentions: 60 });
+	});
+
+	test('finds the references that pills stand for, from the edit that adds the pills until their anchors are removed', async () => {
+		// As the Integrated Browser comments on an element: it attaches the element, mentions it, and follows the mention with the comment.
+		const input = createInput('');
+		const element = file('a.ts');
+		input.attachments.addContext(element);
+		input.editor.executeEdits('comment', [{ range: new Range(1, 1, 1, 1), text: '@a.ts fix like #file:b.ts' }]);
+		input.addReference(toAttachedContextDynamicVariable(element, new Range(1, 1, 1, 6)));
+		input.addReference({ id: 'file:///b.ts', range: new Range(1, 16, 1, 26), data: URI.file('/b.ts'), isFile: true });
+		input.editor.setPosition(new Position(1, 26));
+		const pillReferences = () => input.controller.getPillReferences().map(reference => `${reference.id} ${Range.lift(reference.range)}${reference.isAttachmentReference ? ' attachment' : ''}`);
+		// The input's references change while the pills replace their text, before the pills exist.
+		const whileReplaced: string[][] = [];
+		const listener = input.editor.onDidChangeModelContent(() => whileReplaced.push(pillReferences()));
+		await settle();
+		listener.dispose();
+		const model = input.editor.getModel()!;
+		const pills = { input: model.getValue(), references: pillReferences(), comment: input.controller.getPromptText(new Range(1, 2, 1, model.getLineMaxColumn(1))) };
+		input.editor.executeEdits('test', [{ range: model.getFullModelRange(), text: '' }]);
+
+		assert.deepStrictEqual({ whileReplaced, pills, removed: pillReferences() }, {
+			whileReplaced: [['file:a.ts [1,1 -> 1,2] attachment', 'file:///b.ts [1,12 -> 1,13]']],
+			pills: { input: '\uFFFC fix like \uFFFC', references: ['file:a.ts [1,1 -> 1,2] attachment', 'file:///b.ts [1,12 -> 1,13]'], comment: ' fix like #file:b.ts' },
+			removed: [],
+		});
+		await settle();
 	});
 });
