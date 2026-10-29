@@ -962,9 +962,14 @@ export class QuickInputController extends Disposable {
 		return view.isConnected && dom.isAncestor(host, container);
 	}
 
+	/**
+	 * Opens the context menu of the quick input's own text input inside of the
+	 * quick input. Without the Clipboard API (e.g. on non-secure origins), the
+	 * menu's Paste could not work, so the event is left to the platform's menu.
+	 */
 	private showInputContextMenu(container: HTMLElement, e: MouseEvent): void {
 		const target = e.target;
-		if (e.defaultPrevented || !(dom.isHTMLInputElement(target) || dom.isHTMLTextAreaElement(target))) {
+		if (e.defaultPrevented || !(dom.isHTMLInputElement(target) || dom.isHTMLTextAreaElement(target)) || !dom.getWindow(target).navigator.clipboard) {
 			return;
 		}
 
