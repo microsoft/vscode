@@ -6596,6 +6596,7 @@ suite('AgentSideEffects', () => {
 							pastTenseMessage: 'Got the magic word',
 							content: [{ type: ToolResultContentType.Text, text: 'XYLOPHONE' }],
 							structuredContent: { word: 'XYLOPHONE' },
+							resultMetadata: { ui: { private: [null, false, 0] } },
 						};
 						dispatch({
 							type: ActionType.ChatToolCallComplete, turnId: 'turn-1', toolCallId: 'tc-result',
