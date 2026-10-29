@@ -28,8 +28,8 @@ suite('ExtHostTimeline', function () {
 	const options: TimelineOptions = { cacheResults: true, triggerKind: TimelineTriggerKind.Automatic };
 	const converter = new class extends mock<CommandsConverter>() { };
 
-	function createExtension(id: string, enabledApiProposals: IExtensionDescription['enabledApiProposals'] = ['timeline']): IExtensionDescription {
-		return { ...nullExtensionDescription, identifier: new ExtensionIdentifier(id), enabledApiProposals };
+	function createExtension(id: string): IExtensionDescription {
+		return { ...nullExtensionDescription, identifier: new ExtensionIdentifier(id) };
 	}
 
 	function createTimeline() {
@@ -53,7 +53,7 @@ suite('ExtHostTimeline', function () {
 			}
 		};
 		const timeline = new ExtHostTimeline(SingleProxyRPCProtocol(proxy), commands);
-		return { timeline, calls, processArgument: (arg: unknown, extension: IExtensionDescription) => argumentProcessor.processArgument(arg, extension) };
+		return { timeline, calls, processArgument: (arg: unknown, extension: IExtensionDescription | undefined) => argumentProcessor.processArgument(arg, extension) };
 	}
 
 	function toContext(handle: string, source: string, uri: URI | undefined) {
@@ -134,8 +134,8 @@ suite('ExtHostTimeline', function () {
 			copy: { ...copy },
 			copyIsFrozen: Object.isFrozen(copy) && copy !== first,
 			copies: copies.map(item => item.label),
-			withoutProposal: processArgument(firstContext, createExtension('test.other', [])),
-			selectionWithoutProposal: processArgument([firstContext, secondContext], createExtension('test.other', [])),
+			withoutExtension: processArgument(firstContext, undefined),
+			selectionWithoutExtension: processArgument([firstContext, secondContext], undefined),
 		}, {
 			owner: true,
 			ownerSelection: true,
@@ -152,8 +152,8 @@ suite('ExtHostTimeline', function () {
 			},
 			copyIsFrozen: true,
 			copies: ['first item', 'second item'],
-			withoutProposal: undefined,
-			selectionWithoutProposal: undefined,
+			withoutExtension: undefined,
+			selectionWithoutExtension: undefined,
 		});
 		registration.dispose();
 	});

@@ -16,7 +16,6 @@ import { MarkdownString } from './extHostTypeConverters.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { hasKey, isString } from '../../../base/common/types.js';
-import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 export interface IExtHostTimeline extends ExtHostTimelineShape {
 	readonly _serviceBrand: undefined;
@@ -230,7 +229,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 	}
 
 	private _resolveItem(context: TimelineActionContext, extension: IExtensionDescription | undefined): vscode.TimelineItem | undefined {
-		if (!extension || !isProposedApiEnabled(extension, 'timeline')) {
+		if (!extension) {
 			return undefined;
 		}
 
