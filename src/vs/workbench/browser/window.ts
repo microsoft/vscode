@@ -6,6 +6,7 @@
 import { getZoomFactor, isSafari, isMobileStandalone, onDidChangeZoomLevel, setFullscreen } from '../../base/browser/browser.js';
 import { addDisposableListener, EventHelper, EventType, getWindow, getWindowById, getWindows, getWindowsCount, hasAppFocus, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from '../../base/browser/dom.js';
 import { DomEmitter } from '../../base/browser/event.js';
+import { IPixelRatioMonitor, PixelRatio } from '../../base/browser/pixelRatio.js';
 import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from '../../base/browser/deviceAccess.js';
 import { timeout } from '../../base/common/async.js';
 import { Event } from '../../base/common/event.js';
@@ -41,7 +42,11 @@ export abstract class BaseWindow extends Disposable {
 
 	constructor(
 		targetWindow: CodeWindow,
-		dom = { getWindowsCount, getWindows }, /* for testing */
+		dom = {
+			getWindowsCount,
+			getWindows,
+			getPixelRatioMonitor: (targetWindow: CodeWindow) => PixelRatio.getInstance(targetWindow)
+		}, /* for testing */
 		@IHostService protected readonly hostService: IHostService,
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
@@ -54,19 +59,23 @@ export abstract class BaseWindow extends Disposable {
 
 		this.registerFullScreenListeners(targetWindow.vscodeWindowId);
 		this.registerContextMenuListeners(targetWindow);
-		this.registerWindowZoomFactor(targetWindow);
+		this.registerWindowScaleFactors(targetWindow, dom.getPixelRatioMonitor(targetWindow));
 	}
 
-	private registerWindowZoomFactor(targetWindow: CodeWindow): void {
+	private registerWindowScaleFactors(targetWindow: CodeWindow, pixelRatio: IPixelRatioMonitor): void {
 		// Auxiliary windows mirror document/body styles, but keep their own workbench styles.
 		const container = this.layoutService.getContainer(targetWindow);
-		const update = () => container.style.setProperty('--window-zoom-factor', String(getZoomFactor(targetWindow)));
+		const update = () => {
+			container.style.setProperty('--window-zoom-factor', String(getZoomFactor(targetWindow)));
+			container.style.setProperty('--window-device-pixel-ratio', String(pixelRatio.value));
+		};
 		update();
 		this._register(onDidChangeZoomLevel(windowId => {
 			if (windowId === targetWindow.vscodeWindowId) {
 				update();
 			}
 		}));
+		this._register(pixelRatio.onDidChange(update));
 	}
 
 	//#region focus handling in multi-window applications
