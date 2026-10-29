@@ -260,6 +260,8 @@ export type InstallOptions = {
 
 export type UninstallOptions = {
 	mcpResource?: URI;
+	/** Input definitions still referenced by other configuration scopes in the current workspace. */
+	preserveInputIds?: readonly string[];
 };
 
 export interface IInstallableMcpServer {
@@ -297,15 +299,19 @@ export interface IAllowedMcpServersService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeAllowedMcpServers: Event<void>;
-	/** Checks a server definition before resolution, deferring rules for variable-dependent URL/command fields. */
+	/** Whether enterprise policy supplies an allowlist (including an empty list) instead of legacy registry authorization. */
+	readonly hasManagedAllowlist: boolean;
+	/** Original allow/deny URL and command strings containing environment references, to be resolved into {@link IMcpServerIdentity.policyValues} by the executing host. */
+	getServerPolicyVariableValues(): readonly string[];
+	/** Checks gallery candidates or a server definition before resolution, rejecting invalid command/URL shapes and deferring variable-dependent rules. */
 	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): true | IMarkdownString;
 
 	/** Checks a definition identity before resolution; access and name restrictions are never deferred. */
 	isServerAllowedBeforeResolution(identity: IMcpServerIdentity): true | IMarkdownString;
 
 	/**
-	 * Checks access and allow/deny rules against a resolved runtime identity without deferring URL rules.
-	 * Runtime callers must use this after resolving a server definition.
+	 * Checks the resolved command or destination against access and allow/deny rules, substituting `identity.policyValues` into the policy matchers.
+	 * Call before execution and for every request destination; missing host expansions fail closed, while preliminary checks only defer the decision.
 	 */
 	isServerAllowed(identity: IMcpServerIdentity): true | IMarkdownString;
 }

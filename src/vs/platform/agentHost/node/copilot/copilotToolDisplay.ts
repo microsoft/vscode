@@ -20,6 +20,7 @@ import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxP
 import { basename, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { getStreamingCreateMessage, getStreamingInsertMessage, getStreamingPatchMessage, getStreamingReplaceMessage, streamingToolTextLineCount, type ToolPathResolver } from '../../common/streamingToolCallDisplay.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
+import { COMPUTER_USE_ACTIVATION_TOOL_NAME } from './copilotComputerUseActivationTool.js';
 
 // =============================================================================
 // Copilot CLI built-in tool interfaces
@@ -66,6 +67,7 @@ export const enum CopilotToolName {
 	Rg = 'rg',
 	Glob = 'glob',
 	SearchCodeSubagent = 'search_code_subagent',
+	SemanticCodeSearch = 'semantic_code_search',
 	ReplyToComment = 'reply_to_comment',
 	CodeReview = 'code_review',
 	ApplyPatch = 'apply_patch',
@@ -347,16 +349,6 @@ export function isEditTool(toolName: string, command?: string): boolean {
 }
 
 /**
- * Extracts the target file path from an edit tool's parameters, if available.
- * For `apply_patch` / `git_apply_patch` the first file in the V4A patch body
- * is returned. Callers that need every affected file (for snapshotting all
- * edits in a multi-file patch) should use {@link getEditFilePaths} instead.
- */
-export function getEditFilePath(parameters: unknown): string | undefined {
-	return getEditFilePaths(parameters)[0];
-}
-
-/**
  * Extracts every file path an edit tool will touch. For `edit` / `create` this
  * is the single `path` parameter; for `apply_patch` / `git_apply_patch` this
  * is the unique set of files declared in the V4A patch body, in document
@@ -442,10 +434,13 @@ const SEARCH_TOOL_NAMES: ReadonlySet<string> = new Set([
  * synthesizes a tool-start/complete pair from that event so the UI can
  * render a clickable file link instead of just the skill name. See
  * {@link synthesizeSkillToolCall}.
+ *
+ * The Computer Use activation tool is hidden because its card is what the user sees.
  */
 const HIDDEN_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CopilotToolName.ReportIntent,
 	CopilotToolName.Skill,
+	COMPUTER_USE_ACTIVATION_TOOL_NAME,
 ]);
 
 /**
@@ -496,29 +491,6 @@ export function getTaskCompleteMarkdown(parameters: Record<string, unknown> | un
 		return undefined;
 	}
 	return '\n\n' + localize('toolMarkdown.taskComplete', "**Task completed:**\n\n{0}", summary);
-}
-
-/**
- * Returns true if the tool should render as a markdown response part instead
- * of a tool-call entry.
- */
-export function isMarkdownRenderedTool(toolName: string): boolean {
-	return isTaskCompleteTool(toolName);
-}
-
-/**
- * Returns markdown content for tools rendered as inline markdown response
- * parts.
- */
-export function getToolMarkdownContent(toolName: string, parameters: Record<string, unknown> | undefined): string | undefined {
-	if (!isMarkdownRenderedTool(toolName)) {
-		return undefined;
-	}
-	const summary = getTaskCompleteSummary(parameters, undefined);
-	if (!summary) {
-		return undefined;
-	}
-	return getTaskCompleteMarkdown(parameters, undefined);
 }
 
 /**
@@ -1197,6 +1169,7 @@ function readConfirmationTitle(request: PermissionRequest, path: string | undefi
  *
  * `additionalDirectories` carries the peer roots of a multi-root session, so a
  * read under any root is recognized as inside the workspace.
+ * Hook requests show the hook's reason and gated tool input while retaining their permission kind.
  */
 export function getPermissionDisplay(request: PermissionRequest, workingDirectory?: URI, isNewFile?: boolean, additionalDirectories?: readonly URI[], shellToolParameters?: Record<string, unknown>): {
 	confirmationTitle: string;
@@ -1273,6 +1246,23 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 				toolInput: serverDisplay?.hideConfirmationInput ? undefined : args ? tryStringify(args) : tryStringify(request),
 				permissionKind: request.kind,
 				permissionPath: path,
+			};
+		}
+		case 'hook': {
+			const args = typeof request.toolArgs === 'object' && request.toolArgs !== null && !Array.isArray(request.toolArgs)
+				? { ...request.toolArgs } : undefined;
+			const shellToolName = toolName && isShellTool(toolName) ? toolName : undefined;
+			if (shellToolName) {
+				stripRedundantCdPrefix(shellToolName, args, workingDirectory);
+			}
+			return {
+				confirmationTitle: shellToolName ? shellConfirmationTitle : localize('copilot.permission.hook.title', "Allow tool call: {0}?", toolName ?? request.kind),
+				invocationMessage: str(request.hookMessage)?.trim() || (shellToolName
+					? getInvocationMessage(shellToolName, getToolDisplayName(shellToolName), typeof args?.command === 'string' ? args : undefined)
+					: md(localize('copilot.permission.default.message', "Allow the model to call {0}?", appendEscapedMarkdownInlineCode(toolName ?? request.kind)))),
+				toolInput: tryStringify(args ?? request.toolArgs, 2),
+				permissionKind: 'hook',
+				shellCommand: shellToolName ? str(args?.command) : undefined,
 			};
 		}
 		case 'write': {

@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'fs';
+import type { IncomingMessage, ServerResponse } from 'http';
+import type { AddressInfo } from 'net';
 import { tmpdir } from 'os';
+import { fileURLToPath } from 'url';
+import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CapiReplayProxy } from './e2e/harness/capiReplayProxy.js';
@@ -14,6 +18,54 @@ import { aggregateAnthropicSse, anthropicMessageToSse } from './e2e/harness/capi
 suite('CapiReplayProxy', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('rejects debugger discovery probes without recording them or counting them as replay traffic', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-debugger-'));
+		const fixturePath = join(directory, 'capture.yaml');
+		try {
+			for (const mode of ['record', 'replay'] as const) {
+				const proxy = new CapiReplayProxy({ fixturePath, mode });
+				try {
+					const url = await proxy.start();
+					const statuses = [];
+					for (const path of ['/json/version', '/json/list']) {
+						const response = await fetch(`${url}${path}`);
+						statuses.push(response.status);
+						await response.text();
+					}
+					assert.deepStrictEqual(statuses, [404, 404]);
+				} finally {
+					await proxy.stop();
+				}
+			}
+			const fixture = readFileSync(fixturePath, 'utf8');
+			assert.ok(!fixture.includes('/json/'), 'Debugger discovery must not enter recordings');
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	for (const request of [
+		{ method: 'GET', path: '/unexpected-api' },
+		{ method: 'POST', path: '/json/version' },
+		{ method: 'POST', path: '/v1/messages' },
+		{ method: 'POST', path: '/responses' },
+	]) {
+		test(`debugger probe handling preserves strict replay for ${request.method} ${request.path}`, async () => {
+			const proxy = new CapiReplayProxy({ fixturePath: fileURLToPath(new URL('./e2e/captures/empty.yaml', import.meta.url)), mode: 'replay' });
+			try {
+				const url = await proxy.start();
+				const response = await fetch(`${url}${request.path}`, {
+					method: request.method,
+					...(request.method === 'POST' ? { body: '{}' } : {}),
+				});
+				await response.text();
+				assert.throws(() => proxy.assertNoReplayMismatches(), /cache miss/);
+			} finally {
+				await assert.rejects(proxy.stop(), /cache miss/);
+			}
+		});
+	}
 
 	test('serves mutable managed settings locally in record and replay and resets between tests', async () => {
 		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-policy-'));
@@ -44,6 +96,54 @@ suite('CapiReplayProxy', () => {
 			}
 			assert.ok(!readFileSync(fixturePath, 'utf8').includes('policy-a'), 'Managed settings must not enter model recordings');
 		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('records an exchange whose client left before its upstream finished, and aborts one that never finishes instead of writing a partial fixture', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-drain-'));
+		// The upstream streams a first chunk at once; `/v1/messages` finishes later, `/responses` never does.
+		const stalledClosed = new DeferredPromise<void>();
+		const { createServer } = await import('http');
+		const upstream = createServer((req: IncomingMessage, res: ServerResponse) => {
+			req.resume();
+			res.writeHead(200, { 'content-type': 'text/plain' });
+			res.write('first ');
+			if (req.url === '/responses') {
+				res.once('close', () => stalledClosed.complete());
+			} else {
+				setTimeout(() => res.end('last'), 50);
+			}
+		});
+		await new Promise<void>(resolve => upstream.listen(0, '127.0.0.1', resolve));
+		const upstreamUrl = `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`;
+		/** Sends `path` through a recorder and leaves as soon as the response starts, then stops the recorder. */
+		const record = async (path: string) => {
+			const fixturePath = join(directory, `${path.replace(/\W/g, '')}.yaml`);
+			const recorder = new CapiReplayProxy({ fixturePath, mode: 'record', upstreamUrl, recordingDrainTimeoutMs: 200 });
+			const url = await recorder.start();
+			const abort = new AbortController();
+			const response = await fetch(`${url}${path}`, { method: 'POST', body: '{}', signal: abort.signal });
+			await response.body?.getReader().read();
+			abort.abort();
+			let stopped: string;
+			try {
+				await recorder.stop();
+				stopped = 'stopped';
+			} catch (error) {
+				stopped = error instanceof Error && error.message.includes('the recording is incomplete') ? 'incomplete' : String(error);
+			}
+			return { stopped, recorded: existsSync(fixturePath) ? readFileSync(fixturePath, 'utf8').includes('first last') : 'not written' };
+		};
+		try {
+			assert.deepStrictEqual({ finished: await record('/v1/messages'), stalled: await record('/responses'), aborted: await raceTimeout(stalledClosed.p.then(() => true), 5_000) }, {
+				finished: { stopped: 'stopped', recorded: true },
+				stalled: { stopped: 'incomplete', recorded: 'not written' },
+				aborted: true,
+			});
+		} finally {
+			upstream.closeAllConnections();
+			await new Promise<void>(resolve => upstream.close(() => resolve()));
 			rmSync(directory, { recursive: true, force: true });
 		}
 	});

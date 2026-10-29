@@ -8,7 +8,7 @@ import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import * as sinon from 'sinon';
 import type { Database } from '@vscode/sqlite3';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -20,11 +20,15 @@ import { SessionStateDeletedError, SessionStateMirrorFlush, readSessionBaseBranc
 import { type ISessionDatabase, type ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
 import { AgentHostDatabase, type IAgentHostDatabase } from '../../node/agentHostDatabase.js';
-import { mirrorEntryId } from '../../node/agentHostSessionStateMirror.js';
+import { mirrorEntryId, OLDER_BUILD_WORKTREE_WITHHELD_KEY } from '../../node/agentHostSessionStateMirror.js';
+import { AgentHostWorktreeCoOwnership } from '../../node/agentHostWorktreeCoOwnership.js';
+import { NullAgentHostWorktreeIsolation, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import { AgentHostSessionStateStore } from '../../node/agentHostSessionStateStore.js';
 import { AH_CHAT_CONFIG_VALUES_DB_KEY } from '../../node/agentHostChatRowStore.js';
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
+import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { WORKTREE_FOLDERS_KEY } from '../../node/shared/sessionWorktreeFolders.js';
 import { createLegacySessionFixture, InMemorySessionDataService, legacySessionMetadata, readOldBuildView, writeLegacySessionState, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
 
 /** Long enough that no mirror flush runs unless a test asks for it. */
@@ -72,6 +76,148 @@ suite('AgentHostSessionStateStore', () => {
 			reference.dispose();
 		}
 	}
+
+	test('a shared worktree\'s branch is withheld from older builds until it is no longer shared; an older build writing it back keeps the value and has it withheld again (Block 5)', async () => {
+		const session = URI.parse('copilotcli:/shared-owner');
+		const coOwner = 'copilotcli:/co-owner';
+		const worktree = 'file:///repo.worktrees/shared';
+		const branchKey = 'copilot.worktree.branchName';
+		await database.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.registerSessionV2(coOwner, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.importSessionState(coOwner, { importVersion: 1, importedAt: 1, values: { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([worktree]) }, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true });
+		const first = createStore();
+		await first.writeMetadata(session, session, {
+			[WORKTREE_META_PATH]: worktree, [branchKey]: 'agents/shared', [WORKTREE_META_REPOSITORY_ROOT]: 'file:///repo', [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([worktree]),
+		}, SessionStateMirrorFlush.Immediate);
+		const raw = await (database as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		for (const owner of [session.toString(), coOwner]) {
+			await new Promise<void>((resolve, reject) => raw.run('INSERT INTO worktree_co_owners (worktree_path, session_uri, repository_root, branch) VALUES (?, ?, ?, ?)', [worktree, owner, 'file:///repo', 'agents/shared'], error => error ? reject(error) : resolve()));
+		}
+		// What 1.140-1.142 resolve as the session's worktree: nothing without its branch, so they never remove it.
+		const olderBuildWorktree = async () => {
+			const values = await sessionDb(session, [WORKTREE_META_PATH, branchKey]);
+			return values[branchKey] === undefined ? undefined : values[WORKTREE_META_PATH];
+		};
+		const central = async (sessionStore: AgentHostSessionStateStore) => (await sessionStore.readWithoutImport(session, [branchKey, OLDER_BUILD_WORKTREE_WITHHELD_KEY])).get(branchKey);
+		const states: Record<string, unknown> = {};
+
+		states.before = await olderBuildWorktree();
+		const coOwnership = new AgentHostWorktreeCoOwnership(database, first, new NullAgentHostWorktreeIsolation(), new NullLogService());
+		(await coOwnership.withhold(session)).done();
+		await coOwnership.releaseWithholding(session);
+		states.shared = { olderBuild: await olderBuildWorktree(), central: await central(first) };
+		// An older build writes the branch back; the next import keeps its (same) value and withholds it again.
+		await oldBuildEdit(session.toString(), { [branchKey]: 'agents/shared' });
+		const second = createStore();
+		await second.load(session);
+		states.writtenBack = { olderBuild: await olderBuildWorktree(), central: await central(second) };
+		// The co-owner is deleted by an older build: once published, older builds see the branch again.
+		await new Promise<void>((resolve, reject) => raw.run('DELETE FROM sessions_v2 WHERE session_uri = ?', [coOwner], error => error ? reject(error) : resolve()));
+		await new AgentHostWorktreeCoOwnership(database, second, new NullAgentHostWorktreeIsolation(), new NullLogService()).releaseWithholding(session);
+		states.released = { olderBuild: await olderBuildWorktree(), central: await central(second), withheld: (await second.readWithoutImport(session, [OLDER_BUILD_WORKTREE_WITHHELD_KEY])).get(OLDER_BUILD_WORKTREE_WITHHELD_KEY) };
+
+		assert.deepStrictEqual(states, {
+			before: worktree,
+			shared: { olderBuild: undefined, central: 'agents/shared' },
+			writtenBack: { olderBuild: undefined, central: 'agents/shared' },
+			released: { olderBuild: worktree, central: 'agents/shared', withheld: undefined },
+		});
+	});
+
+	test('withholding and a transfer\'s target publication need older builds\' copy written: a failed mirror write refuses them, keeps the record\'s owner, and is retried (PR review)', async () => {
+		const session = URI.parse('copilotcli:/unmirrored');
+		const target = URI.parse('copilotcli:/unmirrored-target');
+		const worktree = 'file:///repo.worktrees/unmirrored';
+		const branchKey = 'copilot.worktree.branchName';
+		const transfer = { handle: '33333333-3333-4333-8333-333333333333', workingDirectory: 'file:///repo.worktrees/own', repositoryRoot: 'file:///repo' };
+		for (const registered of [session, target]) {
+			await database.registerSessionV2(registered.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		}
+		const sessionStore = createStore();
+		await sessionStore.writeMetadata(session, session, { [WORKTREE_META_PATH]: worktree, [branchKey]: 'agents/unmirrored', [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([worktree]) }, SessionStateMirrorFlush.Immediate);
+		// The move's transaction listed the transferred worktree centrally; older builds' copy of the target doesn't yet.
+		await sessionStore.writeMetadata(target, target, { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([transfer.workingDirectory]) }, SessionStateMirrorFlush.Immediate);
+		await sessionStore.update(target, 'agentHost.additionalWorktrees', () => JSON.stringify([transfer]), SessionStateMirrorFlush.Coalesced);
+		const owners: string[] = [];
+		const isolation = new class extends NullAgentHostWorktreeIsolation {
+			override async setDetachedWorktreeOwner(handle: string, owner: URI): Promise<void> {
+				owners.push(`${handle}:${owner.toString()}`);
+			}
+		}();
+		const coOwnership = new AgentHostWorktreeCoOwnership(database, sessionStore, isolation, new NullLogService());
+		const olderBuild = async () => ({ branch: (await sessionDb(session, [branchKey]))[branchKey], targetLists: (await sessionDb(target, ['agentHost.additionalWorktrees']))['agentHost.additionalWorktrees'] !== undefined });
+
+		const failing = sinon.stub(SessionDatabase.prototype, 'applyMetadataChanges').rejects(new Error('disk full'));
+		const whileFailing = {
+			withhold: await coOwnership.withhold(session).then(() => 'withheld', () => 'refused'),
+			transfer: await coOwnership.completeTransfers(session, target, [transfer], undefined, false).then(() => 'transferred', () => 'refused'),
+			olderBuild: await olderBuild(),
+			owners: [...owners],
+		};
+		failing.restore();
+		await sessionStore.whenIdle(undefined);
+
+		assert.deepStrictEqual({ whileFailing, retried: await olderBuild() }, {
+			whileFailing: { withhold: 'refused', transfer: 'refused', olderBuild: { branch: 'agents/unmirrored', targetLists: false }, owners: [] },
+			// The flag stays set centrally, the safe side: its copy follows once writes succeed again, as does the target's list.
+			retried: { branch: undefined, targetLists: true },
+		});
+	});
+
+	test('withholding is never released while a share of the session is in flight: a publish in the window and a concurrent refused move keep it, the committed share keeps it after (H1, Block 5)', async () => {
+		const session = URI.parse('copilotcli:/in-flight');
+		const worktree = 'file:///repo.worktrees/in-flight';
+		await database.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.registerSessionV2('copilotcli:/target', { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.importSessionState('copilotcli:/target', { importVersion: 1, importedAt: 1, values: { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([worktree]) }, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true });
+		const sessionStore = createStore();
+		await sessionStore.writeMetadata(session, session, { [WORKTREE_META_PATH]: worktree, 'copilot.worktree.branchName': 'agents/in-flight', [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([worktree]) }, SessionStateMirrorFlush.Immediate);
+		const coOwnership = new AgentHostWorktreeCoOwnership(database, sessionStore, new NullAgentHostWorktreeIsolation(), new NullLogService());
+		const withheld = async () => (await sessionStore.readWithoutImport(session, [OLDER_BUILD_WORKTREE_WITHHELD_KEY])).get(OLDER_BUILD_WORKTREE_WITHHELD_KEY);
+		const states: Record<string, unknown> = {};
+
+		const committing = await coOwnership.withhold(session);
+		// A publish of the session before the move commits: there are no co-owner rows yet.
+		await coOwnership.releaseWithholding(session);
+		states.publishInWindow = await withheld();
+		// A second move shares it too and is refused: its undo leaves the first move's share withheld.
+		await (await coOwnership.withhold(session)).undo();
+		states.refusedConcurrentMove = await withheld();
+		const raw = await (database as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		for (const owner of [session.toString(), 'copilotcli:/target']) {
+			await new Promise<void>((resolve, reject) => raw.run('INSERT INTO worktree_co_owners (worktree_path, session_uri, repository_root, branch) VALUES (?, ?, \'file:///repo\', \'agents/in-flight\')', [worktree, owner], error => error ? reject(error) : resolve()));
+		}
+		committing.done();
+		await coOwnership.releaseWithholding(session);
+		states.committed = await withheld();
+		// A refused move with no share left releases by the same rule.
+		await new Promise<void>((resolve, reject) => raw.run('DELETE FROM worktree_co_owners', [], error => error ? reject(error) : resolve()));
+		await (await coOwnership.withhold(session)).undo();
+		states.refusedAlone = await withheld();
+
+		assert.deepStrictEqual(states, { publishInWindow: 'true', refusedConcurrentMove: 'true', committed: 'true', refusedAlone: undefined });
+	});
+
+	test('a session\'s worktree folders are central only: never written to older builds\' copy, read back as written, and a rebuilt catalog payload (Block 5)', async () => {
+		const session = URI.parse('copilotcli:/worktree-folders');
+		await database.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const folders = JSON.stringify([{ workingDirectory: 'file:///repo.worktrees/shared', repositoryRoot: 'file:///repo', branch: 'agents/shared' }]);
+		const first = createStore();
+		await first.write(session, sessionStatePatch({ values: { [WORKTREE_FOLDERS_KEY]: folders, configValues: '{}' } }), SessionStateMirrorFlush.Immediate);
+		const prefetched = await createStore().prefetchWithoutImport([session]);
+
+		assert.deepStrictEqual({
+			olderBuildCopy: await sessionDb(session, [WORKTREE_FOLDERS_KEY, 'configValues']),
+			central: (await first.readWithoutImport(session, [WORKTREE_FOLDERS_KEY])).get(WORKTREE_FOLDERS_KEY),
+			prefetched: prefetched.get(session.toString())?.values.get(WORKTREE_FOLDERS_KEY),
+			payloadDirty: await database.getSessionV2PayloadDirty(session.toString()) !== undefined,
+		}, {
+			olderBuildCopy: { [WORKTREE_FOLDERS_KEY]: undefined, configValues: '{}' },
+			central: folders,
+			prefetched: folders,
+			payloadDirty: true,
+		});
+	});
 
 	test('imports an older build\'s session once, without changing what older builds read', async () => {
 		const { fixture, session } = await oldBuildSession();
@@ -244,19 +390,22 @@ suite('AgentHostSessionStateStore', () => {
 		const { session } = await oldBuildSession();
 		const coalesced = createStore();
 		await coalesced.load(session);
-		const mirrorWrites = sinon.spy(SessionDatabase.prototype, 'applyMetadataChanges');
+		const mirrorWrites = sinon.stub(SessionDatabase.prototype, 'applyMetadataChanges').callThrough();
 		for (let i = 0; i < 50; i++) {
 			await coalesced.update(session, 'agentHost.autoArchivedAt', () => String(i), SessionStateMirrorFlush.Coalesced);
 		}
 		const beforeIdle = mirrorWrites.callCount;
 		await coalesced.whenIdle(session);
 		const manual = mirrorWrites.callCount;
+		const timedWriteStarted = new DeferredPromise<void>();
+		mirrorWrites.onSecondCall().callsFake(function (this: SessionDatabase, set, remove) {
+			timedWriteStarted.complete();
+			return mirrorWrites.wrappedMethod.call(this, set, remove);
+		});
 		const timed = createStore(5);
 		await timed.update(session, 'agentHost.autoArchivedAt', () => 'timed', SessionStateMirrorFlush.Coalesced);
 		// The timer, not a drain, flushes this store: wait until its write starts, then for that write itself.
-		for (let attempt = 0; attempt < 1000 && mirrorWrites.callCount < 2; attempt++) {
-			await timeout(5);
-		}
+		await timedWriteStarted.p;
 		await mirrorWrites.lastCall.returnValue;
 		assert.deepStrictEqual({ beforeIdle, manual, timed: mirrorWrites.callCount, mirror: await sessionDb(session, ['agentHost.autoArchivedAt']) }, {
 			beforeIdle: 0, manual: 1, timed: 2, mirror: { 'agentHost.autoArchivedAt': 'timed' },
@@ -1531,6 +1680,292 @@ suite('AgentHostSessionStateStore', () => {
 				sessionDb: (await refsIn(fixture.session)).own,
 				peer: (await refsIn(peer.uri)).all.length,
 			}, { sessionDb: ['default-turn-1', 'default-turn-2'], peer: 2 });
+		});
+	});
+
+	suite('chat moves (Block 4)', () => {
+		const app = 'file:///workspace/app';
+		const lib = 'file:///workspace/lib';
+
+		async function registerSession(id: string, folders: readonly string[], peers: readonly { readonly name: string; readonly workingDirectories?: readonly string[] }[]): Promise<{ readonly session: URI; readonly chat: (name: string) => string }> {
+			const session = URI.parse(`copilotcli:/${id}`);
+			const chat = (name: string) => `ahp-chat://${id}/${name}`;
+			await database.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			const registered = await database.registerChatCatalogV2(session.toString(), {
+				defaultChat: { chat: chat('default'), order: 0, storageResource: session.toString(), metadata: { summary: 'Default', titleSource: 'user' } },
+				peers: peers.map((peer, index) => ({ chat: chat(peer.name), order: index + 1, storageResource: chat(peer.name), workingDirectories: peer.workingDirectories, metadata: { summary: peer.name, titleSource: 'user' as const } })),
+				privateDescendants: [],
+			});
+			assert.strictEqual(registered.status, 'applied');
+			await oldBuildEdit(session.toString(), { 'agentHost.sessionWorkingDirectories': JSON.stringify(folders) });
+			return { session, chat };
+		}
+
+		async function revisionOf(session: URI): Promise<number> {
+			return (await database.readCatalogSnapshot([session.toString()]))[0].header!.revision;
+		}
+
+		test('moves a chat\'s central row and the folder state only it used, and writes no mirror', async () => {
+			const a = await registerSession('move-a', [app, lib], [{ name: 'mover', workingDirectories: [lib] }, { name: 'stays' }]);
+			const b = await registerSession('move-b', [app, lib], []);
+			const store = createStore();
+			await store.load(a.session);
+			await store.load(b.session);
+			const libKey = getWorkingDirectoryKey(lib);
+			const libScope = getWorkingDirectoryScopeId([lib]);
+			await store.write(a.session, sessionStatePatch({
+				folders: [
+					{ folderKey: libKey, kind: 'git', value: '{"branch":"lib-a"}', storage: null },
+					{ folderKey: libKey, kind: 'github', value: '{"pr":"lib-a"}', storage: null },
+					{ folderKey: libScope, kind: 'baseBranch', value: 'lib-base', storage: a.chat('mover') },
+					{ folderKey: '', kind: 'git', value: '{"branch":"app-a"}', storage: null },
+				],
+			}), SessionStateMirrorFlush.Immediate);
+			const mirrorsBefore = { a: await sessionDb(a.session, ['agentHost.gitData', 'agentHost.githubData']), b: await sessionDb(b.session, ['agentHost.gitData', 'agentHost.githubData']) };
+
+			const result = await store.moveChat({
+				source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: URI.parse(b.chat('default')),
+				expectedSourceCatalogRevision: await revisionOf(a.session), expectedTargetCatalogRevision: await revisionOf(b.session),
+				folders: { source: [app, lib], target: [app, lib], chat: [lib], chatHadOwnFolders: true, remaining: [[app, lib], [app, lib]] },
+				coOwnedWorktrees: [], worktreeLists: { fromSource: [], toTarget: [], targetFolders: [] },
+			});
+			const snapshotA = await store.load(a.session);
+			const snapshotB = await store.load(b.session);
+			const folders = (snapshot: typeof snapshotA) => Object.fromEntries([...snapshot.folders.entries()].map(([key, entry]) => [key, [entry.git, entry.github, entry.baseBranch]]));
+			assert.deepStrictEqual({
+				result,
+				chatsA: [...snapshotA.chats.keys()],
+				chatsB: Object.fromEntries([...snapshotB.chats.entries()].map(([chat, entry]) => [chat, [entry.isDefault, entry.workingDirectories, entry.storage]])),
+				foldersA: folders(snapshotA),
+				foldersB: folders(snapshotB),
+				catalogB: (await database.readCatalogSnapshot([b.session.toString()]))[0].chats.map(chat => [chat.chat, chat.order, chat.originSession]),
+				// Older builds read the move through the catalog; no session.db changes.
+				mirrorsAfter: { a: await sessionDb(a.session, ['agentHost.gitData', 'agentHost.githubData']), b: await sessionDb(b.session, ['agentHost.gitData', 'agentHost.githubData']) },
+			}, {
+				result: { status: 'applied', moved: [a.chat('mover')], targetOrder: [b.chat('default'), a.chat('mover')] },
+				chatsA: [a.chat('default'), a.chat('stays')],
+				chatsB: { [a.chat('mover')]: [false, [lib], a.chat('mover')], [b.chat('default')]: [true, undefined, b.session.toString()] },
+				// A's other chats still use lib, so its git and GitHub state are copied; no other chat has the [lib] scope, so its base branch is re-keyed.
+				foldersA: { '': ['{"branch":"app-a"}', undefined, undefined], [libKey]: ['{"branch":"lib-a"}', '{"pr":"lib-a"}', undefined] },
+				foldersB: { [libKey]: ['{"branch":"lib-a"}', '{"pr":"lib-a"}', undefined], [libScope]: [undefined, undefined, 'lib-base'] },
+				catalogB: [[b.chat('default'), 0, b.session.toString()], [a.chat('mover'), 1, a.session.toString()]],
+				mirrorsAfter: mirrorsBefore,
+			});
+		});
+
+		test('promotes a chat into a new session that older builds read from the catalog only', async () => {
+			const a = await registerSession('promote-a', [app, lib], [{ name: 'promoted', workingDirectories: [lib] }, { name: 'stays' }]);
+			const store = createStore();
+			await store.load(a.session);
+			const libKey = getWorkingDirectoryKey(lib);
+			await store.write(a.session, sessionStatePatch({
+				folders: [
+					{ folderKey: libKey, kind: 'git', value: '{"branch":"lib-a"}', storage: null },
+					{ folderKey: getWorkingDirectoryScopeId([lib]), kind: 'baseBranch', value: 'lib-base', storage: a.chat('promoted') },
+				],
+			}), SessionStateMirrorFlush.Immediate);
+			const n = URI.parse('ahp-session:/promoted-n');
+
+			const result = await store.promoteChat({
+				source: a.session, target: n, chat: URI.parse(a.chat('promoted')), provider: 'copilotcli', startTime: 5,
+				expectedSourceCatalogRevision: await revisionOf(a.session),
+				values: { 'agentHost.sessionWorkingDirectories': JSON.stringify([lib]) },
+				folders: { source: [app, lib], chat: [lib], chatHadOwnFolders: true, remaining: [[app, lib]] },
+				coOwnedWorktrees: [], worktreeLists: { fromSource: [], toTarget: [], targetFolders: [] },
+			});
+			const snapshotN = await store.load(n);
+			await store.write(n, sessionStatePatch({ values: { 'agentHost.sessionWorkingDirectories': JSON.stringify([lib, app]) } }), SessionStateMirrorFlush.Immediate);
+			await store.chatRows.setDraft(n, URI.parse(a.chat('promoted')), { text: 'Draft in N', origin: { kind: MessageKind.User } });
+			const snapshotA = await store.load(a.session);
+
+			assert.deepStrictEqual({
+				result,
+				chatsN: Object.fromEntries([...snapshotN.chats.entries()].map(([chat, entry]) => [chat, [entry.isDefault, entry.workingDirectories, entry.storage]])),
+				foldersN: Object.fromEntries([...snapshotN.folders.entries()].map(([key, entry]) => [key, [entry.git, entry.baseBranch]])),
+				valuesN: snapshotN.values.get('agentHost.sessionWorkingDirectories'),
+				chatsA: [...snapshotA.chats.keys()],
+				// The new session's default chat stores in its own database, so nothing creates one at the session URI.
+				databases: sessionData.resources.filter(resource => resource === n.toString()),
+				draft: (await store.chatRows.getDraft(n, URI.parse(a.chat('promoted'))))?.text,
+			}, {
+				result: { status: 'applied', moved: [a.chat('promoted')] },
+				chatsN: { [a.chat('promoted')]: [true, [lib], a.chat('promoted')] },
+				// The promoted chat's folder is the new session's primary folder; A still uses lib, so A keeps a copy.
+				// The promoted chat is the new session's default chat: its base branch is the session folder's (G1, Block 5).
+				foldersN: { '': ['{"branch":"lib-a"}', 'lib-base'] },
+				valuesN: JSON.stringify([lib]),
+				chatsA: [a.chat('default'), a.chat('stays')],
+				databases: [],
+				draft: 'Draft in N',
+			});
+		});
+
+		test('a late row write or read addressed to a chat\'s previous session follows it to its new one', async () => {
+			const a = await registerSession('late-a', [app], [{ name: 'mover' }]);
+			const b = await registerSession('late-b', [app], []);
+			const store = createStore();
+			await store.load(a.session);
+			await store.load(b.session);
+			await store.moveChat({
+				source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: undefined,
+				expectedSourceCatalogRevision: await revisionOf(a.session), expectedTargetCatalogRevision: await revisionOf(b.session),
+				folders: { source: [app], target: [app], chat: [app], chatHadOwnFolders: false, remaining: [[app]] },
+				coOwnedWorktrees: [], worktreeLists: { fromSource: [], toTarget: [], targetFolders: [] },
+			});
+			const mover = URI.parse(a.chat('mover'));
+			const draftIn = async (resource: string) => {
+				const reference = sessionData.createService().openDatabase(URI.parse(resource));
+				try {
+					return (await reference.object.getChatDraft(mover))?.text;
+				} finally {
+					reference.dispose();
+				}
+			};
+
+			await store.chatRows.setDraft(a.session, mover, { text: 'Written for A', origin: { kind: MessageKind.User } });
+
+			assert.deepStrictEqual({
+				own: await draftIn(a.chat('mover')),
+				sourceCopy: await draftIn(a.session.toString()),
+				readThroughSource: (await store.chatRows.getDraft(a.session, mover))?.text,
+				sourceMirrorBase: await database.readChatRowMirror(a.session.toString(), mover.toString(), 'draft'),
+			}, {
+				own: 'Written for A',
+				// Older builds list the chat in B now, so A's database gets no copy and A keeps no mirror bookkeeping for it.
+				sourceCopy: undefined,
+				readThroughSource: 'Written for A',
+				sourceMirrorBase: undefined,
+			});
+		});
+
+		test('a row access of a chat deleted between finding it moved and finding its new owner is dropped', async () => {
+			const a = await registerSession('gone-a', [app], [{ name: 'mover' }]);
+			const b = await registerSession('gone-b', [app], []);
+			const store = createStore();
+			await store.load(a.session);
+			await store.load(b.session);
+			await store.moveChat({
+				source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: undefined,
+				expectedSourceCatalogRevision: await revisionOf(a.session), expectedTargetCatalogRevision: await revisionOf(b.session),
+				folders: { source: [app], target: [app], chat: [app], chatHadOwnFolders: false, remaining: [[app]] },
+				coOwnedWorktrees: [], worktreeLists: { fromSource: [], toTarget: [], targetFolders: [] },
+			});
+			const mover = URI.parse(a.chat('mover'));
+			// Each access first finds the chat moved, then looks up its owner: the chat is deleted in between.
+			const findOwners = sinon.stub(database, 'findCentralChatOwners');
+			findOwners.callThrough();
+			for (const call of [1, 3, 5]) {
+				findOwners.onCall(call).resolves(new Map());
+			}
+
+			const draft = await store.chatRows.getDraft(a.session, mover);
+			await store.chatRows.setDraft(a.session, mover, { text: 'Late', origin: { kind: MessageKind.User } });
+			await store.chatRows.setChatConfig(a.session, mover, { mode: 'plan' });
+			const lookups = findOwners.callCount;
+			findOwners.restore();
+
+			assert.deepStrictEqual({ draft, lookups }, { draft: undefined, lookups: 6 });
+		});
+
+		test('a stale catalog revision changes nothing', async () => {
+			const a = await registerSession('stale-a', [app], [{ name: 'mover' }]);
+			const b = await registerSession('stale-b', [app], []);
+			const store = createStore();
+			const before = { a: await store.load(a.session), b: await store.load(b.session) };
+			const result = await store.moveChat({
+				source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: undefined,
+				expectedSourceCatalogRevision: (await revisionOf(a.session)) + 1, expectedTargetCatalogRevision: await revisionOf(b.session),
+				folders: { source: [app], target: [app], chat: [app], chatHadOwnFolders: false, remaining: [[app]] },
+				coOwnedWorktrees: [], worktreeLists: { fromSource: [], toTarget: [], targetFolders: [] },
+			});
+			assert.deepStrictEqual({ result, a: [...(await store.load(a.session)).chats.keys()], b: [...(await store.load(b.session)).chats.keys()] },
+				{ result: { status: 'conflict' }, a: [...before.a.chats.keys()], b: [...before.b.chats.keys()] });
+		});
+
+		test('a committed move whose reload fails still reports applied and reloads on next use', async () => {
+			const a = await registerSession('reload-a', [app], [{ name: 'mover' }]);
+			const b = await registerSession('reload-b', [app], []);
+			const store = createStore();
+			await store.load(a.session);
+			await store.load(b.session);
+			const moveChatV2 = database.moveChatV2.bind(database);
+			const readSessionState = database.readSessionState.bind(database);
+			let failReads = false;
+			sinon.stub(database, 'moveChatV2').callsFake(async move => {
+				const result = await moveChatV2(move);
+				failReads = true;
+				return result;
+			});
+			sinon.stub(database, 'readSessionState').callsFake(async session => failReads ? Promise.reject(new Error('read failed')) : readSessionState(session));
+
+			const result = await store.moveChat({
+				source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: undefined,
+				expectedSourceCatalogRevision: await revisionOf(a.session), expectedTargetCatalogRevision: await revisionOf(b.session),
+				folders: { source: [app], target: [app], chat: [app], chatHadOwnFolders: false, remaining: [[app]] },
+				coOwnedWorktrees: [], worktreeLists: { fromSource: [], toTarget: [], targetFolders: [] },
+			});
+			failReads = false;
+
+			assert.deepStrictEqual({ result, a: [...(await store.load(a.session)).chats.keys()], b: [...(await store.load(b.session)).chats.keys()].sort() }, {
+				result: { status: 'applied', moved: [a.chat('mover')], targetOrder: [a.chat('mover'), b.chat('default')] },
+				a: [a.chat('default')],
+				b: [a.chat('mover'), b.chat('default')].sort(),
+			});
+		});
+
+		test('moves in both directions between two sessions at once never deadlock', async () => {
+			const a = await registerSession('both-a', [app], [{ name: 'mover' }]);
+			const b = await registerSession('both-b', [app], [{ name: 'mover' }]);
+			const store = createStore();
+			const revisions = { a: await revisionOf(a.session), b: await revisionOf(b.session) };
+			const folders = { source: [app], target: [app], chat: [app], chatHadOwnFolders: false, remaining: [[app]] };
+
+			const results = await Promise.all([
+				store.moveChat({ source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: undefined, expectedSourceCatalogRevision: revisions.a, expectedTargetCatalogRevision: revisions.b, folders, coOwnedWorktrees: [], worktreeLists: { fromSource: [], toTarget: [], targetFolders: [] } }),
+				store.moveChat({ source: b.session, target: a.session, chat: URI.parse(b.chat('mover')), after: undefined, expectedSourceCatalogRevision: revisions.b, expectedTargetCatalogRevision: revisions.a, folders, coOwnedWorktrees: [], worktreeLists: { fromSource: [], toTarget: [], targetFolders: [] } }),
+			]);
+
+			// The second move saw revisions the first one changed, so it changes nothing.
+			assert.deepStrictEqual({ statuses: results.map(result => result.status), a: [...(await store.load(a.session)).chats.keys()], b: [...(await store.load(b.session)).chats.keys()].sort() }, {
+				statuses: ['applied', 'conflict'],
+				a: [a.chat('default')],
+				b: [a.chat('mover'), b.chat('default'), b.chat('mover')].sort(),
+			});
+		});
+
+		test('a moved peer\'s later edits write no older-build copies and create no database', async () => {
+			const a = await registerSession('later-a', [app], [{ name: 'mover' }]);
+			const b = await registerSession('later-b', [app], []);
+			// The peer's own database exists, so a copy written for older builds would land there.
+			await oldBuildEdit(a.chat('mover'), { marker: '1' });
+			const store = createStore();
+			await store.load(a.session);
+			await store.load(b.session);
+			await store.moveChat({
+				source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: undefined,
+				expectedSourceCatalogRevision: await revisionOf(a.session), expectedTargetCatalogRevision: await revisionOf(b.session),
+				folders: { source: [app], target: [app], chat: [app], chatHadOwnFolders: false, remaining: [[app]] },
+				coOwnedWorktrees: [], worktreeLists: { fromSource: [], toTarget: [], targetFolders: [] },
+			});
+			const databases = [...sessionData.resources];
+			const all = async (resource: string) => {
+				const reference = sessionData.createService().openDatabase(URI.parse(resource));
+				try {
+					return Object.values(await reference.object.getMetadataByPrefix('')).filter(value => value === 'Renamed in B').length;
+				} finally {
+					reference.dispose();
+				}
+			};
+
+			await store.write(b.session, sessionStatePatch({ chats: [{ chat: a.chat('mover'), isDefault: false, fields: { title: 'Renamed in B' } }] }), SessionStateMirrorFlush.Immediate);
+
+			// Both sessions are normalized (moves require it), and older builds read a normalized session's chats from its catalog.
+			assert.deepStrictEqual({ chat: await all(a.chat('mover')), a: await all(a.session.toString()), b: await all(b.session.toString()), databases: sessionData.resources }, {
+				chat: 0,
+				a: 0,
+				b: 0,
+				databases,
+			});
 		});
 	});
 });

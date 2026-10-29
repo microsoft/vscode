@@ -628,6 +628,16 @@ export async function editChatStateAsOldBuild(sessionData: ISessionDataService, 
 }
 
 /**
+ * What genuine 1.141.2 does to a normalized session's chat list when it quits (real-data probe 4a, section 3): it
+ * re-mirrors the list it read, unchanged, through its {@link editChatListAsOldBuild} 'centralCatalog' write, which
+ * advances the revision and the acknowledgement, with the rows equal to the projection. Its renames and drafts are
+ * then only in the session and chats' own databases ({@link editChatStateAsOldBuild}).
+ */
+export function remirrorChatListAsOldBuildAtQuit(sessionData: ISessionDataService, agentHost: AgentHostDatabase, fixture: Pick<ILegacySessionFixture, 'session'>): Promise<void> {
+	return editChatListAsOldBuild(sessionData, agentHost, fixture, 'centralCatalog', peers => [...peers]);
+}
+
+/**
  * Records a move of `chat` from session `from` to session `to` (both normalized, storage spelling) the way Block 4
  * leaves it: owned by `to` at its last visible slot, `origin_session_uri` keeping the session it was created in, the
  * source's slots closed up, and both sessions re-projected for older builds.

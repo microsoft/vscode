@@ -32,7 +32,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { Delayer } from '../../../../../base/common/async.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
-import { matchesContiguousSubString } from '../../../../../base/common/filters.js';
+import { IMatch, matchesContiguousSubString, matchesWords } from '../../../../../base/common/filters.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -242,6 +242,10 @@ function promptTypeToIcon(type: PromptsType): ThemeIcon {
  */
 export function formatDisplayName(name: string): string {
 	return name.replace(/\.md$/i, '');
+}
+
+export function matchesCustomizationSearchQuery(query: string, target: string): IMatch[] | null {
+	return matchesContiguousSubString(query, target) ?? matchesWords(query, target, true);
 }
 
 /**
@@ -906,7 +910,7 @@ export class AICustomizationListWidget extends Disposable {
 				accessibilityProvider: {
 					getAriaLabel: (entry: IListEntry) => {
 						if (entry.type === 'group-header') {
-							return localize('groupAriaLabel', "{0}, {1} items", entry.label, entry.count);
+							return localize('groupAriaLabel2', "{0}, {1} items", entry.label, entry.count);
 						}
 						const label = getCustomizationItemAriaLabel(entry.item);
 						if (!hasReadableCustomizationContent(entry.item.uri)) {
@@ -1154,7 +1158,7 @@ export class AICustomizationListWidget extends Disposable {
 			return;
 		}
 
-		const actions = this.buildCreateActions();
+		const actions = this.getCreateActions();
 		const [primary, ...dropdown] = actions;
 		const hasDropdown = dropdown.length > 0;
 
@@ -1184,7 +1188,7 @@ export class AICustomizationListWidget extends Disposable {
 	 * Builds an ordered list of create actions for the current section.
 	 * The first entry is the primary button; remaining entries are dropdown items.
 	 */
-	private buildCreateActions(): ICreateAction[] {
+	getCreateActions(): ICreateAction[] {
 		const typeLabel = this.getTypeLabel();
 		const promptType = sectionToPromptType(this.currentSection);
 		const descriptor = this.harnessService.getActiveDescriptor();
@@ -1348,11 +1352,11 @@ export class AICustomizationListWidget extends Disposable {
 
 	/**
 	 * Gets the dropdown actions for the add button (consumed by ButtonWithDropdown).
-	 * Returns all actions except the primary (first) from buildCreateActions.
+	 * Returns all actions except the primary (first) from getCreateActions.
 	 */
 	private getDropdownActions(): Action[] {
 		this.dropdownActionDisposables.clear();
-		const allActions = this.buildCreateActions();
+		const allActions = this.getCreateActions();
 		// Skip the first (primary) action
 		return allActions.slice(1).map((a, i) =>
 			this.dropdownActionDisposables.add(new Action(`create_${i}`, a.label, undefined, a.enabled, () => a.run()))
@@ -1370,7 +1374,7 @@ export class AICustomizationListWidget extends Disposable {
 	 * Executes the primary create action based on context.
 	 */
 	private executePrimaryCreateAction(): void {
-		const actions = this.buildCreateActions();
+		const actions = this.getCreateActions();
 		if (actions.length > 0 && actions[0].enabled) {
 			actions[0].run();
 		}
@@ -1457,10 +1461,10 @@ export class AICustomizationListWidget extends Disposable {
 		for (const item of items) {
 			const displayName = item.displayName ?? formatDisplayName(item.name);
 			const secondaryText = getCustomizationSecondaryText(item.description, item.filename, item.promptType);
-			const nameMatches = matchesContiguousSubString(query, displayName);
-			const secondaryTextMatches = matchesContiguousSubString(query, secondaryText);
-			const descriptionMatches = item.description && item.description !== secondaryText ? matchesContiguousSubString(query, item.description) : null;
-			const badgeMatches = item.badge ? matchesContiguousSubString(query, item.badge) : null;
+			const nameMatches = matchesCustomizationSearchQuery(query, displayName);
+			const secondaryTextMatches = matchesCustomizationSearchQuery(query, secondaryText);
+			const descriptionMatches = item.description && item.description !== secondaryText ? matchesCustomizationSearchQuery(query, item.description) : null;
+			const badgeMatches = item.badge ? matchesCustomizationSearchQuery(query, item.badge) : null;
 
 			if (nameMatches || secondaryTextMatches || descriptionMatches || badgeMatches) {
 				matched.push({
@@ -1678,7 +1682,7 @@ export class AICustomizationListWidget extends Disposable {
 		const workspaceGroup = groupKey === PromptsStorage.local || isAICustomizationWorkspaceGroupKey(groupKey);
 		const target = workspaceGroup ? 'workspace' : 'user';
 		const hasWorkspace = this.hasActiveWorkspace();
-		const actions = this.buildCreateActions().filter(action =>
+		const actions = this.getCreateActions().filter(action =>
 			action.target === target
 			|| action.target === undefined && (target === 'workspace' ? hasWorkspace : !hasWorkspace)
 		);

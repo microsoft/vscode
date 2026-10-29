@@ -10,9 +10,11 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { AnchorPosition } from '../../../../../base/common/layout.js';
-import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
-import { toAction } from '../../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { Delayer, SequencerByKey } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -29,14 +31,17 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { ISessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
+import { FOCUS_NEW_SESSION_BRANCH_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKTREE_PICKER_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import type { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigSchema, SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { getSessionApprovalProperty, getSessionConfigPresentationKey, getSessionWorkspaceProperties, isSessionConfigWritable, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { getSessionApprovalProperty, getSessionConfigPresentationKey, getSessionWorkspaceProperties, isHiddenSessionConfigProperty, isSessionConfigWritable, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { ChatConfiguration, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
@@ -51,7 +56,6 @@ import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQui
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { NEW_WORKTREE_LABEL } from '../../../chat/browser/branchPicker.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -76,7 +80,7 @@ import { ProtocolError } from '../../../../../platform/agentHost/common/state/se
 import { AgentHostClaudePermissionModePicker } from './agentHostClaudePermissionModePicker.js';
 import { ClaudeSessionConfigKey } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { AgentHostCodexApprovalsPicker } from './agentHostCodexApprovalsPicker.js';
-import { isAutoApproveValuePolicyRestricted } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
+import { getOrganizationDefaultApprovalLevel, isAutoApproveValuePolicyRestricted } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { getPermissionLevelBadge } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filterBranchPickerItems } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostBranchPicker.js';
 import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
@@ -115,7 +119,7 @@ export interface IConfigPickerItem {
 
 export function getConfigIcon(property: string, value: unknown | undefined, hasUncommittedChanges = false): ThemeIcon | undefined {
 	if (property === SessionConfigKey.Isolation) {
-		if (value === 'folder') {
+		if (value === 'folder' || value === 'workspace') {
 			return Codicon.folder;
 		}
 		if (value === 'worktree') {
@@ -165,7 +169,7 @@ interface IBranchPickerContext {
 	readonly onShowChanges?: () => Promise<void>;
 }
 
-function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted?: boolean, branchContext?: IBranchPickerContext): IActionListItem<IConfigPickerItem>[] {
+function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted?: boolean, branchContext?: IBranchPickerContext, organizationDefault?: ChatPermissionLevel): IActionListItem<IConfigPickerItem>[] {
 	const query = branchContext?.query?.toLowerCase();
 	const pickerItems: readonly IConfigPickerItem[] = property === SessionConfigKey.Branch
 		? ensureSelectedBranchPickerItem(items, currentValue, query)
@@ -187,7 +191,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		return {
 			kind: ActionListItemKind.Action,
 			label: item.label,
-			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value) : {}),
+			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value, disabled, organizationDefault) : {}),
 			detail,
 			group: { title: '', icon: getConfigIcon(property, item.value, uncommittedChanges !== undefined) },
 			ariaDescription: detail,
@@ -374,6 +378,9 @@ function applyAutoApproveFiltering(
 }
 
 function isRenderableSessionConfigProperty(property: string, schema: SessionConfigPropertySchema, configSchema: SessionConfigSchema, isNewSession: boolean): boolean {
+	if (isHiddenSessionConfigProperty(property)) {
+		return false;
+	}
 	const presentation = getSessionConfigPresentationKey(property, configSchema);
 	if (schema.type !== 'boolean' && (schema.type !== 'string' || (!schema.enumDynamic && !schema.enum?.length && presentation !== 'newBranch'))) {
 		return false;
@@ -519,7 +526,7 @@ class ConfigCheckboxControl extends Disposable {
 
 		if (this._tooltip !== tooltip) {
 			this._tooltip = tooltip;
-			this._hover.value = tooltip ? this._hoverService.setupDelayedHover(this._row, { content: tooltip }) : undefined;
+			this._hover.value = tooltip ? this._hoverService.setupDelayedHover(this._row, { content: tooltip, appearance: { showPointer: true } }) : undefined;
 		}
 	}
 
@@ -540,6 +547,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	private _focusableElement: HTMLElement | undefined;
 	private _openedPickerSessionId: string | undefined;
 	private _focusable = false;
+	private _hoverDelegate: IHoverDelegate = getDefaultHoverDelegate('element');
 
 	/**
 	 * Session/property-scoped value→label cache for `enumDynamic`
@@ -578,6 +586,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		@IViewsService protected readonly _viewsService: IViewsService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@ISessionInputPickerVisibility private readonly _pickerVisibility: ISessionInputPickerVisibility,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -623,11 +633,18 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			if (!isAgentHostProvider(provider) || this._providerListeners.has(provider.id)) {
 				continue;
 			}
-			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(() => this._renderConfigPickers()));
+			// Re-rendering replaces the chips, so a change in any other session
+			// would detach a chip mid-click and the click would be lost.
+			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(sessionId => {
+				if (sessionId === this._session.get()?.sessionId) {
+					this._renderConfigPickers();
+				}
+			}));
 		}
 	}
 
-	render(container: HTMLElement): HTMLElement | undefined {
+	render(container: HTMLElement, hoverDelegate?: IHoverDelegate): HTMLElement | undefined {
+		this._hoverDelegate = hoverDelegate ?? getDefaultHoverDelegate('element');
 		this._isolationCheckbox.clear();
 		container.classList.add('sessions-chat-agent-host-config-host');
 		this._hostMarker.value = toDisposable(() => container.classList.remove('sessions-chat-agent-host-config-host'));
@@ -737,6 +754,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => {
 				void this._showPicker(provider, session.sessionId, property, schema, trigger).catch(onUnexpectedError);
 			});
+			if (isNewSession && !isReadOnly && !isLoading && (presentation === SessionConfigKey.Branch || presentation === SessionConfigKey.Isolation)) {
+				this._renderDisposables.add(this._pickerVisibility.registerPicker(presentation === SessionConfigKey.Branch ? 'branch' : 'worktree', () => {
+					void this._showPicker(provider, session.sessionId, property, schema, trigger).catch(onUnexpectedError);
+				}));
+			}
 			this._focusableElement = trigger;
 			if (property === focusedProperty) {
 				focusToRestore = trigger;
@@ -749,7 +771,10 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				? (schema.description ?? schema.title)
 				: undefined;
 			if (tooltip) {
-				this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, { content: tooltip }));
+				const content = () => presentation === SessionConfigKey.Isolation && isNewSession && !isReadOnly
+					? this._keybindingService.appendKeybinding(tooltip, FOCUS_NEW_SESSION_WORKTREE_PICKER_COMMAND_ID)
+					: tooltip;
+				this._renderDisposables.add(this._hoverService.setupManagedHover(this._hoverDelegate, trigger, content));
 			}
 			if (!isReadOnly && isLoading) {
 				slot.classList.add('resolving');
@@ -942,7 +967,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		dom.clearNode(trigger);
 
 		const presentation = this._presentationProperty(sessionId, property);
-		const icon = getConfigIcon(presentation, value === 'workspace' ? 'folder' : value);
+		const icon = getConfigIcon(presentation, value);
 		const iconElement = icon
 			? dom.append(trigger, renderIcon(icon))
 			: undefined;
@@ -1012,7 +1037,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				hover.clear();
 
 				hover.value = content
-					? this._hoverService.setupDelayedHover(trigger, { content })
+					? this._hoverService.setupManagedHover(this._hoverDelegate, trigger, () => this._pickerVisibility.visibility.read(undefined).branch ? this._keybindingService.appendKeybinding(content, FOCUS_NEW_SESSION_BRANCH_PICKER_COMMAND_ID) : content)
 					: undefined;
 			}
 		}));
@@ -1140,7 +1165,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			...repositoryState,
 			isWorktree: isolationKey !== undefined && config?.values[isolationKey] === 'worktree',
 			onShowChanges,
-		});
+		}, getOrganizationDefaultApprovalLevel(this._configurationService));
 		if (actionItems.length === 0) {
 			return;
 		}
@@ -1160,7 +1185,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				isWorktree: isolationKey !== undefined && filteredConfig?.values[isolationKey] === 'worktree',
 				query,
 				onShowChanges,
-			});
+			}, getOrganizationDefaultApprovalLevel(this._configurationService));
 		};
 
 		const delegate: IActionListDelegate<IConfigPickerItem> = {
@@ -1560,7 +1585,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 				id: registerId(isolationProperty, item, !!isolationSchema?.enumDynamic),
 				label: item.label,
 				description: item.description,
-				icon: getConfigIcon(SessionConfigKey.Isolation, item.value === 'workspace' ? 'folder' : item.value),
+				icon: getConfigIcon(SessionConfigKey.Isolation, item.value),
 				checked: item.value === isolationValue,
 				sectionTitle: index === 0 ? (isolationSchema?.title ?? localize('mobileAgentHostSessionConfig.repoSheet.isolationSection', "Isolation")) : undefined,
 			});
@@ -1660,7 +1685,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 }
 
 interface IConfigPickerWidget extends IDisposable {
-	render(container: HTMLElement): HTMLElement | void;
+	render(container: HTMLElement, hoverDelegate?: IHoverDelegate): HTMLElement | void;
 	focus?(): void;
 	setFocusable?(focusable: boolean): void;
 	showPicker?(anchor: HTMLElement, onHide?: () => void): boolean | void;
@@ -1674,8 +1699,11 @@ export class PickerActionViewItem extends BaseActionViewItem implements IChatInp
 		private readonly _picker: IConfigPickerWidget,
 		disposable?: IDisposable,
 		private readonly _manageFocusableElement = false,
+		options?: IActionViewItemOptions,
+		/** The menu action this picker renders, so toolbars can identify the picker. */
+		action: IAction = { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } },
 	) {
-		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
+		super(undefined, action, options);
 		if (disposable) {
 			this._register(disposable);
 		}
@@ -1683,7 +1711,7 @@ export class PickerActionViewItem extends BaseActionViewItem implements IChatInp
 
 	override render(container: HTMLElement): void {
 		this.element = container;
-		this._focusableElement = this._picker.render(container) ?? undefined;
+		this._focusableElement = this._picker.render(container, this.options.hoverDelegate) ?? undefined;
 		container.classList.toggle('compact-picker', this._compact);
 	}
 
@@ -1805,7 +1833,6 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		// The mode-picker factories below pick the mobile subclass at
@@ -1833,12 +1860,6 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		}));
 		this._register(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(new Set([IsPhoneLayoutContext.key]))) {
-				this._refreshRepositoryMenuItems(actionViewItemService);
-			}
-		}));
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)
-				|| e.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)) {
 				this._refreshRepositoryMenuItems(actionViewItemService);
 			}
 		}));
@@ -1913,7 +1934,12 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			if (!isAgentHostProvider(provider) || this._providerListeners.has(provider.id)) {
 				continue;
 			}
-			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(() => this._refreshRepositoryMenuItems(actionViewItemService)));
+			// Menu items are derived only from visible sessions; refreshing them recreates the repository pickers.
+			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(sessionId => {
+				if (this._sessionsService.visibleSessions.get().some(session => session?.sessionId === sessionId)) {
+					this._refreshRepositoryMenuItems(actionViewItemService);
+				}
+			}));
 		}
 	}
 
@@ -1942,10 +1968,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			);
 			const branchIndex = properties.findIndex(([property]) => property === workspace.baseBranch?.key);
 			const isolationIndex = properties.findIndex(([property]) => property === workspace.isolation?.key);
-			const useExperimentalOrder = !isPhoneLayout(this._layoutService)
-				&& this._configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)
-				&& this._configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING);
-			if (useExperimentalOrder && isolationIndex > branchIndex && branchIndex >= 0) {
+			if (!isPhoneLayout(this._layoutService) && isolationIndex > branchIndex && branchIndex >= 0) {
 				[properties[branchIndex], properties[isolationIndex]] = [properties[isolationIndex], properties[branchIndex]];
 			}
 
@@ -1980,12 +2003,14 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		store.add(actionViewItemService.register(
 			Menus.NewSessionRepositoryConfig,
 			commandId,
-			(_action, _options, scopedInstantiationService) => {
+			(action, options, scopedInstantiationService) => {
 				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 				return new PickerActionViewItem(
 					scopedInstantiationService.createInstance(MobileAgentHostSessionConfigPicker, session, property),
 					undefined,
 					true,
+					options,
+					action,
 				);
 			},
 		));

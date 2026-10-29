@@ -50,6 +50,9 @@ import './media/chatQuestionCarousel.css';
 
 const PREVIOUS_QUESTION_ACTION_ID = 'workbench.action.chat.previousQuestion';
 const NEXT_QUESTION_ACTION_ID = 'workbench.action.chat.nextQuestion';
+const MAX_CAROUSEL_HEIGHT = 420;
+const MAX_CAROUSEL_VIEWPORT_RATIO = 0.45;
+
 export interface IChatQuestionCarouselOptions {
 	onSubmit: (answers: Map<string, IChatQuestionAnswerValue> | undefined) => void;
 	onDidDismiss?: (answers: ReadonlyMap<string, IChatQuestionAnswerValue>) => void;
@@ -156,7 +159,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private readonly _freeformTextareas: Map<string, HTMLTextAreaElement> = new Map();
 	private readonly _inputBoxes: DisposableStore = this._register(new DisposableStore());
 	private readonly _questionRenderStore = this._register(new MutableDisposable<DisposableStore>());
-	private _inputScrollable: DomScrollableElement | undefined;
 
 	/**
 	 * Disposable store for interactive UI components (header, nav buttons, etc.)
@@ -188,6 +190,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		this._markdownRenderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
 		this.domNode = dom.$(`.chat-question-carousel-container.${CHAT_CARD_LARGE_CLASS}`);
+		this.domNode.style.setProperty('--chat-question-carousel-max-height', `min(${MAX_CAROUSEL_HEIGHT}px, ${MAX_CAROUSEL_VIEWPORT_RATIO * 100}vh)`);
 		this.domNode.classList.toggle('chat-question-carousel-conversation', carousel.answerPresentation === 'conversation');
 		this.domNode.id = generateUuid();
 		this._inChatQuestionCarouselContextKey = ChatContextKeys.inChatQuestionCarousel.bindTo(this._contextKeyService);
@@ -572,63 +575,28 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._footerRow = undefined;
 		this._stepIndicator = undefined;
 		this._submitHint = undefined;
-		this._inputScrollable = undefined;
 	}
 
-	private layoutInputScrollable(inputScrollable: DomScrollableElement): void {
-		if (!this._questionContainer) {
-			return;
+	private layoutQuestionSections(header: HTMLElement, input: HTMLElement, inputScrollableNode: HTMLElement): void {
+		const maxHeight = Math.min(MAX_CAROUSEL_HEIGHT, dom.getWindow(this.domNode).innerHeight * MAX_CAROUSEL_VIEWPORT_RATIO);
+		const reservedHeight = (this._footerRow?.offsetHeight ?? 0) + (this._validationMessageElement?.offsetHeight ?? 0);
+		const availableHeight = Math.max(0, maxHeight - reservedHeight);
+		const headerHeight = header.scrollHeight;
+		const inputHeight = input.scrollHeight;
+
+		// Borrow unused space, or slightly favor the answers only when that eliminates their scrollbar.
+		const inputMaxHeight = Math.max(availableHeight - headerHeight, inputHeight <= availableHeight * 0.55 ? inputHeight : availableHeight / 2);
+		const headerMaxHeight = availableHeight - Math.min(inputHeight, inputMaxHeight);
+		const headerMaxHeightPx = `${headerMaxHeight}px`;
+		const inputMaxHeightPx = `${inputMaxHeight}px`;
+
+		if (header.style.maxHeight !== headerMaxHeightPx) {
+			header.style.maxHeight = headerMaxHeightPx;
 		}
-
-		const scrollableNode = inputScrollable.getDomNode();
-		const scrollableContent = scrollableNode.firstElementChild;
-		if (!dom.isHTMLElement(scrollableContent)) {
-			return;
+		if (input.style.maxHeight !== inputMaxHeightPx) {
+			input.style.maxHeight = inputMaxHeightPx;
+			inputScrollableNode.style.maxHeight = inputMaxHeightPx;
 		}
-
-		// Clear stale size constraints first so this step can shrink after
-		// navigating from a taller question.
-		if (scrollableNode.style.height !== '' || scrollableNode.style.maxHeight !== '') {
-			scrollableNode.style.height = '';
-			scrollableNode.style.maxHeight = '';
-		}
-		if (scrollableContent.style.height !== '' || scrollableContent.style.maxHeight !== '') {
-			scrollableContent.style.height = '';
-			scrollableContent.style.maxHeight = '';
-		}
-
-		// Use the flex-resolved container height (constrained by CSS max-height)
-		// instead of window.innerHeight, so the scroll viewport tracks actual chat space.
-		const maxContainerHeight = this._questionContainer.clientHeight;
-
-		const computedStyle = dom.getWindow(this._questionContainer).getComputedStyle(this._questionContainer);
-		const contentVerticalPadding =
-			Number.parseFloat(computedStyle.paddingTop || '0') +
-			Number.parseFloat(computedStyle.paddingBottom || '0');
-
-		const nonScrollableContentHeight = Array.from(this._questionContainer.children)
-			.filter(child => child !== scrollableNode)
-			.reduce((sum, child) => sum + (child as HTMLElement).offsetHeight, 0);
-
-		const availableScrollableHeight = Math.floor(maxContainerHeight - contentVerticalPadding - nonScrollableContentHeight);
-
-		const contentScrollableHeight = scrollableContent.scrollHeight;
-		const constrainedScrollableHeight = Math.max(0, Math.min(availableScrollableHeight, contentScrollableHeight));
-		const constrainedScrollableHeightPx = `${constrainedScrollableHeight}px`;
-
-		// Constrain wrapper + content so no stale flex sizing survives between steps.
-		if (scrollableNode.style.height !== constrainedScrollableHeightPx || scrollableNode.style.maxHeight !== constrainedScrollableHeightPx) {
-			scrollableNode.style.height = constrainedScrollableHeightPx;
-			scrollableNode.style.maxHeight = constrainedScrollableHeightPx;
-		}
-
-		// Constrain the content element (DomScrollableElement._element) so that
-		// scanDomNode sees clientHeight < scrollHeight and enables scrolling.
-		if (scrollableContent.style.height !== constrainedScrollableHeightPx || scrollableContent.style.maxHeight !== constrainedScrollableHeightPx) {
-			scrollableContent.style.height = constrainedScrollableHeightPx;
-			scrollableContent.style.maxHeight = constrainedScrollableHeightPx;
-		}
-		inputScrollable.scanDomNode();
 	}
 
 	/**
@@ -826,7 +794,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		const questionRenderStore = new DisposableStore();
 		this._questionRenderStore.value = questionRenderStore;
-		this._inputScrollable = undefined;
 
 		// Clear previous input boxes and stale references
 		this._inputBoxes.clear();
@@ -844,6 +811,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 
 		const headerRow = dom.$('.chat-question-header-row');
+		headerRow.tabIndex = -1;
+		headerRow.setAttribute('role', 'group');
+		headerRow.setAttribute('aria-label', localize('chat.questionCarousel.details', "Question details"));
 		const titleRow = dom.$(`.chat-question-title-row.${CHAT_CARD_HEADER_CLASS}`);
 
 		// Render carousel-level message if present (e.g. from MCP elicitation)
@@ -887,14 +857,14 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			titleRow.appendChild(this._headerActionsContainer);
 		}
 
-		this._questionContainer.appendChild(headerRow);
-
 		// Render description if present
 		if (question.description) {
 			const descriptionEl = dom.$('.chat-question-description');
 			descriptionEl.textContent = question.description;
-			this._questionContainer.appendChild(descriptionEl);
+			headerRow.appendChild(descriptionEl);
 		}
+
+		this._questionContainer.appendChild(headerRow);
 
 		// Render input based on question type
 		const inputContainer = dom.$('.chat-question-input-container');
@@ -917,7 +887,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			horizontal: ScrollbarVisibility.Hidden,
 			consumeMouseWheelIfScrollbarIsNeeded: true,
 		}));
-		this._inputScrollable = inputScrollable;
 		const inputScrollableNode = inputScrollable.getDomNode();
 		inputScrollableNode.classList.add('chat-question-input-scrollable');
 		this._questionContainer.appendChild(inputScrollableNode);
@@ -937,25 +906,32 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this.renderSingleQuestionFooter();
 		}
 
-		let relayoutScheduled = false;
-		const relayoutScheduler = questionRenderStore.add(new MutableDisposable());
-		const scheduleLayoutInputScrollable = () => {
-			if (relayoutScheduled) {
-				return;
+		const targetWindow = dom.getWindow(this.domNode);
+		const relayoutScheduler = questionRenderStore.add(new dom.AnimationFrameScheduler(this.domNode, () => {
+			this.layoutQuestionSections(headerRow, inputContainer, inputScrollableNode);
+		}));
+		const inputResizeObserver = questionRenderStore.add(new dom.DisposableResizeObserver('ChatQuestionCarouselPart.inputScrollable', entries => {
+			// Viewport resizes update scrolling, but only intrinsic content changes need another allocation.
+			if (entries.some(entry => entry.target !== headerRow && entry.target !== inputContainer)) {
+				relayoutScheduler.schedule();
 			}
-
-			relayoutScheduled = true;
-			relayoutScheduler.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => {
-				relayoutScheduled = false;
-				this.layoutInputScrollable(inputScrollable);
-			});
-		};
-
-		const inputResizeObserver = questionRenderStore.add(new dom.DisposableResizeObserver('ChatQuestionCarouselPart.inputScrollable', () => scheduleLayoutInputScrollable()));
-		questionRenderStore.add(inputResizeObserver.observe(inputScrollableNode));
+			const headerTabIndex = headerRow.scrollHeight > headerRow.clientHeight ? 0 : -1;
+			if (headerRow.tabIndex !== headerTabIndex) {
+				headerRow.tabIndex = headerTabIndex;
+			}
+			inputScrollable.scanDomNode();
+		}, targetWindow));
 		questionRenderStore.add(inputResizeObserver.observe(inputContainer));
-		questionRenderStore.add(dom.addDisposableListener(dom.getWindow(this.domNode), dom.EventType.RESIZE, () => scheduleLayoutInputScrollable()));
-		scheduleLayoutInputScrollable();
+		questionRenderStore.add(inputResizeObserver.observe(headerRow));
+		for (const content of [...headerRow.children, ...inputContainer.children]) {
+			questionRenderStore.add(inputResizeObserver.observe(content));
+		}
+		questionRenderStore.add(inputResizeObserver.observe(this._validationMessageElement));
+		if (this._footerRow) {
+			questionRenderStore.add(inputResizeObserver.observe(this._footerRow));
+		}
+		questionRenderStore.add(dom.addDisposableListener(targetWindow, dom.EventType.RESIZE, () => relayoutScheduler.schedule()));
+		relayoutScheduler.schedule();
 		questionRenderStore.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => {
 			inputContainer.scrollTop = 0;
 			inputContainer.scrollLeft = 0;
@@ -1146,9 +1122,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const autoResize = () => {
 			textarea.style.height = 'auto';
 			textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
-			if (this._inputScrollable) {
-				this.layoutInputScrollable(this._inputScrollable);
-			}
 			this._onDidChangeHeight.fire();
 		};
 		this._inputBoxes.add(dom.addDisposableListener(textarea, dom.EventType.INPUT, autoResize));

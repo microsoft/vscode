@@ -38,6 +38,7 @@ export namespace ChatContextKeys {
 	export const contextMenuIsBackground = new RawContextKey<boolean>('chatContextMenuIsBackground', false, { type: 'boolean', description: localize('chatContextMenuIsBackground', "Whether the chat context menu was opened from the transcript background rather than chat item content.") });
 	export const contextMenuHasLink = new RawContextKey<boolean>('chatContextMenuHasLink', false, { type: 'boolean', description: localize('chatContextMenuHasLink', "Whether the chat context menu was opened on a link.") });
 	export const contextMenuHasAvailableEditors = new RawContextKey<boolean>('chatContextMenuHasAvailableEditors', false, { type: 'boolean', description: localize('chatContextMenuHasAvailableEditors', "Whether the chat context menu link can be opened with an alternate editor.") });
+	export const contextMenuHasResponseSelection = new RawContextKey<boolean>('chatContextMenuHasResponseSelection', false, { type: 'boolean', description: localize('chatContextMenuHasResponseSelection', "Whether the chat context menu has selected assistant response text.") });
 	export const isFirstRequest = new RawContextKey<boolean>('chatFirstRequest', false, { type: 'boolean', description: localize('chatFirstRequest', "The chat item is the first request in the session.") });
 	export const isPendingRequest = new RawContextKey<boolean>('chatRequestIsPending', false, { type: 'boolean', description: localize('chatRequestIsPending', "True when the chat request item is pending in the queue.") });
 	export const itemId = new RawContextKey<string>('chatItemId', '', { type: 'string', description: localize('chatItemId', "The id of the chat item.") });
@@ -49,6 +50,11 @@ export namespace ChatContextKeys {
 	export const inputHasSendableContent = new RawContextKey<boolean>('chatInputHasSendableContent', false, { type: 'boolean', description: localize('interactiveInputHasSendableContent', "True when the chat input has text or file attachments that can be sent.") });
 	export const inputHasFocus = new RawContextKey<boolean>('chatInputHasFocus', false, { type: 'boolean', description: localize('interactiveInputHasFocus', "True when the chat input has focus.") });
 	export const inChatInput = new RawContextKey<boolean>('inChatInput', false, { type: 'boolean', description: localize('inInteractiveInput', "True when focus is in the chat input, false otherwise.") });
+	export const inChatSessionWorkingSet = new RawContextKey<boolean>('inChatSessionWorkingSet', false, { type: 'boolean', description: localize('inChatSessionWorkingSet', "True when focus is in the session working set, false otherwise.") });
+	export const sessionWorkingSetKeepEnabled = new RawContextKey<boolean>('chatSessionWorkingSetKeepEnabled', false, { type: 'boolean', description: localize('chatSessionWorkingSetKeepEnabled', "True when the session working set can keep changes now, false otherwise.") });
+	export const sessionWorkingSetReviewEnabled = new RawContextKey<boolean>('chatSessionWorkingSetReviewEnabled', true, { type: 'boolean', description: localize('chatSessionWorkingSetReviewEnabled', "Whether Keep and Undo are shown in the session working set.") });
+	export const sessionWorkingSetHasUndo = new RawContextKey<boolean>('chatSessionWorkingSetHasUndo', false, { type: 'boolean', description: localize('chatSessionWorkingSetHasUndo', "True when the session of the session working set supports undoing its changes to single files, false otherwise.") });
+	export const sessionWorkingSetUndoEnabled = new RawContextKey<boolean>('chatSessionWorkingSetUndoEnabled', false, { type: 'boolean', description: localize('chatSessionWorkingSetUndoEnabled', "True when the session working set can undo changes now, false otherwise.") });
 	export const inChatSession = new RawContextKey<boolean>('inChat', false, { type: 'boolean', description: localize('inChat', "True when focus is in the chat widget, false otherwise.") });
 	export const inChatQuestionCarousel = new RawContextKey<boolean>('inChatQuestionCarousel', false, { type: 'boolean', description: localize('inChatQuestionCarousel', "True when focus is in the chat question carousel.") });
 	export const chatQuestionCarouselHasTerminal = new RawContextKey<boolean>('chatQuestionCarouselHasTerminal', false, { type: 'boolean', description: localize('chatQuestionCarouselHasTerminal', "True when the chat question carousel was triggered by a terminal and has a terminal to focus.") });
@@ -66,6 +72,7 @@ export namespace ChatContextKeys {
 	export const chatModeKind = new RawContextKey<ChatModeKind>('chatAgentKind', ChatModeKind.Ask, { type: 'string', description: localize('agentKind', "The 'kind' of the current agent.") });
 	export const chatPermissionLevel = new RawContextKey<ChatPermissionLevel>('chatPermissionLevel', ChatPermissionLevel.Default, { type: 'string', description: localize('chatPermissionLevel', "The current permission level for tool auto-approval.") });
 	export const chatModeName = new RawContextKey<string>('chatModeName', '', { type: 'string', description: localize('chatModeName', "The name of the current chat mode (e.g. 'Plan' for custom modes).") });
+	export const agentPickerInAttachContext = new RawContextKey<boolean>('chatAgentPickerInAttachContext', false, { type: 'boolean', description: localize('agentPickerInAttachContext', "True when the default Agent picker is in Add Context instead of the toolbar.") });
 	export const chatModelId = new RawContextKey<string>('chatModelId', '', { type: 'string', description: localize('chatModelId', "The short id of the currently selected chat model (for example 'gpt-4.1').") });
 	export const speechToTextRecording = new RawContextKey<boolean>('chatSpeechToTextRecording', false, { type: 'boolean', description: localize('chatSpeechToTextRecording', "True while the chat input is recording audio for speech-to-text transcription.") });
 	export const speechToTextConfigured = new RawContextKey<boolean>('chatSpeechToTextConfigured', false, { type: 'boolean', description: localize('chatSpeechToTextConfigured', "True when speech-to-text is available for dictating into the chat input.") });
@@ -141,8 +148,6 @@ export namespace ChatContextKeys {
 	export const hasRemoteCodingAgent = new RawContextKey<boolean>('hasRemoteCodingAgent', false, localize('hasRemoteCodingAgent', "Whether any remote coding agent is available"));
 	export const hasCanDelegateProviders = new RawContextKey<boolean>('chatHasCanDelegateProviders', false, { type: 'boolean', description: localize('chatHasCanDelegateProviders', "True when there are chat session providers with delegation support available.") });
 	export const enableRemoteCodingAgentPromptFileOverlay = new RawContextKey<boolean>('enableRemoteCodingAgentPromptFileOverlay', false, localize('enableRemoteCodingAgentPromptFileOverlay', "Whether the remote coding agent prompt file overlay feature is enabled"));
-	/** Used by the extension to skip the quit confirmation when #new wants to open a new folder */
-	export const skipChatRequestInProgressMessage = new RawContextKey<boolean>('chatSkipRequestInProgressMessage', false, { type: 'boolean', description: localize('chatSkipRequestInProgressMessage', "True when the chat request in progress message should be skipped.") });
 
 	// Re-exported from chat entitlement service
 	export const Setup = ChatEntitlementContextKeys.Setup;
@@ -176,6 +181,7 @@ export namespace ChatContextKeys {
 	export const hasCreatedSessionInAgentsWindow = new RawContextKey<boolean>('chatHasCreatedSessionInAgentsWindow', false, { type: 'boolean', description: localize('chatHasCreatedSessionInAgentsWindow', "True when the user has created at least one session in the Agents Window.") });
 	export const agentSessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('agentSessionType', "The type of the current agent session item.") });
 	export const isAgentSessionChild = new RawContextKey<boolean>('agentSessionIsChild', false, { type: 'boolean', description: localize('agentSessionIsChild', "True when the current agent session item is a child chat.") });
+	export const agentSessionChildCanArchive = new RawContextKey<boolean>('agentSessionChildCanArchive', false);
 	/**
 	 * Whether the agent session item has an associated pull request. Tri-state, so gate with
 	 * `chatSessionPullRequest != 'none'` to keep contributions visible when the state is unknown.
@@ -184,6 +190,7 @@ export namespace ChatContextKeys {
 	export const chatSessionSupportsDelegation = new RawContextKey<boolean>('chatSessionSupportsDelegation', true, { type: 'boolean', description: localize('chatSessionSupportsDelegation', "True when the current session type supports delegation.") });
 	export const hasPendingDelegationTarget = new RawContextKey<boolean>('chatHasPendingDelegationTarget', false, { type: 'boolean', description: localize('chatHasPendingDelegationTarget', "True when a delegation (continue in) target is selected but the request has not been submitted yet.") });
 	export const chatSessionSupportsFork = new RawContextKey<boolean>('chatSessionSupportsFork', false, { type: 'boolean', description: localize('chatSessionSupportsFork', "True when the current chat session provider supports forking conversations.") });
+	export const chatSessionSupportsSideChat = new RawContextKey<boolean>('chatSessionSupportsSideChat', false, { type: 'boolean', description: localize('chatSessionSupportsSideChat', "True when the current chat session provider supports side chats.") });
 	export const chatSessionSupportsRename = new RawContextKey<boolean>('chatSessionSupportsRename', false, { type: 'boolean', description: localize('chatSessionSupportsRename', "True when the current chat session supports renaming.") });
 	export const agentSessionSection = new RawContextKey<string>('agentSessionSection', '', { type: 'string', description: localize('agentSessionSection', "The section of the current agent session section item.") });
 	export const isArchivedAgentSession = new RawContextKey<boolean>('agentSessionIsArchived', false, { type: 'boolean', description: localize('agentSessionIsArchived', "True when the agent session item is archived.") });

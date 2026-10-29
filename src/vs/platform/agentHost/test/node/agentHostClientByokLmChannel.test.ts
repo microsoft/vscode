@@ -132,6 +132,24 @@ suite('agentHostClientByokLmChannel', () => {
 		assert.deepStrictEqual(pushed.at(-1), [{ vendor: 'acme', id: 'v3' }]);
 	});
 
+	test('pushes the first snapshot, even an empty one, and later only snapshots that differ', async () => {
+		const onDidChange = store.add(new Emitter<void>());
+		let models: IByokLmModelInfo[] = [];
+		const connection = bridge(handlerOf(async () => ({ output: [] }), async () => models, onDidChange.event));
+
+		const pushed: IByokLmModelInfo[][] = [];
+		const sub = connection.onDidChangeModels(snapshot => pushed.push(snapshot));
+		await flush();
+		for (const next of [[], [{ vendor: 'acme', id: 'v1' }], [{ vendor: 'acme', id: 'v1' }]]) {
+			models = next;
+			onDidChange.fire();
+			await flush();
+		}
+
+		sub.dispose();
+		assert.deepStrictEqual(pushed, [[], [{ vendor: 'acme', id: 'v1' }]]);
+	});
+
 	test('rejects unknown channel commands', async () => {
 		const server = new AgentHostClientByokLmChannel(handlerOf(async () => ({ output: [] })), new NullLogService());
 		await assert.rejects(() => server.call(null, 'frobnicate'), /Unknown command/);

@@ -139,6 +139,23 @@ suite('SessionPermissionManager', () => {
 		assert.deepStrictEqual(results, [ToolCallConfirmationReason.NotNeeded, undefined]);
 	});
 
+	test('a moved peer chat reads the attachments of its owner, its own storage and the session it came from (Block 4)', async () => {
+		const origin = URI.from({ scheme: 'copilot', path: '/origin' }).toString();
+		const unrelated = URI.from({ scheme: 'copilot', path: '/unrelated' }).toString();
+		const peerChat = buildChatUri(URI.parse(origin), 'peer');
+		manager.addChat(sessionUri, peerChat, peerChat);
+		manager.recordMovedChatOrigins(new Map([[peerChat, origin]]));
+		const attachmentOf = (scope: string) => URI.joinPath(sessionDataService.getSessionDataDir(URI.parse(scope)), SESSION_ATTACHMENTS_DIRNAME, 'id', 'a.txt').fsPath;
+
+		const reads = await Promise.all([sessionUri, peerChat, origin, unrelated].map(scope => permissions.getAutoApproval(readEvent(attachmentOf(scope), peerChat), peerChat)));
+		const writes = [sessionUri, peerChat, origin, unrelated].map(scope => permissions.isForbiddenSnapshotWrite({ ...writeEvent(attachmentOf(scope)), session: URI.parse(peerChat) }, peerChat));
+
+		assert.deepStrictEqual({ reads, writes }, {
+			reads: [ToolCallConfirmationReason.NotNeeded, ToolCallConfirmationReason.NotNeeded, ToolCallConfirmationReason.NotNeeded, undefined],
+			writes: [true, true, true, false],
+		});
+	});
+
 	test('isForbiddenSnapshotWrite flags writes to a session attachment snapshot but not reads or working-dir writes (#331154)', () => {
 		const snapshot = URI.joinPath(sessionDataService.getSessionDataDir(URI.parse(sessionUri)), SESSION_ATTACHMENTS_DIRNAME, 'id', 'Pasted text #1.txt').fsPath;
 		assert.deepStrictEqual({

@@ -28,6 +28,11 @@ export class CheckpointAndChangesetContribution extends Disposable implements IA
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {
+		if (turn.reason.kind === 'cancelled') {
+			// Edits already applied still belong in turn and session changes after the model stops.
+			this._onTurnComplete(turn);
+			return;
+		}
 		if (turn.reason.kind !== 'success' && turn.reason.kind !== 'error') {
 			return;
 		}

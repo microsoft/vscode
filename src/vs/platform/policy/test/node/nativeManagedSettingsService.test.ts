@@ -69,6 +69,32 @@ suite('NativeManagedSettingsService', () => {
 		});
 	});
 
+	test('applies native telemetry file path updates and removals without watcher metadata', async () => {
+		const filePath = 'telemetry.filePath';
+		let onDidChange: ((update: Record<string, PolicyValue | undefined>) => void) | undefined;
+		const watcherFactory: NativePolicyWatcherFactory = (_productName, _policies, callback) => {
+			onDidChange = callback;
+			callback({});
+			return Disposable.None;
+		};
+		const service = disposables.add(new NativeManagedSettingsService(new NullLogService(), 'com.github.copilot', undefined, watcherFactory));
+
+		await service.updatePolicyDefinitions({
+			TelemetryFilePath: {
+				type: 'string',
+				managedSettings: { [filePath]: { type: 'string' } },
+			},
+		});
+		onDidChange?.({ [filePath]: '/managed/copilot.jsonl' });
+		const updated = service.managedSettings;
+		onDidChange?.({ [filePath]: undefined });
+
+		assert.deepStrictEqual({ updated, removed: service.managedSettings }, {
+			updated: { [filePath]: '/managed/copilot.jsonl' },
+			removed: {},
+		});
+	});
+
 	test('observes strict marketplace policy without a configuration registration and preserves channel precedence', async () => {
 		const key = COPILOT_STRICT_MARKETPLACES_KEY;
 		let update: ((values: Record<string, PolicyValue | undefined>) => void) | undefined;

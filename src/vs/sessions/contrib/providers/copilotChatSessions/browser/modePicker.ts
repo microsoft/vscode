@@ -266,6 +266,8 @@ export class ModePicker extends Disposable {
 		const trigger = dom.append(slot, dom.$('a.action-label'));
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
+		trigger.setAttribute('aria-haspopup', 'listbox');
+		trigger.setAttribute('aria-expanded', 'false');
 		this._triggerElement = trigger;
 
 		this._updateTriggerLabel();
@@ -321,10 +323,13 @@ export class ModePicker extends Disposable {
 				}
 			},
 			onHide: () => {
+				triggerElement.setAttribute('aria-expanded', 'false');
 				triggerElement.focus();
 			},
 		};
 
+		// Shows the trigger as expanded, and with it the toolbar's open picker background.
+		triggerElement.setAttribute('aria-expanded', 'true');
 		this.actionWidgetService.show<ModePickerItem>(
 			'localModePicker',
 			false,

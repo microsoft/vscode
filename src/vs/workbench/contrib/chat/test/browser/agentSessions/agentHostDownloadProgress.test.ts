@@ -87,6 +87,17 @@ suite('AgentHostDownloadProgress', () => {
 		);
 	});
 
+	test('policy loading is indeterminate without percentages or byte counts', async () => {
+		const { controller, progressService } = create();
+		controller.handleProgress(frame({ progressToken: 'policy', progress: 0, message: 'Loading your organization\'s managed settings' }));
+		assert.deepStrictEqual(progressService.opened.map(record => ({ title: record.title, steps: record.steps, dismissed: record.dismissed })), [
+			{ title: 'Loading your organization\'s managed settings', steps: [], dismissed: false },
+		]);
+		controller.handleProgress(frame({ progressToken: 'policy', progress: 1, total: 1 }));
+		await progressService.opened[0].settled;
+		assert.strictEqual(progressService.opened[0].dismissed, true);
+	});
+
 	test('no notification when AI features are disabled', () => {
 		const { controller, progressService } = create(true);
 

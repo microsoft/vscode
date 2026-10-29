@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../base/common/cancellation.js';
 import { Event } from '../../base/common/event.js';
 import { IDisposable } from '../../base/common/lifecycle.js';
+import type { IAgentHostClientCertificatesProvider } from '../../platform/agentHost/common/clientCertificatesProtocol.js';
 import { URI } from '../../base/common/uri.js';
 import { IProtocolTransport } from '../../platform/agentHost/common/state/sessionTransport.js';
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
@@ -47,6 +48,7 @@ export interface IDevContainerAgentHostConnection {
 	readonly repository?: IDevContainerRepository;
 	readonly sandboxSupported?: boolean;
 	readonly defaultDirectory?: string;
+	readonly clientCertificates?: IAgentHostClientCertificatesProvider;
 }
 
 /** Creates a Dev Container and connects to its Agent Host. */
@@ -83,4 +85,9 @@ export interface IDevContainerAgentHostService {
 	getSandboxSupported?(workspaceUri: URI): boolean | undefined;
 	showLog(workspaceUri: URI): Promise<void>;
 	disconnect(workspaceUri: URI): Promise<void>;
+	/** Register a source workspace without starting its container or connecting. */
+	addWorkspace(workspaceUri: URI, name: string): void;
+	/** Forget a location and disconnect its transport without deleting its container. */
+	removeWorkspace(workspaceUri: URI): Promise<void>;
+	getWorkspaces(): readonly { readonly workspaceUri: URI; readonly name: string }[];
 }

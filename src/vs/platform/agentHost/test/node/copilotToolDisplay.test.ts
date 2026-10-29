@@ -8,7 +8,7 @@ import type { PermissionRequest } from '@github/copilot-sdk';
 import * as marked from '../../../../base/common/marked/marked.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, getToolSummaryInputContract, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
 
 type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' }>;
 type CopilotCustomToolPermissionRequest = Extract<PermissionRequest, { kind: 'custom-tool' }>;
@@ -206,14 +206,16 @@ suite('copilotToolDisplay — markdown-rendered tools', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('task_complete renders as markdown, other tools do not', () => {
-		assert.strictEqual(isMarkdownRenderedTool('task_complete'), true);
-		assert.strictEqual(isMarkdownRenderedTool('bash'), false);
-		assert.strictEqual(isMarkdownRenderedTool('report_intent'), false);
-	});
-
-	test('getToolMarkdownContent returns the task_complete summary when present', () => {
-		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: 'All tests pass.' }), '\n\n**Task completed:**\n\nAll tests pass.');
+	test('identifies task_complete, but not other tools', () => {
+		assert.deepStrictEqual({
+			taskComplete: isTaskCompleteTool('task_complete'),
+			bash: isTaskCompleteTool('bash'),
+			reportIntent: isTaskCompleteTool('report_intent'),
+		}, {
+			taskComplete: true,
+			bash: false,
+			reportIntent: false,
+		});
 	});
 
 	test('getTaskCompleteMarkdown prefers the input summary over truncated tool output', () => {
@@ -248,15 +250,18 @@ suite('copilotToolDisplay — markdown-rendered tools', () => {
 		});
 	}
 
-	test('getToolMarkdownContent returns undefined for empty, missing, or non-string summaries', () => {
-		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: '' }), undefined);
-		assert.strictEqual(getToolMarkdownContent('task_complete', {}), undefined);
-		assert.strictEqual(getToolMarkdownContent('task_complete', undefined), undefined);
-		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: 42 }), undefined);
-	});
-
-	test('getToolMarkdownContent returns undefined for non-markdown tools', () => {
-		assert.strictEqual(getToolMarkdownContent('bash', { summary: 'ignored' }), undefined);
+	test('getTaskCompleteMarkdown returns undefined for empty, missing, or non-string summaries without tool output', () => {
+		assert.deepStrictEqual({
+			empty: getTaskCompleteMarkdown({ summary: '' }, undefined),
+			missing: getTaskCompleteMarkdown({}, undefined),
+			noParameters: getTaskCompleteMarkdown(undefined, undefined),
+			nonString: getTaskCompleteMarkdown({ summary: 42 }, undefined),
+		}, {
+			empty: undefined,
+			missing: undefined,
+			noParameters: undefined,
+			nonString: undefined,
+		});
 	});
 });
 
@@ -402,6 +407,126 @@ suite('getPermissionDisplay — workflow confirmation', () => {
 
 		assert.strictEqual(getPermissionDisplay(request).permissionKind, 'workflow');
 	});
+});
+
+suite('getPermissionDisplay — hook confirmation', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const [toolName, command] of [
+		['bash', 'cd /repo/project && echo review-me'],
+		['powershell', 'cd /repo/project; echo review-me'],
+	]) {
+		test(`shows the ${toolName} command and hook reason without changing the request`, () => {
+			const request = {
+				kind: 'hook',
+				toolCallId: 'hook-tool-call',
+				toolName,
+				toolArgs: { command, description: 'Print a review marker', timeout: 1000 },
+				hookMessage: 'Please review this command before it runs.',
+			} satisfies PermissionRequest;
+
+			assert.deepStrictEqual({
+				display: getPermissionDisplay(request, URI.file('/repo/project')),
+				command: request.toolArgs.command,
+			}, {
+				display: {
+					confirmationTitle: 'Run in terminal?',
+					invocationMessage: request.hookMessage,
+					toolInput: JSON.stringify({ ...request.toolArgs, command: 'echo review-me' }, null, 2),
+					permissionKind: 'hook',
+					shellCommand: 'echo review-me',
+				},
+				command,
+			});
+		});
+	}
+
+	test('keeps multiline commands and other working directories intact', () => {
+		const toolArgs = { command: 'cd /tmp && echo first\necho second' };
+		const display = getPermissionDisplay({
+			kind: 'hook', toolName: 'bash', toolArgs, hookMessage: 'Review both commands.',
+		}, URI.file('/repo/project'));
+
+		assert.deepStrictEqual({
+			input: display.toolInput,
+			command: display.shellCommand,
+		}, {
+			input: JSON.stringify(toolArgs, null, 2),
+			command: toolArgs.command,
+		});
+	});
+
+	test('shows non-shell arguments without the permission envelope', () => {
+		assert.deepStrictEqual(getPermissionDisplay({
+			kind: 'hook',
+			toolName: 'view',
+			toolArgs: { path: '/repo/project/README.md' },
+			hookMessage: 'Review access to this file.',
+		}), {
+			confirmationTitle: 'Allow tool call: view?',
+			invocationMessage: 'Review access to this file.',
+			toolInput: JSON.stringify({ path: '/repo/project/README.md' }, null, 2),
+			permissionKind: 'hook',
+			shellCommand: undefined,
+		});
+	});
+
+	test('identifies the gated tool even when the hook reason is generic', () => {
+		assert.strictEqual(getPermissionDisplay({
+			kind: 'hook', toolName: 'rename_chat', toolArgs: { title: 'Review' }, hookMessage: 'Please review this tool call.',
+		}).confirmationTitle, 'Allow tool call: rename_chat?');
+	});
+
+	for (const toolName of ['write_bash', 'write_powershell']) {
+		for (const command of ['false', '0', 'null', '{}']) {
+			test(`preserves structured ${toolName} arguments for ${command}`, () => {
+				const toolArgs = { shellId: 'running-shell', command };
+				const display = getPermissionDisplay({ kind: 'hook', toolName, toolArgs, hookMessage: 'Review this input.' });
+				assert.deepStrictEqual(JSON.parse(display.toolInput!), toolArgs);
+			});
+		}
+	}
+
+	test('treats the hook reason as plain text rather than markdown', () => {
+		const hookMessage = '[Review](command:workbench.action.reloadWindow) **before** running <script>alert(1)</script>';
+		assert.strictEqual(getPermissionDisplay({
+			kind: 'hook', toolName: 'bash', toolArgs: { command: 'echo review-me' }, hookMessage,
+		}).invocationMessage, hookMessage);
+	});
+
+	for (const hookMessage of [undefined, '', ' \n\t ']) {
+		test(`falls back to the tool invocation for ${JSON.stringify(hookMessage)} hook reasons`, () => {
+			const shellArgs = { command: 'echo review-me' };
+			assert.deepStrictEqual({
+				shell: getPermissionDisplay({ kind: 'hook', toolName: 'bash', toolArgs: shellArgs, hookMessage }).invocationMessage,
+				other: getPermissionDisplay({ kind: 'hook', toolName: 'my_tool', hookMessage }).invocationMessage,
+			}, {
+				shell: getInvocationMessage('bash', 'Run Shell Command', shellArgs),
+				other: { markdown: 'Allow the model to call `my_tool`?' },
+			});
+		});
+	}
+
+	for (const toolArgs of [undefined, null, 'raw input', ['first', 'second'], { command: 42 }]) {
+		test(`handles ${JSON.stringify(toolArgs)} tool arguments without serializing the request`, () => {
+			assert.deepStrictEqual({
+				withReason: getPermissionDisplay({
+					kind: 'hook', toolName: 'bash', toolArgs, hookMessage: 'Review this tool call.',
+				}),
+				withoutReason: getPermissionDisplay({ kind: 'hook', toolName: 'bash', toolArgs }).invocationMessage,
+			}, {
+				withReason: {
+					confirmationTitle: 'Run in terminal?',
+					invocationMessage: 'Review this tool call.',
+					toolInput: JSON.stringify(toolArgs, null, 2),
+					permissionKind: 'hook',
+					shellCommand: undefined,
+				},
+				withoutReason: getInvocationMessage('bash', getToolDisplayName('bash'), undefined),
+			});
+		});
+	}
 });
 
 suite('getPermissionDisplay — cd-prefix stripping', () => {
@@ -1258,14 +1383,6 @@ suite('apply_patch tool display', () => {
 
 	test('failure still routes through the generic failed message', () => {
 		assert.strictEqual(getPastTenseMessage('apply_patch', 'Patch', { input: singleFilePatch }, false), '"Patch" failed');
-	});
-
-	test('getEditFilePath returns the first affected file from a patch body', () => {
-		assert.strictEqual(getEditFilePath({ input: singleFilePatch }), '/repo/src/foo.ts');
-		assert.strictEqual(getEditFilePath({ input: multiFilePatch }), '/repo/src/foo.ts');
-		assert.strictEqual(getEditFilePath({ patch: singleFilePatch }), '/repo/src/foo.ts');
-		assert.strictEqual(getEditFilePath(JSON.stringify({ input: singleFilePatch })), '/repo/src/foo.ts');
-		assert.strictEqual(getEditFilePath({ input: 'not a patch' }), undefined);
 	});
 
 	test('getEditFilePaths returns every affected file from a patch body', () => {

@@ -9,6 +9,7 @@ import { Disposable, IDisposable, toDisposable } from '../../../base/common/life
 import { IObservable, observableFromEvent } from '../../../base/common/observable.js';
 import { ILogService } from '../../log/common/log.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IRequestService } from '../../request/common/request.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
@@ -50,6 +51,7 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
+		@IRequestService private readonly _requestService: IRequestService,
 	) { }
 
 	createClient(mainService: IWSLRemoteAgentHostMainService, connectionId: string, address: string, connection: IWSLConnectResult, remoteAgentHostCommand: string | undefined, onRelayReplaced?: (connectionId: string) => void): AgentHostProtocolClient {
@@ -129,6 +131,10 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 		};
 		return this._instantiationService.createInstance(AgentHostProtocolClient, address, transportFactory, {
 			clientInfo: agentsWindowAgentHostClientInfo,
+			clientCertificates: {
+				isEnabled: () => this._configurationService.getValue<boolean>('http.systemCertificates') !== false,
+				loadCertificates: () => this._requestService.loadCertificates(),
+			},
 			onDispose: () => {
 				disposed = true;
 				void releaseRelay(activeConnectionId);
@@ -518,6 +524,11 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 
 	getCachedDistros(): readonly IWSLCachedDistro[] {
 		return readCachedWSLDistros(this._storageService);
+	}
+
+	cacheDistro(distro: IWSLCachedDistro): void {
+		storeCachedWSLDistros(this._storageService, [distro, ...this.getCachedDistros().filter(cached => cached.distro !== distro.distro)]);
+		this._onDidChangeConnections.fire();
 	}
 
 	private _removeCachedDistro(distro: string): void {

@@ -21,7 +21,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getMultiRootWorkspaceRelativeFilename, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getMultiRootWorkspaceRelativeFilename, getTargetedCreateActionLabel, matchesCustomizationSearchQuery, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { AICustomizationItemNormalizer, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, splitPathLabel, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
@@ -74,6 +74,20 @@ suite('aiCustomizationListWidget', () => {
 			prompts: [PromptsStorage.local, PromptsStorage.user],
 		});
 
+	});
+
+	test('matches customization search word separators while preserving substring matching', () => {
+		assert.deepStrictEqual({
+			spaceSeparated: matchesCustomizationSearchQuery('session timeline', 'session-timeline'),
+			hyphenated: matchesCustomizationSearchQuery('session-timeline', 'session-timeline'),
+			substring: matchesCustomizationSearchQuery('timeline', 'session-timeline'),
+			reordered: matchesCustomizationSearchQuery('timeline session', 'session-timeline'),
+		}, {
+			spaceSeparated: [{ start: 0, end: 7 }, { start: 8, end: 16 }],
+			hyphenated: [{ start: 0, end: 16 }],
+			substring: [{ start: 8, end: 16 }],
+			reordered: null,
+		});
 	});
 
 	test('splits workspace groups only for multi-root workspaces', () => {
@@ -739,8 +753,8 @@ suite('aiCustomizationListWidget', () => {
 				welcomePageFeatures: { showGettingStartedBanner: false },
 				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
-				commitFiles: async () => { },
-				deleteFiles: async () => { },
+				commitFiles: async () => true,
+				deleteFiles: async () => true,
 				generateCustomization: async () => { },
 				setOverrideProjectRoot: () => { },
 				clearOverrideProjectRoot: () => { },
@@ -796,6 +810,25 @@ suite('aiCustomizationListWidget', () => {
 			widget.dispose();
 			const result = await widget.generateDebugReport();
 			assert.strictEqual(result, '');
+		});
+
+		test('shared creation actions preserve generation and user creation without a workspace', () => {
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			const events: { type: PromptsType; target: string }[] = [];
+			disposables.add(widget.onDidRequestCreateManual(({ type, target }) => events.push({ type, target })));
+			const actions = widget.getCreateActions();
+			actions.find(action => action.target === 'user')?.run();
+
+			assert.deepStrictEqual({
+				actions: actions.map(action => ({ label: action.label, enabled: action.enabled, target: action.target })),
+				events,
+			}, {
+				actions: [
+					{ label: 'Generate with AI', enabled: true, target: undefined },
+					{ label: 'New Agent (User)', enabled: true, target: 'user' },
+				],
+				events: [{ type: PromptsType.agent, target: 'user' }],
+			});
 		});
 
 		test('uses the rendered container height for list layout when available', () => {
