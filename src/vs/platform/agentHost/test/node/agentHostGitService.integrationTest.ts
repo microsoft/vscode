@@ -98,6 +98,11 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 		return URI.file(cp.execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: directory, encoding: 'utf8' }).trim()).fsPath;
 	}
 
+	/** An empty `.git` directory is not a repository, but it makes lookups ask git rather than skip it. */
+	function addRejectedGitEntry(directory: string): void {
+		mkdirSync(join(directory, '.git'));
+	}
+
 	async function fillRootCache(prefix: string): Promise<void> {
 		for (let index = 0; index < 110; index++) {
 			const directory = join(tmpRoot, `${prefix}-${index}`);
@@ -124,6 +129,7 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 	});
 
 	(hasGit ? test : test.skip)('shares concurrent lookups for a non-git directory', async () => {
+		addRejectedGitEntry(tmpRoot);
 		const roots = await Promise.all(Array.from({ length: 20 }, () => service.getRepositoryRoot(URI.file(tmpRoot))));
 
 		assert.deepStrictEqual({ roots, lookups: logService.repositoryRootLookups }, {
@@ -133,6 +139,7 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 	});
 
 	(hasGit ? test : test.skip)('caches a non-git directory after the previous lookup settles', async () => {
+		addRejectedGitEntry(tmpRoot);
 		const first = await service.getRepositoryRoot(URI.file(tmpRoot));
 		const second = await service.getRepositoryRoot(URI.file(tmpRoot));
 
@@ -155,7 +162,7 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 			cached: undefined,
 			refreshed: expectedRoot,
 			after: expectedRoot,
-			lookups: 2,
+			lookups: 1,
 		});
 	});
 
@@ -172,7 +179,7 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 			before: undefined,
 			nestedRoot: expectedRoot,
 			root: expectedRoot,
-			lookups: 2,
+			lookups: 1,
 		});
 	});
 
@@ -208,6 +215,22 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 		});
 	});
 
+	(hasGit ? test : test.skip)('does not spawn git or warn for a directory without a .git entry, including with refreshIfNone', async () => {
+		const directory = URI.file(tmpRoot);
+		const results = [
+			await service.getRepositoryRoot(directory),
+			await service.getRepositoryRoot(directory, { refreshIfNone: true }),
+			await service.getRepositoryRoot(directory, { refreshIfNone: true }),
+		];
+
+		assert.deepStrictEqual({ results, availability: service.hasGitRoot(directory).get(), lookups: logService.repositoryRootLookups, warnings: logService.warnings }, {
+			results: [undefined, undefined, undefined],
+			availability: false,
+			lookups: 0,
+			warnings: [],
+		});
+	});
+
 	(hasGit ? test : test.skip)('treats a path below a regular file as missing', async () => {
 		writeFileSync(join(tmpRoot, 'file'), '');
 		const root = await service.getRepositoryRoot(URI.file(join(tmpRoot, 'file', 'nested')), { refreshIfNone: true });
@@ -232,7 +255,7 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 			whileMissing: undefined,
 			asPlainDirectory: undefined,
 			asRepository: expectedRoot,
-			lookups: 2,
+			lookups: 1,
 		});
 	});
 
@@ -283,7 +306,7 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 
 		assert.deepStrictEqual({ roots: roots.map(root => root?.fsPath), lookups: logService.repositoryRootLookups, resolveFailures: logService.warnings.filter(warning => warning.includes('Failed to resolve repository root')) }, {
 			roots: [expectedRoot, undefined, undefined, undefined],
-			lookups: 3,
+			lookups: 1,
 			resolveFailures: [],
 		});
 	});
@@ -302,7 +325,7 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 		assert.deepStrictEqual({ values, current: availability.get(), lookups: logService.repositoryRootLookups }, {
 			values: [undefined, false, true],
 			current: true,
-			lookups: 2,
+			lookups: 1,
 		});
 	});
 
@@ -365,6 +388,7 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 	});
 
 	(hasGit ? test : test.skip)('reading unresolved derived availability does not populate or evict the cache', async () => {
+		addRejectedGitEntry(tmpRoot);
 		const directory = URI.file(tmpRoot);
 		await service.getRepositoryRoot(directory);
 		for (let index = 0; index < 200; index++) {
@@ -421,6 +445,7 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 	}).timeout(30_000);
 
 	(hasGit ? test : test.skip)('orders refresh after an in-flight lookup and before subsequent readers', async () => {
+		addRejectedGitEntry(tmpRoot);
 		const directory = URI.file(tmpRoot);
 		const first = service.getRepositoryRoot(directory);
 		const refreshed = service.getRepositoryRoot(directory, { refreshIfNone: true });
