@@ -64,9 +64,15 @@ explicit error rather than falling back to the update service, so runs must be s
 to the artifacts that were actually downloaded. The SHA-256 check is skipped in this mode because
 there is no update service metadata to compare against.
 
+Server-web previews also require the tested commit's webview bootstrap assets on the CDN; downloading the server archive alone is not sufficient. Pipeline artifact-sanity runs selecting server-web targets must use `VSCODE_BUILD_TYPE=Product` and explicitly set `VSCODE_BUILD_WEB=true`. Invalid configurations are rejected during template expansion, and artifact-sanity stages wait for Web to finish. ARM32-only runs, which do not run server-web, do not require Web. **The Web stage uploads to the shared CDN even with `VSCODE_PUBLISH=false`**; that flag controls product publishing, not webview asset preparation. Do not substitute assets from another commit to make a run green.
+
 ### Timeouts
 
 The UI tests open a Markdown preview and wait up to one minute for its webview to render, then up to one minute for its document to finish loading. Resource monitoring remains active through document loading so delayed script failures are also detected. This catches webview resource loading failures (for example 401 responses for remote authorities with uppercase letters such as `wsl+Ubuntu`), and any webview resource response with an error status fails the test. Browsers that refuse to register the webview service worker (such as Chromium on Debian 12) cannot load any webview, so the check is skipped there with a pipeline warning.
+
+HTTP errors and failed requests for CDN webview bootstrap files also interrupt the render/load wait immediately. Failure messages include status, URL (without credentials/query/fragment), frame URLs, console errors and page errors, rather than reporting only a heading timeout. A missing bootstrap asset is a failure, not a reason to skip the preview check or increase its timeout.
+
+Run `npm run compile --prefix test/sanity` followed by `npm run test-webview-diagnostics --prefix test/sanity` for focused browser tests. They intercept requests locally to inject bootstrap 404s, service-worker 503s, resource 401s and connection failures, and also exercise successful nested-frame rendering. They use installed Edge on Windows and Playwright Chromium elsewhere; they do not upload CDN assets or queue product builds.
 
 Synchronous `wsl` commands issued by the tests, and the Ubuntu import, startup, conversion and listing commands in the Windows setup script, have a five-minute timeout. The setup wrapper normalizes nonzero exit codes (including `-1`) to `1` so batch error checks detect them. Setup emits a pipeline warning when Ubuntu cannot run; this does not install a missing WSL2 kernel or re-enable unavailable WSL coverage.
 
