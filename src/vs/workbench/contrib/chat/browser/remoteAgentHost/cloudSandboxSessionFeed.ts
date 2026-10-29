@@ -49,6 +49,7 @@ export class CloudSandboxSessionFeed extends Disposable {
 	constructor(
 		private readonly _onInvalidate: (refresh: CloudSandboxSessionFeedRefresh) => void,
 		private readonly _webSocketFactory: (url: string, protocol: string) => SessionFeedSocket = (url, protocol) => new WebSocket(url, protocol),
+		private readonly _stopWatchFactory: () => Pick<StopWatch, 'elapsed'> = () => StopWatch.create(),
 		@ICloudSandboxApiService private readonly _apiService: ICloudSandboxApiService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -82,6 +83,7 @@ export class CloudSandboxSessionFeed extends Disposable {
 		const cancellation = new CancellationTokenSource();
 		store.add(toDisposable(() => cancellation.dispose(true)));
 		try {
+			const connectionTime = this._stopWatchFactory();
 			const connection = await this._apiService.connectSessionFeed(cancellation.token);
 			if (this._store.isDisposed) {
 				return;
@@ -91,7 +93,6 @@ export class CloudSandboxSessionFeed extends Disposable {
 				this._reconnect.cancel();
 				return;
 			}
-			const connectionTime = StopWatch.create();
 			const socket = this._webSocketFactory(connection.url, connection.subprotocol);
 			const ready = new DeferredPromise<void>();
 			let closed = false;

@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
@@ -92,7 +93,7 @@ function createFeed(store: Pick<DisposableStore, 'add'>, options?: {
 			queueMicrotask(() => socket.receive({ type: 'system', event: 'connected' }));
 		}
 		return socket;
-	}));
+	}, () => StopWatch.create(false)));
 	return { feed, sockets, requests, invalidations, reasons, taskBatches, warnings, debugs };
 }
 
@@ -262,6 +263,29 @@ suite('CloudSandboxSessionFeed', () => {
 			{ skew: 475_000, negotiations: 4, refreshes: 3 },
 			{ skew: -475_000, negotiations: 4, refreshes: 3 },
 		]);
+	}));
+
+	test('includes negotiation and handshake time in the relative renewal delay', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const started = Date.now();
+		const negotiations: number[] = [];
+		const h = createFeed(store, {
+			autoReady: false,
+			connect: async token => {
+				negotiations.push(Date.now() - started);
+				const result = { ...connection(), expires_in: 600_000, reconnect_in: 480_000 };
+				await timeout(180_000, token);
+				return result;
+			},
+		});
+		const initial = h.feed.start();
+		await timeout(185_000);
+		h.sockets[0].receive({ type: 'system', event: 'connected' });
+		await initial;
+		await timeout(294_999);
+		const beforeRenewal = negotiations.length;
+		await timeout(1);
+		h.feed.dispose();
+		assert.deepStrictEqual({ beforeRenewal, negotiations }, { beforeRenewal: 1, negotiations: [0, 480_000] });
 	}));
 
 	test('reconnects after disconnection and requests an authoritative full refresh', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
