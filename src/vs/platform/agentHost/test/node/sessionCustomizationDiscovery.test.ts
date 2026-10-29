@@ -9,7 +9,6 @@ import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/a
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -29,7 +28,7 @@ type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover
 
 suite('SessionCustomizationDiscovery', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: FileService;
 	let instantiationService: TestInstantiationService;
 	let workspace: URI;
@@ -48,10 +47,6 @@ suite('SessionCustomizationDiscovery', () => {
 		userHome = URI.from({ scheme: Schemas.inMemory, path: '/home' });
 	});
 
-	teardown(() => {
-		disposables.clear();
-	});
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function seed(path: string, content = ''): Promise<URI> {
 		const uri = URI.from({ scheme: Schemas.inMemory, path });

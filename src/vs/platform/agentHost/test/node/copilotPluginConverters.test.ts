@@ -7,7 +7,6 @@ import assert from 'assert';
 import { writeFileSync, unlinkSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -32,7 +31,7 @@ function stubSkillCustomization(name: string): SkillCustomization {
 
 suite('copilotPluginConverters', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: FileService;
 
 	setup(() => {
@@ -40,8 +39,6 @@ suite('copilotPluginConverters', () => {
 		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// ---- toSdkMcpServers ------------------------------------------------
 

@@ -16,7 +16,6 @@ import { getSessionEditorComments } from '../../browser/sessionEditorComments.js
 import { IChatEditingService } from '../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IChatWidget, IChatWidgetService, IChatAcceptInputOptions, IChatWidgetViewModelChangeEvent } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IAgentFeedbackVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -64,7 +63,7 @@ suite('AgentFeedbackService - PR review authority', () => {
 
 suite('AgentFeedbackService - Ordering', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: IAgentFeedbackService;
 	let session: URI;
 	let fileA: URI;
@@ -99,12 +98,6 @@ suite('AgentFeedbackService - Ordering', () => {
 		fileB = URI.parse('file:///b.ts');
 		fileC = URI.parse('file:///c.ts');
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('single file - items sorted by line number', () => {
 		service.addFeedback(session, fileA, r(20), 'line 20');
@@ -390,7 +383,7 @@ suite('AgentFeedbackService - Ordering', () => {
 
 suite('AgentFeedbackService - getSessionForFile', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let service: IAgentFeedbackService;
 	let visibleEditorsEmitter: Emitter<IVisibleEditorsChangeEvent>;
@@ -482,12 +475,6 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		sessions.set(sessionS1.toString(), makeSession(sessionS1));
 		sessions.set(sessionS2.toString(), makeSession(sessionS2));
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('returns undefined when there is no active session and no tracked file', () => {
 		assert.strictEqual(service.getSessionForFile(fileA), undefined);
@@ -805,7 +792,7 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 
 suite('AgentFeedbackService - State', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: IAgentFeedbackService;
 	let session: URI;
 	let fileA: URI;
@@ -840,10 +827,6 @@ suite('AgentFeedbackService - State', () => {
 		session = URI.parse('test://session/1');
 		fileA = URI.parse('file:///a.ts');
 	});
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('feedback defaults to the accepted state', () => {
 		const feedback = service.addFeedback(session, fileA, r(10), 'hello');
@@ -909,7 +892,7 @@ suite('AgentFeedbackService - State', () => {
 
 suite('AgentFeedbackService - Submit (agent host)', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: IAgentFeedbackService;
 	let session: URI;
 	let fileA: URI;
@@ -993,10 +976,6 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 		session = URI.parse('test://session/1');
 		fileA = URI.parse('file:///a.ts');
 	});
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('attaches the just-submitted feedback to the request and clears the attachment afterwards', async () => {
 		service.addFeedback(session, fileA, r(10), 'Please simplify');
@@ -1148,12 +1127,8 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 
 suite('whenChatWidgetForSession', () => {
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = URI.parse('test://session/1');
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/**
 	 * Builds a widget service whose single widget only reports the session once `load` is

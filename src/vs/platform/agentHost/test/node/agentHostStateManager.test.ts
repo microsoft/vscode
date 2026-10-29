@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -30,7 +29,7 @@ import type { CanvasState } from '../../common/state/protocol/channels-canvas/st
 
 suite('AgentHostStateManager', () => {
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let manager: AgentHostStateManager;
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 	const sessionChatUri = buildDefaultChatUri(sessionUri);
@@ -49,15 +48,8 @@ suite('AgentHostStateManager', () => {
 	}
 
 	setup(() => {
-		disposables = new DisposableStore();
 		manager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('createSession creates initial state with lifecycle Creating', () => {
 		const state = manager.createSession(makeSessionSummary());

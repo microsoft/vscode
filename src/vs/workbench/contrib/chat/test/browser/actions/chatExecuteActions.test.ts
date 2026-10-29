@@ -182,7 +182,7 @@ suite('OpenDelegationPickerAction', () => {
 });
 
 suite('GetHandoffsAction', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	let chatExecuteActions: DisposableStore;
@@ -225,12 +225,6 @@ suite('GetHandoffsAction', () => {
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('should return all modes when no sourceCustomAgent is specified', async () => {
 		const askMode = createMockMode({ id: 'ask', kind: ChatModeKind.Ask, isBuiltin: true });
@@ -290,7 +284,7 @@ suite('GetHandoffsAction', () => {
 });
 
 suite('ExecuteHandoffAction', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	let chatExecuteActions: DisposableStore;
@@ -305,12 +299,6 @@ suite('ExecuteHandoffAction', () => {
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const testHandoffs: IHandOff[] = [
 		{ agent: 'implement', label: 'Start Implementation', prompt: 'Implement the plan', send: true },
@@ -506,7 +494,7 @@ suite('ExecuteHandoffAction', () => {
 });
 
 suite('SwitchToNextPinnedModelAction', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	let chatExecuteActions: DisposableStore;
@@ -521,12 +509,6 @@ suite('SwitchToNextPinnedModelAction', () => {
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('invokes switchToNextPinnedModel on the last focused widget', async () => {
 		let switchCalls = 0;
@@ -562,7 +544,7 @@ suite('SwitchToNextPinnedModelAction', () => {
 });
 
 suite('ChatSubmitAction', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	let chatExecuteActions: DisposableStore;
@@ -662,12 +644,6 @@ suite('ChatSubmitAction', () => {
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('passes acceptInputOptions to the widget', async () => {
 		let acceptedOptions: unknown;
