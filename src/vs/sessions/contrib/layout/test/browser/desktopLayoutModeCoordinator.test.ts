@@ -332,11 +332,11 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 		}, {
 			none: ['Layout: Side by Side (menu)'],
 			sideBySide: ['Show Chat (layout-sidebar-left)', 'Show Editor (layout-sidebar-right)', 'Stacked (split-horizontal)'],
-			stacked: ['Show Chat (layout-panel)', 'Show Editor (session-layout-editor-above)', 'Stacked (split-vertical)'],
-			chatOnlyStacked: ['Show Chat (layout-panel)', 'Show Editor (session-layout-editor-above-off)', 'Stacked (split-vertical)'],
+			stacked: ['Show Chat (layout-statusbar)', 'Show Editor (session-layout-editor-above)', 'Stacked (split-vertical)'],
+			chatOnlyStacked: ['Show Chat (layout-statusbar)', 'Show Editor (session-layout-editor-above-off)', 'Stacked (split-vertical)'],
 			editorOnly: ['Show Chat (layout-sidebar-left-off)', 'Show Editor (layout-sidebar-right)', 'Stacked (split-horizontal)'],
 			oneHidden: ['Show Chat (layout-sidebar-left)', 'Stacked (split-horizontal)', 'Layout: Side by Side (menu)'],
-			strip: ['Show Chat (layout-panel)', 'Show Editor (session-layout-editor-above)', 'Stacked (split-vertical)'],
+			strip: ['Show Chat (layout-statusbar)', 'Show Editor (session-layout-editor-above)', 'Stacked (split-vertical)'],
 			stripNone: ['Layout: Stacked (menu)'],
 		});
 	});
@@ -389,15 +389,16 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 		const promotedInMain = shown();
 		rightClick(chat, 'Show Chat', 'Hide \'Show Chat\'');
 		const hiddenInChatWindow = shown();
-		for (const entry of ['Show Chat', 'Show Editor', 'Stacked']) {
+		// Show Editor is promoted by default.
+		for (const entry of ['Show Chat', 'Stacked']) {
 			rightClick(chat, 'Layout: Side by Side', entry);
 		}
 		const allPromotedInChatWindow = shown();
 
 		assert.deepStrictEqual({ before, promotedInMain, hiddenInChatWindow, allPromotedInChatWindow }, {
-			before: { main: ['Layout: Side by Side'], chat: ['Layout: Side by Side'] },
-			promotedInMain: { main: ['Show Chat', 'Layout: Side by Side'], chat: ['Show Chat', 'Layout: Side by Side'] },
-			hiddenInChatWindow: { main: ['Layout: Side by Side'], chat: ['Layout: Side by Side'] },
+			before: { main: ['Show Editor', 'Layout: Side by Side'], chat: ['Show Editor', 'Layout: Side by Side'] },
+			promotedInMain: { main: ['Show Chat', 'Show Editor', 'Layout: Side by Side'], chat: ['Show Chat', 'Show Editor', 'Layout: Side by Side'] },
+			hiddenInChatWindow: { main: ['Show Editor', 'Layout: Side by Side'], chat: ['Show Editor', 'Layout: Side by Side'] },
 			allPromotedInChatWindow: { main: ['Show Chat', 'Show Editor', 'Stacked'], chat: ['Show Chat', 'Show Editor', 'Stacked'] },
 		});
 	});

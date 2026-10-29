@@ -59,7 +59,7 @@ import { ChatWindowCellView, ChatWindowCellSizing, ChatWindowGridHost, IChatWind
 import { addEmptyEditorAreaAddTab } from './chatWindowEditorArea.js';
 import { ChatWindowInputOnlyController } from './chatWindowInputOnly.js';
 import { ChatWindowTerminals, releaseChatWindowTerminalsOnUnload } from './chatWindowTerminals.js';
-import { ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState, createChatWindowRememberedMode } from './chatWindowState.js';
+import { ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState, createChatWindowRememberedMode } from './chatWindowState.js';
 import { setChatWindowOpenServices } from './chatWindowOpener.js';
 
 /** The size of a chat window, unless its kind has one. */
