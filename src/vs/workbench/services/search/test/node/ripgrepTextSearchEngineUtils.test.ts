@@ -411,11 +411,11 @@ suite('RipgrepTextSearchEngine', () => {
 			assert.deepStrictEqual({
 				anchored: getExcludeExceptionGlobs(['node_modules/{@types,typescript}', 'src/**/keep.js', 'gulpfile.js']),
 				unanchored: getExcludeExceptionGlobs(['node_modules/@types', '**/Scripts']),
-				versionControl: getExcludeExceptionGlobs(['.git/hooks']),
+				versionControl: getExcludeExceptionGlobs(['{.git,.hg}/hooks']),
 			}, {
 				anchored: ['!*', '/node_modules/', '/src/', '/src/**/', '/node_modules/@types', '/node_modules/@types/**', '/node_modules/typescript', '/node_modules/typescript/**', '/src/**/keep.js', '/src/**/keep.js/**', '/gulpfile.js', '/gulpfile.js/**', '!**/.git', '!**/.svn', '!**/.hg', '!**/.jj'],
 				unanchored: ['/node_modules/@types', '/node_modules/@types/**', '**/Scripts', '**/Scripts/**', '!**/.git', '!**/.svn', '!**/.hg', '!**/.jj'],
-				versionControl: ['!*', '/.git/', '/.git/hooks', '/.git/hooks/**', '!**/.svn', '!**/.hg', '!**/.jj'],
+				versionControl: ['!*', '/.git/', '/.hg/', '/.git/hooks', '/.git/hooks/**', '/.hg/hooks', '/.hg/hooks/**', '!**/.svn', '!**/.jj'],
 			});
 		});
 	});

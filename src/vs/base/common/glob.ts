@@ -688,7 +688,27 @@ export function getExcludeExceptions(expression: IExpression | undefined): strin
  * an exception names the folder, because they are large and rarely contain files to re-include.
  */
 export function getFoldersSkippedByExcludeExceptions(exceptions: readonly string[]): string[] {
-	return VERSION_CONTROL_FOLDERS.filter(folder => !exceptions.some(exception => splitGlobAware(exception, GLOB_SPLIT).includes(folder)));
+	const namedSegments = new Set(exceptions.flatMap(exception => expandBraces(exception).flatMap(pattern => splitGlobAware(pattern, GLOB_SPLIT))));
+
+	return VERSION_CONTROL_FOLDERS.filter(folder => !namedSegments.has(folder));
+}
+
+/**
+ * Expands the brace groups of a pattern into its alternatives, for example `{a,b}/c` into `a/c` and `b/c`.
+ * Like the rest of the glob support, braces do not nest.
+ */
+function expandBraces(pattern: string): string[] {
+	const start = pattern.indexOf('{');
+	const end = start === -1 ? -1 : pattern.indexOf('}', start);
+	if (end === -1) {
+		return [pattern];
+	}
+
+	const prefix = pattern.substring(0, start);
+	const alternatives = splitGlobAware(pattern.substring(start + 1, end), ',');
+	const suffixes = expandBraces(pattern.substring(end + 1));
+
+	return (alternatives.length ? alternatives : ['']).flatMap(alternative => suffixes.map(suffix => `${prefix}${alternative}${suffix}`));
 }
 
 /**

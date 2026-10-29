@@ -222,6 +222,26 @@ flakySuite('TextSearch-integration', function () {
 		}
 	});
 
+	test('Text: exclude exception with a parent folder segment does not search outside the folder', async () => {
+		const root = getRandomTestPath(tmpdir(), 'vsctests', 'textsearch-exclude-exception-parent');
+		try {
+			await fs.promises.mkdir(path.join(root, 'folder'), { recursive: true });
+			await fs.promises.writeFile(path.join(root, 'folder', 'a.txt'), 'needle');
+			await fs.promises.writeFile(path.join(root, 'secret.txt'), 'needle');
+
+			const results = await doSearchTest({
+				type: QueryType.Text,
+				folderQueries: [{ folder: URI.file(path.join(root, 'folder')) }],
+				contentPattern: { pattern: 'needle' },
+				excludePattern: { '!../secret.txt': true }
+			}, 1);
+
+			assert.deepStrictEqual(results.map(result => path.relative(root, result.path!).replace(/\\/g, '/')), ['folder/a.txt']);
+		} finally {
+			await fs.promises.rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('Text: e (with includes)', () => {
 		const config: any = {
 			folderQueries: ROOT_FOLDER_QUERY,

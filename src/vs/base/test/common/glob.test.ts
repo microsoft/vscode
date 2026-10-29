@@ -1370,9 +1370,13 @@ suite('Glob', () => {
 			assert.deepStrictEqual({
 				unnamed: beneath({ '**/*': true, '!**/Scripts': true }, ['.git', 'a/.hg/b', 'a']),
 				named: beneath({ '**/*': true, '!**/Scripts': true, '!.git/hooks': true }, ['.git', 'a/.hg/b']),
+				namedInBraces: beneath({ '**/*': true, '!{.git,.hg}/hooks': true }, ['.git', '.hg', '.svn']),
+				wildcard: beneath({ '**/*': true, '!{*,src}/hooks': true }, ['.git', 'src']),
 			}, {
 				unnamed: { '.git': false, 'a/.hg/b': false, 'a': true },
 				named: { '.git': true, 'a/.hg/b': false },
+				namedInBraces: { '.git': true, '.hg': true, '.svn': false },
+				wildcard: { '.git': false, 'src': true },
 			});
 		});
 	});

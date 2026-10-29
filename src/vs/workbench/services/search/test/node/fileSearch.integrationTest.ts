@@ -216,6 +216,26 @@ flakySuite('FileSearch-integration', function () {
 		assert.deepStrictEqual(paths, ['examples/small.js']);
 	});
 
+	test('File - exclude exception with a parent folder segment does not search outside the folder', async () => {
+		const root = getRandomTestPath(tmpdir(), 'vsctests', 'filesearch-exclude-exception-parent');
+		try {
+			await fs.promises.mkdir(path.join(root, 'folder'), { recursive: true });
+			await fs.promises.writeFile(path.join(root, 'folder', 'a.txt'), '');
+			await fs.promises.writeFile(path.join(root, 'secret.txt'), '');
+
+			const folder = path.join(root, 'folder');
+			const paths = await getRelativePaths({
+				type: QueryType.File,
+				folderQueries: [{ folder: URI.file(folder) }],
+				excludePattern: { '*.txt': true, '!../secret.txt': true }
+			}, folder);
+
+			assert.deepStrictEqual(paths, []);
+		} finally {
+			await fs.promises.rm(root, { recursive: true, force: true });
+		}
+	});
+
 	(isWindows ? test.skip : test)('File - exclude exception does not follow symbolic links when they are ignored', async () => {
 		const root = getRandomTestPath(tmpdir(), 'vsctests', 'filesearch-exclude-exception-symlinks');
 		try {
