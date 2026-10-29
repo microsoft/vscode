@@ -112,8 +112,12 @@ suite('Artifact Integration Groups', () => {
 			{ id: 'loading1', isArtifact: true, aliasKey: getArtifactIntegrationAliasKey(bound('loading1', undefined)) },
 			{ id: 'loading2', isArtifact: true, aliasKey: getArtifactIntegrationAliasKey(bound('loading2', undefined)) },
 			{ id: 'remote', isArtifact: false, aliasKey: getArtifactIntegrationAliasKey(bound('remote', 'step', 'host')) },
+			// Enabled Autopilot rules or activity are reachable only through the record's own pill.
+			{ id: 'stepWithAutopilot', isArtifact: true, aliasKey: getArtifactIntegrationAliasKey(bound('stepWithAutopilot', 'step')), hasOwnState: true },
 		];
-		assert.deepStrictEqual(collapseArtifactIntegrationAliases(items).map(item => item.id), ['experiment', 'stepArtifact', 'loading1', 'loading2', 'remote']);
+		const merge = (representative: typeof items[number], hidden: readonly typeof items[number][]) => ({ ...representative, id: `${representative.id}+${hidden.map(item => item.id).join('+')}` });
+		assert.deepStrictEqual(collapseArtifactIntegrationAliases(items, merge).map(item => item.id),
+			['experiment', 'stepArtifact+scorecard1+scorecard2+stepArtifact2', 'loading1', 'loading2', 'remote', 'stepWithAutopilot']);
 	});
 
 	test('offers Open, the entry actions in pill dropdown order with Pin before Remove, and keeps the dropdown open only for membership changes', () => {
@@ -416,6 +420,36 @@ suite('Artifact Integration Groups', () => {
 		assert.deepStrictEqual({ references, artifact: labels() }, {
 			references: ['2 Experiments', 'Recorded scorecard1'],
 			artifact: ['3 Experiments'],
+		});
+	});
+
+	test('pill sources keep a pinned alias pinned with Unpin clearing every alias pin, and show aliases with Autopilot rules separately', () => {
+		const f = fixture();
+		const bound = (id: string, resourceKey: string, automation = false) => {
+			const base = snapshot(id, { groupLabel: 'Experiments', automation });
+			return f.member({ ...base, contributions: base.contributions.map(contribution => ({ ...contribution, resourceKey })) });
+		};
+		const item = (member: IArtifactIntegrationGroupMember): IArtifactIntegrationPillItem =>
+			({ entry: member.entry, presentation: member.presentation, kind: SessionChatPillKind.Artifacts, isArtifact: true, visible: true });
+		const items = observableValue<readonly IArtifactIntegrationPillItem[]>('items', [item(bound('a', 'step')), item(bound('b', 'step')), item(bound('c', 'other'))]);
+		const sources = store.add(f.instantiation.createInstance(ArtifactIntegrationPillSources, items, constObservable('chat'), f.detailsHost));
+		const pills = derived(reader => sources.sources.read(reader).filter(source => source.isVisible?.read(reader) ?? true).flatMap(source => source.pills.read(reader)));
+		store.add(autorun(reader => { pills.read(reader); }));
+		const labels = () => pills.get().map(pill => pill.action.label);
+		const pins = store.add(f.instantiation.createInstance(ChatInputPillPins));
+		const grouped = labels();
+		pins.setPinned('chat', SessionChatPillKind.Artifacts, 'b', 'Recorded b', true);
+		const pinnedSource = sources.sources.get().find(source => source.pills.get()[0]?.action.label === 'Recorded a');
+		const pinned = { labels: labels(), menu: pinnedSource?.getContextMenuPrimaryActions?.(pinnedSource.pills.get()[0]).map(action => action.id) };
+		pins.setPinned('chat', SessionChatPillKind.Artifacts, 'a', 'Recorded a', true);
+		pinnedSource?.getContextMenuPrimaryActions?.(pinnedSource.pills.get()[0])[0].run();
+		const unpinned = { labels: labels(), saved: [...pins.getPinned('chat', SessionChatPillKind.Artifacts, undefined)] };
+		items.set([...items.get(), item(bound('withAutopilot', 'step', true))], undefined);
+		assert.deepStrictEqual({ grouped, pinned, unpinned, withAutopilot: labels() }, {
+			grouped: ['2 Experiments'],
+			pinned: { labels: ['Recorded a', 'Recorded c'], menu: ['chatInputPills.artifacts.unpin.a', 'remove.a'] },
+			unpinned: { labels: ['2 Experiments'], saved: [] },
+			withAutopilot: ['3 Experiments'],
 		});
 	});
 

@@ -12,7 +12,7 @@ import { IChatPillEntry } from '../../../../workbench/browser/chatPills.js';
 import { ChatInputPillPins, createChatInputPillSource, IChatInputPillSource } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
 import { SessionChatPillKind } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { ArtifactIntegrationGroup, IArtifactIntegrationGroupMember } from './artifactIntegrationGroup.js';
-import { ArtifactIntegrationPresentation, IArtifactDetailsHost } from './artifactIntegrationPresentation.js';
+import { ArtifactIntegrationPresentation, countEnabledArtifactAutomations, IArtifactDetailsHost } from './artifactIntegrationPresentation.js';
 
 /** An integrated artifact or reference, with what the pill row needs to place it. */
 export interface IArtifactIntegrationPillItem {
@@ -48,23 +48,43 @@ export interface IArtifactIntegrationAliasCandidate {
 	readonly isArtifact: boolean;
 	/** Identifies the resource the record presents; records without a key are never aliases. */
 	readonly aliasKey?: string;
+	/**
+	 * Whether the record has state only its own pill reaches, such as enabled Autopilot rules or activity. Bindings,
+	 * consent and runs stay per record, so such a record is never hidden behind another.
+	 */
+	readonly hasOwnState?: boolean;
 }
 
 /**
  * Keeps one record per resource, so aliases recorded several times, such as scorecards of one experiment step, show
- * one pill. The first artifact among the aliases is kept, else the first reference, in its recorded position.
+ * one pill. The first artifact among the aliases represents them, else the first reference, in its recorded position;
+ * `merge` folds the aliases it hides, such as their pins, into it. Aliases with state of their own stay visible.
  */
-export function collapseArtifactIntegrationAliases<T extends IArtifactIntegrationAliasCandidate>(items: readonly T[]): readonly T[] {
-	const kept = new Map<string, T>();
+export function collapseArtifactIntegrationAliases<T extends IArtifactIntegrationAliasCandidate>(items: readonly T[], merge: (representative: T, hidden: readonly T[]) => T = representative => representative): readonly T[] {
+	const representatives = new Map<string, T>();
 	for (const item of items) {
 		if (item.aliasKey !== undefined) {
-			const current = kept.get(item.aliasKey);
+			const current = representatives.get(item.aliasKey);
 			if (!current || (!current.isArtifact && item.isArtifact)) {
-				kept.set(item.aliasKey, item);
+				representatives.set(item.aliasKey, item);
 			}
 		}
 	}
-	return items.filter(item => item.aliasKey === undefined || kept.get(item.aliasKey) === item);
+	const hidden = new Map<T, T[]>();
+	const kept = items.filter(item => {
+		const representative = item.aliasKey !== undefined ? representatives.get(item.aliasKey) : undefined;
+		if (!representative || representative === item || item.hasOwnState) {
+			return true;
+		}
+		const aliases = hidden.get(representative) ?? [];
+		aliases.push(item);
+		hidden.set(representative, aliases);
+		return false;
+	});
+	return kept.map(item => {
+		const aliases = hidden.get(item);
+		return aliases ? merge(item, aliases) : item;
+	});
 }
 
 /** An artifact that can be listed in a group of artifacts sharing its main integration. */
@@ -108,6 +128,8 @@ export function layoutArtifactIntegrationPills<T extends IArtifactIntegrationPil
 
 interface IArtifactIntegrationPillPlacement extends IArtifactIntegrationPillItem, IArtifactIntegrationPillCandidate, IArtifactIntegrationAliasCandidate {
 	readonly pinned: boolean;
+	/** The saved pins this placement shows, including those of the aliases it represents; Unpin clears them all. */
+	readonly pins: readonly IArtifactIntegrationPillPlacement[];
 }
 
 /**
@@ -130,17 +152,33 @@ export class ArtifactIntegrationPillSources extends Disposable {
 			const scope = pinScope.read(reader);
 			return items.read(reader).map((item): IArtifactIntegrationPillPlacement => {
 				const snapshot = item.presentation.snapshot.read(reader);
-				return {
+				const pinned = pins.getPinned(scope, item.kind, reader).has(item.entry.id);
+				const placement: IArtifactIntegrationPillPlacement = {
 					...item,
 					groupKey: getArtifactIntegrationGroupKey(item.kind, item.isArtifact, snapshot.mainIntegrationId),
 					aliasKey: getArtifactIntegrationAliasKey(snapshot),
-					pinned: pins.getPinned(scope, item.kind, reader).has(item.entry.id),
+					hasOwnState: countEnabledArtifactAutomations(snapshot) > 0 || snapshot.runs.length > 0,
+					pinned,
+					pins: [],
 				};
+				return pinned ? { ...placement, pins: [placement] } : placement;
 			});
 		});
-		const layout = derived(this, reader => layoutArtifactIntegrationPills(collapseArtifactIntegrationAliases(placements.read(reader).filter(item => item.visible)), item => item.pinned));
-		const pinAction = (item: IArtifactIntegrationPillPlacement, scope: string | undefined, pinned: boolean) =>
-			scope ? pins.createPinAction(item.entry, item.kind, scope, pinned) : undefined;
+		// A representative is pinned while any alias it hides is, so pinning one alias keeps the resource out of its group.
+		const mergeAliases = (representative: IArtifactIntegrationPillPlacement, hidden: readonly IArtifactIntegrationPillPlacement[]): IArtifactIntegrationPillPlacement => {
+			const merged = [representative, ...hidden].flatMap(item => item.pins);
+			return merged.length === representative.pins.length ? representative : { ...representative, pinned: true, pins: merged };
+		};
+		const layout = derived(this, reader => layoutArtifactIntegrationPills(collapseArtifactIntegrationAliases(placements.read(reader).filter(item => item.visible), mergeAliases), item => item.pinned));
+		const pinAction = (item: IArtifactIntegrationPillPlacement, scope: string | undefined, pinned: boolean) => {
+			if (!scope) {
+				return undefined;
+			}
+			const action = pins.createPinAction(item.entry, item.kind, scope, pinned);
+			return pinned && item.pins.length > 1
+				? { ...action, run: () => item.pins.forEach(pin => pins.setPinned(scope, pin.kind, pin.entry.id, pin.entry.label, false)) }
+				: action;
+		};
 
 		// Groups keep their pill, and so an open dropdown, while their members change.
 		const groupKeys = derivedOpts<readonly string[]>({ owner: this, equalsFn: equals }, reader =>
