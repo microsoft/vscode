@@ -119,8 +119,10 @@
 	pointer-events: auto;
 }
 
-.interactive-session .chat-sticky-progress.hidden {
-	display: none;
+/* Without progress, the row keeps its single-line slot above the input so Scroll to Latest stays in place. */
+.interactive-session .interactive-item-container.chat-sticky-progress:empty {
+	height: calc(var(--chat-response-footer-height) + 2 * var(--vscode-spacing-size20));
+	pointer-events: none;
 }
 
 .interactive-session .interactive-item-container.chat-sticky-progress:not(:empty) {
@@ -4235,7 +4237,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 	position: absolute;
 	z-index: 6;
-	/* Clear any content floating above the input. */
+	/* Without a sticky progress row to center on, clear any content floating above the input. */
 	bottom: calc(var(--vscode-spacing-size80) + var(--vscode-chat-persistent-content-height, 0px));
 	right: var(--vscode-spacing-size120);
 	border-radius: var(--vscode-cornerRadius-large);
@@ -4248,6 +4250,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		margin: 0;
 		flex-shrink: 0;
 		font-size: var(--vscode-codiconFontSize);
+	}
+}
+
+/* The arrow-down glyph keeps its 1px stem on the pixel grid, which leaves it half a pixel right of center.
+	Nudge it so it looks optically centered, except at 1x where the shift would blur the stem. */
+@media not (resolution: 1dppx) {
+	.interactive-session .chat-scroll-down .codicon-chat-scroll-to-bottom {
+		transform: translateX(-0.5px);
 	}
 }
 

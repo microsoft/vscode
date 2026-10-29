@@ -2565,7 +2565,6 @@ suite('ChatListWidget', () => {
 					pills: layout === 'pills', floating: layout !== 'regular input',
 				});
 				const button = widget.scrollDownButtonDomNode;
-				const originalBottom = dom.getWindow(button).getComputedStyle(button).bottom;
 				widget.scrollTop = 0;
 				await waitForStableLayout(widget);
 				const isCentered = () => {
@@ -2607,15 +2606,45 @@ suite('ChatListWidget', () => {
 					pillsChanged,
 					resizedInput,
 					wrapped,
-					cleared: button.style.bottom,
-					defaultBottom: dom.getWindow(button).getComputedStyle(button).bottom,
+					completed: isCentered(),
 				}, {
 					pinned: { centered: true, topPadding: 2, bottomPadding: 2, clickable: true },
 					pillsChanged: true,
 					resizedInput: true,
 					wrapped: { centered: true, multipleLines: true, textClearOfArrow: true },
-					cleared: '',
-					defaultBottom: originalBottom,
+					completed: true,
+				});
+			});
+		}
+
+		for (const layout of ['pills', 'no pills', 'regular input'] as const) {
+			test(`keeps the scroll arrow in the progress row after progress ends (${layout})`, async () => {
+				const { request, inputPart, container, pillRow, widget, sticky } = await createTranscript({
+					pills: layout === 'pills', floating: layout !== 'regular input',
+				});
+				const button = widget.scrollDownButtonDomNode;
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				const pinnedArrowTop = button.getBoundingClientRect().top;
+				request.response?.complete();
+				await waitForStableLayout(widget);
+				const row = sticky.getBoundingClientRect();
+				const arrow = button.getBoundingClientRect();
+				const target = dom.getWindow(sticky).document.elementFromPoint(row.left + 20, (row.top + row.bottom) / 2);
+				assert.deepStrictEqual({
+					hidden: sticky.classList.contains('hidden'),
+					rowBottom: row.bottom,
+					rowHeight: row.height,
+					centered: Math.abs((row.top + row.bottom) / 2 - (arrow.top + arrow.bottom) / 2) < 0.5,
+					arrowTop: arrow.top,
+					clickThrough: !!target && container.contains(target),
+				}, {
+					hidden: true,
+					rowBottom: (layout === 'pills' ? pillRow : inputPart).getBoundingClientRect().top,
+					rowHeight: 26,
+					centered: true,
+					arrowTop: pinnedArrowTop,
+					clickThrough: true,
 				});
 			});
 		}
