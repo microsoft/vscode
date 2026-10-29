@@ -9,7 +9,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { basename, dirname, extUriBiasedIgnorePathCase, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -20,6 +20,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession, type IAgentModelInfo } from '../../common/agent.js';
+import { AGENT_HOST_FILE_SCHEME } from '../../common/agentPluginManager.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
@@ -229,14 +230,45 @@ export function getCopilotCustomAgents(customizations: ICopilotAppliedCustomizat
 	].filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.name));
 }
 
-export function getCopilotAgentSelectionName(customizations: ICopilotAppliedCustomizations, uri: string): string | undefined {
+export function getCopilotAgentSelection(customizations: ICopilotAppliedCustomizations, uri: string, restoreLegacyFlatSelection = false): { readonly uri: string; readonly name: string } | undefined {
 	const resource = URI.parse(uri);
 	const native = customizations.nativeAgents?.find(agent => isEqual(URI.parse(agent.uri), resource));
 	if (native) {
-		return native.id;
+		return { uri, name: native.id };
 	}
-	const forwarded = getCopilotCustomAgents(customizations).find(agent => isEqual(agent.uri, resource));
-	return forwarded ? forwarded.sdkName ?? getSdkCustomAgentName(forwarded.uri) : undefined;
+	const agents = getCopilotCustomAgents(customizations);
+	const forwarded = agents.find(agent => isEqual(agent.uri, resource));
+	if (forwarded) {
+		return { uri, name: forwarded.sdkName ?? getSdkCustomAgentName(forwarded.uri) };
+	}
+	if (!restoreLegacyFlatSelection || resource.scheme !== Schemas.file || resource.query || resource.fragment) {
+		return undefined;
+	}
+	const matches = new Map<string, { uri: string; name: string }>();
+	for (const plugin of customizations.plugins) {
+		const root = plugin.pluginDir ?? plugin.resourceDir;
+		if (!plugin.sourceUri || plugin.sourceUri.scheme === AGENT_HOST_FILE_SCHEME || !plugin.nonce || !root || root.scheme !== Schemas.file || basename(root) !== plugin.nonce
+			|| !extUriBiasedIgnorePathCase.isEqualOrParent(resource, dirname(root))) {
+			continue;
+		}
+		// The host materializer owns this cache namespace; only restore a flat file in another revision of it.
+		const parts = extUriBiasedIgnorePathCase.relativePath(dirname(root), resource)?.split('/');
+		if (parts?.length !== 3 || !parts[0] || parts[0] === '..' || parts[0] === '.' || parts[1] !== 'agents') {
+			continue;
+		}
+		const current = joinPath(root, parts[1], parts[2]);
+		const agent = agents.find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.uri, current));
+		if (agent) {
+			matches.set(extUriBiasedIgnorePathCase.getComparisonKey(agent.uri), {
+				uri: agent.uri.toString(), name: agent.sdkName ?? getSdkCustomAgentName(agent.uri),
+			});
+		}
+	}
+	return matches.size === 1 ? matches.values().next().value : undefined;
+}
+
+export function getCopilotAgentSelectionName(customizations: ICopilotAppliedCustomizations, uri: string, restoreLegacyFlatSelection = false): string | undefined {
+	return getCopilotAgentSelection(customizations, uri, restoreLegacyFlatSelection)?.name;
 }
 
 /**

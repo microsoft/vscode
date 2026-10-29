@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemetryNotification, PermissionMode, PermissionRequest, SessionConfig, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemetryNotification, PermissionMode, PermissionRequest, ResumeSessionConfig, SessionConfig, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
 import { mock } from '../../../../base/test/common/mock.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
@@ -291,8 +291,8 @@ function chatEntriesBySdkId(agent: CopilotAgent): Map<string, { chatSession: Cop
 	return (agent as unknown as { _chatEntriesBySdkId: Map<string, { chatSession: CopilotAgentSession; dispose(): void }> })._chatEntriesBySdkId;
 }
 
-function chatBackings(agent: CopilotAgent): Map<string, { sdkSessionId: string; model?: ModelSelection }> {
-	return (agent as unknown as { _chatBackings: Map<string, { sdkSessionId: string; model?: ModelSelection }> })._chatBackings;
+function chatBackings(agent: CopilotAgent): Map<string, { sdkSessionId: string; model?: ModelSelection; agent?: AgentSelection }> {
+	return (agent as unknown as { _chatBackings: Map<string, { sdkSessionId: string; model?: ModelSelection; agent?: AgentSelection }> })._chatBackings;
 }
 
 /** The owners the agent recorded per chat, read as their current values; `set` records a fixed owner. */
@@ -29854,6 +29854,77 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('standalone client customizations', () => {
+
+		test('restores a legacy singleton selection when other bundle filenames collide and updates persisted provider data', async () => {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const root = URI.file('/cache/bundle/current');
+			const source = URI.parse('client-customizations:/bundle');
+			const paths = ['agents/solo.agent.md', 'agents/first/reviewer.agent.md', 'agents/second/reviewer.agent.md'];
+			const names = ['Solo', 'Reviewer', 'Reviewer'];
+			const uris = paths.map(path => URI.joinPath(root, path));
+			const saved = URI.file('/cache/bundle/previous/agents/solo.agent.md').toString();
+			await fileService.writeFile(URI.joinPath(root, '.plugin', 'plugin.json'), VSBuffer.fromString(JSON.stringify({ name: 'VS Code Synced Data', agents: paths })));
+			await Promise.all(uris.map((uri, index) => fileService.writeFile(uri, VSBuffer.fromString(`---\nname: ${names[index]}\n---\nPrompt ${index}`))));
+			class PluginManager extends TestAgentPluginManager {
+				override async syncCustomizations(_clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
+					return customizations.map(customization => ({
+						customization: { ...customization, load: { kind: CustomizationLoadStatus.Loaded } }, pluginDir: root,
+					}));
+				}
+			}
+			const client = new TestCopilotClient([]);
+			const creates: SessionConfig[] = [];
+			const resumes: ResumeSessionConfig[] = [];
+			client.createSession = async config => { creates.push(config); return new MockCopilotSession() as unknown as CopilotSession; };
+			client.resumeSession = async (_id, config) => { resumes.push(config); return new MockCopilotSession() as unknown as CopilotSession; };
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const options = { copilotClient: client, fileService, sessionDataService, pluginManager: new PluginManager() };
+			const first = createTestAgentContext(disposables, options).agent;
+			const session = AgentSession.uri('copilotcli', 'legacy-flat-bundle');
+			const chat = defaultChatUri(session);
+			const context = exactChatContext(session, chat, session);
+			const workspace = URI.file('/workspace');
+			const ref: ClientPluginCustomization = { type: CustomizationType.Plugin, id: source.toString(), uri: source.toString(), name: 'VS Code Synced Data', nonce: 'current' };
+			let materializedData: string | undefined;
+			disposables.add(first.onDidChangeChatData(event => { materializedData = event.providerData ?? materializedData; }));
+			let firstDisposed = false;
+			let restored: CopilotAgent | undefined;
+			try {
+				await first.authenticate('https://api.github.com', 'token');
+				await provisionSession(first, {
+					session, workingDirectories: [workspace], agent: { uri: saved },
+					activeClient: { clientId: 'client', tools: [], customizations: [ref] },
+				});
+				await first.chats.changeAgent(chat, { uri: saved }, context);
+				await first.chats.sendMessage(chat, 'hello', [workspace], undefined, 'first', undefined, context);
+				const initiallyPersisted = chatBackings(first).get(chat.toString())?.agent?.uri;
+				assert.ok(materializedData);
+				const legacyData = JSON.stringify({ ...JSON.parse(materializedData), agent: { uri: saved } });
+				await disposeAgent(first);
+				firstDisposed = true;
+				restored = createTestAgentContext(disposables, options).agent;
+				await restored.authenticate('https://api.github.com', 'token');
+				restored.getOrCreateActiveClient(chat, session, { clientId: 'client' }).customizations = [ref];
+				await restored.materializeChat(chat, context, legacyData);
+				await restored.chats.sendMessage(chat, 'followup', [workspace], undefined, 'second', undefined, context);
+				const expectedName = getSdkCustomAgentName(URI.joinPath(source, paths[0]));
+				assert.deepStrictEqual({
+					create: creates.map(config => config.agent), resume: resumes.map(config => config.agent),
+					initiallyPersisted, restored: chatBackings(restored).get(chat.toString())?.agent?.uri,
+				}, {
+					create: [expectedName], resume: [expectedName],
+					initiallyPersisted: uris[0].toString(), restored: uris[0].toString(),
+				});
+			} finally {
+				if (restored) {
+					await disposeAgent(restored);
+				}
+				if (!firstDisposed) {
+					await disposeAgent(first);
+				}
+			}
+		});
 
 		test('registers and switches between same-named agents inside one client bundle', async () => {
 			const fileService = disposables.add(new FileService(new NullLogService()));

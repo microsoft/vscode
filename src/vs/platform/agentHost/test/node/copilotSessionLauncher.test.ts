@@ -53,7 +53,7 @@ import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { CopilotSessionSandbox } from '../../node/copilot/copilotSessionSandbox.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
-import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
 import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
@@ -1700,6 +1700,45 @@ suite('CopilotSessionLauncher Connectors', () => {
 
 suite('getCopilotAgentSelectionName', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('restores only unambiguous flat selections from the same materialized cache namespace', () => {
+		const root = URI.file('/cache/bundle/current');
+		const sourceUri = URI.parse('client-customizations:/bundle');
+		const uri = URI.joinPath(root, 'agents', 'solo.agent.md');
+		const old = URI.file('/cache/bundle/previous/agents/solo.agent.md').toString();
+		const plugin = {
+			format: PluginFormat.OpenPlugin, sourceUri, nonce: 'current', pluginDir: root,
+			agents: [
+				toParsedAgent({ uri, name: 'Solo' }),
+				...['first', 'second'].map(key => toParsedAgent({ uri: URI.joinPath(root, 'agents', key, 'reviewer.agent.md'), name: 'Reviewer' })),
+			],
+			skills: [], hooks: [], instructions: [], mcpServers: [],
+		};
+		const snapshot = { plugins: [plugin], discoveredAgents: [], additionalRootInstructions: [] };
+		const secondRoot = URI.file('/cache/bundle/another');
+		assert.deepStrictEqual({
+			restored: getCopilotAgentSelection(snapshot, old, true),
+			liveChange: getCopilotAgentSelectionName(snapshot, old),
+			anotherSource: getCopilotAgentSelectionName(snapshot, URI.file('/cache/other/previous/agents/solo.agent.md').toString(), true),
+			directHost: getCopilotAgentSelectionName({
+				...snapshot, plugins: [{ ...plugin, sourceUri: URI.parse('vscode-agent-host-file:/cache/bundle/current') }],
+			}, old, true),
+			ambiguousFile: getCopilotAgentSelectionName(snapshot, URI.file('/cache/bundle/previous/agents/reviewer.agent.md').toString(), true),
+			ambiguousRevision: getCopilotAgentSelectionName({
+				...snapshot,
+				plugins: [plugin, {
+					...plugin, nonce: 'another', pluginDir: secondRoot,
+					agents: [toParsedAgent({ uri: URI.joinPath(secondRoot, 'agents', 'solo.agent.md'), name: 'Solo' })],
+				}],
+			}, old, true),
+			outside: getCopilotAgentSelectionName(snapshot, URI.file('/cache/bundle/../agents/solo.agent.md').toString(), true),
+			opaqueHost: getCopilotAgentSelectionName(snapshot, 'other-host:/cache/bundle/previous/agents/solo.agent.md', true),
+		}, {
+			restored: { uri: uri.toString(), name: getSdkCustomAgentName(uri, plugin) },
+			liveChange: undefined, anotherSource: undefined, directHost: undefined, ambiguousFile: undefined, ambiguousRevision: undefined,
+			outside: undefined, opaqueHost: undefined,
+		});
+	});
 
 	test('maps forwarded URI selections to unique SDK names while preserving native SDK IDs', () => {
 		const uris = ['first', 'second'].map(source => URI.parse(`client-agent:/${source}`));

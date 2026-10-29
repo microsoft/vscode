@@ -21,7 +21,7 @@ import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { buildSessionEventLogFromTurns } from '../../node/copilot/buildSessionEvents.js';
 import { createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
-import { getCopilotAgentSelectionName, type CopilotSessionLaunchPlan } from '../../node/copilot/copilotSessionLauncher.js';
+import { getCopilotAgentSelection, getCopilotAgentSelectionName, type CopilotSessionLaunchPlan } from '../../node/copilot/copilotSessionLauncher.js';
 import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
 import { createTestLauncher, testRuntime } from './copilotSessionLauncherTestHelpers.js';
 import { createIsolatedProviderEnvironment } from './providerTestEnvironment.js';
@@ -49,8 +49,9 @@ suite('Copilot SDK - native agent launch', function () {
 
 	for (const mode of ['copilot-cli', 'empty'] as const) {
 		test(`${mode} resume: preserves a saved flat-layout selection registered with an authored SDK name`, async () => {
-			const root = URI.file(join(home, 'legacy-bundle'));
+			const root = URI.file(join(home, 'cache', 'legacy-bundle', 'current'));
 			const uri = URI.joinPath(root, 'agents', 'reviewer.agent.md');
+			const savedUri = URI.file(join(home, 'cache', 'legacy-bundle', 'previous', 'agents', 'reviewer.agent.md')).toString();
 			await mkdir(join(root.fsPath, 'agents'), { recursive: true });
 			await writeFile(uri.fsPath, '---\nname: Reviewer\n---\nLegacy prompt.');
 			const opens: string[] = [];
@@ -96,21 +97,25 @@ suite('Copilot SDK - native agent launch', function () {
 			const snapshot = {
 				discoveredAgents: [],
 				plugins: [{
-					format: PluginFormat.Copilot, nonce: 'legacy-content', resourceDir: root, sourceUri: URI.parse('client-customizations:/legacy'),
+					format: PluginFormat.Copilot, nonce: 'current', resourceDir: root, sourceUri: URI.parse('client-customizations:/legacy'),
 					agents: [toParsedAgent({ uri, name: 'Reviewer' })], skills: [], hooks: [], instructions: [], mcpServers: [],
 				}],
 				additionalRootInstructions: [], tools: [], mcpServers: {},
 			};
 			const wrapper = await launcher.launch({
 				kind: 'resume', client, sessionId, workingDirectory: URI.file(home), snapshot,
-				resolvedAgentName: getCopilotAgentSelectionName(snapshot, uri.toString()),
+				resolvedAgentName: getCopilotAgentSelectionName(snapshot, savedUri, true),
 				fallback: { model: { id: 'legacy-test-model' } },
 				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
 				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
 			}, testRuntime);
 			try {
-				assert.deepStrictEqual({ before, after: (await wrapper.session.rpc.agent.getCurrent()).agent?.id, opens }, {
+				assert.deepStrictEqual({
+					before, after: (await wrapper.session.rpc.agent.getCurrent()).agent?.id, opens,
+					restoredResource: getCopilotAgentSelection(snapshot, savedUri, true)?.uri,
+				}, {
 					before: 'Reviewer', after: getSdkCustomAgentName(uri, snapshot.plugins[0]), opens: ['create', 'resume'],
+					restoredResource: uri.toString(),
 				});
 			} finally {
 				wrapper.dispose();
