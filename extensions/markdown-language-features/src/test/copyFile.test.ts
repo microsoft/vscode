@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { resolveCopyDestination } from '../languageFeatures/copyFiles/copyFiles';
+import { isCopyDestinationInsideWorkspace, resolveCopyDestination } from '../languageFeatures/copyFiles/copyFiles';
 
 
 suite('resolveCopyDestination', () => {
@@ -94,5 +94,37 @@ suite('resolveCopyDestination', () => {
 		const dest = resolveCopyDestination(documentUri, 'img.png', '${fileName/(.+)/x\\/y/}.${fileExtName}', () => undefined);
 
 		assert.strictEqual(dest.toString(), 'test://projects/project/sub/x/y.png');
+	});
+});
+
+suite('isCopyDestinationInsideWorkspace', () => {
+	const documentUri = vscode.Uri.parse('test://projects/project/sub/readme.md');
+	const workspaceFolder = () => vscode.Uri.parse('test://projects/project/');
+
+	function isInside(dest: string, getWorkspaceFolder: () => vscode.Uri | undefined = workspaceFolder): boolean {
+		return isCopyDestinationInsideWorkspace(documentUri, resolveCopyDestination(documentUri, 'img.png', dest, getWorkspaceFolder), getWorkspaceFolder);
+	}
+
+	test('Allows destinations inside the workspace folder', () => {
+		assert.deepStrictEqual(
+			['${fileName}', '../${fileName}', '/images/', 'images/../../${fileName}'].map(dest => isInside(dest)),
+			[true, true, true, true]);
+	});
+
+	test('Rejects destinations outside the workspace folder', () => {
+		assert.deepStrictEqual(
+			['../../${fileName}', '../../../AppData/settings.json', '/../${fileName}', '../../project-other/${fileName}', '..\\..\\img.png'].map(dest => isInside(dest)),
+			[false, false, false, false, false]);
+	});
+
+	test('Rejects absolute destinations on another authority', () => {
+		assert.strictEqual(isCopyDestinationInsideWorkspace(documentUri, vscode.Uri.parse('test://other/project/img.png'), workspaceFolder), false);
+		assert.strictEqual(isCopyDestinationInsideWorkspace(documentUri, vscode.Uri.parse('file:///project/img.png'), workspaceFolder), false);
+	});
+
+	test('Without a workspace folder, only allows the document directory', () => {
+		assert.deepStrictEqual(
+			['${fileName}', 'images/', '../${fileName}'].map(dest => isInside(dest, () => undefined)),
+			[true, true, false]);
 	});
 });
