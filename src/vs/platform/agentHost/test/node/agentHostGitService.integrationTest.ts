@@ -1569,6 +1569,9 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');
 		const git = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8' }).trimEnd();
+		// Keep LF on Windows, where git would otherwise convert line endings on checkout.
+		git('config', 'core.autocrlf', 'false');
+		git('config', 'core.eol', 'lf');
 		await fs.writeFile(join(dir, 'tracked.txt'), 'base\n');
 		git('add', 'tracked.txt');
 		git('commit', '-q', '-m', 'add tracked');
@@ -1605,6 +1608,9 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');
 		const git = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8' }).trimEnd();
+		// Keep LF on Windows, where git would otherwise convert line endings on checkout.
+		git('config', 'core.autocrlf', 'false');
+		git('config', 'core.eol', 'lf');
 		await fs.writeFile(join(dir, 'tracked.txt'), 'before');
 		git('add', 'tracked.txt');
 		git('commit', '-q', '-m', 'add tracked');

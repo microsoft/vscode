@@ -68,6 +68,9 @@ suite('AgentHostMergeOperationHandler (real git)', () => {
 		git(repository, 'config', 'user.name', 'Test');
 		git(repository, 'config', 'user.email', 'test@example.com');
 		git(repository, 'config', 'commit.gpgsign', 'false');
+		// Keep LF on Windows, where git would otherwise convert line endings on checkout.
+		git(repository, 'config', 'core.autocrlf', 'false');
+		git(repository, 'config', 'core.eol', 'lf');
 		writeFileSync(join(repository, 'src', 'index.js'), 'export function add(a, b) {\n\treturn a + b;\n}\n');
 		git(repository, 'add', '-A');
 		git(repository, 'commit', '-q', '-m', 'init');
