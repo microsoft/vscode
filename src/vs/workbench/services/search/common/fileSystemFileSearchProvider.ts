@@ -106,7 +106,7 @@ export class FileSystemFileSearchProvider extends Disposable implements ISearchR
 		const limiter = disposables.add(new Limiter<[string, FileType][]>(16));
 		const tester = new QueryGlobTester(query, folderQuery);
 		const files: URI[] = [];
-		const visit = async (directory: URI, relativeDirectory: string, parentIgnore?: IgnoreFile): Promise<void> => {
+		const visit = async (directory: URI, relativeDirectory: string, parentIgnore?: IgnoreFile, isParentExcluded = false): Promise<void> => {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -134,15 +134,20 @@ export class FileSystemFileSearchProvider extends Disposable implements ISearchR
 				}
 				const relativePath = relativeDirectory + name;
 				const isDirectory = !!(type & FileType.Directory);
-				if ((folderQuery.ignoreSymlinks && (type & FileType.SymbolicLink))
-					|| (ignore && !ignore.isPathIncludedInTraversal(`/${relativePath}`, isDirectory))
-					|| tester.matchesExcludesSync(relativePath, name, sibling => siblings.has(sibling))) {
+				if (folderQuery.ignoreSymlinks && (type & FileType.SymbolicLink)) {
+					continue;
+				}
+				const isHidden = isParentExcluded
+					|| (!!ignore && !ignore.isPathIncludedInTraversal(`/${relativePath}`, isDirectory))
+					|| tester.matchesExcludesSync(relativePath, name, sibling => siblings.has(sibling));
+				const isExcluded = isHidden && !tester.isExcepted(relativePath, name);
+				if (isExcluded && !(isDirectory && tester.couldExceptionMatchBeneath(relativePath))) {
 					continue;
 				}
 				const resource = joinPath(directory, name);
 				if (isDirectory) {
-					directories.push(visit(resource, `${relativePath}/`, ignore));
-				} else if ((type & FileType.File) && tester.includedInQuerySync(relativePath, name, sibling => siblings.has(sibling))) {
+					directories.push(visit(resource, `${relativePath}/`, ignore, isExcluded));
+				} else if ((type & FileType.File) && !isExcluded && tester.includedInQuerySync(relativePath, name, sibling => siblings.has(sibling))) {
 					files.push(resource);
 				}
 			}

@@ -8,8 +8,31 @@ interface RipgrepSearchOptionsCommon {
 	numThreads?: number;
 }
 
+/**
+ * Folder options of the built-in ripgrep text search provider.
+ */
+export interface TextSearchProviderFolderOptionsRipgrep extends TextSearchProviderFolderOptions {
+
+	/**
+	 * The patterns of the enabled `!`-prefixed exclude exceptions, without the `!`.
+	 * Only set for providers that declare {@link IExcludeExceptionsTextSearchProvider}.
+	 */
+	excludeExceptions?: string[];
+}
+
+/**
+ * A text search provider that can search the paths that exclude exceptions re-include.
+ */
+export interface IExcludeExceptionsTextSearchProvider {
+	readonly supportsExcludeExceptions: true;
+}
+
+export function supportsExcludeExceptions(provider: object): provider is IExcludeExceptionsTextSearchProvider {
+	return (provider as Partial<IExcludeExceptionsTextSearchProvider>).supportsExcludeExceptions === true;
+}
+
 export type TextSearchProviderOptionsRipgrep = Omit<Partial<TextSearchProviderOptions>, 'folderOptions'> & {
-	folderOptions: TextSearchProviderFolderOptions;
+	folderOptions: TextSearchProviderFolderOptionsRipgrep;
 };
 
 export type FileSearchProviderOptionsRipgrep = & {

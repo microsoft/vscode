@@ -9,7 +9,7 @@ import { isAbsolute } from '../../base/common/path.js';
 import { Emitter } from '../../base/common/event.js';
 import { relativePath } from '../../base/common/resources.js';
 import { Disposable } from '../../base/common/lifecycle.js';
-import { ParsedExpression, IExpression, parse } from '../../base/common/glob.js';
+import { ParsedExpression, IExpression, parse, parseExcludeExpression } from '../../base/common/glob.js';
 import { IWorkspaceContextService } from '../../platform/workspace/common/workspace.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../platform/configuration/common/configuration.js';
 import { Schemas } from '../../base/common/network.js';
@@ -68,7 +68,7 @@ export class ResourceGlobMatcher extends Disposable {
 				if (!currentExpression || !equals(currentExpression.expression, newExpression.expression)) {
 					changed = true;
 
-					this.mapFolderToParsedExpression.set(folderUriStr, parse(newExpression.expression));
+					this.mapFolderToParsedExpression.set(folderUriStr, this.parseExpression(newExpression.expression));
 					this.mapFolderToConfiguredExpression.set(folderUriStr, newExpression);
 				}
 			} else {
@@ -103,7 +103,7 @@ export class ResourceGlobMatcher extends Disposable {
 			if (!globalCurrentExpression || !equals(globalCurrentExpression.expression, globalNewExpression.expression)) {
 				changed = true;
 
-				this.mapFolderToParsedExpression.set(ResourceGlobMatcher.NO_FOLDER, parse(globalNewExpression.expression));
+				this.mapFolderToParsedExpression.set(ResourceGlobMatcher.NO_FOLDER, this.parseExpression(globalNewExpression.expression));
 				this.mapFolderToConfiguredExpression.set(ResourceGlobMatcher.NO_FOLDER, globalNewExpression);
 			}
 		} else {
@@ -118,6 +118,10 @@ export class ResourceGlobMatcher extends Disposable {
 		if (fromEvent && changed) {
 			this._onExpressionChange.fire();
 		}
+	}
+
+	protected parseExpression(expression: IExpression): ParsedExpression {
+		return parse(expression);
 	}
 
 	private doGetExpression(resource: URI | undefined): IConfiguredExpression | undefined {
@@ -220,5 +224,16 @@ export class ResourceGlobMatcher extends Disposable {
 		}
 
 		return uri.path;
+	}
+}
+
+/**
+ * A {@link ResourceGlobMatcher} for exclude settings such as `files.exclude`,
+ * where `!`-prefixed keys are exceptions that are never matched.
+ */
+export class ExcludeResourceGlobMatcher extends ResourceGlobMatcher {
+
+	protected override parseExpression(expression: IExpression): ParsedExpression {
+		return parseExcludeExpression(expression).matches;
 	}
 }

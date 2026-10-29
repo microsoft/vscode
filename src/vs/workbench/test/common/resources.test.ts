@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
-import { ResourceGlobMatcher } from '../../common/resources.js';
+import { ExcludeResourceGlobMatcher, ResourceGlobMatcher } from '../../common/resources.js';
 import { TestContextService } from './workbenchTestServices.js';
 
 suite('ResourceGlobMatcher', () => {
@@ -74,6 +74,24 @@ suite('ResourceGlobMatcher', () => {
 
 		assert.equal(matcher.matches(URI.file('/bar/foo.1')), true);
 		assert.equal(matcher.matches(URI.file('C:/bar/foo.1')), true);
+	});
+
+	test('Exclude exceptions', async () => {
+		await configurationService.setUserConfiguration(SETTING, {
+			'**/node_modules/**': true,
+			'!**/node_modules/@types/**': true
+		});
+		const matcher = disposables.add(new ResourceGlobMatcher(() => configurationService.getValue(SETTING), e => e.affectsConfiguration(SETTING), contextService, configurationService));
+		const excludeMatcher = disposables.add(new ExcludeResourceGlobMatcher(() => configurationService.getValue(SETTING), e => e.affectsConfiguration(SETTING), contextService, configurationService));
+		const resources = [URI.file('/foo/node_modules/a.js'), URI.file('/foo/node_modules/@types/a.d.ts')];
+
+		assert.deepStrictEqual({
+			literal: resources.map(resource => matcher.matches(resource)),
+			exceptions: resources.map(resource => excludeMatcher.matches(resource)),
+		}, {
+			literal: [true, true],
+			exceptions: [true, false],
+		});
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

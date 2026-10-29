@@ -269,7 +269,7 @@ class FileAccessibilityProvider implements IListAccessibilityProvider<IWorkspace
 
 class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 
-	private readonly _cachedExpressions = new Map<string, glob.ParsedExpression>();
+	private readonly _cachedExpressions = new Map<string, glob.IParsedExcludeExpression>();
 	private readonly _disposables = new DisposableStore();
 
 	constructor(
@@ -287,18 +287,20 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 				// adjust patterns to be absolute in case they aren't
 				// free floating (**/)
 				const adjustedConfig: glob.IExpression = {};
-				for (const pattern in excludesConfig) {
-					if (typeof excludesConfig[pattern] !== 'boolean') {
+				for (const key in excludesConfig) {
+					if (typeof excludesConfig[key] !== 'boolean') {
 						continue;
 					}
+					const isException = glob.isExcludeException(key);
+					const pattern = isException ? key.trimStart().substring(1) : key;
 					const patternAbs = pattern.indexOf('**/') !== 0
 						? posix.join(folder.uri.path, pattern)
 						: pattern;
 
-					adjustedConfig[patternAbs] = excludesConfig[pattern];
+					adjustedConfig[isException ? `!${patternAbs}` : patternAbs] = excludesConfig[key];
 				}
 				const ignoreCase = !fileService.hasCapability(folder.uri, FileSystemProviderCapabilities.PathCaseSensitive);
-				this._cachedExpressions.set(folder.uri.toString(), glob.parse(adjustedConfig, { ignoreCase }));
+				this._cachedExpressions.set(folder.uri.toString(), glob.parseExcludeExpression(adjustedConfig, { ignoreCase }));
 			});
 		};
 		update();
@@ -323,7 +325,12 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 		}
 
 		const expression = this._cachedExpressions.get(folder.uri.toString())!;
-		return !expression(relative(folder.uri.path, element.resource.path), basename(element.resource));
+		const path = relative(folder.uri.path, element.resource.path);
+		if (!expression.matches(path, basename(element.resource))) {
+			return true;
+		}
+
+		return !!element.isDirectory && expression.couldExceptionMatchBeneath(path);
 	}
 }
 

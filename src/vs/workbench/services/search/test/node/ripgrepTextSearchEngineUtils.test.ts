@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { normalize } from '../../../../../base/common/path.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2, fixNewline, getRgArgs, performBraceExpansionForRipgrep } from '../../node/ripgrepTextSearchEngine.js';
@@ -364,6 +365,41 @@ suite('RipgrepTextSearchEngine', () => {
 				[['**/a/*', '**/b/*'], ['-g', '**/a/*', '-g', '**/b/*']],
 				[['foo/*bar/something/**'], ['-g', '!*', '-g', '/foo', '-g', '/foo/*bar', '-g', '/foo/*bar/something', '-g', '/foo/*bar/something/**']],
 			].forEach(([includes, expectedFromIncludes]) => testGetRgArgs(<string[]>includes, <string[]>expectedFromIncludes)));
+		});
+
+		test('exclude exception run', () => {
+			const options: RipgrepTextSearchOptions = {
+				folderOptions: {
+					includes: ['src/**'],
+					excludes: ['node_modules'],
+					useIgnoreFiles: {
+						local: true,
+						global: false,
+						parent: true
+					},
+					followSymlinks: false,
+					folder: URI.file('/some/folder'),
+					encoding: 'utf8',
+				},
+				maxResults: 1000,
+			};
+
+			assert.deepStrictEqual(getRgArgs({ pattern: 'test' }, options, { root: 'node_modules/@types', globs: ['node_modules/@types', 'node_modules/@types/**'] }), [
+				'--hidden',
+				'--no-require-git',
+				'--ignore-case',
+				'-g', '/node_modules/@types',
+				'-g', '/node_modules/@types/**',
+				'--no-ignore',
+				'--crlf',
+				'--fixed-strings',
+				'--no-config',
+				'--no-ignore-global',
+				'--json',
+				'--',
+				'test',
+				normalize('node_modules/@types')
+			]);
 		});
 	});
 

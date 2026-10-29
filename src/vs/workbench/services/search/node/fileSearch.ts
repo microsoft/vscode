@@ -18,8 +18,10 @@ import * as strings from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileQuery, IFolderQuery, IProgressMessage, ISearchEngineStats, IRawFileMatch, ISearchEngine, ISearchEngineSuccess, isFilePatternMatch, hasSiblingFn } from '../common/search.js';
 import { spawnRipgrepCmd } from './ripgrepFileSearch.js';
-import { MAX_RIPGREP_SYMLINK_LOOPS, RipgrepSymlinkLoopDetector } from './ripgrepSearchUtils.js';
+import { getExcludeExceptionRuns, IExcludeExceptionRun, MAX_RIPGREP_SYMLINK_LOOPS, RipgrepSymlinkLoopDetector } from './ripgrepSearchUtils.js';
 import { prepareQuery } from '../../../../base/common/fuzzyScorer.js';
+import { isThenable } from '../../../../base/common/async.js';
+import * as pfs from '../../../../base/node/pfs.js';
 
 interface IDirectoryEntry extends IRawFileMatch {
 	base: string;
@@ -29,6 +31,24 @@ interface IDirectoryEntry extends IRawFileMatch {
 interface IDirectoryTree {
 	rootEntries: IDirectoryEntry[];
 	pathToEntries: { [relativePath: string]: IDirectoryEntry[] };
+}
+
+interface ITraversalOptions {
+
+	/**
+	 * Relative paths that were already reported by an earlier traversal of the folder.
+	 */
+	readonly pathsToSkip?: ReadonlySet<string>;
+
+	/**
+	 * Searches only the paths that exclude exceptions re-include.
+	 */
+	readonly exceptionRun?: IExcludeExceptionRun;
+
+	/**
+	 * Collects the relative paths that ripgrep returned, so that exception runs skip them.
+	 */
+	readonly seenPaths?: Set<string>;
 }
 
 const killCmds = new Set<() => void>();
@@ -54,9 +74,12 @@ export class FileWalker {
 	private errors: string[];
 	private cmdSW: StopWatch | null = null;
 	private cmdResultCount: number = 0;
+	private excludeExceptionRuns = 0;
+	private excludeExceptionTime = 0;
 	private readonly killCmds = new Set<() => void>();
 
 	private folderExcludePatterns: Map<string, AbsoluteAndRelativeParsedExpression>;
+	private readonly nestedRootFolders = new Map<string, string[]>();
 	private globalExcludePattern: glob.ParsedExpression | undefined;
 
 	constructor(config: IFileQuery, private readonly spawnRipgrep: SpawnRipgrepCmd = spawnRipgrepCmd) {
@@ -76,7 +99,7 @@ export class FileWalker {
 			this.normalizedFilePatternLowercase = config.shouldGlobMatchFilePattern ? null : prepareQuery(this.filePattern).normalizedLowercase;
 		}
 
-		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern, globOptions);
+		this.globalExcludePattern = config.excludePattern && glob.parseExcludeExpression(config.excludePattern, globOptions).matches;
 		this.folderExcludePatterns = new Map<string, AbsoluteAndRelativeParsedExpression>();
 
 		config.folderQueries.forEach(folderQuery => {
@@ -92,16 +115,20 @@ export class FileWalker {
 
 			// Add excludes for other root folders
 			const fqPath = folderQuery.folder.fsPath;
+			const nestedRootFolders: string[] = [];
 			config.folderQueries
 				.map(rootFolderQuery => rootFolderQuery.folder.fsPath)
 				.filter(rootFolder => rootFolder !== fqPath)
 				.forEach(otherRootFolder => {
 					// Exclude nested root folders
 					if (isEqualOrParent(otherRootFolder, fqPath, config.ignoreGlobCase)) {
-						folderExcludeExpression[path.relative(fqPath, otherRootFolder)] = true;
+						const nestedRootFolder = path.relative(fqPath, otherRootFolder);
+						folderExcludeExpression[nestedRootFolder] = true;
+						nestedRootFolders.push(nestedRootFolder);
 					}
 				});
 
+			this.nestedRootFolders.set(fqPath, nestedRootFolders);
 			this.folderExcludePatterns.set(fqPath, new AbsoluteAndRelativeParsedExpression(folderExcludeExpression, fqPath, config.ignoreGlobCase));
 		});
 	}
@@ -134,7 +161,7 @@ export class FileWalker {
 
 		// For each root folder
 		this.parallel<IFolderQuery, void>(folderQueries, (folderQuery: IFolderQuery, rootFolderDone: (err: Error | null, result: void) => void) => {
-			this.call(this.cmdTraversal, this, folderQuery, numThreads, onResult, onMessage, (err?: Error) => {
+			this.call(this.folderTraversal, this, folderQuery, numThreads, onResult, onMessage, (err?: Error) => {
 				if (err) {
 					const errorMessage = toErrorMessage(err);
 					console.error(errorMessage);
@@ -188,18 +215,50 @@ export class FileWalker {
 	}
 
 	/**
-	 * @param pathsToSkip relative paths that were already reported by an earlier traversal of the folder
+	 * Traverses the folder with ripgrep, followed by a run for each group of exclude exceptions.
 	 */
-	private async cmdTraversal(folderQuery: IFolderQuery, numThreads: number | undefined, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void, cb: (err?: Error) => void, pathsToSkip?: ReadonlySet<string>): Promise<void> {
+	private async folderTraversal(folderQuery: IFolderQuery, numThreads: number | undefined, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void, cb: (err?: Error) => void): Promise<void> {
+		const rootFolder = folderQuery.folder.fsPath;
+		const exceptionRuns = getExcludeExceptionRuns(this.folderExcludePatterns.get(rootFolder)!.exceptions, rootFolder);
+		if (!exceptionRuns.length) {
+			return this.cmdTraversal(folderQuery, numThreads, onResult, onMessage, cb);
+		}
+
+		const traverse = (traversal: ITraversalOptions) => new Promise<Error | undefined>(resolve => this.cmdTraversal(folderQuery, numThreads, onResult, onMessage, resolve, traversal));
+		const seenPaths = new Set<string>();
+		try {
+			let err = await traverse({ seenPaths });
+			for (const exceptionRun of exceptionRuns) {
+				if (err || this.isCanceled || this.isLimitHit) {
+					break;
+				}
+
+				if (exceptionRun.root && !await pfs.Promises.exists(path.join(rootFolder, exceptionRun.root))) {
+					continue;
+				}
+
+				this.excludeExceptionRuns++;
+				const exceptionRunSW = StopWatch.create(false);
+				err = await traverse({ seenPaths, exceptionRun });
+				this.excludeExceptionTime += exceptionRunSW.elapsed();
+			}
+			cb(err);
+		} catch (err) {
+			cb(err instanceof Error ? err : new Error(String(err)));
+		}
+	}
+
+	private async cmdTraversal(folderQuery: IFolderQuery, numThreads: number | undefined, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void, cb: (err?: Error) => void, traversal: ITraversalOptions = {}): Promise<void> {
 		const rootFolder = folderQuery.folder.fsPath;
 		const isMac = platform.isMacintosh;
+		const { pathsToSkip, exceptionRun, seenPaths } = traversal;
 
 		let leftover = '';
 		const tree = this.initDirectoryTree();
 
 		let ripgrep;
 		try {
-			ripgrep = await this.spawnRipgrep(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.expression, numThreads);
+			ripgrep = await this.spawnRipgrep(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder.fsPath)!.expression, numThreads, exceptionRun);
 		} catch (err) {
 			cb(err instanceof Error ? err : new Error(String(err)));
 			return;
@@ -253,10 +312,14 @@ export class FileWalker {
 			killCmds.delete(killCmd);
 			killCmd();
 			onMessage({ message: `ripgrep reported more than ${MAX_RIPGREP_SYMLINK_LOOPS} symbolic link loops, searching ${rootFolder} again without following symbolic links` });
-			this.cmdTraversal({ ...folderQuery, ignoreSymlinks: true }, numThreads, onResult, onMessage, cb, new Set(reportedPaths));
+			this.cmdTraversal({ ...folderQuery, ignoreSymlinks: true }, numThreads, onResult, onMessage, cb, { ...traversal, pathsToSkip: new Set(reportedPaths) });
 		};
 
-		this.cmdResultCount = 0;
+		if (!exceptionRun) {
+			this.cmdResultCount = 0;
+		}
+		const excludePattern = this.folderExcludePatterns.get(rootFolder)!;
+		const isReincludedByException = exceptionRun && this.createExceptionRunFilter(folderQuery, excludePattern);
 		this.collectStdout(cmd, 'utf8', onMessage, (err: Error | null, stdout?: string, last?: boolean) => {
 			if (isRetrying) {
 				return;
@@ -293,6 +356,16 @@ export class FileWalker {
 				relativeFiles = relativeFiles.filter(relativePath => !pathsToSkip.has(relativePath));
 			}
 
+			if (isReincludedByException) {
+				relativeFiles = relativeFiles.filter(relativePath => !seenPaths?.has(relativePath) && isReincludedByException(relativePath));
+			}
+
+			if (seenPaths) {
+				for (const relativePath of relativeFiles) {
+					seenPaths.add(relativePath);
+				}
+			}
+
 			this.cmdResultCount += relativeFiles.length;
 
 			if (noSiblingsClauses) {
@@ -322,6 +395,20 @@ export class FileWalker {
 				retryWithoutFollowingSymlinks();
 			}
 		}));
+	}
+
+	/**
+	 * Creates the filter for the results of an exclude exception run. The run passes no include or exclude
+	 * globs to ripgrep, so it applies the includes of the query and skips nested workspace folders here.
+	 */
+	private createExceptionRunFilter(folderQuery: IFolderQuery, excludePattern: AbsoluteAndRelativeParsedExpression): (relativePath: string) => boolean {
+		const includeExpression = this.config.includePattern || folderQuery.includePattern ? { ...this.config.includePattern, ...folderQuery.includePattern } : undefined;
+		const include = includeExpression && glob.parse(includeExpression, { ignoreCase: this.config.ignoreGlobCase });
+		const nestedRootFolders = this.nestedRootFolders.get(folderQuery.folder.fsPath) ?? [];
+
+		return relativePath => excludePattern.isExcepted(relativePath)
+			&& (!include || !!include(relativePath, path.basename(relativePath)))
+			&& !nestedRootFolders.some(nestedRootFolder => isEqualOrParent(relativePath, nestedRootFolder, this.config.ignoreGlobCase));
 	}
 
 	/**
@@ -479,7 +566,7 @@ export class FileWalker {
 		const excludePattern = this.folderExcludePatterns.get(rootFolder)!;
 		const filePattern = this.filePattern;
 		const ignoreGlobCase = this.config.ignoreGlobCase;
-		function matchDirectory(entries: IDirectoryEntry[]) {
+		function matchDirectory(entries: IDirectoryEntry[], isParentExcluded: boolean) {
 			self.directoriesWalked++;
 			const hasSibling = hasSiblingFn(() => entries.map(entry => entry.basename));
 			for (let i = 0, n = entries.length; i < n; i++) {
@@ -490,13 +577,16 @@ export class FileWalker {
 				// If the user searches for the exact file name, we adjust the glob matching
 				// to ignore filtering by siblings because the user seems to know what they
 				// are searching for and we want to include the result in that case anyway
-				if (excludePattern.test(relativePath, basename, !strings.equals(filePattern, basename, ignoreGlobCase) ? hasSibling : undefined)) {
+				const isExcluded = isParentExcluded ?
+					!excludePattern.isExcepted(relativePath, basename) :
+					!!excludePattern.test(relativePath, basename, !strings.equals(filePattern, basename, ignoreGlobCase) ? hasSibling : undefined);
+				const sub = pathToEntries[relativePath];
+				if (isExcluded && !(sub && excludePattern.couldExceptionMatchBeneath(relativePath))) {
 					continue;
 				}
 
-				const sub = pathToEntries[relativePath];
 				if (sub) {
-					matchDirectory(sub);
+					matchDirectory(sub, isExcluded);
 				} else {
 					self.filesWalked++;
 					if (strings.equals(relativePath, filePattern, ignoreGlobCase)) {
@@ -511,7 +601,7 @@ export class FileWalker {
 				}
 			}
 		}
-		matchDirectory(rootEntries);
+		matchDirectory(rootEntries, false);
 	}
 
 	getStats(): ISearchEngineStats {
@@ -520,7 +610,9 @@ export class FileWalker {
 			fileWalkTime: this.fileWalkSW!.elapsed(),
 			directoriesWalked: this.directoriesWalked,
 			filesWalked: this.filesWalked,
-			cmdResultCount: this.cmdResultCount
+			cmdResultCount: this.cmdResultCount,
+			excludeExceptionRuns: this.excludeExceptionRuns,
+			excludeExceptionTime: this.excludeExceptionTime
 		};
 	}
 
@@ -605,8 +697,9 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
  * file searched, it's only used for a text search with a searchPath
  */
 class AbsoluteAndRelativeParsedExpression {
-	private absoluteParsedExpr: glob.ParsedExpression | undefined;
-	private relativeParsedExpr: glob.ParsedExpression | undefined;
+	private absoluteParsedExpr: glob.IParsedExcludeExpression | undefined;
+	private relativeParsedExpr: glob.IParsedExcludeExpression | undefined;
+	exceptions: glob.IExcludeException[] = [];
 
 	constructor(public expression: glob.IExpression, private root: string, private ignoreCase?: boolean) {
 		this.init(expression);
@@ -621,7 +714,8 @@ class AbsoluteAndRelativeParsedExpression {
 		Object.keys(expr)
 			.filter(key => expr[key])
 			.forEach(key => {
-				if (path.isAbsolute(key)) {
+				const pattern = glob.isExcludeException(key) ? key.trimStart().substring(1) : key;
+				if (path.isAbsolute(pattern)) {
 					absoluteGlobExpr = absoluteGlobExpr || glob.getEmptyExpression();
 					absoluteGlobExpr[key] = expr[key];
 				} else {
@@ -631,23 +725,43 @@ class AbsoluteAndRelativeParsedExpression {
 			});
 
 		const globOptions = { trimForExclusions: true, ignoreCase: this.ignoreCase };
-		this.absoluteParsedExpr = absoluteGlobExpr && glob.parse(absoluteGlobExpr, globOptions);
-		this.relativeParsedExpr = relativeGlobExpr && glob.parse(relativeGlobExpr, globOptions);
+		this.absoluteParsedExpr = absoluteGlobExpr && glob.parseExcludeExpression(absoluteGlobExpr, globOptions);
+		this.relativeParsedExpr = relativeGlobExpr && glob.parseExcludeExpression(relativeGlobExpr, globOptions);
+		this.exceptions = glob.getExcludeExceptions(expr);
 	}
 
 	test(_path: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): string | Promise<string | null> | undefined | null {
-		return (this.relativeParsedExpr && this.relativeParsedExpr(_path, basename, hasSibling)) ||
-			(this.absoluteParsedExpr && this.absoluteParsedExpr(path.join(this.root, _path), basename, hasSibling));
+		const excluded = (this.relativeParsedExpr && this.relativeParsedExpr.matchesExclude(_path, basename, hasSibling)) ||
+			(this.absoluteParsedExpr && this.absoluteParsedExpr.matchesExclude(path.join(this.root, _path), basename, hasSibling));
+		if (!excluded || !this.exceptions.length) {
+			return excluded;
+		}
+
+		if (isThenable(excluded)) {
+			return excluded.then(pattern => pattern && !this.isExcepted(_path, basename) ? pattern : null);
+		}
+
+		return this.isExcepted(_path, basename) ? null : excluded;
+	}
+
+	isExcepted(_path: string, basename?: string): boolean {
+		return !!this.relativeParsedExpr?.isExcepted(_path, basename) ||
+			!!this.absoluteParsedExpr?.isExcepted(path.join(this.root, _path), basename);
+	}
+
+	couldExceptionMatchBeneath(folderPath: string): boolean {
+		return !!this.relativeParsedExpr?.couldExceptionMatchBeneath(folderPath) ||
+			!!this.absoluteParsedExpr?.couldExceptionMatchBeneath(path.join(this.root, folderPath));
 	}
 
 	getBasenameTerms(): string[] {
 		const basenameTerms: string[] = [];
 		if (this.absoluteParsedExpr) {
-			basenameTerms.push(...glob.getBasenameTerms(this.absoluteParsedExpr));
+			basenameTerms.push(...glob.getBasenameTerms(this.absoluteParsedExpr.matches));
 		}
 
 		if (this.relativeParsedExpr) {
-			basenameTerms.push(...glob.getBasenameTerms(this.relativeParsedExpr));
+			basenameTerms.push(...glob.getBasenameTerms(this.relativeParsedExpr.matches));
 		}
 
 		return basenameTerms;
@@ -656,11 +770,11 @@ class AbsoluteAndRelativeParsedExpression {
 	getPathTerms(): string[] {
 		const pathTerms: string[] = [];
 		if (this.absoluteParsedExpr) {
-			pathTerms.push(...glob.getPathTerms(this.absoluteParsedExpr));
+			pathTerms.push(...glob.getPathTerms(this.absoluteParsedExpr.matches));
 		}
 
 		if (this.relativeParsedExpr) {
-			pathTerms.push(...glob.getPathTerms(this.relativeParsedExpr));
+			pathTerms.push(...glob.getPathTerms(this.relativeParsedExpr.matches));
 		}
 
 		return pathTerms;

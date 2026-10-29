@@ -1232,5 +1232,118 @@ suite('Glob', () => {
 		assertGlobMatch('some/*/Random/*/Path.FILE', 'some/very/random/unusual/path.file', true);
 	});
 
+	suite('exclude exceptions', () => {
+
+		function excluded(expression: glob.IExpression, paths: string[], options?: glob.IGlobOptions): Record<string, boolean> {
+			const parsed = glob.parseExcludeExpression(expression, options);
+			const result: Record<string, boolean> = {};
+			for (const path of paths) {
+				result[path] = !!parsed.matches(path);
+			}
+
+			return result;
+		}
+
+		function beneath(expression: glob.IExpression, folders: string[]): Record<string, boolean> {
+			const parsed = glob.parseExcludeExpression(expression);
+			const result: Record<string, boolean> = {};
+			for (const folder of folders) {
+				result[folder] = parsed.couldExceptionMatchBeneath(folder);
+			}
+
+			return result;
+		}
+
+		test('exceptions carve paths and their children out of excludes', () => {
+			assert.deepStrictEqual(excluded({ 'node_modules/*': true, '!node_modules/susa': true }, ['node_modules/a', 'node_modules/susa', 'node_modules/susa/index.js', 'src/a.js']), {
+				'node_modules/a': true,
+				'node_modules/susa': false,
+				'node_modules/susa/index.js': false,
+				'src/a.js': false
+			});
+			assert.deepStrictEqual(excluded({ '*.js': true, '!gulpfile.js': true }, ['a.js', 'gulpfile.js']), {
+				'a.js': true,
+				'gulpfile.js': false
+			});
+			assert.deepStrictEqual(excluded({ '.*': true, '!.editorconfig': true, '!.gitignore': true }, ['.env', '.editorconfig', '.gitignore']), {
+				'.env': true,
+				'.editorconfig': false,
+				'.gitignore': false
+			});
+			assert.deepStrictEqual(excluded({ '**/.vscode': true, '**/.vscode/*': true, '!**/.vscode/launch.json': true }, ['a/.vscode', 'a/.vscode/settings.json', 'a/.vscode/launch.json']), {
+				'a/.vscode': true,
+				'a/.vscode/settings.json': true,
+				'a/.vscode/launch.json': false
+			});
+		});
+
+		test('exceptions on their own exclude nothing', () => {
+			assert.deepStrictEqual(excluded({ '!*.js': true, '!*.ts': true }, ['a.js', 'a.ts', 'a.md']), {
+				'a.js': false,
+				'a.ts': false,
+				'a.md': false
+			});
+		});
+
+		test('exceptions win over excludes beneath them', () => {
+			assert.deepStrictEqual(excluded({ 'node_modules/*': true, '!node_modules/@types': true, 'node_modules/@types/*': true }, ['node_modules/a', 'node_modules/@types/node']), {
+				'node_modules/a': true,
+				'node_modules/@types/node': false
+			});
+		});
+
+		test('disabled and escaped exception keys', () => {
+			assert.deepStrictEqual(excluded({ '*.js': true, '!gulpfile.js': false }, ['gulpfile.js']), { 'gulpfile.js': true });
+			assert.deepStrictEqual(excluded({ '{!}notes.txt': true }, ['!notes.txt', 'notes.txt']), { '!notes.txt': true, 'notes.txt': false });
+			assert.strictEqual(glob.escapeExcludeException('!notes.txt'), '{!}notes.txt');
+			assert.strictEqual(glob.escapeExcludeException('notes.txt'), 'notes.txt');
+		});
+
+		test('exceptions respect ignoreCase', () => {
+			assert.deepStrictEqual(excluded({ 'node_modules': true, 'node_modules/*': true, '!node_modules/@Types': true }, ['node_modules/@types'], { ignoreCase: true }), { 'node_modules/@types': false });
+			assert.deepStrictEqual(excluded({ 'node_modules': true, 'node_modules/*': true, '!node_modules/@Types': true }, ['node_modules/@types']), { 'node_modules/@types': true });
+		});
+
+		test('sibling clauses are subject to exceptions', async () => {
+			const parsed = glob.parseExcludeExpression({ '**/*.js': { when: '$(basename).ts' }, '!keep.js': true });
+			const hasSibling = (name: string) => Promise.resolve(name === 'keep.ts' || name === 'drop.ts');
+			assert.deepStrictEqual([await parsed.matches('keep.js', 'keep.js', hasSibling), await parsed.matches('drop.js', 'drop.js', hasSibling)], [null, '**/*.js']);
+		});
+
+		test('getExcludeExceptions', () => {
+			assert.deepStrictEqual(glob.getExcludeExceptions({ 'a': true, '!node_modules/@types/**': true, '!**/Scripts/': true, '!src/*.js': true, '!off': false, '!': true }), [
+				{ pattern: 'node_modules/@types/**', literalPrefix: 'node_modules/@types' },
+				{ pattern: '**/Scripts', literalPrefix: '' },
+				{ pattern: 'src/*.js', literalPrefix: 'src' }
+			]);
+		});
+
+		test('expressions without exceptions parse unchanged', () => {
+			const expression = { '**/node_modules': true };
+			const parsed = glob.parseExcludeExpression(expression);
+			assert.strictEqual(parsed.matches, parsed.matchesExclude);
+			assert.deepStrictEqual(glob.getBasenameTerms(parsed.matches), ['node_modules']);
+		});
+
+		test('couldExceptionMatchBeneath', () => {
+			assert.deepStrictEqual(beneath({ 'node_modules': true, '!node_modules/@types': true }, ['node_modules', 'node_modules/@types', 'node_modules/react', 'src']), {
+				'node_modules': true,
+				'node_modules/@types': true,
+				'node_modules/react': false,
+				'src': false
+			});
+			assert.deepStrictEqual(beneath({ '**/*': true, '!**/Scripts': true }, ['a', 'a/b/c']), { 'a': true, 'a/b/c': true });
+			assert.deepStrictEqual(beneath({ '*.js': true, '!*.ts': true }, ['src']), { 'src': false });
+			assert.deepStrictEqual(beneath({ 'a': true, '!a/*/c/**/d.txt': true }, ['a', 'a/b', 'a/b/c', 'a/b/x', 'a/b/c/e/f']), {
+				'a': true,
+				'a/b': true,
+				'a/b/c': true,
+				'a/b/x': false,
+				'a/b/c/e/f': true
+			});
+			assert.deepStrictEqual(beneath({ 'a': true }, ['a']), { 'a': false });
+		});
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

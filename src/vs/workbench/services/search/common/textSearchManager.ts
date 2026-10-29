@@ -11,8 +11,9 @@ import * as path from '../../../../base/common/path.js';
 import * as resources from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FolderQuerySearchTree } from './folderQuerySearchTree.js';
-import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IFileMatch, IFolderQuery, excludeToGlobPattern, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider, ISearchRange, DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from './search.js';
-import { TextSearchComplete2, TextSearchMatch2, TextSearchProviderFolderOptions, TextSearchProvider2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2, AITextSearchProvider, AISearchResult, AISearchKeyword } from './searchExtTypes.js';
+import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IFileMatch, IFolderQuery, excludeToGlobPattern, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider, resolveExcludePatternsForProvider, resolveExcludeExceptionsForProvider, ISearchRange, DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from './search.js';
+import { TextSearchComplete2, TextSearchMatch2, TextSearchProvider2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2, AITextSearchProvider, AISearchResult, AISearchKeyword } from './searchExtTypes.js';
+import { supportsExcludeExceptions, TextSearchProviderFolderOptionsRipgrep } from './searchExtTypesInternal.js';
 
 export interface IFileUtils {
 	readdir: (resource: URI) => Promise<string[]>;
@@ -194,23 +195,23 @@ export class TextSearchManager {
 		return result;
 	}
 
-	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): TextSearchProviderFolderOptions {
+	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): TextSearchProviderFolderOptionsRipgrep {
 		const includes = resolvePatternsForProvider(this.query.includePattern, fq.includePattern);
 
 		let excludePattern = fq.excludePattern?.map(e => ({
 			folder: e.folder,
-			patterns: resolvePatternsForProvider(this.query.excludePattern, e.pattern)
+			patterns: resolveExcludePatternsForProvider(this.query.excludePattern, e.pattern)
 		}));
 
 		if (!excludePattern || excludePattern.length === 0) {
 			excludePattern = [{
 				folder: undefined,
-				patterns: resolvePatternsForProvider(this.query.excludePattern, undefined)
+				patterns: resolveExcludePatternsForProvider(this.query.excludePattern, undefined)
 			}];
 		}
 		const excludes = excludeToGlobPattern(excludePattern);
 
-		const options = {
+		const options: TextSearchProviderFolderOptionsRipgrep = {
 			folder: URI.from(fq.folder),
 			excludes,
 			includes,
@@ -223,6 +224,15 @@ export class TextSearchManager {
 			encoding: (fq.fileEncoding && this.fileUtils.toCanonicalName(fq.fileEncoding)) ?? '',
 			ignoreGlobCase: this.query.ignoreGlobCase || fq.ignoreGlobCase,
 		};
+
+		if (supportsExcludeExceptions(this.queryProviderPair.provider)) {
+			const folderExcludes = Object.assign({}, ...(fq.excludePattern?.map(e => e.pattern) ?? []));
+			const excludeExceptions = resolveExcludeExceptionsForProvider(this.query.excludePattern, folderExcludes);
+			if (excludeExceptions.length) {
+				options.excludeExceptions = excludeExceptions;
+			}
+		}
+
 		return options;
 	}
 }

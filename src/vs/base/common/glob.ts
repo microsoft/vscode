@@ -10,7 +10,7 @@ import { isEqualOrParent } from './extpath.js';
 import { LRUCache } from './map.js';
 import { basename, extname, posix, sep } from './path.js';
 import { isLinux } from './platform.js';
-import { endsWithIgnoreCase, equalsIgnoreCase, escapeRegExpCharacters, ltrim } from './strings.js';
+import { endsWithIgnoreCase, equalsIgnoreCase, escapeRegExpCharacters, ltrim, rtrim } from './strings.js';
 
 export interface IRelativePattern {
 
@@ -596,6 +596,239 @@ export function parse(arg1: string | IExpression | IRelativePattern, options: IG
 	// Glob with Expression
 	return parsedExpression(arg1, options);
 }
+
+//#region Exclude exceptions
+
+const EXCLUDE_EXCEPTION_PREFIX = '!';
+const GLOB_SPECIAL_CHARACTERS = /[*?[\]{}]/;
+
+/**
+ * Regular expression source that matches the keys of exclude exceptions, for use in JSON schemas.
+ */
+export const EXCLUDE_EXCEPTION_KEY_PATTERN = '^\\s*!';
+
+/**
+ * An enabled `!`-prefixed key of an exclude expression. Paths matching
+ * the pattern, and everything beneath them, are never excluded.
+ */
+export interface IExcludeException {
+
+	/**
+	 * The exception pattern without the leading `!`.
+	 */
+	readonly pattern: string;
+
+	/**
+	 * The leading segments of {@link pattern} that contain no glob characters, or
+	 * an empty string if the pattern can match at any depth (e.g. `**\/Scripts`).
+	 */
+	readonly literalPrefix: string;
+}
+
+/**
+ * An exclude expression parsed with support for `!`-prefixed exception keys.
+ */
+export interface IParsedExcludeExpression {
+
+	/**
+	 * Matches like {@link parse}, except that a path covered by an exception never matches.
+	 * When the expression has no exceptions, this is the result of {@link parse}.
+	 */
+	readonly matches: ParsedExpression;
+
+	/**
+	 * Matches the exclude patterns only, ignoring exceptions.
+	 */
+	readonly matchesExclude: ParsedExpression;
+
+	readonly exceptions: readonly IExcludeException[];
+
+	/**
+	 * Whether the path or one of its parent folders matches an exception.
+	 */
+	isExcepted(path: string, basename?: string): boolean;
+
+	/**
+	 * Whether an exception could match a path below the folder, so that the
+	 * folder must be traversed even when it is excluded.
+	 */
+	couldExceptionMatchBeneath(folderPath: string): boolean;
+}
+
+/**
+ * Whether the key of an exclude expression is an exception, i.e. starts with `!`.
+ */
+export function isExcludeException(pattern: string): boolean {
+	return pattern.trimStart().startsWith(EXCLUDE_EXCEPTION_PREFIX);
+}
+
+/**
+ * Rewrites a pattern starting with `!` so that it matches a literal `!`
+ * instead of being treated as an exclude exception.
+ */
+export function escapeExcludeException(pattern: string): string {
+	const trimmed = pattern.trimStart();
+
+	return trimmed.startsWith(EXCLUDE_EXCEPTION_PREFIX) ? `{!}${trimmed.substring(EXCLUDE_EXCEPTION_PREFIX.length)}` : pattern;
+}
+
+/**
+ * Returns the enabled exceptions of an exclude expression.
+ */
+export function getExcludeExceptions(expression: IExpression | undefined): IExcludeException[] {
+	const exceptions: IExcludeException[] = [];
+	if (!expression) {
+		return exceptions;
+	}
+
+	for (const key of Object.keys(expression)) {
+		if (expression[key] !== true || !isExcludeException(key)) {
+			continue;
+		}
+
+		const pattern = rtrim(key.trimStart().substring(EXCLUDE_EXCEPTION_PREFIX.length).trim(), GLOB_SPLIT);
+		if (pattern) {
+			exceptions.push({ pattern, literalPrefix: getLiteralPrefix(pattern) });
+		}
+	}
+
+	return exceptions;
+}
+
+/**
+ * Returns a copy of the expression without exception keys, for consumers
+ * that only understand plain exclude patterns.
+ */
+export function withoutExcludeExceptions(expression: IExpression): IExpression {
+	const result: IExpression = Object.create(null);
+	for (const key of Object.keys(expression)) {
+		if (!isExcludeException(key)) {
+			result[key] = expression[key];
+		}
+	}
+
+	return result;
+}
+
+/**
+ * Parses an exclude expression that may contain `!`-prefixed exception keys.
+ * A path is excluded when it matches an exclude pattern (or is below an excluded
+ * folder) and neither the path nor one of its parent folders matches an exception.
+ */
+export function parseExcludeExpression(expression: IExpression, options: IGlobOptions = {}): IParsedExcludeExpression {
+	const exceptions = getExcludeExceptions(expression);
+	const hasExceptionKeys = Object.keys(expression).some(isExcludeException);
+	const matchesExclude = parse(hasExceptionKeys ? withoutExcludeExceptions(expression) : expression, options);
+	if (!exceptions.length) {
+		return {
+			matches: matchesExclude,
+			matchesExclude,
+			exceptions,
+			isExcepted: () => false,
+			couldExceptionMatchBeneath: () => false
+		};
+	}
+
+	const exceptionExpression: IExpression = Object.create(null);
+	for (const exception of exceptions) {
+		exceptionExpression[exception.pattern] = true;
+		exceptionExpression[`${exception.pattern}${GLOB_SPLIT}${GLOBSTAR}`] = true;
+	}
+
+	const matchesException = parse(exceptionExpression, { ...options, trimForExclusions: false });
+	const isExcepted = (path: string, basename?: string) => !!matchesException(path, basename);
+	const exceptionSegments = exceptions.map(exception => parseSegmentMatchers(exception.pattern, !!options.ignoreCase));
+
+	const matches: ParsedExpression = (path, basename, hasSibling) => {
+		const result = matchesExclude(path, basename, hasSibling);
+		if (isThenable(result)) {
+			return result.then(pattern => pattern && !isExcepted(path, basename) ? pattern : null);
+		}
+
+		return result && !isExcepted(path, basename) ? result : null;
+	};
+
+	return {
+		matches,
+		matchesExclude,
+		exceptions,
+		isExcepted,
+		couldExceptionMatchBeneath: folderPath => {
+			const folderSegments = rtrim(rtrim(folderPath, GLOB_SPLIT), '\\');
+			const segments = folderSegments ? folderSegments.split(/[/\\]/) : [];
+
+			return exceptionSegments.some(matchers => couldMatchBeneath(matchers, segments));
+		}
+	};
+}
+
+function getLiteralPrefix(pattern: string): string {
+	const literalSegments: string[] = [];
+	for (const segment of splitGlobAware(pattern, GLOB_SPLIT)) {
+		if (GLOB_SPECIAL_CHARACTERS.test(segment)) {
+			break;
+		}
+
+		literalSegments.push(segment);
+	}
+
+	return literalSegments.join(GLOB_SPLIT);
+}
+
+type SegmentMatcher = typeof GLOBSTAR | ((segment: string) => boolean);
+
+function parseSegmentMatchers(pattern: string, ignoreCase: boolean): SegmentMatcher[] {
+	return splitGlobAware(pattern, GLOB_SPLIT).map(segment => {
+		if (segment === GLOBSTAR) {
+			return GLOBSTAR;
+		}
+
+		if (segment.includes(GLOB_SPLIT)) {
+			return () => true; // a brace expansion with a path separator, e.g. `{a/b,c}`
+		}
+
+		try {
+			const regExp = new RegExp(`^${parseRegExp(segment)}$`, ignoreCase ? 'i' : undefined);
+
+			return (value: string) => regExp.test(value);
+		} catch {
+			return () => false;
+		}
+	});
+}
+
+/**
+ * Whether the pattern could match a path that starts with the given folder segments.
+ */
+function couldMatchBeneath(matchers: SegmentMatcher[], folderSegments: string[]): boolean {
+	const visited = new Set<number>();
+	const visit = (matcherIndex: number, folderIndex: number): boolean => {
+		if (folderIndex === folderSegments.length) {
+			return true;
+		}
+
+		if (matcherIndex === matchers.length) {
+			return false;
+		}
+
+		const key = matcherIndex * (folderSegments.length + 1) + folderIndex;
+		if (visited.has(key)) {
+			return false;
+		}
+		visited.add(key);
+
+		const matcher = matchers[matcherIndex];
+		if (matcher === GLOBSTAR) {
+			return visit(matcherIndex + 1, folderIndex) || visit(matcherIndex, folderIndex + 1);
+		}
+
+		return matcher(folderSegments[folderIndex]) && visit(matcherIndex + 1, folderIndex + 1);
+	};
+
+	return visit(0, 0);
+}
+
+//#endregion
 
 export function isRelativePattern(obj: unknown): obj is IRelativePattern {
 	const rp = obj as IRelativePattern | undefined | null;

@@ -174,6 +174,41 @@ flakySuite('TextSearch-integration', function () {
 		return doSearchTest(config, 391);
 	});
 
+	test('Text: e (with exclude exception)', () => {
+		const config: any = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'e' },
+			excludePattern: { '**/examples': true, '!examples/small.js': true }
+		};
+
+		return doSearchTest(config, 414);
+	});
+
+	test('Text: exclude exception re-includes gitignored and excluded files once', async () => {
+		const root = getRandomTestPath(tmpdir(), 'vsctests', 'textsearch-exclude-exceptions');
+		try {
+			await fs.promises.mkdir(path.join(root, 'build'), { recursive: true });
+			await fs.promises.mkdir(path.join(root, 'node_modules', '@types'), { recursive: true });
+			await fs.promises.writeFile(path.join(root, '.gitignore'), 'build/\n');
+			await fs.promises.writeFile(path.join(root, 'build', 'keep.txt'), 'needle');
+			await fs.promises.writeFile(path.join(root, 'build', 'drop.txt'), 'needle');
+			await fs.promises.writeFile(path.join(root, 'node_modules', '@types', 'index.d.ts'), 'needle');
+			await fs.promises.writeFile(path.join(root, 'node_modules', 'other.txt'), 'needle');
+			await fs.promises.writeFile(path.join(root, 'a.txt'), 'needle');
+
+			const results = await doSearchTest({
+				type: QueryType.Text,
+				folderQueries: [{ folder: URI.file(root), disregardIgnoreFiles: false }],
+				contentPattern: { pattern: 'needle' },
+				excludePattern: { 'node_modules': true, '!node_modules/@types': true, '!build/keep.txt': true, '!a.txt': true }
+			}, 3);
+
+			assert.deepStrictEqual(results.map(result => path.relative(root, result.path!).replace(/\\/g, '/')).sort(), ['a.txt', 'build/keep.txt', 'node_modules/@types/index.d.ts']);
+		} finally {
+			await fs.promises.rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('Text: e (with includes)', () => {
 		const config: any = {
 			folderQueries: ROOT_FOLDER_QUERY,
