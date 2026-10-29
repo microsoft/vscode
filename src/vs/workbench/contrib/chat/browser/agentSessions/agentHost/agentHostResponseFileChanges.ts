@@ -13,7 +13,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { buildBranchChangesetUri, ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
-import { toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { createAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import {
 	ChangesetStatus,
@@ -111,8 +111,8 @@ function getToolCallFileEdits(toolCall: ToolCallState): ISessionFileDiff[] {
 }
 
 /** Maps one Agent Host changeset file into the diff shape used by chat editors. */
-export function agentHostChangesetFileToEntryDiff(file: ChangesetFile, connectionAuthority: string): IEditSessionEntryDiff | undefined {
-	return changesetEditToEntryDiff(file.edit, connectionAuthority);
+export function agentHostChangesetFileToEntryDiff(file: ChangesetFile, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IEditSessionEntryDiff | undefined {
+	return changesetEditToEntryDiff(file.edit, connectionAuthority, resourceUris);
 }
 
 /** Result of converting one immutable file edit, independent of the workspace roots it is later classified against. */
@@ -121,13 +121,13 @@ interface IConvertedFileEdit {
 	readonly diff: Omit<IChatResponseFileEdit, 'isOutsideWorkspace'>;
 }
 
-function changesetEditToEntryDiff(edit: ISessionFileDiff, connectionAuthority: string): IEditSessionEntryDiff | undefined {
+function changesetEditToEntryDiff(edit: ISessionFileDiff, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IEditSessionEntryDiff | undefined {
 	const normalized = normalizeFileEdit(edit);
 	if (!normalized) {
 		return undefined;
 	}
 
-	const modifiedURI = toAgentHostUri(normalized.resource, connectionAuthority);
+	const modifiedURI = resourceUris.fromAgentHost(normalized.resource);
 	const originalURI = normalized.beforeContentUri
 		? toAgentHostContentUri(normalized.beforeContentUri, connectionAuthority, normalized.beforeUri)
 		: modifiedURI;
@@ -315,7 +315,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 	private _changesetEditToEntryDiff(edit: ISessionFileDiff): IEditSessionEntryDiff | undefined {
 		let diff = this._convertedChangesetEdits.get(edit);
 		if (diff === undefined) {
-			diff = changesetEditToEntryDiff(edit, this._connectionAuthority) ?? null;
+			diff = changesetEditToEntryDiff(edit, this._connectionAuthority, this._connection.resourceUris) ?? null;
 			this._convertedChangesetEdits.set(edit, diff);
 		}
 		return diff ?? undefined;
@@ -543,9 +543,9 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		if (!normalized) {
 			return undefined;
 		}
-		const resource = normalized.resource;
+		const resource = this._connection.resourceUris.fromAgentHost(normalized.resource);
 
-		const modifiedURI = toAgentHostUri(resource, this._connectionAuthority);
+		const modifiedURI = resource;
 		const originalURI = normalized.kind === FileEditKind.Create || !normalized.beforeContentUri
 			? modifiedURI
 			: toAgentHostContentUri(normalized.beforeContentUri, this._connectionAuthority, normalized.beforeUri);

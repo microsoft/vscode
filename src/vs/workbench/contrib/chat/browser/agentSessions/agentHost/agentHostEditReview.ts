@@ -28,6 +28,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { type IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind, resolveChangesetUriTemplate } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, SessionState, StateComponents, type TextRange } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -244,7 +245,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	private readonly _rawChanges = derived<IAgentHostCheckpointReviewSource | undefined>(this, reader => {
 		const workingSet = this._workingSet.read(reader);
 		const state = workingSet?.state.read(reader);
-		return workingSet ? { channel: workingSet.channel, ready: state?.status === ChangesetStatus.Ready, failed: workingSet.failed.read(reader) || state?.status === ChangesetStatus.Error, files: state ? toWorkingSetFileChanges(state, workingSet.connectionAuthority) : [] } : undefined;
+		return workingSet ? { channel: workingSet.channel, ready: state?.status === ChangesetStatus.Ready, failed: workingSet.failed.read(reader) || state?.status === ChangesetStatus.Error, files: state ? toWorkingSetFileChanges(state, workingSet.connectionAuthority, workingSet.connection.resourceUris) : [] } : undefined;
 	});
 	readonly fileChanges = derived(this, reader => {
 		const current = this._rawChanges.read(reader);
@@ -326,7 +327,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			retryBlockedFiles.read(reader);
 			const current = this._workingSet.read(reader);
 			const state = current?.state.read(reader);
-			const rawFiles = current && state ? toWorkingSetFileChanges(state, current.connectionAuthority) : [];
+			const rawFiles = current && state ? toWorkingSetFileChanges(state, current.connectionAuthority, current.connection.resourceUris) : [];
 			const files = current ? this._checkpointReview.read(reader)?.project(current.channel, rawFiles, reader) ?? rawFiles : rawFiles;
 			for (const file of files) {
 				if (file.editing) {
@@ -813,7 +814,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	}
 
 	private _findWorkingSetFile(state: ChangesetState, workingSet: IWorkingSet, entry: AgentHostEditReviewEntry): IWorkingSetFileChange | undefined {
-		return toWorkingSetFileChanges(state, workingSet.connectionAuthority)
+		return toWorkingSetFileChanges(state, workingSet.connectionAuthority, workingSet.connection.resourceUris)
 			.find(candidate => isEqual(this._uriIdentityService.asCanonicalUri(candidate.diff.modifiedURI), entry.modifiedURI));
 	}
 
@@ -986,9 +987,9 @@ function isSameWorkingSetFile(a: IWorkingSetFileChange, b: IWorkingSetFileChange
 }
 
 /** The files of a Working Set, with the version the host published for each. */
-function toWorkingSetFileChanges(state: ChangesetState, connectionAuthority: string): IWorkingSetFileChange[] {
+function toWorkingSetFileChanges(state: ChangesetState, connectionAuthority: string, resourceUris?: IAgentHostResourceUriMapper): IWorkingSetFileChange[] {
 	return state.files.map(file => {
-		const diff = agentHostChangesetFileToEntryDiff(file, connectionAuthority);
+		const diff = agentHostChangesetFileToEntryDiff(file, connectionAuthority, resourceUris);
 		return diff && { diff, nonce: file.nonce, editing: file.isEditing === true };
 	}).filter(isDefined);
 }
