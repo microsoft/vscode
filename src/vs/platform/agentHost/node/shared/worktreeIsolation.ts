@@ -17,7 +17,7 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSession, IAgentSessionProjectInfo } from '../../common/agent.js';
-import { Branch, getBranchCompletions, GitRefType, IAgentHostGitService, IBranch, IDetachedHead, IGitRemote, IRemoteBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, resolveDefaultBaseBranchName, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
+import { Branch, getBranchCompletions, GitRefType, IAgentHostGitService, IGitRemote, IRemoteBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, resolveDefaultBaseBranchName, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
@@ -465,7 +465,7 @@ export interface IResolveIsolationConfigRequest {
 }
 
 interface IIsolationGitInfo {
-	readonly headRef: IBranch | IDetachedHead;
+	readonly headName: string;
 	readonly defaultBranch: Branch | undefined;
 }
 
@@ -973,7 +973,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	/**
 	 * Builds the `isolation` / `branch` schema contribution for
 	 * `resolveSessionConfig`. When {@link IResolveIsolationConfigRequest.workingDirectory}
-	 * is not a git repository (or has no commits yet) isolation is forced to
+	 * is not a git repository with a resolvable HEAD name, isolation is forced to
 	 * `folder` and no branch property is offered.
 	 */
 	async resolveIsolationConfig(request: IResolveIsolationConfigRequest): Promise<IIsolationConfigContribution> {
@@ -1040,11 +1040,11 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				} else if (gitInfo.defaultBranch?.kind === GitRefType.RemoteHead) {
 					branchDefault = gitInfo.defaultBranch.name;
 				} else {
-					branchDefault = gitInfo.headRef.name;
+					branchDefault = gitInfo.headName;
 				}
 			} else {
 				// Folder
-				branchDefault = gitInfo.headRef.name;
+				branchDefault = gitInfo.headName;
 			}
 
 			branchValue = typeof request.config?.[SessionConfigKey.Branch] === 'string'
@@ -2075,12 +2075,13 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			this._gitService.getDefaultBranch2(repositoryRoot),
 		]);
 
-		// getHEAD only returns an existing ref or commit, so an unborn HEAD cannot offer worktree isolation.
 		if (!headRef) {
-			return undefined;
+			// Unborn branches use a working-tree snapshot when creating the isolated worktree.
+			const headName = await this._gitService.getCurrentBranch(repositoryRoot);
+			return headName ? { headName, defaultBranch: undefined } : undefined;
 		}
 
-		return { headRef, defaultBranch };
+		return { headName: headRef.name, defaultBranch };
 	}
 
 	/**
