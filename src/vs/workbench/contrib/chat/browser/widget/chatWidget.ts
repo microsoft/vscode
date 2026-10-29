@@ -79,6 +79,7 @@ import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/c
 import { IAgentHostPolicyContinuationService } from '../agentSessions/agentHost/agentHostPolicyContinuation.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
+import { recoverAttachmentMentions } from '../../common/attachments/chatInlineAttachments.js';
 import { ChatRequestVariableSet, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry, isPastedTextArtifact, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatMessageRole, IChatMessage } from '../../common/languageModels.js';
@@ -2598,7 +2599,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				// mentions restore their references, which tell attachments with the same name apart.
 				if (this.input.inlineAttachments?.isEnabled && !isChatFollowup(currentElement.message)) {
 					const restoredIds = new Set(currentContext.filter(entry => entry.range).map(entry => entry.id));
-					for (const part of currentElement.message.parts) {
+					for (const part of recoverAttachmentMentions(currentElement.message, currentElement.variables).parts) {
 						if (part instanceof ChatRequestDynamicVariablePart && part.isAttachmentReference && !restoredIds.has(part.id) && part.range.endExclusive <= modelTextLength) {
 							dynamicVariableModel.addReference({
 								id: part.id,

@@ -8,7 +8,7 @@ import { IPosition, Position } from '../../../../../editor/common/core/position.
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { PositionOffsetTransformer } from '../../../../../editor/common/core/text/positionToOffset.js';
-import { ChatRequestDynamicVariablePart, ChatRequestToolPart, ChatRequestToolSetPart, chatVariableLeader, IParsedChatRequestPart } from '../requestParser/chatParserTypes.js';
+import { ChatRequestDynamicVariablePart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatVariableLeader, IParsedChatRequest, IParsedChatRequestPart } from '../requestParser/chatParserTypes.js';
 import { IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPastedTextArtifact } from './chatVariableEntries.js';
 import { IDynamicVariable } from './chatVariables.js';
 
@@ -277,6 +277,72 @@ export function getInlineRequestAttachments(parts: readonly IParsedChatRequestPa
 }
 
 /**
+ * Recovers the mentions of a request's attachments from its text, for a
+ * request whose history kept its text and attachments but not its references,
+ * as an agent host's history does. A mention of an attachment by name, see
+ * {@link getAttachmentMention}, that is outside code becomes a reference to the
+ * attachment again. Mentions of attachments that share a name are bound to
+ * them in order.
+ */
+export function recoverAttachmentMentions(message: IParsedChatRequest, variables: readonly IChatRequestVariableEntry[]): IParsedChatRequest {
+	const referencedIds = new Set<string>();
+	for (const part of message.parts) {
+		if (part instanceof ChatRequestDynamicVariablePart) {
+			referencedIds.add(part.id);
+		}
+	}
+	const byMention = new Map<string, IChatRequestVariableEntry[]>();
+	for (const variable of variables) {
+		if (!referencedIds.has(variable.id) && variable.name && canShowAttachmentInline(variable)) {
+			const mention = getAttachmentMention(variable.name);
+			byMention.set(mention, [...byMention.get(mention) ?? [], variable]);
+		}
+	}
+	if (!byMention.size || !message.parts.some(part => part instanceof ChatRequestTextPart && part.text.includes(chatVariableLeader + INLINE_ATTACHMENT_REFERENCE_PREFIX))) {
+		return message;
+	}
+
+	// A longer mention, such as that of `a.tsx`, is not taken for a shorter one that it starts with, such as that of `a.ts`.
+	const mentions = [...byMention.keys()].sort((a, b) => b.length - a.length);
+	const codeRanges = getMarkdownCodeRanges(message.text);
+	const positions = new PositionOffsetTransformer(message.text);
+	const toRange = (start: number, end: number) => Range.fromPositions(positions.getPosition(start), positions.getPosition(end));
+	const occurrences = new Map<string, number>();
+	const parts: IParsedChatRequestPart[] = [];
+	for (const part of message.parts) {
+		if (!(part instanceof ChatRequestTextPart)) {
+			parts.push(part);
+			continue;
+		}
+		let copiedUntil = part.range.start;
+		const text = message.text.slice(0, part.range.endExclusive);
+		for (let offset = text.indexOf(chatVariableLeader, part.range.start); offset !== -1; offset = text.indexOf(chatVariableLeader, offset + 1)) {
+			const mention = mentions.find(candidate => text.startsWith(candidate, offset) && !/[\p{L}\p{N}_-]/u.test(message.text.charAt(offset + candidate.length)));
+			const end = mention ? offset + mention.length : offset;
+			if (!mention || codeRanges.some(range => range.intersects(new OffsetRange(offset, end)))) {
+				continue;
+			}
+			const candidates = byMention.get(mention)!;
+			const occurrence = occurrences.get(mention) ?? 0;
+			occurrences.set(mention, occurrence + 1);
+			const variable = candidates[Math.min(occurrence, candidates.length - 1)];
+			if (offset > copiedUntil) {
+				parts.push(new ChatRequestTextPart(new OffsetRange(copiedUntil, offset), toRange(copiedUntil, offset), message.text.slice(copiedUntil, offset)));
+			}
+			parts.push(new ChatRequestDynamicVariablePart(new OffsetRange(offset, end), toRange(offset, end), mention, variable.id, variable.modelDescription, variable.value, variable.fullName, variable.icon, undefined, undefined, undefined, true));
+			copiedUntil = end;
+			offset = end - 1;
+		}
+		if (copiedUntil === part.range.start) {
+			parts.push(part);
+		} else if (copiedUntil < part.range.endExclusive) {
+			parts.push(new ChatRequestTextPart(new OffsetRange(copiedUntil, part.range.endExclusive), toRange(copiedUntil, part.range.endExclusive), message.text.slice(copiedUntil, part.range.endExclusive)));
+		}
+	}
+	return { text: message.text, parts };
+}
+
+/**
  * The ranges of a prompt that Markdown renders as code: code blocks and code
  * spans, in which a mention renders as its text rather than as a pill.
  */
@@ -284,29 +350,28 @@ export function getMarkdownCodeRanges(text: string): OffsetRange[] {
 	// The lexer normalizes line breaks, so its offsets are mapped back to those of the text.
 	const normalized = text.replace(/\r\n?/g, '\n');
 	const ranges: OffsetRange[] = [];
-	const visit = (tokens: readonly marked.Token[], source: string, base: number) => {
-		let cursor = 0;
+	const visit = (tokens: readonly marked.Token[], within: OffsetRange) => {
+		let cursor = within.start;
 		for (const token of tokens) {
-			const index = token.raw ? source.indexOf(token.raw, cursor) : -1;
-			if (index === -1) {
+			const range = token.raw ? findTokenText(normalized, token.raw, new OffsetRange(cursor, within.endExclusive)) : undefined;
+			if (!range) {
 				continue;
 			}
-			cursor = index + token.raw.length;
-			const start = base + index;
+			cursor = range.endExclusive;
 			if (token.type === 'code' || token.type === 'codespan') {
-				ranges.push(new OffsetRange(start, start + token.raw.length));
+				ranges.push(range);
 				continue;
 			}
 			const children = (token as marked.Tokens.Generic).tokens;
 			if (Array.isArray(children)) {
-				visit(children, token.raw, start);
+				visit(children, range);
 			}
 			if (token.type === 'list') {
-				visit((token as marked.Tokens.List).items, token.raw, start);
+				visit((token as marked.Tokens.List).items, range);
 			}
 		}
 	};
-	visit(marked.lexer(normalized), normalized, 0);
+	visit(marked.lexer(normalized), new OffsetRange(0, normalized.length));
 	if (normalized.length === text.length) {
 		return ranges;
 	}
@@ -319,6 +384,32 @@ export function getMarkdownCodeRanges(text: string): OffsetRange[] {
 	}
 	toOriginal.push(text.length);
 	return ranges.map(range => new OffsetRange(toOriginal[range.start], toOriginal[range.endExclusive]));
+}
+
+/**
+ * Where a token's text is in the text that was lexed. Block quotes and lists
+ * strip their markers and indentation from the lines of the tokens that they
+ * contain, so the lines of those tokens are found one after another instead.
+ */
+function findTokenText(text: string, raw: string, within: OffsetRange): OffsetRange | undefined {
+	const index = text.indexOf(raw, within.start);
+	if (index !== -1 && index + raw.length <= within.endExclusive) {
+		return new OffsetRange(index, index + raw.length);
+	}
+	let start: number | undefined;
+	let end = within.start;
+	for (const line of raw.split('\n')) {
+		if (!line.trim()) {
+			continue;
+		}
+		const lineIndex = text.indexOf(line, end);
+		if (lineIndex === -1 || lineIndex + line.length > within.endExclusive) {
+			return undefined;
+		}
+		start ??= lineIndex;
+		end = lineIndex + line.length;
+	}
+	return start === undefined ? undefined : new OffsetRange(start, end);
 }
 
 /** The character that follows `offset` in the prompt, skipping anchors that are dropped from it. */

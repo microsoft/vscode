@@ -8,7 +8,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
-import { canOpenAttachment, canShowAttachmentInline, getAttachmentMention, getInlineRequestAttachments, getMarkdownCodeRanges, INLINE_ATTACHMENT_ANCHOR as A, isInlineAttachmentCandidate, projectInlineAttachments } from '../../../common/attachments/chatInlineAttachments.js';
+import { canOpenAttachment, canShowAttachmentInline, getAttachmentMention, getInlineRequestAttachments, getMarkdownCodeRanges, INLINE_ATTACHMENT_ANCHOR as A, isInlineAttachmentCandidate, projectInlineAttachments, recoverAttachmentMentions } from '../../../common/attachments/chatInlineAttachments.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../../../common/attachments/chatVariables.js';
 import { ChatRequestDynamicVariablePart, ChatRequestTextPart, ChatRequestToolPart } from '../../../common/requestParser/chatParserTypes.js';
@@ -163,6 +163,36 @@ suite('Chat inline attachments', () => {
 			{ kind: 'file', id: 'b', name: 'b.ts', value: URI.file('/b.ts') },
 		];
 		assert.deepStrictEqual([...getInlineRequestAttachments(parts, variables, text).keys()], [3]);
+	});
+
+	test('finds code nested in block quotes and lists', () => {
+		const text = '> ```\n> #attachment:a.ts\n> ```\n\n- item `#attachment:b.ts`\n- item\n\n  ```\n  #attachment:c.ts\n  ```\n\n> - quoted `#attachment:d.ts` item';
+		assert.deepStrictEqual(getMarkdownCodeRanges(text).map(range => text.slice(range.start, range.endExclusive)), [
+			'```\n> #attachment:a.ts\n> ```',
+			'`#attachment:b.ts`',
+			'```\n  #attachment:c.ts\n  ```',
+			'`#attachment:d.ts`',
+		]);
+	});
+
+	test('recovers the mentions of attachments in a request whose history kept only its text', () => {
+		const text = 'compare #attachment:index.ts with #attachment:index.ts and #attachment:a.tsx, not `#attachment:a.ts`';
+		const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] };
+		const variables: IChatRequestVariableEntry[] = [
+			{ kind: 'file', id: 'first', name: 'index.ts', value: URI.file('/a/index.ts') },
+			{ kind: 'file', id: 'second', name: 'index.ts', value: URI.file('/b/index.ts') },
+			{ kind: 'file', id: 'short', name: 'a.ts', value: URI.file('/a.ts') },
+			{ kind: 'file', id: 'long', name: 'a.tsx', value: URI.file('/a.tsx') },
+			{ kind: 'image', id: 'image', name: 'shot.png', value: new Uint8Array() },
+		];
+		const recovered = recoverAttachmentMentions(message, variables);
+		assert.deepStrictEqual({
+			parts: recovered.parts.map(part => part instanceof ChatRequestDynamicVariablePart ? `[${part.id}]` : part.text),
+			inline: [...getInlineRequestAttachments(recovered.parts, variables, text).values()].map(variable => variable.id),
+		}, {
+			parts: ['compare ', '[first]', ' with ', '[second]', ' and ', '[long]', ', not `#attachment:a.ts`'],
+			inline: ['first', 'second', 'long'],
+		});
 	});
 
 	test('opens pills only when activating them does something', () => {

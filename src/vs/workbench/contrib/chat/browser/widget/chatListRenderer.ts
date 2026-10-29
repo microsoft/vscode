@@ -56,7 +56,7 @@ import { checkModeOption } from '../../common/chat.js';
 import { IChatAgentMetadata } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatProgressResponseContent, IChatTextEditGroup } from '../../common/model/chatModel.js';
-import { chatSubcommandLeader } from '../../common/requestParser/chatParserTypes.js';
+import { chatSubcommandLeader, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { TerminalToolId } from '../../common/tools/terminalToolIds.js';
 import { ChatAgentVoteDirection, ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatExternalEdit, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPlanReview, IChatPlanReviewResult, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsageModelTotal, isChatFollowup } from '../../common/chatService/chatService.js';
 import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -128,7 +128,7 @@ import { ChatExternalEditContentPart } from './chatContentParts/chatExternalEdit
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatImageGenerationBatchPart } from './chatContentParts/chatImageGenerationBatchPart.js';
 import { ChatInlineAttachmentRenderer, ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdownDecorationsRenderer.js';
-import { getInlineRequestAttachments } from '../../common/attachments/chatInlineAttachments.js';
+import { getInlineRequestAttachments, recoverAttachmentMentions } from '../../common/attachments/chatInlineAttachments.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { autorun, autorunPerKeyedItem, autorunSelfDisposable, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
@@ -3164,11 +3164,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private getRequestMarkdown(element: IChatRequestViewModel, explicitFileOrImageVariables = element.variables.filter(isExplicitFileOrImageVariableEntry), inlineAttachmentParts?: ReadonlySet<number>): string | undefined {
 		const markdown = isChatFollowup(element.message)
 			? element.message.message
-			: this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, element.message, inlineAttachmentParts);
+			: this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, this.getRenderedRequestMessage(element.message, element.variables), inlineAttachmentParts);
 		const attachmentSummary = !element.messageText.trim() && !explicitFileOrImageVariables.length
 			? getExplicitFileOrImageAttachmentSummary(element.variables)
 			: undefined;
 		return markdown.trim() ? markdown : attachmentSummary;
+	}
+
+	/**
+	 * The message of a request as it is rendered. With inline attachments, a
+	 * request whose history kept its text but not its references, as an agent
+	 * host's history does, gets the mentions of its attachments back as
+	 * references, which show as pills.
+	 */
+	private getRenderedRequestMessage(message: IParsedChatRequest, variables: readonly IChatRequestVariableEntry[]): IParsedChatRequest {
+		return this.configService.getValue<boolean>(ChatConfiguration.InlineAttachmentsEnabled) ? recoverAttachmentMentions(message, variables) : message;
 	}
 
 	/**
@@ -3180,7 +3190,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (isChatFollowup(element.message) || !this.configService.getValue<boolean>(ChatConfiguration.InlineAttachmentsEnabled)) {
 			return new Map();
 		}
-		return getInlineRequestAttachments(element.message.parts, element.variables, element.message.text);
+		return getInlineRequestAttachments(this.getRenderedRequestMessage(element.message, element.variables).parts, element.variables, element.message.text);
 	}
 
 	private createInlineRequestAttachmentRenderer(element: IChatRequestViewModel): ChatInlineAttachmentRenderer | undefined {

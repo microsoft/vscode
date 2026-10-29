@@ -15,6 +15,7 @@ import { EditorAutoIndentStrategy } from '../../../../../../../../editor/common/
 import { Position } from '../../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../../editor/common/core/range.js';
 import { MoveLinesCommand } from '../../../../../../../../editor/contrib/linesOperations/browser/moveLinesCommand.js';
+import { CopyLinesCommand } from '../../../../../../../../editor/contrib/linesOperations/browser/copyLinesCommand.js';
 import { createCodeEditorServices, instantiateTestCodeEditor, ITestCodeEditor } from '../../../../../../../../editor/test/browser/testCodeEditor.js';
 import { instantiateTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
 import { IConfigurationService } from '../../../../../../../../platform/configuration/common/configuration.js';
@@ -39,12 +40,18 @@ suite('ChatInlineAttachments', () => {
 	interface ITestInput {
 		readonly editor: ITestCodeEditor;
 		readonly attachments: ChatAttachmentModel;
+		readonly controller: ChatInlineAttachments;
 		readonly instantiationService: TestInstantiationService;
 		/** The prompt that the input stands for, and the ids of its attachments. */
 		state(): { prompt: string; attachments: string[] };
 	}
 
-	function createInput(text: string): ITestInput {
+	/**
+	 * @param showsPills Whether the input's host shows pills, which a host
+	 * whose chat widget does not own the input, such as the Automation dialog's,
+	 * does not.
+	 */
+	function createInput(text: string, showsPills = true): ITestInput {
 		const disposables = store.add(new DisposableStore());
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.InlineAttachmentsEnabled]: true });
 		const instantiationService = createCodeEditorServices(disposables, new ServiceCollection([IConfigurationService, configurationService]));
@@ -69,7 +76,7 @@ suite('ChatInlineAttachments', () => {
 			override refreshParsedInput(): void { }
 		};
 		const controller = disposables.add(instantiationService.createInstance(ChatInlineAttachments, editor, attachments, {
-			widget,
+			widget: showsPills ? widget : undefined,
 			createAttachmentWidget: (attachment: IChatRequestVariableEntry, container: HTMLElement) => {
 				const element = dom.append(container, dom.$('span.chat-attached-context-attachment', undefined, attachment.name));
 				return { element, onDidDelete: Event.None, onDidOpen: Event.None, dispose: () => element.remove() };
@@ -80,6 +87,7 @@ suite('ChatInlineAttachments', () => {
 		return {
 			editor,
 			attachments,
+			controller,
 			instantiationService,
 			state: () => ({
 				prompt: controller.project()?.text ?? editor.getValue(),
@@ -175,5 +183,90 @@ suite('ChatInlineAttachments', () => {
 			removed: { prompt: 'explain ', attachments: [] },
 			undone: { prompt: 'explain #attachment:a.ts ', attachments: ['file:a.ts'] },
 		});
+	});
+
+	test('shows an attachment inline only once a pill stands for it', async () => {
+		const withPills = createInput('explain ');
+		const withoutPills = createInput('explain ', false);
+		const attachment = file('a.ts');
+		for (const input of [withPills, withoutPills]) {
+			input.editor.setPosition(new Position(1, 9));
+			input.attachments.addContext(attachment);
+		}
+		const beforePill = withPills.controller.isShownInline(attachment);
+		await settle();
+
+		assert.deepStrictEqual({
+			beforePill,
+			withPills: { input: withPills.editor.getValue(), shownInline: withPills.controller.isShownInline(attachment) },
+			withoutPills: { input: withoutPills.editor.getValue(), shownInline: withoutPills.controller.isShownInline(attachment) },
+		}, {
+			beforePill: false,
+			withPills: { input: 'explain \uFFFC ', shownInline: true },
+			withoutPills: { input: 'explain ', shownInline: false },
+		});
+	});
+
+	test('copying a line copies the pills on it, which stand for the same attachment', async () => {
+		const input = createInput('review ');
+		input.editor.setPosition(new Position(1, 8));
+		input.attachments.addContext(file('a.ts'));
+		await settle();
+
+		input.editor.setPosition(new Position(1, 1));
+		input.editor.executeCommand('test', new CopyLinesCommand(input.editor.getSelection()!, true));
+		await settle();
+		const copied = input.state();
+
+		input.editor.getModel()!.undo();
+		await settle();
+		const undone = input.state();
+
+		input.editor.getModel()!.redo();
+		await settle();
+		const redone = input.state();
+
+		assert.deepStrictEqual({ copied, undone, redone }, {
+			copied: { prompt: 'review #attachment:a.ts \nreview #attachment:a.ts ', attachments: ['file:a.ts'] },
+			undone: { prompt: 'review #attachment:a.ts ', attachments: ['file:a.ts'] },
+			redone: { prompt: 'review #attachment:a.ts \nreview #attachment:a.ts ', attachments: ['file:a.ts'] },
+		});
+	});
+
+	test('undoing the pills that mentions became leaves each mention standing for its attachment', async () => {
+		const input = createInput('');
+		input.editor.executeEdits('test', [{ range: new Range(1, 1, 1, 1), text: '#attachment:a.ts #attachment:b.ts' }]);
+		input.editor.pushUndoStop();
+		input.attachments.addContext(file('a.ts'), file('b.ts'));
+		await settle();
+		const collapsed = { input: input.editor.getValue(), ...input.state() };
+
+		input.editor.getModel()!.undo();
+		await settle();
+		const undone = { input: input.editor.getValue(), ...input.state() };
+
+		assert.deepStrictEqual({ collapsed, undone }, {
+			collapsed: { input: '\uFFFC \uFFFC', prompt: '#attachment:a.ts #attachment:b.ts', attachments: ['file:a.ts', 'file:b.ts'] },
+			undone: { input: '#attachment:a.ts #attachment:b.ts', prompt: '#attachment:a.ts #attachment:b.ts', attachments: ['file:a.ts', 'file:b.ts'] },
+		});
+	});
+
+	test('undo brings back every pill that an edit removed', async () => {
+		const input = createInput('');
+		input.attachments.addContext(...Array.from({ length: 60 }, (_, i) => file(`f${i}.ts`)));
+		await settle();
+		const added = input.state().attachments.length;
+
+		const model = input.editor.getModel()!;
+		input.editor.executeEdits('test', [{ range: model.getFullModelRange(), text: '' }]);
+		input.editor.pushUndoStop();
+		await settle();
+		const removed = input.state().attachments.length;
+
+		model.undo();
+		await settle();
+		const undone = input.state();
+
+		assert.deepStrictEqual({ added, removed, undone: undone.attachments.length, mentions: undone.prompt.split('#attachment:').length - 1 }, { added: 60, removed: 0, undone: 60, mentions: 60 });
 	});
 });

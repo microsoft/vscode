@@ -6,10 +6,11 @@
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../../../../base/browser/domStylesheets.js';
 import { status } from '../../../../../../../base/browser/ui/aria/aria.js';
+import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { KeyCode } from '../../../../../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, MouseTargetType } from '../../../../../../../editor/browser/editorBrowser.js';
 import { IClipboardCopyEvent } from '../../../../../../../editor/browser/controller/editContext/clipboardUtils.js';
@@ -23,6 +24,7 @@ import { PositionOffsetTransformer } from '../../../../../../../editor/common/co
 import { CursorChangeReason } from '../../../../../../../editor/common/cursorEvents.js';
 import { IEditorDecorationsCollection } from '../../../../../../../editor/common/editorCommon.js';
 import { IIdentifiedSingleEditOperation, IModelDecorationOptions, ITextModel, TrackedRangeStickiness } from '../../../../../../../editor/common/model.js';
+import { IModelContentChange } from '../../../../../../../editor/common/model/mirrorTextModel.js';
 import { localize, localize2 } from '../../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { Action2, registerAction2 } from '../../../../../../../platform/actions/common/actions.js';
@@ -89,8 +91,10 @@ interface IInputChange {
 	readonly redo: boolean;
 	/** The alternative version of the input before the change. */
 	readonly versionBefore: number | undefined;
-	/** How many anchors the change inserted, which are those of pills that it moved or that undo or redo brought back. */
+	/** How many anchors the change inserted, which are those of pills that it moved, copied, or that undo or redo brought back. */
 	readonly insertedAnchors: number;
+	/** Maps an offset in the input before the change to the offset after it. */
+	readonly mapOffset: (offset: number) => number;
 }
 
 /** Hosts the inline attachment pills of a chat input. */
@@ -108,7 +112,6 @@ export interface IChatInlineAttachmentsHost {
 	removeAttachments(attachments: readonly IChatRequestVariableEntry[], explicit: boolean): void;
 }
 
-const maxRemovedPills = 50;
 /** The smallest width that keeps the spacer after an anchor, which must exist to place the cursor after a pill at the end of a line. */
 const minWrapWidthInEm = 0.001;
 const githubContextIdPrefix = 'github-context:';
@@ -138,7 +141,11 @@ export class ChatInlineAttachments extends Disposable {
 	}
 
 	private readonly _pills = new Set<InlineAttachmentPill>();
-	private readonly _removedPills: IRemovedInlineAttachmentPill[] = [];
+	/**
+	 * Pills that edits removed, kept for as long as undoing the edit can bring
+	 * them back, and pills that undo removed, kept for as long as redo can.
+	 */
+	private _removedPills: IRemovedInlineAttachmentPill[] = [];
 	/**
 	 * Attachments shown above the input rather than as pills: those that the
 	 * input carried over when it was replaced as a whole, such as attachments
@@ -174,7 +181,11 @@ export class ChatInlineAttachments extends Disposable {
 	private _pendingAnchors: readonly IInlineAttachmentAnchor[] = [];
 	private _needsRender = false;
 	private _change: IInputChange | undefined;
-	/** The alternative version of the input as of its last change. */
+	/**
+	 * The alternative version of the input when the pills were last reconciled
+	 * with it, which is where the next change starts from. Editors report undo
+	 * and redo before the input takes the version that they go back or forward to.
+	 */
 	private _version: number | undefined;
 	private _lastInsertedTexts: readonly string[] = [];
 	private _lastCursorOffset: number | undefined;
@@ -236,8 +247,10 @@ export class ChatInlineAttachments extends Disposable {
 			for (const pill of this._pills) {
 				pill.followAnchor();
 			}
-			const versionBefore = this._version;
-			this._version = this._editor.getModel()?.getAlternativeVersionId();
+			if (!e.isUndoing && !e.isRedoing && this._removedPills.some(removed => removed.removedByUndo)) {
+				// Any other edit, including this controller's, leaves nothing to redo.
+				this._removedPills = this._removedPills.filter(removed => !removed.removedByUndo);
+			}
 			if (this._isApplyingEdits) {
 				return;
 			}
@@ -251,12 +264,15 @@ export class ChatInlineAttachments extends Disposable {
 			for (const change of e.changes) {
 				insertedAnchors += countAnchors(change.text);
 			}
+			const mapEventOffset = createOffsetMapper(e.changes);
+			const mapChangeOffset = this._change?.mapOffset;
 			this._change = {
 				flush: !!this._change?.flush || e.isFlush,
 				undoRedo: !!this._change?.undoRedo || e.isUndoing || e.isRedoing,
 				redo: !!this._change?.redo || e.isRedoing,
-				versionBefore: this._change ? this._change.versionBefore : versionBefore,
+				versionBefore: this._change ? this._change.versionBefore : this._version,
 				insertedAnchors,
+				mapOffset: mapChangeOffset ? offset => mapEventOffset(mapChangeOffset(offset)) : mapEventOffset,
 			};
 			// Text inserted at once, as when pasted, is not being typed.
 			this._lastInsertedTexts = e.changes.map(change => change.text).filter(text => text.length > 1);
@@ -283,6 +299,10 @@ export class ChatInlineAttachments extends Disposable {
 		this._register(this._attachmentModel.onDidChange(() => this._scheduleReconcile()));
 		this._register(toDisposable(() => this._clearPills()));
 
+		// The pills are not tab stops, so the keys that open the context menu of a pill with focus open the menu of
+		// the pill right before the cursor. This runs before the editor shows its own context menu for these keys.
+		this._register(dom.addDisposableListener(this._editor.getContainerDomNode(), dom.EventType.KEY_DOWN, e => this._showActivePillContextMenu(e), true));
+
 		// Copied text stands for the pills it contains, so it reads as the prompt wherever it is pasted.
 		const copyPrompt = (e: IClipboardCopyEvent) => this._copyPrompt(e);
 		this._register(this._editor.onWillCopy(copyPrompt));
@@ -296,9 +316,15 @@ export class ChatInlineAttachments extends Disposable {
 		return this._isEnabled;
 	}
 
-	/** Whether an attachment is shown as a pill in this input rather than above it. */
+	/**
+	 * Whether an attachment is shown as a pill in this input rather than above
+	 * it: a pill stands for it, or its text does after undo or redo replaced
+	 * the pill with it. An input whose host cannot show pills, or one that has
+	 * not inserted the pill yet, shows the attachment above it.
+	 */
 	isShownInline(attachment: IChatRequestVariableEntry): boolean {
-		return this._isEnabled && canShowAttachmentInline(attachment) && !this._attachmentsShownAbove.has(attachment.id);
+		return this._isEnabled && canShowAttachmentInline(attachment) && !this._attachmentsShownAbove.has(attachment.id)
+			&& (this._hasPillFor(attachment.id) || this._expandedByUndoRedo.has(attachment.id));
 	}
 
 	/**
@@ -419,6 +445,15 @@ export class ChatInlineAttachments extends Disposable {
 		return true;
 	}
 
+	/** Shows the context menu of the pill right before the cursor for Shift+F10 and the Context Menu key, when the pill has one. */
+	private _showActivePillContextMenu(e: KeyboardEvent): void {
+		const event = new StandardKeyboardEvent(e);
+		const isContextMenuKey = e.key === 'ContextMenu' || event.keyCode === KeyCode.ContextMenu || event.equals(KeyMod.Shift | KeyCode.F10);
+		if (isContextMenuKey && this._activePill?.showContextMenu()) {
+			dom.EventHelper.stop(e, true);
+		}
+	}
+
 	/**
 	 * The position in the input at a point in the window, such as where
 	 * something is dropped. A point on a pill is on the side of the pill it is
@@ -493,6 +528,7 @@ export class ChatInlineAttachments extends Disposable {
 			if (this._pills.size) {
 				this._expandPills(model, dynamicVariableModel);
 			}
+			this._version = model.getAlternativeVersionId();
 			return;
 		}
 
@@ -505,7 +541,8 @@ export class ChatInlineAttachments extends Disposable {
 		this._renderPills();
 		this._updateUnavailablePills(widget);
 		this._updateActivePill();
-		this._recordAttachments();
+		this._recordPills(model);
+		this._version = model.getAlternativeVersionId();
 		if (changed) {
 			// Pills that undo or redo restored, which their text would not, change the prompt without changing the input.
 			widget?.refreshParsedInput();
@@ -514,16 +551,22 @@ export class ChatInlineAttachments extends Disposable {
 	}
 
 	/**
-	 * Records the attachment of each pill, so that it can be restored along with
-	 * the pill by undo even when it was removed before the pill was, as the chat
-	 * widget does for the pasted text that a removed reference stood for.
+	 * Records where each pill is, which tells where the next edit took it, and
+	 * its attachment, which undo restores along with the pill even when the
+	 * attachment was removed before the pill was, as the chat widget does for
+	 * the pasted text that a removed reference stood for.
 	 */
-	private _recordAttachments(): void {
+	private _recordPills(model: ITextModel): void {
 		if (!this._pills.size) {
 			return;
 		}
 		const attachments = new Map(this._attachmentModel.attachments.map(attachment => [attachment.id, attachment]));
 		for (const pill of this._pills) {
+			const range = pill.range;
+			if (range && isAnchorRange(model, range)) {
+				pill.lastOffset = model.getOffsetAt(range.getStartPosition());
+				pill.lastLine = model.getLineContent(range.startLineNumber);
+			}
 			pill.attachment = attachments.get(pill.data.id) ?? pill.attachment;
 		}
 	}
@@ -581,7 +624,16 @@ export class ChatInlineAttachments extends Disposable {
 				pill.moveTo(Range.fromPositions(model.getPositionAt(offset), model.getPositionAt(offset + 1)), offset, model.getLineContent(model.getPositionAt(offset).lineNumber));
 				this._pills.add(pill);
 				stale.splice(stale.indexOf(pill), 1);
+				anchors = anchors.filter(anchor => anchor !== offset);
+				insertedAnchors--;
 				changed = true;
+			}
+			// Undo and redo restore copies of pills that they removed, which are already restored.
+			if (!change.undoRedo) {
+				for (const [offset, source] of matchCopiedAnchors(model, this._pills, anchors, insertedAnchors)) {
+					this._addPill(model, { ...source.data }, offset);
+					changed = true;
+				}
 			}
 		}
 		if (!stale.length) {
@@ -644,7 +696,7 @@ export class ChatInlineAttachments extends Disposable {
 	private _recordRemovedPills(model: ITextModel, dynamicVariableModel: ChatDynamicVariableModel | undefined, removed: readonly InlineAttachmentPill[], change: IInputChange, version: number): void {
 		const attachmentsToDelete = new Map<string, IChatRequestVariableEntry>();
 		for (const pill of removed) {
-			const expandedRange = change.undoRedo ? getExpandedRange(model, pill) : undefined;
+			const expandedRange = change.undoRedo ? getExpandedRange(model, pill, change.mapOffset) : undefined;
 			if (expandedRange) {
 				// The text stands for the attachment again, as it did before it became a pill.
 				this._expandedByUndoRedo.add(pill.data.id);
@@ -660,7 +712,6 @@ export class ChatInlineAttachments extends Disposable {
 			const attachment = ownedAttachment ?? (pill.data.reference?.isAttachmentReference ? pill.attachment : undefined);
 			this._removedPills.push({ data: pill.data, offset: pill.lastOffset, attachment, version, removedByUndo: change.undoRedo && !change.redo });
 		}
-		this._removedPills.splice(0, Math.max(0, this._removedPills.length - maxRemovedPills));
 		if (attachmentsToDelete.size) {
 			this._host.removeAttachments([...attachmentsToDelete.values()], !change.undoRedo);
 		}
@@ -820,7 +871,6 @@ export class ChatInlineAttachments extends Disposable {
 			for (const { pill, offset } of removed) {
 				this._removedPills.push({ data: pill.data, offset, attachment: pill.attachment, version, removedByUndo: false });
 			}
-			this._removedPills.splice(0, Math.max(0, this._removedPills.length - maxRemovedPills));
 		}
 		return true;
 	}
@@ -1354,6 +1404,23 @@ class InlineAttachmentPill extends Disposable implements IContentWidget {
 		return !!this._widget && !!this._renderedEntry && canOpenAttachment(this._renderedEntry);
 	}
 
+	/**
+	 * Shows the pill's context menu below it, as right-clicking it does.
+	 *
+	 * @returns Whether the pill has a context menu.
+	 */
+	showContextMenu(): boolean {
+		const element = this._widget?.element;
+		if (!element) {
+			return false;
+		}
+		const rect = element.getBoundingClientRect();
+		// The event does not bubble, so the editor does not show its own context menu for it.
+		const event = new MouseEvent(dom.EventType.CONTEXT_MENU, { cancelable: true, button: 2, clientX: rect.left, clientY: rect.bottom });
+		element.dispatchEvent(event);
+		return event.defaultPrevented;
+	}
+
 	private _measure(): number {
 		return Math.ceil(this._domNode.getBoundingClientRect().width);
 	}
@@ -1409,15 +1476,44 @@ class InlineAttachmentWidthStyles extends Disposable {
 	}
 }
 
-/** The range of the text that a removed pill stood for, when it took the place of the pill's anchor. */
-function getExpandedRange(model: ITextModel, pill: InlineAttachmentPill): Range | undefined {
-	const start = pill.lastOffset;
+/**
+ * The range of the text that a removed pill stood for, when it took the place
+ * of the pill's anchor.
+ *
+ * @param mapOffset Maps where the anchor was to where the change put what
+ * replaced it, which is after the text that took the place of other anchors.
+ */
+function getExpandedRange(model: ITextModel, pill: InlineAttachmentPill, mapOffset: (offset: number) => number): Range | undefined {
+	const start = mapOffset(pill.lastOffset);
 	const end = start + pill.data.text.length;
 	if (end > model.getValueLength()) {
 		return undefined;
 	}
 	const range = Range.fromPositions(model.getPositionAt(start), model.getPositionAt(end));
 	return model.getValueInRange(range) === pill.data.text ? range : undefined;
+}
+
+/**
+ * Maps an offset in a text before changes to the offset after them. The
+ * changes are those of a single edit, whose offsets are in the text before it.
+ * An offset in text that a change replaced maps to where its replacement
+ * starts.
+ */
+function createOffsetMapper(changes: readonly IModelContentChange[]): (offset: number) => number {
+	const sorted = [...changes].sort((a, b) => a.rangeOffset - b.rangeOffset);
+	return offset => {
+		let delta = 0;
+		for (const change of sorted) {
+			if (offset < change.rangeOffset) {
+				break;
+			}
+			if (offset < change.rangeOffset + change.rangeLength) {
+				return change.rangeOffset + delta;
+			}
+			delta += change.text.length - change.rangeLength;
+		}
+		return offset + delta;
+	};
 }
 
 function isAnchorRange(model: ITextModel, range: IRange): boolean {
@@ -1461,6 +1557,36 @@ function matchMovedAnchors(model: ITextModel, pills: readonly InlineAttachmentPi
 	const unmatched = sortedPills.filter(pill => !matches.has(pill));
 	for (let i = 0; i < unmatched.length && i < remaining.length && matches.size < limit; i++) {
 		matches.set(unmatched[i], remaining[i]);
+	}
+	return matches;
+}
+
+/**
+ * Matches anchors that an edit inserted with the pills they were copied from,
+ * as when Copy Line Down copied the line that they are in: the pill at the
+ * same column of another line that reads the same.
+ *
+ * @param limit How many anchors the edit inserted.
+ */
+function matchCopiedAnchors(model: ITextModel, pills: Iterable<InlineAttachmentPill>, anchors: readonly number[], limit: number): Map<number, InlineAttachmentPill> {
+	const matches = new Map<number, InlineAttachmentPill>();
+	if (!anchors.length || limit <= 0) {
+		return matches;
+	}
+	const sources = [...pills];
+	for (const offset of anchors) {
+		if (matches.size >= limit) {
+			break;
+		}
+		const position = model.getPositionAt(offset);
+		const line = model.getLineContent(position.lineNumber);
+		const source = sources.find(pill => {
+			const range = pill.range;
+			return !!range && range.startLineNumber !== position.lineNumber && range.startColumn === position.column && pill.lastLine === line;
+		});
+		if (source) {
+			matches.set(offset, source);
+		}
 	}
 	return matches;
 }
