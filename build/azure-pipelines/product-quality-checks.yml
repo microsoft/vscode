@@ -396,6 +396,11 @@ jobs:
         timeoutInMinutes: 10
         continueOnError: true
 
+      # The NOTICE outputs are already in the artifact staging directory. Remove the
+      # intermediates from the repository so ESLint and hygiene below don't check them.
+      - script: rm -rf .oss-build-out ThirdPartyNotices.generated.txt
+        displayName: Remove NOTICE intermediates
+
       - ${{ if eq(parameters.VSCODE_CHECK_CHANGED_FILES, true) }}:
         - script: node build/azure-pipelines/common/computeChangedSince.ts
           env:
