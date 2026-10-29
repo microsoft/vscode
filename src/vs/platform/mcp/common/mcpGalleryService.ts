@@ -1250,20 +1250,33 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			throw new McpGalleryServerUrlError();
 		}
 
-		const context = await this.requestService.request({
+		const options = {
 			type: 'GET',
 			url: validatedMcpServerUrl,
 			followRedirects: 0,
 			...(mcpGalleryManifest ? { timeout: mcpServerRequestTimeout } : {}),
 			callSite: 'mcpGalleryService.getMcpServer'
-		}, token);
+		};
+		let context = await this.requestService.request(options, token);
 
 		try {
-			// A definitive 404 means the registry authoritatively does not contain this
-			// server. Any other error status (e.g. 401/403/429/5xx) is transient or
-			// undetermined and must throw so callers do not treat it as a "not found".
+			// Only a 404 from the requested endpoint proves absence; the slash-terminated URL below is a guess.
 			if (context.res.statusCode === 404) {
 				return undefined;
+			}
+
+			// Browser fetch hides manual redirects behind status 0; probe only the same URL with a trailing slash.
+			if (context.res.statusCode !== undefined && [0, 301, 302, 303, 307, 308].includes(context.res.statusCode)) {
+				const url = new URL(validatedMcpServerUrl);
+				if (!url.pathname.endsWith('/')) {
+					url.pathname += '/';
+					const canonicalUrl = getMcpServerUrlInGallery(url.href, manifest);
+					if (!canonicalUrl) {
+						throw new McpGalleryServerUrlError();
+					}
+					context.stream.destroy();
+					context = await this.requestService.request({ ...options, url: canonicalUrl }, token);
+				}
 			}
 
 			if (!isSuccess(context)) {

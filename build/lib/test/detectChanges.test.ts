@@ -218,7 +218,8 @@ suite('Detect Changes', () => {
 				'monaco-editor': 'false',
 				'telemetry': 'false',
 			},
-			unskippableJobs: ['changes', 'compile', 'pr-gate'],
+			// Cancel Run only runs when Compile & Hygiene fails.
+			unskippableJobs: ['changes', 'compile', 'cancel-run', 'pr-gate'],
 		});
 	});
 
@@ -345,7 +346,7 @@ suite('Detect Changes', () => {
 			planned: [...tests].filter(([, test]) => test.job.env?.TEST_SELECTION === 'true').map(([check]) => check).sort(),
 			// The macOS and Windows Electron jobs also run the extension host tests, so they skip their node.js
 			// integration tests and Agent Host E2E steps instead.
-			steps: Object.fromEntries(['Linux / Electron', 'macOS / Electron', 'Windows / Electron'].map(check => {
+			steps: Object.fromEntries(['Linux / Electron (node.js)', 'macOS / Electron', 'Windows / Electron'].map(check => {
 				const test = tests.get(check)!;
 				return [check, {
 					nodeIntegrationTests: resolveInput(test, test.job.env?.NODE_INTEGRATION_TESTS),
@@ -369,7 +370,7 @@ suite('Detect Changes', () => {
 			].sort(),
 			steps: {
 				// Linux runs every node.js integration test, and Agent Host E2E in its own job.
-				'Linux / Electron': { nodeIntegrationTests: undefined, agentHostE2E: undefined },
+				'Linux / Electron (node.js)': { nodeIntegrationTests: undefined, agentHostE2E: undefined },
 				'macOS / Electron': { nodeIntegrationTests: selected('selected-node-integration-tests'), agentHostE2E: selected('selected-agent-host-e2e') },
 				// Windows runs Agent Host E2E in its own jobs.
 				'Windows / Electron': { nodeIntegrationTests: selected('selected-node-integration-tests'), agentHostE2E: undefined },
@@ -409,13 +410,16 @@ suite('Detect Changes', () => {
 				'Linux / Copilot Shim': skipsWhenUnaffected('copilot-shim'),
 				'Linux / Electron-Unit (electron)': skipsWhenUnaffected('unit-tests'),
 				'Linux / Electron-Unit (node)': skipsWhenUnaffected('unit-tests'),
-				'Linux / Electron': skipsWhenUnaffected('product-tests'),
+				'Linux / Electron (node.js)': skipsWhenUnaffected('product-tests'),
+				'Linux / Electron (extension host)': skipsWhenUnaffected('product-tests'),
 				'Linux / Agent-Host-E2E': skipsWhenUnaffected('agent-host-e2e'),
-				'Linux / Electron-Smoke (shard 1/2)': skipsWhenUnaffected('product-tests'),
-				'Linux / Electron-Smoke (shard 2/2)': skipsWhenUnaffected('product-tests'),
+				'Linux / Electron-Smoke (shard 1/3)': skipsWhenUnaffected('product-tests'),
+				'Linux / Electron-Smoke (shard 2/3)': skipsWhenUnaffected('product-tests'),
+				'Linux / Electron-Smoke (shard 3/3)': skipsWhenUnaffected('product-tests'),
 				'Linux / Browser-Unit': skipsWhenUnaffected('unit-tests'),
 				'Linux / Browser': skipsWhenUnaffected('browser-integration'),
-				'Linux / Remote': skipsWhenUnaffected('product-tests'),
+				'Linux / Remote (integration)': skipsWhenUnaffected('product-tests'),
+				'Linux / Remote (smoke)': skipsWhenUnaffected('product-tests'),
 				'macOS / Electron-Unit': skipsWhenUnaffected('selected-unit-tests'),
 				'macOS / Electron': skipsWhenUnaffected('electron-tests'),
 				'macOS / Electron-Smoke (shard 1/2)': skipsWhenUnaffected('product-tests'),

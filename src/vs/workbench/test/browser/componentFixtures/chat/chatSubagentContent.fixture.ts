@@ -7,13 +7,15 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { editorBackground, editorForeground } from '../../../../../platform/theme/common/colors/editorColors.js';
 import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { MarkerService } from '../../../../../platform/markers/common/markerService.js';
 import { AgentHostSubagentProgress } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSubagentProgress.js';
@@ -62,7 +64,25 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 		},
 	});
 	instantiationService.stub(ILanguageModelToolsService, instantiationService.get(ILanguageModelToolsService), 'getTool', () => undefined);
+	const commandService = instantiationService.get(ICommandService);
+	instantiationService.stub(ICommandService, {
+		onWillExecuteCommand: commandService.onWillExecuteCommand,
+		onDidExecuteCommand: commandService.onDidExecuteCommand,
+		async executeCommand<R>(id: string, ...args: unknown[]): Promise<R | undefined> {
+			// The JSON extension is not loaded in component fixtures.
+			return id === 'json.validate' ? undefined : commandService.executeCommand<R>(id, ...args);
+		},
+	});
 	const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+	await configurationService.setUserConfiguration('editor', {
+		fontFamily: 'monospace',
+		fontLigatures: false,
+		accessibilitySupport: 'auto',
+		bracketPairColorization: { enabled: false, independentColorPoolPerBracketType: false },
+	});
+	await configurationService.setUserConfiguration('chat', {
+		editor: { fontSize: 13, fontFamily: 'default', fontWeight: 'normal', lineHeight: 20, wordWrap: 'off' },
+	});
 	configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
 	configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', state === 'thinking' ? CollapsedToolsDisplayMode.Always : CollapsedToolsDisplayMode.Off);
 	if (state === 'thinking') {
@@ -99,9 +119,10 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 	if (!response) {
 		throw new Error('Missing fixture response');
 	}
+	const editorOptions = disposableStore.add(instantiationService.createInstance(ChatEditorOptions, undefined, editorForeground, editorBackground, editorBackground));
 	const renderer = disposableStore.add(instantiationService.createInstance(
 		ChatListItemRenderer,
-		upcastPartial<ChatEditorOptions>({}),
+		editorOptions,
 		{ noHeader: true, noFooter: true, restorable: false, readOnly },
 		{
 			getListLength: () => 1,

@@ -14,8 +14,11 @@ import { cacheWarmingJobs, detectMissingCaches, getCaches, type ICacheWarmingJob
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 
 interface IStep {
+	readonly name?: string;
 	readonly uses?: string;
 	readonly run?: string;
+	readonly shell?: string;
+	readonly 'working-directory'?: string;
 	readonly with?: Record<string, string>;
 }
 
@@ -156,6 +159,16 @@ suite('Detect missing caches', () => {
 			return [name, createHash('sha256').update(components.join('|')).digest('hex')];
 		}));
 		assert.deepStrictEqual(actual, expected);
+	});
+
+	test('the Windows cache warmer installs on the Dev Drive of the Windows test jobs', () => {
+		// pr-win32-test.yml explains the step. It must come first, as it needs an empty workspace.
+		const devDrive = (relativePath: string, jobName: string) => {
+			const steps = loadYaml<{ jobs: Record<string, IJob> }>(relativePath).jobs[jobName].steps;
+			const index = steps.findIndex(step => step.name === 'Move the workspace to a Dev Drive');
+			return { index, run: steps[index]?.run, shell: steps[index]?.shell, workingDirectory: steps[index]?.['working-directory'] };
+		};
+		assert.deepStrictEqual(devDrive('.github/workflows/pr-node-modules.yml', 'windows'), devDrive('.github/workflows/pr-win32-test.yml', 'electron-unit'));
 	});
 
 	test('jobs run when one of their caches is missing, has another version or cannot be listed', async () => {
