@@ -620,6 +620,23 @@ suite('SearchModel', () => {
 		assert.strictEqual('helloe', match.replaceString);
 	});
 
+	test('getReplaceString uses the matched occurrence for regExpressions with a lookahead', async () => {
+		const results = [
+			aRawMatch('/1',
+				new TextSearchMatch('plainkey=1234,urlkey%3D1234', [new OneLineRange(1, 8, 9), new OneLineRange(1, 20, 23)]))];
+		instantiationService.stub(ISearchService, searchServiceWithResults(results, { limitHit: false, messages: [], results }));
+		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
+
+		const testObject: SearchModelImpl = instantiationService.createInstance(SearchModelImpl);
+		store.add(testObject);
+		await testObject.search({ contentPattern: { pattern: '(=|%3D)(?=\\d\\d\\d\\d)', isRegExp: true }, type: QueryType.Text, folderQueries }).asyncResults;
+		testObject.replaceString = '$1%2B';
+
+		assert.deepStrictEqual(
+			testObject.searchResult.matches()[0].matches().map(match => match.replaceString),
+			['=%2B', '%3D%2B']);
+	});
+
 	function aRawMatch(resource: string, ...results: ITextSearchMatch[]): IFileMatch {
 		return { resource: createFileUriFromPathFromRoot(resource), results };
 	}
