@@ -9,7 +9,7 @@ import { ICommandAction } from '../../../action/common/action.js';
 import { IMenuItem, isIMenuItem, ISubmenuItem, MenuId, MenuRegistry } from '../../common/actions.js';
 
 export interface IRegistrySnapshot {
-	readonly commands: ReadonlyMap<string, ICommand>;
+	readonly commands: ReadonlyMap<string, ReadonlyMap<ICommand, number>>;
 	readonly menuCommands: ReadonlyMap<string, ICommandAction>;
 	readonly menuItems: ReadonlyMap<MenuId, ReadonlyMap<IMenuItem | ISubmenuItem, number>>;
 	readonly keybindings: ReadonlyMap<IKeybindingItem, number>;
@@ -32,6 +32,11 @@ function getMenuIds(): Iterable<MenuId> {
 	return (MenuId as unknown as { readonly _instances: ReadonlyMap<string, MenuId> })._instances.values();
 }
 
+function getCommandRegistrations(): ReadonlyMap<string, Iterable<ICommand>> {
+	// Each id keeps a stack of registrations, while getCommands() only has the one on top.
+	return (CommandsRegistry as unknown as { readonly _commands: ReadonlyMap<string, Iterable<ICommand>> })._commands;
+}
+
 function getKeybindingRules(): Iterable<IKeybindingRule> {
 	// Rules keep the keybindings of every platform, while getDefaultKeybindings() only has those of the current one.
 	return (KeybindingsRegistry as unknown as { readonly _coreKeybindingRules: Iterable<IKeybindingRule> })._coreKeybindingRules;
@@ -52,7 +57,7 @@ export function takeRegistrySnapshot(): IRegistrySnapshot {
 		}
 	}
 	return {
-		commands: CommandsRegistry.getCommands(),
+		commands: new Map(Array.from(getCommandRegistrations(), ([id, registrations]) => [id, countRegistrations(registrations)])),
 		menuCommands: new Map(MenuRegistry.getCommands()),
 		menuItems,
 		keybindings: countRegistrations(KeybindingsRegistry.getDefaultKeybindings()),
@@ -91,7 +96,9 @@ function describeMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): string 
 
 export function diffRegistrySnapshots(before: IRegistrySnapshot, after: IRegistrySnapshot): string[] {
 	const changes: string[] = [];
-	diffMaps('command', before.commands, after.commands, changes);
+	for (const id of new Set([...before.commands.keys(), ...after.commands.keys()])) {
+		diffCounts(before.commands.get(id), after.commands.get(id), () => `command '${id}'`, changes);
+	}
 	diffMaps('menu command', before.menuCommands, after.menuCommands, changes);
 	const menus = new Set([...before.menuItems.keys(), ...after.menuItems.keys()]);
 	for (const menu of menus) {
