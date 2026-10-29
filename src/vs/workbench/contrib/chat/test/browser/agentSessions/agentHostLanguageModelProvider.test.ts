@@ -943,6 +943,7 @@ suite('AgentHostLanguageModelProvider', () => {
 			const onDidChange = store.add(new Emitter<string>());
 			return {
 				models,
+				selectLanguageModels: async () => [...models.keys()],
 				getLanguageModelIds: () => [...models.keys()],
 				lookupLanguageModel: (identifier: string) => models.get(identifier),
 				onDidChangeLanguageModels: onDidChange.event,
@@ -1079,7 +1080,7 @@ suite('AgentHostLanguageModelProvider', () => {
 			assert.strictEqual(calls.length, 1);
 		});
 
-		test('preserves saved thinkingLevel across both services configuration merges', async () => {
+		test('discovers a cold Copilot counterpart and preserves saved thinkingLevel across both services configuration merges', async () => {
 			const vendor = 'agent-host-copilotcli';
 			const service = store.add(new LanguageModelsService(
 				new class extends mock<IExtensionService>() { override async activateByEvent() { } },
@@ -1126,7 +1127,6 @@ suite('AgentHostLanguageModelProvider', () => {
 				},
 				provideTokenCount: async () => 0,
 			}));
-			await service.selectLanguageModels({ vendor: 'copilot' });
 			const bridge = store.add(new AgentHostLanguageModelProvider(vendor, vendor, service, service));
 			bridge.updateModels([{
 				id: 'test-model', provider: 'copilotcli', name: 'Test Model',
@@ -1139,6 +1139,7 @@ suite('AgentHostLanguageModelProvider', () => {
 			}]);
 			store.add(service.registerLanguageModelProvider(vendor, bridge));
 			await service.selectLanguageModels({ vendor });
+			assert.ok(service.lookupLanguageModel('copilot/test-model'));
 			await service.sendChatRequest(`${vendor}:test-model`, nullExtensionDescription.identifier, [], {}, CancellationToken.None);
 			assert.deepStrictEqual(receivedOptions, { configuration: { reasoningEffort: 'high', contextSize: 200000 } });
 		});
@@ -1201,6 +1202,63 @@ suite('AgentHostLanguageModelProvider', () => {
 			assert.strictEqual(changes, 0);
 		});
 
+		for (const sourceVendor of ['copilot', 'byok']) {
+			test(`discovers ${sourceVendor} authorization before publishing aliases and after provider re-registration`, async () => {
+				const vendor = 'agent-host-copilotcli';
+				const service = store.add(new LanguageModelsService(
+					new class extends mock<IExtensionService>() { override async activateByEvent() { } },
+					new NullLogService(), store.add(new TestStorageService()), store.add(new MockContextKeyService()),
+					new class extends mock<ILanguageModelsConfigurationService>() {
+						override onDidChangeLanguageModelGroups = Event.None;
+						override getLanguageModelsProviderGroups() { return []; }
+					},
+					new class extends mock<IQuickInputService>() { }, store.add(new TestSecretStorageService()),
+					new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+					new class extends mock<IRequestService>() { }, new TestNotificationService(), NullOpenerService, NullTelemetryService,
+				));
+				service.deltaLanguageModelChatProviderDescriptors([vendor, sourceVendor].map(vendor => ({
+					vendor, displayName: vendor, configuration: undefined, managementCommand: undefined, when: undefined,
+				})), []);
+				const owner = new ExtensionIdentifier('provider.extension');
+				const identifier = `${sourceVendor}/model`;
+				let requests = 0;
+				const register = (accountLabel: string) => store.add(service.registerLanguageModelProvider(sourceVendor, {
+					onDidChange: Event.None,
+					provideLanguageModelChatInfo: async () => [{
+						identifier,
+						metadata: {
+							id: 'model', vendor: sourceVendor, extension: owner, name: 'Model', family: 'model', version: '1',
+							maxInputTokens: 1000, maxOutputTokens: 1000, isDefaultForLocation: {},
+							auth: { providerLabel: 'Provider', accountLabel },
+						},
+					}],
+					sendChatRequest: async () => {
+						requests++;
+						return { stream: AsyncIterableObject.fromArray([]), result: Promise.resolve() };
+					},
+					provideTokenCount: async () => 5,
+				}));
+				const firstRegistration = register('First Account');
+				const bridge = store.add(new AgentHostLanguageModelProvider(vendor, vendor, service, service, { isAccessAllowed: () => false }));
+				bridge.updateModels([makeModel('model', sourceVendor === 'byok' ? { byokModelIdentifier: identifier } : undefined)]);
+				store.add(service.registerLanguageModelProvider(vendor, bridge));
+				assert.strictEqual(service.lookupLanguageModel(identifier), undefined);
+				await service.selectLanguageModels({ vendor });
+				const firstAuth = service.lookupLanguageModel(`${vendor}:model`)?.auth;
+				firstRegistration.dispose();
+				register('Second Account');
+				await service.selectLanguageModels({ vendor });
+				const secondAuth = service.lookupLanguageModel(`${vendor}:model`)?.auth;
+				await assert.rejects(bridge.sendChatRequest(`${vendor}:model`, [], new ExtensionIdentifier('consumer.extension'), {}, CancellationToken.None), { code: 'NoPermissions' });
+				await bridge.sendChatRequest(`${vendor}:model`, [], owner, {}, CancellationToken.None);
+				assert.deepStrictEqual({ firstAuth, secondAuth, requests }, {
+					firstAuth: { providerLabel: 'Provider', accountLabel: 'First Account' },
+					secondAuth: { providerLabel: 'Provider', accountLabel: 'Second Account' },
+					requests: 1,
+				});
+			});
+		}
+
 		test('does not reinterpret arbitrary BYOK configuration or forward to another agent-host alias', async () => {
 			const calls: string[] = [];
 			const target = requestTarget(calls);
@@ -1214,6 +1272,20 @@ suite('AgentHostLanguageModelProvider', () => {
 			target.models.set('anthropic/claude-sonnet-4', { ...target.models.get('anthropic/claude-sonnet-4')!, targetChatSessionType: 'other-agent-host' });
 			await assert.rejects(provider.sendChatRequest('agent-host-copilotcli:anthropic/claude-sonnet-4', [], undefined, {}, CancellationToken.None), /does not support direct chat requests/);
 			assert.deepStrictEqual(calls, ['request:anthropic/claude-sonnet-4:{"thinkingLevel":"high","reasoningEffort":"low"}']);
+		});
+
+		test('normalizes Copilot CLI BYOK thinkingLevel when the target only exposes reasoningEffort', async () => {
+			const calls: string[] = [];
+			const target = requestTarget(calls);
+			target.models.set('anthropic/claude-sonnet-4', {
+				...target.models.get('anthropic/claude-sonnet-4')!,
+				configurationSchema: { properties: { reasoningEffort: { type: 'string', enum: ['low', 'high'], default: 'low' } } },
+			});
+			const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'agent-host-copilotcli', target, target));
+			provider.updateModels([makeModel('anthropic/claude-sonnet-4', { byokModelIdentifier: 'anthropic/claude-sonnet-4' })]);
+			await provider.sendChatRequest('agent-host-copilotcli:anthropic/claude-sonnet-4', [], undefined, { configuration: { thinkingLevel: 'high', reasoningEffort: 'low' } }, CancellationToken.None);
+			await assert.rejects(provider.sendChatRequest('agent-host-copilotcli:anthropic/claude-sonnet-4', [], undefined, { configuration: { thinkingLevel: 'max' } }, CancellationToken.None), /reasoning effort is not supported/);
+			assert.deepStrictEqual(calls, ['request:anthropic/claude-sonnet-4:{"reasoningEffort":"high"}']);
 		});
 	});
 });

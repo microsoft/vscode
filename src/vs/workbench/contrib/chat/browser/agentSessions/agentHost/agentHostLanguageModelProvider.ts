@@ -61,7 +61,7 @@ export type IAgentHostModelCatalogue = Pick<ILanguageModelsService, 'getLanguage
  * Sends requests and token counts to workbench models. Lets extensions use an agent-host model
  * directly by running the request on the workbench model the host model stands for.
  */
-export type IAgentHostModelRequestTarget = IAgentHostModelCatalogue & Pick<ILanguageModelsService, 'sendChatRequest' | 'computeTokenLength'>;
+export type IAgentHostModelRequestTarget = IAgentHostModelCatalogue & Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest' | 'computeTokenLength'>;
 
 /**
  * Exposes models available from the agent host process as selectable
@@ -154,6 +154,9 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	}
 
 	async provideLanguageModelChatInfo(_options: unknown, _token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
+		if (this._requestTarget) {
+			await this._resolveRequestTargets([...this._models, ...this._additionalModels]);
+		}
 		const hostModelIds = new Set(this._models.map(model => model.id));
 		const additionalModels = new Map(this._additionalModels.map(model => [model.id, model]));
 		return [...this._models, ...this._additionalModels.filter(model => !hostModelIds.has(model.id))]
@@ -484,6 +487,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	}
 
 	async sendChatRequest(modelId: string, messages: IChatMessage[], from: ExtensionIdentifier | undefined, options: ILanguageModelChatRequestOptions, token: CancellationToken): Promise<ILanguageModelChatResponse> {
+		await this._resolveRequestTargets(this._modelsForRequest(modelId));
 		const target = this._requestTargetFor(modelId);
 		if (!target || !this._requestTarget) {
 			throw new Error(`Agent-host model '${modelId}' does not support direct chat requests`);
@@ -498,7 +502,9 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		// Keep only the configuration the target model understands; the service adds the target's own.
 		const properties = target.metadata.configurationSchema?.properties ?? {};
 		const sourceConfiguration = options.configuration && { ...options.configuration };
-		if (sourceConfiguration?.thinkingLevel !== undefined && target.model.provider === COPILOT_CLI_AGENT_PROVIDER_ID && readAgentModelByokIdentifier(target.model) === undefined && target.metadata.vendor === COPILOT_VENDOR_ID) {
+		const isNativeCopilot = readAgentModelByokIdentifier(target.model) === undefined && target.metadata.vendor === COPILOT_VENDOR_ID;
+		const isByokEffortAlias = readAgentModelByokIdentifier(target.model) !== undefined && !!properties.reasoningEffort && !properties.thinkingLevel;
+		if (sourceConfiguration?.thinkingLevel !== undefined && target.model.provider === COPILOT_CLI_AGENT_PROVIDER_ID && (isNativeCopilot || isByokEffortAlias)) {
 			const reasoningEffort = properties.reasoningEffort;
 			if (!reasoningEffort || typeof sourceConfiguration.thinkingLevel !== 'string' || (reasoningEffort.enum && !reasoningEffort.enum.includes(sourceConfiguration.thinkingLevel))) {
 				throw new Error(localize('agentHost.unsupportedReasoningEffort', "The selected reasoning effort is not supported for direct requests to model '{0}'.", modelId));
@@ -511,8 +517,36 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	}
 
 	async provideTokenCount(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number> {
+		await this._resolveRequestTargets(this._modelsForRequest(modelId));
 		const target = this._requestTargetFor(modelId);
 		return target && this._requestTarget ? this._requestTarget.computeTokenLength(target.identifier, message, token) : 0;
+	}
+
+	private _modelsForRequest(modelId: string): SessionModelInfo[] {
+		const prefix = `${this._vendor}:`;
+		const rawId = modelId.startsWith(prefix) ? modelId.slice(prefix.length) : modelId;
+		const model = [...this._models, ...this._additionalModels].find(candidate => candidate.id === rawId);
+		return model ? [model] : [];
+	}
+
+	private async _resolveRequestTargets(models: readonly SessionModelInfo[]): Promise<void> {
+		if (!this._requestTarget) {
+			return;
+		}
+		const vendors = new Set<string>();
+		for (const model of models) {
+			if (model.id === AUTO_RAW_MODEL_ID || model.policyState === 'disabled' || this._requestTargetFor(model.id)) {
+				continue;
+			}
+			const byokIdentifier = readAgentModelByokIdentifier(model);
+			const slash = byokIdentifier?.indexOf('/') ?? -1;
+			const vendor = byokIdentifier !== undefined ? (slash > 0 ? byokIdentifier.slice(0, slash) : undefined) :
+				model.provider === COPILOT_CLI_AGENT_PROVIDER_ID || this._modelGroupFor(model)?.id === COPILOT_VENDOR_ID ? COPILOT_VENDOR_ID : undefined;
+			if (vendor && vendor !== this._vendor && !vendor.startsWith('agent-host-')) {
+				vendors.add(vendor);
+			}
+		}
+		await Promise.all([...vendors].map(vendor => this._requestTarget?.selectLanguageModels({ vendor })));
 	}
 
 	/**
@@ -522,9 +556,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	 */
 	private _requestTargetFor(modelId: string): { identifier: string; metadata: ILanguageModelChatMetadata; model: SessionModelInfo } | undefined {
 		const target = this._requestTarget;
-		const prefix = `${this._vendor}:`;
-		const rawId = modelId.startsWith(prefix) ? modelId.slice(prefix.length) : modelId;
-		const model = [...this._models, ...this._additionalModels].find(candidate => candidate.id === rawId);
+		const [model] = this._modelsForRequest(modelId);
 		if (!target || !model || model.id === AUTO_RAW_MODEL_ID || model.policyState === 'disabled') {
 			return undefined;
 		}
