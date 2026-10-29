@@ -16,7 +16,7 @@ import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { PluginFormat, type IMcpServerDefinition, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
+import { PluginFormat, toParsedAgent, type IMcpServerDefinition, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService, type IFileContent } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -53,7 +53,8 @@ import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { CopilotSessionSandbox } from '../../node/copilot/copilotSessionSandbox.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
-import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAutoTier, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
 import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -1695,6 +1696,48 @@ suite('CopilotSessionLauncher Connectors', () => {
 		});
 	}
 
+});
+
+suite('getCopilotAgentSelectionName', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('maps forwarded URI selections to unique SDK names while preserving native SDK IDs', () => {
+		const uris = ['first', 'second'].map(source => URI.parse(`client-agent:/${source}`));
+		const nativeUri = URI.parse('sdk-native:/reviewer');
+		const customizations = {
+			plugins: [],
+			discoveredAgents: uris.map(uri => toParsedAgent({ uri, name: 'Friendly Reviewer' })),
+			nativeAgents: [{ type: CustomizationType.Agent, id: 'opaque-native-sdk-id', uri: nativeUri.toString(), name: 'Friendly Reviewer' } as const],
+			additionalRootInstructions: [],
+		};
+		assert.deepStrictEqual([...uris, nativeUri, URI.parse('client-agent:/missing')].map(uri =>
+			getCopilotAgentSelectionName(customizations, uri.toString())),
+		[...uris.map(uri => getSdkCustomAgentName(uri)), 'opaque-native-sdk-id', undefined]);
+	});
+
+	test('keeps plugin and standalone SDK identities stable across cache revisions', () => {
+		const sourceUri = URI.parse('client-plugin:/stable-source');
+		const expected = getSdkCustomAgentName(URI.joinPath(sourceUri, 'agents', 'shared.agent.md'));
+		const results = [false, true].flatMap(standalone => ['old', 'new'].map(revision => {
+			const root = URI.file(`/cache/${revision}`);
+			const uri = URI.joinPath(root, 'agents', 'shared.agent.md');
+			const customizations = {
+				plugins: [{
+					format: PluginFormat.OpenPlugin, sourceUri, nonce: revision,
+					pluginDir: standalone ? undefined : root,
+					resourceDir: standalone ? root : undefined,
+					agents: [toParsedAgent({ uri, name: 'Friendly Reviewer' })],
+					skills: [], hooks: [], instructions: [], mcpServers: [],
+				}],
+				discoveredAgents: [], additionalRootInstructions: [],
+			};
+			return {
+				registered: getCopilotCustomAgents(customizations)[0].sdkName,
+				selected: getCopilotAgentSelectionName(customizations, uri.toString()),
+			};
+		}));
+		assert.deepStrictEqual(results, Array.from({ length: 4 }, () => ({ registered: expected, selected: expected })));
+	});
 });
 
 suite('CopilotSessionLauncher shared session config', () => {
@@ -3755,7 +3798,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		];
 		assert.deepStrictEqual({
 			equivalent: changes.map(tools => isDeepStrictEqual(appliedConfiguration.sessionConfig, appliedConfiguration.resolve(tools).sessionConfig)),
-			agentTools: configuration.sessionConfig.customAgents.find(agent => agent.name === 'reviewer')?.tools,
+			agentTools: configuration.sessionConfig.customAgents.find(agent => agent.name === getSdkCustomAgentName(uri))?.tools,
 			reads,
 		}, { equivalent: [true, true, true, false, false], agentTools: ['zetaRead'], reads: 1 });
 	});

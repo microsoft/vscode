@@ -56,6 +56,7 @@ import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolve
 import { hasCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore } from './copilotBuiltinAgents.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
@@ -10151,11 +10152,12 @@ class PluginController extends Disposable {
 
 	public async resolveSyncedCustomization(item: ISyncedCustomization, clientId: string, input: ClientPluginCustomization | undefined): Promise<IResolvedCustomization> {
 		const baseCustomization: PluginCustomization = { ...item.customization, clientId };
-		if (!item.pluginDir) {
+		const pluginDir = item.pluginDir;
+		if (!pluginDir) {
 			return { customization: baseCustomization, input };
 		}
 
-		const parsed = await this.tryParsePlugin(item.pluginDir);
+		const parsed = await this.tryParsePlugin(pluginDir, false);
 		if (!parsed) {
 			return {
 				customization: {
@@ -10169,17 +10171,31 @@ class PluginController extends Disposable {
 		return {
 			customization: {
 				...baseCustomization,
-				children: toChildCustomizations([parsed]),
+				children: toChildCustomizations([parsed]).map(child => {
+					if (child.type !== CustomizationType.Agent) {
+						return child;
+					}
+					const resource = URI.parse(child.uri);
+					const path = extUriBiasedIgnorePathCase.isEqualOrParent(resource, pluginDir)
+						? extUriBiasedIgnorePathCase.relativePath(pluginDir, resource) : undefined;
+					return path === undefined ? child : {
+						...child,
+						_meta: {
+							...child._meta,
+							...toAgentCustomizationMeta({ 'vscode.sourceUri': resourceJoinPath(URI.parse(baseCustomization.uri), path).toString() }),
+						},
+					};
+				}),
 			},
-			pluginDir: item.pluginDir,
+			pluginDir,
 			plugin: parsed,
 			input,
 		};
 	}
 
-	public async tryParsePlugin(pluginDir: URI): Promise<IParsedPlugin | undefined> {
+	public async tryParsePlugin(pluginDir: URI, deduplicateAgentsByName = true): Promise<IParsedPlugin | undefined> {
 		try {
-			return await parsePlugin(pluginDir, this._fileService, undefined, this.getUserHome(), pluginDir);
+			return await parsePlugin(pluginDir, this._fileService, undefined, this.getUserHome(), pluginDir, { deduplicateAgentsByName });
 		} catch (error) {
 			this._logService.warn(`[Copilot:PluginController] Error parsing plugin '${pluginDir.toString()}': ${error instanceof Error ? error.message : String(error)}`);
 			return undefined;

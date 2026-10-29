@@ -47,7 +47,7 @@ import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyServi
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
-import { mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories } from './copilotPluginConverters.js';
+import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories, type ISdkCustomAgentResource } from './copilotPluginConverters.js';
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from './copilotSessionWrapper.js';
 import type { ILocalModelProvider, ILocalModelSessionConfigContribution } from './localModelBridge/localModelProvider.js';
@@ -222,17 +222,21 @@ function clientToolRegistrationNames(tools: readonly ToolDefinition[]): Readonly
 	}));
 }
 
-export function getCopilotCustomAgents(customizations: ICopilotAppliedCustomizations): readonly IParsedAgent[] {
+export function getCopilotCustomAgents(customizations: ICopilotAppliedCustomizations): readonly (IParsedAgent & ISdkCustomAgentResource)[] {
 	return [
-		...customizations.plugins.flatMap(plugin => plugin.agents),
+		...customizations.plugins.flatMap(plugin => plugin.agents.map(agent => ({ ...agent, sdkName: getSdkCustomAgentName(agent.uri, plugin) }))),
 		...customizations.discoveredAgents,
-	];
+	].filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.name));
 }
 
 export function getCopilotAgentSelectionName(customizations: ICopilotAppliedCustomizations, uri: string): string | undefined {
 	const resource = URI.parse(uri);
-	return customizations.nativeAgents?.find(agent => isEqual(URI.parse(agent.uri), resource))?.id
-		?? getCopilotCustomAgents(customizations).find(agent => isEqual(agent.uri, resource))?.name;
+	const native = customizations.nativeAgents?.find(agent => isEqual(URI.parse(agent.uri), resource));
+	if (native) {
+		return native.id;
+	}
+	const forwarded = getCopilotCustomAgents(customizations).find(agent => isEqual(agent.uri, resource));
+	return forwarded ? forwarded.sdkName ?? getSdkCustomAgentName(forwarded.uri) : undefined;
 }
 
 /**
@@ -1539,7 +1543,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true,
 			bridgedPermissions).permissions;
 		const additionalDirectories = plan.additionalDirectories?.map(d => d.fsPath);
-		const authoredCustomAgents = pluginCustomAgents.filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.name));
+		const authoredCustomAgents = pluginCustomAgents.filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.displayName ?? agent.name));
 		const resolveToolConfiguration = (published: readonly ToolDefinition[], clientTools: readonly Tool[] = []): ICopilotResolvedClientToolConfiguration => {
 			// Withheld tools are absent from every derived setting, so the runtime keeps its built-in replacement excluded.
 			const definitions = withheldClientToolNames.size ? published.filter(tool => !isWithheldClientTool(tool, withheldClientToolNames)) : published;
