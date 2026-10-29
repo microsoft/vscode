@@ -45,6 +45,27 @@ export type SettingValue = string | number | boolean | readonly string[] | Reado
 export type WorkspaceSettings = Partial<Record<SettingName, SettingValue>>;
 
 /**
+ * Packages exempt from `minimumReleaseAge`: first-party packages that are bumped on purpose, often
+ * to a prerelease published the same day, and the agent SDKs, which build/agent-sdk pins in lockstep
+ * with the root (not embargoed). An install root gets the patterns that match a package it installs
+ * (see {@link getMinimumReleaseAgeExclude}).
+ */
+export const minimumReleaseAgeExclusions: readonly string[] = [
+	'@anthropic-ai/*',
+	'@github/copilot*',
+	'@openai/codex*',
+	'@playwright/*',
+	'@typescript/*',
+	'@vscode/*',
+	'@xterm/*',
+	'electron',
+	'node-pty',
+	'playwright*',
+	'typescript',
+	'vscode-*-languageservice',
+];
+
+/**
  * Settings shared by every pnpm install root.
  */
 export const sharedSettings: WorkspaceSettings = {
@@ -64,22 +85,6 @@ export const sharedSettings: WorkspaceSettings = {
 	engineStrict: false,
 	// npm: min-release-age=7 (days) in build, remote/web, test/monaco and most extensions.
 	minimumReleaseAge: 7 * 24 * 60,
-	// First-party packages that are bumped on purpose, often to a prerelease published the same day,
-	// and the agent SDKs, which build/agent-sdk pins in lockstep with the root (not embargoed).
-	minimumReleaseAgeExclude: [
-		'@anthropic-ai/*',
-		'@github/copilot*',
-		'@openai/codex*',
-		'@playwright/*',
-		'@typescript/*',
-		'@vscode/*',
-		'@xterm/*',
-		'electron',
-		'node-pty',
-		'playwright*',
-		'typescript',
-		'vscode-*-languageservice',
-	],
 	// An install script that is not approved in allowBuilds fails the install.
 	strictDepBuilds: true,
 	// pnpm keys cached build results by platform, architecture, Node.js major and dependencies, but
@@ -413,6 +418,18 @@ export interface InstallRootOptions {
 }
 
 /**
+ * Returns the `minimumReleaseAgeExclude` of an install root: the patterns of `exclusions` that match
+ * the name of a package installed by one of its projects, in their original order.
+ */
+export function getMinimumReleaseAgeExclude(folders: readonly NpmFolder[], exclusions: readonly string[]): string[] {
+	const installed = new Set(folders.flatMap(f => getInstalledPackages(f.lockfile).flatMap(p => [p.name, p.alias])));
+	return exclusions.filter(pattern => {
+		const matcher = new RegExp(`^${pattern.split('*').map(part => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`);
+		return [...installed].some(name => matcher.test(name));
+	});
+}
+
+/**
  * Returns the `patchedDependencies` of an install root: the patches whose package is installed by
  * one of its projects, with the patch file relative to the root.
  */
@@ -436,10 +453,12 @@ export function computeWorkspaceSettings(folders: readonly NpmFolder[], notes: C
 	const allowBuilds = mergeAllowBuilds(folders, notes);
 	const overrides = mergeOverrides(folders, notes, satisfies);
 	const patchedDependencies = getPatchedDependencies(folders, options.dependencyPatches ?? {});
+	const minimumReleaseAgeExclude = getMinimumReleaseAgeExclude(folders, minimumReleaseAgeExclusions);
 	return {
 		...(members.length > 0 ? { packages: members } : {}),
 		...(options.hasPnpmfile ? { pnpmfile: pnpmfileName } : {}),
 		...sharedSettings,
+		...(minimumReleaseAgeExclude.length > 0 ? { minimumReleaseAgeExclude } : {}),
 		...(options.installsOtherRoots ? { optimisticRepeatInstall: false } : {}),
 		...(Object.keys(allowBuilds).length > 0 ? { allowBuilds } : {}),
 		...(Object.keys(overrides).length > 0 ? { overrides } : {}),
