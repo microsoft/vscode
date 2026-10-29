@@ -422,6 +422,27 @@ suite('Sessions - Headers', () => {
 		});
 	});
 
+	test('middle-clicking a session title input preserves the rename and session', () => {
+		const { header, closedSessions } = createHarness(disposables, { supportsMultipleChats: false, supportsRename: true });
+		header.startTitleEditing();
+		const input = header.element.querySelector<HTMLInputElement>('.chat-composite-bar-session-title-input')!;
+		const middleClick = new MouseEvent(EventType.AUXCLICK, { bubbles: true, button: 1, cancelable: true });
+
+		const dispatchResult = input.dispatchEvent(middleClick);
+
+		assert.deepStrictEqual({
+			closedSessions,
+			defaultPrevented: middleClick.defaultPrevented,
+			dispatchResult,
+			renameInputStillVisible: header.element.querySelector('.chat-composite-bar-session-title-input') === input,
+		}, {
+			closedSessions: [],
+			defaultPrevented: false,
+			dispatchResult: true,
+			renameInputStillVisible: true,
+		});
+	});
+
 	test('targets session actions at the session and chat actions at the represented chat', () => {
 		const { store, instantiationService, header, session, activeChat, mainChat, secondChat } = createHarness(disposables);
 		const contextKeyService = instantiationService.get(IContextKeyService);

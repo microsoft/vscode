@@ -175,7 +175,7 @@ export class SessionHeaderBar extends Disposable {
 			this.startTitleEditing();
 		}));
 		this._register(addDisposableListener(this._titleEl, EventType.AUXCLICK, e => {
-			if (e.button !== 1 || !this._closeSession) {
+			if (e.button !== 1 || !this._closeSession || this._renameInput?.contains(e.target as Node)) {
 				return;
 			}
 			EventHelper.stop(e, true);
