@@ -2486,11 +2486,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Separate floating controls from transcript content without masking the list,
-	so the treatment remains stable while content streams or scrolls. During the
-	pet's run cycle, the overlay paints the same fade beneath the pet. */
+	so the treatment remains stable while content streams or scrolls. */
 .interactive-session .chat-sticky-progress:not(:empty)::before,
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
 	content: '';
 	position: absolute;
 	inset-inline: 0;
@@ -2508,24 +2506,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	bottom: 0;
 }
 
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {
-	bottom: calc(100% - var(--vscode-spacing-size40));
-	height: calc(var(--vscode-chat-persistent-content-height, 0px) + var(--vscode-spacing-size160));
-}
-
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer ~ .chat-input-persistent-content.chat-persistent-content-visible::before {
-	content: none;
-}
-
 .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content > * {
 	position: relative;
 	z-index: 1;
 }
 
 .hc-black .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
-.hc-light .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
-.hc-black .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before,
-.hc-light .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {
+.hc-light .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
 	background: var(--vscode-chat-list-background, var(--vscode-editor-background));
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 	box-sizing: border-box;
