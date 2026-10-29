@@ -85,6 +85,9 @@ import { NullTelemetryService } from '../../../../../../platform/telemetry/commo
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
+import { ISecretStorageService } from '../../../../../../platform/secrets/common/secrets.js';
+import { TestSecretStorageService } from '../../../../../../platform/secrets/test/common/testSecretStorageService.js';
+import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -23525,6 +23528,8 @@ suite('AgentHostChatContribution', () => {
 					}],
 				},
 			});
+			instantiationService.stub(IMcpService, { servers: constObservable([]) });
+			instantiationService.stub(ISecretStorageService, new TestSecretStorageService());
 			instantiationService.stub(IAuthenticationMcpAccessService, {
 				isAccessAllowedForUrl: () => true,
 			});
@@ -23627,6 +23632,8 @@ suite('AgentHostChatContribution', () => {
 					},
 				},
 			});
+			instantiationService.stub(IMcpService, { servers: constObservable([]) });
+			instantiationService.stub(ISecretStorageService, new TestSecretStorageService());
 			instantiationService.stub(IAuthenticationMcpAccessService, {
 				isAccessAllowedForUrl: () => true,
 			});
