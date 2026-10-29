@@ -11,7 +11,7 @@ import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { MacLinuxKeyboardMapper } from '../../common/macLinuxKeyboardMapper.js';
 import { IResolvedKeybinding, assertMapping, assertResolveKeyboardEvent, assertResolveKeybinding, readRawMapping } from './keyboardMapperTestUtils.js';
-import { IMacLinuxKeyboardMapping } from '../../../../../platform/keyboardLayout/common/keyboardLayout.js';
+import { IMacKeyMapping, IMacLinuxKeyboardMapping } from '../../../../../platform/keyboardLayout/common/keyboardLayout.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 const WRITE_FILE_IF_DIFFERENT = false;
@@ -43,6 +43,24 @@ suite('keyboardMapper - MAC de_ch', () => {
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
 		assertResolveKeybinding(mapper, decodeKeybinding(k, OperatingSystem.Macintosh)!, expected);
 	}
+
+	test('unstable Swiss punctuation does not gain a shifted accelerator', () => {
+		const unshifted = mapper.resolveKeybinding(new Keybinding([new ScanCodeChord(false, false, false, true, ScanCode.Minus)]))[0];
+		const shifted = mapper.resolveKeybinding(new Keybinding([new ScanCodeChord(false, true, false, true, ScanCode.Minus)]))[0];
+		assert.deepStrictEqual({
+			unshiftedMenu: unshifted.getElectronAccelerator(),
+			unshiftedGlobal: unshifted.getElectronAccelerator('globalShortcut'),
+			shiftedMenu: shifted.getElectronAccelerator(),
+			shiftedGlobal: shifted.getElectronAccelerator('globalShortcut'),
+			shiftedDispatch: shifted.getDispatchChords(),
+		}, {
+			unshiftedMenu: 'Cmd+\'',
+			unshiftedGlobal: null,
+			shiftedMenu: null,
+			shiftedGlobal: null,
+			shiftedDispatch: ['shift+meta+[Minus]'],
+		});
+	});
 
 	test('kb => hw', () => {
 		// unchanged
@@ -213,7 +231,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 			[{
 				label: '⇧⌘\'',
 				ariaLabel: 'Shift+Command+\'',
-				electronAccelerator: 'Shift+Cmd+\'',
+				electronAccelerator: null,
 				userSettingsLabel: 'shift+cmd+[Minus]',
 				isWYSIWYG: false,
 				isMultiChord: false,
@@ -1809,58 +1827,122 @@ suite('keyboardMapper - MAC layout-dependent accelerators', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function resolveElectronAccelerator(value: string, withShift: string, shiftKey = false, valueIsDeadKey = false): string | null {
+	function resolve(mapping: Partial<IMacKeyMapping>, modifiers: { shiftKey?: boolean; altKey?: boolean } = {}, OS = OperatingSystem.Macintosh) {
 		const mapper = new MacLinuxKeyboardMapper(false, {
 			Equal: {
-				value,
-				valueIsDeadKey,
-				withShift,
+				value: '+',
+				valueIsDeadKey: false,
+				withShift: ':',
 				withShiftIsDeadKey: false,
 				withAltGr: '',
 				withAltGrIsDeadKey: false,
 				withShiftAltGr: '',
 				withShiftAltGrIsDeadKey: false,
+				...mapping
 			}
-		}, false, OperatingSystem.Macintosh);
+		}, false, OS);
 
-		const keybinding = mapper.resolveKeyboardEvent({
+		return mapper.resolveKeyboardEvent({
 			_standardKeyboardEventBrand: true,
 			ctrlKey: false,
-			shiftKey,
-			altKey: false,
+			shiftKey: modifiers.shiftKey ?? false,
+			altKey: modifiers.altKey ?? false,
 			metaKey: true,
 			altGraphKey: false,
 			keyCode: KeyCode.DependsOnKbLayout,
 			code: 'Equal'
 		});
-
-		return keybinding.getElectronAccelerator();
 	}
 
-	test('uses the produced character when the scan code has no stable key code', () => {
-		assert.deepStrictEqual({
-			plus: resolveElectronAccelerator('+', ':'),
-			space: resolveElectronAccelerator(' ', ':'),
-			digit: resolveElectronAccelerator('1', ':'),
-			questionMark: resolveElectronAccelerator('?', 'é'),
-			shiftedApostrophe: resolveElectronAccelerator('\'', '?', true),
-			shiftedPlus: resolveElectronAccelerator('+', ':', true),
-			shiftedExclamationMark: resolveElectronAccelerator('!', ':', true),
-			deadKey: resolveElectronAccelerator('`', ':', false, true),
-			uppercase: resolveElectronAccelerator('A', ':'),
-			unsupported: resolveElectronAccelerator('é', 'É'),
-		}, {
-			plus: 'Cmd+Plus',
-			space: 'Cmd+Space',
-			digit: 'Cmd+1',
-			questionMark: 'Cmd+?',
-			shiftedApostrophe: 'Shift+Cmd+\'',
-			shiftedPlus: null,
-			shiftedExclamationMark: null,
-			deadKey: null,
-			uppercase: null,
-			unsupported: null,
+	const cases: { name: string; mapping: Partial<IMacKeyMapping>; modifiers?: { shiftKey?: boolean; altKey?: boolean }; expected: string | null }[] = [
+		{ name: 'plus', mapping: {}, expected: 'Cmd+Plus' },
+		{ name: 'space', mapping: { value: ' ' }, expected: 'Cmd+Space' },
+		{ name: 'digit', mapping: { value: '1' }, expected: 'Cmd+1' },
+		{ name: 'question mark', mapping: { value: '?', withShift: 'é' }, expected: 'Cmd+?' },
+		{ name: 'shifted apostrophe', mapping: { value: '\'', withShift: '?' }, modifiers: { shiftKey: true }, expected: null },
+		{ name: 'shifted plus', mapping: {}, modifiers: { shiftKey: true }, expected: null },
+		{ name: 'shifted exclamation mark', mapping: { value: '!' }, modifiers: { shiftKey: true }, expected: null },
+		{ name: 'base dead key', mapping: { value: '`', valueIsDeadKey: true }, expected: null },
+		{ name: 'shift dead key', mapping: { value: '\'', withShift: '?', withShiftIsDeadKey: true }, modifiers: { shiftKey: true }, expected: null },
+		{ name: 'option dead key', mapping: { withAltGrIsDeadKey: true }, modifiers: { altKey: true }, expected: null },
+		{ name: 'shift option dead key', mapping: { withShiftAltGrIsDeadKey: true }, modifiers: { shiftKey: true, altKey: true }, expected: null },
+		{ name: 'inactive dead key', mapping: { withAltGrIsDeadKey: true }, expected: 'Cmd+Plus' },
+		{ name: 'uppercase', mapping: { value: 'A' }, expected: null },
+		{ name: 'non-ASCII', mapping: { value: 'é', withShift: 'É' }, expected: null },
+		{ name: 'CJK bracket', mapping: { value: '【', withShift: '「' }, expected: null },
+		{ name: 'CJK punctuation', mapping: { value: '。', withShift: '；' }, expected: null },
+		{ name: 'multiple characters', mapping: { value: '+x' }, expected: null },
+		{ name: 'empty value', mapping: { value: '' }, expected: null },
+	];
+
+	for (const { name, mapping, modifiers, expected } of cases) {
+		test(name, () => {
+			const keybinding = resolve(mapping, modifiers);
+			assert.deepStrictEqual({
+				menu: keybinding.getElectronAccelerator(),
+				explicitMenu: keybinding.getElectronAccelerator('menu'),
+				global: keybinding.getElectronAccelerator('globalShortcut'),
+			}, { menu: expected, explicitMenu: expected, global: null });
 		});
+	}
+
+	test('does not enable the character fallback on Linux', () => {
+		assert.strictEqual(resolve({}, {}, OperatingSystem.Linux).getElectronAccelerator(), null);
+	});
+});
+
+suite('keyboardMapper - MAC pt_pt', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	let mapper: MacLinuxKeyboardMapper;
+
+	suiteSetup(async () => {
+		// Captured from com.apple.keylayout.Portuguese on macOS 27.0.1 (26A434), keyboard type 40.
+		// TIS/UCKeyTranslate follows native-keymap's dead-key handling without selecting the input source.
+		mapper = await createKeyboardMapper(false, 'mac_pt_pt.json', false, OperatingSystem.Macintosh);
+	});
+
+	test('Portuguese Zoom In keeps physical dispatch and uses a menu-only plus', () => {
+		const binding = mapper.resolveKeybinding(new Keybinding([new ScanCodeChord(false, false, false, true, ScanCode.Equal)]))[0];
+		assert.deepStrictEqual({
+			menu: binding.getElectronAccelerator(),
+			global: binding.getElectronAccelerator('globalShortcut'),
+			dispatch: binding.getDispatchChords(),
+			settings: binding.getUserSettingsLabel(),
+			label: binding.getLabel(),
+		}, {
+			menu: 'Cmd+Plus',
+			global: null,
+			dispatch: ['meta+[Equal]'],
+			settings: 'cmd+[Equal]',
+			label: '⌘+',
+		});
+	});
+
+	test('shifted physical plus remains unsupported', () => {
+		const binding = mapper.resolveKeybinding(new Keybinding([new ScanCodeChord(false, true, false, true, ScanCode.Equal)]))[0];
+		assert.deepStrictEqual({
+			menu: binding.getElectronAccelerator(),
+			global: binding.getElectronAccelerator('globalShortcut'),
+			dispatch: binding.getDispatchChords(),
+		}, { menu: null, global: null, dispatch: ['shift+meta+[Equal]'] });
+	});
+
+	test('Option plus keeps its menu modifiers without enabling a global shortcut', () => {
+		const binding = mapper.resolveKeybinding(new Keybinding([new ScanCodeChord(false, false, true, true, ScanCode.Equal)]))[0];
+		assert.deepStrictEqual({
+			menu: binding.getElectronAccelerator(),
+			global: binding.getElectronAccelerator('globalShortcut'),
+			dispatch: binding.getDispatchChords(),
+		}, { menu: 'Alt+Cmd+Plus', global: null, dispatch: ['alt+meta+[Equal]'] });
+	});
+
+	test('stable keys preserve all modifier combinations for both purposes', () => {
+		for (let mask = 0; mask < 16; mask++) {
+			const binding = mapper.resolveKeybinding(new Keybinding([new ScanCodeChord(!!(mask & 1), !!(mask & 2), !!(mask & 4), !!(mask & 8), ScanCode.KeyA)]))[0];
+			assert.strictEqual(binding.getElectronAccelerator('globalShortcut'), binding.getElectronAccelerator('menu'));
+		}
 	});
 });
 

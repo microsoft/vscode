@@ -5,7 +5,7 @@
 
 import { CharCode } from '../../../../base/common/charCode.js';
 import { KeyCode, KeyCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, ScanCode, ScanCodeUtils, isModifierKey } from '../../../../base/common/keyCodes.js';
-import { ResolvedKeybinding, KeyCodeChord, SingleModifierChord, ScanCodeChord, Keybinding, Chord } from '../../../../base/common/keybindings.js';
+import { ResolvedKeybinding, KeyCodeChord, SingleModifierChord, ScanCodeChord, Keybinding, Chord, ElectronAcceleratorPurpose } from '../../../../base/common/keybindings.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { IKeyboardEvent } from '../../../../platform/keybinding/common/keybinding.js';
@@ -20,7 +20,6 @@ import { IMacLinuxKeyboardMapping, IMacLinuxKeyMapping } from '../../../../platf
  *  - '?' => { keyCode: KeyCode.US_SLASH, shiftKey: true }
  */
 const CHAR_CODE_TO_KEY_CODE: ({ keyCode: KeyCode; shiftKey: boolean } | null)[] = [];
-const ELECTRON_SHIFTED_ACCELERATOR_CHARACTERS = '!"#$%&()*+:<>?@^_{|}~';
 const ELECTRON_NAMED_ACCELERATOR_CHARACTERS = new Map<number, string>([
 	[CharCode.Space, 'Space'],
 	[CharCode.Plus, 'Plus'],
@@ -43,8 +42,8 @@ export class NativeResolvedKeybinding extends BaseResolvedKeybinding<ScanCodeCho
 		return this._mapper.getAriaLabelForScanCodeChord(chord);
 	}
 
-	protected _getElectronAccelerator(chord: ScanCodeChord): string | null {
-		return this._mapper.getElectronAcceleratorLabelForScanCodeChord(chord);
+	protected _getElectronAccelerator(chord: ScanCodeChord, purpose: ElectronAcceleratorPurpose): string | null {
+		return this._mapper.getElectronAcceleratorLabelForScanCodeChord(chord, purpose);
 	}
 
 	protected _getUserSettingsLabel(chord: ScanCodeChord): string | null {
@@ -875,7 +874,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return this._scanCodeToDispatch[chord.scanCode];
 	}
 
-	public getElectronAcceleratorLabelForScanCodeChord(chord: ScanCodeChord | null): string | null {
+	public getElectronAcceleratorLabelForScanCodeChord(chord: ScanCodeChord | null, purpose: ElectronAcceleratorPurpose = 'menu'): string | null {
 		if (!chord) {
 			return null;
 		}
@@ -915,7 +914,9 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			return KeyCodeUtils.toElectronAccelerator(constantKeyCode);
 		}
 
-		if (this._OS === OperatingSystem.Macintosh) {
+		if (this._OS === OperatingSystem.Macintosh && purpose === 'menu') {
+			// Native menus match characters, but global shortcuts use physical modifiers.
+			// For example, Electron's Plus accelerator implies Shift for global shortcuts.
 			return this._getElectronAcceleratorLabelForUnstableScanCode(chord);
 		}
 
@@ -924,19 +925,20 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 
 	private _getElectronAcceleratorLabelForUnstableScanCode(chord: ScanCodeChord): string | null {
 		const mapping = this._codeInfo[chord.scanCode];
-		if (!mapping) {
+		// AppKit can reinterpret Shift plus punctuation as an unshifted equivalent.
+		if (!mapping || chord.shiftKey || mapping.value.length !== 1) {
 			return null;
 		}
 
-		if (hasKey(mapping, { valueIsDeadKey: true }) && mapping.valueIsDeadKey) {
+		if (hasKey(mapping, { valueIsDeadKey: true, withAltGrIsDeadKey: true }) && (mapping.valueIsDeadKey || (chord.altKey && mapping.withAltGrIsDeadKey))) {
 			return null;
 		}
 
-		const charCode = MacLinuxKeyboardMapper._redirectCharCode(MacLinuxKeyboardMapper.getCharCode(mapping.value));
-		const character = String.fromCharCode(charCode);
+		const character = mapping.value;
+		const charCode = character.charCodeAt(0);
 		const isPrintableAscii = charCode >= CharCode.Space && charCode <= CharCode.Tilde;
 		const isUppercaseLetter = charCode >= CharCode.A && charCode <= CharCode.Z;
-		if (!isPrintableAscii || isUppercaseLetter || (chord.shiftKey && ELECTRON_SHIFTED_ACCELERATOR_CHARACTERS.includes(character))) {
+		if (!isPrintableAscii || isUppercaseLetter) {
 			return null;
 		}
 
