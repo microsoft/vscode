@@ -606,7 +606,8 @@ suite('HoverService', () => {
 
 		test('should re-evaluate a requested ABOVE side on every layout as the content size changes', () => {
 			const target = createTarget();
-			target.getBoundingClientRect = () => new DOMRect(100, 300, 100, 22);
+			// Little room above the target, so whether the content fits above does not depend on the window size
+			target.getBoundingClientRect = () => new DOMRect(100, 20, 100, 22);
 			const hover = showHover('Growing content', target, {
 				position: { hoverPosition: HoverPosition.ABOVE },
 				appearance: { showPointer: true }
@@ -623,11 +624,11 @@ suite('HoverService', () => {
 				return hoverWidget.anchor === AnchorPosition.BELOW ? `below pointer-top:${style.top}` : `above pointer-bottom:${style.bottom}`;
 			};
 
-			// Fits above, then only below once taller than the room above, then above again
+			// Fits above, then only below once taller than the room above (even at its maximum height), then above again
 			assert.deepStrictEqual([
-				layoutWithHeight(50),
-				layoutWithHeight(400),
-				layoutWithHeight(50),
+				layoutWithHeight(10),
+				layoutWithHeight(mainWindow.innerHeight),
+				layoutWithHeight(10),
 			], [
 				'above pointer-bottom:3px',
 				'below pointer-top:-3px',
