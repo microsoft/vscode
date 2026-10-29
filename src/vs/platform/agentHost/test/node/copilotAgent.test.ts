@@ -3181,6 +3181,7 @@ suite('CopilotAgent', () => {
 	test('launch uses the owning AHP customization identity for session-scoped MCP disablement with an independent SDK backing', async () => {
 		const client = new TestCopilotClient([]);
 		client.mcpConfigListResult = { servers: { context7: { type: 'http', url: 'https://mcp.example.com/context7' } } };
+		client.discoverMcp = async () => ({ servers: [{ name: 'native', type: 'stdio', source: 'plugin', enabled: true }] });
 		let launchConfig: SessionConfig | undefined;
 		client.createSession = async config => {
 			launchConfig = config;
@@ -3207,6 +3208,10 @@ suite('CopilotAgent', () => {
 			enablementService.setEnablement(session.toString(), {
 				id, type: CustomizationType.McpServer, name: 'context7', source: URI.parse(id),
 			}, CustomizationEnablementKind.Session, false);
+			enablementService.setEnablement(session.toString(), {
+				id: 'mcp-top-level:copilotcli:context7-launch:native', type: CustomizationType.McpServer,
+				name: 'native', source: URI.parse('agent-discovery://copilot/mcp#native'), defaultEnabled: true,
+			}, CustomizationEnablementKind.Session, false);
 			await enablementService.whenIdle();
 			const chat = defaultChatUri(session);
 			const result = await agent.chats.createChat(chat, exactChatContext(session, chat, session), {
@@ -3222,7 +3227,7 @@ suite('CopilotAgent', () => {
 			}, {
 				session: 'ahp-session:/context7-launch',
 				separateBacking: true,
-				disabledMcpServers: ['context7'],
+				disabledMcpServers: ['context7', 'native'],
 			});
 		} finally {
 			await disposeAgent(agent);
@@ -3230,6 +3235,48 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('discovered SDK customizations', () => {
+		for (const hasSkill of [false, true]) {
+			test(`deduplicates nested native MCP declarations without discarding unrelated contributions (${hasSkill})`, async () => {
+				const fileService = disposables.add(new FileService(new NullLogService()));
+				disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+				const workspace = URI.file('/workspace');
+				const plugin = URI.file('/sdk-installed/native');
+				const source = URI.joinPath(plugin, '.mcp.json');
+				const skill = URI.joinPath(plugin, 'skills', 'native', 'SKILL.md');
+				await fileService.writeFile(URI.joinPath(workspace, '.mcp.json'), VSBuffer.fromString('{"mcpServers":{"native":{"command":"client-server"}}}'));
+				await fileService.writeFile(URI.joinPath(plugin, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"native"}'));
+				await fileService.writeFile(source, VSBuffer.fromString('{"mcpServers":{"native":{"command":"native-server"}}}'));
+				if (hasSkill) {
+					await fileService.writeFile(skill, VSBuffer.fromString('---\nname: native\ndescription: Native skill\n---\n'));
+				}
+				const client = new TestCopilotClient([]);
+				client.discoverMcp = async () => ({
+					servers: [{
+						name: 'native', type: 'stdio', source: 'plugin', enabled: true,
+						effectiveSource: { kind: 'plugin', id: 'opaque', editability: 'read-only', file: { uri: source.toString() } },
+					}]
+				});
+				client.discoverSkills = async () => ({
+					skills: hasSkill ? [{
+						name: 'native', description: 'Native skill', path: skill.fsPath, source: 'plugin', enabled: true, userInvocable: true,
+					}] : []
+				});
+				const { agent } = createTestAgentContext(disposables, { fileService, copilotClient: client, rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false } });
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					const session = AgentSession.uri('copilotcli', `dedup-${hasSkill}`);
+					await provisionSession(agent, { session, workingDirectories: [workspace] });
+					const customizations = await getDefaultChatCustomizations(agent, session);
+					assert.deepStrictEqual({
+						servers: customizations.flatMap(item => item.type === CustomizationType.McpServer ? [item.uri] : item.children?.filter(child => child.type === CustomizationType.McpServer).map(child => child.uri) ?? []),
+						plugins: customizations.filter(item => item.type === CustomizationType.Plugin).map(item => item.children?.map(child => child.type)),
+					}, { servers: [URI.joinPath(workspace, '.mcp.json').toString()], plugins: hasSkill ? [[CustomizationType.Skill]] : [] });
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+		}
+
 		test('refreshes SDK hooks and MCP inventory without forwarding definitions or manufacturing runtime intent', async () => {
 			const fileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
@@ -3271,6 +3318,8 @@ suite('CopilotAgent', () => {
 				const { session } = createAgentSessionThroughAgent(agent, instantiationService, { workingDirectory: workspace });
 				disposables.add(session);
 				const initialIntent = [...session['_getDesiredMcpServerEnablementByName']()];
+				const activeClient = agent['_getOrCreateActiveClient'](sessionUri, workspace);
+				const inheritedDisabled = (await activeClient.snapshot(defaultChatUri(sessionUri).toString())).disabledNativeMcpServers;
 				const summarize = (customizations: readonly Customization[]) => customizations.flatMap(item => {
 					if (item.type === CustomizationType.McpServer) {
 						return [{ name: item.name, enabled: isCustomizationEnabled(item) }];
@@ -3285,6 +3334,8 @@ suite('CopilotAgent', () => {
 				const refreshedIntent = [...session['_getDesiredMcpServerEnablementByName']()];
 				hostDecision = false;
 				const explicitIntent = [...session['_getDesiredMcpServerEnablementByName']()];
+				const disabledSnapshot = await activeClient.snapshot(defaultChatUri(sessionUri).toString());
+				const disabledAtLaunch = await agent['_disabledRootMcpServers'](sessionUri, disabledSnapshot);
 				hostDecision = undefined;
 				const snapshot = await agent['_getOrCreateActiveClient'](sessionUri, workspace).snapshot(defaultChatUri(sessionUri).toString());
 				installed = false;
@@ -3292,12 +3343,13 @@ suite('CopilotAgent', () => {
 				const removed = await getDefaultChatCustomizations(agent, sessionUri);
 				assert.deepStrictEqual({
 					initial: summarize(initial), refreshed: summarize(refreshed), removed: summarize(removed),
-					initialIntent, refreshedIntent, explicitIntent,
+					initialIntent, refreshedIntent, explicitIntent, inheritedDisabled, disabledAtLaunch,
 					forwarded: { plugins: snapshot.plugins, mcpServers: snapshot.mcpServers },
 				}, {
 					initial: [{ name: 'sessionStart', enabled: false }, { name: 'native', enabled: false }],
 					refreshed: [{ name: 'sessionStart', enabled: true }, { name: 'native', enabled: true }],
 					removed: [], initialIntent: [], refreshedIntent: [], explicitIntent: [['native', false]],
+					inheritedDisabled: undefined, disabledAtLaunch: ['native'],
 					forwarded: { plugins: [], mcpServers: {} },
 				});
 			} finally {

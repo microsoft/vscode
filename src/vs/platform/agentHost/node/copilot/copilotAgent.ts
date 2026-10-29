@@ -93,7 +93,7 @@ import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentH
 import { applyMcpServerEnablement, applyMcpServerRuntimeStates, buildMcpTopLevelCustomizationId, getMcpServerCustomizations, mergeMcpServerCustomizations, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
 import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
-import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
+import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { McpServerStatus, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
@@ -9040,7 +9040,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			session,
 			rootServers,
 		));
-		return rootServers.filter(server => enablement.get(server.id) !== true).map(server => server.name);
+		return [...new Set([
+			...rootServers.filter(server => enablement.get(server.id) !== true).map(server => server.name),
+			...(snapshot.disabledNativeMcpServers ?? []),
+		])];
 	}
 
 	/**
@@ -10510,6 +10513,14 @@ class SessionPluginController extends Disposable {
 			if (customization.type === CustomizationType.Plugin && explicitPluginIds.has(customization.id)) {
 				continue;
 			}
+			if (customization.type === CustomizationType.Plugin) {
+				const children = customization.children?.filter(child => child.type !== CustomizationType.McpServer || !declaredMcpNames.has(child.name));
+				if (customization.children?.length && children?.length === 0) {
+					continue;
+				}
+				result.push(this._projectForPublish({ ...customization, children }));
+				continue;
+			}
 			if (customization.type === CustomizationType.McpServer) {
 				if (!declaredMcpNames.has(customization.name)) {
 					result.push(this._projectForPublish({
@@ -10662,6 +10673,21 @@ class SessionPluginController extends Disposable {
 		const desiredByUri = new Map(resolved.customizations.map(customization => [customization.uri, customization]));
 		const desiredById = new Map(resolved.customizations.map(customization => [customization.id, customization]));
 		const mcpEnablement = getSdkMcpServerEnablement(resolved);
+		const disabledNativeMcpServers: string[] = [];
+		for (const customization of resolved.customizations) {
+			for (const server of getMcpServerCustomizations([customization])) {
+				if (readCustomizationDiscoveryMeta(server)?.defaultEnabled === undefined || mcpEnablement.get(server.id) === true) {
+					continue;
+				}
+				const hostDecision = this._customizationEnablementService.resolve(this._session.toString(), {
+					...targetForMcpServer(server, customization.type === CustomizationType.Plugin ? customization.uri : undefined, false),
+					defaultEnabled: undefined,
+				});
+				if (hostDecision.kind === 'pending' || hostDecision.enablement.length > 0 || (customization.type === CustomizationType.Plugin && (customization.enablement?.length ?? 0) > 0)) {
+					disabledNativeMcpServers.push(server.name);
+				}
+			}
+		}
 		const isEnabledForSdk = (customization: Customization) => {
 			const desired = desiredById.get(customization.id) ?? desiredByUri.get(customization.uri) ?? customization;
 			return isCustomizationSdkEligible(resolved, desired) && (desired.type === CustomizationType.Directory ? desired.enabled : isCustomizationEnabled(desired));
@@ -10713,6 +10739,7 @@ class SessionPluginController extends Disposable {
 			instructions: [],
 		} satisfies ICopilotPluginInfo] : [];
 		return {
+			...(disabledNativeMcpServers.length > 0 ? { disabledNativeMcpServers } : {}),
 			plugins: [
 				...workspaceMcp,
 				...host.filter(item => !!item.plugin && isEnabledForSdk(item.customization))
@@ -11038,7 +11065,7 @@ class SessionPluginController extends Disposable {
 	 * stable.
 	 */
 	private _projectForPublish<T extends Customization>(customization: T): T {
-		return applyMcpServerRuntimeStates(this._applyEnablement(customization), this.mcpServerStates.get());
+		return this._applyEnablement(applyMcpServerRuntimeStates(customization, this.mcpServerStates.get()));
 	}
 }
 

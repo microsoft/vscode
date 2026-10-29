@@ -11,7 +11,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AgentSession } from '../../../common/agent.js';
 import { isCustomizationEnabled } from '../../../common/customizationEnablement.js';
 import { readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../common/meta/mcpCustomizationMeta.js';
-import { withCustomizationDiscoveryMeta } from '../../../common/meta/customizationDiscoveryMeta.js';
+import { readCustomizationDiscoveryMeta, withCustomizationDiscoveryMeta } from '../../../common/meta/customizationDiscoveryMeta.js';
 import { ActionType } from '../../../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { buildDefaultChatUri, buildChatUri } from '../../../common/state/sessionState.js';
@@ -127,6 +127,34 @@ suite('McpCustomizationController', () => {
 	}
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('confirmed SDK defaults update nested publication and survive later runtime updates', () => {
+		const child: McpServerCustomization = {
+			type: CustomizationType.McpServer, id: 'native-child', uri: 'file:///plugin/.mcp.json', name: 'native',
+			state: stopped(), _meta: withCustomizationDiscoveryMeta(undefined, { source: 'plugin', defaultEnabled: true }),
+		};
+		const plugin: PluginCustomization = { type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///plugin', name: 'plugin', children: [child] };
+		const { controller, actions } = harness(store, {
+			customizations: [plugin],
+			resolveEnablement: server => [{ kind: CustomizationEnablementKind.Global, enabled: readCustomizationDiscoveryMeta(server)?.defaultEnabled ?? true }],
+		});
+		store.add(controller);
+		controller.applyOne({ name: 'native', state: ready(), enabled: true });
+		controller.applyOne({ name: 'native', state: stopped(), enabled: false, defaultEnabled: false });
+		controller.applyOne({ name: 'native', state: starting() });
+		const publication = actions.find(action => action.type === ActionType.SessionCustomizationUpdated);
+		const updated = publication?.customization.type === CustomizationType.Plugin ? publication.customization.children?.[0] : undefined;
+		const overlay = applyMcpServerRuntimeStates(plugin, controller.runtimeStates.get());
+		assert.deepStrictEqual({
+			defaultEnabled: updated && readCustomizationDiscoveryMeta(updated)?.defaultEnabled,
+			enablement: updated?.type === CustomizationType.McpServer ? updated.enablement : undefined,
+			retainedDefault: overlay.children?.[0] && readCustomizationDiscoveryMeta(overlay.children[0])?.defaultEnabled,
+			toggles: actions.filter(action => action.type === ActionType.SessionCustomizationToggled),
+		}, {
+			defaultEnabled: false, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			retainedDefault: false, toggles: [],
+		});
+	});
 
 	test('live state preserves SDK discovery provenance and does not restore stale provider enablement', () => {
 		const declaration: McpServerCustomization = {
