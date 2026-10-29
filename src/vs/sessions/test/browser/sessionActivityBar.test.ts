@@ -800,30 +800,6 @@ suite('Sessions - Session Activity Bar', () => {
 		assert.deepStrictEqual(ranWith.map(([id, context]) => [id, isChatWindowHandle(context) ? context : 'no handle']), [['test.canvas.kusto', 'no handle'], ['test.canvas.kusto', { chatWindowId: 7 }]]);
 	}));
 
-	test('names the Layout button after the layout mode of its window, keeping its icon, and other submenu entries after their title', () => {
-		const layout: ITestEntry = {
-			id: Menus.SessionLayout.id, title: 'Layout', icon: Codicon.layout,
-			submenu: [{ id: 'test.showChat', title: 'Show Chat', checked: true }, { id: 'test.showEditor', title: 'Show Editor', checked: true }],
-		};
-		const describe = (entries: ITestEntry[], contextKeys: Record<string, string> = {}) => {
-			const { activityBar } = createActivityBar(store, entries, contextKeys);
-			const button = activityBar.element.querySelector<HTMLElement>('.action-label[aria-haspopup="menu"]')!;
-			return { label: button.getAttribute('aria-label'), icon: button.classList.contains('codicon-layout') };
-		};
-
-		assert.deepStrictEqual({
-			stacked: describe([layout], { 'sessions.layoutMode': 'stacked' }),
-			editorOnly: describe([layout], { 'sessions.layoutMode': 'editorOnly' }),
-			noMode: describe([layout]),
-			canvas: describe([canvas]),
-		}, {
-			stacked: { label: 'Layout: Stacked', icon: true },
-			editorOnly: { label: 'Layout: Editor Only', icon: true },
-			noMode: { label: 'Layout', icon: true },
-			canvas: { label: 'Canvas', icon: false },
-		});
-	});
-
 	test('opens the Canvas submenu to the left on click and keyboard only, keeps it open as the pointer leaves, and runs its items', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { label, ran, contextViewService } = createActivityBar(store, [browser, canvas]);
 		const canvasLabel = label('Canvas');

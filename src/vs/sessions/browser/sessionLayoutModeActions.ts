@@ -4,51 +4,45 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { status } from '../../base/browser/ui/aria/aria.js';
-import { Codicon } from '../../base/common/codicons.js';
 import { DisposableStore, IDisposable } from '../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../base/common/themables.js';
 import { localize, localize2 } from '../../nls.js';
 import { ILocalizedString } from '../../platform/action/common/action.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression } from '../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { SessionsCategories } from '../common/categories.js';
-import { Menus, SessionActivityBarGroup } from './menus.js';
-import { DesktopLayoutContext, IsPhoneLayoutContext, SessionActivityBarLayoutActionsContext, SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
-import { IsAuxiliaryWindowContext } from '../../workbench/common/contextkeys.js';
+import { Menus } from './menus.js';
+import { ISessionLayoutButtonsMenu, registerLayoutButtons, SessionLayoutButton } from './sessionLayoutButtons.js';
 import { SessionLayoutMode, SessionLayoutModeContext, SessionSplitLayout, SessionSplitLayoutContext } from '../common/sessionLayoutMode.js';
 
-/** A {@link SessionLayoutMode} as offered to the user. */
-export interface ISessionLayoutModeChoice {
+/**
+ * The titles of a {@link SessionLayoutMode}: of its command, and in the Layout menu's entry. The icons of the layout
+ * actions are those of their buttons, `sessionLayoutButtonIcons`.
+ */
+interface ISessionLayoutModeTitles {
 	readonly mode: SessionLayoutMode;
 	readonly title: ILocalizedString;
-	/** Its title in the Layout submenu. */
+	/** Its title in the Layout menu's entry: "Layout: Stacked". */
 	readonly shortTitle: string;
-	readonly icon: ThemeIcon;
 }
 
-// Icons of a window of two halves: the chat on the left of the editor, side by side.
 /** The layout modes, in the order they are offered. */
-export const sessionLayoutModeChoices: readonly ISessionLayoutModeChoice[] = [{
+const sessionLayoutModeTitles: readonly ISessionLayoutModeTitles[] = [{
 	mode: SessionLayoutMode.ChatOnly,
 	title: localize2('sessionLayoutModeChatOnly', "Show Chat Only"),
 	shortTitle: localize('sessionLayoutModeChatOnly.short', "Chat Only"),
-	icon: Codicon.layoutSidebarLeft,
 }, {
 	mode: SessionLayoutMode.EditorOnly,
 	title: localize2('sessionLayoutModeEditorOnly', "Show Editor Only"),
 	shortTitle: localize('sessionLayoutModeEditorOnly.short', "Editor Only"),
-	icon: Codicon.layoutSidebarRight,
 }, {
 	mode: SessionLayoutMode.Stacked,
 	title: localize2('sessionLayoutModeStacked', "Show Chat and Editor Stacked"),
 	shortTitle: localize('sessionLayoutModeStacked.short', "Stacked"),
-	icon: Codicon.splitVertical,
 }, {
 	mode: SessionLayoutMode.SideBySide,
 	title: localize2('sessionLayoutModeSideBySide', "Show Chat and Editor Side by Side"),
 	shortTitle: localize('sessionLayoutModeSideBySide.short', "Side by Side"),
-	icon: Codicon.splitHorizontal,
 }];
 
 /** The groups of {@link Menus.SessionLayout}. */
@@ -79,6 +73,8 @@ export interface ISessionLayoutModeActionsOptions {
 	readonly available?: (mode: SessionLayoutMode) => ContextKeyExpression | undefined;
 	/** When the toggles show in the Layout menu, {@link Menus.SessionLayout}, which scopes them to their kind of window. */
 	readonly menuWhen: ContextKeyExpression;
+	/** Where the Layout menu's entry and the buttons of its promoted actions show, such as the title bar. */
+	readonly buttonMenus: readonly ISessionLayoutButtonsMenu[];
 	/** What the window the action runs in shows. */
 	current(accessor: ServicesAccessor): ISessionLayoutState | undefined;
 	/** Shows `mode` in the window the action runs in. */
@@ -114,31 +110,30 @@ const paneToggles: readonly ISessionLayoutPaneToggle[] = [{
 
 async function showLayoutMode(accessor: ServicesAccessor, options: ISessionLayoutModeActionsOptions, mode: SessionLayoutMode): Promise<void> {
 	await options.run(accessor, mode);
-	const choice = sessionLayoutModeChoices.find(candidate => candidate.mode === mode);
+	const choice = sessionLayoutModeTitles.find(candidate => candidate.mode === mode);
 	if (choice) {
 		status(localize('sessionLayoutModeChanged', "Layout: {0}", choice.title.value));
 	}
 }
 
 /**
- * Registers the layout actions of a kind of window: the four layout modes, checked while the window shows their mode,
- * which is the value of {@link SessionLayoutModeContext} in the window, and the toggles of the Layout menu,
- * {@link Menus.SessionLayout}: Show Chat and Show Editor, of which the last one shown cannot be hidden, and Stacked,
- * which chooses how the two show together. Changing the layout announces it to screen readers.
+ * Registers the layout actions of a kind of window: the four layout modes, commands of their own, and the toggles of the
+ * Layout menu, {@link Menus.SessionLayout}: Show Chat and Show Editor, of which the last one shown cannot be hidden, and
+ * Stacked, which chooses how the two show together. The Layout menu's entry and the buttons of the toggles that the user
+ * promoted show in {@link ISessionLayoutModeActionsOptions.buttonMenus}, with the chat windows' promotion state
+ * (`sessionLayoutButtons.ts`). Changing the layout announces it to screen readers.
  */
 export function registerSessionLayoutModeActions(options: ISessionLayoutModeActionsOptions): IDisposable {
 	const store = new DisposableStore();
-	for (const choice of sessionLayoutModeChoices) {
+	for (const choice of sessionLayoutModeTitles) {
 		store.add(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: options.ids[choice.mode],
 					title: choice.title,
 					category: SessionsCategories.Sessions,
-					icon: choice.icon,
 					f1: true,
 					precondition: ContextKeyExpr.and(options.precondition, options.available?.(choice.mode)),
-					toggled: SessionLayoutModeContext.isEqualTo(choice.mode),
 				});
 			}
 
@@ -201,7 +196,7 @@ export function registerSessionLayoutModeActions(options: ISessionLayoutModeActi
 				return;
 			}
 			options.setSplitLayout(accessor, splitLayout);
-			const choice = sessionLayoutModeChoices.find(candidate => candidate.mode === splitLayout);
+			const choice = sessionLayoutModeTitles.find(candidate => candidate.mode === splitLayout);
 			if (choice) {
 				status(localize('sessionLayoutSplitLayoutChanged', "Layout when both show: {0}", choice.shortTitle));
 			}
@@ -213,37 +208,22 @@ export function registerSessionLayoutModeActions(options: ISessionLayoutModeActi
 		order: 0,
 		when: ContextKeyExpr.and(options.menuWhen, sideBySideAvailable),
 	}));
+	// The Layout menu's entry, named after the mode the window shows, and the buttons of its promoted toggles.
+	store.add(registerLayoutButtons({
+		layoutMenu: Menus.SessionLayout,
+		layoutMenuTitles: sessionLayoutModeTitles.map(choice => ({ title: localize('sessionLayoutMenu', "Layout: {0}", choice.shortTitle), when: SessionLayoutModeContext.isEqualTo(choice.mode) })),
+		buttonMenus: options.buttonMenus,
+		when: options.menuWhen,
+		commandIds: {
+			[SessionLayoutButton.Chat]: options.toggleIds.chat,
+			[SessionLayoutButton.Editor]: options.toggleIds.editor,
+			[SessionLayoutButton.Arrangement]: options.toggleIds.stacked,
+		},
+		state: {
+			chatShown: SessionLayoutModeContext.notEqualsTo(SessionLayoutMode.EditorOnly),
+			editorShown: SessionLayoutModeContext.notEqualsTo(SessionLayoutMode.ChatOnly),
+			stacked,
+		},
+	}));
 	return store;
 }
-
-/** The label of a Layout button: "Layout: Stacked", after the mode its window shows, or "Layout" otherwise. */
-export function getSessionLayoutButtonLabel(contextKeyService: IContextKeyService): string {
-	const mode = contextKeyService.getContextKeyValue<SessionLayoutMode>(SessionLayoutModeContext.key);
-	const choice = sessionLayoutModeChoices.find(candidate => candidate.mode === mode);
-	return choice ? localize('sessionLayoutButtonMode', "Layout: {0}", choice.shortTitle) : localize('sessionLayout', "Layout");
-}
-
-/**
- * While the Session Activity Bar shows its layout actions, one Layout button leads it and opens the Layout menu,
- * {@link Menus.SessionLayout}, which the main window and chat windows contribute to. Its icon is the same whatever the
- * mode, that of the Layout menu of the title bar. It hides while the menu is empty.
- */
-const layoutMenuItem = { submenu: Menus.SessionLayout, title: localize('sessionLayout', "Layout"), icon: Codicon.layout };
-
-/**
- * Otherwise, the main window's title bar has the Layout button, after Toggle Side Panel: each window has one entry
- * point to its Layout menu. A chat window has its own in its title bar.
- */
-MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
-	...layoutMenuItem,
-	group: 'navigation',
-	order: 12,
-	when: ContextKeyExpr.and(DesktopLayoutContext, IsPhoneLayoutContext.negate(), IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionActivityBarLayoutActionsContext.negate()),
-});
-
-MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
-	...layoutMenuItem,
-	group: SessionActivityBarGroup.Layout,
-	order: 0,
-	when: SessionActivityBarLayoutActionsContext,
-});
