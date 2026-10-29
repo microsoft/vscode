@@ -4,19 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $, append } from '../../../../../base/browser/dom.js';
+import { ToolBar } from '../../../../../base/browser/ui/toolbar/toolbar.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { IAction } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MenuId, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
+import { NullCommandService } from '../../../../../platform/commands/test/common/nullCommandService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ContextKeyValue, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ChatLayoutMode } from '../../../../common/chatLayout.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../common/sessionConfig.js';
 import { SessionLayoutMode } from '../../../../common/sessionLayoutMode.js';
-import { IChatWindow } from '../../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID, ChatWindowContext, ChatWindowHasEditorAreaContext, IChatWindow } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { LayoutModeOwnerKind } from '../../../../services/layoutMode/common/sessionLayoutModeService.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -25,6 +38,8 @@ import { DesktopLayoutModeCoordinator, MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS } f
 import { createTestHarness, ITestLayoutHarness, makeSession } from './layoutControllerTestUtils.js';
 import { describeMenuGroup, describeSessionActivityBarLayout } from '../../../../test/browser/sessionLayoutModeTestUtils.js';
 import { Menus } from '../../../../browser/menus.js';
+import { bindSessionLayoutButtonsContext, registerSessionLayoutButtonsContextMenu, SessionLayoutButton, sessionLayoutButtonPromotedContext, sessionLayoutButtons, SessionLayoutButtonsAllPromotedContext, SessionLayoutButtonsService } from '../../../../browser/sessionLayoutButtons.js';
+import { TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID } from '../../../chatWindow/browser/chatWindowLayoutActions.js';
 
 suite('Sessions - DesktopLayoutModeCoordinator', () => {
 
@@ -186,15 +201,15 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 		});
 	});
 
-	test('leads the session activity bar of the main window with one Layout button of the same icon in every mode, opening Show Chat, Show Editor and Stacked as the window shows them, while it shows its layout actions', async () => {
+	test('leads the session activity bar of the main window with one Layout button of the same icon in every mode, named after the mode, opening Show Chat, Show Editor and Stacked as the window shows them, while it shows its layout actions', async () => {
 		const controller = createController('chat', sessionA);
 		await controller.whenRestored();
 		const settings = { [SESSION_ACTIVITY_BAR_SETTING]: true, [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: true };
 		const strip = (mode: SessionLayoutMode, splitLayout: SessionLayoutMode, contextKeys: Record<string, ContextKeyValue> = {}, overrides: Record<string, unknown> = {}) =>
 			describeSessionActivityBarLayout(store, { agentSessionsDesktopLayout: true, 'sessions.layoutMode': mode, 'sessions.splitLayout': splitLayout, ...contextKeys }, { ...settings, ...overrides });
 		// Checked and enabled: Show Chat, Show Editor, Stacked.
-		const layout = (chat: [boolean, boolean], editor: [boolean, boolean], stacked: [boolean, boolean]) => [{
-			label: 'Layout', icon: 'layout', entries: [
+		const layout = (label: string, chat: [boolean, boolean], editor: [boolean, boolean], stacked: [boolean, boolean]) => [{
+			label, icon: 'layout', entries: [
 				{ id: MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS.chat, label: 'Show Chat', checked: chat[0], enabled: chat[1] },
 				{ id: MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS.editor, label: 'Show Editor', checked: editor[0], enabled: editor[1] },
 				{ id: MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS.stacked, label: 'Stacked', checked: stacked[0], enabled: stacked[1] },
@@ -211,11 +226,11 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 			// A chat window without an editor has no Layout menu, not the main window's.
 			chatOnlyChatWindow: strip(SessionLayoutMode.ChatOnly, SessionLayoutMode.SideBySide, { 'sessions.chatWindow': 'test' }),
 		}, {
-			sideBySide: layout([true, true], [true, true], [false, true]),
-			stacked: layout([true, true], [true, true], [true, true]),
+			sideBySide: layout('Layout: Side by Side', [true, true], [true, true], [false, true]),
+			stacked: layout('Layout: Stacked', [true, true], [true, true], [true, true]),
 			// The last pane shown cannot be hidden; Stacked, always enabled, then chooses how both show next.
-			editorOnly: layout([false, true], [true, false], [false, true]),
-			chatOnly: layout([true, false], [false, true], [true, true]),
+			editorOnly: layout('Layout: Editor Only', [false, true], [true, false], [false, true]),
+			chatOnly: layout('Layout: Chat Only', [true, false], [false, true], [true, true]),
 			layoutActionsOff: [],
 			chatWindow: [],
 			chatOnlyChatWindow: [],
@@ -227,7 +242,7 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 		await controller.whenRestored();
 		const contextKeys: Record<string, ContextKeyValue> = { agentSessionsDesktopLayout: true, 'sessions.layoutMode': SessionLayoutMode.SideBySide, 'sessions.splitLayout': SessionLayoutMode.SideBySide };
 		const titleBar = (settings: Record<string, unknown>) => describeMenuGroup(store, Menus.TitleBarSessionMenu, 'navigation', contextKeys, settings)
-			.filter(item => item.label === 'Layout' || item.label === 'Toggle Side Panel').map(item => item.entries ? `${item.label} (menu)` : item.label);
+			.filter(item => item.label.startsWith('Layout') || item.label === 'Toggle Side Panel').map(item => item.entries ? `${item.label} (menu)` : item.label);
 		const strip = (settings: Record<string, unknown>) => describeSessionActivityBarLayout(store, contextKeys, settings).map(item => item.label);
 		const where = (layoutActions: boolean) => {
 			const settings = { [SESSION_ACTIVITY_BAR_SETTING]: true, [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: layoutActions };
@@ -235,8 +250,110 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 		};
 
 		assert.deepStrictEqual({ off: where(false), on: where(true) }, {
-			off: { titleBar: ['Toggle Side Panel', 'Layout (menu)'], strip: [] },
-			on: { titleBar: [], strip: ['Layout'] },
+			off: { titleBar: ['Toggle Side Panel', 'Layout: Side by Side (menu)'], strip: [] },
+			on: { titleBar: [], strip: ['Layout: Side by Side'] },
+		});
+	});
+
+	test('the main window shows the toggles the user promoted as buttons before its Layout menu, with an icon for their state and the arrangement, and no Layout menu once all three are; in its title bar or its Session Activity Bar', async () => {
+		const controller = createController('chat', sessionA);
+		await controller.whenRestored();
+		const titles = ['Show Chat', 'Show Editor', 'Stacked'];
+		const describe = (layoutActions: boolean, mode: SessionLayoutMode, splitLayout: SessionLayoutMode, promoted: readonly SessionLayoutButton[]) => {
+			const contextKeys: Record<string, ContextKeyValue> = {
+				agentSessionsDesktopLayout: true, 'sessions.layoutMode': mode, 'sessions.splitLayout': splitLayout,
+				[SessionLayoutButtonsAllPromotedContext.key]: promoted.length === sessionLayoutButtons.length,
+			};
+			for (const button of sessionLayoutButtons) {
+				contextKeys[sessionLayoutButtonPromotedContext(button).key] = promoted.includes(button);
+			}
+			const settings = { [SESSION_ACTIVITY_BAR_SETTING]: true, [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: layoutActions };
+			const items = layoutActions
+				? describeSessionActivityBarLayout(store, contextKeys, settings)
+				: describeMenuGroup(store, Menus.TitleBarSessionMenu, 'navigation', contextKeys, settings).filter(item => item.label.startsWith('Layout') || titles.includes(item.label));
+			return items.map(item => item.entries ? `${item.label} (menu)` : `${item.label} (${item.icon})`);
+		};
+		const all = sessionLayoutButtons;
+
+		assert.deepStrictEqual({
+			none: describe(false, SessionLayoutMode.SideBySide, SessionLayoutMode.SideBySide, []),
+			sideBySide: describe(false, SessionLayoutMode.SideBySide, SessionLayoutMode.SideBySide, all),
+			stacked: describe(false, SessionLayoutMode.Stacked, SessionLayoutMode.Stacked, all),
+			chatOnlyStacked: describe(false, SessionLayoutMode.ChatOnly, SessionLayoutMode.Stacked, all),
+			editorOnly: describe(false, SessionLayoutMode.EditorOnly, SessionLayoutMode.SideBySide, all),
+			oneHidden: describe(false, SessionLayoutMode.SideBySide, SessionLayoutMode.SideBySide, [SessionLayoutButton.Chat, SessionLayoutButton.Arrangement]),
+			strip: describe(true, SessionLayoutMode.Stacked, SessionLayoutMode.Stacked, all),
+			stripNone: describe(true, SessionLayoutMode.Stacked, SessionLayoutMode.Stacked, []),
+		}, {
+			none: ['Layout: Side by Side (menu)'],
+			sideBySide: ['Show Chat (layout-sidebar-left)', 'Show Editor (layout-sidebar-right)', 'Stacked (split-horizontal)'],
+			stacked: ['Show Chat (layout-panel)', 'Show Editor (session-layout-editor-above)', 'Stacked (split-vertical)'],
+			chatOnlyStacked: ['Show Chat (layout-panel)', 'Show Editor (session-layout-editor-above-off)', 'Stacked (split-vertical)'],
+			editorOnly: ['Show Chat (layout-sidebar-left-off)', 'Show Editor (layout-sidebar-right)', 'Stacked (split-horizontal)'],
+			oneHidden: ['Show Chat (layout-sidebar-left)', 'Stacked (split-horizontal)', 'Layout: Side by Side (menu)'],
+			strip: ['Show Chat (layout-panel)', 'Show Editor (session-layout-editor-above)', 'Stacked (split-vertical)'],
+			stripNone: ['Layout: Stacked (menu)'],
+		});
+	});
+
+	test('a toggle promoted from the Layout menu of the main window shows as a button in a chat window too, and one hidden from a chat window\'s button no longer shows in the main window: one promotion state for all windows', async () => {
+		const controller = createController('chat', sessionA);
+		await controller.whenRestored();
+		// Every window of the Agents window has the global context, which the promotion state is bound on.
+		const configurationService = new TestConfigurationService({ [SESSION_ACTIVITY_BAR_SETTING]: true, [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: false });
+		const root = store.add(new ContextKeyService(configurationService));
+		const service = new SessionLayoutButtonsService(store.add(new InMemoryStorageService()));
+		store.add(bindSessionLayoutButtonsContext(service, root));
+		const windowContext = (contextKeys: Record<string, ContextKeyValue>) => {
+			const contextKeyService = store.add(root.createScoped(mainWindow.document.createElement('div')));
+			for (const [key, value] of Object.entries(contextKeys)) {
+				contextKeyService.createKey(key, value);
+			}
+			return contextKeyService;
+		};
+		const layout = { 'sessions.layoutMode': SessionLayoutMode.SideBySide, 'sessions.splitLayout': SessionLayoutMode.SideBySide };
+		const main = { menu: Menus.TitleBarSessionMenu, contextKeyService: windowContext({ agentSessionsDesktopLayout: true, ...layout }) };
+		const chat = { menu: Menus.ChatWindowTitleBarLayout, contextKeyService: windowContext({ [ChatContextKeys.enabled.key]: true, [ChatWindowContext.key]: 'test', [ChatWindowHasEditorAreaContext.key]: true, ...layout }) };
+		const menuService = store.add(new MenuService(NullCommandService, new MockKeybindingService(), store.add(new InMemoryStorageService())));
+		const contextMenus: (readonly IAction[])[] = [];
+		const contextMenuService = upcastPartial<IContextMenuService>({ showContextMenu: delegate => { contextMenus.push(delegate.getActions?.() ?? []); } });
+		const layoutMenus = [Menus.SessionLayout, Menus.ChatWindowLayout];
+		const layoutCommands = [...Object.values(MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS), TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID, TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID];
+		// The Layout menu entry and the buttons of the window's toolbar, as its title bar renders them.
+		const toolBarOf = (window: { menu: MenuId; contextKeyService: IContextKeyService }) => {
+			const container = append(mainWindow.document.body, $('div'));
+			store.add(toDisposable(() => container.remove()));
+			const toolBar = store.add(new ToolBar(container, contextMenuService));
+			const menu = store.add(menuService.createMenu(window.menu, window.contextKeyService));
+			toolBar.setActions(menu.getActions().flatMap(([, actions]) => actions).filter(action => action instanceof SubmenuItemAction ? layoutMenus.includes(action.item.submenu) : layoutCommands.includes(action.id)));
+			store.add(registerSessionLayoutButtonsContextMenu(toolBar, service, contextMenuService));
+			return toolBar;
+		};
+		const shown = () => ({ main: describeToolBar(toolBarOf(main)), chat: describeToolBar(toolBarOf(chat)) });
+		const describeToolBar = (toolBar: ToolBar) => Array.from({ length: toolBar.getItemsLength() }, (_, index) => toolBar.getItemAction(index)!.label);
+		// Right-clicks the item of the window's toolbar labeled `item`, and runs the entry labeled `entry` of its context menu.
+		const rightClick = (window: typeof main, item: string, entry: string) => {
+			const toolBar = toolBarOf(window);
+			const index = describeToolBar(toolBar).indexOf(item);
+			toolBar.getItemElement(index)!.querySelector('.action-label')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			contextMenus.at(-1)!.find(action => action.label === entry)!.run();
+		};
+
+		const before = shown();
+		rightClick(main, 'Layout: Side by Side', 'Show Chat');
+		const promotedInMain = shown();
+		rightClick(chat, 'Show Chat', 'Hide \'Show Chat\'');
+		const hiddenInChatWindow = shown();
+		for (const entry of ['Show Chat', 'Show Editor', 'Stacked']) {
+			rightClick(chat, 'Layout: Side by Side', entry);
+		}
+		const allPromotedInChatWindow = shown();
+
+		assert.deepStrictEqual({ before, promotedInMain, hiddenInChatWindow, allPromotedInChatWindow }, {
+			before: { main: ['Layout: Side by Side'], chat: ['Layout: Side by Side'] },
+			promotedInMain: { main: ['Show Chat', 'Layout: Side by Side'], chat: ['Show Chat', 'Layout: Side by Side'] },
+			hiddenInChatWindow: { main: ['Layout: Side by Side'], chat: ['Layout: Side by Side'] },
+			allPromotedInChatWindow: { main: ['Show Chat', 'Show Editor', 'Stacked'], chat: ['Show Chat', 'Show Editor', 'Stacked'] },
 		});
 	});
 

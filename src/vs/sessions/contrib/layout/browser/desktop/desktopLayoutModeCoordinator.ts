@@ -15,7 +15,8 @@ import { registerSessionLayoutModeActions } from '../../../../browser/sessionLay
 import { restoreMainEditorPart } from '../../../../browser/mainEditorMaximize.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { chatLayoutOwnersEqual, IChatLayoutOwner } from '../../../../common/chatLayout.js';
-import { CustomViewVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { Menus, SessionActivityBarGroup } from '../../../../browser/menus.js';
+import { CustomViewVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext, SessionActivityBarLayoutActionsContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 import { SessionLayoutMode, SessionLayoutModeContext, SessionSplitLayout, SessionSplitLayoutContext } from '../../../../common/sessionLayoutMode.js';
 import { ChatWindowContext, IChatWindow, IChatWindowService } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { getLayoutModeOwnerKind, IRememberedLayoutMode, ISessionLayoutModeService, LayoutModeOwnerKind } from '../../../../services/layoutMode/common/sessionLayoutModeService.js';
@@ -177,6 +178,12 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 			toggleIds: MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS,
 			// Not in the Layout menu of a chat window, which shows the chat window's toggles, if any.
 			menuWhen: ContextKeyExpr.and(DesktopLayoutContext, IsPhoneLayoutContext.negate(), IsAuxiliaryWindowContext.negate(), ContextKeyExpr.has(ChatWindowContext.key).negate())!,
+			// One entry point to the Layout menu: the title bar, after Toggle Side Panel, or the top of the Session Activity
+			// Bar while it shows the layout actions.
+			buttonMenus: [
+				{ menu: Menus.TitleBarSessionMenu, group: 'navigation', order: 12, when: ContextKeyExpr.and(SessionsWelcomeVisibleContext.toNegated(), SessionActivityBarLayoutActionsContext.negate())! },
+				{ menu: Menus.SessionActivityBar, group: SessionActivityBarGroup.Layout, order: 0, when: SessionActivityBarLayoutActionsContext },
+			],
 			current: () => ({ mode: this.mode.get(), splitLayout: this.splitLayout.get() }),
 			run: (_accessor, mode) => this.setMode(mode),
 			setSplitLayout: (_accessor, splitLayout) => this.setSplitLayout(splitLayout),

@@ -6,7 +6,7 @@
 import { Separator } from '../../../base/common/actions.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
-import { MenuId, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
+import { MenuId, MenuItemAction, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../platform/actions/common/menuService.js';
 import { NullCommandService } from '../../../platform/commands/test/common/nullCommandService.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
@@ -16,7 +16,7 @@ import { MockKeybindingService } from '../../../platform/keybinding/test/common/
 import { InMemoryStorageService } from '../../../platform/storage/common/storage.js';
 import { Menus, SessionActivityBarGroup } from '../../browser/menus.js';
 
-/** An item of the Layout group of the Session Activity Bar, and the entries of its submenu, if it opens one. */
+/** An item of the Layout group of the Session Activity Bar, its icon, and the entries of its submenu, if it opens one. */
 export interface ISessionActivityBarLayoutItem {
 	readonly label: string;
 	readonly icon: string | undefined;
@@ -37,7 +37,8 @@ export function describeMenuGroup(store: Pick<DisposableStore, 'add'>, menuId: M
 	const actions = menu.getActions().filter(([candidate]) => group === undefined || candidate === group).flatMap(([, groupActions]) => groupActions);
 	return actions.map(action => {
 		if (!(action instanceof SubmenuItemAction)) {
-			return { label: action.label, icon: undefined };
+			const icon = action instanceof MenuItemAction ? action.item.icon : undefined;
+			return { label: action.label, icon: ThemeIcon.isThemeIcon(icon) ? icon.id : undefined };
 		}
 		const icon = action.item.icon;
 		return {

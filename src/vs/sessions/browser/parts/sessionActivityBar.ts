@@ -37,7 +37,6 @@ import { ServiceCollection } from '../../../platform/instantiation/common/servic
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { Menus, SessionActivityBarGroup } from '../menus.js';
 import { ISessionLayoutButtonsService, registerSessionLayoutButtonsContextMenu } from '../sessionLayoutButtons.js';
-import { getSessionLayoutButtonLabel } from '../sessionLayoutModeActions.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../workbench.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../common/sessionCommands.js';
@@ -664,7 +663,6 @@ class SessionActivityBarSubmenuViewItem extends ActionViewItem {
 		options: IActionViewItemOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(undefined, submenuAction, options);
 	}
@@ -702,11 +700,6 @@ class SessionActivityBarSubmenuViewItem extends ActionViewItem {
 			return;
 		}
 		super.onClick(event);
-	}
-
-	/** The Layout button names the layout mode of its window: "Layout: Stacked". */
-	protected override getTooltip(): string | undefined {
-		return this.submenuAction.item.submenu === Menus.SessionLayout ? getSessionLayoutButtonLabel(this.contextKeyService) : super.getTooltip();
 	}
 
 	protected override getClass(): string | undefined {

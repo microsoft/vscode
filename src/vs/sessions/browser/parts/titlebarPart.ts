@@ -398,6 +398,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 			...chatWindowMenuOptions,
 		}));
+		// The main window's Layout menu and the buttons of its promoted actions: the same context menu as a chat window's.
+		this._register(this.instantiationService.invokeFunction(accessor => registerSessionLayoutButtonsContextMenu(sessionActionsToolBar, accessor.get(ISessionLayoutButtonsService), accessor.get(IContextMenuService))));
 
 		if (chatWindowHandle) {
 			for (const toolBar of [rightToolBar, centerActionsToolBar, sessionActionsToolBar, chatWindowLayoutToolBar]) {
