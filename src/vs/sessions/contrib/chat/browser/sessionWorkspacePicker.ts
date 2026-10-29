@@ -1537,7 +1537,7 @@ export class WorkspacePicker extends Disposable {
 		return this._directPickerAttachesContext === true ? undefined : this.options.environment?.get();
 	}
 
-	getEnvironmentWorkspace(environment: ISessionCreationEnvironment, reader?: IReader): IResolvedFolderWorkspace | undefined {
+	getEnvironmentWorkspace(environment: ISessionCreationEnvironment, reader?: IReader, preferredFolderUri?: URI): IResolvedFolderWorkspace | undefined {
 		const resolve = (folderUri: URI): IResolvedFolderWorkspace | undefined => {
 			const resolved = resolveEnvironmentWorkspace(environment, this.sessionsProvidersService.getProviders(), folderUri);
 			if (!resolved || environment.kind === 'container' && this.getDevContainerWorkspaceAvailability(folderUri, resolved.provider.id) !== true) {
@@ -1545,6 +1545,10 @@ export class WorkspacePicker extends Disposable {
 			}
 			return { providerId: resolved.provider.id, workspace: resolved.workspace };
 		};
+		const preferred = preferredFolderUri && resolve(preferredFolderUri);
+		if (preferred) {
+			return preferred;
+		}
 		if (!this._selectedFolderUri) {
 			return undefined;
 		}
