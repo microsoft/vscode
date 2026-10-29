@@ -28,6 +28,9 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { ISecretStorageService } from '../../../../../../platform/secrets/common/secrets.js';
 import { TestSecretStorageService } from '../../../../../../platform/secrets/test/common/testSecretStorageService.js';
+import { ContributionEnablementState } from '../../../common/enablement.js';
+import { ConfigurationResolverExpression } from '../../../../../services/configurationResolver/common/configurationResolverExpression.js';
+import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { IMcpServer, IMcpService, McpServerDefinition, McpServerTransportType, mcpOAuthClientSecretStorageKey } from '../../../../mcp/common/mcpTypes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -96,10 +99,19 @@ function createAuthInstantiationService(disposables: Pick<DisposableStore, 'add'
 function stubMcpOAuthClientServices(instantiationService: TestInstantiationService, servers: readonly IMcpServer[] = [], secretStorageService: ISecretStorageService = new TestSecretStorageService()): void {
 	instantiationService.stub(IMcpService, { servers: constObservable(servers) });
 	instantiationService.stub(ISecretStorageService, secretStorageService);
+	instantiationService.stub(IConfigurationResolverService, {
+		resolveAsync: async (_folder: unknown, expression: ConfigurationResolverExpression<unknown>) => {
+			for (const replacement of [...expression.unresolved()]) {
+				expression.resolve(replacement, 'env-client');
+			}
+			return expression.toObject();
+		},
+	} as unknown as IConfigurationResolverService);
 }
 
-function createMcpServer(url: string, oauth: { clientId?: string; enterpriseManaged?: boolean }): IMcpServer {
+function createMcpServer(url: string, oauth: { clientId?: string; enterpriseManaged?: boolean } | undefined, enablement: ContributionEnablementState = ContributionEnablementState.EnabledProfile): IMcpServer {
 	return new class extends mock<IMcpServer>() {
+		override readonly enablement = constObservable(enablement);
 		override readDefinitions() {
 			return constObservable({
 				server: { launch: { type: McpServerTransportType.HTTP, uri: URI.parse(url), headers: [], oauth } } as unknown as McpServerDefinition,
@@ -1341,23 +1353,32 @@ suite('resolveMcpServerAuthentication', () => {
 		}
 	}
 
-	for (const { name, clientSecret, servers, expected } of [
-		{ name: 'a public client', clientSecret: undefined, servers: [createMcpServer('https://resource.example/mcp', { clientId: 'configured-client' })], expected: { clientId: 'configured-client', clientSecret: undefined } as { clientId: string | undefined; clientSecret: string | undefined } },
-		{ name: 'a client with a stored secret', clientSecret: 'stored-secret', servers: [createMcpServer('https://resource.example/mcp', { clientId: 'configured-client' })], expected: { clientId: 'configured-client', clientSecret: 'stored-secret' } },
-		{ name: 'no client for a server at another URL', clientSecret: undefined, servers: [createMcpServer('https://other.example/mcp', { clientId: 'configured-client' })], expected: { clientId: undefined, clientSecret: undefined } },
-		{ name: 'no client for an enterprise-managed server', clientSecret: undefined, servers: [createMcpServer('https://resource.example/mcp', { clientId: 'configured-client', enterpriseManaged: true })], expected: { clientId: undefined, clientSecret: undefined } },
-		{ name: 'no client for a server without a client ID', clientSecret: undefined, servers: [createMcpServer('https://resource.example/mcp', {})], expected: { clientId: undefined, clientSecret: undefined } },
+	const configuredResource = 'https://resource.example/mcp';
+	const configuredIssuer = 'https://issuer.example/tenant';
+	const noClient = { clientId: undefined, clientSecret: undefined };
+	for (const { name, secret, servers, challengeResource = configuredResource, trustedIssuers = [configuredIssuer], expected } of [
+		{ name: 'a public client', servers: [createMcpServer(configuredResource, { clientId: 'configured-client' })], expected: { clientId: 'configured-client', clientSecret: undefined } as { clientId: string | undefined; clientSecret: string | undefined } },
+		{ name: 'a client with a stored secret', secret: { clientId: 'configured-client', value: 'stored-secret' }, servers: [createMcpServer(configuredResource, { clientId: 'configured-client' })], expected: { clientId: 'configured-client', clientSecret: 'stored-secret' } },
+		{ name: 'a client ID with a variable', secret: { clientId: 'env-client', value: 'env-secret' }, servers: [createMcpServer(configuredResource, { clientId: '${env:MCP_CLIENT_ID}' })], expected: { clientId: 'env-client', clientSecret: 'env-secret' } },
+		{ name: 'a challenge for the origin of the configured endpoint', challengeResource: 'https://resource.example', servers: [createMcpServer(configuredResource, { clientId: 'configured-client' })], expected: { clientId: 'configured-client', clientSecret: undefined } },
+		{ name: 'no client for a server at another URL', servers: [createMcpServer('https://other.example/mcp', { clientId: 'configured-client' })], expected: noClient },
+		{ name: 'no client for an enterprise-managed server', servers: [createMcpServer(configuredResource, { clientId: 'configured-client', enterpriseManaged: true })], expected: noClient },
+		{ name: 'no client for a server without a client ID', servers: [createMcpServer(configuredResource, {})], expected: noClient },
+		{ name: 'no client for a disabled server', servers: [createMcpServer(configuredResource, { clientId: 'configured-client' }, ContributionEnablementState.DisabledProfile)], expected: noClient },
+		{ name: 'no client for a client ID that needs input', servers: [createMcpServer(configuredResource, { clientId: '${input:client-id}' })], expected: noClient },
+		{ name: 'no client when two servers share the endpoint', servers: [createMcpServer(configuredResource, { clientId: 'configured-client' }), createMcpServer(configuredResource, undefined)], expected: noClient },
+		{ name: 'no client when the issuer is not advertised by the configured endpoint', secret: { clientId: 'configured-client', value: 'stored-secret' }, trustedIssuers: ['https://trusted.example'], servers: [createMcpServer(configuredResource, { clientId: 'configured-client' })], expected: noClient },
 	]) {
 		test(`uses the OAuth client configured in VS Code: ${name}`, async () => {
-			const authorizationServer = URI.parse('https://issuer.example/tenant');
-			const resource = 'https://resource.example/mcp';
+			const authorizationServer = URI.parse(configuredIssuer);
+			const resource = challengeResource;
 			const session: AuthenticationSession = {
 				id: 'session', accessToken: 'token', account: { id: 'account', label: 'Account' }, scopes: ['read']
 			};
 			const createdProviders: { clientId: string | undefined; clientSecret: string | undefined }[] = [];
 			const secretStorageService = new TestSecretStorageService();
-			if (clientSecret) {
-				await secretStorageService.set(mcpOAuthClientSecretStorageKey(resource, 'configured-client'), clientSecret);
+			if (secret) {
+				await secretStorageService.set(mcpOAuthClientSecretStorageKey(configuredResource, secret.clientId), secret.value);
 			}
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IAuthenticationService, createMockAuthService({
@@ -1372,6 +1393,9 @@ suite('resolveMcpServerAuthentication', () => {
 			instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
 			instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
 				getClientRegistration: async () => undefined,
+			});
+			instantiationService.stub(IAgentHostMcpOAuthMetadataService, {
+				resolveResource: async () => ({ resource: configuredResource, authorization_servers: trustedIssuers }),
 			});
 			instantiationService.stub(ILogService, new NullLogService());
 			stubMcpOAuthClientServices(instantiationService, servers, secretStorageService);
