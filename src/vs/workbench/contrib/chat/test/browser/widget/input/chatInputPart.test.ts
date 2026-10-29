@@ -110,6 +110,7 @@ suite('ChatInputPart', () => {
 				onDidChange: Event.None,
 				getElements: () => [heading, trigger],
 				getBaseElement: () => base,
+				getJumpGameElement: () => heading,
 			}]),
 			container: inputPartContainer,
 			inputContainer: input,
@@ -129,6 +130,7 @@ suite('ChatInputPart', () => {
 		};
 		const visibleColliders = inputPart.getChatPetPlatforms().map(platform => platform.element === heading ? 'heading'
 			: platform.element === base ? 'container' : platform.element === input ? 'input' : 'control');
+		const jumpGamePlatforms = inputPart.getChatPetPlatforms().filter(platform => platform.supportsJumpGame).map(platform => platform.element === heading);
 		base.style.visibility = 'hidden';
 		const invisibleBase = inputPart.getChatPetPlatformTop(insideBase);
 		base.style.visibility = '';
@@ -137,6 +139,7 @@ suite('ChatInputPart', () => {
 		assert.deepStrictEqual({
 			visible,
 			visibleColliders,
+			jumpGamePlatforms,
 			invisibleBase,
 			hiddenBase: inputPart.getChatPetPlatformTop(insideBase),
 		}, {
@@ -148,6 +151,7 @@ suite('ChatInputPart', () => {
 				withoutHorizontalPosition: inputBounds.top,
 			},
 			visibleColliders: ['input', 'heading', 'container'],
+			jumpGamePlatforms: [true],
 			invisibleBase: inputBounds.top,
 			hiddenBase: inputBounds.top,
 		});
