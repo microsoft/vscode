@@ -7,7 +7,7 @@ import assert from 'assert';
 import { X509Certificate } from 'crypto';
 import { rootCertificates } from 'tls';
 import { EventEmitter as NodeEventEmitter } from 'events';
-import { spawnSync } from 'child_process';
+import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'child_process';
 import { existsSync } from 'fs';
 import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
@@ -15,7 +15,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { delimiter, join } from '../../../../base/common/path.js';
-import { isLinux } from '../../../../base/common/platform.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { getCaseInsensitive } from '../../../../base/common/objects.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -30,13 +30,12 @@ import { IRequestService } from '../../../request/common/request.js';
 import { writeUserDataCertificatesFile } from '../../../request/node/certificates.js';
 import { IGitHubService } from '../../../github/common/githubService.js';
 import { URI } from '../../../../base/common/uri.js';
-import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult, RemoteDevContainerAgentHostService, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
+import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, IDevContainerShellExec, parseDevContainerMounts, parseDevContainerUpResult, RemoteDevContainerAgentHostService, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
 import { ISshExec, shellEscape } from '../../node/sshRemoteAgentHostHelpers.js';
 import { devContainerServerCacheMount } from '../../node/devContainerServerCache.js';
 import { DevContainerSample } from '../../common/devContainerSamples.js';
 import { IPreparedDevContainerSample } from '../../node/devContainerSamples.js';
 import { IDevContainerSandboxConfiguration } from '../../node/devContainerSandbox.js';
-import { buildAddGitSafeDirectoryCommand, buildConfigureGitIdentityCommand, buildDevContainerProbeCommand } from '../../node/devContainerStartupCommands.js';
 
 class TestRelay implements IDevContainerRelay {
 	readonly sent: string[] = [];
@@ -76,9 +75,12 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	readonly devContainerArgs: string[][] = [];
 	readonly devContainerEnvironments: (NodeJS.ProcessEnv | undefined)[] = [];
 	execEnvironment: NodeJS.ProcessEnv | undefined;
-	execSelector: string | readonly string[] | undefined;
+	readonly shellSelectors: (string | readonly string[])[] = [];
+	readonly separateExecs: { readonly selector: string | readonly string[]; readonly command: string }[] = [];
+	shellDisposed = false;
+	unameM = 'x86_64';
+	shellDisposedBeforeRelay: boolean | undefined;
 	relaySelector: string | readonly string[] | undefined;
-	unameS = 'Linux';
 	relayEnvironment: NodeJS.ProcessEnv | undefined;
 	sandboxEnvironment: NodeJS.ProcessEnv | undefined;
 	sandboxConfigurationOutput: string | undefined;
@@ -296,28 +298,59 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		return super._createExec(connectionId, workspaceFolder, token, environment);
 	}
 
+	startDevContainerShell(connectionId: string, workspaceFolder: readonly string[], token: CancellationToken): Promise<IDevContainerShellExec> {
+		return super._startShell(connectionId, workspaceFolder, token, process.env);
+	}
+
 	protected override _createExec(_connectionId: string, workspaceFolder: string | readonly string[], _token: CancellationToken, environment?: NodeJS.ProcessEnv): ISshExec {
+		const exec = this._createMockExec(environment);
+		return (command, options) => {
+			this.separateExecs.push({ selector: workspaceFolder, command });
+			return exec(command, options);
+		};
+	}
+
+	protected override async _startShell(_connectionId: string, workspaceFolder: string | readonly string[], _token: CancellationToken, environment?: NodeJS.ProcessEnv): Promise<IDevContainerShellExec> {
+		this.shellSelectors.push(workspaceFolder);
+		return { exec: this._createMockExec(environment), dispose: () => this.shellDisposed = true };
+	}
+
+	private _createMockExec(environment?: NodeJS.ProcessEnv): ISshExec {
 		this.execEnvironment = environment;
-		this.execSelector = workspaceFolder;
 		return async command => {
 			this.execCommands.push(command);
+			if (command === 'id -u; id -g') {
+				return { stdout: '1000\n1000\n', stderr: '', code: 0 };
+			}
 			if (command.includes('ln -sT') && this.cacheSetupError) {
 				throw this.cacheSetupError;
 			}
-			if (command === buildDevContainerProbeCommand(this.remoteWorkspaceFolder)) {
-				const reportsRoot = this.gitRootFolder && !this.gitRootReportedAsDubiousOwnership;
+			if (command === 'command -v git >/dev/null 2>&1') {
+				return { stdout: '', stderr: '', code: 0 };
+			}
+			if (command.startsWith('command -v git ')) {
 				return {
-					stdout: `os=${this.unameS}\nmachine=x86_64\nlibc=${this._libc}\nuid=1000\ngid=1000\n${reportsRoot ? `gitRoot=${this.gitRootFolder}\n` : ''}`,
+					stdout: this.gitRootReportedAsDubiousOwnership ? '' : this.gitRootFolder ?? '',
 					stderr: this.gitRootReportedAsDubiousOwnership && this.gitRootFolder ? `fatal: detected dubious ownership in repository at '${this.gitRootFolder}'` : '',
-					code: 0,
+					code: this.gitRootReportedAsDubiousOwnership || !this.gitRootFolder ? 128 : 0,
 				};
 			}
-			if (this.gitRootFolder && command === buildAddGitSafeDirectoryCommand(this.gitRootFolder)) {
-				return { stdout: this.safeDirectories.includes(this.gitRootFolder) ? '' : 'added', stderr: '', code: 0 };
+			if (command === 'git config --global --get-all safe.directory') {
+				return { stdout: this.safeDirectories.join('\n'), stderr: '', code: this.safeDirectories.length ? 0 : 1 };
 			}
-			if (command.startsWith('command -v git >/dev/null 2>&1 || exit 0\n')) {
-				const configured = ['user.name', 'user.email'].filter(key => this.hostGitConfig.has(key) && !this.containerGitConfig.has(key));
-				return { stdout: configured.map(key => `${key}\n`).join(''), stderr: '', code: 0 };
+			const gitIdentityMatch = /^git config --get (?<key>user\.(?:name|email))$/.exec(command);
+			if (gitIdentityMatch?.groups) {
+				const value = this.containerGitConfig.get(gitIdentityMatch.groups.key);
+				return { stdout: value === undefined ? '' : `${value}\n`, stderr: '', code: value === undefined ? 1 : 0 };
+			}
+			if (command === 'uname -s') {
+				return { stdout: 'Linux\n', stderr: '', code: 0 };
+			}
+			if (command === 'uname -m') {
+				return { stdout: `${this.unameM}\n`, stderr: '', code: 0 };
+			}
+			if (command.includes('/etc/alpine-release')) {
+				return { stdout: this._libc, stderr: '', code: 0 };
 			}
 			if (this._forceCliInstall && command.includes('--version &&')) {
 				return { stdout: '', stderr: '', code: 1 };
@@ -377,6 +410,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	): Promise<IDevContainerRelay> {
 		this.relayCommand = command;
 		this.relaySelector = workspaceFolder;
+		this.shellDisposedBeforeRelay = this.shellDisposed;
 		this.relayEnvironment = environment;
 		void this.relayStarted.complete();
 		return this.relayResult ?? Promise.resolve(this.relay);
@@ -986,7 +1020,7 @@ suite('Dev Container Agent Host Main Service', () => {
 			assert.strictEqual(service.execEnvironment, environment);
 			assert.strictEqual(service.relayEnvironment, environment);
 			const sandboxSelector = ['--workspace-folder', '/workspace', '--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json', '--container-id', 'container-id'];
-			assert.deepStrictEqual({ exec: service.execSelector, relay: service.relaySelector }, { exec: sandboxSelector, relay: sandboxSelector });
+			assert.deepStrictEqual({ shell: service.shellSelectors, relay: service.relaySelector }, { shell: [sandboxSelector], relay: sandboxSelector });
 
 			await service.createDevContainerExec('sandbox', '/workspace', CancellationToken.None, environment)('printf test');
 			assert.strictEqual(service.devContainerEnvironments.at(-1), environment);
@@ -1083,8 +1117,7 @@ suite('Dev Container Agent Host Main Service', () => {
 	});
 
 	test('forwards missing host Git identity without overwriting container identity', async () => {
-		const forwardedLog = new TestLogService();
-		const forwarded = store.add(new TestDevContainerAgentHostMainService('', false, undefined, process.env, true, [], new Set(), '/tmp', forwardedLog));
+		const forwarded = store.add(new TestDevContainerAgentHostMainService());
 		forwarded.hostGitConfig.set('user.name', 'Host User');
 		forwarded.hostGitConfig.set('user.email', 'host@example.com');
 		await forwarded.connect({
@@ -1093,8 +1126,7 @@ suite('Dev Container Agent Host Main Service', () => {
 			name: 'Project Dev Container',
 		});
 
-		const preservedLog = new TestLogService();
-		const preserved = store.add(new TestDevContainerAgentHostMainService('', false, undefined, process.env, true, [], new Set(), '/tmp', preservedLog));
+		const preserved = store.add(new TestDevContainerAgentHostMainService());
 		preserved.hostGitConfig.set('user.name', 'Host User');
 		preserved.hostGitConfig.set('user.email', 'host@example.com');
 		preserved.containerGitConfig.set('user.name', 'Container User');
@@ -1111,27 +1143,27 @@ suite('Dev Container Agent Host Main Service', () => {
 			name: 'Project Dev Container',
 		});
 
-		const identityCommand = buildConfigureGitIdentityCommand({ name: 'Host User', email: 'host@example.com' });
-		const configuredKeys = (log: TestLogService) => log.infoMessages.filter(message => message.includes('from the host'));
 		assert.deepStrictEqual({
 			hostCommands: forwarded.localCommands.filter(command => command.command === 'git'),
 			forwardedCommands: forwarded.execCommands.filter(command => command.includes('user.')),
-			forwardedLogs: configuredKeys(forwardedLog),
 			preservedCommands: preserved.execCommands.filter(command => command.includes('user.')),
-			preservedLogs: configuredKeys(preservedLog),
 			absentCommands: absent.execCommands.filter(command => command.includes('user.')),
 		}, {
 			hostCommands: [
 				{ command: 'git', args: ['config', '--global', '--get', 'user.name'] },
 				{ command: 'git', args: ['config', '--global', '--get', 'user.email'] },
 			],
-			forwardedCommands: [identityCommand],
-			forwardedLogs: [
-				'[DevContainerAgentHost] Configured Git user.name from the host for the Dev Container user',
-				'[DevContainerAgentHost] Configured Git user.email from the host for the Dev Container user',
+			forwardedCommands: [
+				'git config --get user.name',
+				'git config --global --replace-all user.name \'Host User\'',
+				'git config --get user.email',
+				'git config --global --replace-all user.email \'host@example.com\'',
 			],
-			preservedCommands: [identityCommand],
-			preservedLogs: ['[DevContainerAgentHost] Configured Git user.email from the host for the Dev Container user'],
+			preservedCommands: [
+				'git config --get user.name',
+				'git config --get user.email',
+				'git config --global --replace-all user.email \'host@example.com\'',
+			],
 			absentCommands: [],
 		});
 	});
@@ -1176,7 +1208,10 @@ suite('Dev Container Agent Host Main Service', () => {
 			outsideMountCommands: outsideMount.execCommands.filter(command => command.includes('safe.directory')),
 		}, {
 			configuredHostDirectories: [join('/host/workspace', 'project')],
-			configuredCommands: [buildAddGitSafeDirectoryCommand('/workspaces/project')],
+			configuredCommands: [
+				'git config --global --get-all safe.directory',
+				'git config --global --add safe.directory \'/workspaces/project\'',
+			],
 			unownedHostDirectories: [join('/host/workspace', 'project')],
 			unownedCommands: [],
 			outsideMountHostDirectories: [],
@@ -1217,15 +1252,9 @@ suite('Dev Container Agent Host Main Service', () => {
 		});
 	});
 
-	test('runs startup probes and Git setup in one Dev Container exec each against the started container', async () => {
+	test('runs startup commands in one shell for the started container and starts the Agent Host separately', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService());
-		service.gitRootFolder = '/workspaces/project';
-		service.gitRootReportedAsDubiousOwnership = true;
-		service.containerMounts = [
-			{ Type: 'bind', Source: '/host/workspace', Destination: '/workspaces' },
-			{ Type: 'volume', Source: '/volumes/vscode', Destination: '/vscode', Name: 'vscode' },
-		];
-		service.hostGitConfig.set('user.name', 'Host User');
+		service.endpointSessionId = undefined;
 		await service.connect({
 			connectionId: 'connection',
 			workspaceFolder: '/workspace',
@@ -1234,33 +1263,67 @@ suite('Dev Container Agent Host Main Service', () => {
 
 		const selector = ['--workspace-folder', '/workspace', '--container-id', 'container-id'];
 		assert.deepStrictEqual({
-			startupCommands: service.execCommands.slice(0, 3),
-			nextIsCacheLink: service.execCommands[3]?.includes('ln -sT'),
-			cacheOwnerFromProbe: service.localCommands.some(command => command.command === 'docker' && command.args.at(-1)?.includes(`chown '1000:1000'`)),
-			execSelector: service.execSelector,
+			shellSelectors: service.shellSelectors,
+			separateExecs: service.separateExecs.map(({ selector, command }) => ({ selector, startsAgentHost: command.startsWith(`${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=`) })),
 			relaySelector: service.relaySelector,
+			shellDisposedBeforeRelay: service.shellDisposedBeforeRelay,
 		}, {
-			startupCommands: [
-				buildDevContainerProbeCommand('/workspaces/project'),
-				buildAddGitSafeDirectoryCommand('/workspaces/project'),
-				buildConfigureGitIdentityCommand({ name: 'Host User', email: undefined }),
-			],
-			nextIsCacheLink: true,
-			cacheOwnerFromProbe: true,
-			execSelector: selector,
+			shellSelectors: [selector],
+			separateExecs: [{ selector, startsAgentHost: true }],
 			relaySelector: selector,
+			shellDisposedBeforeRelay: true,
 		});
 	});
 
-	test('rejects an unsupported platform reported by the startup probe', async () => {
+	test('closes the startup shell when startup fails', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService());
-		service.unameS = 'FreeBSD';
-		await assert.rejects(service.connect({
-			connectionId: 'connection',
-			workspaceFolder: '/workspace',
-			name: 'Project Dev Container',
-		}), /Unsupported Dev Container platform: FreeBSD x86_64/);
-		assert.deepStrictEqual(service.execCommands, [buildDevContainerProbeCommand('/workspaces/project')]);
+		service.unameM = 'sparc64';
+		await assert.rejects(service.connect({ connectionId: 'connection', workspaceFolder: '/workspace', name: 'Project Dev Container' }), /Unsupported Dev Container platform: Linux sparc64/);
+		assert.deepStrictEqual({ shellDisposed: service.shellDisposed, relayStarted: service.relayCommand !== undefined }, { shellDisposed: true, relayStarted: false });
+	});
+
+	(isWindows ? test.skip : test)('runs commands through one container shell launched for the started container', async () => {
+		const spawned: (readonly string[])[] = [];
+		const children: ChildProcessWithoutNullStreams[] = [];
+		const output: string[] = [];
+		const service = store.add(new class extends TestDevContainerAgentHostMainService {
+			protected override _spawnDevContainer(args: readonly string[]): ChildProcessWithoutNullStreams {
+				spawned.push(args);
+				const child = spawn('/bin/sh', ['-c', 'echo "CLI log" >&2; exec /bin/sh']);
+				children.push(child);
+				return child;
+			}
+		}());
+		store.add(service.onDidOutput(event => output.push(event.data)));
+		const shell = await service.startDevContainerShell('connection', ['--workspace-folder', '/workspace', '--container-id', 'container-id'], CancellationToken.None);
+		try {
+			const results = await Promise.all([
+				shell.exec('printf "%s" "$PPID"'),
+				shell.exec('printf "%s" "$PPID"; echo warning >&2'),
+				shell.exec('exit 4', { ignoreExitCode: true }),
+				shell.exec('cat'),
+			]);
+			await assert.rejects(shell.exec('echo failed >&2; exit 5'), /Dev Container command failed \(exit 5\): echo failed >&2; exit 5\nstderr: failed/);
+			assert.deepStrictEqual({
+				spawned,
+				results,
+				output: output.slice(0, 2),
+			}, {
+				spawned: [['exec', '--log-level', 'debug', '--workspace-folder', '/workspace', '--container-id', 'container-id', '/bin/sh']],
+				results: [
+					{ stdout: String(children[0].pid), stderr: '', code: 0 },
+					{ stdout: String(children[0].pid), stderr: 'warning\n', code: 0 },
+					{ stdout: '', stderr: '', code: 4 },
+					{ stdout: '', stderr: '', code: 0 },
+				],
+				output: [
+					'$ devcontainer "exec" "--log-level" "debug" "--workspace-folder" "/workspace" "--container-id" "container-id" "/bin/sh"\n',
+					'CLI log\n',
+				],
+			});
+		} finally {
+			shell.dispose();
+		}
 	});
 
 	test('runs Dev Container exec commands with debug logging', async () => {
