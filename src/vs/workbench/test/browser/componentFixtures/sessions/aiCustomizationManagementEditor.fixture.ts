@@ -60,7 +60,7 @@ import { AbstractVariableResolverService } from '../../../../services/configurat
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationScope, AICustomizationSource, AICustomizationSources } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
 import { CustomizationMarketplaceInstallService } from '../../../../contrib/chat/browser/aiCustomization/customizationMarketplaceInstallService.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../../contrib/chat/browser/aiCustomization/copilotConnectorsService.js';
@@ -247,11 +247,29 @@ function createMockAgentHostCustomizationService(mcpServers: readonly FixtureAge
 // item provider (bypassing the prompts-service discovery used by local
 // harnesses). Provide items and writable folders so the fixture exercises
 // the same discovery and migration availability as the real provider.
-function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remoteClientSkillName?: string): ICustomizationItemProvider {
+/** A plugin installed on the agent host itself, reported with the scope it applies to. */
+interface IFixtureAgentHostPlugin {
+	readonly name: string;
+	readonly description: string;
+	readonly scope: AICustomizationScope;
+}
+
+function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remoteClientSkillName?: string, plugins: readonly IFixtureAgentHostPlugin[] = []): ICustomizationItemProvider {
 	return {
 		onDidChange: Event.None,
 		async provideChatSessionCustomizations(): Promise<ICustomizationItem[]> {
-			return files.filter(file => file.source !== PromptFileSource.UserData).map(file => ({
+			const pluginItems = plugins.map((plugin): ICustomizationItem => ({
+				uri: URI.file(`/home/dev/.copilot/installed-plugins/${plugin.name}`),
+				type: 'plugin',
+				name: plugin.name,
+				description: plugin.description,
+				source: AICustomizationSources.plugin,
+				groupKey: 'remote-host',
+				scope: plugin.scope,
+				extensionId: undefined,
+				pluginUri: undefined,
+			}));
+			return [...pluginItems, ...files.filter(file => file.source !== PromptFileSource.UserData).map(file => ({
 				uri: file.uri,
 				type: file.type,
 				name: file.name ?? '',
@@ -262,7 +280,7 @@ function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remo
 					: file.type === PromptsType.skill && file.name === remoteClientSkillName ? 'remote-client' : 'remote-host',
 				extensionId: file.extensionId,
 				pluginUri: undefined,
-			}));
+			}))];
 		},
 		async provideSourceFolders(_sessionResource, type): Promise<readonly ICustomizationSourceFolder[]> {
 			let folderName: string;
@@ -1213,6 +1231,7 @@ interface IRenderEditorOptions {
 	readonly mcpServerCompatibility?: readonly ICustomizationMcpServerCompatibility[];
 	readonly mcpMigrationCandidates?: readonly IMcpServerCustomizationMigrationCandidate[];
 	readonly agentHostFiles?: readonly IFixtureFile[];
+	readonly agentHostPlugins?: readonly IFixtureAgentHostPlugin[];
 	readonly remoteClientSkillName?: string;
 	readonly enableHovers?: boolean;
 	readonly expectedDiscoveryContentWidth?: number;
@@ -1282,7 +1301,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			icon: ThemeIcon.fromId(Codicon.server.id),
 			hiddenSections: [AICustomizationManagementSection.Prompts],
 			hideGenerateButton: true,
-			itemProvider: createFixtureAgentHostItemProvider(options.agentHostFiles ?? allFiles, options.remoteClientSkillName),
+			itemProvider: createFixtureAgentHostItemProvider(options.agentHostFiles ?? allFiles, options.remoteClientSkillName, options.agentHostPlugins),
 			marketplaceManagementProvider,
 			mcpServerCompatibilityProvider: mcpServerCompatibility ? {
 				acquire: () => ({
@@ -4255,6 +4274,21 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	// Plugins tab
+	AgentHostPluginsTab: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Plugins installed on the agent host are listed in the scope they apply to: a user plugin under User, an organization plugin under Account, and a plugin built into the agent under its own group. Browse replaces the Available group.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Plugins,
+			marketplaceVisibilityEnabled: true,
+			agentHostPlugins: [
+				{ name: 'azure', description: 'Deploy and diagnose Azure resources', scope: 'user' },
+				{ name: 'contoso-release', description: 'Required by the Contoso organization', scope: 'account' },
+				{ name: 'github', description: 'GitHub workflows built into Copilot', scope: 'application' },
+			],
+			height: 1180,
+		}),
+	}),
 	PluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The Plugins page uses a classic tree with separate collapsible User and Workspace groups, plus Account, agent, and Available groups when applicable. Header action buttons use the standard gap.'],
