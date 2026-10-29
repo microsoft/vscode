@@ -694,6 +694,7 @@ suite('AgentCustomizationItemProvider', () => {
 			new NullLogService(),
 			new TestCustomizationService(),
 			makePromptsService(),
+			labelService,
 		));
 		const sessionResource = URI.parse('agent-host-copilotcli:///session');
 
@@ -730,6 +731,7 @@ suite('AgentCustomizationItemProvider', () => {
 			new NullLogService(),
 			customizationService,
 			makePromptsService(),
+			labelService,
 		));
 		const sessionResource = URI.parse('agent-host-copilotcli:///session');
 
