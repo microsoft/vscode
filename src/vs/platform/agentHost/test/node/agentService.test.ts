@@ -35327,6 +35327,17 @@ suite('AgentService (node dispatcher)', () => {
 			const sourceSession = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
 			const sourceChat = URI.parse(buildChatUri(sourceSession, 'source-chat'));
 			await localService.createChat(sourceSession, sourceChat);
+			const activeClient: SessionActiveClient = {
+				clientId: 'test-client',
+				tools: [],
+				customizations: [{
+					type: CustomizationType.Plugin,
+					id: 'agent-plan',
+					uri: 'file:///agent-plan',
+					name: 'agent-plan',
+				}],
+			};
+			localService.dispatchAction(sourceSession.toString(), { type: ActionType.SessionActiveClientSet, activeClient }, 'test-client', 1);
 			getStateManager(localService).setSessionConfig(sourceSession.toString(), {
 				schema: { type: 'object', properties: {} },
 				values: {
@@ -35361,6 +35372,9 @@ suite('AgentService (node dispatcher)', () => {
 			const createdIsolation = createdSessionUri
 				? getStateManager(localService).getSessionState(createdSessionUri)?.config?.values[SessionConfigKey.Isolation]
 				: undefined;
+			const createdActiveClients = createdSessionUri
+				? getStateManager(localService).getSessionState(createdSessionUri)?.activeClients
+				: undefined;
 			const inheritedSessionConfig = agent.createSessionConfigs.at(-1);
 			await agent.serverToolHost!.executeTool(sourceChat.toString(), SessionServerToolName.CreateSession, {
 				relationship: 'currentSession',
@@ -35391,6 +35405,7 @@ suite('AgentService (node dispatcher)', () => {
 				sourceModelBeforeCreation,
 				createdIsolation,
 				downgradedIsolation,
+				createdActiveClients,
 				delegation: delegatedMessage && readAgentMessageDelegationMeta(delegatedMessage),
 				sessionConfig: {
 					...inheritedSessionConfig,
@@ -35402,6 +35417,7 @@ suite('AgentService (node dispatcher)', () => {
 				sourceModelBeforeCreation: { id: 'source-model' },
 				createdIsolation: 'worktree',
 				downgradedIsolation: 'folder',
+				createdActiveClients: [activeClient],
 				delegation: {
 					sourceSession: sourceSession.toString(),
 					sourceChat: sourceChat.toString(),

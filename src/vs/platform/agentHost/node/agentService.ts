@@ -2558,6 +2558,7 @@ export class AgentService extends Disposable implements IAgentService {
 			: this._configurationService.getChatConfigValues({ session: owner, chat: source.toString() }) ?? session.config?.values);
 		const config = this._providerService.getProvider(chatProvider)?.getInheritedChatConfig(sourceConfig);
 		const isolation = getNonMergeSessionConfigValues(session.config?.values)[SessionConfigKey.Isolation];
+		const activeClient = chatProvider === session.provider ? session.activeClients[0] : undefined;
 		return {
 			provider: chatProvider,
 			sessionProvider: session.provider,
@@ -2565,6 +2566,7 @@ export class AgentService extends Disposable implements IAgentService {
 			...(config !== undefined ? { config } : {}),
 			...(isolation === 'folder' || isolation === 'worktree' ? { isolation } : {}),
 			...(session.project ? { project: URI.parse(session.project.uri) } : {}),
+			...(activeClient !== undefined ? { activeClient } : {}),
 		};
 	}
 
