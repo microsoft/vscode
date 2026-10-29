@@ -880,11 +880,12 @@ abstract class BaseArchiveSectionAction extends Action2 {
 				group: id === SessionSectionToolbarMenuId ? 'navigation' : '1_state',
 				order: id === SessionSectionToolbarMenuId ? 1 : 2,
 				// Not on Done itself, and not on the "Chats" (quick chats) section.
-				// Also not on Automations.
+				// Also not on Automations, or on Projects, whose coordinators are archived one at a time.
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'archived'),
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'quickchats'),
 					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'automations'),
+					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'projects'),
 				),
 			}))
 		});

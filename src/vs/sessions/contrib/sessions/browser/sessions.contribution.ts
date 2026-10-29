@@ -18,6 +18,7 @@ import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, N
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import { AutomationsCustomViewContribution } from './views/automationsView.js';
 import './views/sessionsViewActions.js';
+import './views/sessionsRepositoryActions.js';
 import './views/sessionsProjectActions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';

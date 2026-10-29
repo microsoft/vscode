@@ -8,7 +8,7 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISessionFolder } from '../../../sessions/common/session.js';
-import { getSessionFolderProjectIdentity, getSessionProjectIdentity } from '../../common/sessionProject.js';
+import { getSessionFolderRepositoryIdentity, getSessionRepositoryIdentity } from '../../common/sessionRepository.js';
 
 function folder(root: URI, git?: { readonly uri: URI; readonly workTreeUri?: URI; readonly owner?: string; readonly repo?: string }): ISessionFolder {
 	return {
@@ -29,9 +29,9 @@ suite('SessionProject', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('identifies projects by repository, subfolder, and host-scoped folder', () => {
+	test('identifies repositories by repository, subfolder, and host-scoped folder', () => {
 		const repo = URI.file('/src/vscode');
-		const keyOf = (f: ISessionFolder) => getSessionFolderProjectIdentity(f).key;
+		const keyOf = (f: ISessionFolder) => getSessionFolderRepositoryIdentity(f).key;
 		assert.deepStrictEqual({
 			checkout: keyOf(folder(repo, { uri: repo, owner: 'Microsoft', repo: 'VSCode' })),
 			otherCheckoutOnAnotherHost: keyOf(folder(URI.from({ scheme: 'vscode-agent-host', authority: 'ssh-box', path: '/home/me/vscode' }), { uri: URI.from({ scheme: 'vscode-agent-host', authority: 'ssh-box', path: '/home/me/vscode' }), owner: 'microsoft', repo: 'vscode' })),
@@ -61,8 +61,8 @@ suite('SessionProject', () => {
 		});
 	});
 
-	test('names a subfolder project with its relative directory', () => {
-		const identity = getSessionProjectIdentity({
+	test('names a subfolder scope with its relative directory', () => {
+		const identity = getSessionRepositoryIdentity({
 			root: URI.file('/src/vscode/extensions/git'),
 			name: 'git',
 			gitHubRepository: { owner: 'microsoft', repo: 'vscode' },

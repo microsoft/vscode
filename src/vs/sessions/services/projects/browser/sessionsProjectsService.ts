@@ -3,39 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
-import { basename, isEqual } from '../../../../base/common/resources.js';
+import { derived, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
 import { isObject } from '../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IResolvedGitRepository, resolveGitRepositoryFromGitConfig } from '../../sessions/browser/gitHubRepositoryResolver.js';
+import { ISession } from '../../sessions/common/session.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
-import { getSessionFolderProjectIdentity, getSessionProjectIdentity, ISessionProjectIdentity, SessionProjectKind } from '../common/sessionProject.js';
-import { ISessionProject, ISessionProjectLocation, ISessionProjectMember, ISessionsProjectsService } from '../common/sessionsProjects.js';
+import { buildProjectKickoff, ICreateSessionsProjectOptions, ISessionsProject, ISessionsProjectsService } from '../common/sessionsProjects.js';
 
-/** Machine-local because locations are paths on this machine's view of its hosts. */
-const SAVED_PROJECTS_STORAGE_KEY = 'sessions.projects.saved';
+/** Machine-local, like the coordinator sessions and repository locations it refers to. */
+const PROJECTS_STORAGE_KEY = 'sessions.projects';
 const SELECTED_PROJECT_STORAGE_KEY = 'sessions.projects.selected';
+/** Bounds the walk up a session's creators, guarding against cycles in provider metadata. */
+const MAX_CREATOR_DEPTH = 32;
 
 interface IStoredProject {
-	readonly key: string;
-	readonly kind: SessionProjectKind;
-	readonly label: string;
-	readonly gitHubRepository?: { readonly owner: string; readonly repo: string };
-	readonly relativePath?: string;
-	readonly location?: { readonly folderUri: UriComponents; readonly providerId?: string };
-}
-
-interface IProjectBuilder {
-	identity: ISessionProjectIdentity;
-	isSaved: boolean;
-	readonly aliases: string[];
-	readonly locations: ISessionProjectLocation[];
-	sessionCount: number;
+	readonly id: string;
+	readonly name: string;
+	readonly repositories: readonly { readonly key: string; readonly label: string; readonly folderUri?: UriComponents; readonly providerId?: string }[];
+	readonly coordinator: UriComponents;
+	readonly createdAt: number;
 }
 
 function isStoredProject(value: unknown): value is IStoredProject {
@@ -43,222 +35,165 @@ function isStoredProject(value: unknown): value is IStoredProject {
 		return false;
 	}
 	const candidate = value as Partial<IStoredProject>;
-	return typeof candidate.key === 'string'
-		&& (candidate.kind === SessionProjectKind.Repository || candidate.kind === SessionProjectKind.Folder)
-		&& typeof candidate.label === 'string'
-		&& (candidate.location === undefined || (isObject(candidate.location) && isObject(candidate.location.folderUri)));
+	return typeof candidate.id === 'string'
+		&& typeof candidate.name === 'string'
+		&& typeof candidate.createdAt === 'number'
+		&& isObject(candidate.coordinator)
+		&& Array.isArray(candidate.repositories)
+		&& candidate.repositories.every(repository => isObject(repository) && typeof repository.key === 'string' && typeof repository.label === 'string');
 }
 
-function addLocation(project: IProjectBuilder, location: ISessionProjectLocation): void {
-	if (!project.locations.some(existing => isEqual(existing.folderUri, location.folderUri) && existing.providerId === location.providerId)) {
-		project.locations.push(location);
-	}
+function reviveProject(record: IStoredProject): ISessionsProject {
+	return {
+		id: record.id,
+		name: record.name,
+		createdAt: record.createdAt,
+		coordinator: URI.revive(record.coordinator),
+		repositories: record.repositories.map(repository => ({
+			key: repository.key,
+			label: repository.label,
+			folderUri: repository.folderUri && URI.revive(repository.folderUri),
+			providerId: repository.providerId,
+		})),
+	};
+}
+
+function storeProject(project: ISessionsProject): IStoredProject {
+	return {
+		id: project.id,
+		name: project.name,
+		createdAt: project.createdAt,
+		coordinator: project.coordinator.toJSON(),
+		repositories: project.repositories.map(repository => ({
+			key: repository.key,
+			label: repository.label,
+			folderUri: repository.folderUri?.toJSON(),
+			providerId: repository.providerId,
+		})),
+	};
 }
 
 export class SessionsProjectsService extends Disposable implements ISessionsProjectsService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _saved = observableValue<readonly IStoredProject[]>(this, []);
-	private readonly _selectedKey = observableValue<string | undefined>(this, undefined);
+	private readonly _projects = observableValue<readonly ISessionsProject[]>(this, []);
+	readonly projects: IObservable<readonly ISessionsProject[]> = this._projects;
 
-	readonly projects: IObservable<readonly ISessionProject[]>;
-	readonly selectedProject: IObservable<ISessionProject | undefined>;
+	private readonly _selectedId = observableValue<string | undefined>(this, undefined);
+	readonly selectedProject: IObservable<ISessionsProject | undefined>;
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-
-		this._saved.set(this._readSaved(), undefined);
-		this._selectedKey.set(this._storageService.get(SELECTED_PROJECT_STORAGE_KEY, StorageScope.WORKSPACE), undefined);
-
-		const sessionsChanged = observableSignalFromEvent(this, this._sessionsManagementService.onDidChangeSessions);
-		this.projects = derived(this, reader => {
-			sessionsChanged.read(reader);
-			return this._computeProjects(this._saved.read(reader), reader);
-		});
+		this._projects.set(this._read(), undefined);
+		this._selectedId.set(this._storageService.get(SELECTED_PROJECT_STORAGE_KEY, StorageScope.WORKSPACE), undefined);
 		this.selectedProject = derived(this, reader => {
-			const key = this._selectedKey.read(reader);
-			return key === undefined ? undefined : this.projects.read(reader).find(project => project.key === key || project.aliases.includes(key));
+			const id = this._selectedId.read(reader);
+			return id === undefined ? undefined : this._projects.read(reader).find(project => project.id === id);
 		});
 	}
 
-	selectProject(key: string | undefined): void {
-		this._selectedKey.set(key, undefined);
-		if (key === undefined) {
+	selectProject(id: string | undefined): void {
+		this._selectedId.set(id, undefined);
+		if (id === undefined) {
 			this._storageService.remove(SELECTED_PROJECT_STORAGE_KEY, StorageScope.WORKSPACE);
 		} else {
-			this._storageService.store(SELECTED_PROJECT_STORAGE_KEY, key, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this._storageService.store(SELECTED_PROJECT_STORAGE_KEY, id, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 	}
 
-	isSessionInProject(session: ISessionProjectMember, project: ISessionProject, reader?: IReader): boolean {
-		const folder = session.workspace.read(reader)?.folders[0];
-		if (!folder) {
-			return false;
-		}
-		const key = getSessionFolderProjectIdentity(folder, reader).key;
-		return key === project.key
-			|| project.aliases.includes(key)
-			|| project.locations.some(location => isEqual(location.folderUri, folder.root));
-	}
-
-	async addFolder(folderUri: URI, providerId?: string): Promise<ISessionProject | undefined> {
-		const resolved = this._sessionsManagementService.resolveWorkspace(folderUri, providerId);
-		if (!resolved) {
+	async createProject(options: ICreateSessionsProjectOptions, token: CancellationToken = CancellationToken.None): Promise<ISessionsProject | undefined> {
+		const name = options.name.trim();
+		const session = await this._sessionsManagementService.createAndSendQuickChatRequest({
+			query: buildProjectKickoff(name, options.repositories, options.firstMessage),
+			title: name,
+		}, undefined, token);
+		if (!session || token.isCancellationRequested) {
 			return undefined;
 		}
-		let repository: IResolvedGitRepository | undefined;
-		try {
-			repository = await resolveGitRepositoryFromGitConfig(this._fileService, folderUri, ['github.com']);
-		} catch (error) {
-			this._logService.warn('[Projects] Unable to read Git metadata for a project folder; saving it as a plain folder.', error);
-		}
-		const identity = getSessionProjectIdentity({
-			root: folderUri,
-			name: resolved.workspace.folders[0]?.name ?? basename(folderUri),
-			gitHubRepository: repository?.gitHub,
-			repositoryUri: repository?.root,
-		});
-		this._save(identity, { folderUri, providerId: resolved.providerId });
-		return this.projects.get().find(project => project.key === identity.key || project.aliases.includes(identity.key));
-	}
-
-	saveProject(project: ISessionProject): void {
-		this._save(project, project.locations[0]);
-	}
-
-	resolveRepositories(): void {
-		for (const session of this._sessionsManagementService.getSessions()) {
-			const git = session.workspace.get()?.folders[0]?.gitRepository;
-			if (git && !git.gitHubInfo.get()) {
-				git.resolveGitHubInfo?.();
-			}
-		}
-	}
-
-	removeSavedProject(project: ISessionProject): void {
-		const keys = new Set([project.key, ...project.aliases]);
-		const saved = this._saved.get();
-		const remaining = saved.filter(record => !keys.has(record.key));
-		if (remaining.length !== saved.length) {
-			this._writeSaved(remaining);
-		}
-	}
-
-	private _save(identity: ISessionProjectIdentity, location: ISessionProjectLocation | undefined): void {
-		const record: IStoredProject = {
-			key: identity.key,
-			kind: identity.kind,
-			label: identity.label,
-			gitHubRepository: identity.gitHubRepository,
-			relativePath: identity.relativePath,
-			location: location && { folderUri: location.folderUri.toJSON(), providerId: location.providerId },
+		const project: ISessionsProject = {
+			id: generateUuid(),
+			name,
+			repositories: options.repositories,
+			coordinator: session.resource,
+			createdAt: Date.now(),
 		};
-		const saved = this._saved.get();
-		const index = saved.findIndex(existing => existing.key === identity.key);
-		this._writeSaved(index === -1 ? [...saved, record] : saved.map((existing, i) => i === index ? record : existing));
+		this._write([project, ...this._projects.get()]);
+		return project;
 	}
 
-	private _computeProjects(saved: readonly IStoredProject[], reader: IReader): ISessionProject[] {
-		const byKey = new Map<string, IProjectBuilder>();
-		const sessions = [...this._sessionsManagementService.getSessions()].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-		for (const session of sessions) {
-			if (session.isArchived.read(reader) || session.isQuickChat?.read(reader)) {
-				continue;
-			}
-			const folder = session.workspace.read(reader)?.folders[0];
-			if (!folder) {
-				continue;
-			}
-			const identity = getSessionFolderProjectIdentity(folder, reader);
-			let project = byKey.get(identity.key);
-			if (!project) {
-				project = { identity, isSaved: false, aliases: [], locations: [], sessionCount: 0 };
-				byKey.set(identity.key, project);
-			}
-			project.sessionCount++;
-			addLocation(project, { folderUri: folder.root, providerId: session.providerId });
-		}
-
-		// A checkout without GitHub metadata yet, such as a worktree whose remote is still
-		// resolving, joins the GitHub project checked out at the same repository.
-		for (const [key, project] of byKey) {
-			const repositoryUri = project.identity.repositoryUri;
-			if (project.identity.gitHubRepository || !repositoryUri) {
-				continue;
-			}
-			const target = [...byKey.values()].find(candidate => candidate.identity.gitHubRepository
-				&& candidate.identity.relativePath === project.identity.relativePath
-				&& ((candidate.identity.repositoryUri && isEqual(candidate.identity.repositoryUri, repositoryUri)) || candidate.locations.some(location => isEqual(location.folderUri, repositoryUri))));
-			if (target) {
-				target.sessionCount += project.sessionCount;
-				target.aliases.push(key);
-				for (const location of project.locations) {
-					addLocation(target, location);
-				}
-				byKey.delete(key);
-			}
-		}
-
-		const savedProjects: IProjectBuilder[] = [];
-		for (const record of saved) {
-			const location = record.location && { folderUri: URI.revive(record.location.folderUri), providerId: record.location.providerId };
-			// A folder saved before its repository was known joins the project its sessions report.
-			let project = byKey.get(record.key)
-				?? (location && [...byKey.values()].find(candidate => candidate.locations.some(existing => isEqual(existing.folderUri, location.folderUri))));
-			if (!project) {
-				project = {
-					identity: { key: record.key, kind: record.kind, label: record.label, gitHubRepository: record.gitHubRepository, relativePath: record.relativePath },
-					isSaved: false,
-					aliases: [],
-					locations: [],
-					sessionCount: 0,
-				};
-				byKey.set(record.key, project);
-			} else if (project.identity.key !== record.key && !project.aliases.includes(record.key)) {
-				project.aliases.push(record.key);
-			}
-			if (location) {
-				addLocation(project, location);
-			}
-			if (!project.isSaved) {
-				project.isSaved = true;
-				savedProjects.push(project);
-			}
-		}
-
-		const ordered = [...savedProjects, ...[...byKey.values()].filter(project => !project.isSaved)];
-		return ordered.map(({ identity, isSaved, aliases, locations, sessionCount }) => ({ ...identity, isSaved, aliases, locations, sessionCount }));
+	getProjectOfCoordinator(session: Pick<ISession, 'resource'>): ISessionsProject | undefined {
+		const resource = session.resource.toString();
+		return this._projects.get().find(project => project.coordinator.toString() === resource);
 	}
 
-	private _readSaved(): IStoredProject[] {
-		const raw = this._storageService.get(SAVED_PROJECTS_STORAGE_KEY, StorageScope.PROFILE);
+	getProjectForSession(session: ISession, reader?: IReader): ISessionsProject | undefined {
+		const projects = this._projects.read(reader);
+		if (projects.length === 0) {
+			return undefined;
+		}
+		const byCoordinator = new Map(projects.map(project => [project.coordinator.toString(), project]));
+		let resource = session.resource;
+		let current: ISession | undefined = session;
+		const visited = new Set<string>();
+		for (let depth = 0; depth < MAX_CREATOR_DEPTH; depth++) {
+			const key = resource.toString();
+			const project = byCoordinator.get(key);
+			if (project) {
+				return project;
+			}
+			const creator = current?.createdBySession?.read(reader)?.session;
+			if (!creator || visited.has(key)) {
+				return undefined;
+			}
+			visited.add(key);
+			resource = creator;
+			current = this._sessionsManagementService.getSession(creator);
+		}
+		return undefined;
+	}
+
+	renameProject(id: string, name: string): void {
+		const trimmed = name.trim();
+		if (trimmed) {
+			this._write(this._projects.get().map(project => project.id === id ? { ...project, name: trimmed } : project));
+		}
+	}
+
+	removeProject(id: string): void {
+		if (this._selectedId.get() === id) {
+			this.selectProject(undefined);
+		}
+		this._write(this._projects.get().filter(project => project.id !== id));
+	}
+
+	private _read(): ISessionsProject[] {
+		const raw = this._storageService.get(PROJECTS_STORAGE_KEY, StorageScope.PROFILE);
 		if (!raw) {
 			return [];
 		}
 		try {
 			const value: unknown = JSON.parse(raw);
 			if (!Array.isArray(value)) {
-				throw new Error('Saved projects must be an array.');
+				throw new Error('Projects must be an array.');
 			}
-			return value.filter(isStoredProject);
+			return value.filter(isStoredProject).map(reviveProject);
 		} catch (error) {
-			this._logService.warn('[Projects] Unable to restore saved projects.', error);
+			this._logService.warn('[Projects] Unable to restore projects.', error);
 			return [];
 		}
 	}
 
-	private _writeSaved(saved: readonly IStoredProject[]): void {
-		this._saved.set(saved, undefined);
-		if (saved.length === 0) {
-			this._storageService.remove(SAVED_PROJECTS_STORAGE_KEY, StorageScope.PROFILE);
+	private _write(projects: readonly ISessionsProject[]): void {
+		this._projects.set(projects, undefined);
+		if (projects.length === 0) {
+			this._storageService.remove(PROJECTS_STORAGE_KEY, StorageScope.PROFILE);
 		} else {
-			this._storageService.store(SAVED_PROJECTS_STORAGE_KEY, JSON.stringify(saved), StorageScope.PROFILE, StorageTarget.MACHINE);
+			this._storageService.store(PROJECTS_STORAGE_KEY, JSON.stringify(projects.map(storeProject)), StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
 	}
 }

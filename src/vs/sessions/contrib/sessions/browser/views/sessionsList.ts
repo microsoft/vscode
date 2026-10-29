@@ -202,6 +202,8 @@ export const SessionItemIsCloudContext = new RawContextKey<boolean>('sessionItem
 export const SessionItemCanImportContext = new RawContextKey<boolean>('sessionItem.canImport', false);
 /** Whether the session item is the session of an automation run. */
 export const SessionItemIsAutomationContext = new RawContextKey<boolean>('sessionItem.isAutomation', false);
+/** Whether a session row is the coordinator of a persistent Project. */
+export const SessionItemIsProjectContext = new RawContextKey<boolean>('sessionItem.isProject', false);
 /** Whether the session item belongs in the Sessions list. Automation sessions only do once they are shown there. */
 export const SessionItemIsInSessionsListContext = new RawContextKey<boolean>('sessionItem.isInSessionsList', false);
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
@@ -426,6 +428,8 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 			return Codicon.plus;
 		case QUICK_CHATS_SECTION_ID:
 			return Codicon.commentDiscussion;
+		case PROJECTS_SECTION_ID:
+			return Codicon.project;
 		case 'pinned':
 			return Codicon.pinned;
 		case EXTERNAL_SESSIONS_SECTION_ID:
@@ -4034,6 +4038,11 @@ interface ISessionsListControlBaseOptions {
 	 * session stays visible regardless. Changing the observable updates the list.
 	 */
 	readonly sessionScope?: IObservable<((session: ISession) => boolean) | undefined>;
+	/**
+	 * Resources of the sessions that coordinate persistent Projects. When given, the
+	 * list shows an always-available Projects section of these sessions below Pinned.
+	 */
+	readonly projectCoordinators?: IObservable<ReadonlySet<string>>;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
 	/**
@@ -5092,6 +5101,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.options.sessionScope) {
 			this._register(runOnChange(this.options.sessionScope, () => this.update()));
 		}
+		if (this.options.projectCoordinators) {
+			this._register(runOnChange(this.options.projectCoordinators, () => this.update()));
+		}
 
 		// Re-render when the active session changes.
 		this._register(autorun(reader => {
@@ -5244,8 +5256,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// retained so they return to the group once unpinned/restored).
 		const groupedMembers = new Map<string, ISession[]>();
 		const groupedRegularIds = new Set<string>();
+		const projectCoordinators = this.options.projectCoordinators?.get();
+		const isProjectCoordinator = projectCoordinators && ((session: ISession) => projectCoordinators.has(session.resource.toString()));
 		for (const s of filtered) {
-			const group = this.getRenderedSessionGroup(s);
+			// A project's coordinator stays in the Projects section, above custom groups.
+			const group = !isProjectCoordinator?.(s) && this.getRenderedSessionGroup(s);
 			if (group) {
 				let members = groupedMembers.get(group.id);
 				if (!members) {
@@ -5282,7 +5297,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const environments = grouping === SessionsGrouping.Environment
 			? getSessionEnvironments(this._sessionsProvidersService.getProviders().map(provider => provider.environment))
 			: [];
-		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), archivedSectionLabel, this.groupExternalSessions, environments);
+		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), archivedSectionLabel, this.groupExternalSessions, environments, isProjectCoordinator);
 
 		// When done items are shown, the done chats of a session that is not done
 		// are listed in the Done section as rows of their own instead of under
@@ -5462,6 +5477,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 			sections.push({ id: QUICK_CHATS_SECTION_ID, label: localize('chatsSection', "Chats"), sessions: [] });
 		}
 
+		// Keep the "Projects" section, and its "+" create action, reachable before the first project.
+		if (projectCoordinators && this._someProviderSupportsQuickChats() && !sections.some(s => s.id === PROJECTS_SECTION_ID)) {
+			sections.push({ id: PROJECTS_SECTION_ID, label: localize('projectsSection', "Projects"), sessions: [] });
+		}
+
 		// Partition grouping sections into "primary" (meets criteria) and "more". An active
 		// find pattern bypasses partitioning so all matching sessions are visible.
 		// When the user has chosen "Show All Sessions" (uncapped), show every
@@ -5583,6 +5603,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (section.id === QUICK_CHATS_SECTION_ID && section.sessions.length === 0) {
 				sectionChildren = [{ element: { placeholder: true as const, sectionId: section.id, label: localize('noChats', "No chats") } }];
 			}
+			if (section.id === PROJECTS_SECTION_ID && section.sessions.length === 0) {
+				sectionChildren = [{ element: { placeholder: true as const, sectionId: section.id, label: localize('noProjects', "No projects") } }];
+			}
 
 			// Default collapse state for older time sections
 			let defaultCollapsed: boolean | ObjectTreeElementCollapseState = ObjectTreeElementCollapseState.PreserveOrExpanded;
@@ -5696,6 +5719,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const pinnedSection = sections.find(s => s.id === 'pinned');
 		if (pinnedSection) {
 			children.push(renderSection(pinnedSection));
+		}
+
+		const projectsSection = sections.find(s => s.id === PROJECTS_SECTION_ID);
+		if (projectsSection) {
+			children.push(renderSection(projectsSection));
 		}
 
 		// Quick chats render as a single "Chats" entry directly below Pinned (above
@@ -7614,6 +7642,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionItemInExternalSectionContext.key, this.isRenderedInExternalSection(element)],
 			[SessionItemCanImportContext.key, element.isExternal?.get() === true && element.capabilities.get().supportsImport === true],
 			[SessionItemIsAutomationContext.key, isAutomationSession(element)],
+			[SessionItemIsProjectContext.key, this.options.projectCoordinators?.get().has(element.resource.toString()) ?? false],
 			[SessionItemIsInSessionsListContext.key, this._sessionsListModelService.isSessionListed(element)],
 			[SessionTypeContext.key, element.sessionType],
 			[SessionProviderIdContext.key, element.providerId],
@@ -8820,6 +8849,9 @@ export function computeReorderSortChanges(input: IReorderSortInput): { set: Map<
 /** Fixed section id for workspace-less "quick chat" sessions. */
 export const QUICK_CHATS_SECTION_ID = 'quickchats';
 
+/** Fixed section id for the coordinators of persistent Projects. */
+export const PROJECTS_SECTION_ID = 'projects';
+
 /**
  * Whether a session is a workspace-less "quick chat", per the session's own
  * {@link ISession.isQuickChat} flag (absent means `false`).
@@ -8852,12 +8884,14 @@ export function groupSessionsForList(
 	archivedSectionLabel: string = getChatSessionArchivedSectionLabel(ChatSessionArchiveActionWording.MarkAsDone),
 	groupExternalSessions = false,
 	normalizedEnvironments: readonly ISessionEnvironment[] = getSessionEnvironments([]),
+	isProjectCoordinator?: (session: ISession) => boolean,
 ): ISessionSection[] {
 	const sorted = sortSessions(sessions, sorting, getSortKey);
 
 	// Archived and explicit pins take precedence over the automatic buckets.
 	const pinned: ISession[] = [];
 	const archived: ISession[] = [];
+	const projects: ISession[] = [];
 	const external: ISession[] = [];
 	const quickChats: ISession[] = [];
 	const regular: ISession[] = [];
@@ -8867,6 +8901,8 @@ export function groupSessionsForList(
 			archived.push(session);
 		} else if (isSessionPinned(session)) {
 			pinned.push(session);
+		} else if (isProjectCoordinator?.(session)) {
+			projects.push(session);
 		} else if (groupExternalSessions && session.isExternal?.get()) {
 			external.push(session);
 		} else if (hasQuickChatsSection && isQuickChatSession(session)) {
@@ -8879,6 +8915,10 @@ export function groupSessionsForList(
 	const sections: ISessionSection[] = [];
 	if (pinned.length > 0) {
 		sections.push({ id: 'pinned', label: localize('pinned', "Pinned"), sessions: pinned });
+	}
+
+	if (projects.length > 0) {
+		sections.push({ id: PROJECTS_SECTION_ID, label: localize('projectsSection', "Projects"), sessions: projects });
 	}
 
 	// Quick chats render as a single "Chats" entry directly below Pinned (above

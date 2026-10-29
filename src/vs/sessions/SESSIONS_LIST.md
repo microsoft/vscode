@@ -17,6 +17,8 @@ This specification defines stable placement and state-ownership rules. Row styli
 | Order of a session's nested chats | The session's provider |
 | Custom groups, group and grouping-section appearance, nesting, automatic-section parents, mixed child order, and session membership | `ISessionGroupsService` |
 | Top-level custom group and grouping-section order | `ISessionSectionOrderService` |
+| Persistent Projects (name, repository set, coordinator) and the project scope | `ISessionsProjectsService` |
+| Repositories (repository, repository subfolder, or folder) and the repository scope | `ISessionsRepositoriesService` |
 | Tree composition and presentation | `SessionsView` and `SessionsList` |
 
 List-owned state is local presentation state. It is not synchronized back to a provider and must not mutate provider timestamps or metadata.
@@ -36,6 +38,7 @@ A session appears in exactly one primary section. Higher-precedence states win:
 ```text
 Archived
     > Pinned
+    > Project coordinator
     > Custom group
     > External (when dedicated sectioning is enabled)
     > Quick chat (workspace and repository grouping only)
@@ -44,6 +47,7 @@ Archived
 
 - Archived sessions appear only in the final archived section.
 - Pinned sessions appear in the pinned section.
+- The coordinator session of a persistent Project appears in the Projects section below Pinned, in every grouping mode. The section stays available with a placeholder before the first project, while a provider can serve quick chats, so New Project stays reachable. Project records and their coordinators are owned by `ISessionsProjectsService`; the list only places the coordinators.
 - A valid custom-group membership places an unpinned, unarchived session in that group, including a quick chat. A session belongs to at most one group at any nesting depth.
 - When dedicated external sectioning is enabled, remaining external sessions appear together before the archived section. Pinning and custom-group membership retain their precedence; disabling sectioning returns external sessions to the ordinary grouping rules without changing that presentation state.
 - Under workspace or repository grouping, remaining unpinned quick chats appear in the dedicated chats section. Under date or environment grouping there is no chats section; quick chats follow that grouping like other sessions, and so do comparison groups without a workspace.
@@ -56,6 +60,8 @@ Archived
 - A session a nested chat was moved to joins the custom group of the session it was moved from, whatever started the move, unless it already has a placement of its own. It keeps ordinary placement when that session has no group.
 
 The active session remains visible even when a filter would otherwise exclude it.
+
+The list can be scoped to one persistent Project, its coordinator and the sessions it started directly or through other sessions (`createdBySession`), or to one repository, the sessions whose primary folder resolves to it. A list shows one scope at a time, the header names it, and Show All Sessions clears it. Scoping is local presentation state: it never moves, shares, connects, or provisions a session.
 
 A caller can acquire a disposable reveal of a session row or its archive action for onboarding. The list temporarily includes that session despite filters and presentation caps, expands its section, and exposes the requested spotlight target. An archive-action reveal also keeps the action visible without hover or focus. A workspace reveal targets the header of the workspace section that contains the session, or the session row when the list is not grouped by workspace. Releasing the reveal restores normal filtering and action visibility without changing the user's saved filters.
 

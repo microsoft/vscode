@@ -4,46 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../base/common/event.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
-import { joinPath } from '../../../../../base/common/resources.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { FileService } from '../../../../../platform/files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { ISession, ISessionFolder, ISessionWorkspace } from '../../../sessions/common/session.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../../sessions/common/sessionsManagement.js';
+import { ISession, ISessionCreationReference } from '../../../sessions/common/session.js';
+import { ISendRequestOptions, ISessionsManagementService } from '../../../sessions/common/sessionsManagement.js';
 import { SessionsProjectsService } from '../../browser/sessionsProjectsService.js';
-import { SessionProjectKind } from '../../common/sessionProject.js';
-import { ISessionProject } from '../../common/sessionsProjects.js';
-
-const SCHEME = 'vscode-tests';
-const uri = (path: string) => URI.from({ scheme: SCHEME, path });
-
-function workspace(root: URI, gitHub?: { readonly owner: string; readonly repo: string }, gitUri?: URI): ISessionWorkspace {
-	const folder: ISessionFolder = {
-		root,
-		workingDirectory: root,
-		name: root.path.split('/').pop() ?? '',
-		description: undefined,
-		gitRepository: (gitHub || gitUri) ? { uri: gitUri ?? root, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(gitHub) } : undefined,
-	};
-	return { uri: root, label: folder.name, icon: Codicon.folder, folders: [folder], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
-}
+import { buildProjectKickoff } from '../../common/sessionsProjects.js';
 
 class TestSession extends mock<ISession>() {
-	override readonly workspace: ISettableObservable<ISessionWorkspace | undefined>;
-	override readonly isArchived = observableValue(this, false);
-	override readonly createdAt: Date;
-	constructor(override readonly sessionId: string, override readonly providerId: string, ws: ISessionWorkspace | undefined, createdAt: number) {
+	override readonly resource: URI;
+	override readonly createdBySession: IObservable<ISessionCreationReference | undefined>;
+	constructor(override readonly sessionId: string, createdBy?: string) {
 		super();
-		this.workspace = observableValue(this, ws);
-		this.createdAt = new Date(createdAt);
+		this.resource = URI.parse(`test-session:/${sessionId}`);
+		this.createdBySession = observableValue(this, createdBy ? { session: URI.parse(`test-session:/${createdBy}`) } : undefined);
 	}
 }
 
@@ -51,115 +29,82 @@ suite('SessionsProjectsService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(sessions: TestSession[], storage = store.add(new InMemoryStorageService()), fileService = store.add(new FileService(new NullLogService()))) {
-		const onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
+	function createService(sessions: TestSession[], storage = store.add(new InMemoryStorageService())) {
+		const sent: ISendRequestOptions[] = [];
 		const management = new class extends mock<ISessionsManagementService>() {
-			override readonly onDidChangeSessions = onDidChangeSessions.event;
-			override getSessions() { return sessions; }
-			override resolveWorkspace(folderUri: URI, providerId?: string) {
-				return { providerId: providerId ?? 'local', workspace: workspace(folderUri) };
+			override async createAndSendQuickChatRequest(options: ISendRequestOptions): Promise<ISession> {
+				sent.push(options);
+				const coordinator = new TestSession(`coordinator-${sent.length}`);
+				sessions.push(coordinator);
+				return coordinator;
+			}
+			override getSession(resource: URI) {
+				return sessions.find(session => session.resource.toString() === resource.toString());
 			}
 		};
-		const service = store.add(new SessionsProjectsService(management, storage, fileService, new NullLogService()));
-		return { service, storage, fileService, fireSessionsChanged: () => onDidChangeSessions.fire({ added: [], removed: [], changed: [] }) };
+		return { service: store.add(new SessionsProjectsService(management, storage, new NullLogService())), sent, storage };
 	}
 
-	function snapshot(service: SessionsProjectsService) {
-		return service.projects.get().map(project => ({ key: project.key, label: project.label, isSaved: project.isSaved, sessions: project.sessionCount, aliases: project.aliases, locations: project.locations.map(location => `${location.providerId}:${location.folderUri.path}`) }));
-	}
-
-	test('discovers projects across environments and keeps sessions on their own providers', () => {
-		const vscode = { owner: 'microsoft', repo: 'vscode' };
-		const archived = new TestSession('local:3', 'local', workspace(uri('/old'), undefined), 4);
-		archived.isArchived.set(true, undefined);
-		const { service } = createService([
-			new TestSession('local:1', 'local', workspace(uri('/src/vscode'), vscode), 1),
-			new TestSession('remote:1', 'remote-ssh', workspace(uri('/home/me/vscode'), vscode), 3),
-			new TestSession('local:2', 'local', workspace(uri('/notes')), 2),
-			new TestSession('local:4', 'local', undefined, 5),
-			archived,
-		]);
-		assert.deepStrictEqual(snapshot(service), [
-			{ key: 'github:microsoft/vscode', label: 'vscode', isSaved: false, sessions: 2, aliases: [], locations: ['remote-ssh:/home/me/vscode', 'local:/src/vscode'] },
-			{ key: `folder:${uri('/notes').toString()}`, label: 'notes', isSaved: false, sessions: 1, aliases: [], locations: ['local:/notes'] },
-		]);
-	});
-
-	test('saved projects persist without sessions and merge once their folder reports a repository', () => {
+	test('creates a project by starting its coordinator with the project brief, and restores it', async () => {
 		const sessions: TestSession[] = [];
-		const { service, storage, fireSessionsChanged } = createService(sessions);
-		const folderProject: ISessionProject = { key: `folder:${uri('/src/app').toString()}`, kind: SessionProjectKind.Folder, label: 'app', isSaved: false, aliases: [], locations: [{ folderUri: uri('/src/app'), providerId: 'local' }], sessionCount: 0 };
-		service.saveProject(folderProject);
-		service.selectProject(folderProject.key);
+		const { service, sent, storage } = createService(sessions);
+		const repositories = [{ key: 'github:microsoft/vscode', label: 'vscode', folderUri: URI.file('/src/vscode'), providerId: 'local' }];
+		const project = await service.createProject({ name: ' Agents polish ', repositories, firstMessage: 'Tidy the sidebar.' });
+		service.selectProject(project!.id);
 
-		const reloaded = createService(sessions, storage).service;
-		const beforeSession = { projects: snapshot(reloaded), selected: reloaded.selectedProject.get()?.key };
-
-		sessions.push(new TestSession('local:1', 'local', workspace(uri('/src/app'), { owner: 'octo', repo: 'app' }), 1));
-		fireSessionsChanged();
-		const afterSession = { projects: snapshot(service), selected: service.selectedProject.get()?.key, inProject: service.isSessionInProject(sessions[0], service.selectedProject.get()!) };
-
-		assert.deepStrictEqual({ beforeSession, afterSession }, {
-			beforeSession: {
-				projects: [{ key: folderProject.key, label: 'app', isSaved: true, sessions: 0, aliases: [], locations: ['local:/src/app'] }],
-				selected: folderProject.key,
-			},
-			afterSession: {
-				projects: [{ key: 'github:octo/app', label: 'app', isSaved: true, sessions: 1, aliases: [folderProject.key], locations: ['local:/src/app'] }],
-				selected: 'github:octo/app',
-				inProject: true,
-			},
-		});
-	});
-
-	test('adds a repository subfolder as its own project from Git metadata', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(SCHEME, store.add(new InMemoryFileSystemProvider())));
-		await fileService.createFolder(joinPath(uri('/src/vscode'), '.git'));
-		await fileService.writeFile(joinPath(uri('/src/vscode'), '.git', 'config'), VSBuffer.fromString('[remote "origin"]\n\turl = https://github.com/microsoft/vscode.git\n'));
-		await fileService.createFolder(uri('/src/vscode/extensions/git'));
-
-		const rootSession = new TestSession('local:1', 'local', workspace(uri('/src/vscode'), { owner: 'microsoft', repo: 'vscode' }), 1);
-		const { service } = createService([rootSession], undefined, fileService);
-		const project = await service.addFolder(uri('/src/vscode/extensions/git'));
-
+		const restored = createService(sessions, storage).service;
 		assert.deepStrictEqual({
-			project: project && { key: project.key, label: project.label, isSaved: project.isSaved },
-			rootSessionInSubfolderProject: service.isSessionInProject(rootSession, project!),
-			keys: service.projects.get().map(p => p.key),
+			sent: sent.map(options => ({ title: options.title, query: options.query })),
+			restored: restored.projects.get().map(p => ({ id: p.id, name: p.name, coordinator: p.coordinator.toString(), repositories: p.repositories.map(r => ({ ...r, folderUri: r.folderUri?.toString() })) })),
+			selected: restored.selectedProject.get()?.id,
 		}, {
-			project: { key: 'github:microsoft/vscode/extensions/git', label: 'vscode/extensions/git', isSaved: true },
-			rootSessionInSubfolderProject: false,
-			keys: ['github:microsoft/vscode/extensions/git', 'github:microsoft/vscode'],
+			sent: [{ title: 'Agents polish', query: buildProjectKickoff('Agents polish', repositories, 'Tidy the sidebar.') }],
+			restored: [{ id: project!.id, name: 'Agents polish', coordinator: 'test-session:/coordinator-1', repositories: [{ key: 'github:microsoft/vscode', label: 'vscode', folderUri: 'file:///src/vscode', providerId: 'local' }] }],
+			selected: project!.id,
 		});
 	});
 
-	test('a worktree without GitHub metadata joins the GitHub project of its repository', () => {
-		const worktree = uri('/src/vscode.worktrees/feature');
-		const worktreeSession = new TestSession('local:2', 'local', workspace(worktree, undefined, worktree), 2);
-		const { service } = createService([
-			new TestSession('local:1', 'local', workspace(uri('/src/vscode'), { owner: 'microsoft', repo: 'vscode' }), 1),
-			worktreeSession,
+	test('a session belongs to the project whose coordinator started it, directly or through other sessions', async () => {
+		const sessions: TestSession[] = [];
+		const { service } = createService(sessions);
+		const project = await service.createProject({ name: 'P', repositories: [], firstMessage: 'Go.' });
+		const child = new TestSession('child', 'coordinator-1');
+		const grandchild = new TestSession('grandchild', 'child');
+		const unrelated = new TestSession('unrelated');
+		const cycleA = new TestSession('cycle-a', 'cycle-b');
+		const cycleB = new TestSession('cycle-b', 'cycle-a');
+		sessions.push(child, grandchild, unrelated, cycleA, cycleB);
+
+		assert.deepStrictEqual(
+			[sessions[0], child, grandchild, unrelated, cycleA].map(session => service.getProjectForSession(session)?.id),
+			[project!.id, project!.id, project!.id, undefined, undefined],
+		);
+	});
+
+	test('removing a project forgets it and clears the scope, keeping its sessions', async () => {
+		const sessions: TestSession[] = [];
+		const { service } = createService(sessions);
+		const project = await service.createProject({ name: 'P', repositories: [], firstMessage: 'Go.' });
+		service.selectProject(project!.id);
+		service.removeProject(project!.id);
+
+		assert.deepStrictEqual({ projects: service.projects.get().length, selected: service.selectedProject.get(), sessions: sessions.length }, { projects: 0, selected: undefined, sessions: 1 });
+	});
+
+	test('the project brief lists repositories before the first task', () => {
+		assert.deepStrictEqual(buildProjectKickoff('Docs', [
+			{ key: 'github:microsoft/vscode-docs', label: 'vscode-docs', folderUri: URI.file('/src/vscode-docs') },
+			{ key: 'github:microsoft/vscode', label: 'vscode' },
+		], '  Update the release notes.  ').split('\n'), [
+			'You are the coordinator for the project "Docs". Keep this project\'s shared context in this conversation.',
+			'',
+			'Repositories:',
+			`- vscode-docs (${URI.file('/src/vscode-docs').fsPath})`,
+			'- vscode',
+			'',
+			'When work belongs in one of these repositories and you can start sessions, start a focused session in that repository for it, then summarize the outcome here.',
+			'',
+			'Update the release notes.',
 		]);
-		const [project] = service.projects.get();
-		assert.deepStrictEqual({ projects: snapshot(service), worktreeSessionInProject: service.isSessionInProject(worktreeSession, project) }, {
-			projects: [{ key: 'github:microsoft/vscode', label: 'vscode', isSaved: false, sessions: 2, aliases: [`git:${uri('/src/vscode').toString()}`], locations: ['local:/src/vscode', 'local:/src/vscode.worktrees/feature'] }],
-			worktreeSessionInProject: true,
-		});
-	});
-
-	test('removing a saved project keeps it listed only while it has sessions', () => {
-		const { service } = createService([new TestSession('local:1', 'local', workspace(uri('/notes')), 1)]);
-		const [discovered] = service.projects.get();
-		service.saveProject(discovered);
-		service.saveProject({ ...discovered, key: 'folder:empty', label: 'empty', locations: [], sessionCount: 0, aliases: [] });
-		const saved = service.projects.get().map(p => ({ key: p.key, isSaved: p.isSaved }));
-		for (const project of service.projects.get()) {
-			service.removeSavedProject(project);
-		}
-		assert.deepStrictEqual({ saved, removed: service.projects.get().map(p => ({ key: p.key, isSaved: p.isSaved })) }, {
-			saved: [{ key: discovered.key, isSaved: true }, { key: 'folder:empty', isSaved: true }],
-			removed: [{ key: discovered.key, isSaved: false }],
-		});
 	});
 });

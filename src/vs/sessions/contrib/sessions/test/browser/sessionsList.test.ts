@@ -4426,6 +4426,31 @@ suite('Sessions - SessionsList', () => {
 				]);
 			});
 
+			test(`places project coordinators below Pinned, ahead of external sessions and Chats (${grouping})`, () => {
+				const sessions: ISession[] = [
+					createSession('pinned-coordinator', {}),
+					createSession('archived-coordinator', { isArchived: true }),
+					createSession('coordinator', { isExternal: true }),
+					createSession('chat', {}),
+					createSession('regular', { workspaceLabel: 'Alpha' }),
+				];
+				const coordinators = new Set(['pinned-coordinator', 'archived-coordinator', 'coordinator']);
+				const sections = groupSessionsForList(sessions, grouping, SessionsSorting.Created,
+					session => session.sessionId === 'pinned-coordinator',
+					session => sessions.length - sessions.indexOf(session), undefined, true, undefined,
+					session => coordinators.has(session.sessionId));
+
+				const hasChatsSection = grouping === SessionsGrouping.Workspace || grouping === SessionsGrouping.Repository;
+				assert.deepStrictEqual(sections.map(section => ({ id: section.id, sessions: section.sessions.map(s => s.sessionId) })), [
+					{ id: 'pinned', sessions: ['pinned-coordinator'] },
+					{ id: 'projects', sessions: ['coordinator'] },
+					...(hasChatsSection
+						? [{ id: 'quickchats', sessions: ['chat'] }, { id: regularSectionId, sessions: ['regular'] }]
+						: [{ id: regularSectionId, sessions: ['chat', 'regular'] }]),
+					{ id: 'archived', sessions: ['archived-coordinator'] },
+				]);
+			});
+
 			for (const groupExternalSessions of [undefined, false]) {
 				test(`preserves ordinary placement when external grouping is ${groupExternalSessions === undefined ? 'unset' : 'disabled'} (${grouping})`, () => {
 					const external = createSession('external', { workspaceLabel: 'Alpha', isExternal: true, createdAt: new Date(Date.now() - 60_000) });

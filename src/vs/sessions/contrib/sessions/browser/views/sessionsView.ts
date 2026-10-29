@@ -49,6 +49,7 @@ import { PANEL_SECTION_BORDER } from '../../../../../workbench/common/theme.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsRepositoriesService } from '../../../../services/repositories/common/sessionsRepositories.js';
 import { ISessionsProjectsService } from '../../../../services/projects/common/sessionsProjects.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -199,6 +200,7 @@ export class SessionsView extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IMenuService private readonly menuService: IMenuService,
+		@ISessionsRepositoriesService private readonly sessionsRepositoriesService: ISessionsRepositoriesService,
 		@ISessionsProjectsService private readonly sessionsProjectsService: ISessionsProjectsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -311,7 +313,8 @@ export class SessionsView extends ViewPane {
 			onDidChangeNavigationHeight: () => this.layoutSidebarSplitView(),
 			focusNewSessionInput: () => this.sessionsPartService.focusSession(this.sessionsService.activeSession.get()),
 			findWidgetContainer,
-			sessionScope: this.createProjectScope(),
+			sessionScope: this.createListScope(),
+			projectCoordinators: this.createProjectCoordinators(),
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const session = this.sessionsManagementService.getSession(resource);
 				if (!session) {
@@ -488,10 +491,12 @@ export class SessionsView extends ViewPane {
 		this.sessionsHeaders.add(header);
 		disposables.add(toDisposable(() => this.sessionsHeaders.delete(header)));
 		if (!phoneLayout) {
-			// The header names the selected project, so the scoped list is never mistaken for every session.
+			// The header names the selected project or repository, so a scoped list is never mistaken for every session.
 			const defaultLabel = header.label.textContent;
 			disposables.add(autorun(reader => {
-				header.label.textContent = this.sessionsProjectsService.selectedProject.read(reader)?.label ?? defaultLabel;
+				header.label.textContent = this.sessionsProjectsService.selectedProject.read(reader)?.name
+					?? this.sessionsRepositoriesService.selectedRepository.read(reader)?.label
+					?? defaultLabel;
 				this.updateHeaderLayout();
 			}));
 		}
@@ -499,18 +504,34 @@ export class SessionsView extends ViewPane {
 		return header;
 	}
 
-	/** Scopes the list to the selected project; changes only when another project is selected. */
-	private createProjectScope(): IObservable<((session: ISession) => boolean) | undefined> {
-		const selectedKey = derived(this, reader => this.sessionsProjectsService.selectedProject.read(reader)?.key);
+	/**
+	 * Scopes the list to the selected project (its coordinator and the sessions it
+	 * started) or, otherwise, to the selected repository. Changes only when the selection does.
+	 */
+	private createListScope(): IObservable<((session: ISession) => boolean) | undefined> {
+		const selection = derived(this, reader => {
+			const projectId = this.sessionsProjectsService.selectedProject.read(reader)?.id;
+			return projectId ? `project:${projectId}` : this.sessionsRepositoriesService.selectedRepository.read(reader)?.key;
+		});
 		return derived(this, reader => {
-			if (!selectedKey.read(reader)) {
+			if (!selection.read(reader)) {
 				return undefined;
 			}
 			return (session: ISession) => {
 				const project = this.sessionsProjectsService.selectedProject.read(undefined);
-				return !project || this.sessionsProjectsService.isSessionInProject(session, project);
+				if (project) {
+					return this.sessionsProjectsService.getProjectForSession(session)?.id === project.id;
+				}
+				const repository = this.sessionsRepositoriesService.selectedRepository.read(undefined);
+				return !repository || this.sessionsRepositoriesService.isSessionInRepository(session, repository);
 			};
 		});
+	}
+
+	/** The coordinator sessions of persistent Projects, listed in the Projects section. */
+	private createProjectCoordinators(): IObservable<ReadonlySet<string>> {
+		return derivedOpts<ReadonlySet<string>>({ owner: this, equalsFn: (a, b) => a.size === b.size && [...a].every(resource => b.has(resource)) }, reader =>
+			new Set(this.sessionsProjectsService.projects.read(reader).map(project => project.coordinator.toString())));
 	}
 
 	showApplicationFilters(): void {

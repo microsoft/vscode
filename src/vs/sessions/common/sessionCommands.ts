@@ -51,10 +51,17 @@ export const HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID = 'sessionsViewPane.hi
 
 export const SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID = 'sessionsViewPane.showApplicationFilters';
 
-/** Project commands. Registered in `sessionsProjectActions.ts`. */
-export const SELECT_SESSIONS_PROJECT_COMMAND_ID = 'sessions.projects.select';
-export const NEW_SESSION_IN_PROJECT_COMMAND_ID = 'sessions.projects.newSession';
-export const SHOW_ALL_SESSIONS_PROJECTS_COMMAND_ID = 'sessions.projects.showAll';
+/** Repository commands. Registered in `sessionsRepositoryActions.ts`. */
+export const SELECT_SESSIONS_REPOSITORY_COMMAND_ID = 'sessions.repositories.select';
+export const NEW_SESSION_IN_REPOSITORY_COMMAND_ID = 'sessions.repositories.newSession';
+/** Clears the repository or project that scopes the sessions list. */
+export const SHOW_ALL_SESSIONS_REPOSITORIES_COMMAND_ID = 'sessions.repositories.showAll';
+
+/** Persistent Project commands. Registered in `sessionsProjectActions.ts`. */
+export const NEW_SESSIONS_PROJECT_COMMAND_ID = 'sessions.projects.new';
+export const SHOW_SESSIONS_PROJECT_COMMAND_ID = 'sessions.projects.show';
+export const RENAME_SESSIONS_PROJECT_COMMAND_ID = 'sessions.projects.rename';
+export const REMOVE_SESSIONS_PROJECT_COMMAND_ID = 'sessions.projects.remove';
 
 export {
 	AGENT_SESSION_MARK_READ_ACTION_ID as MARK_SESSION_READ_COMMAND_ID,

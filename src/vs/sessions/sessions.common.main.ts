@@ -495,6 +495,7 @@ import './services/sessions/browser/sessionGroupsService.js';
 import './services/sessions/browser/sessionComparisonService.js';
 import './services/sessions/browser/sessionSectionOrderService.js';
 import './services/projects/browser/sessionsProjectsService.js';
+import './services/repositories/browser/sessionsRepositoriesService.js';
 import './services/agentHostFilter/browser/agentHostFilterService.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changes/browser/changes.contribution.js';

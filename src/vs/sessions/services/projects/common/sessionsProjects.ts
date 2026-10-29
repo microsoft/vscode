@@ -3,80 +3,95 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISession } from '../../sessions/common/session.js';
-import { ISessionProjectIdentity } from './sessionProject.js';
 
-/** A folder on a host where a project's work can run. */
-export interface ISessionProjectLocation {
-	readonly folderUri: URI;
-	/** The sessions provider that resolves {@link folderUri}, when known. */
-	readonly providerId: string | undefined;
+/** A repository that belongs to a project, and a folder its sessions can start in. */
+export interface ISessionsProjectRepository {
+	/** The repository identity key; see `ISessionRepositoryIdentity.key`. */
+	readonly key: string;
+	readonly label: string;
+	readonly folderUri?: URI;
+	readonly providerId?: string;
 }
 
 /**
- * A durable home for related work: the sessions of one repository, repository
- * subfolder, or plain folder, across every checkout, environment, and client
- * that reaches it.
+ * A persistent Project, as in the GitHub app: a coordinator conversation that
+ * keeps shared context for a body of work and starts focused sessions in the
+ * project's repositories. The project groups its coordinator and the sessions it
+ * started; it never moves, shares, or provisions them.
  */
-export interface ISessionProject extends ISessionProjectIdentity {
-	/** Whether the user saved the project, so it remains listed without sessions. */
-	readonly isSaved: boolean;
-	/** Earlier identities of saved records that resolved to this project once more was known about their folders. */
-	readonly aliases: readonly string[];
-	/** Known locations, most recently used first. */
-	readonly locations: readonly ISessionProjectLocation[];
-	/** Number of unarchived sessions in the project. */
-	readonly sessionCount: number;
+export interface ISessionsProject {
+	readonly id: string;
+	readonly name: string;
+	readonly repositories: readonly ISessionsProjectRepository[];
+	/** The coordinator session's resource. */
+	readonly coordinator: URI;
+	readonly createdAt: number;
 }
 
-/** The session properties that decide its project. */
-export type ISessionProjectMember = Pick<ISession, 'workspace'>;
+export interface ICreateSessionsProjectOptions {
+	readonly name: string;
+	readonly repositories: readonly ISessionsProjectRepository[];
+	/** What the project should work on first. Sent to the coordinator after the project brief. */
+	readonly firstMessage: string;
+}
 
 export const ISessionsProjectsService = createDecorator<ISessionsProjectsService>('sessionsProjectsService');
 
 /**
- * Owns the catalogue of projects and the project that scopes the sessions list.
- *
- * Projects are derived from the sessions every provider reports, so a client
- * that can see a session also sees its project, and opening it keeps the
- * session's own provider, host, and resource. Saved projects and the selection
- * are local presentation state: saving a project neither shares nor provisions
- * anything.
+ * Owns persistent Projects and the project that scopes the sessions list.
+ * Project records are local to this machine; their sessions keep their own
+ * provider, host, and resource.
  */
 export interface ISessionsProjectsService {
 	readonly _serviceBrand: undefined;
 
-	/** Saved projects in saved order, then other projects by most recent session. */
-	readonly projects: IObservable<readonly ISessionProject[]>;
+	/** Projects, most recently created first. */
+	readonly projects: IObservable<readonly ISessionsProject[]>;
 
-	/** The project scoping the sessions list, or `undefined` for all projects. */
-	readonly selectedProject: IObservable<ISessionProject | undefined>;
+	/** The project scoping the sessions list, if any. */
+	readonly selectedProject: IObservable<ISessionsProject | undefined>;
 
-	/** Scopes the sessions list to a project, or to all projects with `undefined`. Never changes any session. */
-	selectProject(key: string | undefined): void;
-
-	/** Whether a session belongs to a project. */
-	isSessionInProject(session: ISessionProjectMember, project: ISessionProject, reader?: IReader): boolean;
+	/** Scopes the sessions list to a project, or clears the project scope with `undefined`. */
+	selectProject(id: string | undefined): void;
 
 	/**
-	 * Saves the project of a folder. Resolves its repository from Git metadata,
-	 * so a subfolder of a checkout becomes a repository-subfolder project.
-	 * Returns `undefined` when no sessions provider can open the folder.
+	 * Creates a project by starting its coordinator: a workspace-less chat whose first
+	 * request is the visible project brief followed by {@link ICreateSessionsProjectOptions.firstMessage}.
+	 * Returns `undefined` when the coordinator could not be started.
 	 */
-	addFolder(folderUri: URI, providerId?: string): Promise<ISessionProject | undefined>;
+	createProject(options: ICreateSessionsProjectOptions, token?: CancellationToken): Promise<ISessionsProject | undefined>;
 
-	/** Saves a project so it remains listed without sessions. */
-	saveProject(project: ISessionProject): void;
+	/** The project whose coordinator is this session. */
+	getProjectOfCoordinator(session: Pick<ISession, 'resource'>): ISessionsProject | undefined;
 
-	/**
-	 * Starts resolving repository metadata that sessions expose lazily, so their
-	 * projects converge as it arrives. Call when projects are about to be shown.
-	 */
-	resolveRepositories(): void;
+	/** The project of a session: the one it coordinates, or the one whose coordinator started it, directly or through other sessions. */
+	getProjectForSession(session: ISession, reader?: IReader): ISessionsProject | undefined;
 
-	/** Forgets a saved project. It stays listed while it has sessions. */
-	removeSavedProject(project: ISessionProject): void;
+	renameProject(id: string, name: string): void;
+
+	/** Forgets a project. Its sessions remain; the coordinator becomes an ordinary chat. */
+	removeProject(id: string): void;
+}
+
+/** The brief that opens a project's coordinator conversation, followed by the user's first message. */
+export function buildProjectKickoff(name: string, repositories: readonly ISessionsProjectRepository[], firstMessage: string): string {
+	const lines = [`You are the coordinator for the project "${name}". Keep this project's shared context in this conversation.`];
+	if (repositories.length) {
+		lines.push('', 'Repositories:');
+		for (const repository of repositories) {
+			const location = repository.folderUri ? (repository.folderUri.scheme === Schemas.file ? repository.folderUri.fsPath : repository.folderUri.toString()) : undefined;
+			lines.push(location ? `- ${repository.label} (${location})` : `- ${repository.label}`);
+		}
+		lines.push('', 'When work belongs in one of these repositories and you can start sessions, start a focused session in that repository for it, then summarize the outcome here.');
+	} else {
+		lines.push('', 'This project has no repositories yet.');
+	}
+	lines.push('', firstMessage.trim());
+	return lines.join('\n');
 }

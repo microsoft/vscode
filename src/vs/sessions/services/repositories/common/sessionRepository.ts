@@ -9,8 +9,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { getRepositoryRootFromWorktree } from '../../../../platform/agentHost/common/worktreePaths.js';
 import { getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, IGitHubRepositoryRef, ISessionFolder } from '../../sessions/common/session.js';
 
-/** What a project is attached to. */
-export const enum SessionProjectKind {
+/** What a repository is attached to. */
+export const enum SessionRepositoryKind {
 	/** A Git repository, or a directory within one. */
 	Repository = 'repository',
 	/** A plain folder on one host, without Git. */
@@ -18,11 +18,11 @@ export const enum SessionProjectKind {
 }
 
 /**
- * The identity of a project, independent of the checkout, environment, and
+ * The identity of a repository, independent of the checkout, environment, and
  * client used to reach it. Two folders with the same {@link key} are locations
- * of the same project.
+ * of the same repository.
  */
-export interface ISessionProjectIdentity {
+export interface ISessionRepositoryIdentity {
 	/**
 	 * Stable comparison key:
 	 * - `github:<owner>/<repo>[/<relative path>]` for github.com repositories, whichever host checks them out;
@@ -30,19 +30,19 @@ export interface ISessionProjectIdentity {
 	 * - `folder:<folder uri>` for plain folders, scoped to their host.
 	 */
 	readonly key: string;
-	readonly kind: SessionProjectKind;
-	/** Display name. Includes the relative directory of a repository-subfolder project. */
+	readonly kind: SessionRepositoryKind;
+	/** Display name. Includes the relative directory of a repository subfolder. */
 	readonly label: string;
 	/** The github.com repository, when known. */
 	readonly gitHubRepository?: IGitHubRepositoryRef;
-	/** Repository-relative directory of a subfolder project; absent for the repository root. */
+	/** Repository-relative directory of a subfolder scope; absent for the repository root. */
 	readonly relativePath?: string;
 	/** The repository the folder's checkout belongs to, when known. Not part of the identity. */
 	readonly repositoryUri?: URI;
 }
 
-/** What is known about a folder when deriving its project identity. */
-export interface ISessionProjectSource {
+/** What is known about a folder when deriving its repository identity. */
+export interface ISessionRepositorySource {
 	/** The folder the work happens in. */
 	readonly root: URI;
 	/** Display name of the folder. */
@@ -55,8 +55,8 @@ export interface ISessionProjectSource {
 	readonly checkoutRoot?: URI;
 }
 
-/** Derives the project identity of a folder. */
-export function getSessionProjectIdentity(source: ISessionProjectSource): ISessionProjectIdentity {
+/** Derives the repository identity of a folder. */
+export function getSessionRepositoryIdentity(source: ISessionRepositorySource): ISessionRepositoryIdentity {
 	const checkoutRoot = source.checkoutRoot ?? source.repositoryUri;
 	// `relativePath` returns `..` segments for folders outside the checkout; those have no subfolder.
 	const relative = checkoutRoot && !isEqual(checkoutRoot, source.root) && isEqualOrParent(source.root, checkoutRoot) ? relativePath(checkoutRoot, source.root) : undefined;
@@ -66,7 +66,7 @@ export function getSessionProjectIdentity(source: ISessionProjectSource): ISessi
 		const id = `${repository.owner.toLowerCase()}/${repository.repo.toLowerCase()}`;
 		return {
 			key: relative ? `github:${id}/${relative}` : `github:${id}`,
-			kind: SessionProjectKind.Repository,
+			kind: SessionRepositoryKind.Repository,
 			label: relative ? `${repository.repo}/${relative}` : repository.repo,
 			gitHubRepository: { owner: repository.owner, repo: repository.repo },
 			relativePath: relative,
@@ -77,7 +77,7 @@ export function getSessionProjectIdentity(source: ISessionProjectSource): ISessi
 		const name = basename(source.repositoryUri) || source.name;
 		return {
 			key: relative ? `git:${source.repositoryUri.toString()}#${relative}` : `git:${source.repositoryUri.toString()}`,
-			kind: SessionProjectKind.Repository,
+			kind: SessionRepositoryKind.Repository,
 			label: relative ? `${name}/${relative}` : name,
 			relativePath: relative,
 			repositoryUri: source.repositoryUri,
@@ -85,16 +85,16 @@ export function getSessionProjectIdentity(source: ISessionProjectSource): ISessi
 	}
 	return {
 		key: `folder:${source.root.toString()}`,
-		kind: SessionProjectKind.Folder,
+		kind: SessionRepositoryKind.Folder,
 		label: source.name,
 	};
 }
 
 /**
- * Derives the project identity of a session folder, tracking its hydrating
+ * Derives the repository identity of a session folder, tracking its hydrating
  * repository information when a reader is given.
  */
-export function getSessionFolderProjectIdentity(folder: ISessionFolder, reader?: IReader): ISessionProjectIdentity {
+export function getSessionFolderRepositoryIdentity(folder: ISessionFolder, reader?: IReader): ISessionRepositoryIdentity {
 	const git = folder.gitRepository;
 	const gitHubInfo = git?.gitHubInfo.read(reader);
 	const gitHubRepository = getGitHubRepositoryOfRemoteFile(folder.root)
@@ -102,7 +102,7 @@ export function getSessionFolderProjectIdentity(folder: ISessionFolder, reader?:
 		?? getGitHubRepositoryOfUrl(folder.root);
 	// A VS Code-created worktree (`<repo>.worktrees/<name>`) belongs to the repository it was created from.
 	const worktreeRepository = git ? getRepositoryRootFromWorktree(git.workTreeUri ?? folder.root) : undefined;
-	return getSessionProjectIdentity({
+	return getSessionRepositoryIdentity({
 		root: folder.root,
 		name: folder.name,
 		gitHubRepository,
