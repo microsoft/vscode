@@ -147,10 +147,14 @@ suite('SessionPermissionManager', () => {
 		mkdirSync(join(attachedFolder, 'nested'), { recursive: true });
 		mkdirSync(join(outsideDir, 'secret'), { recursive: true });
 		symlinkSync(join(outsideDir, 'secret'), join(attachedFolder, 'escape'), directoryLinkType);
-		manager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date().toISOString(), message: { text: 'summarize', origin: { kind: MessageKind.User }, attachments: [
-			{ type: MessageAttachmentKind.Resource, uri: URI.file(attachedFile).toString(), label: 'mockup.txt', displayKind: 'file' },
-			{ type: MessageAttachmentKind.Resource, uri: URI.file(attachedFolder).toString(), label: 'notes', displayKind: 'directory' },
-		] } });
+		manager.dispatchServerAction(chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date().toISOString(), message: {
+				text: 'summarize', origin: { kind: MessageKind.User }, attachments: [
+					{ type: MessageAttachmentKind.Resource, uri: URI.file(attachedFile).toString(), label: 'mockup.txt', displayKind: 'file' },
+					{ type: MessageAttachmentKind.Resource, uri: URI.file(attachedFolder).toString(), label: 'notes', displayKind: 'directory' },
+				]
+			}
+		});
 
 		const reads = await Promise.all([
 			attachedFile,
