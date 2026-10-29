@@ -65,6 +65,22 @@
 	will-change: auto;
 }
 
+/*
+ * Viewport-sized host for item hovers. It stays inside the widget for tab order and focus
+ * tracking, but its containing block is the viewport (which requires the widget to be settled,
+ * see above), so the widget's overflow and size do not affect the hover. The hover's
+ * `.context-view` must be a direct child to receive pointer events.
+ */
+.quick-input-list-hover-host {
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+}
+
+.quick-input-list-hover-host > .context-view {
+	pointer-events: auto;
+}
+
 .quick-input-titlebar {
 	cursor: grab;
 	display: flex;

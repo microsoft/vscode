@@ -793,6 +793,8 @@ export class QuickInputList extends Disposable {
 	private _lastHover: IHoverWidget | undefined;
 	// Viewport position of the list when the item hover was shown, see `layout`
 	private _lastHoverListPosition: { readonly top: number; readonly left: number } | undefined;
+	// Viewport-sized host for the item hover, see `showHover`
+	private _hoverHost: HTMLElement | undefined;
 	private _lastQueryString: string | undefined;
 
 	constructor(
@@ -1674,12 +1676,11 @@ export class QuickInputList extends Disposable {
 			appearance: {
 				showPointer: true,
 			},
-			container: this._container,
+			// Render inside the list so that focusing the hover does not hide the picker, but in
+			// a viewport-sized host so that the quick input widget neither clips nor sizes it
+			container: this._hoverHost ??= dom.append(this._container, $('.quick-input-list-hover-host')),
 			position: {
-				hoverPosition: HoverPosition.RIGHT,
-				// Escape the clipping and sizing of the quick input widget while keeping
-				// the hover inside it, so that focusing the hover does not hide the picker
-				useFixedPosition: true
+				hoverPosition: HoverPosition.RIGHT
 			}
 		}, false);
 		const { top, left } = this._container.getBoundingClientRect();

@@ -604,6 +604,38 @@ suite('HoverService', () => {
 			hover.dispose();
 		});
 
+		test('should re-evaluate a requested ABOVE side on every layout as the content size changes', () => {
+			const target = createTarget();
+			target.getBoundingClientRect = () => new DOMRect(100, 300, 100, 22);
+			const hover = showHover('Growing content', target, {
+				position: { hoverPosition: HoverPosition.ABOVE },
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			const pointer = hoverWidget.domNode.parentElement?.querySelector<HTMLElement>('.workbench-hover-pointer');
+			assert.ok(pointer);
+
+			const layoutWithHeight = (height: number) => {
+				Object.defineProperty(hoverWidget.domNode, 'clientHeight', { configurable: true, value: height });
+				Object.defineProperty(hoverWidget.domNode, 'offsetHeight', { configurable: true, value: height });
+				hoverWidget.layout();
+				const style = mainWindow.getComputedStyle(pointer);
+				return hoverWidget.anchor === AnchorPosition.BELOW ? `below pointer-top:${style.top}` : `above pointer-bottom:${style.bottom}`;
+			};
+
+			// Fits above, then only below once taller than the room above, then above again
+			assert.deepStrictEqual([
+				layoutWithHeight(50),
+				layoutWithHeight(400),
+				layoutWithHeight(50),
+			], [
+				'above pointer-bottom:3px',
+				'below pointer-top:-3px',
+				'above pointer-bottom:3px',
+			]);
+			hover.dispose();
+		});
+
 		test('should use the maximum height of the hover when choosing a vertical fallback', () => {
 			const target = createTarget();
 			target.getBoundingClientRect = () => new DOMRect(100, 44, 100, 22);
@@ -647,26 +679,6 @@ suite('HoverService', () => {
 			hover.dispose();
 		});
 
-		test('should render the hover in a fixed position context view when requested', () => {
-			const positionFor = (useFixedPosition: boolean | undefined) => {
-				const hover = showHover('Fixed hover', undefined, {
-					container: fixture,
-					position: { hoverPosition: HoverPosition.RIGHT, useFixedPosition }
-				});
-				const contextView = asHoverWidget(hover).domNode.closest<HTMLElement>('.context-view');
-				const position = contextView?.style.position;
-				hover.dispose();
-				return position;
-			};
-
-			assert.deepStrictEqual({
-				fixed: positionFor(true),
-				default: positionFor(undefined),
-			}, {
-				fixed: 'fixed',
-				default: 'absolute',
-			});
-		});
 	});
 
 	suite('hideHover', () => {

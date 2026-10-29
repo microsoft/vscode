@@ -1462,6 +1462,38 @@ suite('QuickInput item hover layout', () => {
 		]);
 	});
 
+	test('renders the item hover in a viewport-sized host inside the list that only the hover receives pointer events in', async () => {
+		await showPicker(['first']);
+		await settle();
+		controller.toggleHover();
+
+		const hover = fixture.querySelector<HTMLElement>('.workbench-hover');
+		const contextView = hover?.closest<HTMLElement>('.context-view');
+		const host = contextView?.parentElement;
+		assert.ok(hover && contextView && host);
+		const hostRect = host.getBoundingClientRect();
+		const contextViewStyle = mainWindow.getComputedStyle(contextView);
+		const hostStyle = mainWindow.getComputedStyle(host);
+
+		assert.deepStrictEqual({
+			hostClass: host.classList.contains('quick-input-list-hover-host'),
+			hostInList: !!host.parentElement?.classList.contains('quick-input-list'),
+			hostCoversViewport: hostRect.left === 0 && hostRect.top === 0 && hostRect.width === mainWindow.innerWidth && hostRect.height === mainWindow.innerHeight,
+			hostPointerEvents: hostStyle.pointerEvents,
+			contextViewPosition: contextViewStyle.position,
+			contextViewFixedClass: contextView.classList.contains('fixed'),
+			contextViewPointerEvents: contextViewStyle.pointerEvents,
+		}, {
+			hostClass: true,
+			hostInList: true,
+			hostCoversViewport: true,
+			hostPointerEvents: 'none',
+			contextViewPosition: 'absolute',
+			contextViewFixedClass: false,
+			contextViewPointerEvents: 'auto',
+		});
+	});
+
 	test('dismisses the item hover when the picker moves and keeps it when relaid out in place', async () => {
 		await showPicker(['first']);
 		await settle();

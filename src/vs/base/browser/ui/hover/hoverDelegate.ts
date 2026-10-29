@@ -36,7 +36,7 @@ export interface IHoverDelegateOptions extends IManagedHoverOptions {
 	/**
 	 * Options that defines where the hover is positioned.
 	 */
-	position?: Pick<IHoverPositionOptions, 'anchorAlignment' | 'useFixedPosition'> & {
+	position?: Pick<IHoverPositionOptions, 'anchorAlignment'> & {
 		hoverPosition?: HoverPosition;
 	};
 	appearance?: {
