@@ -510,8 +510,9 @@ export interface ISessionsProvider {
 	 * Returns `undefined` when the provider cannot handle the given URI
 	 * (e.g. wrong scheme or authority).
 	 * @param workspaceUri The URI of the repository to resolve the workspace for.
+	 * @param options Skip optional metadata allocation and discovery when enumerating a search catalog.
 	 */
-	resolveWorkspace(workspaceUri: URI): ISessionWorkspace | undefined;
+	resolveWorkspace(workspaceUri: URI, options?: { readonly resolveMetadata?: boolean }): ISessionWorkspace | undefined;
 
 	/** An alternate creation context for New Session gestures from an existing session. */
 	getNewSessionTarget?(sessionResource: URI): ISessionCreationTarget | undefined;
