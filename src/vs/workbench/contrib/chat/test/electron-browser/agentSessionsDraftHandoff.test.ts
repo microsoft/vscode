@@ -168,12 +168,15 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 		instantiation.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
 			model: upcastPartial<IAgentSessionsModel>({
 				onDidChangeSessions: sessionsChanged.event,
+				resolve: async () => { },
 				get sessions(): IAgentSession[] {
 					return [upcastPartial<IAgentSession>({
 						resource: URI.from({ scheme: runningProviderType, path: '/other-workspace' }),
 						providerType: runningProviderType,
 						status,
 						isArchived: () => false,
+						isPinned: () => false,
+						timing: { created: Date.now(), lastRequestStarted: Date.now(), lastRequestEnded: Date.now() },
 					})];
 				},
 			}),

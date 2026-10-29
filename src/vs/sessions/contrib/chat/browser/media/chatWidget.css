@@ -345,6 +345,149 @@
 	display: none;
 }
 
+.new-session-first-launch[hidden] {
+	display: none;
+}
+
+.new-session-first-launch {
+	display: flex;
+	flex-direction: column;
+	gap: calc(var(--vscode-spacing-size400) * 2);
+	margin-bottom: var(--vscode-spacing-size400);
+}
+
+.new-session-first-launch-features {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--vscode-spacing-size320);
+}
+
+.new-session-first-launch-feature {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--vscode-spacing-size200);
+	text-align: center;
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-descriptionForeground);
+	min-width: 0;
+}
+
+.new-session-first-launch-illustration {
+	display: block;
+	width: 100%;
+	max-width: calc(var(--vscode-spacing-size400) * 5);
+	height: auto;
+	stroke: var(--vscode-descriptionForeground);
+}
+
+.new-session-first-launch-illustration .first-launch-frame {
+	stroke: var(--vscode-contrastBorder, var(--vscode-panel-border));
+}
+
+.new-session-first-launch-illustration .first-launch-accent {
+	fill: var(--vscode-focusBorder);
+	stroke: var(--vscode-focusBorder);
+}
+
+.new-session-first-launch-illustration .first-launch-user,
+.new-session-first-launch-illustration .first-launch-focus {
+	stroke: var(--vscode-focusBorder);
+}
+
+.new-session-first-launch-illustration .first-launch-diff-add {
+	fill: var(--vscode-diffEditor-insertedTextBackground);
+	stroke: none;
+}
+
+.new-session-first-launch-illustration .first-launch-diff-remove {
+	fill: var(--vscode-diffEditor-removedTextBackground);
+	stroke: none;
+}
+
+.new-session-first-launch-illustration .first-launch-diff-line-add {
+	stroke: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.new-session-first-launch-illustration .first-launch-diff-line-remove {
+	stroke: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+.new-session-first-launch-illustration .first-launch-peek rect {
+	fill: var(--vscode-editor-background);
+	stroke: var(--vscode-focusBorder);
+}
+
+.new-session-first-launch-illustration .first-launch-step {
+	animation: first-launch-step 7s ease-out infinite;
+}
+
+.new-session-first-launch-illustration .first-launch-stream {
+	animation: first-launch-scroll 5s linear infinite;
+}
+
+.new-session-first-launch-illustration .first-launch-focus {
+	animation: first-launch-jump 6s ease-in-out infinite;
+}
+
+.new-session-first-launch-illustration .first-launch-peek {
+	animation: first-launch-peek 6s ease-in-out infinite;
+}
+
+@keyframes first-launch-step {
+	0% { opacity: 0; transform: translateY(-4px); }
+	8%, 80% { opacity: 1; transform: none; }
+	92%, 100% { opacity: 0; transform: none; }
+}
+
+@keyframes first-launch-scroll {
+	from { transform: translateY(0); }
+	to { transform: translateY(-32px); }
+}
+
+@keyframes first-launch-jump {
+	0%, 15% { transform: translateY(0); }
+	30%, 50% { transform: translateY(11px); }
+	65%, 100% { transform: translateY(44px); }
+}
+
+@keyframes first-launch-peek {
+	0%, 30% { opacity: 0; }
+	38%, 52% { opacity: 1; }
+	60%, 100% { opacity: 0; }
+}
+
+.monaco-reduce-motion .new-session-first-launch-illustration :is(.first-launch-step, .first-launch-stream, .first-launch-focus, .first-launch-peek) {
+	animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.new-session-first-launch-illustration :is(.first-launch-step, .first-launch-stream, .first-launch-focus, .first-launch-peek) {
+		animation: none;
+	}
+}
+
+.new-session-first-launch-prompt {
+	margin: 0;
+	text-align: center;
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.4;
+}
+
+.new-session-first-launch-prompt .monaco-link {
+	color: var(--vscode-foreground);
+	text-decoration: none;
+}
+
+.new-session-first-launch-prompt b {
+	color: var(--vscode-textLink-foreground);
+	font-weight: inherit;
+	text-decoration: underline;
+	text-decoration-style: dotted;
+}
+
 .new-session-welcome-message-title {
 	color: var(--vscode-foreground);
 	font-size: var(--vscode-fontSize-heading1);

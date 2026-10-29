@@ -39,6 +39,16 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
 import { IChatViewModel } from '../../common/model/chatViewModel.js';
 import { OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction } from '../../electron-browser/agentSessions/agentSessionsActions.js';
+import { IAgentSessionsService } from '../../browser/agentSessions/agentSessionsService.js';
+import { IAgentSession, IAgentSessionsModel } from '../../browser/agentSessions/agentSessionsModel.js';
+import { SessionType } from '../../common/chatSessionsService.js';
+
+function stubEditorSessions(instantiationService: TestInstantiationService, sessions: IAgentSession[] = []): void {
+	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
+		model: upcastPartial<IAgentSessionsModel>({ sessions, resolve: async () => { } }),
+	}));
+}
 
 class TestCommandService extends mock<ICommandService>() {
 	readonly calls: { readonly commandId: string; readonly args: readonly unknown[] }[] = [];
@@ -134,6 +144,7 @@ suite('Agents window launch enablement', () => {
 	for (const scenario of scenarios) {
 		test(`direct command respects effective agent enablement: ${scenario.name}`, async () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
+			stubEditorSessions(instantiationService);
 			const configurationService = new TestConfigurationService({ [ChatConfiguration.AgentEnabled]: false });
 			disposables.add(configurationService.onDidChangeConfigurationEmitter);
 			instantiationService.stub(IConfigurationService, configurationService);
@@ -178,7 +189,9 @@ suite('OpenWorkspaceInAgentsWindowAction', () => {
 	for (const activeFile of ['/second/file.ts', undefined]) {
 		test(`explicit Open in Agents prefers the active root with a first-root fallback (${activeFile ?? 'no editor'})`, async () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
+			stubEditorSessions(instantiationService);
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
+			instantiationService.stub(ILogService, new NullLogService());
 			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: undefined }));
 			const folders = ['/first', '/second'].map((path, index) => new WorkspaceFolder({ uri: URI.file(path), name: path, index }));
 			const calls: IOpenAgentsWindowOptions[] = [];
@@ -202,6 +215,7 @@ suite('OpenWorkspaceInAgentsWindowAction', () => {
 	test('opens the Agents Window with the local folder and Dev Container preference', async () => {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = store.add(new TestInstantiationService());
+		stubEditorSessions(instantiationService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: undefined }));
 		let workspaceFolderUri = URI.file('/workspace');
@@ -259,6 +273,7 @@ suite('OpenAgentsWindowAction workspace defaults', () => {
 	]) {
 		test(`infers ${scenario.name} without turning it into an explicit selection`, async () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
+			stubEditorSessions(instantiationService);
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
 			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: undefined }));
 			const folders = scenario.folders.map((path, index) => new WorkspaceFolder({ uri: URI.file(path), name: path, index }));
@@ -297,6 +312,86 @@ suite('OpenAgentsWindowAction workspace defaults', () => {
 			{ ...existing, source: AgentsWindowOpenSource.CommandPalette },
 		]);
 	});
+});
+
+suite('Agents window Editor eligibility handoff', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses cached chats without delaying launch for a provider refresh', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: undefined }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ getWorkspace: () => ({ id: 'editor', folders: [] }) }));
+		let refreshes = 0;
+		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
+			model: upcastPartial<IAgentSessionsModel>({
+				sessions: [upcastPartial<IAgentSession>({ isArchived: () => false })],
+				resolve: async () => { refreshes++; },
+			}),
+		}));
+		const calls: IOpenAgentsWindowOptions[] = [];
+		instantiationService.stub(INativeHostService, upcastPartial<INativeHostService>({ openAgentsWindow: async options => { calls.push(options ?? {}); } }));
+		await instantiationService.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		assert.deepStrictEqual({ refreshes, eligibility: calls.map(call => call.editorHasSessions) }, { refreshes: 0, eligibility: [true] });
+	});
+
+	test('logs discovery errors without preventing the ordinary Agents-window launch', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: undefined }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ getWorkspace: () => ({ id: 'editor', folders: [] }) }));
+		const failure = new Error('Provider unavailable');
+		const warnings: string[] = [];
+		instantiationService.stub(ILogService, upcastPartial<ILogService>({ warn: message => warnings.push(message) }));
+		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
+			model: upcastPartial<IAgentSessionsModel>({ sessions: [], resolve: async (_provider, onError) => { onError?.(failure); } }),
+		}));
+		const calls: IOpenAgentsWindowOptions[] = [];
+		instantiationService.stub(INativeHostService, upcastPartial<INativeHostService>({ openAgentsWindow: async options => { calls.push(options ?? {}); } }));
+		await instantiationService.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		assert.deepStrictEqual({ warnings, eligibility: calls.map(call => call.editorHasSessions) }, {
+			warnings: ['[AgentsFirstLaunch] Failed to refresh Editor chats'], eligibility: [false],
+		});
+	});
+
+	for (const scenario of [
+		{ name: 'an existing Local chat with recent activity', created: 0, updated: Date.now(), archived: false, pinned: false, eligible: true },
+		{ name: 'an old Local chat', created: 0, updated: 0, archived: false, pinned: false, eligible: true },
+		{ name: 'an archived Local chat', created: Date.now(), updated: Date.now(), archived: true, pinned: false, eligible: false },
+		{ name: 'an old pinned Local chat', created: 0, updated: 0, archived: false, pinned: true, eligible: true },
+	]) {
+		for (const action of [new OpenWorkspaceInAgentsWindowAction(), new OpenAgentsWindowAction()]) {
+			test(`${action.desc.id} targets ${scenario.name}`, async () => {
+				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(IConfigurationService, new TestConfigurationService());
+				instantiationService.stub(ILogService, new NullLogService());
+				instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: undefined }));
+				instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ getWorkspace: () => ({ id: 'editor', folders: [] }) }));
+				const sessions: IAgentSession[] = [];
+				const resolved: (string | string[] | undefined)[] = [];
+				instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
+					model: upcastPartial<IAgentSessionsModel>({
+						sessions,
+						resolve: async provider => {
+							resolved.push(provider);
+							sessions.push(upcastPartial<IAgentSession>({
+								providerType: SessionType.Local,
+								timing: { created: scenario.created, lastRequestStarted: scenario.updated, lastRequestEnded: scenario.updated },
+								isArchived: () => scenario.archived,
+								isPinned: () => scenario.pinned,
+							}));
+						},
+					}),
+				}));
+				const calls: IOpenAgentsWindowOptions[] = [];
+				instantiationService.stub(INativeHostService, upcastPartial<INativeHostService>({ openAgentsWindow: async options => { calls.push(options ?? {}); } }));
+				await instantiationService.invokeFunction(accessor => action.run(accessor));
+				assert.deepStrictEqual({ resolved, eligibility: calls.map(call => call.editorHasSessions), revealed: calls.map(call => call.reveal) }, {
+					resolved: [SessionType.Local], eligibility: [scenario.eligible], revealed: [undefined],
+				});
+			});
+		}
+	}
 });
 
 suite('OpenWorkspaceInAgentsWindowTitleBarAction', () => {
