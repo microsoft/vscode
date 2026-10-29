@@ -20,7 +20,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -178,6 +179,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		@ITunnelService private readonly _tunnelService: ITunnelService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IMenuService menuService: IMenuService,
 	) {
 		super();
 
@@ -274,17 +276,29 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 				...Object.entries(data.context),
 				[webviewIdContext, this.providedViewType],
 			]);
+			const actions = getFlatContextMenuActions(menuService.getMenuActions(MenuId.WebviewContext, contextKeyService, { shouldForwardArgs: true }));
+			if (!actions.length) {
+				// No menu is shown for an empty action list, so there would never be a
+				// matching hide to clear the visible state (which keeps the webview focused).
+				return;
+			}
+
+			let isHidden = false;
 			contextMenuService.showContextMenu({
-				menuId: MenuId.WebviewContext,
-				menuActionOptions: { shouldForwardArgs: true },
-				contextKeyService,
+				getActions: () => actions,
 				getActionsContext: (): WebviewActionContext => ({ ...data.context, webview: this.providedViewType }),
 				getAnchor: () => ({
 					x: elementBox.x + data.clientX,
 					y: elementBox.y + data.clientY
-				})
+				}),
+				onHide: () => {
+					isHidden = true;
+					this._send('set-context-menu-visible', { visible: false });
+				}
 			});
-			this._send('set-context-menu-visible', { visible: true });
+			if (!isHidden) {
+				this._send('set-context-menu-visible', { visible: true });
+			}
 		}));
 
 		this._register(this.on('load-resource', async (entry) => {
@@ -314,7 +328,6 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		this._register(Event.runAndSubscribe(webviewThemeDataProvider.onThemeDataChanged, () => this.style()));
 		this._register(_accessibilityService.onDidChangeReducedMotion(() => this.style()));
 		this._register(_accessibilityService.onDidChangeScreenReaderOptimized(() => this.style()));
-		this._register(contextMenuService.onDidHideContextMenu(() => this._send('set-context-menu-visible', { visible: false })));
 
 		this._confirmBeforeClose = configurationService.getValue<string>('window.confirmBeforeClose');
 

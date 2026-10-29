@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { isSafari } from '../../../../../base/browser/browser.js';
+import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { addDisposableListener } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
@@ -19,6 +20,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -27,6 +29,7 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { FileSystemProviderCapabilities, IFileReadStreamOptions, IFileService } from '../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IRemoteAuthorityResolverService } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
@@ -38,12 +41,14 @@ import { WebviewThemeDataProvider } from '../../browser/themeing.js';
 import { WebviewElement } from '../../browser/webviewElement.js';
 import { ToWebviewMessage } from '../../browser/webviewMessages.js';
 
+type WebviewMessage = { [K in keyof ToWebviewMessage]: { channel: K; args: ToWebviewMessage[K] } }[keyof ToWebviewMessage];
+
 suite('WebviewElement', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => sinon.restore());
 
-	async function createWebview(extensionId?: string, platform = 'browser', connect = true) {
+	async function createWebview(extensionId?: string, platform = 'browser', connect = true, configure?: (instantiationService: TestInstantiationService) => void) {
 		let initialized = new DeferredPromise<string>();
 		class TestWebviewElement extends WebviewElement {
 			public override get element(): HTMLIFrameElement | undefined { return super.element; }
@@ -62,7 +67,8 @@ suite('WebviewElement', () => {
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const errorNotification = sinon.stub();
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IContextMenuService, { onDidHideContextMenu: Event.None });
+		instantiationService.stub(IContextMenuService, {});
+		instantiationService.stub(IMenuService, { getMenuActions: () => [] });
 		instantiationService.stub(INotificationService, { error: errorNotification });
 		instantiationService.stub(IWorkbenchEnvironmentService, {});
 		instantiationService.stub(ILogService, store.add(new NullLogService()));
@@ -74,6 +80,7 @@ suite('WebviewElement', () => {
 			isMotionReduced: () => false,
 			isScreenReaderOptimized: () => false,
 		});
+		configure?.(instantiationService);
 
 		const webview = store.add(instantiationService.createInstance(TestWebviewElement, {
 			title: 'Test view',
@@ -264,6 +271,49 @@ suite('WebviewElement', () => {
 		});
 	}
 
+	test('only reports a visible context menu while a non-empty menu is shown', async () => {
+		// The first right-click resolves to an empty menu (e.g. a notebook output with
+		// `preventDefaultContextMenuItems`), the second to a menu with an item.
+		const menuGroups: [string, MenuItemAction[]][][] = [[], [['5_cutcopypaste', [upcastPartial<MenuItemAction>({ id: 'test.copy' })]]]];
+		const shownMenus: IContextMenuDelegate[] = [];
+		const menuShown = new DeferredPromise<IContextMenuDelegate>();
+		const { webview, port } = await createWebview(undefined, 'browser', true, instantiationService => {
+			instantiationService.stub(IMenuService, { getMenuActions: () => menuGroups.shift() ?? [] });
+			instantiationService.stub(IContextMenuService, {
+				showContextMenu: (delegate: IContextMenuDelegate) => {
+					shownMenus.push(delegate);
+					menuShown.complete(delegate);
+				},
+			});
+		});
+		webview.setContextKeyService(new MockContextKeyService());
+
+		const visibility: boolean[] = [];
+		const hidden = new DeferredPromise<void>();
+		store.add(addDisposableListener(port, 'message', (event: MessageEvent<WebviewMessage>) => {
+			if (event.data.channel === 'set-context-menu-visible') {
+				visibility.push(event.data.args.visible);
+				if (!event.data.args.visible) {
+					hidden.complete();
+				}
+			}
+		}));
+
+		port.postMessage({ channel: 'did-context-menu', data: { clientX: 1, clientY: 2, context: { preventDefaultContextMenuItems: true } } });
+		port.postMessage({ channel: 'did-context-menu', data: { clientX: 3, clientY: 4, context: { webviewSection: 'text' } } });
+		const menu = await menuShown.p;
+		menu.onHide?.(false);
+		await hidden.p;
+
+		assert.deepStrictEqual({
+			shownMenus: shownMenus.map(delegate => delegate.getActions().map(action => action.id)),
+			visibility,
+		}, {
+			shownMenus: [['test.copy']],
+			visibility: [true, false],
+		});
+	});
+
 	async function createResourceWebview(platform = 'electron') {
 		const { webview, instantiationService, port } = await createWebview(undefined, platform);
 		const reads: { stream: WriteableStream<Uint8Array>; token: CancellationToken }[] = [];
@@ -289,7 +339,6 @@ suite('WebviewElement', () => {
 
 		const pending = new Map<number, DeferredPromise<ToWebviewMessage['did-load-resource']>>();
 		const bodies = new Map<number, { chunks: VSBuffer[]; result: DeferredPromise<string> }>();
-		type WebviewMessage = { [K in keyof ToWebviewMessage]: { channel: K; args: ToWebviewMessage[K] } }[keyof ToWebviewMessage];
 		store.add(addDisposableListener(port, 'message', (event: MessageEvent<WebviewMessage>) => {
 			const message = event.data;
 			switch (message.channel) {
