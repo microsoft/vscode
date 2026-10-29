@@ -191,6 +191,7 @@ export default defineConfig(
 	// Opt in migrated areas without introducing warnings in the remaining callback APIs.
 	{
 		files: [
+			'src/vs/platform/agentHost/node/claude/claudeFileEditObserver.ts',
 			'src/vs/workbench/api/browser/mainThreadMcp.ts',
 			'src/vs/workbench/api/common/extHostQuickOpen.ts',
 		],
