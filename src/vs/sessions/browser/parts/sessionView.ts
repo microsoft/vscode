@@ -115,6 +115,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	readonly primaryChatViewTop: IObservable<number>;
 
 	private readonly _headerHeight = observableValue<number>(this, 0);
+	private readonly _headerHidden = observableValue<boolean>(this, false);
 	/** The element outside of this view that shows the session header; see {@link setHeaderHost}. */
 	private _headerHost: HTMLElement | undefined;
 
@@ -211,7 +212,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			const tabsReplaceHeader = (session?.isCreated.read(reader) ?? false)
 				&& !showChatAsSessionView
 				&& (groupCount > 1 || (session?.shouldShowChatTabs.read(reader) ?? false));
-			this._header.setVisible((this._hostOptions?.showHeader ?? true) && !tabsReplaceHeader && !(showChatAsSessionView && groupCount > 1));
+			this._header.setVisible((this._hostOptions?.showHeader ?? true) && !this._headerHidden.read(reader) && !tabsReplaceHeader && !(showChatAsSessionView && groupCount > 1));
 			this._groupsView.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 			this.element.classList.toggle('tabs-replace-header', tabsReplaceHeader);
 		}));
@@ -383,6 +384,11 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 	toJSON(): object {
 		return { type: SessionView.TYPE };
+	}
+
+	/** Hides the session header for as long as its host wants, such as while the main window's chat shows only its input. */
+	setHeaderHidden(hidden: boolean): void {
+		this._headerHidden.set(hidden, undefined);
 	}
 
 	/**
