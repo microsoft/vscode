@@ -18,6 +18,7 @@ import { SaveReason } from '../../../../../common/editor.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { dirname } from '../../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -2032,7 +2033,9 @@ suite('aiCustomizationManagementEditor', () => {
 		sectionsList.setSelection([0]);
 		store.add(sectionsList.onDidChangeSelection(e => editor.onDidChangeSidebarSelection(e)));
 
-		const skillUri = URI.file('/plugins/example/skills/review/SKILL.md');
+		const pluginUri = URI.file('/plugins/example');
+		const skillUri = URI.joinPath(pluginUri, 'skills', 'review', 'SKILL.md');
+		const skillDirectoryUri = dirname(skillUri);
 		const skillsLoaded = new DeferredPromise<void>();
 		const openedSkills: URI[] = [];
 		Object.assign(editor, {
@@ -2046,7 +2049,7 @@ suite('aiCustomizationManagementEditor', () => {
 			listWidget: { setSection: () => skillsLoaded.p },
 			itemsModel: {
 				whenSectionLoaded: async () => { },
-				getItems: () => observableValue('items', [{ uri: skillUri }]),
+				getItems: () => observableValue('items', [{ uri: skillUri, pluginUri }]),
 			},
 			openCustomizationItem: async (item: { uri: URI }) => { openedSkills.push(item.uri); },
 		});
@@ -2054,10 +2057,13 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.viewMode = 'pluginDetail';
 		editor.pluginDetailInput = new class extends mock<Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Installed }>>() {
 			override readonly kind = AgentPluginItemKind.Installed;
+			override readonly plugin = new class extends mock<IAgentPlugin>() {
+				override readonly uri = pluginUri;
+			}();
 		};
 		editor.pluginDetailOrigin = { kind: 'section', section: AICustomizationManagementSection.Plugins };
 
-		const navigation = editor.openSkillFromPluginDetail(skillUri);
+		const navigation = editor.openSkillFromPluginDetail(skillDirectoryUri);
 		// A re-enabled plugin's skills finish loading, which re-splices the sidebar.
 		editor.updateSectionCount(AICustomizationManagementSection.Skills, 2);
 		skillsLoaded.complete();

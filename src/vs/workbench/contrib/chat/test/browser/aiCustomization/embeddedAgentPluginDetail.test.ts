@@ -15,12 +15,13 @@ import { FileOperationError, FileOperationResult, IFileService } from '../../../
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { AgentPluginItemKind, IAgentPluginItem, IMarketplacePluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
-import { getPluginRepository, getPluginSourceUri, getPluginVersion, loadMarketplacePluginContributionEntries, loadPluginReadme, PluginReadmeRenderGuard, waitForInstalledPlugin } from '../../../browser/aiCustomization/embeddedAgentPluginDetail.js';
+import { getPluginRepository, getPluginSourceUri, getPluginVersion, loadMarketplacePluginContributionEntries, loadPluginReadme, PluginReadmeRenderGuard, resolveInstalledPluginSkillLink, waitForInstalledPlugin } from '../../../browser/aiCustomization/embeddedAgentPluginDetail.js';
 import { IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { parseMarketplaceReference } from '../../../common/plugins/marketplaceReference.js';
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
 import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { dirname } from '../../../../../../base/common/resources.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { createCustomizationMarketplaceInstallationSnapshot, emptyCustomizationMarketplaceInstallationSnapshot } from '../../../common/customizationMarketplaceInstallService.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -239,6 +240,31 @@ suite('embeddedAgentPluginDetail', () => {
 			content: '[Guide](./docs/guide.md)',
 			baseUri: 'https://github.com/owner/repo/blob/main/plugins/example/README.md',
 			requests: ['https://raw.githubusercontent.com/owner/repo/main/plugins/example/README.md'],
+		});
+	});
+
+	test('resolves installed plugin README skill links to the skill file', () => {
+		const pluginUri = URI.file('/plugins/example');
+		const skillUri = URI.joinPath(pluginUri, 'skills', 'review', 'SKILL.md');
+		const item = {
+			kind: AgentPluginItemKind.Installed,
+			name: 'example',
+			description: 'Example plugin',
+			plugin: new class extends mock<IAgentPlugin>() {
+				override readonly skills = observableValue('skills', [{ name: 'review', uri: skillUri }]);
+			}(),
+		} satisfies IAgentPluginItem;
+
+		assert.deepStrictEqual({
+			directory: resolveInstalledPluginSkillLink(item, dirname(skillUri).toString())?.toString(),
+			file: resolveInstalledPluginSkillLink(item, skillUri.toString())?.toString(),
+			unrelated: resolveInstalledPluginSkillLink(item, URI.joinPath(pluginUri, 'docs', 'guide.md').toString())?.toString(),
+			marketplace: resolveInstalledPluginSkillLink(createMarketplaceItem(URI.parse('https://example.test/README.md')), skillUri.toString())?.toString(),
+		}, {
+			directory: skillUri.toString(),
+			file: skillUri.toString(),
+			unrelated: undefined,
+			marketplace: undefined,
 		});
 	});
 
