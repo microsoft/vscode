@@ -32,6 +32,7 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { IAgentPlugin, IAgentPluginService, setAgentPluginEnablement } from '../../common/plugins/agentPluginService.js';
 import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../common/enablement.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
+import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
 import { getInstalledPluginContextMenuActions, getPluginPolicyEnablement, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
@@ -628,10 +629,10 @@ export function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabel
 }
 
 /**
- * Returns whether an installed plugin's name, description, or location matches a lowercase query.
+ * Returns whether an installed plugin's name, description, or location matches a query.
  */
 export function installedPluginMatchesQuery(item: IInstalledPluginItem, query: string): boolean {
-	return [item.name, item.description, item.location].some(value => value?.toLowerCase().includes(query));
+	return customizationSearchMatchesAny(query, [item.name, item.description, item.location]);
 }
 
 function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePluginItem {
@@ -2048,7 +2049,7 @@ export class PluginListWidget extends Disposable {
 				this.remoteItems = remoteItems;
 			}
 			const filtered = query
-				? plugins.filter(p => p.name.toLowerCase().includes(query) || p.description.toLowerCase().includes(query) || p.marketplace.toLowerCase().includes(query))
+				? plugins.filter(p => customizationSearchMatchesAny(query, [p.name, p.description, p.marketplace]))
 				: plugins;
 
 			// Filter out already-installed plugins
@@ -2102,7 +2103,7 @@ export class PluginListWidget extends Disposable {
 				return;
 			}
 			const filtered = query
-				? plugins.filter(p => p.name.toLowerCase().includes(query) || p.description.toLowerCase().includes(query) || p.marketplace.toLowerCase().includes(query))
+				? plugins.filter(p => customizationSearchMatchesAny(query, [p.name, p.description, p.marketplace]))
 				: plugins;
 			const installedUris = new Set(this.agentPluginService.plugins.get().map(p => p.uri.toString()));
 			const marketplaceItems = filtered
@@ -2164,10 +2165,7 @@ export class PluginListWidget extends Disposable {
 			const provided = await this.itemsModel.getActiveItemSource().fetchProviderItems();
 			return provided.filter(item =>
 				isPluginCustomizationItem(item)
-				&& (!query
-					|| item.name.toLowerCase().includes(query)
-					|| item.description?.toLowerCase().includes(query)
-					|| item.badge?.toLowerCase().includes(query))
+				&& customizationSearchMatchesAny(query, [item.name, item.description, item.badge])
 			);
 		} catch {
 			return [];
