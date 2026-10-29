@@ -26,6 +26,8 @@ import { URI } from '../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IActionListDelegate, IActionListItem, IActionListOptions } from '../../../platform/actionWidget/browser/actionList.js';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IActionWidgetService } from '../../../platform/actionWidget/browser/actionWidget.js';
 import { IFileContent, IFileService } from '../../../platform/files/common/files.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
@@ -34,7 +36,7 @@ import { ChatDropdownPillActionViewItem, ChatPillSingleEntry, createChatSectionP
 import { ChatResourcePillActionViewItem } from '../../browser/chatResourcePill.js';
 import { createChatImageHoverContent } from '../../browser/chatImagePreview.js';
 import { ChatPillHoverCache, createChatPillHover, type IChatPillHoverContent } from '../../browser/chatPillHover.js';
-import { ChatPillsRow, ChatPillsWidget, createChatPillImagePreview, createChatPillMediaPreview, getChatPillLocationHover, getChatReferencePillPresentation, type ChatPillsCompactMode, type IChatPill, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../browser/chatPills.js';
+import { ChatPillsRow, ChatPillsWidget, createChatPillImagePreview, createChatPillMediaPreview, getChatPillEntryHoverContents, getChatPillLocationHover, getChatReferencePillPresentation, type ChatPillsCompactMode, type IChatPill, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../browser/chatPills.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../browser/labels.js';
 import { workbenchInstantiationService } from './workbenchTestServices.js';
 
@@ -492,8 +494,7 @@ suite('ChatPills', () => {
 		});
 	});
 
-	test('previews videos muted and looping, honoring reduced motion, and releases them on close', async () => {
-		const resource = URI.file('/repo/demo.mp4');
+	function createVideoFileService(resource: URI) {
 		const content = Promise.resolve<IFileContent>({
 			resource,
 			name: 'demo.mp4',
@@ -506,10 +507,22 @@ suite('ChatPills', () => {
 			locked: false,
 			executable: false,
 		});
-		const fileService = upcastPartial<IFileService>({ readFile: () => content });
+		return { content, fileService: upcastPartial<IFileService>({ readFile: () => content }) };
+	}
+
+	test('previews videos muted and looping, reading reduced motion each time the hover opens, and releases them on close', async () => {
+		const resource = URI.file('/repo/demo.mp4');
+		const { content, fileService } = createVideoFileService(resource);
 		const entry: IChatPillEntry = { id: 'demo', label: 'demo.mp4', ariaDescription: '~/repo/demo.mp4', videoPreview: { resource, mimeType: 'video/mp4' }, open: () => { } };
-		const playing = createChatPillMediaPreview(entry, fileService)!;
-		const still = createChatPillMediaPreview(entry, fileService, undefined, { autoPlay: false })!;
+		let motionReduced = false;
+		// The pill caches its hover content, so the preference must be read when the hover opens, not when it is cached.
+		const hover = getChatPillEntryHoverContents(entry, fileService, new WeakMap(), { isMotionReduced: () => motionReduced }) as { element: (token: CancellationToken) => HTMLElement };
+		const playingOpen = store.add(new CancellationTokenSource());
+		const playingElement = hover.element(playingOpen.token);
+		motionReduced = true;
+		const stillOpen = store.add(new CancellationTokenSource());
+		const stillElement = hover.element(stillOpen.token);
+		const still = createChatPillMediaPreview(entry, fileService, undefined, { isMotionReduced: () => true })!;
 		await content;
 		const describe = (element: HTMLElement) => {
 			const video = element.querySelector('video');
@@ -523,19 +536,70 @@ suite('ChatPills', () => {
 				location: element.querySelector('.chat-image-hover-location')?.textContent,
 			};
 		};
-		const shown = [describe(playing.element), describe(still.element)];
-		store.add(playing.disposable).dispose();
+		const playingVideo = { muted: true, loop: true, autoplay: true, controls: false, ariaLabel: 'Preview of demo.mp4', blobSource: true, location: '~/repo/demo.mp4' };
+		const stillVideo = { ...playingVideo, autoplay: false, controls: true };
+		const shown = [describe(playingElement), describe(stillElement)];
+		const tabbableWhileShown = still.getTabbableElements?.().map(element => element.tagName);
+		playingOpen.cancel();
+		stillOpen.cancel();
 		store.add(still.disposable).dispose();
 
 		assert.deepStrictEqual({
 			shown,
-			sourceAfterClose: playing.element.querySelector('video')?.hasAttribute('src'),
+			tabbableWhileShown,
+			tabbableAfterClose: still.getTabbableElements?.().length,
+			sourceAfterClose: still.element.querySelector('video')?.hasAttribute('src'),
 		}, {
-			shown: [
-				{ muted: true, loop: true, autoplay: true, controls: false, ariaLabel: 'Preview of demo.mp4', blobSource: true, location: '~/repo/demo.mp4' },
-				{ muted: true, loop: true, autoplay: false, controls: true, ariaLabel: 'Preview of demo.mp4', blobSource: true, location: '~/repo/demo.mp4' },
-			],
+			shown: [playingVideo, stillVideo],
+			tabbableWhileShown: ['VIDEO'],
+			tabbableAfterClose: 0,
 			sourceAfterClose: false,
+		});
+	});
+
+	test('lets keyboard users reach a still video\'s controls from its dropdown row, including after the row is rebuilt', async () => {
+		const resource = URI.file('/repo/demo.mp4');
+		const { content, fileService } = createVideoFileService(resource);
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IFileService, fileService);
+		let motionReduced = true;
+		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+			override isMotionReduced(): boolean { return motionReduced; }
+		}());
+		const action = store.add(new Action('artifacts', 'Artifacts'));
+		const createEntry = (): IChatPillEntry => ({ id: 'demo', label: 'demo.mp4', resource, videoPreview: { resource, mimeType: 'video/mp4' }, open: () => { } });
+		const other: IChatPillEntry = { id: 'notes', label: 'notes.md', resource: URI.file('/repo/notes.md'), open: () => { } };
+		const sections = observableValue<readonly IChatPillSection[]>('chatPills.video', [{ title: 'Files', entries: [createEntry(), other] }]);
+		const viewItem = store.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, sections, {
+			widgetId: 'artifacts',
+			icon: Codicon.archive,
+			title: 'Artifacts',
+			summaryLabel: count => `${count} Artifacts`,
+			summaryAriaLabel: count => `Show ${count} artifacts`,
+		}));
+		const videoHover = () => getDropdownPillItems.call(viewItem).find(item => item.label === 'demo.mp4')!.hover!;
+		const firstHover = videoHover();
+		const firstContent = typeof firstHover.content === 'function' ? firstHover.content() : undefined;
+		await content;
+		const first = { tabThroughPanel: firstHover.tabThroughPanel, tabbable: firstHover.getTabbableElements?.().map(element => element.tagName) };
+		sections.set([{ title: 'Files', entries: [createEntry(), other] }], undefined);
+		const rebuiltHover = videoHover();
+		const rebuilt = {
+			sameContent: (typeof rebuiltHover.content === 'function' ? rebuiltHover.content() : undefined) === firstContent,
+			tabThroughPanel: rebuiltHover.tabThroughPanel,
+			tabbable: rebuiltHover.getTabbableElements?.().map(element => element.tagName),
+		};
+		firstHover.disposeContent?.(firstContent!);
+		motionReduced = false;
+		const playingContent = typeof rebuiltHover.content === 'function' ? rebuiltHover.content() : undefined;
+		await content;
+		const playing = { tabbable: rebuiltHover.getTabbableElements?.().map(element => element.tagName), autoplay: playingContent?.querySelector('video')?.autoplay };
+		rebuiltHover.disposeContent?.(playingContent!);
+
+		assert.deepStrictEqual({ first, rebuilt, playing }, {
+			first: { tabThroughPanel: true, tabbable: ['VIDEO'] },
+			rebuilt: { sameContent: true, tabThroughPanel: true, tabbable: ['VIDEO'] },
+			playing: { tabbable: [], autoplay: true },
 		});
 	});
 

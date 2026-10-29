@@ -270,7 +270,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		if (this.isSummarized) {
 			return super.getHoverContents();
 		}
-		return getChatPillEntryHoverContents(this.entries.at(0), this._fileService, this._mediaHoverContents, { autoPlay: !this._accessibilityService.isMotionReduced() }) ?? super.getHoverContents();
+		return getChatPillEntryHoverContents(this.entries.at(0), this._fileService, this._mediaHoverContents, { isMotionReduced: () => this._accessibilityService.isMotionReduced() }) ?? super.getHoverContents();
 	}
 
 	protected override getAriaLabel(): string | undefined {
@@ -427,6 +427,8 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 				contentOwnsPadding: cached.hover.contentOwnsPadding,
 				alignToAnchorTop: cached.hover.alignToAnchorTop,
 				preserveVerticalPosition: cached.hover.preserveVerticalPosition,
+				tabThroughPanel: cached.hover.tabThroughPanel,
+				getTabbableElements: cached.hover.getTabbableElements,
 			};
 			this._resourceDropdownHovers.set(entry.id, { entry, hover });
 			return hover;
@@ -444,7 +446,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		const hover: IActionListItemHover = {
 			...baseHover,
 			content: () => {
-				preview ??= createChatPillMediaPreview(entry, this._fileService, undefined, { autoPlay: !this._accessibilityService.isMotionReduced() })!;
+				preview ??= createChatPillMediaPreview(entry, this._fileService, undefined, { isMotionReduced: () => this._accessibilityService.isMotionReduced() })!;
 				preview.element.classList.add('compact');
 				return preview.element;
 			},
@@ -463,6 +465,11 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			contentOwnsPadding: true,
 			alignToAnchorTop: true,
 			preserveVerticalPosition: true,
+			// With reduced motion a video shows playback controls, which Tab must be able to reach.
+			...(entry.videoPreview ? {
+				tabThroughPanel: true,
+				getTabbableElements: () => [...baseHover?.getTabbableElements?.() ?? [], ...preview?.getTabbableElements?.() ?? []],
+			} : {}),
 		};
 		this._resourceDropdownHovers.set(entry.id, { entry, hover });
 		return hover;

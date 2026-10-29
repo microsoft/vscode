@@ -75,7 +75,7 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
-		return getChatPillEntryHoverContents(this._entry.get(), this._fileService, this._mediaHoverContents, { autoPlay: !this._accessibilityService.isMotionReduced() }) ?? super.getHoverContents();
+		return getChatPillEntryHoverContents(this._entry.get(), this._fileService, this._mediaHoverContents, { isMotionReduced: () => this._accessibilityService.isMotionReduced() }) ?? super.getHoverContents();
 	}
 
 	protected override getHoverOptions(): IManagedHoverOptions | undefined {

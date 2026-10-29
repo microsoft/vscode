@@ -23,6 +23,7 @@ import { IClipboardService } from '../../../../platform/clipboard/common/clipboa
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { WebFileSystemAccess } from '../../../../platform/files/browser/webFileSystemAccess.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { GitHubCommit } from '../../../../platform/github/common/githubQueryService.js';
 import { parseGitHubCommitTarget, type IGitHubCommitTarget } from '../../../../platform/github/common/githubUrls.js';
@@ -56,6 +57,7 @@ import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
 import { ISessionGitHubReferences, parseGitHubArtifactLink } from '../../github/common/sessionGitHubReferences.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { IGitHubService as ISessionsGitHubService } from '../../github/browser/githubService.js';
 
 /** Action id of the references pill. */
@@ -887,6 +889,11 @@ export class SessionArtifacts extends Disposable {
 			downloadResource: async (uri, name) => {
 				try {
 					const stat = await this._fileService.resolve(uri);
+					// Browsers can only save a folder through the File System Access API; without it the download would silently do nothing.
+					if (isWeb && stat.isDirectory && !WebFileSystemAccess.supported(getActiveWindow())) {
+						this._notificationService.error(localize('sessionArtifacts.downloadFolderUnsupported', "Could not download {0}: this browser does not support downloading folders.", name));
+						return;
+					}
 					await this._instantiationService.createInstance(FileDownload).download([{ resource: stat.resource, name: stat.name, isDirectory: stat.isDirectory }]);
 				} catch (error) {
 					this._notificationService.error(localize('sessionArtifacts.downloadFailed', "Failed to download {0}: {1}", name, toErrorMessage(error)));

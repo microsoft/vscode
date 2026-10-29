@@ -164,6 +164,8 @@ export function getChatPillLocationHover(location: string): IActionListItemHover
 export interface IChatPillMediaPreview {
 	readonly element: HTMLElement;
 	readonly disposable: IDisposable;
+	/** Controls in the preview a keyboard user can reach, such as a video's playback controls. */
+	readonly getTabbableElements?: () => readonly HTMLElement[];
 }
 
 const MAX_CHAT_PILL_IMAGE_PREVIEW_FILE_SIZE = 20 * 1024 * 1024;
@@ -224,8 +226,12 @@ export function createChatPillImagePreview(entry: IChatPillEntry & { readonly im
 
 /** Options for {@link createChatPillMediaPreview}. */
 export interface IChatPillMediaPreviewOptions {
-	/** Whether a video starts playing on its own; pass `false` when motion is reduced. */
-	readonly autoPlay?: boolean;
+	/**
+	 * Whether motion is reduced. Read each time a preview is created, so a change
+	 * to the preference applies the next time the hover opens. When reduced, a
+	 * video does not play on its own and shows its controls instead.
+	 */
+	readonly isMotionReduced?: () => boolean;
 }
 
 /** Creates the visual preview of an entry's image or video, or `undefined` when it has neither. */
@@ -234,7 +240,7 @@ export function createChatPillMediaPreview(entry: IChatPillEntry, fileService: I
 		return createChatPillImagePreview({ ...entry, imagePreview: entry.imagePreview }, fileService, token);
 	}
 	if (entry.videoPreview) {
-		return createChatPillVideoPreview({ ...entry, videoPreview: entry.videoPreview }, fileService, token, options?.autoPlay ?? true);
+		return createChatPillVideoPreview({ ...entry, videoPreview: entry.videoPreview }, fileService, token, !(options?.isMotionReduced?.() ?? false));
 	}
 	return undefined;
 }
@@ -258,6 +264,7 @@ export function createChatPillVideoPreview(entry: IChatPillEntry & { readonly vi
 	container.setAttribute('aria-busy', 'true');
 	const disposables = new DisposableStore();
 	const readToken = cancelOnDispose(disposables);
+	let video: HTMLVideoElement | undefined;
 	disposables.add(token.onCancellationRequested(() => disposables.dispose()));
 	if (token.isCancellationRequested) {
 		disposables.dispose();
@@ -279,30 +286,30 @@ export function createChatPillVideoPreview(entry: IChatPillEntry & { readonly vi
 			return;
 		}
 		const url = URL.createObjectURL(new Blob([content.value.buffer as Uint8Array<ArrayBuffer>], { type: preview.mimeType }));
-		const video = $<HTMLVideoElement>('video.chat-image-hover-image.chat-pill-video', {
+		const element = video = $<HTMLVideoElement>('video.chat-image-hover-image.chat-pill-video', {
 			'aria-label': localize('chatPills.videoPreviewLabel', "Preview of {0}", entry.label),
 		});
-		video.muted = true;
-		video.loop = true;
-		video.playsInline = true;
-		video.autoplay = autoPlay;
-		video.controls = !autoPlay;
+		element.muted = true;
+		element.loop = true;
+		element.playsInline = true;
+		element.autoplay = autoPlay;
+		element.controls = !autoPlay;
 		disposables.add({
 			dispose: () => {
-				video.pause();
-				video.removeAttribute('src');
-				video.load();
+				element.pause();
+				element.removeAttribute('src');
+				element.load();
 				URL.revokeObjectURL(url);
 			},
 		});
-		disposables.add(addDisposableListener(video, 'loadeddata', () => {
+		disposables.add(addDisposableListener(element, 'loadeddata', () => {
 			container.setAttribute('aria-busy', 'false');
 			container.classList.add('loaded');
 		}));
-		disposables.add(addDisposableListener(video, EventType.ERROR, showUnavailable));
-		video.src = url;
+		disposables.add(addDisposableListener(element, EventType.ERROR, showUnavailable));
+		element.src = url;
 		container.replaceChildren($('.chat-image-hover', undefined,
-			$('.chat-image-hover-image-container', undefined, video),
+			$('.chat-image-hover-image-container', undefined, element),
 			$('.chat-image-hover-location-separator'),
 			$('.chat-image-hover-location.chat-pill-location-hover', undefined, location),
 		));
@@ -310,7 +317,12 @@ export function createChatPillVideoPreview(entry: IChatPillEntry & { readonly vi
 		showUnavailable();
 	});
 
-	return { element: container, disposable: disposables };
+	return {
+		element: container,
+		disposable: disposables,
+		// Playback controls only exist when the video does not play on its own.
+		getTabbableElements: () => video?.controls && container.contains(video) && !disposables.isDisposed ? [video] : [],
+	};
 }
 
 /** Row actions for an entry: its {@link IChatPillEntry.toolbarActions} followed by any {@link IChatPillEntry.promotedAction}. */
