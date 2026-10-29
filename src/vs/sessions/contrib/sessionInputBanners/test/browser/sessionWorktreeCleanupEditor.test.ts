@@ -180,6 +180,102 @@ suite('SessionWorktreeCleanupEditor', () => {
 		});
 	});
 
+	test('preselects an unlinked worktree that becomes available during cleanup refresh', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const first = createWorktree('first', '/repos/app');
+		const unlinked = createUnlinkedWorktree('leftover');
+		let scheduled = false;
+		const { editor, container } = createEditor({
+			getWorktrees: async () => scheduled
+				? [removedWorktree(first), unlinked]
+				: [first, { ...unlinked, cleanupStatus: { state: 'inUse' } }],
+			cleanupWorktrees: async (candidates, onProgress) => {
+				scheduled = true;
+				return scheduleCleanup(candidates, onProgress);
+			},
+		});
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		await timeout(0);
+		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
+		await timeout(0);
+		const row = [...container.querySelectorAll('.session-worktree-cleanup-row')].find(row => row.querySelector('a')?.textContent === 'leftover')!;
+		assert.strictEqual(row.querySelector('[role="checkbox"]')?.getAttribute('aria-checked'), 'true');
+	}));
+
+	for (const selection of ['row', 'select all'] as const) {
+		test(`preserves explicit unlinked deselection through ${selection} across workspace scans and age filters`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const initial = [createWorktree('first', '/repos/app'), createWorktree('protected', '/repos/other', 'pinned')];
+			const worktrees = [...initial, createUnlinkedWorktree('leftover', '/repos/other')];
+			const finished = new DeferredPromise<readonly ISessionWorktree[]>();
+			let publish: ((worktrees: readonly ISessionWorktree[]) => void) | undefined;
+			let scans = 0;
+			const { editor, container } = createEditor({
+				getWorktrees: async (_age, onUpdate) => {
+					if (scans++ === 0) {
+						publish = onUpdate;
+						onUpdate?.(initial);
+						return finished.p;
+					}
+					return worktrees;
+				},
+			});
+			await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+			const workspace = container.querySelector<HTMLSelectElement>('.session-worktree-cleanup-workspace')!;
+			workspace.value = URI.file('/repos/app').toString();
+			workspace.dispatchEvent(new mainWindow.Event('change'));
+			publish?.(worktrees);
+			await timeout(100);
+			workspace.value = URI.file('/repos/other').toString();
+			workspace.dispatchEvent(new mainWindow.Event('change'));
+			const checkbox = () => container.querySelector<HTMLElement>('.session-worktree-cleanup-list .session-worktree-cleanup-row [role="checkbox"]')!;
+			const toggle = selection === 'row'
+				? checkbox()
+				: container.querySelector<HTMLElement>('.session-worktree-cleanup-select-all [role="checkbox"]')!;
+			toggle.click();
+			toggle.click();
+			const states = [checkbox().getAttribute('aria-checked')];
+			try {
+				publish?.(worktrees);
+				await timeout(100);
+				states.push(checkbox().getAttribute('aria-checked'));
+			} finally {
+				await finished.complete(worktrees);
+				await timeout(0);
+			}
+			states.push(checkbox().getAttribute('aria-checked'));
+			const age = container.querySelector<HTMLSelectElement>('.session-worktree-cleanup-age')!;
+			for (const days of [7, 0]) {
+				age.value = String(days);
+				age.dispatchEvent(new mainWindow.Event('change'));
+				await timeout(0);
+				states.push(checkbox().getAttribute('aria-checked'));
+			}
+			assert.deepStrictEqual(states, ['false', 'false', 'false', 'false', 'false']);
+		}));
+	}
+
+	test('does not preselect unknown-age unlinked worktrees under an age filter but preserves explicit selection', async () => {
+		const unlinked = createUnlinkedWorktree('leftover');
+		const { container, cleaned } = await openEditor([unlinked]);
+		const age = container.querySelector<HTMLSelectElement>('.session-worktree-cleanup-age')!;
+		const checkbox = () => container.querySelector<HTMLElement>('.session-worktree-cleanup-row [role="checkbox"]')!;
+		const states = [checkbox().getAttribute('aria-checked')];
+		age.value = '7';
+		age.dispatchEvent(new mainWindow.Event('change'));
+		await timeout(0);
+		states.push(checkbox().getAttribute('aria-checked'));
+		checkbox().click();
+		age.value = '30';
+		age.dispatchEvent(new mainWindow.Event('change'));
+		await timeout(0);
+		states.push(checkbox().getAttribute('aria-checked'));
+		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
+		await timeout(0);
+		assert.deepStrictEqual({ states, cleaned }, {
+			states: ['true', 'false', 'true'],
+			cleaned: [[getWorktreeCleanupId(unlinked)]],
+		});
+	});
+
 	test('moves archived git-add exit-128 failures to unavailable without hiding other retryable failures', async () => {
 		const unlinked: ISessionWorktree = {
 			unlinkedWorktree: { providerId: 'test', repository: URI.file('/repos/app').toString(), worktree: URI.file('/repos/app.worktrees/unlinked').toString(), branch: 'agents/unlinked', cleanupStatus: { state: 'failed', message: 'git add exited with code 128' } },
@@ -1351,6 +1447,13 @@ suite('SessionWorktreeCleanupEditor', () => {
 
 	function removedWorktree(worktree: ISessionWorktree): ISessionWorktree {
 		return { ...worktree, cleanupState: 'archived', worktreeExists: false, sizeBytes: 0 };
+	}
+
+	function createUnlinkedWorktree(id: string, workspacePath = '/repos/app'): ISessionWorktree {
+		return {
+			unlinkedWorktree: { providerId: 'test', repository: URI.file(workspacePath).toString(), worktree: URI.file(`${workspacePath}.worktrees/${id}`).toString(), branch: id, cleanupStatus: { state: 'unknown' } },
+			sizeBytes: undefined, worktreeCount: 1, cleanupState: 'unlinked', worktreeExists: true,
+		};
 	}
 
 	function createWorktree(id: string, workspacePath: string, cleanupState: ISessionWorktree['cleanupState'] = 'eligible', ageDays = 0): ISessionWorktree {

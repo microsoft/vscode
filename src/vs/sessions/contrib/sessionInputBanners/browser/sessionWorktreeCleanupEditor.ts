@@ -119,6 +119,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	private minimumAgeDays = 0;
 	private worktrees: readonly ISessionWorktree[] = [];
 	private selectedSessionIds = new Set<string>();
+	private readonly explicitSelections = new Map<string, boolean>();
 	private readonly cleaningSessionIds = new Map<string, number>();
 	private displayedSessionIds: readonly string[] = [];
 	private pinnedDisplayOrder: ReadonlyMap<string, number> | undefined;
@@ -211,7 +212,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		eligibilityInfo.appendChild(renderIcon(Codicon.info));
 		const eligibilityHover = this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), eligibilityInfo, localize(
 			'sessionWorktreeCleanup.unmeasuredEligibilityDescription',
-			"Active sessions and sessions waiting for input can be selected manually but are not selected by default. Worktrees with no matching session are selected by default when they can be cleaned up, even if their disk usage is unknown. Sessions already marked as done are selected by default when their host supports retrying cleanup, including previous failures. Their disk usage is not measured and is shown as a dash. Scheduled or running cleanup cannot be selected again. Running, pinned, untitled, and error sessions cannot be selected. Other sessions require a successful disk usage measurement. The filters limit the table and cleanup selection. Estimated disk usage is not guaranteed freed space.",
+			"Active sessions and sessions waiting for input can be selected manually but are not selected by default. Worktrees with no matching session are selected by default when they can be cleaned up, even if their disk usage is unknown. With an Untouched for filter, their age is unknown, so they must be selected manually. Sessions already marked as done are selected by default when their host supports retrying cleanup, including previous failures. Their disk usage is not measured and is shown as a dash. Scheduled or running cleanup cannot be selected again. Running, pinned, untitled, and error sessions cannot be selected. Other sessions require a successful disk usage measurement. The filters limit the table and cleanup selection. Estimated disk usage is not guaranteed freed space.",
 		)));
 		this.editorDisposables.add(dom.addDisposableListener(eligibilityInfo, dom.EventType.CLICK, () => eligibilityHover.show(true)));
 		this.cleanupButton = this.editorDisposables.add(new Button(summaryRow, defaultButtonStyles));
@@ -239,6 +240,9 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.editorDisposables.add(dom.addDisposableListener(selectAllLabel, dom.EventType.CLICK, () => selectAll.domNode.click()));
 		this.editorDisposables.add(selectAll.onChange(() => {
 			const selectable = this.getVisibleWorktrees().filter(worktree => this.isManuallySelectable(worktree));
+			for (const worktree of selectable) {
+				this.explicitSelections.set(getWorktreeCleanupId(worktree), selectAll.checked);
+			}
 			this.selectedSessionIds = selectAll.checked ? new Set(selectable.map(worktree => getWorktreeCleanupId(worktree))) : new Set();
 			this.renderRows();
 		}));
@@ -261,6 +265,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	override async setInput(input: SessionWorktreeCleanupEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
+		this.explicitSelections.clear();
 		void this.load(true);
 	}
 
@@ -304,6 +309,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.cleanupGeneration++;
 		this.isSchedulingCleanup = false;
 		this.cleanupBatch.clear();
+		this.explicitSelections.clear();
 		this.hasCleanupFailures = false;
 		this.renderBatchSummary();
 		this.pendingCleanupScheduler.cancel();
@@ -326,9 +332,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const cancellation = new CancellationTokenSource();
 		this.loadToken = cancellation.token;
 		this.loadDisposables.add(toDisposable(() => cancellation.dispose(true)));
-		const seenDefaultSelection = new Set(preserveDisplayOrder
-			? this.worktrees.filter(worktree => worktree.sizeBytes !== undefined || worktree.cleanupState === 'archived' || worktree.unlinkedWorktree).map(worktree => getWorktreeCleanupId(worktree))
-			: []);
 		let measurementProgress: ISessionWorktreeMeasurementProgress | undefined;
 		const update = (worktrees: readonly ISessionWorktree[]) => {
 			if (version !== this.renderVersion || this._store.isDisposed || !this.list || !this.summary) {
@@ -349,10 +352,13 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			this.updateCleanupBatch();
 			this.renderWorkspaceOptions();
 			for (const worktree of this.getVisibleWorktrees()) {
-				const selectByDefault = worktree.cleanupState === 'eligible' || ((worktree.cleanupState === 'archived' || worktree.unlinkedWorktree) && this.isManuallySelectable(worktree));
-				if (selectByDefault && !this.cleanupBatch.has(getWorktreeCleanupId(worktree)) && !seenDefaultSelection.has(getWorktreeCleanupId(worktree))) {
-					seenDefaultSelection.add(getWorktreeCleanupId(worktree));
-					this.selectedSessionIds.add(getWorktreeCleanupId(worktree));
+				const sessionId = getWorktreeCleanupId(worktree);
+				const selectByDefault = worktree.cleanupState === 'eligible' || worktree.cleanupState === 'archived' || (worktree.unlinkedWorktree && this.minimumAgeDays === 0);
+				const selected = this.explicitSelections.get(sessionId) ?? selectByDefault;
+				if (selected && this.isManuallySelectable(worktree) && !this.cleanupBatch.has(sessionId)) {
+					this.selectedSessionIds.add(sessionId);
+				} else {
+					this.selectedSessionIds.delete(sessionId);
 				}
 			}
 			if (this.ageSelect) {
@@ -899,6 +905,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			return;
 		}
 		const sessionId = getWorktreeCleanupId(worktree);
+		this.explicitSelections.set(sessionId, selected);
 		if (selected) {
 			this.selectedSessionIds.add(sessionId);
 		} else {
