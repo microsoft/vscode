@@ -23,7 +23,7 @@ import { newAgentHostSessionUri } from '../common/agentHostSessionIdentity.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey } from '../common/meta/agentHostSessionUrisMeta.js';
 import { readRelayKeepAliveTimeout } from '../common/meta/relayConnectionMeta.js';
 import { supportsAgentHostWorktreeDiskUsage } from '../common/meta/agentHostWorktreeDiskUsageMeta.js';
-import { supportsAgentHostManagedWorktrees, supportsAgentHostWorktreeCleanup } from '../common/meta/agentHostWorktreeCleanupMeta.js';
+import { supportsAgentHostManagedWorktrees, supportsAgentHostWorktreeCleanup, supportsForceWorktreeCleanup } from '../common/meta/agentHostWorktreeCleanupMeta.js';
 import { CleanupManagedWorktreeExtensionMethod, ListManagedWorktreesExtensionMethod, managedWorktreesValidator, SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupStatusValidator, type IAgentHostManagedWorktree, type IAgentHostWorktreeCleanupStatus } from '../common/agentHostWorktreeCleanup.js';
 import { serializeChatWorkspace, withCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS, serializeCreateSessionImport, splitCreateSessionImportChunks, StageCreateSessionImportChunkExtensionMethod, supportsAgentHostCreateSessionImport, withCreateSessionImportMeta, withStagedCreateSessionImportMeta } from '../common/meta/agentHostCreateSessionImportMeta.js';
@@ -2101,14 +2101,17 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 	}
 
-	async sessionWorktreeCleanup(session: URI, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined> {
+	async sessionWorktreeCleanup(session: URI, retry: boolean, force = false): Promise<IAgentHostWorktreeCleanupStatus | undefined> {
+		if (force && !supportsForceWorktreeCleanup(this.initializeResult.get())) {
+			throw new Error('This agent host does not support forced worktree cleanup.');
+		}
 		if (!supportsAgentHostWorktreeCleanup(this.initializeResult.get())) {
 			if (retry) {
 				throw new Error('This agent host does not support retrying worktree cleanup.');
 			}
 			return undefined;
 		}
-		const result = await this._sendExtensionRequest(SessionWorktreeCleanupExtensionMethod, { session: session.toString(), retry });
+		const result = await this._sendExtensionRequest(SessionWorktreeCleanupExtensionMethod, { session: session.toString(), retry, ...(force ? { force } : {}) });
 		const validated = sessionWorktreeCleanupStatusValidator.validate(result);
 		if (validated.error) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid worktree cleanup status');
@@ -2128,11 +2131,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return validated.content;
 	}
 
-	async cleanupManagedWorktree(repository: URI, worktree: URI, branch: string): Promise<void> {
+	async cleanupManagedWorktree(repository: URI, worktree: URI, branch: string, force = false): Promise<void> {
+		if (force && !supportsForceWorktreeCleanup(this.initializeResult.get())) {
+			throw new Error('This agent host does not support forced worktree cleanup.');
+		}
 		if (!supportsAgentHostManagedWorktrees(this.initializeResult.get())) {
 			throw new Error('This agent host does not support managed worktree cleanup.');
 		}
-		await this._sendExtensionRequest(CleanupManagedWorktreeExtensionMethod, { repository: repository.toString(), worktree: worktree.toString(), branch });
+		await this._sendExtensionRequest(CleanupManagedWorktreeExtensionMethod, { repository: repository.toString(), worktree: worktree.toString(), branch, ...(force ? { force } : {}) });
 	}
 
 	async installSandboxCertificate(chat: string, scopeId: string): Promise<void> {

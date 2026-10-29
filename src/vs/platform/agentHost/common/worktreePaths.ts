@@ -7,6 +7,9 @@ import { basename } from '../../../base/common/path.js';
 import { basename as resourceBasename, dirname, isEqual, isEqualOrParent, joinPath, normalizePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 
+/** Branch-name prefix for worktree-isolated agent sessions. */
+export const AGENT_BRANCH_PREFIX = 'agents/';
+
 /**
  * The `<repo>.worktrees` sibling directory where per-session isolated worktrees
  * are created, e.g. `/src/vscode` → `/src/vscode.worktrees`.

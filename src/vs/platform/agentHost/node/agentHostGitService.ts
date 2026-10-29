@@ -421,8 +421,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 	 * a residual directory; and verify the worktree is truly de-registered before
 	 * returning, so a silent `prune` no-op cannot mask a leaked entry.
 	 */
-	async removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean }): Promise<void> {
-		if (options?.force && await this._pathExists(worktree.fsPath) && await this.isWorktreeRegistered(repositoryRoot, worktree)) {
+	async removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean; readonly discardChanges?: boolean }): Promise<void> {
+		if (options?.discardChanges && !options.force) {
+			throw new Error('Discarding worktree changes requires forced removal.');
+		}
+		if (options?.force && !options.discardChanges && await this._pathExists(worktree.fsPath) && await this.isWorktreeRegistered(repositoryRoot, worktree)) {
 			if (!await this._pathExists(path.join(worktree.fsPath, '.git'))) {
 				throw new Error(`Cannot preserve registered worktree '${worktree.fsPath}': its .git file is missing`);
 			}

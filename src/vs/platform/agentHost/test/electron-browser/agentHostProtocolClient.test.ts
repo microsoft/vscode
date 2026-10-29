@@ -659,6 +659,25 @@ suite('AgentHostProtocolClient', () => {
 	});
 
 	suite('worktree cleanup', () => {
+		test('never sends force cleanup to hosts without the explicit capability', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.worktreeCleanup': true, 'vscode.managedWorktrees': true });
+			const before = transport.sentMessages.length;
+			await assert.rejects(client.sessionWorktreeCleanup(URI.parse('opaque-session://tenant/session'), true, true), /does not support forced/);
+			await assert.rejects(client.cleanupManagedWorktree(URI.file('/repo'), URI.file('/repo.worktrees/recovered'), 'agents/recovered', true), /does not support forced/);
+			assert.deepStrictEqual(transport.sentMessages.slice(before), []);
+		});
+
+		test('forwards force cleanup without changing an opaque host session identity', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.worktreeCleanup': true, 'vscode.forceWorktreeCleanup': true });
+			const cleanup = client.sessionWorktreeCleanup(URI.parse('opaque-session://tenant/exact-id'), true, true);
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { state: 'unknown' } });
+			await cleanup;
+			assert.deepStrictEqual(request.params, { session: 'opaque-session://tenant/exact-id', retry: true, force: true });
+		});
+
 		test('does not send managed cleanup requests without the capability', async () => {
 			const { client, transport } = createClient();
 			await connectClient(client, transport);
