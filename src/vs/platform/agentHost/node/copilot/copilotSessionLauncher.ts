@@ -1655,6 +1655,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			skillDirectories,
 			instructionDirectories,
 			additionalDirectories,
+			coauthorEnabled: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.IncludeCoAuthoredBy),
 			largeOutput: {
 				maxSizeBytes: 8 * 1024,
 			},

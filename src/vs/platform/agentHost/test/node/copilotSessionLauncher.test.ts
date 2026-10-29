@@ -4036,6 +4036,18 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 		store.dispose();
 	});
+
+	test('forwards the co-author trailer setting and otherwise leaves the SDK default', async () => {
+		const store = new DisposableStore();
+		const coauthorEnabled = async (values: SchemaValues<typeof copilotCliConfigSchema.definition>) =>
+			(await buildResumeConfig(createLauncher(store, values), undefined)).coauthorEnabled;
+
+		assert.deepStrictEqual(
+			[await coauthorEnabled({ includeCoAuthoredBy: false }), await coauthorEnabled({ includeCoAuthoredBy: true }), await coauthorEnabled({})],
+			[false, true, undefined],
+		);
+		store.dispose();
+	});
 });
 
 /** Resume preserves runtime-owned routing state; a turn's selection is applied through setModel. */
