@@ -256,11 +256,10 @@ export class ClaudeSdkPipeline extends Disposable {
 		super();
 		this._warm = warm;
 		this._abortController = abortController;
-		this._wireAbortHandler(abortController);
 		this._queue = this._register(instantiationService.createInstance(
 			ClaudePromptQueue,
 			sessionId,
-			() => this._abortController.signal,
+			abortController.signal,
 		));
 		this._register(this._queue.onDidYieldSteering(pendingId => this._onDidProduceSignal.fire({
 			kind: 'steering_consumed',
@@ -509,10 +508,9 @@ export class ClaudeSdkPipeline extends Disposable {
 		}
 	}
 
-	private _wireAbortHandler(controller: AbortController): void {
-		controller.signal.addEventListener('abort', () => {
-			this._queue.notifyAborted();
-		}, { once: true });
+	private _bindAbortController(controller: AbortController): void {
+		this._abortController = controller;
+		this._queue.bindAbortSignal(controller.signal);
 	}
 
 	private _ensureConsumerLoop(): void {
@@ -589,7 +587,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		// instead of returning early as idempotent against the already-
 		// aborted old controller.
 		const placeholder = new AbortController();
-		this._abortController = placeholder;
+		this._bindAbortController(placeholder);
 		const built = await this._rematerializer(reason);
 		// Dispose may have run while we were awaiting the rematerializer.
 		// The dispose chain has already torn down the OLD warm/controller;
@@ -617,8 +615,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		void Promise.resolve(oldWarm[Symbol.asyncDispose]()).catch((err: unknown) =>
 			this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] previous WarmQuery dispose failed during rebind: ${err}`));
 		this._warm = built.warm;
-		this._abortController = built.abortController;
-		this._wireAbortHandler(built.abortController);
+		this._bindAbortController(built.abortController);
 		this._queue.resetForRebind();
 		this._needsRebind = false;
 		// New SDK starts with the materializer's `Options.model` / effort /

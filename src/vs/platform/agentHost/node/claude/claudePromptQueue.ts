@@ -5,8 +5,8 @@
 
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { ILogService } from '../../../log/common/log.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
@@ -38,9 +38,8 @@ export interface IPendingSdkMessage {
  *
  * Invariants:
  *   • Pushing wakes the iterable's parked `next()`.
- *   • The iterable returns `done` when the supplied `getAbortSignal()`
- *     is aborted; pipeline calls {@link notifyAborted} after flipping
- *     the controller so the parked `next()` returns immediately.
+ *   • The iterable returns `done` when the bound abort signal is
+ *     aborted, waking any parked `next()` immediately.
  *   • {@link settleHead} pops the head of the yielded list (called by
  *     the consumer loop on every `result` message).
  *   • {@link failAll} rejects every pending deferred and clears both
@@ -52,6 +51,8 @@ export class ClaudePromptQueue extends Disposable {
 
 	private readonly _onDidYieldSteering = this._register(new Emitter<string>());
 	readonly onDidYieldSteering = this._onDidYieldSteering.event;
+
+	private readonly _abortListener = this._register(new MutableDisposable());
 
 	private _toYield: IPendingSdkMessage[] = [];
 	private _yielded: IPendingSdkMessage[] = [];
@@ -69,7 +70,7 @@ export class ClaudePromptQueue extends Disposable {
 		[Symbol.asyncIterator]: () => ({
 			next: async () => {
 				while (true) {
-					if (this._getAbortSignal().aborted) {
+					if (this._store.isDisposed || this._abortSignal.aborted) {
 						return { done: true, value: undefined };
 					}
 					if (this._toYield.length > 0) {
@@ -81,8 +82,11 @@ export class ClaudePromptQueue extends Disposable {
 						}
 						return { done: false, value: entry.sdkMessage };
 					}
-					await this._pendingPromptDeferred.p;
-					this._pendingPromptDeferred = new DeferredPromise<void>();
+					const pending = this._pendingPromptDeferred;
+					await pending.p;
+					if (this._pendingPromptDeferred === pending) {
+						this._pendingPromptDeferred = new DeferredPromise<void>();
+					}
 				}
 			},
 		}),
@@ -90,10 +94,26 @@ export class ClaudePromptQueue extends Disposable {
 
 	constructor(
 		private readonly _sessionId: string,
-		private readonly _getAbortSignal: () => AbortSignal,
+		private _abortSignal: AbortSignal,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		this.bindAbortSignal(_abortSignal);
+		this._register(toDisposable(() => this._pendingPromptDeferred.complete()));
+	}
+
+	/** Binds the queue to the current SDK subprocess's abort signal. */
+	bindAbortSignal(signal: AbortSignal): void {
+		this._abortListener.clear();
+		this._abortSignal = signal;
+		if (signal.aborted) {
+			this._pendingPromptDeferred.complete();
+		} else {
+			this._abortListener.value = Event.once(Event.fromDOMEventEmitter(signal, 'abort'))(() => {
+				this._abortListener.clear();
+				this._pendingPromptDeferred.complete();
+			});
+		}
 	}
 
 	/** True iff no entries are queued or in-flight. */
@@ -164,13 +184,9 @@ export class ClaudePromptQueue extends Disposable {
 		this._popped = [];
 	}
 
-	/** Wake any parked `next()` — call after the controller is aborted so the iterable returns `done`. */
-	notifyAborted(): void {
-		this._pendingPromptDeferred.complete();
-	}
-
 	/** Re-create the parked deferred for a fresh Query binding. */
 	resetForRebind(): void {
+		this._pendingPromptDeferred.complete();
 		this._pendingPromptDeferred = new DeferredPromise<void>();
 	}
 }

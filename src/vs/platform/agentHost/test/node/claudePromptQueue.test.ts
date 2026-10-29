@@ -6,6 +6,7 @@
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -29,7 +30,7 @@ function createQueue(disposables: Pick<DisposableStore, 'add'>): IQueueHarness {
 	const queue = disposables.add(instantiationService.createInstance(
 		ClaudePromptQueue,
 		'sess-1',
-		() => controller.signal,
+		controller.signal,
 	));
 	disposables.add(queue.onDidYieldSteering(id => steeringYielded.push(id)));
 	return { queue, controller, steeringYielded };
@@ -66,6 +67,8 @@ async function drainOne(iter: AsyncIterator<SDKUserMessage>): Promise<SDKUserMes
 suite('ClaudePromptQueue', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
 
 	test('push then iterable yields then settleHead resolves the deferred', async () => {
 		const { queue } = createQueue(disposables);
@@ -136,21 +139,64 @@ suite('ClaudePromptQueue', () => {
 		const { queue, controller } = createQueue(disposables);
 		const iter = queue.iterable[Symbol.asyncIterator]();
 		controller.abort();
-		queue.notifyAborted();
 		const r = await iter.next();
 		assert.strictEqual(r.done, true);
 	});
 
-	test('notifyAborted wakes a parked next() so it can re-check the abort signal', async () => {
+	test('aborting the bound signal wakes a parked next()', async () => {
 		const { queue, controller } = createQueue(disposables);
 		const iter = queue.iterable[Symbol.asyncIterator]();
 		// Park next() with no entries queued.
 		const parked = iter.next();
 		// Abort + wake.
 		controller.abort();
-		queue.notifyAborted();
 		const r = await parked;
 		assert.strictEqual(r.done, true);
+	});
+
+	test('rebinding removes the old listener and observes the replacement signal', async () => {
+		const { queue, controller } = createQueue(disposables);
+		const replacement = new AbortController();
+		const oldRemoved = sinon.spy(controller.signal, 'removeEventListener');
+		const newAdded = sinon.spy(replacement.signal, 'addEventListener');
+		const newRemoved = sinon.spy(replacement.signal, 'removeEventListener');
+		queue.bindAbortSignal(replacement.signal);
+		const iterator = queue.iterable[Symbol.asyncIterator]();
+		const parked = iterator.next();
+		controller.abort();
+		const sent = queue.push(makeEntry('replacement'));
+		const yielded = await parked;
+		queue.settleHead();
+		await sent;
+		const next = iterator.next();
+		replacement.abort();
+		assert.deepStrictEqual({
+			yielded: yielded.value?.uuid,
+			done: (await next).done,
+			listeners: { oldRemoved: oldRemoved.callCount, newAdded: newAdded.callCount, newRemoved: newRemoved.callCount },
+		}, {
+			yielded: makeUuid('replacement'),
+			done: true,
+			listeners: { oldRemoved: 1, newAdded: 1, newRemoved: 1 },
+		});
+	});
+
+	test('binding an already-aborted signal wakes a parked next() without registering a listener', async () => {
+		const { queue } = createQueue(disposables);
+		const parked = queue.iterable[Symbol.asyncIterator]().next();
+		const replacement = new AbortController();
+		replacement.abort();
+		const added = sinon.spy(replacement.signal, 'addEventListener');
+		queue.bindAbortSignal(replacement.signal);
+		assert.deepStrictEqual({ done: (await parked).done, added: added.callCount }, { done: true, added: 0 });
+	});
+
+	test('dispose releases the current abort listener and a parked next()', async () => {
+		const { queue, controller } = createQueue(disposables);
+		const removed = sinon.spy(controller.signal, 'removeEventListener');
+		const parked = queue.iterable[Symbol.asyncIterator]().next();
+		queue.dispose();
+		assert.deepStrictEqual({ done: (await parked).done, removed: removed.callCount }, { done: true, removed: 1 });
 	});
 
 	test('peekParent prefers the in-flight head over the latest queued entry (CONTEXT M10: steering inherits in-flight turnId)', async () => {
@@ -238,39 +284,14 @@ suite('ClaudePromptQueue', () => {
 		assert.strictEqual(queue.isEmpty, true);
 	});
 
-	test('resetForRebind replaces the parked deferred so a subsequent push wakes a new parked next()', async () => {
-		// Use a controller that we keep un-aborted to isolate the wake mechanic from the abort-done branch.
-		const liveController = new AbortController();
-		const services = new ServiceCollection([ILogService, new NullLogService()]);
-		const inst = disposables.add(new InstantiationService(services));
-		const q = disposables.add(inst.createInstance(
-			ClaudePromptQueue, 'sess-reset', () => liveController.signal,
-		));
-
-		// Park next() on the original deferred.
-		const iter = q.iterable[Symbol.asyncIterator]();
-		const parkedA = iter.next();
-
-		// Resetting while parked replaces _pendingPromptDeferred with a fresh one.
-		// The original parked promise is still awaiting the OLD deferred — pushing should
-		// complete the OLD one (because push() calls .complete() on the current field,
-		// which after reset is the new one). So the original parked next() never wakes
-		// from a push alone; it requires a push BEFORE reset OR an entry to drain.
-		q.resetForRebind();
-		// Push an entry — the new deferred resolves AND _toYield has the entry, so a fresh next() wakes.
-		void q.push(makeEntry('after-reset'));
-		const iter2 = q.iterable[Symbol.asyncIterator]();
-		const value = await iter2.next();
-		assert.strictEqual(value.done, false);
-		assert.strictEqual(value.value?.uuid, makeUuid('after-reset'));
-
-		// Original parked promise from the first iterator is still pending; abort to release it.
-		liveController.abort();
-		q.notifyAborted();
-		// notifyAborted completes the (now current) deferred. The OLD deferred from before reset
-		// is leaked-but-settled — the parkedA promise will never resolve. To avoid hanging the test
-		// runner, swap to the fresh iter and abandon parkedA (it's a closure-local promise; GC'd).
-		void parkedA;
+	test('resetForRebind keeps both old and new parked next() calls reachable by abort', async () => {
+		const { queue, controller } = createQueue(disposables);
+		const original = queue.iterable[Symbol.asyncIterator]().next();
+		queue.resetForRebind();
+		const replacement = queue.iterable[Symbol.asyncIterator]().next();
+		await Promise.resolve();
+		controller.abort();
+		assert.deepStrictEqual((await Promise.all([original, replacement])).map(result => result.done), [true, true]);
 	});
 
 	test('isEmpty is true after every pushed entry has been yielded and settled', async () => {
