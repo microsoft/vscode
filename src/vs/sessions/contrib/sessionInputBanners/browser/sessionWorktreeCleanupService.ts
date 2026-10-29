@@ -716,7 +716,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 				completedWorktrees += candidate.worktreeCount;
 				progress.report({
 					increment: candidate.worktreeCount / worktreeCount * 100,
-					message: localize('worktreeCleanup.cleaningProgress', "Scheduled {0} of {1} worktrees", completedWorktrees, worktreeCount),
+					message: localize('worktreeCleanup.cleaningProgress', "scheduled {0} of {1} worktrees", completedWorktrees, worktreeCount),
 				});
 			}
 		});

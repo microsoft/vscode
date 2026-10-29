@@ -1112,8 +1112,8 @@ suite('SessionWorktreeCleanupService', () => {
 				total: undefined,
 			}],
 			reports: [
-				{ increment: 2 / 3 * 100, message: 'Scheduled 2 of 3 worktrees' },
-				{ increment: 1 / 3 * 100, message: 'Scheduled 3 of 3 worktrees' },
+				{ increment: 2 / 3 * 100, message: 'scheduled 2 of 3 worktrees' },
+				{ increment: 1 / 3 * 100, message: 'scheduled 3 of 3 worktrees' },
 			],
 		});
 	});
