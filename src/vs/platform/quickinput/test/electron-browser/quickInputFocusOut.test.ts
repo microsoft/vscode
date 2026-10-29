@@ -17,7 +17,7 @@ import { markAsContextMenuHost } from '../../../../base/browser/contextmenu.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IconSelectBox } from '../../../../base/browser/ui/icons/iconSelectBox.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IAction, toAction } from '../../../../base/common/actions.js';
+import { IAction, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { KeyCodeChord } from '../../../../base/common/keybindings.js';
@@ -456,6 +456,38 @@ suite('QuickInput hosts its context menus', () => { // https://github.com/micros
 		mouseDownOnBlocker(widgetRect.left + 3, widgetRect.top + 3); // over the picker, outside the menu
 		await settle();
 		assert.deepStrictEqual([menuBeyondWidget, afterMenuMouseDown, state(picker).visible], [true, { visible: true, menu: 'hosted' }, true]);
+	});
+
+	test('mouse down on a hosted submenu item outside both the picker and the root menu keeps the picker', async () => {
+		setupController();
+		const picker = showPicker();
+		let ran = false;
+		contextMenuService.showContextMenu({
+			getAnchor: () => input,
+			getActions: () => [new SubmenuAction('t10.submenu', 'T10 Submenu', [toAction({ id: 't10.subitem', label: 'T10 Subitem', run: () => { ran = true; } })])],
+		});
+		await settle();
+		const { menu } = openMenu()!;
+		menu.querySelector<HTMLElement>('.monaco-submenu-item')!.focus();
+		keydown(activeElementDeep()!, 'ArrowRight', 39);
+		activeElementDeep()!.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true, composed: true }));
+		await settle();
+		const submenu = menu.querySelector<HTMLElement>('.monaco-submenu')!;
+		const widgetRect = widget().getBoundingClientRect();
+		const submenuRect = submenu.getBoundingClientRect();
+		submenu.style.top = `${parseFloat(submenu.style.top || '0') + widgetRect.bottom + 50 - submenuRect.top}px`; // overflow below the picker
+		const item = submenu.querySelector<HTMLElement>('.action-label')!;
+		const itemRect = item.getBoundingClientRect();
+		const point = { x: itemRect.left + 5, y: itemRect.top + itemRect.height / 2 };
+		const menuRect = menu.getBoundingClientRect();
+		const outside = (r: DOMRect) => point.x < r.left || point.x > r.right || point.y < r.top || point.y > r.bottom;
+		item.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, composed: true, button: 0, clientX: point.x, clientY: point.y }));
+		await settle();
+		const afterMouseDown = { visible: state(picker).visible, menu: state(picker).menu };
+		await timeout(350); // menu items only accept mouse up after a short delay
+		item.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, composed: true, button: 0, clientX: point.x, clientY: point.y }));
+		await settle();
+		assert.deepStrictEqual([outside(widgetRect), outside(menuRect), afterMouseDown, ran, state(picker).visible], [true, true, { visible: true, menu: 'hosted' }, true, true]);
 	});
 
 	test('the window losing focus hides the picker, with or without an open hosted menu', async () => {

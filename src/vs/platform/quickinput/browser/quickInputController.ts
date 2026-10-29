@@ -964,19 +964,20 @@ export class QuickInputController extends Disposable {
 	 * A context view hosted inside the quick input blocks mouse interaction with
 	 * the rest of the UI while it is open, so a click outside of both the menu and
 	 * the quick input never moves focus out of the quick input. Treat such a click
-	 * like focus moving out of the quick input.
+	 * like focus moving out of the quick input. Only mouse downs on the context
+	 * view's mouse blocker count: the menu and its (fixed-position, possibly
+	 * overflowing) submenus are interacted with directly.
 	 */
 	private onHostedContextViewMouseDown(container: HTMLElement, e: MouseEvent): void {
 		const view = this.contextViewService.getContextViewElement();
-		if (!e.composedPath().includes(view) || this.getUI().ignoreFocusOut || this.options.ignoreFocusOut()) {
+		const target = e.composedPath()[0];
+		if (!dom.isHTMLElement(target) || target.parentElement !== view || !target.classList.contains('context-view-block') || this.getUI().ignoreFocusOut || this.options.ignoreFocusOut()) {
 			return;
 		}
 
-		const isWithin = (element: HTMLElement) => {
-			const rect = element.getBoundingClientRect();
-			return e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom;
-		};
-		if (!isWithin(view) && !isWithin(container)) {
+		const rect = container.getBoundingClientRect();
+		const isWithinContainer = e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom;
+		if (!isWithinContainer) {
 			this.hide(QuickInputHideReason.Blur);
 		}
 	}
