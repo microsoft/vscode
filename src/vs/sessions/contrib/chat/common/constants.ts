@@ -18,7 +18,6 @@ export const ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING = 'sessions.chat.experime
 export const NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING = 'sessions.chat.experimental.newSessionComposerOptionsExpanded';
 export const AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING = ChatConfiguration.AgentsPickerInAttachContextMenu;
 export const COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING = 'sessions.chat.experimental.collapsedSessionOptionsShowIcons';
-export const OPEN_WORKSPACE_PICKER_AFTER_ENVIRONMENT_SETTING = 'sessions.chat.experimental.openWorkspacePickerAfterEnvironment';
 export const NEW_SESSION_WELCOME_PHRASES_SETTING = 'sessions.chat.experimental.welcomePhrases';
 export const NEW_SESSION_WELCOME_NAME_SETTING = 'sessions.chat.experimental.welcomeName';
 export const NEW_SESSION_WELCOME_MESSAGES_SETTING = 'sessions.chat.experimental.welcomeMessages';
