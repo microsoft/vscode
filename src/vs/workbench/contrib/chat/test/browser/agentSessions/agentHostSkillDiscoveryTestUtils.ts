@@ -13,6 +13,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { CustomizationLoadStatus, CustomizationType, type DirectoryCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -64,6 +65,7 @@ export async function assertCodexSkillItems(service: IAgentHostCustomizationServ
 			override getDisabledPromptFiles(): ResourceSet { return new ResourceSet(); }
 			override async listPromptFilesForStorage() { return []; }
 		}(),
+		new class extends mock<ILabelService>() { }(),
 	));
 	const items = await provider.provideChatSessionCustomizations(sessionResource, CancellationToken.None);
 

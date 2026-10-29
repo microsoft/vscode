@@ -5,6 +5,7 @@
 
 import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest, ResumeSessionConfig, SessionConfig, Tool, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
+import { hasKey } from '../../../../base/common/types.js';
 import { isDeepStrictEqual } from 'util';
 import { useFakeTimers } from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
@@ -15,7 +16,7 @@ import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { PluginFormat, type IMcpServerDefinition, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
+import { PluginFormat, toParsedAgent, type IMcpServerDefinition, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService, type IFileContent } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -27,11 +28,10 @@ import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IB
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type IAgentHostWorkspaceTrust, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
-import { withAgentToolFullReferenceName } from '../../common/meta/agentToolDefinitionMeta.js';
-import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
+import { withAgentToolFullReferenceName, withAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
+import { readChatSandboxState, readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
-import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import { autoModeTiers, isAutoAdvertisedAsFusion, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
@@ -40,9 +40,8 @@ import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from
 import { COPILOT_DEFAULT_AVAILABLE_TOOLS } from '../../node/copilot/copilotBuiltinToolAllowlist.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
-import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
 import { resolveCopilotMcpServerInfo, type ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
@@ -54,32 +53,15 @@ import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { CopilotSessionSandbox } from '../../node/copilot/copilotSessionSandbox.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
-import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAutoTier, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
-import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 import { createSentinelContribution, FakeLocalModelProvider, MAI_ROW } from './localModelBridge/fakeLocalModelProvider.js';
 
-const testRuntime: ICopilotSessionRuntime = {
-	chatUri: URI.parse(buildDefaultChatUri('copilot:/sess-1')),
-	launchOwner: URI.parse('copilot:/sess-1'),
-	getLaunchSandboxConfig: () => undefined,
-	applyLaunchSandbox: async session => { await session.rpc.options.update({ sandboxConfig: { enabled: false } }); },
-	handlePermissionRequest: async () => { throw new Error('Unexpected permission request'); },
-	handleExitPlanModeRequest: async () => { throw new Error('Unexpected exit plan mode request'); },
-	handleUserInputRequest: async () => { throw new Error('Unexpected user input request'); },
-	handleElicitationRequest: async () => { throw new Error('Unexpected elicitation request'); },
-	adoptLaunchConnectorReconcile: () => { },
-	handleMcpAuthRequest: async () => { throw new Error('Unexpected MCP auth request'); },
-	requestUnsandboxedCommandConfirmation: async () => false,
-	handlePreToolUse: async () => { },
-	handlePostToolUse: async () => undefined,
-	handlePostToolUseFailure: () => undefined,
-	handleUserPromptSubmitted: () => undefined,
-	createClientSdkTools: () => [],
-	createServerSdkTools: () => [],
-	reloadExtensions: async () => { },
-};
+import { createTestLauncher, noopSessionOpenTelemetry, testRuntime } from './copilotSessionLauncherTestHelpers.js';
 
 const testWorkingDirectory = URI.file(process.cwd());
 const disabledWorkflowTools = ['builtin:run_dynamic_workflow', 'builtin:dynamic_workflows_manage'];
@@ -128,52 +110,6 @@ class CapturingLogService extends NullLogService {
 	override warn(message: string, ...args: unknown[]): void {
 		this.warnings.push({ message, args });
 	}
-}
-
-const noopSessionOpenTelemetry: IAgentHostSessionOpenTelemetry = {
-	_serviceBrand: undefined,
-	withSubscription: async (_resource, operation) => operation({
-		servedFromMemory: undefined,
-		setServedFromMemory: () => { },
-		restoreStarted: () => { },
-		restoreCompleted: () => { },
-		setSession: () => { },
-	}),
-	withSdkResume: async (_session, operation) => operation(),
-	sdkResumeFallbackCreated: () => { },
-};
-
-function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Record<string, unknown> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService, telemetryService?: ITelemetryService): CopilotSessionLauncher {
-	const configurationService = configuration ?? {
-		getRootValue: (_schema: unknown, key: string) => rootValues[key],
-		getRootConfigValues: () => rootValues,
-		getSessionConfigValues: () => undefined,
-		getChatConfigValues: () => undefined,
-		resolveConfigurationOwner: (session: string) => session,
-		getSessionSandboxPolicy: () => undefined,
-		getSessionSandboxEnabled: () => undefined,
-		getChatSandboxEnabled: () => undefined,
-		setSessionSandboxPolicy: () => { },
-		setChatSandboxEnabled: () => { },
-		rejectChatSandboxChange: () => { },
-	} as Partial<IAgentConfigurationService> as IAgentConfigurationService;
-	return new CopilotSessionLauncher(
-		configurationService,
-		{ permissions: managedSettingsPermissions ?? {} } as IAgentHostManagedSettingsService,
-		{} as IAgentHostTerminalManager,
-		logService,
-		{} as IFileService,
-		{ _serviceBrand: undefined, onDidCapTools: Event.None, start: async () => { throw new Error('Unexpected proxy start'); }, dispose: () => { } },
-		new ByokLmBridgeRegistry(),
-		{
-			_serviceBrand: undefined,
-			getSessionTraceContext: () => undefined,
-			releaseSessionTraceContext: () => { },
-			withTraceContext: <T>(_context: undefined, fn: () => T): T => fn(),
-		} as unknown as IAgentHostOTelService,
-		sessionOpenTelemetry,
-		telemetryService ?? ({ telemetryLevel: TelemetryLevel.USAGE } as ITelemetryService),
-	);
 }
 
 suite('CopilotSessionLauncher customization policy session', () => {
@@ -558,6 +494,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		const logService = new CapturingLogService();
 		const launcher = createTestLauncher(undefined, {}, logService, noopSessionOpenTelemetry, configuration);
 		let attachedSession: CopilotSession | undefined;
+		let sessionClosed = false;
 		const services = new ServiceCollection(
 			[IAgentConfigurationService, configuration],
 			[IAgentHostStateManager, manager],
@@ -575,6 +512,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			getConfigWriteTarget: () => ({ session: owner, chat: testRuntime.chatUri.toString() }),
 			platform: process.platform,
 			getSession: () => attachedSession,
+			isSessionClosed: () => sessionClosed,
 			getHostSupport: async () => ({ supported: true, capabilities: [] }),
 			getCertificateStatus: async () => undefined,
 			installCertificate: async () => { },
@@ -586,14 +524,257 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		}));
 		const runtime: ICopilotSessionRuntime = {
 			...testRuntime,
-			getLaunchSandboxConfig: () => sandbox.getLaunchConfig(),
-			applyLaunchSandbox: async session => {
-				await sandbox.applyLaunchConfig(session);
+			getLaunchSandboxConfig: isResume => sandbox.getLaunchConfig(isResume),
+			applyLaunchSandbox: async (session, isResume) => {
+				await sandbox.applyLaunchConfig(session, isResume);
 				attachedSession = session;
 			},
 		};
-		return { configuration, owner, updates, commands, launcher, plan, runtime, sandbox, logService, get sandboxState() { return readSessionSandboxState(manager.getSessionState(owner)); }, get disconnected() { return disconnected; }, get captured() { return captured; } };
+		return { manager, configuration, owner, updates, commands, launcher, plan, runtime, sandbox, raw, logService, set sessionClosed(value: boolean) { sessionClosed = value; }, set sandboxUpdateError(error: Error | undefined) { sandboxUpdateError = error; }, get sandboxState() { return readSessionSandboxState(manager.getSessionState(owner)); }, get disconnected() { return disconnected; }, get captured() { return captured; } };
 	}
+
+	test('a sandbox update failing after shutdown does not broadcast a policy conflict', async () => {
+		const fixture = setup('create');
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'on' });
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		fixture.raw.rpc.options.update = async () => {
+			started.complete();
+			await release.p;
+			throw new Error('Session not found');
+		};
+		const update = fixture.sandbox.applyConfig();
+		try {
+			await started.p;
+			fixture.sessionClosed = true;
+			release.complete();
+			await update;
+			assert.deepStrictEqual({
+				state: fixture.sandboxState,
+				warnings: fixture.logService.warnings,
+				errors: fixture.logService.errors,
+			}, { state: { enabled: true }, warnings: [], errors: [] });
+		} finally {
+			release.complete();
+			await update;
+		}
+	});
+
+	test('background sandbox conflicts are broadcast without disconnecting or claiming the rejected state', async () => {
+		const fixture = setup('create');
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'on' });
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+		fixture.sandboxUpdateError = Object.assign(new Error('Managed sandbox conflict'), { data: { code: 'managed_sandbox_policy_conflict' } });
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+		const published: Array<{ enabled: boolean | undefined; message: string | undefined }> = [];
+		let previousState = readChatSandboxState(fixture.manager.getSessionState(fixture.owner), target.chat);
+		store.add(fixture.manager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionMetaChanged) {
+				const state = readChatSandboxState(envelope.action, target.chat);
+				if (!isDeepStrictEqual(state, previousState)) {
+					previousState = state;
+					published.push({ enabled: state?.enabled, message: state?.error?.message });
+				}
+			}
+		}));
+
+		await fixture.sandbox.applyConfig();
+		await fixture.sandbox.applyConfig();
+		const failed = fixture.sandboxState;
+		fixture.sandboxUpdateError = undefined;
+		await fixture.sandbox.applyConfig();
+
+		assert.deepStrictEqual({
+			disconnected: fixture.disconnected,
+			published,
+			broadcast: failed?.error !== undefined && hasKey(failed.error, { id: true }),
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
+			recovered: fixture.sandboxState,
+		}, {
+			disconnected: false,
+			published: [{ enabled: true, message: 'Managed sandbox conflict' }, { enabled: false, message: undefined }],
+			broadcast: true,
+			selection: 'off',
+			applied: [true, false],
+			recovered: { enabled: false },
+		});
+	});
+
+	test('create broadcasts a sandbox conflict even before any enablement has been confirmed', async () => {
+		const error = Object.assign(new Error('Managed sandbox conflict'), { data: { code: 'managed_sandbox_policy_conflict' } });
+		const fixture = setup('create', true, false, false, undefined, error);
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+		assert.deepStrictEqual({
+			disconnected: fixture.disconnected,
+			enabled: fixture.sandboxState?.enabled,
+			message: fixture.sandboxState?.error?.message,
+			broadcast: fixture.sandboxState?.error !== undefined && hasKey(fixture.sandboxState.error, { id: true }),
+		}, { disconnected: false, enabled: undefined, message: error.message, broadcast: true });
+	});
+
+	test('resume preserves confirmed bypass with unchanged managed policy without changing sibling chats', async () => {
+		const fixture = setup('resume', true, true, true);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		const sibling = { session: fixture.owner, chat: buildChatUri(fixture.owner, 'sibling') };
+		fixture.manager.addChat(fixture.owner, sibling.chat, creationTimeChatStorageResource(fixture.owner, sibling.chat, target.chat));
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.setChatSandboxEnabled(sibling, false);
+		fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'off' });
+		const published: boolean[] = [];
+		store.add(fixture.manager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionMetaChanged) {
+				const state = readChatSandboxState(envelope.action, target.chat);
+				if (state?.enabled !== undefined) {
+					published.push(state.enabled);
+				}
+			}
+		}));
+
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+		await fixture.sandbox.applyConfig();
+
+		assert.deepStrictEqual({
+			opened: fixture.captured?.sandboxConfig?.enabled,
+			applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			published,
+			state: fixture.sandboxState,
+			siblingSelection: fixture.configuration.getChatConfigValues(sibling)?.sandboxEnabled,
+			siblingState: fixture.configuration.getChatSandboxEnabled(sibling),
+			commands: fixture.commands,
+		}, {
+			opened: undefined,
+			applied: [],
+			selection: 'off',
+			published: [],
+			state: { enabled: false },
+			siblingSelection: 'off',
+			siblingState: false,
+			commands: ['disable session'],
+		});
+	});
+
+	test('resume preserves confirmed off when bypass is first allowed during open', async () => {
+		const fixture = setup('resume', true, true, true);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+		assert.deepStrictEqual({
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			state: fixture.sandboxState,
+			applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
+			commands: fixture.commands,
+		}, { selection: 'off', state: { enabled: false }, applied: [], commands: ['disable session'] });
+	});
+
+	test('resume enforces on when bypass is revoked during open', async () => {
+		const fixture = setup('resume', true, true, false);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+		assert.deepStrictEqual({
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			state: fixture.sandboxState,
+			applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
+			commands: fixture.commands,
+		}, { selection: 'on', state: { enabled: true }, applied: [true], commands: [] });
+	});
+
+	test('resume honors a newer on selection over previously confirmed off metadata', async () => {
+		const fixture = setup('resume', true, true, true);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'on' });
+
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+		assert.deepStrictEqual({
+			opened: fixture.captured?.sandboxConfig?.enabled,
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			state: fixture.sandboxState,
+		}, { opened: true, selection: 'on', state: { enabled: true } });
+	});
+
+	test('resume disconnects when the runtime rejects restoring confirmed bypass', async () => {
+		const error = new Error('Session sandbox bypass rejected');
+		const fixture = setup('resume', true, true, true);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+		const runtime: ICopilotSessionRuntime = {
+			...fixture.runtime,
+			applyLaunchSandbox: async (session, isResume) => {
+				session.rpc.commands.invoke = async () => ({ kind: 'text', text: error.message });
+				await fixture.runtime.applyLaunchSandbox(session, isResume);
+			},
+		};
+
+		await assert.rejects(() => fixture.launcher.launch(fixture.plan, runtime), error);
+
+		assert.deepStrictEqual({
+			disconnected: fixture.disconnected,
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			state: fixture.sandboxState,
+			applied: fixture.updates.filter(update => update.sandboxConfig),
+		}, { disconnected: true, selection: 'off', state: { enabled: false }, applied: [] });
+	});
+
+	test('resume does not overwrite a newer selection while applying the resolved sandbox', async () => {
+		const fixture = setup('resume', true, true, true);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+		const runtime: ICopilotSessionRuntime = {
+			...fixture.runtime,
+			applyLaunchSandbox: async (session, isResume) => {
+				const invoke = session.rpc.commands.invoke;
+				session.rpc.commands.invoke = async params => {
+					const result = await invoke(params);
+					fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'default' });
+					return result;
+				};
+				await fixture.runtime.applyLaunchSandbox(session, isResume);
+			},
+		};
+
+		store.add(await fixture.launcher.launch(fixture.plan, runtime));
+
+		assert.deepStrictEqual({
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			state: fixture.sandboxState,
+		}, { selection: 'default', state: { enabled: false } });
+	});
+
+	test('resume still honors a new pending bypass request', async () => {
+		const fixture = setup('resume', true, true, true);
+		fixture.configuration.setSessionSandboxPolicy(fixture.owner, { enabled: true, allowBypass: true });
+		fixture.configuration.setChatSandboxEnabled({ session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) }, true);
+		await fixture.sandbox.applyConfig(true, 'off');
+
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+		assert.deepStrictEqual({
+			commands: fixture.commands,
+			state: fixture.sandboxState,
+		}, { commands: ['disable session'], state: { enabled: false } });
+	});
 
 	test('sandbox config changes during launch apply to the launched session before attachment', async () => {
 		const fixture = setup('create', true, true, true);
@@ -880,24 +1061,34 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			['message', new Error('Sandbox configuration update violates managed policy. Contact your administrator for more information.')],
 			['wrapped message', new Error('Request session.options.update failed with message: Sandbox configuration update violates managed policy. Contact your administrator for more information.')],
 		] as const) {
-			test(`${kind} logs a ${format} sandbox conflict without disconnecting or publishing the rejected state`, async () => {
+			test(`${kind} ${kind === 'resume' ? 'rejects' : 'tolerates'} a ${format} sandbox conflict without publishing the rejected state`, async () => {
 				const fixture = setup(kind, true, false, false, undefined, error);
 				fixture.configuration.setChatSandboxEnabled({ session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) }, true);
 
-				store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+				if (kind === 'resume') {
+					await assert.rejects(() => fixture.launcher.launch(fixture.plan, fixture.runtime), error);
+				} else {
+					store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+				}
 
 				assert.deepStrictEqual({
 					disconnected: fixture.disconnected,
-					published: fixture.sandboxState,
+					published: fixture.sandboxState?.enabled,
+					conflict: fixture.sandboxState?.error?.message,
+					broadcast: fixture.sandboxState?.error !== undefined && hasKey(fixture.sandboxState.error, { id: true }),
 					applied: fixture.updates.filter(update => update.sandboxConfig),
 					warnings: fixture.logService.warnings,
 					loggedSuccess: fixture.logService.infos.some(message => message.includes('Applied SDK sandboxConfig')),
 				}, {
-					disconnected: false,
-					published: { enabled: true },
+					disconnected: kind === 'resume',
+					published: true,
+					conflict: kind === 'resume' ? undefined : error.message,
+					broadcast: kind === 'create',
 					applied: [],
 					warnings: [{
-						message: '[Copilot:sess-1] SDK sandboxConfig update conflicts with managed policy; continuing with the runtime\'s existing sandbox configuration',
+						message: kind === 'resume'
+							? '[Copilot:sess-1] Failed to apply SDK sandboxConfig'
+							: '[Copilot:sess-1] SDK sandboxConfig update conflicts with managed policy; continuing with the runtime\'s existing sandbox configuration',
 						args: [error],
 					}],
 					loggedSuccess: false,
@@ -1539,9 +1730,164 @@ suite('CopilotSessionLauncher Connectors', () => {
 
 });
 
+suite('getCopilotAgentSelectionName', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('restores only unambiguous flat selections from the same materialized cache namespace', () => {
+		const root = URI.file('/cache/bundle/current');
+		const sourceUri = URI.parse('client-customizations:/bundle');
+		const uri = URI.joinPath(root, 'agents', 'solo.agent.md');
+		const old = URI.file('/cache/bundle/previous/agents/solo.agent.md').toString();
+		const plugin = {
+			format: PluginFormat.OpenPlugin, sourceUri, nonce: 'current', pluginDir: root,
+			agents: [
+				toParsedAgent({ uri: URI.joinPath(root, 'agents', 'Solo.agent.md'), name: 'Case-distinct Solo' }),
+				toParsedAgent({ uri, name: 'Solo' }),
+				...['first', 'second'].map(key => toParsedAgent({ uri: URI.joinPath(root, 'agents', key, 'reviewer.agent.md'), name: 'Reviewer' })),
+			],
+			skills: [], hooks: [], instructions: [], mcpServers: [],
+		};
+		const snapshot = { plugins: [plugin], discoveredAgents: [], additionalRootInstructions: [] };
+		const secondRoot = URI.file('/cache/bundle/another');
+		assert.deepStrictEqual({
+			restored: getCopilotAgentSelection(snapshot, old, true),
+			liveChange: getCopilotAgentSelectionName(snapshot, old),
+			anotherSource: getCopilotAgentSelectionName(snapshot, URI.file('/cache/other/previous/agents/solo.agent.md').toString(), true),
+			directHost: getCopilotAgentSelectionName({
+				...snapshot, plugins: [{ ...plugin, sourceUri: URI.parse('vscode-agent-host-file:/cache/bundle/current') }],
+			}, old, true),
+			ambiguousFile: getCopilotAgentSelectionName(snapshot, URI.file('/cache/bundle/previous/agents/reviewer.agent.md').toString(), true),
+			ambiguousRevision: getCopilotAgentSelectionName({
+				...snapshot,
+				plugins: [plugin, {
+					...plugin, nonce: 'another', pluginDir: secondRoot,
+					agents: [toParsedAgent({ uri: URI.joinPath(secondRoot, 'agents', 'solo.agent.md'), name: 'Solo' })],
+				}],
+			}, old, true),
+			outside: getCopilotAgentSelectionName(snapshot, URI.file('/cache/bundle/../agents/solo.agent.md').toString(), true),
+			opaqueHost: getCopilotAgentSelectionName(snapshot, 'other-host:/cache/bundle/previous/agents/solo.agent.md', true),
+		}, {
+			restored: { uri: uri.toString(), name: getSdkCustomAgentName(uri, plugin) },
+			liveChange: undefined, anotherSource: undefined, directHost: undefined, ambiguousFile: undefined, ambiguousRevision: undefined,
+			outside: undefined, opaqueHost: undefined,
+		});
+	});
+
+	test('maps forwarded URI selections to unique SDK names while preserving native SDK IDs', () => {
+		const uris = ['first', 'second'].map(source => URI.parse(`client-agent:/${source}`));
+		const nativeUri = URI.parse('sdk-native:/reviewer');
+		const customizations = {
+			plugins: [],
+			discoveredAgents: uris.map(uri => toParsedAgent({ uri, name: 'Friendly Reviewer' })),
+			nativeAgents: [{ type: CustomizationType.Agent, id: 'opaque-native-sdk-id', uri: nativeUri.toString(), name: 'Friendly Reviewer' } as const],
+			additionalRootInstructions: [],
+		};
+		assert.deepStrictEqual([...uris, nativeUri, URI.parse('client-agent:/missing')].map(uri =>
+			getCopilotAgentSelectionName(customizations, uri.toString())),
+			[...uris.map(uri => getSdkCustomAgentName(uri)), 'opaque-native-sdk-id', undefined]);
+	});
+
+	test('keeps plugin and standalone SDK identities stable across cache revisions', () => {
+		const sourceUri = URI.parse('client-plugin:/stable-source');
+		const expected = getSdkCustomAgentName(URI.joinPath(sourceUri, 'agents', 'shared.agent.md'));
+		const results = [false, true].flatMap(standalone => ['old', 'new'].map(revision => {
+			const root = URI.file(`/cache/${revision}`);
+			const uri = URI.joinPath(root, 'agents', 'shared.agent.md');
+			const customizations = {
+				plugins: [{
+					format: PluginFormat.OpenPlugin, sourceUri, nonce: revision,
+					pluginDir: standalone ? undefined : root,
+					resourceDir: standalone ? root : undefined,
+					agents: [toParsedAgent({ uri, name: 'Friendly Reviewer' })],
+					skills: [], hooks: [], instructions: [], mcpServers: [],
+				}],
+				discoveredAgents: [], additionalRootInstructions: [],
+			};
+			return {
+				registered: getCopilotCustomAgents(customizations)[0].sdkName,
+				selected: getCopilotAgentSelectionName(customizations, uri.toString()),
+			};
+		}));
+		assert.deepStrictEqual(results, Array.from({ length: 4 }, () => ({ registered: expected, selected: expected })));
+	});
+});
+
 suite('CopilotSessionLauncher shared session config', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const kind of ['create', 'resume', 'recover', 'recover-empty', 'create-selection-error', 'resume-selection-error'] as const) {
+		test(`${kind} selects native plugin agents without registering their definitions`, async () => {
+			let captured: ResumeSessionConfig | undefined;
+			const calls: string[] = [];
+			const selectionFails = kind.endsWith('-selection-error');
+			const planKind = kind.startsWith('create') ? 'create' : 'resume';
+			let disconnected = false;
+			const session = {
+				sessionId: 'native-agent', on: () => () => { }, disconnect: async () => { disconnected = true; },
+				rpc: {
+					agent: {
+						list: async () => { calls.push('list'); return { agents: [] }; },
+						select: async ({ name }: { name: string }) => {
+							calls.push(`select:${name}`);
+							if (selectionFails) {
+								throw Object.assign(new Error(`Custom agent '${name}' not found`), { code: -32603 });
+							}
+							return {};
+						},
+					},
+					options: { update: async () => ({ success: true }) },
+				},
+			} as unknown as CopilotSession;
+			const initialize = (config: ResumeSessionConfig | undefined) => {
+				captured = config;
+				assert.strictEqual(config?.agent, undefined);
+				reportManagedSettings(config);
+				return session;
+			};
+			const client = {
+				createSession: async (config: SessionConfig) => { calls.push('create'); return initialize(config); },
+				resumeSession: async (_id: string, config: ResumeSessionConfig | undefined) => {
+					calls.push('resume');
+					assert.strictEqual(config?.agent, undefined);
+					if (kind.startsWith('recover')) {
+						throw Object.assign(new Error(kind === 'recover-empty' ? 'Session has no events' : 'Session not found: native-agent'), { code: -32603 });
+					}
+					return initialize(config);
+				},
+				rpc: { managedSettings: createUnmanagedCopilotSettings() },
+			} as unknown as CopilotClient;
+			const nativeAgent = { type: CustomizationType.Agent, id: 'reviewer@shop:review', uri: URI.file('/plugins/reviewer/agents/review.agent.md').toString(), name: 'Review' } as const;
+			const shared = {
+				client, sessionId: 'native-agent', workingDirectory: testWorkingDirectory,
+				resolvedAgentName: nativeAgent.id,
+				snapshot: { discoveredAgents: [], nativeAgents: [nativeAgent], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+			};
+			const plan: CopilotSessionLaunchPlan = planKind === 'create'
+				? { ...shared, kind: planKind, model: undefined }
+				: { ...shared, kind: 'resume', fallback: { model: undefined } };
+			if (selectionFails) {
+				await assert.rejects(createTestLauncher().launch(plan, testRuntime), /Custom agent 'reviewer@shop:review' not found/);
+				assert.deepStrictEqual({ calls, disconnected }, { calls: [planKind, 'list', `select:${nativeAgent.id}`], disconnected: true });
+				return;
+			}
+			const wrapper = await createTestLauncher().launch(plan, testRuntime);
+			try {
+				assert.deepStrictEqual({
+					agent: captured?.agent,
+					nativeDefinitions: captured?.customAgents?.filter(agent => agent.name === nativeAgent.name || agent.name === nativeAgent.id),
+					calls,
+				}, {
+					agent: undefined, nativeDefinitions: [],
+					calls: [...(kind.startsWith('recover') ? ['resume', 'create'] : [kind]), 'list', `select:${nativeAgent.id}`],
+				});
+			} finally {
+				wrapper.dispose();
+			}
+		});
+	}
 
 	for (const scoped of [false, true]) {
 		test(`keeps configured tools and defaults with ${scoped ? 'client-owned' : 'legacy'} credentials`, async () => {
@@ -2468,6 +2814,19 @@ suite('CopilotSessionLauncher resume fallback', () => {
 			sessions.dispose();
 			await launcher.disposeByokProxyHandle();
 		}
+	});
+
+	test('does not clear a requested native selection after a resume agent-not-found error', async () => {
+		const { launcher, plan, getCreateSessionCalls, interactiveUserOptions } = createResumeFailingLaunch('Custom agent \'native:reviewer\' not found');
+		const nativeAgent = {
+			type: CustomizationType.Agent, id: 'native:reviewer',
+			name: 'Reviewer', uri: URI.file('/plugin/agents/reviewer.agent.md').toString(),
+		} as const;
+		await assert.rejects(launcher.launch({
+			...plan, resolvedAgentName: nativeAgent.id,
+			snapshot: { ...plan.snapshot, nativeAgents: [nativeAgent] },
+		}, testRuntime), /Custom agent 'native:reviewer' not found/);
+		assert.deepStrictEqual({ creates: getCreateSessionCalls(), interactiveUserOptions }, { creates: 0, interactiveUserOptions: [true] });
 	});
 
 	test('reports SDK resume failure and fallback creation milestones', async () => {
@@ -3511,7 +3870,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		];
 		assert.deepStrictEqual({
 			equivalent: changes.map(tools => isDeepStrictEqual(appliedConfiguration.sessionConfig, appliedConfiguration.resolve(tools).sessionConfig)),
-			agentTools: configuration.sessionConfig.customAgents.find(agent => agent.name === 'reviewer')?.tools,
+			agentTools: configuration.sessionConfig.customAgents.find(agent => agent.name === getSdkCustomAgentName(uri))?.tools,
 			reads,
 		}, { equivalent: [true, true, true, false, false], agentTools: ['zetaRead'], reads: 1 });
 	});
@@ -3791,6 +4150,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		const snapshot = { discoveredAgents: [], additionalRootInstructions: [], tools: [{ name: SEMANTIC_SEARCH_TOOL_NAME }], plugins: [], mcpServers: {} };
 		const disabled = await buildResumeConfig(createLauncher(store, {}), undefined, { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} });
 		const enabled = await buildResumeConfig(createLauncher(store, {}), undefined, snapshot);
+		const app = await buildResumeConfig(createLauncher(store, {}), undefined, { ...snapshot, tools: snapshot.tools.map(tool => withAgentToolOrigin(tool, 'mcpApp')) });
 		const filtered = await buildResumeConfig(
 			createLauncher(store, { modelCapabilityOverrides: { '*': { excludedTools: [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`] } } }),
 			undefined,
@@ -3798,10 +4158,66 @@ suite('CopilotSessionLauncher resume config', () => {
 		);
 
 		assert.deepStrictEqual(
-			[disabled.excludedTools, enabled.excludedTools, filtered.excludedTools],
-			[[...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], defaultDisabledTools, [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`, ...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
+			[disabled.excludedTools, enabled.excludedTools, filtered.excludedTools, app.excludedTools],
+			[[...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], defaultDisabledTools, [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`, ...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
 		);
 		store.dispose();
+	});
+
+	test('withholds the semantic-search override while managed permission rules are active', async () => {
+		const store = disposables.add(new DisposableStore());
+		const launcher = createLauncher(store, {});
+		const build = async (permissions: Record<string, string[]> | undefined, failClosed = false) => {
+			const withheld: (string[] | undefined)[] = [];
+			let configuration: ICopilotClientToolConfiguration | undefined;
+			const managedSettings = new class extends mock<CopilotClient['rpc']['managedSettings']>() {
+				override resolve = async () => ({
+					resolved: { source: 'none' as const, serverManaged: permissions !== undefined, deviceManaged: false, clientManaged: false, failClosed, bypassPermissionsDisabled: false, managedKeys: permissions ? ['permissions'] : [], ...(permissions ? { settings: { permissions } } : {}) },
+					layers: [], diagnostics: [],
+				});
+			}();
+			const { config } = await (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ config: ResumeSessionConfig }> })._buildSessionConfig({
+				kind: 'resume',
+				client: { rpc: { managedSettings }, createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
+				extensionSdkPath: '/copilot-sdk',
+				sessionId: 'sess-1',
+				workingDirectory: URI.file('/workspace'),
+				resolvedAgentName: undefined,
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [{ name: SEMANTIC_SEARCH_TOOL_NAME }], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(),
+				shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
+				fallback: { model: undefined },
+			}, {
+				createClientSdkTools: (_toolSearchActive: boolean, _hostToolNames?: ReadonlySet<string>, withheldToolNames?: ReadonlySet<string>) => {
+					withheld.push(withheldToolNames && [...withheldToolNames]);
+					return [];
+				},
+				configureClientTools: (value: ICopilotClientToolConfiguration) => { configuration = value; },
+				createServerSdkTools: () => [],
+			}, () => { });
+			const builtinExcluded = (excludedTools: SessionConfig['excludedTools']) => Array.isArray(excludedTools) && excludedTools.includes(`builtin:${SEMANTIC_SEARCH_TOOL_NAME}`);
+			assert.ok(configuration);
+			return {
+				withheld,
+				liveUpdateWithheld: [...configuration.withheldToolNames],
+				builtinExcluded: builtinExcluded(config.excludedTools),
+				// A live update republishing the tool keeps the runtime's built-in excluded.
+				liveUpdateBuiltinExcluded: builtinExcluded(configuration.resolve([{ name: SEMANTIC_SEARCH_TOOL_NAME }]).sessionConfig.excludedTools),
+			};
+		};
+
+		assert.deepStrictEqual({
+			unmanaged: await build(undefined),
+			ask: await build({ ask: ['Shell'] }),
+			readDenied: await build({ deny: ['Read(/denied/**)'] }),
+			failClosed: await build(undefined, true),
+		}, {
+			unmanaged: { withheld: [[]], liveUpdateWithheld: [], builtinExcluded: false, liveUpdateBuiltinExcluded: false },
+			ask: { withheld: [[SEMANTIC_SEARCH_TOOL_NAME]], liveUpdateWithheld: [SEMANTIC_SEARCH_TOOL_NAME], builtinExcluded: true, liveUpdateBuiltinExcluded: true },
+			readDenied: { withheld: [[SEMANTIC_SEARCH_TOOL_NAME]], liveUpdateWithheld: [SEMANTIC_SEARCH_TOOL_NAME], builtinExcluded: true, liveUpdateBuiltinExcluded: true },
+			failClosed: { withheld: [[SEMANTIC_SEARCH_TOOL_NAME]], liveUpdateWithheld: [SEMANTIC_SEARCH_TOOL_NAME], builtinExcluded: true, liveUpdateBuiltinExcluded: true },
+		});
 	});
 
 	test('forwards a configured override on resume and leaves the effort untouched otherwise', async () => {
@@ -3967,6 +4383,26 @@ suite('CopilotSessionLauncher resume config', () => {
 		store.dispose();
 	});
 
+	test('an app named toolSearch does not activate the trusted tool-search override', async () => {
+		const store = new DisposableStore();
+		const decisions: boolean[] = [];
+		const config = await buildResumeConfig(
+			createLauncher(store, { toolSearchEnabled: true }),
+			{ id: 'claude-opus-4.8' },
+			{
+				discoveredAgents: [], additionalRootInstructions: [],
+				tools: [withAgentToolOrigin({ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME }, 'mcpApp')],
+				plugins: [], mcpServers: {},
+			},
+			toolSearchActive => {
+				decisions.push(toolSearchActive);
+				return [];
+			},
+		);
+		assert.deepStrictEqual({ config: config.toolSearch, decisions }, { config: { enabled: false }, decisions: [false] });
+		store.dispose();
+	});
+
 	test('uses one launch-time tool-search decision for the config and client tools', async () => {
 		const store = new DisposableStore();
 		const decisions: boolean[] = [];
@@ -3994,6 +4430,18 @@ suite('CopilotSessionLauncher resume config', () => {
 			config: { enabled: true, deferThreshold: 1 },
 			decisions: [true],
 		});
+		store.dispose();
+	});
+
+	test('forwards the co-author trailer setting and otherwise leaves the SDK default', async () => {
+		const store = new DisposableStore();
+		const coauthorEnabled = async (values: SchemaValues<typeof copilotCliConfigSchema.definition>) =>
+			(await buildResumeConfig(createLauncher(store, values), undefined)).coauthorEnabled;
+
+		assert.deepStrictEqual(
+			[await coauthorEnabled({ includeCoAuthoredBy: false }), await coauthorEnabled({ includeCoAuthoredBy: true }), await coauthorEnabled({})],
+			[false, true, undefined],
+		);
 		store.dispose();
 	});
 });

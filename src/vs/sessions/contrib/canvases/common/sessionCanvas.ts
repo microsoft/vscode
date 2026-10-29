@@ -5,8 +5,11 @@
 
 import { IObservable } from '../../../../base/common/observable.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { getCanvasDefinitionInstanceId, getCanvasDefinitionLabels, type ICanvasReference } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition } from '../../../services/sessions/common/session.js';
+
+export const WindowCanvasesAvailableContext = new RawContextKey<boolean>('windowCanvasesAvailable', false);
 
 export function createSessionCanvasReference(session: ISession, chat: IChat, canvas: ISessionCanvas): ICanvasReference {
 	return {

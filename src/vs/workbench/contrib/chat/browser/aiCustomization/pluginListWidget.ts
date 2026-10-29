@@ -1183,7 +1183,7 @@ export class PluginListWidget extends Disposable {
 			DOM.clearNode(this.disabledMessage);
 			this.disabledLinkListener.clear();
 			if (policyLocked) {
-				this.disabledMessage.textContent = localize('pluginsDisabledByPolicy', "Plugin integration in chat is disabled by your organization. Contact your organization administrator for more information.");
+				this.disabledMessage.textContent = localize('pluginsDisabledByPolicy', "Plugin integration in chat is disabled by your organization. Contact your administrator for more information.");
 			} else {
 				this.disabledMessage.appendChild(document.createTextNode(localize('pluginsDisabledBySettingPrefix', "Plugins are disabled in settings. ")));
 				const link = DOM.append(this.disabledMessage, $('a.mcp-disabled-settings-link')) as HTMLAnchorElement;
@@ -1301,7 +1301,7 @@ export class PluginListWidget extends Disposable {
 
 	private getPluginEntryAriaLabel(element: IPluginListEntry): string | IObservable<string> {
 		if (element.type === 'group-header') {
-			return localize('pluginGroupAriaLabel', "{0}, {1} items", element.label, element.count);
+			return localize('pluginGroupAriaLabel2', "{0}, {1} items", element.label, element.count);
 		}
 		if (element.type === 'search-header') {
 			return element.label;
@@ -1590,11 +1590,12 @@ export class PluginListWidget extends Disposable {
 				title: actionLabel,
 				ariaLabel: actionLabel,
 			}));
-			button.element.classList.add('plugin-installed-action');
+			button.element.classList.add('plugin-installed-action', 'plugin-card-split-button');
 			button.primaryButton.element.classList.add('plugin-card-ghost-button');
 			button.dropdownButton.element.classList.add('plugin-card-ghost-button');
 			button.primaryButton.element.classList.add('plugin-card-icon-button');
 			button.dropdownButton.element.classList.add('plugin-card-icon-button');
+			button.dropdownButton.icon = Codicon.chevronDownCompact;
 			button.icon = Codicon.add;
 			button.enabled = primary.enabled !== false;
 			disposables.add(button.onDidClick(() => this.runPluginAction(primary)));

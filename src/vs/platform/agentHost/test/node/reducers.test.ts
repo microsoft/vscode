@@ -197,6 +197,45 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		assert.strictEqual(state.status, SessionStatus.InputNeeded);
 	});
 
+	test('result confirmation preserves structured content and result metadata', () => {
+		let state = withActiveTurnAndToolCall(makeChat());
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			invocationMessage: 'Read file',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
+		const structuredContent = { value: 'public' };
+		const resultMetadata = { ui: { private: [null, false, 0, {}] } };
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallComplete,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			requiresResultConfirmation: true,
+			result: {
+				success: true,
+				pastTenseMessage: 'Read file',
+				structuredContent,
+				resultMetadata,
+			},
+		});
+		const pendingPart = state.activeTurn?.responseParts[0];
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallResultConfirmed,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			approved: true,
+		});
+		assert.deepStrictEqual([pendingPart, state.activeTurn?.responseParts[0]].map(part =>
+			part?.kind === ResponsePartKind.ToolCall && (part.toolCall.status === ToolCallStatus.PendingResultConfirmation || part.toolCall.status === ToolCallStatus.Completed)
+				? { status: part.toolCall.status, structuredContent: part.toolCall.structuredContent, resultMetadata: part.toolCall.resultMetadata }
+				: undefined), [
+			{ status: ToolCallStatus.PendingResultConfirmation, structuredContent, resultMetadata },
+			{ status: ToolCallStatus.Completed, structuredContent, resultMetadata },
+		]);
+	});
+
 	test('SessionStatus transitions from InputNeeded to InProgress when tool call is confirmed', () => {
 		let state = withActiveTurnAndToolCall(makeChat());
 

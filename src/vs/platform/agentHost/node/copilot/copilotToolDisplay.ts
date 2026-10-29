@@ -6,8 +6,9 @@
 import type { AssistantMessageToolRequest, PermissionRequest, SkillInvokedData } from '@github/copilot-sdk';
 import { hasKey, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { hash } from '../../../../base/common/hash.js';
+import { escapeIcons } from '../../../../base/common/iconLabels.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
@@ -1165,13 +1166,32 @@ function readConfirmationTitle(request: PermissionRequest, path: string | undefi
 }
 
 /**
+ * Names a shell command's model-authored intention in its confirmation title,
+ * e.g. "Run in terminal: List project files", so the request can be understood
+ * without reading the command. The intention is escaped to render literally.
+ */
+function getShellIntentionConfirmationTitle(intention: string | undefined, requestSandboxBypass: boolean | undefined, requestSandboxPermissive: boolean): StringOrMarkdown | undefined {
+	const text = intention?.replace(/\s+/g, ' ').trim();
+	if (!text) {
+		return undefined;
+	}
+	const escaped = escapeMarkdownSyntaxTokens(escapeIcons(text));
+	return md(requestSandboxPermissive
+		? localize('copilot.permission.shell.permissive.intentionTitle', "Retry by allowing filesystem access inside the sandbox: {0}", escaped)
+		: requestSandboxBypass
+			? localize('copilot.permission.shell.bypass.intentionTitle', "Run in terminal outside the sandbox: {0}", escaped)
+			: localize('copilot.permission.shell.intentionTitle', "Run in terminal: {0}", escaped));
+}
+
+/**
  * Derives display fields from a permission request for the tool confirmation UI.
  *
  * `additionalDirectories` carries the peer roots of a multi-root session, so a
  * read under any root is recognized as inside the workspace.
+ * Hook requests show the hook's reason and gated tool input while retaining their permission kind.
  */
 export function getPermissionDisplay(request: PermissionRequest, workingDirectory?: URI, isNewFile?: boolean, additionalDirectories?: readonly URI[], shellToolParameters?: Record<string, unknown>): {
-	confirmationTitle: string;
+	confirmationTitle: StringOrMarkdown;
 	invocationMessage: StringOrMarkdown;
 	toolInput?: string;
 	/** Normalized permission kind for auto-approval routing. */
@@ -1213,7 +1233,7 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 			stripRedundantCdPrefix(CopilotToolName.Bash, shellParams, workingDirectory);
 			const cleanedCommand = typeof shellParams?.command === 'string' ? shellParams.command : fullCommandText;
 			return {
-				confirmationTitle: shellConfirmationTitle,
+				confirmationTitle: getShellIntentionConfirmationTitle(intention, requestSandboxBypass, requestSandboxPermissive) ?? shellConfirmationTitle,
 				invocationMessage: intention ?? getInvocationMessage(CopilotToolName.Bash, getToolDisplayName(CopilotToolName.Bash), cleanedCommand ? { command: cleanedCommand } : undefined),
 				toolInput: getToolInputString(CopilotToolName.Bash, shellParams, undefined),
 				shellCommand: cleanedCommand,
@@ -1245,6 +1265,23 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 				toolInput: serverDisplay?.hideConfirmationInput ? undefined : args ? tryStringify(args) : tryStringify(request),
 				permissionKind: request.kind,
 				permissionPath: path,
+			};
+		}
+		case 'hook': {
+			const args = typeof request.toolArgs === 'object' && request.toolArgs !== null && !Array.isArray(request.toolArgs)
+				? { ...request.toolArgs } : undefined;
+			const shellToolName = toolName && isShellTool(toolName) ? toolName : undefined;
+			if (shellToolName) {
+				stripRedundantCdPrefix(shellToolName, args, workingDirectory);
+			}
+			return {
+				confirmationTitle: shellToolName ? shellConfirmationTitle : localize('copilot.permission.hook.title', "Allow tool call: {0}?", toolName ?? request.kind),
+				invocationMessage: str(request.hookMessage)?.trim() || (shellToolName
+					? getInvocationMessage(shellToolName, getToolDisplayName(shellToolName), typeof args?.command === 'string' ? args : undefined)
+					: md(localize('copilot.permission.default.message', "Allow the model to call {0}?", appendEscapedMarkdownInlineCode(toolName ?? request.kind)))),
+				toolInput: tryStringify(args ?? request.toolArgs, 2),
+				permissionKind: 'hook',
+				shellCommand: shellToolName ? str(args?.command) : undefined,
 			};
 		}
 		case 'write': {

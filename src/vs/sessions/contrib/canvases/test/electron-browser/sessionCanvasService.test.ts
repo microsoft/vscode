@@ -41,6 +41,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { SessionCanvasContextService } from '../../electron-browser/sessionCanvasService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 
 suite('SessionCanvasService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -73,6 +75,7 @@ suite('SessionCanvasService', () => {
 			isArchived,
 		});
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
+		const activeCustomView = observableValue<ICustomViewDescriptor | undefined>('customView', undefined);
 		const sessionsService = upcastPartial<ISessionsService>({ activeSession });
 		const sessionChanges = store.add(new Emitter<ISessionsChangeEvent>());
 		const chatDeleted = store.add(new Emitter<IChatDeletedEvent>());
@@ -139,6 +142,7 @@ suite('SessionCanvasService', () => {
 			editorWorkingSetService,
 			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
 			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
+			upcastPartial<ICustomViewService>({ activeCustomView }),
 		));
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IEditorGroupsService, editorGroupsService);
@@ -165,7 +169,7 @@ suite('SessionCanvasService', () => {
 		const setFindEditorsHandler = (handler: (resource: URI) => readonly IEditorIdentifier[]) => findEditorsHandler = handler;
 		const setCloseEditorsHandler = (handler: () => Promise<void>) => closeEditorsHandler = handler;
 		const setCreateBrowserModelHandler = (handler: (url: string, openSource: string | undefined) => Promise<IBrowserViewModel>) => createBrowserModelHandler = handler;
-		return { activeChat, activeSession, canvas, canvasService, canvases, chat, chatDeleted, chats, closeSettled, contextService, definition, definitionOpens, editorWorkingSetService, isArchived, opened, openOptions, openSettled, session, sessionChanges, get closeCount() { return closeCount; }, setCanvasesEnabled, setCloseEditorsHandler, setCreateBrowserModelHandler, setFindEditorsHandler, setOpenEditorHandler };
+		return { activeChat, activeCustomView, activeSession, canvas, canvasService, canvases, chat, chatDeleted, chats, closeSettled, contextService, definition, definitionOpens, editorWorkingSetService, isArchived, opened, openOptions, openSettled, session, sessionChanges, get closeCount() { return closeCount; }, setCanvasesEnabled, setCloseEditorsHandler, setCreateBrowserModelHandler, setFindEditorsHandler, setOpenEditorHandler };
 	}
 
 	function owner(session: IActiveSession, chatResource?: URI): ISessionEditorWorkingSetOwner {
@@ -176,6 +180,17 @@ suite('SessionCanvasService', () => {
 		const { openOptions } = createHarness();
 
 		assert.deepStrictEqual(openOptions, [{ pinned: true, revealIfOpened: true, preserveFocus: false }]);
+	});
+
+	test('custom views defer new canvases until the session surface is visible again', () => {
+		const harness = createHarness(true, []);
+		harness.activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: 'test.customView' }), undefined);
+		harness.canvases.set([harness.canvas], undefined);
+		const hiddenOpens = harness.opened.length;
+		harness.activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: 'test.otherCustomView' }), undefined);
+		const switchedOpens = harness.opened.length;
+		harness.activeCustomView.set(undefined, undefined);
+		assert.deepStrictEqual({ hiddenOpens, switchedOpens, visibleOpens: harness.opened.length }, { hiddenOpens: 0, switchedOpens: 0, visibleOpens: 1 });
 	});
 
 	test('projects active-chat Canvas definitions through the shared context', async () => {
@@ -948,6 +963,7 @@ suite('SessionCanvasService', () => {
 			new SessionEditorWorkingSetService(),
 			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
 			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
+			upcastPartial<ICustomViewService>({ activeCustomView: constObservable(undefined) }),
 		));
 		const owner = { providerId: 'local-agent-host', session: URI.parse('agent-host-session:/session'), chat: URI.parse('agent-host-chat:/session/main') };
 		const mainWindow = contextService.getEditorGroup(owner, input, false)?.id;

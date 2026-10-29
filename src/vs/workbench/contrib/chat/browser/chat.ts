@@ -8,6 +8,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { isMobile, isWeb } from '../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -256,6 +257,18 @@ export function unwrapChatContextMenuActionContext(context: unknown): unknown {
 	return isChatContextMenuActionContext(context) ? context.item : context;
 }
 
+/** Who answers a chat, when that is not the agent its session type serves. */
+export interface IChatResponseIdentity {
+	readonly label: string;
+	readonly icon: ThemeIcon;
+}
+
+/** An agent answering a chat in place of the one its session type serves. */
+export interface IChatRespondent extends IChatResponseIdentity {
+	/** The session type whose models the chat selects from; `undefined` while not known, when none are offered. */
+	readonly modelSessionType: string | undefined;
+}
+
 /** In-progress work for the transcript status, independent of input-pill filters. */
 export interface IChatBackgroundActivityPillSections {
 	readonly subagents?: IObservable<readonly IChatPillSection[]>;
@@ -273,6 +286,8 @@ export interface IChatListItemRendererOptions {
 	readonly editable?: boolean;
 	/** Whether the chat is read-only, independently of whether request editing is enabled. */
 	readonly readOnly?: boolean;
+	/** Whether to render questions, confirmations, and other requests for user input. Defaults to true. */
+	readonly renderInputRequests?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
@@ -286,9 +301,13 @@ export interface IChatListItemRendererOptions {
 	 * so command/tool output pasted by the model wraps instead of overflowing).
 	 */
 	readonly codeBlockRenderOptions?: ICodeBlockRenderOptions;
+	/** Presents responses as coming from this identity instead of the responding agent's own. */
+	readonly responseIdentity?: IChatResponseIdentity;
 }
 
 export interface IChatWidgetViewOptions {
+	/** Whether this widget can host the chat pet. Defaults to true. */
+	readonly renderChatPet?: boolean;
 	readonly firstRequestSummary?: IObservable<string | undefined>;
 	autoScroll?: boolean | ((mode: ChatModeKind) => boolean);
 	renderInputOnTop?: boolean;

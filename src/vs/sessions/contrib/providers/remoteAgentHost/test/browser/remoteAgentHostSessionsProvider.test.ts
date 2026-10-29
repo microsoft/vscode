@@ -33,7 +33,7 @@ import { AgentHostTransportFailureReason } from '../../../../../../platform/agen
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ResourceType, type ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ChatOriginKind, ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatOriginKind, ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, SessionOriginKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, createActiveTurn, createChatState, isAhpAutomationCatalogChannel, readSessionWorkspaceless, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionExternal, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -74,6 +74,7 @@ import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { IAgentHostMcpAppToolsService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { AgentHostSessionAdapter, CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
@@ -397,6 +398,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
+		override acquireSessionTools = () => new ImmortalReference(constObservable([]));
 		override acquireScope = (_sessionType: string, _roots: readonly URI[]) => ({
 			customizations: constObservable([]),
 			customAgents: constObservable([]),
@@ -407,6 +409,10 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 			activeClient: (clientId: string) => constObservable({ clientId, tools: [], customizations: [] }),
 			dispose: () => { },
 		});
+	}());
+
+	instantiationService.stub(IAgentHostMcpAppToolsService, new class extends mock<IAgentHostMcpAppToolsService>() {
+		override getToolDefinitions = () => constObservable([]);
 	}());
 
 	const config: IRemoteAgentHostSessionsProviderConfig = {
@@ -781,6 +787,48 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			});
 		});
 	}
+
+	suite('Automation session origin', () => {
+		const backend = URI.parse('ahp-session://tenant/opaque-automation');
+		const plainBackend = URI.parse('ahp-session://tenant/opaque-plain');
+		const origin = { kind: SessionOriginKind.Automation, automation: 'automation://tenant/a%2Fb?rev=1', run: 'automation-run://tenant/r%2F1' } as const;
+		const marks = (provider: RemoteAgentHostSessionsProvider) => Object.fromEntries(provider.getSessions().map(session => [session.title.get(), session.isAutomation?.get()]));
+
+		function addSessions(): void {
+			connection.addSession({ ...createSession('opaque-automation', { session: backend, summary: 'Automation run' }), origin });
+			connection.addSession(createSession('opaque-plain', { session: plainBackend, summary: 'Plain' }));
+		}
+
+		test('derives isAutomation from opaque host session origin and preserves it in partial updates', async () => {
+			addSessions();
+			const provider = createProvider(disposables, connection);
+			await timeout(0);
+			const initial = marks(provider);
+			connection.fireNotification({
+				type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://', session: plainBackend.toString(),
+				changes: { origin },
+			});
+			connection.fireNotification({
+				type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://', session: backend.toString(),
+				changes: { title: 'Renamed run' },
+			});
+			assert.deepStrictEqual([initial, marks(provider)], [
+				{ 'Automation run': true, 'Plain': false },
+				{ 'Renamed run': true, 'Plain': true },
+			]);
+		});
+
+		test('restores automation provenance from a fresh offline provider cache', async () => {
+			addSessions();
+			const storageService = disposables.add(new InMemoryStorageService());
+			const provider = createProvider(disposables, connection, { storageService });
+			await timeout(0);
+			await storageService.flush();
+			provider.dispose();
+			const restored = createProvider(disposables, connection, { storageService, noConnection: true });
+			assert.deepStrictEqual(marks(restored), { 'Automation run': true, 'Plain': false });
+		});
+	});
 
 	for (const result of ['exists', 'absent', 'permission', 'unavailable', 'unsupported', 'disconnected'] as const) {
 		test(`checks worktree existence through its owning host without a measurement extension (${result})`, async () => {

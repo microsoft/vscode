@@ -15,7 +15,7 @@ import '../../../../browser/parts/mobile/mobileChatShell.css';
 suite('Sessions - Mobile Chat Shell', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createComposer(experimental: boolean, height: number, notices: boolean, welcomePhrases = false) {
+	function createComposer(height: number, notices: boolean, welcomePhrases = false) {
 		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench.phone-layout'));
 		store.add(toDisposable(() => workbench.remove()));
 		workbench.style.width = '390px';
@@ -28,7 +28,7 @@ suite('Sessions - Mobile Chat Shell', () => {
 		const widget = dom.append(workbench, dom.$('.sessions-chat-widget'));
 		const container = dom.append(widget, dom.$('.new-chat-widget-container.revealed'));
 		const content = dom.append(container, dom.$('.new-chat-widget-content.chat-input-stack'));
-		content.classList.toggle('experimental-new-session-composer', experimental);
+		content.classList.add('experimental-new-session-composer');
 		content.classList.toggle('welcome-phrases-visible', welcomePhrases);
 		const welcome = dom.append(content, dom.$('.new-session-welcome-message'));
 		welcome.hidden = !welcomePhrases;
@@ -50,8 +50,8 @@ suite('Sessions - Mobile Chat Shell', () => {
 
 	for (const height of [400, 700]) {
 		for (const notices of [false, true]) {
-			test(`docks experimental phone pickers against the input at height ${height} with notices ${notices}`, () => {
-				const { workbench, content, workspace, pickers, input, surfaces } = createComposer(true, height, notices);
+			test(`docks phone pickers against the input at height ${height} with notices ${notices}`, () => {
+				const { workbench, content, workspace, pickers, input, surfaces } = createComposer(height, notices);
 				const targetWindow = dom.getWindow(workbench);
 				const pickerBounds = pickers.getBoundingClientRect();
 				const inputBounds = input.getBoundingClientRect();
@@ -76,8 +76,8 @@ suite('Sessions - Mobile Chat Shell', () => {
 				});
 			});
 
-			test(`keeps welcome phrases above the experimental phone composer at height ${height} with notices ${notices}`, () => {
-				const { content, welcome, pickers, input, surfaces } = createComposer(true, height, notices, true);
+			test(`keeps welcome phrases above the phone composer at height ${height} with notices ${notices}`, () => {
+				const { content, welcome, pickers, input, surfaces } = createComposer(height, notices, true);
 				const welcomeBounds = welcome.getBoundingClientRect();
 				const pickerBounds = pickers.getBoundingClientRect();
 				const inputBounds = input.getBoundingClientRect();
@@ -96,68 +96,36 @@ suite('Sessions - Mobile Chat Shell', () => {
 					inputBottomInset: 16,
 				});
 			});
-
-			test(`preserves the original non-experimental phone layout at height ${height} with notices ${notices}`, () => {
-				const { workbench, content, workspace, pickers, input } = createComposer(false, height, notices);
-				const targetWindow = dom.getWindow(workbench);
-				const readLayout = () => ({
-					flex: targetWindow.getComputedStyle(workspace).flex,
-					bounds: [...content.children, pickers].map(element => {
-						const { x, y, width, height } = element.getBoundingClientRect();
-						return { x, y, width, height };
-					}),
-				});
-				const layout = readLayout();
-
-				// Reapply the original mobile flex declaration as a geometry reference.
-				workspace.style.setProperty('flex', '1', 'important');
-
-				assert.deepStrictEqual({
-					layout,
-					workspaceGrows: targetWindow.getComputedStyle(workspace).flexGrow,
-					workspaceLogo: targetWindow.getComputedStyle(workspace, '::before').display,
-					separateHero: targetWindow.getComputedStyle(content, '::before').content,
-					pickerAboveInput: pickers.getBoundingClientRect().bottom < input.getBoundingClientRect().top,
-				}, {
-					layout: readLayout(),
-					workspaceGrows: '1',
-					workspaceLogo: 'block',
-					separateHero: 'none',
-					pickerAboveInput: true,
-				});
-			});
 		}
 	}
 
-	for (const experimental of [false, true]) {
-		test(`restores desktop composer layout when leaving phone layout with experimental layout ${experimental}`, () => {
-			const { workbench, content, workspace } = createComposer(experimental, 700, true);
-			workbench.classList.remove('phone-layout');
-			const targetWindow = dom.getWindow(workbench);
+	test('restores desktop composer layout when leaving phone layout', () => {
+		const { workbench, content, workspace } = createComposer(700, true);
+		workbench.classList.remove('phone-layout');
+		const targetWindow = dom.getWindow(workbench);
 
-			assert.deepStrictEqual({
-				workspaceOrder: targetWindow.getComputedStyle(workspace).order,
-				workspaceGrows: targetWindow.getComputedStyle(workspace).flexGrow,
-				workspaceMarginTop: targetWindow.getComputedStyle(workspace).marginTop,
-				hero: targetWindow.getComputedStyle(content, '::before').content,
-			}, {
-				workspaceOrder: '0',
-				workspaceGrows: '0',
-				workspaceMarginTop: experimental ? '12px' : '0px',
-				hero: 'none',
-			});
+		assert.deepStrictEqual({
+			workspaceOrder: targetWindow.getComputedStyle(workspace).order,
+			workspaceGrows: targetWindow.getComputedStyle(workspace).flexGrow,
+			workspaceMarginTop: targetWindow.getComputedStyle(workspace).marginTop,
+			hero: targetWindow.getComputedStyle(content, '::before').content,
+		}, {
+			workspaceOrder: '0',
+			workspaceGrows: '0',
+			workspaceMarginTop: '12px',
+			hero: 'none',
 		});
-	}
+	});
 
 	test('does not add a phone hero to the in-session composer', () => {
-		const { workbench, widget, content } = createComposer(true, 700, false);
+		const { workbench, widget, content } = createComposer(700, false);
 		widget.classList.add('new-chat-in-session');
 
 		assert.strictEqual(dom.getWindow(workbench).getComputedStyle(content, '::before').content, 'none');
 	});
 
 	test('does not add a phone hero to the no-agent-host empty state', () => {
-		const { workbench, content, workspace } = createComposer(true, 700, false);
+		const { workbench, content, workspace } = createComposer(700, false);
 		content.classList.add('no-agent-host');
 		const targetWindow = dom.getWindow(workbench);
 
@@ -169,26 +137,6 @@ suite('Sessions - Mobile Chat Shell', () => {
 			hero: 'none',
 			workspaceGrows: '1',
 			workspaceOrder: '0',
-		});
-	});
-
-	test('restores the phone hero picker when the experimental layout is disabled', () => {
-		const { workbench, content, workspace, pickers, input } = createComposer(true, 700, true);
-		content.classList.remove('experimental-new-session-composer');
-		const targetWindow = dom.getWindow(workbench);
-
-		assert.deepStrictEqual({
-			workspaceGrows: targetWindow.getComputedStyle(workspace).flexGrow,
-			workspaceOrder: targetWindow.getComputedStyle(workspace).order,
-			workspaceLogo: targetWindow.getComputedStyle(workspace, '::before').display,
-			separateHero: targetWindow.getComputedStyle(content, '::before').content,
-			pickerAboveInput: pickers.getBoundingClientRect().bottom < input.getBoundingClientRect().top,
-		}, {
-			workspaceGrows: '1',
-			workspaceOrder: '0',
-			workspaceLogo: 'block',
-			separateHero: 'none',
-			pickerAboveInput: true,
 		});
 	});
 });

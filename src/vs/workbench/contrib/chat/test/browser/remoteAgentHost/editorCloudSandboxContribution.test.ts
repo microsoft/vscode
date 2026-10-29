@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { DeferredPromise, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -39,6 +41,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
 import { IPathService } from '../../../../../../platform/path/common/pathService.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -1087,11 +1090,25 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.deepStrictEqual({ scans: h.calls.discovered, items: h.items().map(item => item.label) }, { scans: 1, items: [discovered.name] });
 	});
 
-	test('does not install a second sandbox adapter in the Agents Window', () => {
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
-		assert.doesNotThrow(() => store.add(instantiationService.createInstance(EditorCloudSandboxContribution)));
-	});
+	for (const { name, embedderIdentifier, isSessionsWindow, expected } of [
+		{ name: 'the regular workbench', embedderIdentifier: undefined, isSessionsWindow: false, expected: true },
+		{ name: 'vscode.dev', embedderIdentifier: 'vscode.dev', isSessionsWindow: false, expected: true },
+		{ name: 'the server distro', embedderIdentifier: 'server-distro', isSessionsWindow: false, expected: !isWeb },
+		{ name: 'the Agents Window', embedderIdentifier: undefined, isSessionsWindow: true, expected: false },
+	]) {
+		test(`only installs the editor sandbox adapter when supported in ${name}`, () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow });
+			instantiationService.stub(IProductService, { embedderIdentifier });
+			instantiationService.stubInstance(EditorCloudSandboxSessionContribution, Disposable.None);
+			const createInstance = sinon.spy(instantiationService, 'createInstance');
+			store.add(toDisposable(() => createInstance.restore()));
+
+			store.add(instantiationService.createInstance(EditorCloudSandboxContribution));
+
+			assert.strictEqual(createInstance.calledWith(EditorCloudSandboxSessionContribution), expected);
+		});
+	}
 
 	test('offers one creation target in the picker and keeps discovered environments hidden', async () => {
 		const h = createHarness(store);
@@ -1116,6 +1133,16 @@ suite('Editor cloud sandbox discovery', () => {
 			repositoryOptions: [],
 			created: 0,
 		});
+	});
+
+	test('discovered Cloud sessions advertise image attachments without local file attachments', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		const capabilities = h.contributions.get(sessionType)?.capabilities;
+		assert.deepStrictEqual({
+			files: capabilities?.supportsFileAttachments,
+			images: capabilities?.supportsImageAttachments,
+		}, { files: undefined, images: true });
 	});
 
 	test('a fork tracks its origin only, so the picker never asks which remote to clone', async () => {
