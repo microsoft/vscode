@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ITunnelApplicationConfig } from '../../../../../base/common/product.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -23,7 +23,7 @@ import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../p
 import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, type ActiveTunnelMode, type TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IAuthenticationProvider, AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { IAuthenticationProvider, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { RemoteTunnelCommandIds, RemoteTunnelWorkbenchContribution } from '../../electron-browser/remoteTunnel.contribution.js';
@@ -48,6 +48,7 @@ class TestAuthenticationService extends mock<IAuthenticationService>() {
 	override readonly declaredProviders = [{ id: 'github', label: 'GitHub' }];
 	readonly requestedSessions: Array<{ providerId: string; scopes: readonly string[] | undefined }> = [];
 	readonly createdSessions: Array<{ providerId: string; scopes: readonly string[] }> = [];
+	override readonly onDidChangeSessions: Event<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>;
 
 	private readonly provider = new class extends mock<IAuthenticationProvider>() {
 		override readonly id = 'github';
@@ -55,8 +56,17 @@ class TestAuthenticationService extends mock<IAuthenticationService>() {
 		override readonly supportsMultipleAccounts = false;
 	};
 
-	constructor(private readonly sessions: readonly AuthenticationSession[], private readonly createdSession = githubSession) {
+	constructor(
+		private sessions: readonly AuthenticationSession[],
+		private readonly createdSession = githubSession,
+		onDidChangeSessions: Event<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }> = Event.None,
+	) {
 		super();
+		this.onDidChangeSessions = onDidChangeSessions;
+	}
+
+	setSessions(sessions: readonly AuthenticationSession[]) {
+		this.sessions = sessions;
 	}
 
 	override getProvider(): IAuthenticationProvider {
@@ -86,30 +96,50 @@ class TestQuickInputService extends mock<IQuickInputService>() {
 }
 
 class TestRemoteTunnelService extends mock<IRemoteTunnelService>() {
-	override readonly onDidChangeTunnelStatus = Event.None;
+	override readonly onDidChangeTunnelStatus: Event<TunnelStatus>;
 	override readonly onDidChangeMode = Event.None;
-	override readonly onDidTokenFailed = Event.None;
+	override readonly onDidTokenFailed: Event<IRemoteTunnelSession | undefined>;
 	readonly startedModes: ActiveTunnelMode[] = [];
+	readonly stoppedModes: boolean[] = [];
+	activeMode: ActiveTunnelMode | { active: false } = INACTIVE_TUNNEL_MODE;
+	tunnelStatus: TunnelStatus = { type: 'disconnected' };
+
+	constructor(
+		onDidChangeTunnelStatus: Event<TunnelStatus> = Event.None,
+		onDidTokenFailed: Event<IRemoteTunnelSession | undefined> = Event.None,
+	) {
+		super();
+		this.onDidChangeTunnelStatus = onDidChangeTunnelStatus;
+		this.onDidTokenFailed = onDidTokenFailed;
+	}
 
 	override async getMode() {
-		return INACTIVE_TUNNEL_MODE;
+		return this.activeMode;
 	}
 
 	override async getTunnelStatus(): Promise<TunnelStatus> {
-		return { type: 'disconnected' };
+		return this.tunnelStatus;
 	}
 
 	override async initialize(): Promise<TunnelStatus> {
-		return { type: 'disconnected' };
+		return this.tunnelStatus;
 	}
 
 	override async startTunnel(mode: ActiveTunnelMode): Promise<TunnelStatus> {
 		this.startedModes.push(mode);
-		return {
+		this.activeMode = mode;
+		this.tunnelStatus = {
 			type: 'connected',
 			info: { tunnelName: 'test-tunnel', isAttached: false },
 			serviceInstallFailed: false,
 		};
+		return this.tunnelStatus;
+	}
+
+	override async stopTunnel(): Promise<void> {
+		this.stoppedModes.push(true);
+		this.activeMode = INACTIVE_TUNNEL_MODE;
+		this.tunnelStatus = { type: 'disconnected' };
 	}
 
 	override async getTunnelName(): Promise<string | undefined> {
@@ -291,5 +321,112 @@ suite('RemoteTunnelWorkbenchContribution', () => {
 				},
 			}],
 		});
+	});
+
+	test('auto-recovers and restarts tunnel when onDidTokenFailed fires with refreshed session token', async () => {
+		const tokenFailedEmitter = store.add(new Emitter<IRemoteTunnelSession | undefined>());
+		const initialSession: AuthenticationSession = {
+			...githubSession,
+			accessToken: 'initial-stale-token',
+		};
+		const refreshedSession: AuthenticationSession = {
+			...githubSession,
+			accessToken: 'refreshed-fresh-token',
+		};
+		const authenticationService = new TestAuthenticationService([initialSession]);
+		const quickInputService = new TestQuickInputService();
+		const remoteTunnelService = new TestRemoteTunnelService(Event.None, tokenFailedEmitter.event);
+		createContribution(store, authenticationService, quickInputService, remoteTunnelService);
+
+		remoteTunnelService.activeMode = {
+			active: true,
+			asService: false,
+			session: {
+				providerId: 'github',
+				sessionId: initialSession.id,
+				token: initialSession.accessToken,
+				accountLabel: initialSession.account.label,
+			},
+		};
+
+		authenticationService.setSessions([refreshedSession]);
+		tokenFailedEmitter.fire(remoteTunnelService.activeMode.session);
+		await new Promise<void>(resolve => setImmediate(resolve));
+
+		assert.strictEqual(remoteTunnelService.startedModes.length, 1);
+		assert.strictEqual(remoteTunnelService.startedModes[0].session.token, 'refreshed-fresh-token');
+	});
+
+	test('restarts tunnel with updated token when onDidChangeSessions fires for active session', async () => {
+		const sessionsEmitter = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
+		const initialSession: AuthenticationSession = {
+			...githubSession,
+			accessToken: 'old-token',
+		};
+		const updatedSession: AuthenticationSession = {
+			...githubSession,
+			accessToken: 'new-token',
+		};
+		const authenticationService = new TestAuthenticationService([initialSession], undefined, sessionsEmitter.event);
+		const quickInputService = new TestQuickInputService();
+		const remoteTunnelService = new TestRemoteTunnelService();
+		createContribution(store, authenticationService, quickInputService, remoteTunnelService);
+
+		remoteTunnelService.activeMode = {
+			active: true,
+			asService: false,
+			session: {
+				providerId: 'github',
+				sessionId: initialSession.id,
+				token: initialSession.accessToken,
+				accountLabel: initialSession.account.label,
+			},
+		};
+
+		sessionsEmitter.fire({
+			providerId: 'github',
+			label: 'GitHub',
+			event: {
+				added: [],
+				removed: [],
+				changed: [updatedSession],
+			},
+		});
+		await new Promise<void>(resolve => setImmediate(resolve));
+
+		assert.strictEqual(remoteTunnelService.startedModes.length, 1);
+		assert.strictEqual(remoteTunnelService.startedModes[0].session.token, 'new-token');
+	});
+
+	test('stops tunnel when onDidChangeSessions removes active session', async () => {
+		const sessionsEmitter = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
+		const authenticationService = new TestAuthenticationService([githubSession], undefined, sessionsEmitter.event);
+		const quickInputService = new TestQuickInputService();
+		const remoteTunnelService = new TestRemoteTunnelService();
+		createContribution(store, authenticationService, quickInputService, remoteTunnelService);
+
+		remoteTunnelService.activeMode = {
+			active: true,
+			asService: false,
+			session: {
+				providerId: 'github',
+				sessionId: githubSession.id,
+				token: githubSession.accessToken,
+				accountLabel: githubSession.account.label,
+			},
+		};
+
+		sessionsEmitter.fire({
+			providerId: 'github',
+			label: 'GitHub',
+			event: {
+				added: [],
+				removed: [githubSession],
+				changed: [],
+			},
+		});
+		await new Promise<void>(resolve => setImmediate(resolve));
+
+		assert.strictEqual(remoteTunnelService.stoppedModes.length, 1);
 	});
 });

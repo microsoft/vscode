@@ -32,7 +32,7 @@ import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREFIX, CONFIGURATION_KE
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, isUntitledWorkspace } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
-import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IOutputService } from '../../../services/output/common/output.js';
@@ -133,6 +133,8 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 	private readonly logger: ILogger;
 
 	private expiredSessions: Set<string> = new Set();
+	private _recoveringSessionId: string | undefined;
+	private _lastRecoveryTime: number = 0;
 
 	constructor(
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
@@ -166,6 +168,14 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		this.serverConfiguration = serverConfiguration;
 
 		this._register(this.remoteTunnelService.onDidChangeTunnelStatus(s => this.handleTunnelStatusUpdate(s)));
+		this._register(this.remoteTunnelService.onDidTokenFailed(session => {
+			if (session) {
+				void this.tryRecoverTunnelSession(session);
+			}
+		}));
+		this._register(this.authenticationService.onDidChangeSessions(e => {
+			void this.handleSessionsChanged(e);
+		}));
 
 		this.registerCommands();
 
@@ -188,6 +198,73 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			this.connectionInfo = status.info;
 			this.hasLinkContext.set(!!status.info.link);
 			this.connectionStateContext.set('connected');
+			void this.remoteTunnelService.getMode().then(m => {
+				if (m.active) {
+					this.expiredSessions.delete(m.session.sessionId);
+				}
+			});
+		}
+	}
+
+	private async tryRecoverTunnelSession(failedSession: IRemoteTunnelSession): Promise<void> {
+		const now = Date.now();
+		if (this._recoveringSessionId === failedSession.sessionId || (now - this._lastRecoveryTime < 5000)) {
+			return;
+		}
+		this._recoveringSessionId = failedSession.sessionId;
+		this._lastRecoveryTime = now;
+		try {
+			const mode = await this.remoteTunnelService.getMode();
+			if (!mode.active || mode.session.sessionId !== failedSession.sessionId) {
+				return;
+			}
+			this.expiredSessions.delete(failedSession.sessionId);
+			const token = await this.getSessionToken(mode.session);
+			if (token && token !== failedSession.token) {
+				this.logger.info(`Acquired refreshed token for session ${failedSession.sessionId}, restarting tunnel...`);
+				await this.remoteTunnelService.startTunnel({
+					...mode,
+					session: { ...mode.session, token }
+				});
+			} else {
+				this.expiredSessions.add(failedSession.sessionId);
+			}
+		} catch (err) {
+			this.logger.error('Failed to recover remote tunnel session', err);
+			this.expiredSessions.add(failedSession.sessionId);
+		} finally {
+			this._recoveringSessionId = undefined;
+		}
+	}
+
+	private async handleSessionsChanged(e: { providerId: string; label: string; event: AuthenticationSessionsChangeEvent }): Promise<void> {
+		const updatedSessions = [...(e.event.added ?? []), ...(e.event.changed ?? [])];
+		for (const session of updatedSessions) {
+			this.expiredSessions.delete(session.id);
+		}
+
+		const mode = await this.remoteTunnelService.getMode();
+		if (!mode.active) {
+			return;
+		}
+
+		if (e.event.removed?.some(s => s.id === mode.session.sessionId)) {
+			this.logger.info(`Active session ${mode.session.sessionId} removed, stopping tunnel...`);
+			await this.remoteTunnelService.stopTunnel();
+			return;
+		}
+
+		const matching = updatedSessions.find(s => s.id === mode.session.sessionId);
+		if (matching) {
+			const token = matching.accessToken || matching.idToken;
+			const currentStatus = await this.remoteTunnelService.getTunnelStatus();
+			if (token && (token !== mode.session.token || currentStatus.type === 'disconnected')) {
+				this.logger.info(`Session ${matching.id} updated from authentication provider, restarting tunnel...`);
+				await this.remoteTunnelService.startTunnel({
+					...mode,
+					session: { ...mode.session, token }
+				});
+			}
 		}
 	}
 
