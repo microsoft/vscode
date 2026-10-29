@@ -14,12 +14,15 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { isMultiRootSession } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
+import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { AGENT_MERGE_CHANGESET_ID, ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { isAgentMergeMessage } from '../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
+import { mergeOperationStashTargetChangesMeta, readMergeOperationDirtyTargetErrorData, readMergeOperationStashTargetChanges } from '../../../../../platform/agentHost/common/meta/agentMergeOperationMeta.js';
 import { ChangesetOperationTargetKind, InvokeChangesetOperationResult } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, ChangesetOperationStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ChangesetStatus, Changeset, isHostNoticeTurn, lastAttributableTurnId, MessageKind, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, ISessionTurnFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -558,22 +561,65 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 		// operation runs, so cancellations are excluded but failures are not.
 		this._options.onDidInvokeChangesetOperation?.(operationId, _meta);
 
-		this._setOperationLocallyRunning(operationId, true);
+		const invoke = async (meta: Record<string, unknown> | undefined) => {
+			this._setOperationLocallyRunning(operationId, true);
+			try {
+				return await connection.invokeChangesetOperation({
+					operationId,
+					channel: channel.toString(),
+					target: target?.kind === 'resource'
+						? {
+							kind: ChangesetOperationTargetKind.Resource,
+							resource: connection.resourceUris.toAgentHost(target.resource).toString()
+						}
+						: undefined,
+					_meta: meta
+				});
+			} finally {
+				this._setOperationLocallyRunning(operationId, false);
+			}
+		};
+
 		try {
-			return await connection.invokeChangesetOperation({
-				operationId,
-				channel: channel.toString(),
-				target: target?.kind === 'resource'
-					? {
-						kind: ChangesetOperationTargetKind.Resource,
-						resource: connection.resourceUris.toAgentHost(target.resource).toString()
-					}
-					: undefined,
-				_meta
-			});
-		} finally {
-			this._setOperationLocallyRunning(operationId, false);
+			return await invoke(_meta);
+		} catch (error) {
+			const retryMeta = await this._resolveRecoveryMeta(operationId, error, _meta);
+			if (!retryMeta) {
+				throw error;
+			}
+			if (retryMeta === 'cancelled') {
+				return undefined;
+			}
+			return await invoke(retryMeta);
 		}
+	}
+
+	/**
+	 * Offers a safe recovery for operation failures that report a structured
+	 * reason. Returns the request metadata for the recovery, `'cancelled'` when
+	 * the user declined it, or `undefined` when the failure has no recovery.
+	 */
+	private async _resolveRecoveryMeta(operationId: string, error: unknown, _meta: Record<string, unknown> | undefined): Promise<Record<string, unknown> | 'cancelled' | undefined> {
+		if (operationId !== AGENT_HOST_MERGE_CHANGESET_OPERATION_ID || !(error instanceof ProtocolError) || readMergeOperationStashTargetChanges({ _meta })) {
+			return undefined;
+		}
+		const dirtyTarget = readMergeOperationDirtyTargetErrorData(error.data);
+		if (!dirtyTarget) {
+			return undefined;
+		}
+		const { result } = await this._dialogService.prompt<boolean>({
+			type: 'warning',
+			message: localize('agentHostChangeset.merge.dirtyTarget', "Merge Changes needs a clean '{0}'.", dirtyTarget.targetBranch),
+			detail: dirtyTarget.overlappingPaths?.length
+				? localize('agentHostChangeset.merge.dirtyTargetOverlapDetail', "The parent repository has uncommitted changes, so nothing was committed or merged.\n\nStash and Merge sets those changes aside, merges the worktree changes, and then restores them. This merge also changes {0}, so restoring may conflict there; you would then resolve the conflicts in the parent repository. Git keeps a copy in the stash so nothing is lost.", dirtyTarget.overlappingPaths.join(', '))
+				: localize('agentHostChangeset.merge.dirtyTargetDetail', "The parent repository has uncommitted changes, so nothing was committed or merged.\n\nStash and Merge sets those changes aside, merges the worktree changes, and then restores them. If they can't be restored, Git keeps them in the stash so nothing is lost."),
+			buttons: [{
+				label: localize('agentHostChangeset.merge.stashAndMerge', "Stash and Merge"),
+				run: () => true,
+			}],
+			cancelButton: true,
+		});
+		return result ? { ..._meta, ...mergeOperationStashTargetChangesMeta() } : 'cancelled';
 	}
 
 	private _setOperationLocallyRunning(operationId: string, running: boolean): void {

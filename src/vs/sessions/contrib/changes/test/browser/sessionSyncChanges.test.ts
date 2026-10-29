@@ -23,6 +23,9 @@ import { Context, ContextKeyService } from '../../../../../platform/contextkey/b
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { INotificationHandle, INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -109,9 +112,17 @@ suite('Session Sync Changes', () => {
 		const contribution = store.add(new SessionSyncChangesContribution(sessionsService, actionViewItemService));
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsService, sessionsService);
+		const errors: string[] = [];
+		instantiationService.stub(INotificationService, new class extends TestNotificationService {
+			override error(message: NotificationMessage): INotificationHandle {
+				errors.push(String(message));
+				return super.error(message);
+			}
+		}());
+		instantiationService.stub(ILogService, new NullLogService());
 		const invoke = async (...args: unknown[]) => instantiationService.invokeFunction(CommandsRegistry.getCommand(commandId)!.handler, ...args);
 		return {
-			contribution, visibleSessions, activeSession, invoke,
+			contribution, visibleSessions, activeSession, invoke, errors,
 			getFactory: () => {
 				assert.ok(factory);
 				return factory;
@@ -377,13 +388,14 @@ suite('Session Sync Changes', () => {
 		assert.deepStrictEqual(data.invocations, []);
 	});
 
-	test('allows retries and propagates operation failures', async () => {
+	test('allows retries and reports operation failures', async () => {
 		const data = createSession('first');
 		const failure = new Error('Sync failed');
 		data.operations.set([{ ...data.operation, status: SessionChangesetOperationStatus.Error }], undefined);
 		data.changesets.set([{ ...data.changeset, invokeOperation: async () => { throw failure; } }], undefined);
-		const { invoke } = setup([data.session]);
-		await assert.rejects(invoke(), error => error === failure);
+		const { invoke, errors } = setup([data.session]);
+		await invoke();
+		assert.deepStrictEqual(errors, ['Sync Changes 2: Sync failed']);
 	});
 
 	test('does not fall back to the active session when the originating session is unavailable', async () => {

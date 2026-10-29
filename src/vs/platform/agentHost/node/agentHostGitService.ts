@@ -630,6 +630,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 		await this._runGit(workingDirectory, args, { timeout: 60_000, throwOnError: true });
 	}
 
+	async popStash(workingDirectory: URI): Promise<void> {
+		await this._runGit(workingDirectory, ['stash', 'pop'], { timeout: 60_000, throwOnError: true });
+	}
+
 	async commitAll(workingDirectory: URI, message: string): Promise<void> {
 		await this._runGit(workingDirectory, ['add', '-A', '--', ':/'], { throwOnError: true });
 		await this._runGit(workingDirectory, ['commit', '--no-verify', '-m', message], { timeout: 60_000, throwOnError: true });

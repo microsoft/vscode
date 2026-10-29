@@ -316,6 +316,13 @@ export interface IAgentHostGitService {
 	createStash(workingDirectory: URI, options?: { readonly message?: string; readonly includeUntracked?: boolean; readonly staged?: boolean }): Promise<void>;
 
 	/**
+	 * Applies the most recent stash and drops it (`git stash pop`). When
+	 * applying fails, for example because of conflicts, git keeps the stash
+	 * entry so no changes are lost, and the error is rethrown.
+	 */
+	popStash(workingDirectory: URI): Promise<void>;
+
+	/**
 	 * Stages and commits all tracked, staged, and untracked changes in the
 	 * working tree. Mirrors the Copilot CLI session PR path, which commits
 	 * uncommitted work before creating a pull request.

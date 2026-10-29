@@ -41,6 +41,8 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { invokeChangesetOperationAndReportErrors } from './changesetOperationInvocation.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ActiveEditorContext } from '../../../../workbench/common/contextkeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -331,6 +333,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatPetService chatPetService: IChatPetService,
 		@ILogService private readonly logService: ILogService,
+		@INotificationService notificationService: INotificationService,
 		@ISessionsService sessionsService: ISessionsService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
@@ -458,7 +461,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 						return;
 					}
 					this.logService.info(`[ChangesWorkbenchButtonBarWidget] Invoking changeset operation from the title bar: operation=${op.id}`);
-					return changeset.invokeOperation(op.id);
+					return invokeChangesetOperationAndReportErrors(changeset, op, undefined, notificationService, this.logService);
 				},
 			});
 

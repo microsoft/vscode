@@ -1565,6 +1565,36 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		});
 	});
 
+	(hasGit ? test : test.skip)('popStash restores stashed changes, and keeps the stash when restoring conflicts', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		await fs.writeFile(join(dir, 'tracked.txt'), 'before');
+		cp.execFileSync('git', ['add', 'tracked.txt'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'add tracked'], { cwd: dir, env, stdio: 'pipe' });
+
+		await fs.writeFile(join(dir, 'tracked.txt'), 'local');
+		await fs.writeFile(join(dir, 'untracked.txt'), 'untracked');
+		await svc!.createStash(URI.file(dir), { message: 'restore me', includeUntracked: true });
+		await svc!.popStash(URI.file(dir));
+		const restored = {
+			status: cp.execFileSync('git', ['status', '--porcelain'], { cwd: dir, env, encoding: 'utf8' }).trimEnd().split(/\r?\n/g).sort(),
+			stash: cp.execFileSync('git', ['stash', 'list', '--format=%s'], { cwd: dir, env, encoding: 'utf8' }).trim(),
+		};
+
+		await svc!.createStash(URI.file(dir), { message: 'conflicting', includeUntracked: true });
+		await fs.writeFile(join(dir, 'tracked.txt'), 'merged');
+		cp.execFileSync('git', ['commit', '-q', '-am', 'merged'], { cwd: dir, env, stdio: 'pipe' });
+		await assert.rejects(svc!.popStash(URI.file(dir)));
+		const conflicted = {
+			stash: cp.execFileSync('git', ['stash', 'list', '--format=%s'], { cwd: dir, env, encoding: 'utf8' }).trim(),
+		};
+
+		assert.deepStrictEqual({ restored, conflicted }, {
+			restored: { status: [' M tracked.txt', '?? untracked.txt'], stash: '' },
+			conflicted: { stash: 'On main: conflicting' },
+		});
+	});
+
 	(hasGit ? test : test.skip)('mergeBranch merges into the current branch', async () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');

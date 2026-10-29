@@ -833,6 +833,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		checkout: async () => { },
 		hasUncommittedChanges: async () => false,
 		createStash: async () => { },
+		popStash: async () => { },
 		commitAll: async () => { },
 		mergeBranch: async () => '',
 		restore: async () => { },
