@@ -2827,6 +2827,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 					this.workbenchGrid.exitMaximizedView();
 				}
 				this._maximumEditorDimensionsOverride ??= this.getMaximumEditorDimensions(this.mainContainer);
+				this._editorPaneVisibleWhileGridMoves = this.isEditorPaneVisible();
 				if (alignment === 'center') {
 					const panelSize = this._viewMoveSizing(this.panelPartView, 'height');
 					this.workbenchGrid.moveView(this.panelPartView, panelSize, this.sessionsPartView, Direction.Down);
@@ -2861,6 +2862,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			throw error;
 		} finally {
 			this._maximumEditorDimensionsOverride = previousMaximumEditorDimensionsOverride;
+			this._editorPaneVisibleWhileGridMoves = undefined;
 			if (exitMaximizedPanel) {
 				this._panelMaximizedEditorState = undefined;
 			}
@@ -2876,6 +2878,13 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			this.focusPart(focusedPart);
 		}
 	}
+
+	/**
+	 * Whether the side pane showed as the panel started to align, while the grid moves its views. The grid lays out its views
+	 * between the steps of a move, and they read from it, such as the Sessions Part whether the side pane shows: the grid
+	 * cannot answer for a view it has taken out until the move is done, so they read what was before.
+	 */
+	protected _editorPaneVisibleWhileGridMoves: boolean | undefined;
 
 	private _viewMoveSizing(view: ISerializableView, dimension: 'width' | 'height'): number | Sizing {
 		if (this.workbenchGrid.isViewVisible(view)) {
