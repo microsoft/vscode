@@ -41,7 +41,19 @@ export interface ArtifactAuthority {
 export type ArtifactAvailability =
 	| { readonly kind: 'available'; readonly observedAt?: number }
 	| { readonly kind: 'loading' }
-	| { readonly kind: 'stale' | 'authenticationRequired' | 'unavailable' | 'error'; readonly reason: string; readonly observedAt?: number };
+	| { readonly kind: 'stale' | 'unavailable' | 'error'; readonly reason: string; readonly observedAt?: number }
+	| {
+		readonly kind: 'authenticationRequired';
+		readonly reason: string;
+		readonly observedAt?: number;
+		/**
+		 * A secure page where the user grants the current credential the access it
+		 * lacks, such as GitHub's page authorizing it for an organization's single
+		 * sign-on. Signing in again would not grant it, so clients open this page
+		 * instead.
+		 */
+		readonly authorizationUrl?: string;
+	};
 
 export interface ArtifactIcon {
 	readonly id: string;
@@ -112,6 +124,18 @@ export interface ArtifactItemActionDescriptor {
 	readonly id: string;
 	readonly iconId: string;
 	readonly label: string;
+	/**
+	 * Runs the integration's registered action with this ID for the item, with {@link ArtifactItemActionInput} as its input,
+	 * instead of {@link IArtifactDetailsModel.runItemAction}. The registered action must be offered and enabled.
+	 */
+	readonly actionId?: string;
+}
+
+/** The input of a registered action that runs for one details item. */
+export interface ArtifactItemActionInput {
+	readonly [key: string]: string;
+	readonly detailsId: string;
+	readonly itemId: string;
 }
 
 export interface ArtifactDetailsItem {
@@ -317,6 +341,11 @@ export type ArtifactReconciliation =
 
 export interface ArtifactPrompt {
 	readonly text: string;
+	/**
+	 * The details this prompt is about, such as only the failing checks it asks to fix. When present, the request
+	 * presents these instead of the details linked to the action. They are not part of the model-facing prompt.
+	 */
+	readonly details?: readonly ArtifactDetails[];
 }
 
 /** A point-in-time description of an artifact action, independent of its model-facing prompt. */
@@ -396,6 +425,11 @@ export interface ArtifactContributionSnapshot {
 	readonly label: string;
 	/** The integration's name for several of its artifacts, shown when they are grouped. */
 	readonly groupLabel?: string;
+	/**
+	 * The integration's canonical identity for the bound resource, shared by aliases such as a pull request's
+	 * overview and checks pages. Absent until the artifact is bound to a resource.
+	 */
+	readonly resourceKey?: string;
 	readonly view: ArtifactContributionView;
 	readonly actions: readonly ArtifactActionDescriptor[];
 	readonly options: readonly ArtifactAutomationOption[];
@@ -427,8 +461,11 @@ export interface IArtifactModel {
 	requestAuthentication(integrationId: string): Promise<ArtifactAuthenticationRequest | undefined>;
 	/** `actor` defaults to the user; agents pass their chat and turn so consent records who asked. */
 	configure(integrationId: string, expectedRevision: number, values: Readonly<Record<string, boolean | string>>, actor?: ArtifactActor): Promise<void>;
-	/** `actor` defaults to the user; agents pass their chat and turn so the run records who asked. */
-	invoke(integrationId: string, actionId: string, chat: string, requestId: string, actor?: ArtifactActor): Promise<ArtifactRun>;
+	/**
+	 * `actor` defaults to the user; agents pass their chat and turn so the run records who asked. `input` is passed to the action,
+	 * for example the details item it runs for.
+	 */
+	invoke(integrationId: string, actionId: string, chat: string, requestId: string, actor?: ArtifactActor, input?: ArtifactJsonValue): Promise<ArtifactRun>;
 	cancel(runId: string): Promise<void>;
 	reconcile(runId: string): Promise<void>;
 	/** Newest first. The optional cursor is the preceding page's last run ID; page size is 1-200. */

@@ -343,6 +343,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			supportsDelegation: false,
 			capabilities: {
 				supportsCheckpoints: true,
+				supportsFileAttachments: true,
 				supportsPromptAttachments: true,
 				supportsImageAttachments: true,
 				get terminalCommandPrefix() {

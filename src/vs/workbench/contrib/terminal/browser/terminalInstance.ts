@@ -2537,6 +2537,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		disposables.push(quickPick);
 		quickPick.items = items;
 		quickPick.matchOnDescription = true;
+		quickPick.useNeutralSelection = true;
 		quickPick.placeholder = nls.localize('changeColor', 'Select a color for the terminal');
 		quickPick.show();
 		const result = await new Promise<IQuickPickItem | undefined>(r => {

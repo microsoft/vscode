@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -13,6 +12,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, ChatOriginKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSessionStatusRead, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
+import { SessionOriginKind } from '../../common/state/protocol/state.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../common/state/protocol/channels-chat/state.js';
 import { AgentHostStateManager, ChatRemovalReason, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
@@ -29,7 +29,7 @@ import type { CanvasState } from '../../common/state/protocol/channels-canvas/st
 
 suite('AgentHostStateManager', () => {
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let manager: AgentHostStateManager;
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 	const sessionChatUri = buildDefaultChatUri(sessionUri);
@@ -48,15 +48,8 @@ suite('AgentHostStateManager', () => {
 	}
 
 	setup(() => {
-		disposables = new DisposableStore();
 		manager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('createSession creates initial state with lifecycle Creating', () => {
 		const state = manager.createSession(makeSessionSummary());
@@ -1384,6 +1377,21 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(changed[0].session, sessionUri);
 		assert.strictEqual(Object.prototype.hasOwnProperty.call(changed[0].changes, '_meta'), true);
 		assert.strictEqual(readSessionEhcliAdoptable(changed[0].changes._meta), false);
+	});
+
+	test('keeps automation origin across surfaced refresh and restore without re-announcing it', () => {
+		const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/a', run: 'ahp-automation-run:/r' } as const;
+		manager.announceSurfacedSession({ ...makeSessionSummary(), origin });
+		const notifications: INotification[] = [];
+		disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+		manager.updateSurfacedSessionMetadata(sessionUri, { title: 'Renamed', modifiedAt: new Date(0).toISOString(), project: undefined, workingDirectories: undefined, _meta: undefined });
+		const surfaced = manager.getSurfacedSessionSummary(sessionUri)?.origin;
+		manager.restoreSession({ ...makeSessionSummary(), origin }, [], creationTimeChatStorageResource);
+		const changed = notifications.filter(notification => notification.type === NotificationType.SessionSummaryChanged);
+		assert.deepStrictEqual({
+			surfaced, live: manager.getSessionSummary(sessionUri)?.origin,
+			originNotified: changed.some(notification => Object.prototype.hasOwnProperty.call(notification.changes, 'origin')),
+		}, { surfaced: origin, live: origin, originNotified: false });
 	});
 
 	test('publishing a restored session announces it to clients that never saw it', () => {
@@ -3514,7 +3522,8 @@ suite('AgentHostStateManager', () => {
 				sourceStatus: manager.getSessionState(sessionUri)!.status & SessionStatus.InProgress,
 				targetStatus: manager.getSessionState(target)!.status & SessionStatus.InProgress,
 			}, {
-				envelopes: ['source session/chatRemoved', 'source session/chatRemoved', 'target session/chatAdded', 'target session/chatAdded', 'target session/chatsReordered', 'root root/activeSessionsChanged', 'root root/activeSessionsChanged'],
+				// Each moved chat, its subagent included, then tells its own subscribers its new owner.
+				envelopes: ['source session/chatRemoved', 'source session/chatRemoved', 'target session/chatAdded', 'target session/chatAdded', 'target session/chatsReordered', 'other chat/moved', 'other chat/moved', 'root root/activeSessionsChanged', 'root root/activeSessionsChanged'],
 				owners: ['peer true', 'sub true'],
 				removalReasons: [ChatRemovalReason.Moved, ChatRemovalReason.Moved],
 				sourceChats: [sessionChatUri],
@@ -3597,7 +3606,7 @@ suite('AgentHostStateManager', () => {
 				targetActive: manager.getSessionState(target)!.status & SessionStatus.InProgress,
 			}, {
 				// The former default chat is announced as the movable peer it is now; its own state follows once the target lists it.
-				published: ['target session/chatAdded', 'target session/chatAdded', 'other chat/movableChanged', 'target session/chatsReordered', 'notification root/sessionRemoved'],
+				published: ['target session/chatAdded', 'target session/chatAdded', 'other chat/movableChanged', 'target session/chatsReordered', 'other chat/moved', 'other chat/moved', 'notification root/sessionRemoved'],
 				source: undefined,
 				targetChats: [[sessionChatUri, 'Moved session', true], [sub, '', false], [targetDefault, 'Test', false]],
 				movable: true,

@@ -14,7 +14,7 @@ import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGrou
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { getCanvasInstanceLabels, getCanvasReferenceKey, ICanvasContextService, ICanvasReopenTarget, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
-import { getSessionCanvasDefinitionInstanceId, getSessionCanvasDefinitionLabels, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
+import { getSessionCanvasDefinitionInstanceId, getSessionCanvasDefinitionLabels, ISessionCanvasRegistryService, WindowCanvasesAvailableContext } from '../common/sessionCanvas.js';
 
 export const OPEN_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.openCanvas';
 export const REOPEN_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.reopenCanvas';
@@ -103,7 +103,7 @@ function appendCanvasSubmenu(menu: MenuId, when: ContextKeyExpression | undefine
 		icon: Codicon.preview,
 		group,
 		order: 4,
-		when,
+		when: ContextKeyExpr.and(when, WindowCanvasesAvailableContext.negate()),
 	});
 }
 

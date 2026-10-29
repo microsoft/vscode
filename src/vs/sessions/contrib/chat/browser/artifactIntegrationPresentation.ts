@@ -16,11 +16,12 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader } from '../../../../base/common/observable.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { ArtifactActionView, ArtifactContributionSnapshot, ArtifactRun, ArtifactSnapshot, getArtifactActionAvailability, getArtifactMainContribution, IArtifactModel, isArtifactOptionEnabled } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactActionView, ArtifactContributionSnapshot, ArtifactJsonValue, ArtifactRun, ArtifactSnapshot, getArtifactActionAvailability, getArtifactMainContribution, IArtifactModel, isArtifactOptionEnabled } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { getArtifactThemeIcon as icon, renderArtifactIcon } from '../../../../platform/artifactIntegrations/browser/artifactDetailsList.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ChatPillActionViewItem, IChatPill, IChatPillAction, IChatPillEntry } from '../../../../workbench/browser/chatPills.js';
 import { ArtifactButtons, IArtifactButton } from './artifactButtons.js';
 import { ArtifactDetailsSelection, ArtifactDetailsViewState, IArtifactActionViewData } from './artifactDetailsView.js';
@@ -89,6 +90,7 @@ export class ArtifactIntegrationPresentation extends Disposable {
 		readonly detailsHost: IArtifactDetailsHost,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notifications: INotificationService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 		this.snapshot = derived(this, reader => {
@@ -142,12 +144,13 @@ export class ArtifactIntegrationPresentation extends Disposable {
 		return this.entry;
 	}
 
-	async invoke(integrationId: string, actionId: string): Promise<ArtifactRun> {
+	/** `input` is passed to the action, for example the details item it runs for. */
+	async invoke(integrationId: string, actionId: string, input?: ArtifactJsonValue): Promise<ArtifactRun> {
 		const chat = this.invokingChat();
 		if (!chat) {
 			throw new Error(localize('artifactInvokingChatUnavailable', "The chat that invoked this artifact action is no longer available."));
 		}
-		const run = await this.model.invoke(integrationId, actionId, chat, generateUuid());
+		const run = await this.model.invoke(integrationId, actionId, chat, generateUuid(), undefined, input);
 		status(localize('artifactActionRequested', "Artifact action requested: {0}", run.reason));
 		return run;
 	}
@@ -156,12 +159,21 @@ export class ArtifactIntegrationPresentation extends Disposable {
 		if (!contribution.authentication) {
 			return undefined;
 		}
+		const availability = contribution.view.availability;
+		// Signing in again would not grant what the page grants the current credential, such as single sign-on access.
+		const authorizationUrl = availability.kind === 'authenticationRequired' ? availability.authorizationUrl : undefined;
 		return {
 			id: JSON.stringify([contribution.integrationId, 'authentication', 'request']),
 			label: localize('artifactSignIn', "Sign In"), icon: Codicon.signIn,
 			enabled: contribution.authentication.enabled,
-			description: contribution.authentication.disabledReason ?? (contribution.view.availability.kind === 'authenticationRequired' ? contribution.view.availability.reason : undefined),
-			run: () => this.run(async () => { await this.model.requestAuthentication(contribution.integrationId); }),
+			description: contribution.authentication.disabledReason ?? (availability.kind === 'authenticationRequired' ? availability.reason : undefined),
+			run: () => this.run(async () => {
+				if (authorizationUrl) {
+					await this.openerService.open(authorizationUrl, { openExternal: true });
+				} else {
+					await this.model.requestAuthentication(contribution.integrationId);
+				}
+			}),
 		};
 	}
 

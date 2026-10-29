@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ExternalUriOpenerPriority } from '../../../../../editor/common/languages.js';
@@ -38,11 +38,10 @@ class MockQuickInputService implements Partial<IQuickInputService> {
 }
 
 suite('ExternalUriOpenerService', () => {
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = disposables.add(new TestInstantiationService());
 
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
@@ -50,12 +49,6 @@ suite('ExternalUriOpenerService', () => {
 			registerExternalOpener: () => { return Disposable.None; }
 		});
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Should not open if there are no openers', async () => {
 		const externalUriOpenerService = disposables.add(instantiationService.createInstance(ExternalUriOpenerService));
@@ -67,7 +60,7 @@ suite('ExternalUriOpenerService', () => {
 		});
 
 		const uri = URI.parse('http://contoso.com');
-		const didOpen = await externalUriOpenerService.openExternal(uri.toString(), { sourceUri: uri }, CancellationToken.None);
+		const didOpen = await externalUriOpenerService.openExternal(uri.toString(), { sourceUri: uri, sourceHref: uri.toString() }, CancellationToken.None);
 		assert.strictEqual(didOpen, false);
 	});
 
@@ -100,7 +93,7 @@ suite('ExternalUriOpenerService', () => {
 		});
 
 		const uri = URI.parse('http://contoso.com');
-		const didOpen = await externalUriOpenerService.openExternal(uri.toString(), { sourceUri: uri, viewColumn: ViewColumn.Beside }, CancellationToken.None);
+		const didOpen = await externalUriOpenerService.openExternal(uri.toString(), { sourceUri: uri, sourceHref: uri.toString(), viewColumn: ViewColumn.Beside }, CancellationToken.None);
 		assert.deepStrictEqual({ didOpen, openedWithEnabled, viewColumn }, { didOpen: true, openedWithEnabled: true, viewColumn: ViewColumn.Beside });
 	});
 
@@ -131,7 +124,7 @@ suite('ExternalUriOpenerService', () => {
 		});
 
 		const uri = URI.parse('http://contoso.com');
-		const didOpen = await externalUriOpenerService.openExternal(uri.toString(), { sourceUri: uri }, CancellationToken.None);
+		const didOpen = await externalUriOpenerService.openExternal(uri.toString(), { sourceUri: uri, sourceHref: uri.toString() }, CancellationToken.None);
 		assert.strictEqual(didOpen, true);
 		assert.strictEqual(openedWithPreferred, true);
 	});
@@ -141,18 +134,28 @@ suite('ExternalUriOpenerService', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IQuickInputService, new MockQuickInputService(0));
 		const href = 'http://contoso.com/search?q=a%26b';
+		const sourceHref = 'http://localhost:3000/search?q=a%26b';
 
 		const open = async (priorities: Record<string, ExternalUriOpenerPriority>, preferredOpenerId?: string) => {
 			const opened: string[] = [];
+			const sourceHrefs: string[] = [];
 			const externalUriOpenerService = disposables.add(instantiationService.createInstance(ExternalUriOpenerService));
 			disposables.add(externalUriOpenerService.registerExternalOpenerProvider(new class implements IExternalOpenerProvider {
 				async *getOpeners(_targetUri: URI): AsyncGenerator<IExternalUriOpener> {
 					for (const [id, priority] of Object.entries(priorities)) {
-						yield { id, label: id, canOpen: async () => priority, openExternalUri: async openedHref => { opened.push(`${id}:${openedHref}`); return true; } };
+						yield {
+							id, label: id, canOpen: async () => priority,
+							openExternalUri: async (openedHref, context) => {
+								opened.push(`${id}:${openedHref}`);
+								sourceHrefs.push(context.sourceHref);
+								return true;
+							}
+						};
 					}
 				}
 			}));
-			const didOpen = await externalUriOpenerService.openExternal(href, { sourceUri: URI.parse(href), preferredOpenerId }, CancellationToken.None);
+			const didOpen = await externalUriOpenerService.openExternal(href, { sourceUri: URI.parse(sourceHref), sourceHref, preferredOpenerId }, CancellationToken.None);
+			assert.deepStrictEqual(sourceHrefs, opened.map(() => sourceHref));
 			return { didOpen, opened };
 		};
 

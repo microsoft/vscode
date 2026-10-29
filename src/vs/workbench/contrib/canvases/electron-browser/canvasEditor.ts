@@ -345,7 +345,9 @@ export class CanvasEditor extends EditorPane {
 		const rect = this.wrapper.getBoundingClientRect();
 		const zoomFactor = getZoomFactor(this.window);
 		const snap = (value: number) => Math.floor(value * zoomFactor) / zoomFactor;
-		const bounds = { x: snap(rect.left), y: snap(rect.top), width: snap(rect.width), height: snap(rect.height), windowId: this.group.windowId, zoomFactor, cornerRadius: 0 };
+		// The native view paints above the DOM, so it takes its corner shape from the container's CSS.
+		const cornerRadius = parseFloat(this.window.getComputedStyle(this.container).borderTopLeftRadius) || 0;
+		const bounds = { x: snap(rect.left), y: snap(rect.top), width: snap(rect.width), height: snap(rect.height), windowId: this.group.windowId, zoomFactor, cornerRadius };
 		const visible = this.editorVisible.get()
 			&& bounds.width > 0
 			&& bounds.height > 0

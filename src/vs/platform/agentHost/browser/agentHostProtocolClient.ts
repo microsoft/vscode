@@ -23,13 +23,15 @@ import { newAgentHostSessionUri } from '../common/agentHostSessionIdentity.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey } from '../common/meta/agentHostSessionUrisMeta.js';
 import { readRelayKeepAliveTimeout } from '../common/meta/relayConnectionMeta.js';
 import { supportsAgentHostWorktreeDiskUsage } from '../common/meta/agentHostWorktreeDiskUsageMeta.js';
-import { supportsAgentHostWorktreeCleanup } from '../common/meta/agentHostWorktreeCleanupMeta.js';
-import { SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupStatusValidator, type IAgentHostWorktreeCleanupStatus } from '../common/agentHostWorktreeCleanup.js';
+import { supportsAgentHostManagedWorktrees, supportsAgentHostWorktreeCleanup, supportsForceWorktreeCleanup } from '../common/meta/agentHostWorktreeCleanupMeta.js';
+import { CleanupManagedWorktreeExtensionMethod, ListManagedWorktreesExtensionMethod, managedWorktreesValidator, SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupStatusValidator, type IAgentHostManagedWorktree, type IAgentHostWorktreeCleanupStatus } from '../common/agentHostWorktreeCleanup.js';
 import { serializeChatWorkspace, withCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS, serializeCreateSessionImport, splitCreateSessionImportChunks, StageCreateSessionImportChunkExtensionMethod, supportsAgentHostCreateSessionImport, withCreateSessionImportMeta, withStagedCreateSessionImportMeta } from '../common/meta/agentHostCreateSessionImportMeta.js';
 import { vArray, vEnum, vObj, vOptionalProp, vString, vUndefined, vUnknown } from '../../../base/common/validation.js';
 import { AgentHostChannelScheduler, readChannelFlowControl } from '../common/agentHostChannelDelivery.js';
 import { AgentHostTcpBudget, AgentHostTcpConnection, agentHostTcpReceiveLimits, type IAgentHostTcpConnection } from '../common/agentHostTcpConnection.js';
+import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificatesProvider } from '../common/clientCertificatesProtocol.js';
+import { AgentHostClientCertificatesCapabilityMetaKey } from '../common/meta/agentHostClientCertificatesMeta.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
@@ -40,7 +42,8 @@ import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, I
 import { readAgentHostAuthenticationEncryption, type IAgentHostAuthenticationEncryption } from '../common/meta/agentHostAuthenticationEncryption.js';
 import { sealAgentHostCredential } from './agentHostCredentialSealing.js';
 import { supportsAgentHostDebugLogsCancellation } from '../common/meta/agentHostDebugLogsMeta.js';
-import { CancelWorktreeDiskUsageExtensionMethod, MeasureWorktreeDiskUsageExtensionMethod, AgentHostSessionMoveUnsupportedError, MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove, CompleteSavedChatContinuationExtensionMethod, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ListAgentExtensionsExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetChatWorkspaceExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostCreateChatWorkspace, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, ReadSavedChatExtensionMethod, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { AcknowledgeAutomationDeletionExtensionMethod, CancelWorktreeDiskUsageExtensionMethod, MeasureWorktreeDiskUsageExtensionMethod, AgentHostSessionMoveUnsupportedError, MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove, CompleteSavedChatContinuationExtensionMethod, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ListAgentExtensionsExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetChatWorkspaceExtensionMethod, StopBackgroundWorkExtensionMethod, DeleteAutomationExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostCreateChatWorkspace, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, ReadSavedChatExtensionMethod, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { supportsAgentHostAutomationHistory } from '../common/meta/agentHostAutomationsMeta.js';
 import { supportsAgentHostCopilotExtensions } from '../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../common/meta/agentHostSavedChatMeta.js';
 import { reviveSavedChat, type IAgentHostSavedChat, type IAgentHostSavedChatContinuation, type IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
@@ -55,13 +58,15 @@ import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubs
 import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostUri } from '../common/agentHostUri.js';
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
-import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionType, AuthRequiredReason, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { getOlderHostDefaultChat } from './agentHostOlderHostCompatibility.js';
 import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isAhpChatChannel, isSessionChatArchived, isSessionStatusRead, type AgentInfo, type ClientPluginCustomization, type SessionState, type Message, type RootState } from '../common/state/sessionState.js';
 import type { AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import { ChatMoveDestinationKind } from '../common/state/protocol/channels-chat/commands.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
-import { getAgentHostSupportedProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
+import { getAgentHostClientProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
+import { ChatProvidersConfigKey, ChatProvidersSettingId } from '../common/agentHostChatProviders.js';
+import { compareProtocolVersions } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult, type JsonRpcNotification } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, NonReconnectableTransportError, type AgentHostTransportFailureReason, type IProtocolTransport } from '../common/state/sessionTransport.js';
@@ -96,6 +101,9 @@ import { DevContainerAgentHostProtocolClient } from '../common/devContainerAgent
 import type { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
+
+/** The first protocol version whose hosts may advertise `multipleChatProviders`. */
+const MULTIPLE_CHAT_PROVIDERS_PROTOCOL_VERSION = '1.1.0';
 
 function toAgentExtensionMode(value: unknown): AgentExtensionMode | undefined {
 	if (typeof value !== 'string') {
@@ -263,6 +271,8 @@ export interface IAgentHostProtocolClientOptions {
 	readonly resolveInitialAuthentication?: () => Promise<AuthenticateParams | undefined>;
 	/** Resolves existing credentials for advertised resources before protected requests are released. */
 	readonly resolveAdvertisedAuthentication?: (agents: readonly AgentInfo[]) => Promise<readonly AuthenticateParams[]>;
+	/** Serves client trust roots on demand only for remotes sharing the client's network. */
+	readonly clientCertificates?: IAgentHostClientCertificatesProvider;
 	/** Releases resources owned by the logical protocol client after its final disposal. */
 	readonly onDispose?: () => void;
 }
@@ -330,8 +340,16 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _transport!: IProtocolTransport;
 	get clientConnectionKind(): AgentHostClientConnectionKind | undefined { return this._transport.clientConnectionKind; }
 	private _relayRootRefresh: { readonly transport: IProtocolTransport; readonly promise: Promise<void> } | undefined;
+	private _initialAuthenticationResource: string | undefined;
+	private _expiredRelayAuthentication: { readonly transport: IProtocolTransport; readonly resource: string } | undefined;
 	/** Disposable holding the listeners attached to the current transport. */
 	private readonly _transportListeners = this._register(new MutableDisposable<DisposableStore>());
+	/** The next reconnect sends `initialize` instead of `reconnect`, so the host decides its capabilities again. */
+	private _freshInitializeRequested = false;
+	/** Whether to name the chat subscriptions held once the re-initialize for chats with their own agents connects. */
+	private _describeChatSubscriptionsOnReconnect = false;
+	/** Whether this connection already re-initialized for `multipleChatProviders` since the host's gate last turned on. */
+	private _reinitializedForChatProviders = false;
 	private readonly _connectionAuthority: string;
 	readonly resourceUris: IAgentHostResourceUriMapper;
 	private _serverSeq = 0;
@@ -523,6 +541,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _connectionOperation: 'connect' | 'recover' = 'connect';
 	private readonly _resolveInitialAuthentication: (() => Promise<AuthenticateParams | undefined>) | undefined;
 	private readonly _resolveAdvertisedAuthentication: IAgentHostProtocolClientOptions['resolveAdvertisedAuthentication'];
+	private readonly _clientCertificates: IAgentHostProtocolClientOptions['clientCertificates'];
 	private readonly _onDispose: (() => void) | undefined;
 	private _didDispose = false;
 
@@ -554,6 +573,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._state.kind === AgentHostClientState.Reconnecting
 			? this._state.reconnect.nextAttemptAt
 			: undefined;
+	}
+
+	/** The versions offered in `initialize`; read on every connection, so the setting applies from the next one. */
+	private _offeredProtocolVersions(): string[] {
+		return getAgentHostClientProtocolVersions(this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) === true);
 	}
 
 	/**
@@ -598,6 +622,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._resolveInitialAuthentication = options?.resolveInitialAuthentication;
 		this._trustedAuthenticationTokenSealer = options?.sealAuthenticationToken;
 		this._resolveAdvertisedAuthentication = options?.resolveAdvertisedAuthentication;
+		this._clientCertificates = options?.clientCertificates;
 		this._onDispose = options?.onDispose;
 
 		if (typeof transportOrFactory === 'function') {
@@ -620,6 +645,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._register(this.onDidAction(envelope => {
 			this._subscriptionManager.receiveEnvelope(envelope);
 		}));
+		// The host's gate for chats with their own agents usually turns on through this client's own mirror, after the handshake.
+		this._register(this._subscriptionManager.rootState.onDidChange(() => this._maybeReinitializeForChatProviders()));
+		this._register(this.onDidChangeConnectionState(() => this._maybeReinitializeForChatProviders()));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (this._state.kind !== AgentHostClientState.Connected || this._isWebPubSubRelay()) {
@@ -648,6 +676,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (Object.keys(patch).length) {
 				this._logService.info(`[RemoteAgentHostProtocol] Mirroring configuration to host root config from ${ConfigurationTargetToString(e.source)}: ${mirrored.join(', ')}`);
 				this._dispatchRootConfig(patch);
+			}
+			if (e.affectsConfiguration(ChatProvidersSettingId.Enabled)) {
+				// The host's gate may already be on (e.g. mirrored by another window), so its root state won't change.
+				this._maybeReinitializeForChatProviders();
 			}
 			if (e.affectsConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID)) {
 				this._updateAutoApprovePolicyRestriction();
@@ -705,6 +737,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._relayRootRefresh = undefined;
 		}
 		this._transport = transport;
+		this._expiredRelayAuthentication = undefined;
 		this._transportListeners.value = listeners;
 	}
 
@@ -853,7 +886,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				// Advertise every compatible version, most-preferred first, so an
 				// older host (a cloud sandbox running a 0.5.x `copilotd`) can negotiate down
 				// instead of rejecting the connection. A current host still picks the newest.
-				protocolVersions: getAgentHostSupportedProtocolVersions(),
+				protocolVersions: this._offeredProtocolVersions(),
 				clientId: this._clientId,
 				clientInfo: this._clientInfo,
 				_meta: this._clientMeta(),
@@ -861,7 +894,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}, { bypassInitializeQueue: true }));
 			this._logService.info(`[RemoteAgentHostProtocol] Initialized: address=${this._address} clientId=${this._clientId} durationMs=${watch.elapsed()}`);
 			this._applyInitializeResult(result);
-			// Keep the snapshot even if authentication must finish on a later replay reconnect.
+			// Keep the snapshot even if connection setup must finish on a later replay reconnect.
 			this._hydrateInitializedRootState(result);
 			if (this._resolveInitialAuthentication || this._resolveAdvertisedAuthentication || this._authentication.size > 0) {
 				stage = 'authentication';
@@ -1214,7 +1247,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private async _reconnectOrInitialize(lastSeenServerSeq: number, subscriptions: string[]): Promise<{ result: CommandMap['reconnect']['result'] & { readonly _meta?: Record<string, unknown> }; freshInitialize: boolean }> {
+		const freshInitialize = this._freshInitializeRequested;
+		this._freshInitializeRequested = false;
 		try {
+			if (freshInitialize) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, 'A fresh initialize was requested');
+			}
 			const result = await this._dispatchRequest<CommandMap['reconnect']['result'] & { readonly _meta?: Record<string, unknown> }>('reconnect', {
 				channel: ROOT_STATE_URI,
 				clientId: this._clientId,
@@ -1229,10 +1267,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 		}
 
-		this._logService.info(`[RemoteAgentHostProtocol] Server forgot client ${this._clientId}; initializing a fresh connection.`);
+		this._logService.info(freshInitialize
+			? `[RemoteAgentHostProtocol] Re-initializing ${this._address} so the host decides its capabilities again.`
+			: `[RemoteAgentHostProtocol] Server forgot client ${this._clientId}; initializing a fresh connection.`);
 		const initializeResult = await this._dispatchRequest<IAgentHostExtensionInitializeResult>('initialize', {
 			channel: ROOT_STATE_URI,
-			protocolVersions: getAgentHostSupportedProtocolVersions(),
+			protocolVersions: this._offeredProtocolVersions(),
 			clientId: this._clientId,
 			clientInfo: this._clientInfo,
 			_meta: this._clientMeta(),
@@ -1349,6 +1389,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					const key = this._authenticationKey(normalizedParams);
 					if (this._authenticationOperations.get(key) === operations.get(key)) {
 						initialAuthenticationKey = key;
+						this._initialAuthenticationResource = normalizedParams.resource;
 						const expiresAt = getExpirationTime(normalizedParams.expiresIn);
 						this._authentication.set(key, { params: normalizedParams, expiresAt });
 					}
@@ -1470,6 +1511,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		const telemetryLevel = this._effectiveTelemetryLevel();
 		const sendIdentity = telemetryLevel >= TelemetryLevel.USAGE;
 		return {
+			...(this._clientCertificates?.isEnabled() ? { [AgentHostClientCertificatesCapabilityMetaKey]: true } : {}),
 			...toAgentHostClientMeta(
 				this._transport.clientConnectionKind,
 				telemetryLevel,
@@ -1530,6 +1572,68 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			void this._updateManagedSettingsPermissions();
 		}
 	}
+
+	/**
+	 * The host decides `multipleChatProviders` from its root config at the
+	 * handshake, but this client mirrors `multipleChatProviders.enabled` only
+	 * after it, and offers the protocol version that may advertise it only
+	 * while the setting is on. When the setting is on, the host's gate is on
+	 * (as confirmed by the host's root state), and the handshake didn't
+	 * advertise the capability, re-initialize once so the host decides again,
+	 * including when the handshake negotiated an older version because the
+	 * setting was off then. At most once until the host's gate or the setting
+	 * turns off again, so it never loops; nothing happens with the setting off.
+	 */
+	/**
+	 * The chat subscriptions this client holds, by holder: every one is restored after a re-initialize, so this
+	 * names the components that make a re-initialize restore many chats.
+	 */
+	private _describeChatSubscriptions(): string {
+		const holders = new Map<string, number>();
+		let count = 0;
+		for (const subscription of this._subscriptionManager.getActiveSubscriptions()) {
+			if (subscription.kind === StateComponents.Chat) {
+				count++;
+				for (const holder of subscription.holders) {
+					holders.set(holder.owner, (holders.get(holder.owner) ?? 0) + holder.count);
+				}
+			}
+		}
+		return `${count} chat subscription(s) held by: ${[...holders].map(([owner, holderCount]) => `${owner}=${holderCount}`).join(', ') || 'none'}`;
+	}
+
+	private _maybeReinitializeForChatProviders(): void {
+		if (this._describeChatSubscriptionsOnReconnect && this._state.kind === AgentHostClientState.Connected) {
+			this._describeChatSubscriptionsOnReconnect = false;
+			this._logService.trace(`[RemoteAgentHostProtocol] ${this._address} re-initialized for chats with their own agents with ${this._describeChatSubscriptions()}.`);
+		}
+		if (this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) !== true) {
+			this._reinitializedForChatProviders = false;
+			return;
+		}
+		if (this._state.kind !== AgentHostClientState.Connected || !this._transportFactory) {
+			return;
+		}
+		const root = this._subscriptionManager.rootState.value;
+		if (!root || root instanceof Error || root.config?.values[ChatProvidersConfigKey.Enabled] !== true) {
+			this._reinitializedForChatProviders = false;
+			return;
+		}
+		const result = this._initializeResult.get();
+		if (!result || result.multipleChatProviders || this._reinitializedForChatProviders
+			|| !this._offeredProtocolVersions().some(version => compareProtocolVersions(version, MULTIPLE_CHAT_PROVIDERS_PROTOCOL_VERSION) >= 0)) {
+			return;
+		}
+		this._reinitializedForChatProviders = true;
+		this._freshInitializeRequested = true;
+		this._logService.info(`[RemoteAgentHostProtocol] ${this._address} enabled chats with their own agents after the handshake; re-initializing.`);
+		this._logService.trace(`[RemoteAgentHostProtocol] ${this._address} re-initializing with ${this._describeChatSubscriptions()}.`);
+		this._describeChatSubscriptionsOnReconnect = true;
+		// Disposing the listeners closes the transport; route the close through the soft-reconnect path, as the watchdog does.
+		this._transportListeners.clear();
+		this._handleTransportClose();
+	}
+
 
 	private _updateDynamicAutoTiers(): void {
 		const enabled = getGlobalConfigurationValue<boolean>(this._configurationService, AgentHostDynamicAutoTiersEnabledSettingId) === true;
@@ -1845,7 +1949,21 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private async _subscribe(resource: URI): Promise<IStateSnapshot> {
 		this._logService.trace(`[RemoteAgentHostProtocol] subscribe start: ${resource.toString()}`);
-		const result = await this._sendRequest('subscribe', { channel: resource.toString() });
+		let result: CommandMap['subscribe']['result'];
+		while (true) {
+			try {
+				result = await this._sendRequest('subscribe', { channel: resource.toString() });
+				break;
+			} catch (error) {
+				// A subscribe in flight when the transport drops (a soft reconnect, or the re-initialize that enables
+				// chats with their own agents) is rejected only because its reply was lost: send it again once the
+				// client reconnects, as any request issued while reconnecting is, instead of failing the subscription.
+				if (!isConnectionClosedError(error) || (this._state as ClientState).kind !== AgentHostClientState.Reconnecting) {
+					throw error;
+				}
+				this._logService.trace(`[RemoteAgentHostProtocol] subscribe lost to a reconnect, retrying once reconnected: ${resource.toString()}`);
+			}
+		}
 		if (!result.snapshot) {
 			throw new Error(`subscribe to ${resource.toString()} returned no snapshot`);
 		}
@@ -1983,19 +2101,44 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 	}
 
-	async sessionWorktreeCleanup(session: URI, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined> {
+	async sessionWorktreeCleanup(session: URI, retry: boolean, force = false): Promise<IAgentHostWorktreeCleanupStatus | undefined> {
+		if (force && !supportsForceWorktreeCleanup(this.initializeResult.get())) {
+			throw new Error('This agent host does not support forced worktree cleanup.');
+		}
 		if (!supportsAgentHostWorktreeCleanup(this.initializeResult.get())) {
 			if (retry) {
 				throw new Error('This agent host does not support retrying worktree cleanup.');
 			}
 			return undefined;
 		}
-		const result = await this._sendExtensionRequest(SessionWorktreeCleanupExtensionMethod, { session: session.toString(), retry });
+		const result = await this._sendExtensionRequest(SessionWorktreeCleanupExtensionMethod, { session: session.toString(), retry, ...(force ? { force } : {}) });
 		const validated = sessionWorktreeCleanupStatusValidator.validate(result);
 		if (validated.error) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid worktree cleanup status');
 		}
 		return validated.content;
+	}
+
+	async listManagedWorktrees(repositories: readonly URI[]): Promise<IAgentHostManagedWorktree[]> {
+		if (!supportsAgentHostManagedWorktrees(this.initializeResult.get())) {
+			return [];
+		}
+		const result = await this._sendExtensionRequest(ListManagedWorktreesExtensionMethod, { repositories: repositories.map(repository => repository.toString()) });
+		const validated = managedWorktreesValidator.validate(result);
+		if (validated.error) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid worktree inventory');
+		}
+		return validated.content;
+	}
+
+	async cleanupManagedWorktree(repository: URI, worktree: URI, branch: string, force = false): Promise<void> {
+		if (force && !supportsForceWorktreeCleanup(this.initializeResult.get())) {
+			throw new Error('This agent host does not support forced worktree cleanup.');
+		}
+		if (!supportsAgentHostManagedWorktrees(this.initializeResult.get())) {
+			throw new Error('This agent host does not support managed worktree cleanup.');
+		}
+		await this._sendExtensionRequest(CleanupManagedWorktreeExtensionMethod, { repository: repository.toString(), worktree: worktree.toString(), branch, ...(force ? { force } : {}) });
 	}
 
 	async installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
@@ -2193,6 +2336,22 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._sendRequest('runAutomation', params);
 	}
 
+	async deleteAutomation(resource: string, deleteHistory: boolean, legacySessions: readonly URI[] = [], requestId?: string): Promise<readonly string[]> {
+		if (!supportsAgentHostAutomationHistory(this.initializeResult.get())) {
+			throw new Error('The Agent Host does not support Automation history retention or deletion.');
+		}
+		return this._sendExtensionRequest(DeleteAutomationExtensionMethod, {
+			automation: resource,
+			deleteHistory,
+			legacySessions: legacySessions.map(session => session.toString()),
+			...(requestId ? { requestId } : {}),
+		});
+	}
+
+	async acknowledgeAutomationDeletion(requestId: string): Promise<void> {
+		await this._sendExtensionRequest(AcknowledgeAutomationDeletionExtensionMethod, { requestId });
+	}
+
 	async fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> {
 		return this._sendRequest('fetchAutomationRuns', params);
 	}
@@ -2291,6 +2450,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
+		const transport = this._transport;
 		const normalizedParams = this._normalizeAuthenticationParams(params);
 		const key = this._authenticationKey(normalizedParams);
 		this._authenticationOperations.get(key)?.cancel();
@@ -2314,6 +2474,21 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._authentication.delete(key);
 		}
 		await this._refreshRelayRootSnapshot();
+		const expired = this._expiredRelayAuthentication;
+		if (params.token && !params.target && expired?.transport === transport && params.resource === expired.resource) {
+			if (operation.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			this._markSubscriptionsAwaitingRestore([]);
+			await this._restoreSubscriptionsAwaitingRestore();
+			if (operation.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			if (this._expiredRelayAuthentication === expired && this._transport === transport && !operation.token.isCancellationRequested) {
+				this._expiredRelayAuthentication = undefined;
+				this._onDidReconnect.fire();
+			}
+		}
 		return { authenticated: true };
 	}
 
@@ -2518,6 +2693,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			channel: session.toString(),
 			chat: chat.toString(),
 			...(options?.title !== undefined ? { title: options.title } : {}),
+			...(options?.provider !== undefined ? { provider: options.provider } : {}),
 			...(initialMessage ? { initialMessage } : {}),
 			...(options?.workingDirectories !== undefined && !options.fork
 				? { workingDirectories: options.workingDirectories.map(directory => fromAgentHostUri(directory).toString()) }
@@ -2599,6 +2775,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					}
 				} : {}),
 				summary: s.title,
+				origin: s.origin,
 				status: s.status,
 				activity: s.activity,
 				workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? this._toClientUri(URI.parse(s.workingDirectories[0])) : undefined,
@@ -2610,6 +2787,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					summary: chat.title,
 					kind: s.defaultChat === chat.resource ? 'default' : 'peer',
 					origin: chat.origin,
+					...(chat.provider !== undefined ? { provider: chat.provider } : {}),
 					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 					...(isSessionChatArchived(chat) ? { archived: true } : {}),
 					...(chat.status !== undefined ? { status: chat.status, isRead: isSessionStatusRead(chat.status) } : {}),
@@ -2869,6 +3047,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				case 'root/sessionSummaryChanged':
 				case 'root/progress':
 				case 'auth/required': {
+					if (msg.method === 'auth/required' && this._isWebPubSubRelay()
+						&& isAhpRootChannel(msg.params.channel) && msg.params.reason === AuthRequiredReason.Expired
+						&& msg.params.resource.resource === this._initialAuthenticationResource && !this._expiredRelayAuthentication) {
+						this._expiredRelayAuthentication = { transport: this._transport, resource: msg.params.resource.resource };
+						this._markSubscriptionsAwaitingRestore([]);
+					}
 					this._logService.trace(`[RemoteAgentHostProtocol] Notification: ${msg.method}`);
 					// The case narrows `msg.method` to a single literal; the matching params
 					// shape is paired with that literal by the {@link ServerNotificationMap}
@@ -3030,6 +3214,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		void (async () => {
 			try {
 				switch (method) {
+					case LoadClientCertificatesExtensionMethod: {
+						const certificates = this._clientCertificates?.isEnabled() ? await this._clientCertificates.loadCertificates() : [];
+						sendResult({ certificates: [...certificates] } satisfies IAgentHostExtensionServerCommandMap[typeof LoadClientCertificatesExtensionMethod]['result']);
+						return;
+					}
 					case ClientArtifactIntegrationExtensionMethod: {
 						const server = this._servedArtifactIntegrations;
 						if (!server || !isArtifactIntegrationRequest(params)) {

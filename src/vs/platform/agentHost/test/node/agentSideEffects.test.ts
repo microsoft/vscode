@@ -6047,6 +6047,8 @@ suite('AgentSideEffects', () => {
 						schema: { type: 'object', properties: {} }, values: { autoApprove: 'autoApprove' },
 					});
 				}
+				// The chat publishes its config once registered with its session's; that is not the approval's.
+				await timeout(0);
 				disposables.add(sideEffects.registerProgressListener(agent));
 				const response = new DeferredPromise<boolean>();
 				agent.respondToPermissionRequest = (_requestId, approved) => { void response.complete(approved); };
@@ -6594,6 +6596,7 @@ suite('AgentSideEffects', () => {
 							pastTenseMessage: 'Got the magic word',
 							content: [{ type: ToolResultContentType.Text, text: 'XYLOPHONE' }],
 							structuredContent: { word: 'XYLOPHONE' },
+							resultMetadata: { ui: { private: [null, false, 0] } },
 						};
 						dispatch({
 							type: ActionType.ChatToolCallComplete, turnId: 'turn-1', toolCallId: 'tc-result',

@@ -310,6 +310,11 @@ class RecordingTelemetry extends NullTelemetryServiceShape {
 
 const proxyResolver: IAgentHostProxyResolver = {
 	_serviceBrand: undefined,
+	clientCertificates: [],
+	registerCertificateProvider: () => toDisposable(() => { }),
+	loadClientCertificates: async () => [],
+	setClientCertificates: () => { },
+	loadCertificates: async () => [],
 	onDidRegisterConnection: Event.None,
 	onDidChangeConfiguration: Event.None,
 	register: () => toDisposable(() => { }),

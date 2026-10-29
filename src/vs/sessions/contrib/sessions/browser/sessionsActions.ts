@@ -43,7 +43,6 @@ import { IActiveSession, ISessionsManagementService } from '../../../services/se
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionGroupsService } from '../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { $, append, EventHelper, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -76,7 +75,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { ChatMoveSettingId } from '../../../../platform/agentHost/common/agentHostChatMove.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { getChatMoveDestinations, getSessionMoveDestinations, isChatMoveDndEnabled, ISessionsListMoveDestination, runSessionsListMove, SessionsListMove } from './views/sessionsListChatMove.js';
+import { getChatMoveDestinations, getSessionMoveDestinations, isChatMoveDndEnabled, isCrossAgentChatMoveEnabled, ISessionsListMoveDestination, runSessionsListMove, SessionsListMove } from './views/sessionsListChatMove.js';
 
 export const NEW_SESSION_BUTTON_STYLE_SETTING = 'sessions.newSessionButton.style';
 export const NEW_SESSION_BUTTON_STYLE_TREATMENT = 'agentSessionsNewSessionButtonStyle';
@@ -126,8 +125,10 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			const isArchived = session.isArchived.read(reader);
 			const workspace = session.workspace.read(reader);
 			const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-			const pullRequestIcon = getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
-			const completedStateIcon = session.completedStateIcon?.read(reader) ?? pullRequestIcon;
+			// A provider icon is authoritative: the workspace's pull requests may belong to other chats.
+			const completedStateIcon = session.completedStateIcon
+				? session.completedStateIcon.read(reader)
+				: getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(gitHubInfo).map(pullRequest => pullRequest.icon));
 			const icon = sessionsListModelService.getStatusIcon(status, isRead, isArchived, completedStateIcon);
 
 			// Second row: workspace (with its icon, like the session header /
@@ -765,14 +766,10 @@ registerAction2(class PromoteChatToSessionAction extends Action2 {
 			return false;
 		}
 		const move: SessionsListMove = { kind: 'chat', session: context.session, chat: context.chat, destination: { kind: 'newSession' } };
-		const viewsService = accessor.get(IViewsService);
 		const sessionsList = getSessionsList(accessor);
-		// Like a drop on the list, report the move in the list's notice when the list shows, and reveal and select the
-		// new session in the list once it shows it.
+		// Like a drop on the list, reveal and select the new session in the list once it shows it.
 		return runSessionsListMove(move, sessionsManagementService, accessor.get(INotificationService), accessor.get(ILogService), {
-			notice: viewsService.isViewVisible(SessionsViewId) ? viewsService.getViewWithId<SessionsView>(SessionsViewId)?.listNotification : undefined,
 			watch: sessionsList && (watched => sessionsList.watchMoveForReveal(watched)),
-			placementServices: { sessionsListModelService: accessor.get(ISessionsListModelService), sessionGroupsService: accessor.get(ISessionGroupsService) },
 		});
 	}
 });
@@ -809,13 +806,9 @@ function getMoveRunner(accessor: ServicesAccessor): (move: SessionsListMove) => 
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
 	const notificationService = accessor.get(INotificationService);
 	const logService = accessor.get(ILogService);
-	const viewsService = accessor.get(IViewsService);
 	const sessionsList = getSessionsList(accessor);
-	const placementServices = { sessionsListModelService: accessor.get(ISessionsListModelService), sessionGroupsService: accessor.get(ISessionGroupsService) };
 	return move => runSessionsListMove(move, sessionsManagementService, notificationService, logService, {
-		notice: viewsService.isViewVisible(SessionsViewId) ? viewsService.getViewWithId<SessionsView>(SessionsViewId)?.listNotification : undefined,
 		watch: sessionsList && (watched => sessionsList.watchMoveForReveal(watched)),
-		placementServices,
 	});
 }
 
@@ -838,10 +831,12 @@ registerAction2(class MoveChatToSessionAction extends Action2 {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const runMove = getMoveRunner(accessor);
-		if (!context || !isChatMoveDndEnabled(accessor.get(IConfigurationService), accessor.get(IChatEntitlementService))) {
+		const configurationService = accessor.get(IConfigurationService);
+		if (!context || !isChatMoveDndEnabled(configurationService, accessor.get(IChatEntitlementService))) {
 			return false;
 		}
-		const destinations = getChatMoveDestinations(context.session, context.chat, sessionsManagementService.getSessions(), sessionsManagementService);
+		const crossAgent = isCrossAgentChatMoveEnabled(configurationService);
+		const destinations = getChatMoveDestinations(context.session, context.chat, sessionsManagementService.getSessions(), sessionsManagementService, crossAgent);
 		if (!destinations.length) {
 			return false;
 		}
@@ -853,7 +848,7 @@ registerAction2(class MoveChatToSessionAction extends Action2 {
 			return false;
 		}
 		// The pick is asynchronous: check the destination still takes the chat.
-		const current = getChatMoveDestinations(context.session, context.chat, sessionsManagementService.getSessions(), sessionsManagementService).find(candidate => candidate.session === destination.session);
+		const current = getChatMoveDestinations(context.session, context.chat, sessionsManagementService.getSessions(), sessionsManagementService, crossAgent).find(candidate => candidate.session === destination.session);
 		if (!current) {
 			return false;
 		}
@@ -882,10 +877,12 @@ registerAction2(class MoveSessionIntoSessionAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const runMove = getMoveRunner(accessor);
 		const session = Array.isArray(context) ? (context.length === 1 ? context[0] : undefined) : context;
-		if (!session || !isChatMoveDndEnabled(accessor.get(IConfigurationService), accessor.get(IChatEntitlementService))) {
+		const configurationService = accessor.get(IConfigurationService);
+		if (!session || !isChatMoveDndEnabled(configurationService, accessor.get(IChatEntitlementService))) {
 			return false;
 		}
-		const destinations = getSessionMoveDestinations(session, sessionsManagementService.getSessions(), sessionsManagementService);
+		const crossAgent = isCrossAgentChatMoveEnabled(configurationService);
+		const destinations = getSessionMoveDestinations(session, sessionsManagementService.getSessions(), sessionsManagementService, crossAgent);
 		if (!destinations.length) {
 			return false;
 		}
@@ -896,7 +893,7 @@ registerAction2(class MoveSessionIntoSessionAction extends Action2 {
 		if (!destination) {
 			return false;
 		}
-		const current = getSessionMoveDestinations(session, sessionsManagementService.getSessions(), sessionsManagementService).find(candidate => candidate.session === destination.session);
+		const current = getSessionMoveDestinations(session, sessionsManagementService.getSessions(), sessionsManagementService, crossAgent).find(candidate => candidate.session === destination.session);
 		if (!current) {
 			return false;
 		}
@@ -1927,6 +1924,14 @@ export class SessionConversationActionsContribution extends Disposable implement
 }
 
 for (const menu of SessionHeaderMenus) {
+	MenuRegistry.appendMenuItem(menu, {
+		submenu: MenuId.ChatViewMode,
+		title: localize2('chat.viewMode', "View Mode"),
+		group: 'secondary/4_manage',
+		order: 10,
+		when: ChatContextKeys.enabled,
+	});
+
 	MenuRegistry.appendMenuItem(menu, {
 		submenu: Menus.SessionConversations,
 		title: localize2('chatCompositeBar.sideChats', "Side Chats"),
