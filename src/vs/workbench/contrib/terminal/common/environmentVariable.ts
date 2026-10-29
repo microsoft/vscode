@@ -18,10 +18,10 @@ export interface IEnvironmentVariableService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Gets a single collection constructed by merging all environment variable collections into
-	 * one.
+	 * The environment variable collections contributed by each extension, keyed by extension
+	 * identifier.
 	 */
-	readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>;
+	readonly collections: ReadonlyMap<string, IEnvironmentVariableCollectionWithPersistence>;
 
 	/**
 	 * Gets a single collection constructed by merging all environment variable collections into

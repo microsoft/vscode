@@ -10,12 +10,12 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostConfigKey, type IAgentTerminalPath } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
+import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { AgentHostCustomTerminalToolEnabledSettingId, CopilotCliConfigKey } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TerminalSettingId } from '../../../../../../platform/terminal/common/terminal.js';
-import { EnvironmentVariableMutatorType } from '../../../../../../platform/terminal/common/environmentVariable.js';
+import { EnvironmentVariableMutatorType, type IEnvironmentVariableMutator } from '../../../../../../platform/terminal/common/environmentVariable.js';
 import { IEnvironmentVariableService } from '../../../../../../workbench/contrib/terminal/common/environmentVariable.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
 import { ITerminalProfileResolverService, ITerminalProfileService } from '../../../../../../workbench/contrib/terminal/common/terminal.js';
@@ -52,6 +52,7 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 	private readonly _localEntry = this._register(new MutableDisposable());
 	private readonly _conditionalListeners = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _forwarder: AgentHostRootConfigForwarder;
+	private readonly _isRemoteWindow: boolean;
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
@@ -78,15 +79,8 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 				store.add(this._terminalProfileService.onDidChangeAvailableProfiles(() => push()));
 			},
 		};
-		const agentTerminalPathKey: IForwardedRootConfigKey = {
-			key: AgentHostConfigKey.AgentTerminalPath,
-			computeValue: () => this._computeAgentTerminalPath(),
-			registerTriggers: (store, push) => {
-				store.add(this._environmentVariableService.onDidChangeCollections(() => push()));
-			},
-		};
 		const keys: readonly IForwardedRootConfigKey[] = [
-			...(environmentService.remoteAuthority ? [] : [defaultShellKey, agentTerminalPathKey]),
+			...(environmentService.remoteAuthority ? [] : [defaultShellKey]),
 			{
 				key: CopilotCliConfigKey.EnableCustomTerminalTool,
 				computeValue: () => this._configurationService.getValue<boolean>(AgentHostCustomTerminalToolEnabledSettingId) === true,
@@ -112,6 +106,7 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 			},
 		];
 		this._forwarder = this._register(new AgentHostRootConfigForwarder(keys, this._agentHostService));
+		this._isRemoteWindow = !!environmentService.remoteAuthority;
 
 		this._register(autorun(reader => this._updateEnabled(this._agentHostEnablementService.enabled.read(reader))));
 	}
@@ -123,6 +118,11 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 				// The forwarder registers its own agent-host-start listener to re-push
 				// keys; this one keeps the terminal dropdown entry alive across restarts.
 				store.add(this._agentHostService.onAgentHostStart(() => this._registerLocalEntry()));
+				if (!this._isRemoteWindow) {
+					// The connection re-sends the latest value after (re)connecting.
+					store.add(this._environmentVariableService.onDidChangeCollections(() => this._contributeAgentTerminalPath()));
+					this._contributeAgentTerminalPath();
+				}
 				this._conditionalListeners.value = store;
 				this._registerLocalEntry();
 				this._forwarder.start();
@@ -167,27 +167,37 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 	 * Collects the global `PATH` prepend/append mutators of local extensions
 	 * that opted into agent terminals (`terminalAgentEnvironment` proposal),
 	 * as absolute directories in the order terminals would apply them.
+	 *
+	 * Each extension's collection is filtered before combining, so another
+	 * extension replacing `PATH` (which agent terminals ignore) cannot hide
+	 * opted-in entries.
 	 */
-	private _computeAgentTerminalPath(): IAgentTerminalPath {
-		const variables = this._environmentVariableService.getMergedCollection(null, OS).getVariableMap(undefined);
-		let prepend: string[] = [];
-		const append: string[] = [];
-		for (const [variable, mutators] of variables) {
-			if (OS === OperatingSystem.Windows ? variable.toUpperCase() !== 'PATH' : variable !== 'PATH') {
+	private _contributeAgentTerminalPath(): void {
+		const eligible: IEnvironmentVariableMutator[] = [];
+		for (const collection of this._environmentVariableService.collections.values()) {
+			// Only the local extension host's directories exist on the agent host's machine.
+			if (collection.remoteAuthority !== null) {
 				continue;
 			}
-			for (const mutator of mutators) {
-				if (!mutator.options?.applyToAgentTerminals) {
-					continue;
-				}
-				const directories = mutator.value.split(delimiter).filter(directory => directory && isAbsolute(directory));
-				if (mutator.type === EnvironmentVariableMutatorType.Prepend) {
-					prepend = [...directories, ...prepend];
-				} else if (mutator.type === EnvironmentVariableMutatorType.Append) {
-					append.push(...directories);
+			for (const mutator of collection.map.values()) {
+				const isPath = OS === OperatingSystem.Windows ? mutator.variable.toUpperCase() === 'PATH' : mutator.variable === 'PATH';
+				const isPathEdit = mutator.type === EnvironmentVariableMutatorType.Prepend || mutator.type === EnvironmentVariableMutatorType.Append;
+				if (isPath && isPathEdit && !mutator.scope?.workspaceFolder && mutator.options?.applyToAgentTerminals) {
+					eligible.push(mutator);
 				}
 			}
 		}
-		return { prepend, append };
+		// Terminals apply mutators in reverse contribution order (see MergedEnvironmentVariableCollection).
+		let prepend: string[] = [];
+		let append: string[] = [];
+		for (const mutator of eligible.reverse()) {
+			const directories = mutator.value.split(delimiter).filter(directory => directory && isAbsolute(directory));
+			if (mutator.type === EnvironmentVariableMutatorType.Prepend) {
+				prepend = [...directories, ...prepend];
+			} else {
+				append = [...append, ...directories];
+			}
+		}
+		this._agentHostService.setAgentTerminalPath?.({ prepend, append });
 	}
 }

@@ -84,6 +84,7 @@ import { addAgentHostConfigurationSyncValue, formatAgentHostConfigurationSyncVal
 import { AgentMergeSettingId } from '../common/agentMerge.js';
 import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey } from '../common/copilotCliConfig.js';
 import { managedPermissionsConfigurationIds, resolveManagedSettingsPermissions, type IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
+import { emptyAgentTerminalPath, SetClientAgentTerminalPathMethod, type IAgentTerminalPath } from '../common/agentTerminalPath.js';
 import { AgentHostClientConnectionKind, toAgentHostClientMeta } from '../common/agentHostTelemetry.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
@@ -178,6 +179,7 @@ function isConnectionClosedError(error: unknown): boolean {
 
 interface IRemoteAgentHostExtensionNotificationMap {
 	'setClientManagedSettingsPermissions': { params: { permissions: IAgentHostManagedSettingsPermissions } };
+	[SetClientAgentTerminalPathMethod]: { params: { path: IAgentTerminalPath } };
 }
 
 interface IPendingRequest {
@@ -336,6 +338,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _clientId: string;
 	private readonly _address: string;
 	private readonly _resourceIdentity: AgentHostResourceIdentity;
+	private _agentTerminalPath: IAgentTerminalPath = emptyAgentTerminalPath;
 	private readonly _transportFactory: (() => IProtocolTransport) | undefined;
 	private _transport!: IProtocolTransport;
 	get clientConnectionKind(): AgentHostClientConnectionKind | undefined { return this._transport.clientConnectionKind; }
@@ -1165,6 +1168,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 			this._applyReconnectResult(result, freshInitialize, restoreAuthentication);
 			this._updateManagedSettingsPermissions(true);
+			this._sendAgentTerminalPath(true);
 			// A replacement transport may need authentication even when the host remembers this client.
 			if (restoreAuthentication) {
 				if (result.type === ReconnectResultType.Snapshot) {
@@ -1566,6 +1570,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._updateDisableRepoInfoTelemetry();
 		if (includeManagedSettings) {
 			void this._updateManagedSettingsPermissions();
+			this._sendAgentTerminalPath();
 		}
 	}
 
@@ -3477,6 +3482,26 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			? resolveManagedSettingsPermissions(this._configurationService, this._logService)
 			: {};
 		this._sendExtensionNotification('setClientManagedSettingsPermissions', { permissions }, sendDuringReconnect);
+	}
+
+	/**
+	 * Contributes this window's agent terminal `PATH` entries. The host owns
+	 * them per client until replaced or the client disconnects, so the latest
+	 * value is re-sent whenever the connection is (re)established.
+	 */
+	setAgentTerminalPath(path: IAgentTerminalPath): void {
+		this._agentTerminalPath = path;
+		if (this._state.kind === AgentHostClientState.Connected) {
+			this._sendAgentTerminalPath();
+		}
+	}
+
+	private _sendAgentTerminalPath(sendDuringReconnect = false): void {
+		// Directories are local paths; only the local agent host can use them.
+		if (this._isWebPubSubRelay() || this._resourceIdentity !== LOCAL_AGENT_HOST_RESOURCE_IDENTITY) {
+			return;
+		}
+		this._sendExtensionNotification(SetClientAgentTerminalPathMethod, { path: this._agentTerminalPath }, sendDuringReconnect);
 	}
 
 	/**

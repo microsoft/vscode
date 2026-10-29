@@ -69,7 +69,8 @@ import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmit
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { CopilotSessionApprovalPolicy, fromCopilotPermissionMode } from './copilotApprovalPolicy.js';
 import { isShellInitScriptList, withAgentTerminalPath, type IShellInitScript } from '../../common/shellInitScript.js';
-import { AgentHostConfigKey, agentHostCustomizationConfigSchema, readAgentTerminalPath } from '../../common/agentHostCustomizationConfig.js';
+import { emptyAgentTerminalPath } from '../../common/agentTerminalPath.js';
+import { IAgentTerminalPathService } from '../agentTerminalPathService.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
@@ -2124,6 +2125,7 @@ export class CopilotAgentSession extends Disposable {
 		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
 		@IAgentHostFileEditCoordinator private readonly _fileEditCoordinator: IAgentHostFileEditCoordinator,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentTerminalPathService private readonly _agentTerminalPathService: IAgentTerminalPathService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -8093,6 +8095,7 @@ export class CopilotAgentSession extends Disposable {
 				void this._syncShellInitScript();
 			}
 		}));
+		this._register(this._agentTerminalPathService.onDidChange(() => void this._syncShellInitScript()));
 	}
 
 	private async _syncImageGenerationAfterConfigChange(): Promise<void> {
@@ -8293,10 +8296,11 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			// Agent terminal PATH entries are opted in by extensions and do not
-			// depend on the client script setting.
+			// depend on the client script setting. The custom terminal tool
+			// applies them when it spawns its shells instead.
 			const agentTerminalPath = this._sandbox.isCustomTerminalToolEnabled()
-				? { prepend: [], append: [] }
-				: readAgentTerminalPath(this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AgentTerminalPath));
+				? emptyAgentTerminalPath
+				: this._agentTerminalPathService.path;
 			const scripts = withAgentTerminalPath(own ?? [], agentTerminalPath, isWindows ? 'powershell' : 'bash');
 			const serialized = JSON.stringify(scripts);
 			if (this._lastAppliedShellInitScripts === serialized) {

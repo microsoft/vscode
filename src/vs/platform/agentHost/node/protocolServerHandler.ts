@@ -94,6 +94,8 @@ import { isShapedChatUri } from '../common/agentHostChatIdentity.js';
 import { ROOT_STATE_URI, isAhpRootChannel, isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, isAhpChatChannel, withSessionStatusFlag, type ISessionWithDefaultChat, type Message, type ModelSelection, type RootState, type SessionState, type SessionConfigState, type SessionSummary } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
+import { IAgentTerminalPathService } from './agentTerminalPathService.js';
+import { readAgentTerminalPath, SetClientAgentTerminalPathMethod } from '../common/agentTerminalPath.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from '../common/meta/agentHostWorktreeDiskUsageMeta.js';
 import {
@@ -728,6 +730,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentHostProxyResolver private readonly _proxyResolver: IAgentHostProxyResolver,
+		@IAgentTerminalPathService private readonly _agentTerminalPathService: IAgentTerminalPathService,
 	) {
 		super();
 		let tcpBudget = ProtocolServerHandler._tcpBudgets.get(_agentService);
@@ -925,6 +928,16 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						} else {
 							this._logService.warn('[ProtocolServer] Ignoring invalid managed settings permissions contribution.');
 						}
+					}
+					return;
+				}
+				if ((msg as { method: string }).method === SetClientAgentTerminalPathMethod) {
+					if (transport.relayClientId !== undefined) {
+						this._logService.warn('[ProtocolServer] Relay clients cannot contribute agent terminal PATH entries');
+						return;
+					}
+					if (client) {
+						this._agentTerminalPathService.setClientPath(this._managedSettingsContributionId(client.clientId), readAgentTerminalPath(((msg as { params?: { path?: unknown } }).params)?.path));
 					}
 					return;
 				}
@@ -1606,6 +1619,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			record.disconnectTimeouts.set('managed-settings', disposableTimeout(() => {
 				record.disconnectTimeouts.deleteAndDispose('managed-settings');
 				this._managedSettingsService.removeClient(this._managedSettingsContributionId(clientId));
+				this._agentTerminalPathService.removeClient(this._managedSettingsContributionId(clientId));
 			}, Math.max(0, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT - (Date.now() - record.lastSeenAt))));
 		}
 		for (const session of this._stateManager.getSessionUris()) {
@@ -4550,6 +4564,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	override dispose(): void {
 		for (const [clientId, record] of this._clients) {
 			this._managedSettingsService.removeClient(this._managedSettingsContributionId(clientId));
+			this._agentTerminalPathService.removeClient(this._managedSettingsContributionId(clientId));
 			this._proxyResolver.setClientCertificates(this._managedSettingsContributionId(clientId), []);
 			if (record.state === 'active') {
 				for (const connection of [...record.connections]) {

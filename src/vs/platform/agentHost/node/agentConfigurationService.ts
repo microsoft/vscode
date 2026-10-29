@@ -368,8 +368,7 @@ export interface IAgentConfigurationService {
 export class AgentConfigurationService extends Disposable implements IAgentConfigurationService {
 	declare readonly _serviceBrand: undefined;
 	private _rootConfigWrite = Promise.resolve();
-	/** Keys published to root config but never persisted; client-pushed machine-local keys are seeded. */
-	private readonly _rootTransientValueKeys = new Set<string>([AgentHostConfigKey.AgentTerminalPath]);
+	private readonly _rootTransientValueKeys = new Set<string>();
 	private readonly _sessionSandboxPolicies = new Map<ProtocolURI, ISessionSandboxPolicy>();
 	/** Sessions and chats whose sandbox selection a client made last; a policy allowing bypass keeps their `off`. */
 	private readonly _sessionSandboxUserSelections = new Set<ProtocolURI>();

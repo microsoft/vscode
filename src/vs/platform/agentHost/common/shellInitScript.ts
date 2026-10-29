@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import type { IAgentTerminalPath } from './agentHostCustomizationConfig.js';
+import type { IAgentTerminalPath } from './agentTerminalPath.js';
 
 export type ShellInitScriptShell = 'bash' | 'powershell';
 

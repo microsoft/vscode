@@ -17,7 +17,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { getShellIntegrationInjection } from '../../terminal/node/terminalEnvironment.js';
-import { AgentHostConfigKey, agentHostCustomizationConfigSchema, readAgentTerminalPath } from '../common/agentHostCustomizationConfig.js';
+import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../common/agentHostCustomizationConfig.js';
 import { ActionType } from '../common/state/protocol/actions.js';
 import type { CreateTerminalParams } from '../common/state/protocol/commands.js';
 import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, TerminalClaimKind, TerminalLifecycleStatus } from '../common/state/protocol/state.js';
@@ -25,6 +25,7 @@ import { isTerminalAction } from '../common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../common/state/sessionState.js';
 import { AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH, AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH } from '../common/terminalConstants.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentTerminalPathService } from './agentTerminalPathService.js';
 import { AgentHostHeadlessTerminal } from './agentHostHeadlessTerminal.js';
 import { isZsh } from './agentHostShellUtils.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -217,6 +218,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentTerminalPathService private readonly _agentTerminalPathService: IAgentTerminalPathService,
 	) {
 		super();
 
@@ -951,7 +953,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 
 	/** Adds the extension-contributed agent terminal `PATH` entries to `env`. */
 	private _applyAgentTerminalPath(env: Record<string, string>): void {
-		const { prepend, append } = readAgentTerminalPath(this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AgentTerminalPath));
+		const { prepend, append } = this._agentTerminalPathService.path;
 		if (prepend.length === 0 && append.length === 0) {
 			return;
 		}

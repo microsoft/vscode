@@ -161,6 +161,8 @@ import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
+import { IAgentTerminalPathService } from '../../node/agentTerminalPathService.js';
+import { noAgentTerminalPathService } from './noAgentTerminalPathService.js';
 
 /** The session-backed chat a host addresses when it resumes the Copilot session `id`. */
 function sessionBackedChat(id: string): URI {
@@ -1605,6 +1607,8 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(IAgentConfigurationService, configService);
 	services.set(IAgentHostManagedSettingsService, managedSettingsService);
 	services.set(IAgentHostStateManager, stateManager);
+
+	services.set(IAgentTerminalPathService, noAgentTerminalPathService);
 	services.set(IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager));
 	// Narrow host seams the provider consumes instead of the state manager
 	// itself (see §8 of MULTI_CHAT_ARCHITECTURE.md). Both are constructed over
@@ -24071,6 +24075,8 @@ suite('CopilotAgent', () => {
 			services.set(IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService)));
 			services.set(IAgentHostManagedSettingsService, disposables.add(new AgentHostManagedSettingsService()));
 			services.set(IAgentHostStateManager, stateManager);
+
+			services.set(IAgentTerminalPathService, noAgentTerminalPathService);
 			services.set(IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager));
 			services.set(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 			services.set(ISessionDataService, createNullSessionDataService());

@@ -23,6 +23,7 @@ import { TestNotificationService } from '../../../notification/test/common/testN
 import { ITelemetryData } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
+import type { IAgentTerminalPath } from '../../common/agentTerminalPath.js';
 import { IMcpNotification, isFatalAgentHostStartError, toFatalAgentHostStartError } from '../../common/agent.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL } from '../../common/agentHostClientProxyChannel.js';
 import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel } from '../../common/agentHostClientByokLmChannel.js';
@@ -77,6 +78,7 @@ suite('LocalAgentHostServiceClient events', () => {
 		const onDidChangeConnectionState = disposables.add(new Emitter<AgentHostClientState>());
 		const connectionAvailable = observableValue('test connection availability', false);
 		const createdChats: { session: URI; chat: URI; options?: IAgentCreateChatRequestOptions }[] = [];
+		const agentTerminalPaths: IAgentTerminalPath[] = [];
 		let connectCount = 0;
 		const fire = () => {
 			onDidAction.fire(action);
@@ -96,6 +98,7 @@ suite('LocalAgentHostServiceClient events', () => {
 				request: async () => { throw new Error('Artifact requests are not used by this test.'); },
 			},
 			registerMcpAuthenticationHandler: () => Disposable.None,
+			setAgentTerminalPath: (path: IAgentTerminalPath) => { agentTerminalPaths.push(path); },
 			createChat: async (session: URI, chat: URI, options?: IAgentCreateChatRequestOptions) => {
 				createdChats.push({ session, chat, options });
 			},
@@ -124,7 +127,7 @@ suite('LocalAgentHostServiceClient events', () => {
 			return listeners;
 		};
 		return {
-			service, received, listen, fire, onDidChangeConnectionState, createdChats,
+			service, received, listen, fire, onDidChangeConnectionState, createdChats, agentTerminalPaths,
 			setConnectionState: (state: AgentHostClientState) => {
 				connectionAvailable.set(state === AgentHostClientState.Connected, undefined);
 				onDidChangeConnectionState.fire(state);
@@ -302,6 +305,17 @@ suite('LocalAgentHostServiceClient events', () => {
 		assert.deepStrictEqual(received, expected);
 	});
 
+	test('hands the agent terminal PATH set before start to the connection, and later updates too', () => {
+		const { service, agentTerminalPaths } = createService();
+		service.setAgentTerminalPath({ prepend: ['/opt/a'], append: [] });
+		service.startAgentHost();
+		service.setAgentTerminalPath({ prepend: [], append: ['/opt/b'] });
+		assert.deepStrictEqual(agentTerminalPaths, [
+			{ prepend: ['/opt/a'], append: [] },
+			{ prepend: [], append: ['/opt/b'] },
+		]);
+	});
+
 	test('artifact transport subscribed before startup follows connection and reconnect availability', () => {
 		const { service, setConnectionState } = createService();
 		const transport = service.artifactIntegrationTransport;
@@ -446,6 +460,7 @@ suite('registerAgentHostClientChannels', () => {
 				request: async () => { throw new Error('Artifact requests are not used by this test.'); },
 			},
 			registerMcpAuthenticationHandler: () => Disposable.None,
+			setAgentTerminalPath: () => { },
 			initializeResult: constObservable(undefined),
 			rootState: {
 				value: undefined,
