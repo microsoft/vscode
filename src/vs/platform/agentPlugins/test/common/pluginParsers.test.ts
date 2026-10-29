@@ -937,6 +937,13 @@ suite('pluginParsers', () => {
 			assert.deepStrictEqual(groups.map(g => g.type), ['PostToolUse']);
 		});
 
+		test('recognizes a userPromptTransformed-only hook file', () => {
+			const groups = parse({ hooks: { userPromptTransformed: [{ type: 'command', command: 'echo context' }] } });
+			assert.deepStrictEqual(groups.map(group => ({ type: group.type, originalId: group.originalId, commands: group.commands.map(command => command.command) })), [
+				{ type: 'UserPromptTransformed', originalId: 'userPromptTransformed', commands: ['echo context'] },
+			]);
+		});
+
 		test('extracts commands from the nested matcher form and drops empty groups', () => {
 			const groups = parse({
 				hooks: {
