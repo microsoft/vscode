@@ -92,6 +92,8 @@ suite('Watcher .gitignore excludes', () => {
 			'/foo]',
 			'/*.[!o]',
 			'/c[+-0]d',
+			'.GITIGNORE',
+			'/.Git/',
 			'/out',
 		].join('\r\n')), ['target/**/*', 'out', 'out/**']);
 	});

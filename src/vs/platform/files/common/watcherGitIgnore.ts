@@ -121,7 +121,8 @@ function toWatcherExcludes(pattern: IGitIgnorePattern): string[] | undefined {
 		}
 	}
 
-	if (excludes.some(exclude => NEVER_EXCLUDED_PATHS.some(path => match(exclude, path)))) {
+	// Watchers match excludes case-insensitively on Windows and macOS
+	if (excludes.some(exclude => NEVER_EXCLUDED_PATHS.some(path => match(exclude, path, { ignoreCase: true })))) {
 		return undefined;
 	}
 
