@@ -184,6 +184,7 @@ const handlePromptOptionsWorkspaceChange = Reflect.get(NewChatWidget.prototype, 
 const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.prototype, '_syncWorkspacePickerFromSessionWorkspace') as (this: ISyncWorkspacePickerHarness, workspace: ISessionWorkspace | undefined) => void;
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
 const prepareChatTipSession = Reflect.get(NewChatWidget.prototype, '_prepareChatTipSession') as (this: IChatTipSessionHarness) => void;
+const updateChatTip = Reflect.get(NewChatWidget.prototype, '_updateChatTip') as (this: { _renderChatTip(): void; focusInput(): void }, isShowing: boolean, container: HTMLElement) => void;
 const restoreSessionOptionsExpanded = Reflect.get(NewChatWidget.prototype, '_restoreSessionOptionsExpanded') as (this: ISessionOptionsPersistenceHarness) => void;
 const setSessionOptionsExpandedFromUser = Reflect.get(NewChatWidget.prototype, '_setSessionOptionsExpandedFromUser') as (this: ISessionOptionsPersistenceHarness, expanded: boolean) => void;
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
@@ -3245,13 +3246,45 @@ suite('NewChatWidget', () => {
 
 	test('shows a tip only when the new-session composer is the sole foreground chat widget', () => {
 		assert.deepStrictEqual([
-			shouldShowNewSessionChatTip(true, true, undefined),
-			shouldShowNewSessionChatTip(true, true, 0),
-			shouldShowNewSessionChatTip(true, true, 1),
-			shouldShowNewSessionChatTip(true, true, 2),
-			shouldShowNewSessionChatTip(false, true, 1),
-			shouldShowNewSessionChatTip(true, false, 1),
-		], [false, false, true, false, false, false]);
+			shouldShowNewSessionChatTip(true, undefined),
+			shouldShowNewSessionChatTip(true, 0),
+			shouldShowNewSessionChatTip(true, 1),
+			shouldShowNewSessionChatTip(true, 2),
+			shouldShowNewSessionChatTip(false, 1),
+		], [false, false, true, false, false]);
+	});
+
+	test('returns focus to the input when the tip makes way for another banner while focused', () => {
+		const update = (isShowing: boolean, focusTip: boolean) => {
+			const container = mainWindow.document.body.appendChild(document.createElement('div'));
+			disposables.add(toDisposable(() => container.remove()));
+			const tipAction = container.appendChild(document.createElement('button'));
+			if (focusTip) {
+				tipAction.focus();
+			}
+			const calls: string[] = [];
+			updateChatTip.call({
+				// Like the tip presenter, takes the tip out of its container once it is not the banner that shows.
+				_renderChatTip: () => {
+					calls.push('renderChatTip');
+					if (!isShowing) {
+						container.replaceChildren();
+					}
+				},
+				focusInput: () => calls.push('focusInput'),
+			}, isShowing, container);
+			return calls;
+		};
+
+		assert.deepStrictEqual({
+			showing: update(true, true),
+			outrankedWhileFocused: update(false, true),
+			outranked: update(false, false),
+		}, {
+			showing: ['renderChatTip'],
+			outrankedWhileFocused: ['renderChatTip', 'focusInput'],
+			outranked: ['renderChatTip'],
+		});
 	});
 
 	test('resets the tip session when the composer returns from multiple foreground chats', () => {
