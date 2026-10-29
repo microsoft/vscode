@@ -82,7 +82,7 @@ export class RipgrepTextSearchEngine {
 				break;
 			}
 
-			const root = await resolveExcludeExceptionRunRoot(options.folderOptions.folder.fsPath, exceptionRun.root, options.folderOptions.followSymlinks);
+			const root = await resolveExcludeExceptionRunRoot(options.folderOptions.folder.fsPath, exceptionRun.root, options.folderOptions.followSymlinks, !!options.folderOptions.ignoreGlobCase);
 			if (root === undefined) {
 				continue;
 			}

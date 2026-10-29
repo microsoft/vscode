@@ -325,11 +325,29 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 
 		const expression = this._cachedExpressions.get(folder.uri.toString())!;
 		const path = relative(folder.uri.path, element.resource.path);
-		if (!expression.matches(path, basename(element.resource))) {
+		const name = basename(element.resource);
+		if (!expression.exceptions.length) {
+			return !expression.matches(path, name);
+		}
+
+		if (expression.isExcepted(path, name)) {
 			return true;
 		}
 
-		return !!element.isDirectory && expression.couldExceptionMatchBeneath(path);
+		// the picker shows folders that lead to an exception, so their other children must stay excluded
+		const isExcluded = !!expression.matchesExclude(path, name) || this.isParentFolderExcluded(expression, path);
+		return !isExcluded || (!!element.isDirectory && expression.couldExceptionMatchBeneath(path));
+	}
+
+	private isParentFolderExcluded(expression: glob.IParsedExcludeExpression, path: string): boolean {
+		const segments = path.split(/[\\/]/);
+		for (let i = 1; i < segments.length; i++) {
+			if (expression.matchesExclude(segments.slice(0, i).join('/'), segments[i - 1])) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 }
 

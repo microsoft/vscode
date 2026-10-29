@@ -1343,6 +1343,7 @@ suite('Glob', () => {
 			});
 			assert.deepStrictEqual(beneath({ 'a': true }, ['a']), { 'a': false });
 			assert.deepStrictEqual(beneath({ 'a': true, '!{a/b,c}/keep.txt': true }, ['a', 'a/b', 'c']), { 'a': true, 'a/b': true, 'c': true });
+			assert.deepStrictEqual(beneath({ 'a': true, '!a/{b/c,d}/keep': true }, ['a/b', 'a/b/c']), { 'a/b': true, 'a/b/c': true });
 		});
 
 		test('couldExceptionMatchBeneath skips version control folders unless an exception names them', () => {

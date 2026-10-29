@@ -746,6 +746,10 @@ export function toFolderRelativeExcludeException(exception: glob.IExcludeExcepti
 	const folderPath = rtrim(folder.replace(/\\/g, '/'), '/');
 	const pattern = exception.pattern.replace(/\\/g, '/');
 	const startsWith = (value: string, prefix: string) => isLinux ? value.startsWith(prefix) : startsWithIgnoreCase(value, prefix);
+	if (startsWith(pattern, folderPath) && pattern.length === folderPath.length) {
+		return { pattern: glob.GLOBSTAR, literalPrefix: '' };
+	}
+
 	if (!startsWith(pattern, `${folderPath}/`)) {
 		return undefined;
 	}

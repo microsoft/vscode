@@ -92,6 +92,15 @@ suite('ResourceGlobMatcher', () => {
 			literal: [true, true],
 			exceptions: [true, false],
 		});
+
+		await configurationService.setUserConfiguration(SETTING, {
+			'**/*.js': true,
+			[`!${URI.file('/foo/keep.js').fsPath.replace(/\\/g, '/')}`]: true
+		});
+		// eslint-disable-next-line local/code-no-any-casts
+		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (key: string) => key === SETTING } as any);
+
+		assert.deepStrictEqual([excludeMatcher.matches(URI.file('/foo/keep.js')), excludeMatcher.matches(URI.file('/foo/other.js'))], [false, true]);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

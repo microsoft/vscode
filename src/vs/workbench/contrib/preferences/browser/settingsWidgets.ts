@@ -820,6 +820,7 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 
 export class ExcludeSettingWidget extends ListSettingWidget<IIncludeExcludeDataItem> {
 	private readonly addExceptionButton: Button;
+	private supportsExceptions = false;
 
 	constructor(
 		container: HTMLElement,
@@ -839,8 +840,9 @@ export class ExcludeSettingWidget extends ListSettingWidget<IIncludeExcludeDataI
 	}
 
 	override setValue(listData: IIncludeExcludeDataItem[], options?: IListSetValueOptions): void {
+		this.supportsExceptions = !!options?.showAddExceptionButton;
 		super.setValue(listData, options);
-		DOM.setVisibility(!!options?.showAddExceptionButton && !this.isReadOnly, this.addExceptionButton.element);
+		DOM.setVisibility(this.supportsExceptions && !this.isReadOnly, this.addExceptionButton.element);
 	}
 
 	protected override getContainerClasses() {
@@ -853,7 +855,7 @@ export class ExcludeSettingWidget extends ListSettingWidget<IIncludeExcludeDataI
 
 	protected override addTooltipsToRow(rowElementGroup: RowElementGroup, item: IIncludeExcludeDataItem): void {
 		const pattern = item.value.data;
-		let title = isExcludeException(pattern)
+		let title = this.supportsExceptions && isExcludeException(pattern)
 			? localize('excludeExceptionHintLabel', "Do not exclude files matching `{0}`", pattern.trimStart().substring(1))
 			: isUndefinedOrNull(item.sibling)
 				? localize('excludePatternHintLabel', "Exclude files matching `{0}`", pattern)

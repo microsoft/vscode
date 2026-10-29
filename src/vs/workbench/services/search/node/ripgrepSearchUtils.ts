@@ -66,16 +66,21 @@ export function getExcludeExceptionRuns(exceptions: readonly IExcludeException[]
 
 /**
  * Resolves the root of an exception run to the casing it has on disk, so that its results match the paths of
- * the other runs. Returns undefined if the root does not exist or, when symbolic links are not followed,
- * passes through one, because ripgrep follows symbolic links that it is given as search paths.
+ * the other runs. When case-insensitive globs cannot identify a single folder on a case-sensitive file system,
+ * the run starts from the closest folder that they can identify. Returns undefined if the root does not exist
+ * or, when symbolic links are not followed, passes through one, because ripgrep follows search paths it is given.
  */
-export async function resolveExcludeExceptionRunRoot(folder: string, root: string, followSymlinks: boolean): Promise<string | undefined> {
+export async function resolveExcludeExceptionRunRoot(folder: string, root: string, followSymlinks: boolean, ignoreGlobCase: boolean): Promise<string | undefined> {
 	let resolved = '';
 	for (const segment of root ? root.split('/') : []) {
 		let name: string | undefined = segment;
-		if (!isLinux) {
+		if (!isLinux || ignoreGlobCase) {
 			const entries = await pfs.Promises.readdir(join(folder, resolved)).catch((): string[] => []);
-			name = entries.includes(segment) ? segment : entries.find(entry => entry.toLowerCase() === segment.toLowerCase());
+			const candidates = entries.includes(segment) && !ignoreGlobCase ? [segment] : entries.filter(entry => entry.toLowerCase() === segment.toLowerCase());
+			if (candidates.length > 1) {
+				return resolved;
+			}
+			name = candidates[0];
 		}
 
 		const stat = name !== undefined ? await fs.lstat(join(folder, resolved, name)).catch(() => undefined) : undefined;

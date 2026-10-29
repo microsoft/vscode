@@ -9,7 +9,7 @@ import { isAbsolute } from '../../base/common/path.js';
 import { Emitter } from '../../base/common/event.js';
 import { relativePath } from '../../base/common/resources.js';
 import { Disposable } from '../../base/common/lifecycle.js';
-import { ParsedExpression, IExpression, parse, parseExcludeExpression } from '../../base/common/glob.js';
+import { ParsedExpression, IExpression, IParsedExcludeExpression, parse, parseExcludeExpression } from '../../base/common/glob.js';
 import { IWorkspaceContextService } from '../../platform/workspace/common/workspace.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../platform/configuration/common/configuration.js';
 import { Schemas } from '../../base/common/network.js';
@@ -203,7 +203,11 @@ export class ResourceGlobMatcher extends Disposable {
 			resourcePathToMatch = this.uriToPath(resource);
 		}
 
-		if (typeof resourcePathToMatch === 'string' && !!expressionForFolder(resourcePathToMatch, undefined, hasSibling)) {
+		return this.matchesExpression(expressionForFolder, resourcePathToMatch, this.uriToPath(resource), !!expressionConfigForFolder?.hasAbsolutePath, hasSibling);
+	}
+
+	protected matchesExpression(expression: ParsedExpression, resourcePathToMatch: string | undefined, absolutePath: string, hasAbsolutePath: boolean, hasSibling?: (name: string) => boolean): boolean {
+		if (typeof resourcePathToMatch === 'string' && !!expression(resourcePathToMatch, undefined, hasSibling)) {
 			return true;
 		}
 
@@ -211,8 +215,8 @@ export class ResourceGlobMatcher extends Disposable {
 		// to match, otherwise we potentially miss out on matches. We only do that if we previously
 		// matched on the relative path.
 
-		if (resourcePathToMatch !== this.uriToPath(resource) && expressionConfigForFolder?.hasAbsolutePath) {
-			return !!expressionForFolder(this.uriToPath(resource), undefined, hasSibling);
+		if (resourcePathToMatch !== absolutePath && hasAbsolutePath) {
+			return !!expression(absolutePath, undefined, hasSibling);
 		}
 
 		return false;
@@ -233,7 +237,24 @@ export class ResourceGlobMatcher extends Disposable {
  */
 export class ExcludeResourceGlobMatcher extends ResourceGlobMatcher {
 
+	private parsedExcludeExpressions: WeakMap<ParsedExpression, IParsedExcludeExpression> | undefined; // created lazily because the base constructor parses expressions
+
 	protected override parseExpression(expression: IExpression): ParsedExpression {
-		return parseExcludeExpression(expression).matches;
+		const parsed = parseExcludeExpression(expression);
+		const matchesExclude: ParsedExpression = (path, basename, hasSibling) => parsed.matchesExclude(path, basename, hasSibling); // a distinct function per expression to key the map
+		this.parsedExcludeExpressions ??= new WeakMap();
+		this.parsedExcludeExpressions.set(matchesExclude, parsed);
+
+		return matchesExclude;
+	}
+
+	protected override matchesExpression(expression: ParsedExpression, resourcePathToMatch: string | undefined, absolutePath: string, hasAbsolutePath: boolean, hasSibling?: (name: string) => boolean): boolean {
+		if (!super.matchesExpression(expression, resourcePathToMatch, absolutePath, hasAbsolutePath, hasSibling)) {
+			return false;
+		}
+
+		// exceptions can be relative or absolute, independent of the exclude pattern that matched
+		const parsed = this.parsedExcludeExpressions?.get(expression);
+		return !parsed?.isExcepted(absolutePath) && !(typeof resourcePathToMatch === 'string' && parsed?.isExcepted(resourcePathToMatch));
 	}
 }

@@ -232,7 +232,7 @@ export class FileWalker {
 					break;
 				}
 
-				const root = await resolveExcludeExceptionRunRoot(rootFolder, exceptionRun.root, !folderQuery.ignoreSymlinks);
+				const root = await resolveExcludeExceptionRunRoot(rootFolder, exceptionRun.root, !folderQuery.ignoreSymlinks, !!(this.config.ignoreGlobCase || folderQuery.ignoreGlobCase));
 				if (root === undefined) {
 					continue;
 				}

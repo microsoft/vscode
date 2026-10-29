@@ -742,8 +742,8 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		let inheritedValues: (IExpression | undefined)[] | undefined;
 		const isInheritedPattern = (pattern: string) => {
 			inheritedValues ??= inheritedSettings.flatMap(key => {
-				const { defaultValue, applicationValue, userValue, workspaceValue, workspaceFolderValue } = this.configurationService.inspect<IExpression>(key, { resource: this.settingsEditorModel.uri });
-				return [defaultValue, applicationValue, userValue, workspaceValue, workspaceFolderValue];
+				const { defaultValue, applicationValue, userLocalValue, userRemoteValue, workspaceValue, workspaceFolderValue } = this.configurationService.inspect<IExpression>(key, { resource: this.settingsEditorModel.uri });
+				return [defaultValue, applicationValue, userLocalValue, userRemoteValue, workspaceValue, workspaceFolderValue];
 			});
 			return inheritedValues.some(value => !!value?.[pattern]);
 		};
@@ -780,6 +780,10 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 				message: nls.localize('disabledExcludePattern', "Setting a pattern to false only disables a pattern from another settings scope. To show files and folders that match '{0}' even if another pattern excludes them, add an exception: \"!{0}\": true.", pattern)
 			};
 			markerData.push(marker);
+			if ((setting.value as IExpression)[`!${pattern}`] !== undefined) {
+				continue; // converting would duplicate the existing exception key
+			}
+
 			this.addCodeActions(range, [{
 				title: nls.localize('convertToExcludeException', "Convert to Exception"),
 				kind: CodeActionKind.QuickFix.value,

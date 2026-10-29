@@ -107,7 +107,7 @@ suite('Settings JSON exclude exceptions', () => {
 		const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
 		const markers = store.add(new MarkerService());
 		instantiationService.stub(IMarkerService, markers);
-		const textModel = store.add(createTextModel('{\n\t"files.exclude": {\n\t\t"out": false,\n\t\t"node_modules/foo": false,\n\t\t"!keep": false,\n\t\t"!**/Scripts": true\n\t}\n}', 'jsonc'));
+		const textModel = store.add(createTextModel('{\n\t"files.exclude": {\n\t\t"out": false,\n\t\t"node_modules/foo": false,\n\t\t"!keep": false,\n\t\t"!**/Scripts": true,\n\t\t"keep": false\n\t}\n}', 'jsonc'));
 		const editor = store.add(createTestCodeEditor(textModel));
 		const settings = store.add(new SettingsEditorModel({
 			object: upcastPartial<ITextEditorModel>({ textEditorModel: textModel }),
@@ -117,23 +117,30 @@ suite('Settings JSON exclude exceptions', () => {
 		renderer.render();
 
 		const reported = markers.read({ resource: textModel.uri, owner: 'UnsupportedSettingsRenderer' });
-		const actions: CodeAction[] = [];
-		for (const provider of instantiationService.get(ILanguageFeaturesService).codeActionProvider.ordered(textModel)) {
-			const list = await provider.provideCodeActions(textModel, Range.lift(reported[0]), { trigger: CodeActionTriggerType.Invoke }, CancellationToken.None);
-			actions.push(...list?.actions ?? []);
-			list?.dispose?.();
-		}
+		const getActions = async (range: Range) => {
+			const actions: CodeAction[] = [];
+			for (const provider of instantiationService.get(ILanguageFeaturesService).codeActionProvider.ordered(textModel)) {
+				const list = await provider.provideCodeActions(textModel, range, { trigger: CodeActionTriggerType.Invoke }, CancellationToken.None);
+				actions.push(...list?.actions ?? []);
+				list?.dispose?.();
+			}
+			return actions;
+		};
+		const collidingActions = await getActions(Range.lift(reported[2]));
+		const actions = await getActions(Range.lift(reported[0]));
 		const edit = actions[0].edit?.edits[0] as IWorkspaceTextEdit;
 		textModel.applyEdits([{ range: Range.lift(edit.textEdit.range), text: edit.textEdit.text }]);
 
 		assert.deepStrictEqual({
 			reported: reported.map(({ severity, startLineNumber }) => ({ severity, startLineNumber })),
 			action: actions.map(({ title, kind, isPreferred }) => ({ title, kind, isPreferred })),
+			collidingActions: collidingActions.length,
 			text: textModel.getValue(),
 		}, {
-			reported: [{ severity: MarkerSeverity.Info, startLineNumber: 4 }, { severity: MarkerSeverity.Info, startLineNumber: 6 }],
+			reported: [{ severity: MarkerSeverity.Info, startLineNumber: 4 }, { severity: MarkerSeverity.Info, startLineNumber: 6 }, { severity: MarkerSeverity.Info, startLineNumber: 7 }],
 			action: [{ title: 'Convert to Exception', kind: 'quickfix', isPreferred: true }],
-			text: '{\n\t"files.exclude": {\n\t\t"out": false,\n\t\t"!node_modules/foo": true,\n\t\t"!keep": false,\n\t\t"!**/Scripts": true\n\t}\n}',
+			collidingActions: 0,
+			text: '{\n\t"files.exclude": {\n\t\t"out": false,\n\t\t"!node_modules/foo": true,\n\t\t"!keep": false,\n\t\t"!**/Scripts": true,\n\t\t"keep": false\n\t}\n}',
 		});
 	});
 });

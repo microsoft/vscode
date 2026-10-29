@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { SettingValueType } from '../../../../services/preferences/common/preferences.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ExcludeSettingWidget, IIncludeExcludeDataItem, SettingListEvent } from '../../browser/settingsWidgets.js';
 
@@ -42,6 +43,24 @@ suite('ExcludeSettingWidget', () => {
 			withExceptions: ['Add Pattern', 'Add Exception'],
 			newException: { value: '!', ariaLabel: 'Exception Pattern' },
 			events: [{ type: 'add', pattern: '!node_modules/@types' }],
+		});
+	});
+
+	test('describes ! patterns as exceptions only for settings that support them', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const container = $('div');
+		const widget = store.add(instantiationService.createInstance(ExcludeSettingWidget, container));
+		const items: IIncludeExcludeDataItem[] = [{ value: { type: 'string', data: '!keep' }, elementType: SettingValueType.Exclude }];
+		const label = () => container.querySelector('.setting-list-row')!.getAttribute('aria-label');
+
+		widget.setValue(items, { showAddExceptionButton: true });
+		const withExceptions = label();
+		widget.setValue(items, { showAddExceptionButton: false });
+		const literal = label();
+
+		assert.deepStrictEqual({ withExceptions, literal }, {
+			withExceptions: 'Do not exclude files matching `keep`',
+			literal: 'Exclude files matching `!keep`',
 		});
 	});
 });
