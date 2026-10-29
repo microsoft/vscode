@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import * as fs from 'fs';
-import { EOL } from 'os';
 import * as path from 'path';
 import { Intent } from '../../src/extension/common/constants';
 import { IDiffService } from '../../src/platform/diff/common/diffService';
@@ -22,7 +21,7 @@ import { SyncDescriptor } from '../../src/util/vs/platform/instantiation/common/
 import { ssuite, stest } from '../base/stest';
 import { getDiagnostics } from './diagnosticProviders';
 import { DiagnosticsProvider, ITestDiagnostic } from './diagnosticProviders/diagnosticsProvider';
-import { canExecutePythonCodeWithoutErrors, isValidPythonFile } from './diagnosticProviders/python';
+import { isValidPythonFile } from './diagnosticProviders/python';
 import { simulateInlineChat } from './inlineChatSimulator';
 import { fromFixture, getFixturesDir } from './stestUtil';
 import { DiagnosticProviderId, IOutcome, IScenario } from './types';
@@ -222,35 +221,6 @@ ssuite({ title: 'notebook', subtitle: 'edit', location: 'inline' }, () => {
 			]
 		});
 	});
-
-	// import matplotlib.pyplot as plt
-
-	// months = range(1, 13)
-	// nyc_temp_2000 = [20.0, 30.5, 80.1, 80.3, 56.5, 99.6]
-	// plt.plot(months, nyc_temp_2000)
-	// stest({ description: '/fix Matplotlib: x and y must have same first dimension', language: 'python' }, (testingServiceCollection) => {
-	// 	return runScenario(accessor, {
-	// 		files: [fromFixture('notebook/errors.ipynb')],
-	// 		queries: [
-	// 			{
-	// 				file: 'errors.ipynb',
-	// 				activeCell: 6,
-	// 				selection: [4, 0, 4, 0],
-	// 				query: '/fix ValueError: x and y must have same first dimension, but have shapes (12,) and (6,)',
-	// 				expectedIntent: 'edit',
-	// 				validate: async (outcome, workspace, accessor) => {
-	// 					assert.strictEqual(outcome.type, 'inlineEdit');
-	// 					assert.strictEqual(outcome.appliedEdits.length, 1);
-	// 					const edit = outcome.appliedEdits[0];
-	// 					assert.ok(edit.newText.includes('global'));
-	// 				}
-	// 			}
-	// 		]
-	// 	});
-	// });
-
-
-
 
 	// NameError: name 'df' is not defined -> should suggest rerun cell
 });
@@ -1007,70 +977,6 @@ ssuite({ title: 'notebook', subtitle: 'fix', location: 'inline' }, () => {
 		});
 	});
 });
-
-const shouldEvaluate = 1 >> 1;
-
-ssuite.optional((opes) => !shouldEvaluate, { title: 'notebook', subtitle: 'mbpp', location: 'inline' }, () => {
-	const mbppFile = fromFixture('notebook/filtered-mbpp.json');
-	const mbppTests = JSON.parse(mbppFile.fileContents).tests;
-	const testScenarios: { task_id: number; text: string; test_list: string[] }[] = mbppTests.map((test: any) => ({
-		task_id: test.task_id,
-		text: test.prompt,
-		test_list: test.test_list.map((line: string) => `${line}\n`)
-	}));
-
-	for (const test of testScenarios) {
-		const prompt = test.text;
-		const test_list = test.test_list;
-		const task_id = test.task_id;
-
-		stest({ description: 'mbpp ' + task_id + ' ' + prompt, language: 'python' }, async (testingServiceCollection) => {
-			const templateFile = fromFixture('notebook/mbpp.ipynb');
-
-			const notebook = JSON.parse(templateFile.fileContents);
-			const cells = notebook.cells as any[];
-			const cell = cells[1];
-			cell.source = test_list;
-
-			const notebookFile = { kind: 'relativeFile' as const, fileName: templateFile.fileName, fileContents: JSON.stringify(notebook, undefined, 2) };
-
-			return simulateInlineChat(testingServiceCollection, {
-				files: [notebookFile],
-				queries: [
-					{
-						file: notebookFile.fileName,
-						activeCell: 0,
-						selection: [0, 0, 0, 0],
-						query: `${prompt} Your code should pass the tests in the next cell.`,
-						expectedIntent: 'edit',
-						validate: async (outcome, _workspace, accessor) => {
-							assert.strictEqual(outcome.type, 'inlineEdit');
-
-							if (shouldEvaluate) {
-								const testTimeoutPromise = new Promise<void>((_, reject) => {
-									setTimeout(() => reject(new Error('Test execution timed out')), 60000);
-								});
-
-								await Promise.race([testTimeoutPromise, assertPythonCodeIsValid(accessor, outcome.fileContents, 'Generated Code is not valid', 'Generated not did not execute without errors')]);
-
-								const codeWithTests = `${outcome.fileContents}${EOL}${EOL}${EOL}# Tests${EOL}${EOL}${test_list.join('')}`;
-								await Promise.race([testTimeoutPromise, assertPythonCodeIsValid(accessor, codeWithTests, 'Generated Code with Tests is not valid', 'Generated did not pass the tests')]);
-							}
-						}
-					}
-				]
-			});
-		});
-	}
-});
-
-async function assertPythonCodeIsValid(accessor: ITestingServicesAccessor, pythonCode: string, validationMessage: string, executionMessage: string): Promise<void> {
-	const cellIsValid = await isValidPythonFile(accessor, pythonCode);
-	assert.ok(cellIsValid, `${validationMessage}:${EOL}${pythonCode}`);
-
-	const cellExecutesWithoutErrors = await canExecutePythonCodeWithoutErrors(accessor, pythonCode);
-	assert.ok(cellExecutesWithoutErrors, `${executionMessage}:${EOL}${pythonCode}`);
-}
 
 async function getNotebookCellDiagnostics(accessor: ITestingServicesAccessor, workspace: SimulationWorkspace, method: DiagnosticProviderId | DiagnosticsProvider): Promise<ITestDiagnostic[]> {
 	const files = workspace.documents.filter(doc => doc.document.uri.scheme === Schemas.vscodeNotebookCell).map(doc => ({ fileName: workspace.getFilePath(doc.document.uri), fileContents: doc.document.getText() }));
