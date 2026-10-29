@@ -214,6 +214,7 @@ export class WindowsStateHandler extends Disposable {
 		// https://github.com/electron/electron/issues/34367
 		const displaysWithFullScreenWindow = new Set<number | undefined>();
 		const restoresFullScreenOnFocus = !!this.nextExactRestore?.inBackground;
+		const exact = !!this.nextExactRestore;
 
 		const currentWindowsState: IWindowsState = {
 			openedWindows: [],
@@ -229,7 +230,7 @@ export class WindowsStateHandler extends Disposable {
 			}
 
 			if (activeWindow) {
-				currentWindowsState.lastActiveWindow = this.toWindowState(activeWindow);
+				currentWindowsState.lastActiveWindow = this.toWindowState(activeWindow, exact);
 
 				if (currentWindowsState.lastActiveWindow.uiState.mode === WindowMode.Fullscreen) {
 					displaysWithFullScreenWindow.add(currentWindowsState.lastActiveWindow.uiState.display); // always allow fullscreen for active window
@@ -240,7 +241,7 @@ export class WindowsStateHandler extends Disposable {
 		// 2.) Find extension host window
 		const extensionHostWindow = this.windowsMainService.getWindows().find(window => window.isExtensionDevelopmentHost && !window.isExtensionTestHost);
 		if (extensionHostWindow) {
-			currentWindowsState.lastPluginDevelopmentHostWindow = this.toWindowState(extensionHostWindow);
+			currentWindowsState.lastPluginDevelopmentHostWindow = this.toWindowState(extensionHostWindow, exact);
 
 			if (currentWindowsState.lastPluginDevelopmentHostWindow.uiState.mode === WindowMode.Fullscreen) {
 				if (displaysWithFullScreenWindow.has(currentWindowsState.lastPluginDevelopmentHostWindow.uiState.display)) {
@@ -260,7 +261,7 @@ export class WindowsStateHandler extends Disposable {
 		// to come from the stored lastClosedWindowState on Win/Linux at least
 		if (this.windowsMainService.getWindowCount() > 1) {
 			currentWindowsState.openedWindows = this.windowsMainService.getWindows().filter(window => !window.isExtensionDevelopmentHost).map(window => {
-				const windowState = this.toWindowState(window);
+				const windowState = this.toWindowState(window, exact);
 
 				if (windowState.uiState.mode === WindowMode.Fullscreen) {
 					if (displaysWithFullScreenWindow.has(windowState.uiState.display)) {
@@ -318,14 +319,14 @@ export class WindowsStateHandler extends Disposable {
 		}
 	}
 
-	private toWindowState(window: ICodeWindow): IWindowState {
+	private toWindowState(window: ICodeWindow, exact = false): IWindowState {
 		return {
 			windowId: window.id,
 			workspace: isWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace : undefined,
 			folderUri: isSingleFolderWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace.uri : undefined,
 			backupPath: window.backupPath,
 			remoteAuthority: window.remoteAuthority,
-			uiState: window.serializeWindowState()
+			uiState: window.serializeWindowState({ exact })
 		};
 	}
 

@@ -1407,7 +1407,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		// Only do this when running out of sources and not when running tests
 		if (!this.environmentMainService.isBuilt && !this.environmentMainService.extensionTestsLocationURI) {
 			this._register(new RunOnceScheduler(() => {
-				if (this._win && !this._win.isVisible() && !this._win.isMinimized() && !(isMacintosh && electron.app.isHidden())) {
+				if (this._win && !this._win.isVisible() && !this._win.isMinimized() && !this.windowsMainService.getBackgroundRestore()) {
 					this._win.show();
 					this.focus({ mode: FocusMode.Force });
 					this._win.webContents.openDevTools();
@@ -1545,10 +1545,12 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		return configuration.workspace;
 	}
 
-	serializeWindowState(): IWindowState {
+	serializeWindowState(options?: { readonly exact?: boolean }): IWindowState {
 		if (!this._win) {
 			return defaultWindowState();
 		}
+
+		const minimized = !!options?.exact && this._win.isMinimized();
 
 		// fullscreen gets special treatment
 		if (this.isFullScreen || this.pendingFullScreen) {
@@ -1577,15 +1579,14 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				x: this.windowState.x || 0,
 				y: this.windowState.y || 0,
 				zoomLevel: this.customZoomLevel,
-				minimized: this._win.isMinimized() || undefined
+				minimized: minimized || undefined
 			};
 		}
 
 		const state: IWindowState = Object.create(null);
 		let mode: WindowMode;
 
-		// get window mode (Windows reports a minimized window as not maximized)
-		const minimized = this._win.isMinimized();
+		// get window mode (Windows reports a minimized window as not maximized, which only exact restores correct)
 		if (!isMacintosh && (this.pendingMaximize || (minimized ? this.maximized : this._win.isMaximized()))) {
 			mode = WindowMode.Maximized;
 		} else {
@@ -1599,7 +1600,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			state.mode = WindowMode.Normal;
 		}
 
-		// minimized is only restored when restoring windows exactly
+		// only exact restores restore minimized windows
 		if (minimized) {
 			state.minimized = true;
 		}
