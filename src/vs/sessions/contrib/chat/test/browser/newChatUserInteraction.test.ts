@@ -88,6 +88,8 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 				attachmentModel: { attachments: [], addContext: () => { } },
 				input: {
 					setInputEnabled: () => { },
+					hasFocus: () => false,
+					focus: () => { },
 					getAttachedContext: () => ({ asArray: () => [] }),
 					acceptInput: async () => { query = ''; },
 				},

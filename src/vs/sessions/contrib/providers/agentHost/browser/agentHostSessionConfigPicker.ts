@@ -83,10 +83,10 @@ import { getOrganizationDefaultApprovalLevel, isAutoApproveValuePolicyRestricted
 import { getPermissionLevelBadge } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filterBranchPickerItems } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostBranchPicker.js';
 import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
-import { type ISessionChangeset, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { type ISessionChangeset, type ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService } from '../../../worktreeSuggestion/browser/worktreeSuggestionService.js';
-import { getUncommittedChangesListHeader, getUncommittedFilesDescription, getUncommittedFilesSectionLabel } from '../../../worktreeSuggestion/browser/worktreeSuggestionPresentation.js';
+import { getChangedFileUri, getUncommittedChangesListHeader, getUncommittedFilesDescription, getUncommittedFilesSectionLabel } from '../../../worktreeSuggestion/browser/worktreeSuggestionPresentation.js';
 import { WorktreeSuggestionVariant } from '../../../worktreeSuggestion/common/worktreeSuggestion.js';
 
 const ExperimentalSessionComposerLayout = SessionUsesExperimentalComposerLayoutContext;
@@ -188,6 +188,11 @@ const LISTED_FILES_CLASS = 'sessions-chat-isolation-listed-changes';
 
 /** Prefixes the values of rows that are not options, which no option value contains. */
 const LISTED_FILE_VALUE_PREFIX = '\0worktreeSuggestion:';
+
+/** Identifies the uncommitted files a picker lists, and their lines added and removed. */
+function getListedFilesKey(changes: readonly ISessionFileChange[] | undefined): string {
+	return changes?.map(change => `${getChangedFileUri(change).toString()}\t${change.insertions}\t${change.deletions}`).join('\n') ?? '';
+}
 
 /** Lets a config picker list a worktree suggestion's rows, which run their action when chosen. */
 function toConfigPickerItems(items: readonly IActionListItem<IUncommittedChangesListItem>[]): IActionListItem<IConfigPickerItem>[] {
@@ -604,6 +609,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
 	private readonly _isolationCheckbox = this._register(new MutableDisposable<ConfigCheckboxControl>());
 	private readonly _hostMarker = this._register(new MutableDisposable());
+	/** Refreshes the uncommitted files listed in the open isolation picker as they load or change. */
+	private readonly _listedFilesUpdates = this._register(new MutableDisposable());
 	protected readonly _filterDelayer = this._register(new Delayer<readonly IActionListItem<IConfigPickerItem>[]>(200));
 	private _container: HTMLElement | undefined;
 	private _focusableElement: HTMLElement | undefined;
@@ -1134,6 +1141,10 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 		this._renderDisposables.add(autorun(reader => {
 			counted = this._getCountedSuggestion(sessionId, reader);
+			// Observing the files while the count shows keeps them loaded for the picker that lists them.
+			if (counted) {
+				this._worktreeSuggestionService.getUncommittedChanges(counted, reader);
+			}
 			count.update(counted);
 			trigger.setAttribute('aria-label', counted
 				? localize('agentHostSessionConfig.isolation.uncommittedCountAria', "{0}: {1}. {2}", schema.title, label, getUncommittedFilesDescription(counted))
@@ -1395,6 +1406,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				? query => branchCompletions !== undefined ? filterItems(query) : this._filterDelayer.trigger(() => filterItems(query))
 				: undefined,
 			onHide: () => {
+				this._listedFilesUpdates.clear();
 				this._openedPickerSessionId = undefined;
 				trigger.setAttribute('aria-expanded', 'false');
 				repositoryConfigContainer?.removeAttribute(PICKER_OPEN_ATTRIBUTE);
@@ -1449,6 +1461,15 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			// An icon-only chip leaves the count out, so the listed files may be the first to show it.
 			this._worktreeSuggestionService.markShown(WorktreeSuggestionVariant.UncommittedFilesCount, listedFiles);
 			this._worktreeSuggestionService.markOpened(WorktreeSuggestionVariant.UncommittedFilesCount, listedFiles);
+			// The files may still be loading when the picker opens, or change while it is open.
+			let listedKey = getListedFilesKey(this._worktreeSuggestionService.getUncommittedChanges(listedFiles, undefined));
+			this._listedFilesUpdates.value = autorun(reader => {
+				const key = getListedFilesKey(this._worktreeSuggestionService.getUncommittedChanges(listedFiles, reader));
+				if (key !== listedKey) {
+					listedKey = key;
+					this._actionWidgetService.updateItems(this._withListedFiles(listedFiles, optionItems), undefined, { preserveScrollPosition: true });
+				}
+			});
 		}
 		// Branch groups keep a fixed order, so focus the selected branch wherever it is listed.
 		const focusId = focusValue ?? (isBranchPicker && typeof currentValue === 'string' ? currentValue : undefined);

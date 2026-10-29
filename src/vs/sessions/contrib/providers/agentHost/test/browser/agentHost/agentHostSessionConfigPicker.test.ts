@@ -311,6 +311,10 @@ function setupServices(
 		focusItemById: (id: string) => {
 			actionWidget.focusedItem = actionWidget.items.find(item => item.item?.id === id);
 		},
+		updateItems: <T,>(items: readonly IActionListItem<T>[]) => {
+			actionWidget.items = items as readonly IActionListItem<unknown>[] as readonly IActionListItem<IConfigPickerItem>[];
+			actionWidget.events.push('updateItems');
+		},
 	} as Partial<IActionWidgetService> as IActionWidgetService);
 	instantiationService.stub(IHoverService, NullHoverService);
 	instantiationService.stub(IKeybindingService, new MockKeybindingService());
@@ -1247,6 +1251,32 @@ suite('Agent Host Session Config Picker', () => {
 			afterKeepingBranch: ['Branch · Works in the repository already on this computer', 'New Worktree · Creates a separate copy for this session'],
 			afterClosingHint: ['Branch', 'New Worktree'],
 			calls: ['declined:inlineHint'],
+		});
+	});
+
+	test('uncommitted files count lists the files once they load while its picker is open, until it closes', async () => {
+		const services = setupServices(store);
+		const suggestions = new TestWorktreeSuggestionService(WorktreeSuggestionVariant.UncommittedFilesCount, undefined, 2);
+		services.instantiationService.stub(IWorktreeSuggestionService, suggestions);
+		services.provider.config = makeRepoConfig('main', 'folder');
+		services.workspaceObs.set(makeWorkspace(2), undefined);
+		const { container } = renderAttachedPicker(store, services);
+		const change = (path: string): IChatSessionFileChange2 => ({ uri: URI.file(`/repo/${path}`), modifiedUri: URI.file(`/repo/${path}`), insertions: 1, deletions: 0 });
+		const rows = () => services.actionWidget.items.map(item => item.kind === ActionListItemKind.Separator ? `[${item.label}]` : item.label);
+
+		isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		const whileLoading = rows();
+		suggestions.setChanges([change('src/app.ts'), change('README.md')]);
+		const loaded = rows();
+		services.actionWidget.delegate!.onHide!();
+		suggestions.setChanges([change('src/app.ts')]);
+
+		assert.deepStrictEqual({ whileLoading, loaded, afterClosing: rows(), updates: services.actionWidget.events.filter(event => event === 'updateItems').length }, {
+			whileLoading: ['Branch', 'New Worktree'],
+			loaded: ['Branch', 'New Worktree', '[2 Uncommitted Files]', 'app.ts', 'README.md'],
+			afterClosing: ['Branch', 'New Worktree', '[2 Uncommitted Files]', 'app.ts', 'README.md'],
+			updates: 1,
 		});
 	});
 

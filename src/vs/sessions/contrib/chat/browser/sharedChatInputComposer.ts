@@ -878,11 +878,14 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			return false;
 		}
 		if (this.options.confirmSend) {
+			const hadFocus = widget.input.hasFocus();
 			transaction(tx => {
 				this._sending.set(true, tx);
 				this._confirmingSend.set(true, tx);
 			});
-			let confirmed: boolean;
+			// The request is already captured, so edits made while the host confirms would be lost.
+			widget.input.setInputEnabled(false);
+			let confirmed = false;
 			try {
 				confirmed = await this.options.confirmSend(query);
 			} finally {
@@ -890,6 +893,12 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 					this._sending.set(false, tx);
 					this._confirmingSend.set(false, tx);
 				});
+				if (this._widget === widget && widget.input) {
+					widget.input.setInputEnabled(true);
+					if (!confirmed && hadFocus) {
+						widget.input.focus();
+					}
+				}
 			}
 			if (!confirmed || this._widget !== widget) {
 				return false;

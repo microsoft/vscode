@@ -38,10 +38,17 @@ export class TestWorktreeSuggestionService extends mock<IWorktreeSuggestionServi
 	spotlightChoice: WorktreeSpotlightChoice | undefined;
 	private readonly _hintClosed = observableValue('hintClosed', false);
 	private readonly _declined = observableValue<ReadonlySet<string>>('declined', new Set());
+	private readonly _changes: ISettableObservable<readonly ISessionFileChange[] | undefined>;
 
-	constructor(variant: WorktreeSuggestionVariant, private readonly _changes?: readonly ISessionFileChange[], private readonly _uncommittedChanges = 3) {
+	constructor(variant: WorktreeSuggestionVariant, changes?: readonly ISessionFileChange[], private readonly _uncommittedChanges = 3) {
 		super();
 		this.variant = observableValue('variant', variant);
+		this._changes = observableValue('changes', changes);
+	}
+
+	/** Reports the uncommitted changes, as the provider does once they load or change. */
+	setChanges(changes: readonly ISessionFileChange[] | undefined): void {
+		this._changes.set(changes, undefined);
 	}
 
 	override getSuggestion(session: IActiveSession | undefined): IWorktreeSuggestion | undefined {
@@ -73,8 +80,8 @@ export class TestWorktreeSuggestionService extends mock<IWorktreeSuggestionServi
 		this.calls.push(`useWorktree:${variant}`);
 		return true;
 	}
-	override getUncommittedChanges(): readonly ISessionFileChange[] | undefined {
-		return this._changes;
+	override getUncommittedChanges(_suggestion: IWorktreeSuggestion, reader: IReader | undefined): readonly ISessionFileChange[] | undefined {
+		return this._changes.read(reader);
 	}
 	override async reviewChanges(variant: WorktreeSuggestionVariant, _suggestion: IWorktreeSuggestion, change?: ISessionFileChange): Promise<void> {
 		this.calls.push(`reviewChanges:${variant}${change ? ':file' : ''}`);
@@ -82,7 +89,7 @@ export class TestWorktreeSuggestionService extends mock<IWorktreeSuggestionServi
 	/** Lists up to `maxFiles` changes by their file names, then a row that counts the rest, like the service. */
 	override getUncommittedChangesListItems(variant: WorktreeSuggestionVariant, suggestion: IWorktreeSuggestion, maxFiles: number): IActionListItem<IUncommittedChangesListItem>[] {
 		const row = (label: string, run: () => unknown): IActionListItem<IUncommittedChangesListItem> => ({ kind: ActionListItemKind.Action, label, item: { run: () => void run() } });
-		const changes = this._changes ?? [];
+		const changes = this._changes.get() ?? [];
 		const listed = changes.length <= maxFiles + 1 ? changes : changes.slice(0, maxFiles);
 		const rows = listed.map(change => row(basename(getChangedFileUri(change)), () => this.reviewChanges(variant, suggestion, change)));
 		if (listed.length < changes.length) {
