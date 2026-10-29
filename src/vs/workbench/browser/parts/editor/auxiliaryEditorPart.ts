@@ -5,7 +5,6 @@
 
 import { onDidChangeFullscreen } from '../../../../base/browser/browser.js';
 import { $, getActiveWindow, hide, show } from '../../../../base/browser/dom.js';
-import { mainWindow } from '../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, markAsSingleton, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isNative } from '../../../../base/common/platform.js';
@@ -17,14 +16,15 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { hasCustomTitlebar } from '../../../../platform/window/common/window.js';
 import { IEditorGroupView, IEditorPartsView } from './editor.js';
-import { EditorPart, IEditorPartUIState } from './editorPart.js';
+import { IEditorPartUIState } from './editorPart.js';
+import { OwnedEditorPart } from './ownedEditorPart.js';
 import { IAuxiliaryTitlebarPart } from '../titlebar/titlebarPart.js';
 import { WindowTitle } from '../titlebar/windowTitle.js';
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
-import { GroupDirection, GroupsOrder, IAuxiliaryEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupDirection, IAuxiliaryEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { IWorkbenchLayoutService, Parts, shouldShowCustomTitleBar } from '../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, shouldShowCustomTitleBar } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
@@ -335,12 +335,9 @@ export class AuxiliaryEditorPart {
 	}
 }
 
-class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart {
+class AuxiliaryEditorPartImpl extends OwnedEditorPart implements IAuxiliaryEditorPart {
 
 	private static COUNTER = 1;
-
-	private readonly _onWillClose = this._register(new Emitter<void>());
-	readonly onWillClose = this._onWillClose.event;
 
 	private readonly optionsDisposable = this._register(new MutableDisposable());
 
@@ -396,102 +393,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		return super.addGroup(location, direction, groupToCopy);
 	}
 
-	override removeGroup(group: number | IEditorGroupView, preserveFocus?: boolean): void {
-
-		// Close aux window when last group removed
-		const groupView = this.assertGroupView(group);
-		if (this.count === 1 && this.activeGroup === groupView) {
-			this.doRemoveLastGroup(preserveFocus);
-		}
-
-		// Otherwise delegate to parent implementation
-		else {
-			super.removeGroup(group, preserveFocus);
-		}
-	}
-
-	private doRemoveLastGroup(preserveFocus?: boolean): void {
-		const restoreFocus = !preserveFocus && this.shouldRestoreFocus(this.container);
-
-		// Activate next group when closing
-		const mostRecentlyActiveGroups = this.editorPartsView.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
-		const nextActiveGroup = mostRecentlyActiveGroups[1]; // [0] will be the current group we are about to dispose
-		if (nextActiveGroup) {
-			nextActiveGroup.groupsView.activateGroup(nextActiveGroup, undefined, GroupActivationReason.PART_CLOSE);
-		}
-
-		// Deal with focus: focus the next recently used group but skip
-		// this if the next group is in the main part and the main part
-		// is currently hidden, as that would make it visible.
-		if (nextActiveGroup && restoreFocus) {
-			const nextGroupInHiddenMainPart = nextActiveGroup.groupsView === this.editorPartsView.mainPart && !this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
-			if (!nextGroupInHiddenMainPart) {
-				nextActiveGroup.focus();
-			}
-		}
-
-		this.doClose(false /* do not merge any confirming editors to main part */);
-	}
-
 	protected override loadState(): IEditorPartUIState | undefined {
 		return this.state;
-	}
-
-	protected override saveState(): void {
-		return; // disabled, auxiliary editor part state is tracked outside
-	}
-
-	close(): boolean {
-		return this.doClose(true /* merge all confirming editors to main part */);
-	}
-
-	private doClose(mergeConfirmingEditorsToMainPart: boolean): boolean {
-		let result = true;
-		if (mergeConfirmingEditorsToMainPart) {
-
-			// First close all editors that are non-confirming
-			for (const group of this.groups) {
-				group.closeAllEditors({ excludeConfirming: true, force: true });
-			}
-
-			// Then merge remaining to main part
-			result = this.mergeGroupsToMainPart();
-			if (!result) {
-				return false; // Do not close when editors could not be merged back
-			}
-		}
-
-		this._onWillClose.fire();
-
-		return result;
-	}
-
-	private mergeGroupsToMainPart(): boolean {
-		if (!this.groups.some(group => group.count > 0)) {
-			return true; // skip if we have no editors opened
-		}
-
-		// Find the most recent group that is not locked
-		let targetGroup: IEditorGroupView | undefined = undefined;
-		for (const group of this.editorPartsView.mainPart.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-			if (!group.isLocked) {
-				targetGroup = group;
-				break;
-			}
-		}
-
-		if (!targetGroup) {
-			targetGroup = this.editorPartsView.mainPart.addGroup(this.editorPartsView.mainPart.activeGroup, this.partOptions.openSideBySideDirection === 'right' ? GroupDirection.RIGHT : GroupDirection.DOWN);
-		}
-
-		const result = this.mergeAllGroups(targetGroup, {
-			// Try to reduce the impact of closing the auxiliary window
-			// as much as possible by not changing existing editors
-			// in the main window.
-			preserveExistingIndex: true
-		});
-		targetGroup.focus();
-
-		return result;
 	}
 }
