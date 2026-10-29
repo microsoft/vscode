@@ -752,8 +752,8 @@
 	z-index: 11;
 }
 
-/* Overlay the top gutter without interrupting the connected tab's join to the editor. */
-.modern-ui-tabs.modern-ui-connected-editor-tabs .part.editor .tabs-and-actions-container > .monaco-scrollable-element > .scrollbar.horizontal {
+/* Keep Modern UI tab scrolling above the tab strip without changing its layout. */
+.modern-ui-tabs .part.editor .tabs-and-actions-container > .monaco-scrollable-element > .scrollbar.horizontal {
 	top: 0;
 }
 

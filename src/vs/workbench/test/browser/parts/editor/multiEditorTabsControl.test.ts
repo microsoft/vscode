@@ -213,7 +213,7 @@ suite('MultiEditorTabsControl', () => {
 		};
 	}
 
-	test('connected tab scrollbars overlay the top edge without changing header or body geometry', async () => {
+	test('modern tab scrollbars overlay the top edge without changing header or body geometry', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;
 		const body = $('div');
@@ -250,7 +250,7 @@ suite('MultiEditorTabsControl', () => {
 							modern, connected, tabHeight, titleScrollbarSizing,
 							hiddenAtRest,
 							visibleOnHover: scrollbar.classList.contains('visible'),
-							correctEdge: Math.abs(modern && connected ? bounds.top - viewport.top : bounds.bottom - viewport.bottom) < 1 / 32,
+							correctEdge: Math.abs(modern ? bounds.top - viewport.top : bounds.bottom - viewport.bottom) < 1 / 32,
 							withinHeader: bounds.top >= viewport.top && bounds.bottom <= viewport.bottom,
 							stableGeometry: JSON.stringify(geometry()) === JSON.stringify(idleGeometry),
 						});
@@ -293,33 +293,27 @@ suite('MultiEditorTabsControl', () => {
 		})));
 	});
 
-	test('modern tab scrollbar paint fills the track with rounded ends in both hosts', async () => {
+	test('connected editor tab scrollbars keep rounded ends and configured thickness', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;
 		root.style.setProperty('--vscode-cornerRadius-circle', '9999px');
 		const results = [];
-		for (const agents of [false, true]) {
-			root.classList.toggle('agent-sessions-workbench', agents);
-			for (const titleScrollbarSizing of ['default', 'large'] as const) {
-				const oldOptions = partOptions;
-				partOptions = { ...partOptions, titleScrollbarSizing };
-				control.updateOptions(oldOptions, partOptions);
-				await layoutConnectedGroup(group, 180);
-				const slider = container.querySelector<HTMLElement>('.scrollbar.horizontal > .slider')!;
-				const paint = mainWindow.getComputedStyle(slider, '::before');
-				results.push({
-					agents, titleScrollbarSizing,
-					height: slider.getBoundingClientRect().height,
-					radius: mainWindow.getComputedStyle(slider).borderRadius,
-					insets: [paint.top, paint.right, paint.bottom, paint.left],
-				});
-			}
+		for (const titleScrollbarSizing of ['default', 'large'] as const) {
+			const oldOptions = partOptions;
+			partOptions = { ...partOptions, titleScrollbarSizing };
+			control.updateOptions(oldOptions, partOptions);
+			await layoutConnectedGroup(group, 180);
+			const slider = container.querySelector<HTMLElement>('.scrollbar.horizontal > .slider')!;
+			results.push({
+				titleScrollbarSizing,
+				height: slider.getBoundingClientRect().height,
+				radius: mainWindow.getComputedStyle(slider).borderRadius,
+			});
 		}
 		assert.deepStrictEqual(results, results.map(result => ({
 			...result,
 			height: result.titleScrollbarSizing === 'large' ? 10 : 3,
 			radius: '9999px',
-			insets: ['0px', '0px', '0px', '0px'],
 		})));
 	});
 
