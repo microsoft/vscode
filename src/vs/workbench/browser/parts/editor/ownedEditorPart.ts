@@ -89,9 +89,15 @@ export abstract class OwnedEditorPart extends EditorPart {
 		}
 
 		this._onWillClose.fire();
+		this.onDidClose();
 
 		return result;
 	}
+
+	/**
+	 * Called after all listeners of `onWillClose` were notified.
+	 */
+	protected onDidClose(): void { }
 
 	private mergeGroupsToMainPart(): boolean {
 		if (!this.groups.some(group => group.count > 0)) {

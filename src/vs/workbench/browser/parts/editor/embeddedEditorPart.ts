@@ -5,8 +5,7 @@
 
 import { getWindow, isAncestor } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { Event } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -55,8 +54,9 @@ export class EmbeddedEditorPartFactory {
 			[IEditorService, this.editorService.createScoped(part, disposables)]
 		)));
 
-		// The owner closes the part; the part then releases everything registered for it
-		disposables.add(Event.once(part.onWillClose)(() => disposables.dispose()));
+		// The owner closes the part; the part then releases everything registered for it,
+		// once all listeners of `onWillClose` were notified
+		part.onDidRelease = () => disposables.dispose();
 
 		return { part, instantiationService, disposables };
 	}
@@ -65,6 +65,10 @@ export class EmbeddedEditorPartFactory {
 export class EmbeddedEditorPart extends OwnedEditorPart implements IEmbeddedEditorPart {
 
 	private static COUNTER = 1;
+
+	onDidRelease: (() => void) | undefined;
+
+	private readonly batchedGroups = new Set<IEditorGroupView>();
 
 	constructor(
 		windowId: number,
@@ -80,6 +84,13 @@ export class EmbeddedEditorPart extends OwnedEditorPart implements IEmbeddedEdit
 	) {
 		const id = EmbeddedEditorPart.COUNTER++;
 		super(editorPartsView, `workbench.parts.embeddedEditor.${id}`, createOptions.label ?? localize('embeddedEditorPart', "Editor"), windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
+
+		// Its owner decides where editors go: a group locked by opening e.g. a terminal could not be unlocked in it
+		this._register(this.enforcePartOptions({ autoLockGroups: new Set<string>() }));
+	}
+
+	protected override onDidClose(): void {
+		this.onDidRelease?.();
 	}
 
 	get isPrimary(): boolean {
@@ -91,6 +102,8 @@ export class EmbeddedEditorPart extends OwnedEditorPart implements IEmbeddedEdit
 	}
 
 	override create(parent: HTMLElement, options?: object): void {
+		parent.classList.add('part', 'editor');
+
 		super.create(parent, options);
 
 		parent.setAttribute('role', 'region');
@@ -117,18 +130,32 @@ export class EmbeddedEditorPart extends OwnedEditorPart implements IEmbeddedEdit
 		// A group created for the editor, such as to the side of a group of the part or by a drop that splits one, does
 		// not stay without editors: it goes once the editor opened in the other group, which takes its focus.
 		if (group.isEmpty && this.count > 1) {
-			queueMicrotask(() => {
-				if (group.isEmpty && this.count > 1 && this.groups.includes(group)) {
-					const hadFocus = isAncestor(group.element.ownerDocument.activeElement, group.element);
-					this.removeGroup(group, true);
-					if (hadFocus) {
-						target.focus();
-					}
-				}
-			});
+			queueMicrotask(() => this.removeRedirectedGroup(group, target));
 		}
 
 		return target;
+	}
+
+	openEditorsBatch(group: IEditorGroupView): IDisposable {
+		this.batchedGroups.add(group);
+
+		// A group of a batch goes when the whole batch is open, as editors the part takes still open in it
+		return toDisposable(() => {
+			this.batchedGroups.delete(group);
+			this.removeRedirectedGroup(group);
+		});
+	}
+
+	private removeRedirectedGroup(group: IEditorGroupView, target?: IEditorGroup): void {
+		if (this.batchedGroups.has(group) || !group.isEmpty || this.count <= 1 || !this.groups.includes(group)) {
+			return;
+		}
+
+		const hadFocus = isAncestor(group.element.ownerDocument.activeElement, group.element);
+		this.removeGroup(group, true);
+		if (hadFocus) {
+			(target ?? this.activeGroup).focus();
+		}
 	}
 
 	override removeGroup(group: number | IEditorGroupView, preserveFocus?: boolean): void {
