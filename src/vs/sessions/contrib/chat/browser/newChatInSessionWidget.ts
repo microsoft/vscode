@@ -86,6 +86,7 @@ export class NewChatInSessionWidget extends Disposable {
 	private readonly _newChatInput: SharedChatInputComposer;
 	/** The harness switch in flight; a send waits for it so it reaches the chat of the picked harness. */
 	private _harnessSwitch: Promise<void> | undefined;
+	private _harnessSwitchTarget: string | undefined;
 	private readonly _tipDisposable = this._register(new MutableDisposable());
 	private readonly _session: IObservable<IActiveSession | undefined>;
 	/**
@@ -244,9 +245,14 @@ export class NewChatInSessionWidget extends Disposable {
 		}
 		this._chat.set(chat, undefined);
 		const draft = this.viewStateService.getDraft(chat.resource);
-		if (previous || draft) {
+		if (!this._isHarnessSwitchResult(chat) && (previous || draft)) {
 			this._newChatInput.setDraft(draft);
 		}
+	}
+
+	private _isHarnessSwitchResult(chat: IChat): boolean {
+		const session = this._session.get();
+		return !!session && this._harnessSwitchTarget !== undefined && getChatHarness(session, chat) === this._harnessSwitchTarget;
 	}
 
 	/** Keeps what was typed but not sent, so returning to the chat finds it again. */
@@ -327,10 +333,12 @@ export class NewChatInSessionWidget extends Disposable {
 		}
 		const switched = this._switchHarness(session, draft, harness);
 		this._harnessSwitch = switched;
+		this._harnessSwitchTarget = harness;
 		try {
 			await switched;
 		} finally {
 			this._harnessSwitch = undefined;
+			this._harnessSwitchTarget = undefined;
 		}
 	}
 
