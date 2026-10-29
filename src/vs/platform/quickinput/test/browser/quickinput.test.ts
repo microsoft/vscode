@@ -1536,6 +1536,26 @@ suite('QuickInput item hover layout', () => {
 		});
 	});
 
+	test('returns focus to where it was when the picker moves while the item hover has focus', async () => {
+		await showPicker(['first']);
+		await settle();
+		const focusedBeforeHover = mainWindow.document.activeElement;
+		controller.toggleHover();
+		const hover = fixture.querySelector<HTMLElement>('.monaco-hover');
+		assert.ok(hover);
+		hover.focus();
+		const hoverFocused = mainWindow.document.activeElement === hover;
+
+		controller.layout({ height: 600, width: 700 }, 0);
+
+		assert.deepStrictEqual({
+			focusedBeforeHoverInPicker: !!focusedBeforeHover && widget().contains(focusedBeforeHover),
+			hoverFocused,
+			hoverShown: !!fixture.querySelector('.workbench-hover'),
+			focusReturned: mainWindow.document.activeElement === focusedBeforeHover,
+		}, { focusedBeforeHoverInPicker: true, hoverFocused: true, hoverShown: false, focusReturned: true });
+	});
+
 	test('keeps the widget settled when a visible picker is replaced and animates a new show', async () => {
 		await showPicker(['first']);
 		await settle();

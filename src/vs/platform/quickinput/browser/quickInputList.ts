@@ -801,6 +801,8 @@ export class QuickInputList extends Disposable {
 	private _lastHoverListPosition: { readonly top: number; readonly left: number } | undefined;
 	// Viewport-sized host for the item hover, see `showHover`
 	private _hoverHost: HTMLElement | undefined;
+	// Element that had focus when the item hover was shown, see `hideHoverIfMoved`
+	private _hoverFocusReturn: HTMLElement | undefined;
 	private _lastQueryString: string | undefined;
 
 	constructor(
@@ -1448,8 +1450,17 @@ export class QuickInputList extends Disposable {
 		}
 		const { top, left } = this._container.getBoundingClientRect();
 		if (top !== this._lastHoverListPosition.top || left !== this._lastHoverListPosition.left) {
+			// Removing a focused hover would move focus to the body and could close the picker
+			const hoverHadFocus = !!this._hoverHost && dom.isAncestorOfActiveElement(this._hoverHost);
 			this.hoverDelegate.onDidHideHover?.();
 			this._lastHover.dispose();
+			if (hoverHadFocus) {
+				if (this._hoverFocusReturn?.isConnected) {
+					this._hoverFocusReturn.focus();
+				} else {
+					this._tree.domFocus();
+				}
+			}
 		}
 	}
 
@@ -1670,6 +1681,8 @@ export class QuickInputList extends Disposable {
 			return;
 		}
 		this._onWillShowItemHover.fire();
+		const activeElement = dom.getActiveElement();
+		this._hoverFocusReturn = dom.isHTMLElement(activeElement) && !(this._hoverHost && dom.isAncestor(activeElement, this._hoverHost)) ? activeElement : undefined;
 		this._lastHover = this.hoverDelegate.showHover({
 			content: element.saneTooltip,
 			target: element.element,
