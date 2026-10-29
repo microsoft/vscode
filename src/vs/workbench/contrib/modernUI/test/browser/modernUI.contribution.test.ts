@@ -2187,7 +2187,8 @@ suite('ModernUIContribution', () => {
 		root.appendChild(overlay.root);
 		overlay.setAnchorElement(anchor);
 		const output = appendElement(overlay.content, 'notebook-test-output');
-		output.style.cssText = 'width: 100%; height: 100%;';
+		// Hit-test the overlay itself; WebKit ignores ancestor radii when targeting a child.
+		output.style.cssText = 'width: 100%; height: 100%; pointer-events: none;';
 		const overflowHost = appendElement(root, 'notebook-overflow-widget-container monaco-editor');
 		const targetWindow = getWindow(root);
 		const state = (classes: string, modal = false) => {
@@ -2195,11 +2196,13 @@ suite('ModernUIContribution', () => {
 			overlay.content.classList.toggle('notebook-overlay-modal', modal);
 			const bounds = overlay.content.getBoundingClientRect();
 			const coversPoint = (x: number, y: number) => overlay.content.contains(targetWindow.document.elementFromPoint(x, y));
+			const style = targetWindow.getComputedStyle(overlay.content);
 			return {
-				radius: targetWindow.getComputedStyle(overlay.content).borderRadius,
+				radius: style.borderRadius,
+				overflow: style.overflow,
 				bottomLeftClipped: !coversPoint(bounds.left + 0.5, bounds.bottom - 0.5),
 				bottomRightClipped: !coversPoint(bounds.right - 0.5, bounds.bottom - 0.5),
-				outputVisible: coversPoint(bounds.left + bounds.width / 2, bounds.bottom - 0.5),
+				centerVisible: coversPoint(bounds.left + bounds.width / 2, bounds.bottom - 0.5),
 				overflowHostRadius: targetWindow.getComputedStyle(overflowHost).borderRadius,
 			};
 		};
@@ -2213,13 +2216,13 @@ suite('ModernUIContribution', () => {
 			compactModal: state('modern-ui floating-panels modern-ui-compact', true),
 			returningToCompact: state('modern-ui floating-panels modern-ui-compact'),
 		}, {
-			classic: { radius: '0px', bottomLeftClipped: false, bottomRightClipped: false, outputVisible: true, overflowHostRadius: '0px' },
-			modern: { radius: '8px', bottomLeftClipped: true, bottomRightClipped: true, outputVisible: true, overflowHostRadius: '0px' },
-			compact: { radius: '0px', bottomLeftClipped: false, bottomRightClipped: false, outputVisible: true, overflowHostRadius: '0px' },
-			auxiliary: { radius: '8px', bottomLeftClipped: true, bottomRightClipped: true, outputVisible: true, overflowHostRadius: '0px' },
-			compactAuxiliary: { radius: '8px', bottomLeftClipped: true, bottomRightClipped: true, outputVisible: true, overflowHostRadius: '0px' },
-			compactModal: { radius: '8px', bottomLeftClipped: true, bottomRightClipped: true, outputVisible: true, overflowHostRadius: '0px' },
-			returningToCompact: { radius: '0px', bottomLeftClipped: false, bottomRightClipped: false, outputVisible: true, overflowHostRadius: '0px' },
+			classic: { radius: '0px', overflow: 'hidden', bottomLeftClipped: false, bottomRightClipped: false, centerVisible: true, overflowHostRadius: '0px' },
+			modern: { radius: '8px', overflow: 'hidden', bottomLeftClipped: true, bottomRightClipped: true, centerVisible: true, overflowHostRadius: '0px' },
+			compact: { radius: '0px', overflow: 'hidden', bottomLeftClipped: false, bottomRightClipped: false, centerVisible: true, overflowHostRadius: '0px' },
+			auxiliary: { radius: '8px', overflow: 'hidden', bottomLeftClipped: true, bottomRightClipped: true, centerVisible: true, overflowHostRadius: '0px' },
+			compactAuxiliary: { radius: '8px', overflow: 'hidden', bottomLeftClipped: true, bottomRightClipped: true, centerVisible: true, overflowHostRadius: '0px' },
+			compactModal: { radius: '8px', overflow: 'hidden', bottomLeftClipped: true, bottomRightClipped: true, centerVisible: true, overflowHostRadius: '0px' },
+			returningToCompact: { radius: '0px', overflow: 'hidden', bottomLeftClipped: false, bottomRightClipped: false, centerVisible: true, overflowHostRadius: '0px' },
 		});
 	});
 
