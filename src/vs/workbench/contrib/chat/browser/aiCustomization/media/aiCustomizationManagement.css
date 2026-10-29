@@ -2393,7 +2393,12 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-link {
 	color: var(--vscode-textLink-foreground);
+	display: inline-block;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
 	text-decoration: none;
+	white-space: nowrap;
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-link:hover {
