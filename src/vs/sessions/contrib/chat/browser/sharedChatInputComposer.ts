@@ -689,6 +689,16 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		}
 	}
 
+	getDraft(): IChatDraft {
+		return { inputText: this.getInputValue(), attachments: [...this.attachments] };
+	}
+
+	/** Replaces the input and attachments with `draft`, or empties them when there is none. */
+	setDraft(draft: IChatDraft | undefined): void {
+		this.setInputValue(draft?.inputText ?? '');
+		this._widget?.attachmentModel.clearAndSetContext(...(draft?.attachments ?? []));
+	}
+
 	applyDraft(draft: IChatDraft): boolean {
 		if (!this.isInputReady || this.hasInput || this._sending.get()) {
 			return false;
