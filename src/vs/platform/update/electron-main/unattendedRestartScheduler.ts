@@ -190,7 +190,7 @@ type UnattendedRestartClassification = {
 	owner: 'alexdima';
 	comment: 'Tracks whether a downloaded update could be applied by restarting while the screen was locked, to learn how often this applies and what prevents it.';
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the application restarted (reported once the restart completed, with or without the update installed), would have restarted if the setting was enabled, or was blocked for the whole time the screen was locked.' };
-	blockers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Sorted, comma separated identifiers of the conditions that blocked the most recent attempt.' };
+	blockers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Sorted, comma separated identifiers of all the conditions that blocked the most recent attempt.' };
 	inBackground: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether another application was active when the screen got locked, so that the restart must not take focus.' };
 	attempts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of restart attempts while the screen was locked.' };
 	lockedMinutes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Minutes since the screen was locked or the machine resumed while locked.' };
@@ -485,16 +485,15 @@ export class UnattendedRestartScheduler extends Disposable {
 			blockers.add('app.launchArguments');
 		}
 
-		let enabled = this.isEnabled();
-		if (blockers.size === 0) {
-			const readiness = await Promise.all(windows.map(window => this.getWindowReadiness(window)));
-			for (const blocker of readiness.flatMap(windowReadiness => windowReadiness.blockers)) {
-				blockers.add(blocker);
-			}
-
-			// Windows resolve experiments, which can enable the setting by default
-			enabled = readiness.every(windowReadiness => windowReadiness.enabled);
+		// Ask the windows even when something else blocks already, so that the outcome tells everything
+		// that prevented the restart. Windows that are not ready block already and cannot answer yet.
+		const readiness = await Promise.all(windows.filter(window => window.isReady).map(window => this.getWindowReadiness(window)));
+		for (const blocker of readiness.flatMap(windowReadiness => windowReadiness.blockers)) {
+			blockers.add(blocker);
 		}
+
+		// Windows resolve experiments, which can enable the setting by default
+		const enabled = readiness.every(windowReadiness => windowReadiness.enabled);
 
 		return { blockers: Array.from(blockers).sort(), enabled };
 	}

@@ -88,6 +88,7 @@ suite('UnattendedRestartScheduler', () => {
 		readonly updateVersion?: string;
 		readonly hasOpenDialogs?: boolean;
 		readonly hasAuxiliaryWindow?: boolean;
+		readonly isWindowReady?: boolean;
 		/** Blockers that the window reports for consecutive checks; afterwards it reports none. */
 		readonly windowBlockers?: string[][];
 		/** A restart that the previous instance remembered when it shut down. */
@@ -131,7 +132,7 @@ suite('UnattendedRestartScheduler', () => {
 			},
 		});
 
-		const window = createWindow();
+		const window = createWindow({ isReady: options.isWindowReady });
 		const exactRestores: (IExactRestoreOptions | undefined)[] = [];
 		const windowsMainService = upcastPartial<IWindowsMainService>({
 			getWindows: () => [window],
@@ -297,6 +298,22 @@ suite('UnattendedRestartScheduler', () => {
 		fixture.unlock();
 
 		assert.deepStrictEqual(fixture.log, [outcome('blocked', 1, 2, 'app.dialogOpen')]);
+	}));
+
+	test('reports everything that blocked the last attempt, but does not ask windows that are not ready', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const dialogOpen = createFixture({ hasOpenDialogs: true, windowBlockers: [['terminal.runningProcess'], ['chat.sessionInProgress']] });
+		const notReady = createFixture({ isWindowReady: false, windowBlockers: [['terminal.runningProcess'], ['terminal.runningProcess']] });
+
+		dialogOpen.lock();
+		notReady.lock();
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + MINUTE + 20 * SECOND);
+		dialogOpen.unlock();
+		notReady.unlock();
+
+		assert.deepStrictEqual({ dialogOpen: dialogOpen.log, notReady: notReady.log }, {
+			dialogOpen: [outcome('blocked', 2, 3, 'app.dialogOpen,chat.sessionInProgress')],
+			notReady: [outcome('blocked', 2, 3, 'window.notReady')],
+		});
 	}));
 
 	test('retries while a window cannot be restored and restarts once it can', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
