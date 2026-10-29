@@ -224,6 +224,56 @@ suite('NewChatInSessionWidget', () => {
 		assert.deepStrictEqual(shown, { inputText: 'the other chat\'s draft', attachments: [] });
 	});
 
+	test('returning to the replacement chat while the replaced draft is still being deleted restores its own draft', async () => {
+		const chat = (fragment: string, harness?: string, status = SessionStatus.Untitled) => upcastPartial<IChat>({ resource: URI.parse(`test:///session#${fragment}`), status: constObservable(status), ...(harness ? { harness } : {}) });
+		const main = chat('', undefined, SessionStatus.Completed);
+		const draft = chat('draft');
+		const replacement = chat('replacement', 'other');
+		const otherDraft = chat('other-draft', 'other');
+		const activeChat = observableValue<IChat>('activeChat', draft);
+		const session = upcastPartial<IActiveSession>({ sessionId: 'session', harness: 'main', isCreated: constObservable(true), mainChat: constObservable(main), activeChat });
+		const viewStateService = new SessionsChatViewStateService();
+		viewStateService.setDraft(otherDraft.resource, { inputText: 'the other chat\'s draft', attachments: [] });
+		let input: IChatDraft = { inputText: '', attachments: [] };
+		let finishDelete!: () => void;
+		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
+			_session: constObservable(session),
+			_chat: observableValue<IChat | undefined>('chat', undefined),
+			_newChatInput: { getDraft: () => input, setDraft: (value: IChatDraft | undefined) => { input = value ?? { inputText: '', attachments: [] }; } },
+			viewStateService,
+			logService: new NullLogService(),
+			sessionsService: new class extends mock<ISessionsService>() {
+				override async openNewChatInSession(): Promise<void> {
+					await Promise.resolve();
+					activeChat.set(replacement, undefined);
+					widget.setChat(replacement);
+				}
+			}(),
+			sessionsManagementService: new class extends mock<ISessionsManagementService>() {
+				override deleteChat(): Promise<boolean> {
+					return new Promise<boolean>(resolve => finishDelete = () => resolve(true));
+				}
+			}(),
+		});
+		widget.setChat(draft);
+		input = { inputText: 'typed before the switch', attachments: [] };
+
+		const switched = widget.selectHarness('other');
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+		widget.setChat(otherDraft);
+		const inOtherChat = input;
+		input = { inputText: 'edited in the other chat', attachments: [] };
+		widget.setChat(replacement);
+		const backInReplacement = input;
+		finishDelete();
+		await switched;
+
+		assert.deepStrictEqual({ inOtherChat, backInReplacement }, {
+			inOtherChat: { inputText: 'the other chat\'s draft', attachments: [] },
+			backInReplacement: { inputText: 'typed before the switch', attachments: [] },
+		});
+	});
+
 	test('ignores a harness pick while a switch is pending, and keeps the draft when the user left the session meanwhile', async () => {
 		const chat = (fragment: string, status = SessionStatus.Untitled) => upcastPartial<IChat>({ resource: URI.parse(`test:///session#${fragment}`), status: constObservable(status) });
 		const main = chat('', SessionStatus.Completed);
