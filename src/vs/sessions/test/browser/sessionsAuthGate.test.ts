@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isWeb } from '../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ConditionalAuthState, conditionalAuthState, resolveSignedOutWindowGate, shouldShowGitHubWorkspaceGroupSignIn, SignedOutWindowGate } from '../../browser/sessionsAuthGate.js';
 import { SessionTypeAuthRequirement } from '../../services/sessions/common/session.js';
@@ -23,10 +24,10 @@ suite('Sessions - Auth Gate', () => {
 		}, {
 			initializesWithoutGitHub: SignedOutWindowGate.Proceed,
 			initializationBeforeProviders: SignedOutWindowGate.Unresolved,
-			providersUnresolved: SignedOutWindowGate.Unresolved,
+			providersUnresolved: isWeb ? SignedOutWindowGate.ForceGitHubSignIn : SignedOutWindowGate.Unresolved,
 			allRequireGitHub: SignedOutWindowGate.ForceGitHubSignIn,
-			nativeProvider: SignedOutWindowGate.Proceed,
-			nativeProviderInitializing: SignedOutWindowGate.Proceed,
+			nativeProvider: isWeb ? SignedOutWindowGate.ForceGitHubSignIn : SignedOutWindowGate.Proceed,
+			nativeProviderInitializing: isWeb ? SignedOutWindowGate.ForceGitHubSignIn : SignedOutWindowGate.Proceed,
 		});
 	});
 
@@ -34,7 +35,7 @@ suite('Sessions - Auth Gate', () => {
 		assert.deepStrictEqual([
 			shouldShowGitHubWorkspaceGroupSignIn(false),
 			shouldShowGitHubWorkspaceGroupSignIn(true),
-		], [true, false]);
+		], [!isWeb, false]);
 	});
 
 	test('conditionalAuthState treats an unresolved account as unknown, never signed out', () => {
