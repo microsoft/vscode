@@ -45,20 +45,57 @@ export function parseGlob(rawGlob: string): Iterable<string> {
 export type GetWorkspaceFolder = (documentUri: vscode.Uri) => vscode.Uri | undefined;
 
 /**
- * Checks that a copy destination stays inside the workspace folder of the document,
- * or inside the document's directory if the document is not part of a workspace.
+ * Checks that a copy destination does not leave the workspace, neither lexically nor through
+ * symbolic links or junctions.
+ *
+ * Destinations must stay inside a workspace folder, or inside the document's directory if the
+ * document is not part of a workspace.
  */
-export function isCopyDestinationInsideWorkspace(documentUri: vscode.Uri, destination: vscode.Uri, getWorkspaceFolder: GetWorkspaceFolder): boolean {
-	const root = getWorkspaceFolder(documentUri) ?? Utils.dirname(documentUri);
-	if (root.scheme !== destination.scheme || root.authority !== destination.authority) {
+export async function isSafeCopyDestination(
+	documentUri: vscode.Uri,
+	destination: vscode.Uri,
+	getWorkspaceFolder: GetWorkspaceFolder,
+	fs: Pick<vscode.FileSystem, 'stat'>,
+): Promise<boolean> {
+	const root = getCopyDestinationRoot(documentUri, destination, getWorkspaceFolder);
+	if (!root) {
 		return false;
 	}
 
-	// Treat `\` as a separator too, since it is one on Windows file systems.
-	// Drive letters may differ in case between URIs (`/C:/` vs `/c:/`).
-	const normalize = (p: string) => path.posix.normalize(p.replaceAll('\\', '/')).replace(/^\/([a-zA-Z]):/, (_, drive: string) => `/${drive.toLowerCase()}:`);
-	const rootPath = normalize(root.path).replace(/\/?$/, '/');
-	return normalize(destination.path).startsWith(rootPath);
+	const relativePath = destination.path.slice(root.path.replace(/\/$/, '').length);
+	// `\` separates paths on Windows but is a regular character on POSIX, so reject it everywhere
+	if (relativePath.includes('\\')) {
+		return false;
+	}
+
+	let current = root;
+	for (const segment of relativePath.split('/').filter(Boolean)) {
+		current = vscode.Uri.joinPath(current, segment);
+		let stat: vscode.FileStat;
+		try {
+			stat = await fs.stat(current);
+		} catch {
+			// Does not exist yet, so the rest of the path gets created as regular folders and files
+			return true;
+		}
+		if (stat.type & vscode.FileType.SymbolicLink) {
+			return false;
+		}
+	}
+	return true;
+}
+
+function getCopyDestinationRoot(documentUri: vscode.Uri, destination: vscode.Uri, getWorkspaceFolder: GetWorkspaceFolder): vscode.Uri | undefined {
+	if (getWorkspaceFolder(documentUri)) {
+		// Uses the same path casing rules as the file system of the workspace folder
+		return getWorkspaceFolder(destination);
+	}
+
+	const documentDir = Utils.dirname(documentUri);
+	const isInsideDocumentDir = destination.scheme === documentDir.scheme
+		&& destination.authority === documentDir.authority
+		&& destination.path.startsWith(documentDir.path.replace(/\/$/, '') + '/');
+	return isInsideDocumentDir ? documentDir : undefined;
 }
 
 export function resolveCopyDestination(documentUri: vscode.Uri, fileName: string, dest: string, getWorkspaceFolder: GetWorkspaceFolder): vscode.Uri {
