@@ -85,14 +85,26 @@ suite('GhostTextView', () => {
 		results.push(context.getRenderedFontSizes());
 		context.textModel.applyEdits([{ range: new Range(1, 1, 1, 5), text: '' }]);
 		results.push(context.getRenderedFontSizes());
-		context.textModel.setValue('code');
-		results.push(context.getRenderedFontSizes());
-		context.textModel.setValue('');
-		results.push(context.getRenderedFontSizes());
 
 		assert.deepStrictEqual(results, [
 			{ inline: ['10px'], additional: ['20px'] },
 			{ inline: ['20px'], additional: ['20px'] },
+			{ inline: ['10px'], additional: ['20px'] },
+		]);
+	});
+
+	test('reapplies suggestions when their data is refreshed after a model reset', () => {
+		const context = createGhostTextViewContext(store, '');
+		const ghostText = new GhostText(1, [new GhostTextPart(1, 'suggested()\ncontinuation()', false)]);
+		const results = [];
+
+		for (const text of ['', 'code', '']) {
+			context.textModel.setValue(text);
+			context.setGhostText(ghostText);
+			results.push(context.getRenderedFontSizes());
+		}
+
+		assert.deepStrictEqual(results, [
 			{ inline: ['10px'], additional: ['20px'] },
 			{ inline: ['20px'], additional: ['20px'] },
 			{ inline: ['10px'], additional: ['20px'] },
