@@ -8,6 +8,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import Severity from '../../../../base/common/severity.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -77,10 +78,12 @@ export class CopilotCliSessionLinkOpener {
 			this.notificationService.error(localize('copilotCliSessionImportUnsupported', "Couldn't open the Copilot CLI session because the Copilot agent host can't import sessions."));
 			return;
 		}
-		const backendSession = AgentSession.uri(COPILOT_CLI_AGENT_PROVIDER_ID, sessionId);
+		// The Copilot backing of the session; the host admits it under its own address, which it reports.
+		const backing = AgentSession.uri(COPILOT_CLI_AGENT_PROVIDER_ID, sessionId);
+		let imported: URI | void;
 		try {
 			try {
-				await connection.importSession(backendSession);
+				imported = await connection.importSession(backing);
 			} catch (error) {
 				// Like the CLI, let the user take over a session another process holds: the record of that is best
 				// effort, and one left behind by a process that exited abnormally would otherwise block the session.
@@ -90,14 +93,18 @@ export class CopilotCliSessionLinkOpener {
 				if (!await this.confirmTakeOver()) {
 					return;
 				}
-				await connection.importSession(backendSession, { takeOver: true });
+				imported = await connection.importSession(backing, { takeOver: true });
 			}
 		} catch (error) {
 			this.logService.error(`[CopilotCliSessionLinkOpener] Failed to import session ${sessionId}`, error);
 			this.notificationService.error(localize('copilotCliSessionImportFailed', "Couldn't open the Copilot CLI session: {0}", toErrorMessage(error)));
 			return;
 		}
-		await this.chatWidgetService.openSession(this.agentHostConnectionsService.registerSessionResource(backendSession, undefined, COPILOT_CLI_AGENT_PROVIDER_ID), ChatViewPaneTarget);
+		// A host that doesn't report the address keeps the session at the address it was imported from.
+		const session = imported ?? backing;
+		const resource = this.agentHostConnectionsService.findSessionResource(session)
+			?? this.agentHostConnectionsService.registerSessionResource(session, undefined, COPILOT_CLI_AGENT_PROVIDER_ID);
+		await this.chatWidgetService.openSession(resource, ChatViewPaneTarget);
 	}
 
 	private async confirmTakeOver(): Promise<boolean> {
