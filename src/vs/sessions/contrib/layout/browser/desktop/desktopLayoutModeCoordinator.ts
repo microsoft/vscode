@@ -42,6 +42,12 @@ export const MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS = {
 	stacked: 'workbench.action.agentSessions.layout.toggleStacked',
 } as const;
 
+/**
+ * Where the main window's Layout menu and its buttons show: the main window of the desktop layout, not a chat window,
+ * which has its own. There, Show Editor is the side pane's toggle: Toggle Side Panel runs it and has no button of its own.
+ */
+export const MainWindowLayoutContext = ContextKeyExpr.and(DesktopLayoutContext, IsPhoneLayoutContext.negate(), IsAuxiliaryWindowContext.negate(), ContextKeyExpr.has(ChatWindowContext.key).negate())!;
+
 /** The sizes of the editor and the panel before the chat was hidden in the center panel alignment. */
 export interface ICenterSizesBeforeChatHidden {
 	readonly editor: IDimension;
@@ -177,7 +183,7 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 			precondition: ContextKeyExpr.and(DesktopLayoutContext, IsPhoneLayoutContext.negate(), CustomViewVisibleContext.negate(), IsAuxiliaryWindowContext.negate(), ContextKeyExpr.has(ChatWindowContext.key).negate())!,
 			toggleIds: MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS,
 			// Not in the Layout menu of a chat window, which shows the chat window's toggles, if any.
-			menuWhen: ContextKeyExpr.and(DesktopLayoutContext, IsPhoneLayoutContext.negate(), IsAuxiliaryWindowContext.negate(), ContextKeyExpr.has(ChatWindowContext.key).negate())!,
+			menuWhen: MainWindowLayoutContext,
 			// One entry point to the Layout menu: the title bar, after Toggle Side Panel, or the top of the Session Activity
 			// Bar while it shows the layout actions.
 			buttonMenus: [
