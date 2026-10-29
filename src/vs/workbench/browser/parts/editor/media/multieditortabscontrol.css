@@ -182,6 +182,11 @@
 	flex-grow: 1; /* grow the last tab in a row for a more homogeneous look except for last row (#113801) */
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab.sizing-shrink.last-in-row:not(:last-child),
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab.sizing-fixed.last-in-row:not(:last-child) {
+	flex-grow: 0; /* prevent last tab in a row from filling the entire row (#284318) */
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink {
 	min-width: 80px;
 	flex-basis: 0; /* all tabs are even */
