@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 // TEMPORARY, never merge. Tests the unattended update restart (#344141) on macOS with two signed
-// builds of this branch: build A, and build B, which is A plus an empty commit. Both builds ask
-// the update server at http://127.0.0.1:8080 instead of the real one, every minute.
+// builds of this branch: build A, and build B, which is A plus a commit that only changes this
+// comment (an empty commit fails the hygiene hook). Both builds ask the update server at
+// http://127.0.0.1:8080 instead of the real one, every minute.
 //
 // Install build A, replacing an installed copy of the same application:
 //   node scripts/unattended-update-test.ts install <A.zip> [--dir /Applications]
