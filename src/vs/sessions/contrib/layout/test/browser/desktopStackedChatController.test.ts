@@ -197,7 +197,7 @@ suite('Sessions - DesktopStackedChatController', () => {
 		});
 	}));
 
-	test('snaps between the input and the conversation as the sash is dragged and released', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('settles between the input and the conversation where the sash is released', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { chatView, sessionView } = await createController();
 		harness.layoutService.setSidePaneArrangement(SessionLayoutMode.Stacked);
 		await timeout(0);
@@ -207,7 +207,7 @@ suite('Sessions - DesktopStackedChatController', () => {
 		const release = () => mainWindow.dispatchEvent(new PointerEvent('pointerup'));
 
 		press();
-		// Below the middle of the conversation's least height above the input.
+		// Below the middle of the conversation's least height above the input: the conversation still shows while dragged.
 		drag(collapsed + 50);
 		const draggedDown = state(chatView, sessionView);
 		release();
@@ -219,11 +219,47 @@ suite('Sessions - DesktopStackedChatController', () => {
 		const releasedUp = state(chatView, sessionView);
 
 		assert.deepStrictEqual({ draggedDown, releasedDown, draggedUp, releasedUp }, {
-			draggedDown: { enabled: true, inputOnly: true, headerHidden: true, sizedByHost: true, height: collapsed + 50, minimum: collapsed, remembered: true },
+			draggedDown: { enabled: true, inputOnly: false, headerHidden: false, sizedByHost: false, height: collapsed + 50, minimum: collapsed, remembered: false },
 			releasedDown: { enabled: true, inputOnly: true, headerHidden: true, sizedByHost: true, height: collapsed, minimum: collapsed, remembered: true },
 			draggedUp: { enabled: true, inputOnly: false, headerHidden: false, sizedByHost: false, height: collapsed + 70, minimum: collapsed, remembered: false },
 			// Settles at the conversation's least height above the input.
 			releasedUp: { enabled: true, inputOnly: false, headerHidden: false, sizedByHost: false, height: collapsed + 120, minimum: collapsed, remembered: false },
+		});
+	}));
+
+	test('switches live between the input and the conversation as the sash is dragged, at two points so that it does not flicker, and settles where it lets go', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { controller, chatView, sessionView } = await createController();
+		harness.layoutService.setSidePaneArrangement(SessionLayoutMode.Stacked);
+		await timeout(0);
+		if (!chatView.inputOnly.get()) {
+			controller.stackedChat.toggleConversation();
+			await timeout(0);
+		}
+		const sash = harness.layoutService.mainContainer.appendChild(mainWindow.document.createElement('div'));
+		sash.className = 'monaco-sash horizontal';
+		const steps: { height: number; inputOnly: boolean; headerHidden: boolean }[] = [];
+		sash.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		for (const height of [collapsed + 8, collapsed + 13, collapsed + 6, collapsed + 4, collapsed + 30]) {
+			drag(height);
+			const { inputOnly, headerHidden, height: laidOut } = state(chatView, sessionView);
+			steps.push({ height: laidOut! - collapsed, inputOnly, headerHidden });
+		}
+		mainWindow.dispatchEvent(new PointerEvent('pointerup'));
+		await timeout(0);
+		const { inputOnly, height } = state(chatView, sessionView);
+
+		assert.deepStrictEqual({ steps, released: { inputOnly, height: height! - collapsed } }, {
+			steps: [
+				// Up: the input alone until 12 above its height, then the conversation, which stays until 4 above it.
+				{ height: 8, inputOnly: true, headerHidden: true },
+				{ height: 13, inputOnly: false, headerHidden: false },
+				{ height: 6, inputOnly: false, headerHidden: false },
+				{ height: 4, inputOnly: true, headerHidden: true },
+				// Up again, past 12: the conversation.
+				{ height: 30, inputOnly: false, headerHidden: false },
+			],
+			// Let go below the middle of the conversation's least height: the input, at its height.
+			released: { inputOnly: true, height: 0 },
 		});
 	}));
 

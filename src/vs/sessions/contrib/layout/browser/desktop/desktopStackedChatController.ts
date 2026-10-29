@@ -7,7 +7,7 @@ import { addDisposableListener, EventType, getWindow, isHTMLElement } from '../.
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, debouncedObservable, derived, IObservable, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, debouncedObservable, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -19,7 +19,7 @@ import type { AbstractChatView } from '../../../../browser/parts/chatView.js';
 import { MainEditorPart } from '../../../../browser/parts/editorPart.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import type { SessionView } from '../../../../browser/parts/sessionView.js';
-import { clampStackedChatOnResize, decideStackedChatInputOnly, shouldRestoreStackedChatConversation, stackedChatConversationFits, stackedChatForcedByWindow, stackedChatPersistedInputOnly } from '../../../../browser/parts/stackedChatInputOnly.js';
+import { clampStackedChatOnResize, decideStackedChatInputOnly, decideStackedChatInputOnlyWhileDragging, shouldRestoreStackedChatConversation, stackedChatConversationFits, stackedChatForcedByWindow, stackedChatPersistedInputOnly } from '../../../../common/stackedChatInputOnly.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { chatLayoutOwnersEqual } from '../../../../common/chatLayout.js';
@@ -50,7 +50,9 @@ export class DesktopStackedChatController extends Disposable {
 	/** Set while this controller sizes the Sessions Part, so that the sizes it passes through are not decisions. */
 	private _sizing = false;
 	/** Whether the pointer is pressed on a sash of the workbench grid, as the user drags the split. */
-	private _pointerDown = false;
+	private readonly _dragging = observableValue<boolean>(this, false);
+	private get _pointerDown(): boolean { return this._dragging.get(); }
+	private set _pointerDown(pointerDown: boolean) { this._dragging.set(pointerDown, undefined); }
 	/** Whether the chat shows only its input because the window is too short for the conversation. */
 	private _forcedByWindow = false;
 	/** The height the user last left the chat at while it showed the conversation. */
@@ -102,9 +104,9 @@ export class DesktopStackedChatController extends Disposable {
 		}, true));
 		const release = () => {
 			if (this._pointerDown) {
-				this._pointerDown = false;
-				// Where the drag lets go, the chat settles at the input or the conversation.
+				// Where the drag lets go, the chat settles at the input or the conversation, against the input's height at rest.
 				this._decide(false, true);
+				this._pointerDown = false;
 			}
 		};
 		// A pointer that is lost (such as when the window loses focus) must not leave the press stuck.
@@ -170,7 +172,9 @@ export class DesktopStackedChatController extends Disposable {
 		let measured = 0;
 		this._inputOnlyHeight = debouncedObservable(derived(this, reader => {
 			const height = view.inputOnlyHeight.read(reader);
-			if (view.inputOnly.read(reader) || !measured) {
+			// At rest only: as a drag shows only the input, the input still measures as in the conversation for a moment, and
+			// a drag that passes between the two decides against this one height, not one that moves as it does.
+			if ((view.inputOnly.read(reader) && !this._dragging.read(reader)) || !measured) {
 				measured = height ? height + sessionView.primaryChatViewTop.read(reader) : 0;
 			}
 			return measured;
@@ -189,7 +193,8 @@ export class DesktopStackedChatController extends Disposable {
 			// Showing only its input, the chat keeps its height as the window resizes, rather than growing to be sized back.
 			// Not dragged, it is sized to its input in the same layout as its new limits, such as as the input wraps to
 			// another line, rather than in a second one: the switch below then finds it sized.
-			this._setHeightConstraints({ minimum, maximum: Number.POSITIVE_INFINITY, keepHeight: inputOnly }, inputOnly && !this._sizing ? collapsed : undefined);
+			// While dragged, the drag sizes it.
+			this._setHeightConstraints({ minimum, maximum: Number.POSITIVE_INFINITY, keepHeight: inputOnly }, inputOnly && !this._sizing && !this._dragging.read(reader) ? collapsed : undefined);
 		}));
 
 		// Switched to, rather than dragged to: sized to the input, or to the conversation as the user last left it.
@@ -281,7 +286,13 @@ export class DesktopStackedChatController extends Disposable {
 		}
 		const groupHeight = this._layoutService.getSize(Parts.SESSIONS_PART).height;
 		const collapsedHeight = this._collapsedHeight();
-		const { inputOnly, settleHeight } = decideStackedChatInputOnly({ groupHeight, collapsedHeight, conversationMinHeight: STACKED_CHAT_CONVERSATION_MIN_HEIGHT, dragging });
+		// While dragged, what shows switches live, at two points (hysteresis); where the drag lets go, it settles.
+		const { inputOnly, settleHeight } = dragging
+			? { inputOnly: decideStackedChatInputOnlyWhileDragging({ groupHeight, collapsedHeight, inputOnly: view.inputOnly.get() }), settleHeight: undefined }
+			: decideStackedChatInputOnly({ groupHeight, collapsedHeight, conversationMinHeight: STACKED_CHAT_CONVERSATION_MIN_HEIGHT, dragging });
+		if (dragging && inputOnly && !view.canShowInputOnly.get()) {
+			return;
+		}
 		if (!dragging && !inputOnly) {
 			this._conversationHeight = settleHeight ?? groupHeight;
 		}
