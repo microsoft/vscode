@@ -2823,6 +2823,14 @@ suite('ChatListRenderer', () => {
 		return height;
 	}
 
+	/** Loaded style rules, including imported ones, so a test can re-apply them in the product's stylesheet order. */
+	function getLoadedStyleRules(predicate: (rule: CSSStyleRule) => boolean): CSSStyleRule[] {
+		return [...mainWindow.document.styleSheets, ...mainWindow.document.adoptedStyleSheets]
+			.flatMap(sheet => Array.from(sheet.cssRules))
+			.flatMap(rule => rule instanceof CSSImportRule && rule.styleSheet ? Array.from(rule.styleSheet.cssRules) : [rule])
+			.filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule && predicate(rule));
+	}
+
 	for (const animation of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
 		for (const width of [180, 320]) {
 			test(`collapsible tool titles stay inside their rows at width ${width} (${animation})`, async () => {
@@ -7095,14 +7103,11 @@ suite('ChatListRenderer', () => {
 				};
 			};
 			const original = snapshot();
-			const iconRules = [...mainWindow.document.styleSheets, ...mainWindow.document.adoptedStyleSheets]
-				.flatMap(sheet => Array.from(sheet.cssRules))
-				.flatMap(rule => rule instanceof CSSImportRule && rule.styleSheet ? Array.from(rule.styleSheet.cssRules) : [rule])
-				.filter(rule => rule instanceof CSSStyleRule && (
-					(rule.selectorText.startsWith('.monaco-workbench .chat-pill-icon.codicon') && rule.style.display)
-					|| (rule.selectorText === '.monaco-action-bar .action-item .codicon' && rule.style.width)
-					|| (rule.selectorText.startsWith('.monaco-workbench .codicon[') && rule.style.fontSize)
-				));
+			const iconRules = getLoadedStyleRules(rule =>
+				(rule.selectorText.startsWith('.monaco-workbench .chat-pill-icon.codicon') && !!rule.style.display)
+				|| (rule.selectorText === '.monaco-action-bar .action-item .codicon' && !!rule.style.width)
+				|| (rule.selectorText.startsWith('.monaco-workbench .codicon[') && !!rule.style.fontSize)
+			);
 			assert.strictEqual(iconRules.length, 3, iconRules.map(rule => rule.cssText).join('\n'));
 			// Exercise the product ordering with the shared icon rules loaded after chat.
 			dom.append(container, dom.$('style')).textContent = iconRules.map(rule => rule.cssText).join('\n');
@@ -9471,6 +9476,11 @@ suite('ChatListRenderer', () => {
 				progressVerbosity: ChatProgressVerbosity.Compact,
 			});
 			configurePersistentProgressTypography(container, fontSize);
+			// Exercise the product ordering, where the workbench's base codicon size loads after chat.
+			container.classList.add('monaco-workbench');
+			const workbenchCodiconSize = getLoadedStyleRules(rule => rule.selectorText.startsWith('.monaco-workbench .codicon[') && !!rule.style.fontSize);
+			assert.strictEqual(workbenchCodiconSize.length, 1, workbenchCodiconSize.map(rule => rule.cssText).join('\n'));
+			dom.append(container, dom.$('style')).textContent = workbenchCodiconSize[0].cssText;
 			configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 			for (const name of ['first.ts', 'second.ts']) {
 				model.acceptResponseProgress(request, {
