@@ -8,6 +8,7 @@ import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHu
 import { constants as fsConstants } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
+import { distinct } from '../../../../base/common/arrays.js';
 import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, Promises, raceCancellationError, raceTimeout, Sequencer, SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { arrayEquals, structuralEquals } from '../../../../base/common/equals.js';
@@ -2932,7 +2933,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			mode: inventory.mode === 'disabled' || inventory.mode === 'load_only' || inventory.mode === 'load_and_augment'
 				? inventory.mode
 				: 'unknown',
-			extensions,
+			extensions: distinct(extensions, extension => extension.id),
 		};
 		if (!session) {
 			return persisted;
@@ -2946,7 +2947,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const liveExtensionIds = new Set(liveExtensions.map(extension => extension.id));
 		return {
 			mode: persisted.mode,
-			extensions: [
+			extensions: distinct([
 				...liveExtensions.map(extension => {
 					const persistedExtension = persistedById.get(extension.id);
 					return {
@@ -2957,7 +2958,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}),
 				...persisted.extensions
 					.filter(extension => !liveExtensionIds.has(extension.id)),
-			],
+			], extension => extension.id),
 		};
 	}
 
@@ -2987,10 +2988,28 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (!currentSession || currentSession.sessionId !== targetSessionId) {
 					throw new Error(localize('copilot.extensionReconcileTargetUnavailable', "The selected chat stopped or was replaced before its extension state could be updated."));
 				}
-				return currentSession.reconcileExtensions();
+				return this._reconcileExtensionEnablement(currentSession, extensionId, enabled);
 			});
 		} catch (error) {
 			throw new Error(localize('copilot.extensionReconcileFailed', "The extension preference was saved, but the selected chat could not be updated: {0}", getErrorMessage(error)));
+		}
+	}
+
+	private async _reconcileExtensionEnablement(session: CopilotAgentSession, extensionId: string, enabled: boolean): Promise<void> {
+		try {
+			await session.reconcileExtensions();
+		} catch (error) {
+			let extensions: readonly IAgentExtensionInfo[];
+			try {
+				extensions = await session.listExtensions();
+			} catch (verificationError) {
+				throw new AggregateError([error, verificationError], getErrorMessage(error));
+			}
+			const targets = extensions.filter(extension => extension.id === extensionId);
+			if (session.isDisposed || targets.length === 0 || targets.some(extension => extension.status !== (enabled ? 'running' : 'disabled'))) {
+				throw error;
+			}
+			this._logService.warn(`[Copilot:${session.sessionId}] Extension '${extensionId}' enablement was applied, but extension reconciliation reported a lifecycle failure`, error);
 		}
 	}
 

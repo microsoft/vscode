@@ -73,6 +73,7 @@ suite('CopilotCanvasesWidget', () => {
 		readonly contextAvailable?: boolean;
 		readonly ownerSuffix?: string;
 		readonly mutationGate?: Promise<void>;
+		readonly mutationError?: Error;
 		readonly plugins?: readonly IAgentPlugin[];
 	}) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.copilot-canvases-test.ai-customization-management-editor'));
@@ -140,6 +141,9 @@ suite('CopilotCanvasesWidget', () => {
 				if (!value) {
 					definitions = definitions.filter(canvas => canvas.extensionId !== extensionId);
 				}
+				if (options?.mutationError) {
+					throw options.mutationError;
+				}
 				definitionsChanged.fire();
 			}
 		}();
@@ -167,6 +171,7 @@ suite('CopilotCanvasesWidget', () => {
 		}());
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 			override info(message: string): void { notifications.push(message); }
+			override error(message: string): void { notifications.push(message); }
 		}());
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override executeCommand<R = unknown>(id: string, ...args: unknown[]): Promise<R | undefined> {
@@ -564,6 +569,27 @@ suite('CopilotCanvasesWidget', () => {
 			visibleSwitchChecked: 'false',
 			retainedCanvases: ['PR Review Board', 'Release Notes Draft'],
 			canvasSwitches: 0,
+		});
+	});
+
+	test('refreshes committed enablement after a live reconciliation failure', async () => {
+		const harness = createHarness({ mutationError: new Error('The preference was saved, but reconciliation failed.') });
+		await timeout(20);
+		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable canvas extension \'Preview Extension\'"]');
+		assert.ok(disable);
+		const requestsBefore = harness.listRequests.length;
+		disable.click();
+		await timeout(20);
+		assert.deepStrictEqual({
+			refreshed: harness.listRequests.length > requestsBefore,
+			checked: harness.container.querySelector('[aria-label="Enable canvas extension \'Preview Extension\'"]')?.getAttribute('aria-checked'),
+			retained: harness.widget.getAccessibilityContent().includes('Last known:'),
+			notifications: harness.notifications,
+		}, {
+			refreshed: true,
+			checked: 'false',
+			retained: true,
+			notifications: ['Could not disable canvas extension \'Preview Extension\'. The preference was saved, but reconciliation failed.'],
 		});
 	});
 

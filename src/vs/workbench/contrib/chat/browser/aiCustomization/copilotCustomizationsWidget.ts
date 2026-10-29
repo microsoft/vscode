@@ -1086,7 +1086,6 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			status(enabled
 				? localize('copilotCanvases.extensionEnabledAnnouncement', "Enabled canvas extension '{0}'.", currentItem.extensionName)
 				: localize('copilotCanvases.extensionDisabledAnnouncement', "Disabled canvas extension '{0}'.", currentItem.extensionName));
-			this.refreshCanvases();
 		} catch (error) {
 			this.notificationService.error(enabled
 				? localize('copilotCanvases.extensionEnableFailed', "Could not enable canvas extension '{0}'. {1}", currentItem.extensionName, getErrorMessage(error))
@@ -1094,7 +1093,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		} finally {
 			const shouldRestoreFocus = DOM.getActiveElement() === focusedMutationAction;
 			this.pendingExtensionMutations.delete(mutationKey);
-			this.render();
+			this.refreshCanvases();
 			if (shouldRestoreFocus) {
 				this.restoreFocusedAction(focusedAction);
 			}
