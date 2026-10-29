@@ -296,7 +296,7 @@ suite('ChatPetWidget', () => {
 				keys: ['Space', left, right, 'Escape'],
 				inline: true,
 				fits: true,
-				accessibleLabel: "Blobby's jump game. Hold Space to charge and release to jump. Use Left and Right Arrow to hop or aim. Press Escape to exit.",
+				accessibleLabel: 'Blobby\'s jump game. Hold Space to charge and release to jump. Use Left and Right Arrow to hop or aim. Press Escape to exit.',
 			});
 		});
 	}
