@@ -73,6 +73,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
+import { IWindowCanvasService } from '../../../../services/canvas/browser/windowCanvasService.js';
 
 suite('Sessions - Actions', () => {
 
@@ -1773,6 +1774,7 @@ suite('Sessions - Actions', () => {
 			test(`New Session preserves ${scenario.name} inheritance with toSide=${toSide}`, async () => {
 				const instantiationService = disposables.add(new TestInstantiationService());
 				instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
+				instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
 				const composerService = disposables.add(new NewSessionComposerService());
 				instantiationService.stub(INewSessionComposerService, composerService);
 				instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
@@ -1819,6 +1821,7 @@ suite('Sessions - Actions', () => {
 			test(`New Session preserves container intent across repeated New (pending: ${pending}, toSide: ${toSide})`, async () => {
 				const instantiationService = disposables.add(new TestInstantiationService());
 				instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
+				instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
 				const composerService = disposables.add(new NewSessionComposerService());
 				instantiationService.stub(INewSessionComposerService, composerService);
 				const sourceAddress = 'wsl:Ubuntu';
@@ -1922,6 +1925,7 @@ suite('Sessions - Actions', () => {
 		const run = async (toSide: boolean | undefined, noWorkspaceChecked: boolean) => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
+			instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
 			const composerService = disposables.add(new NewSessionComposerService());
 			instantiationService.stub(INewSessionComposerService, composerService);
 			const { session } = createTestSession('quick-chat-draft');
@@ -2203,6 +2207,7 @@ suite('Sessions - Actions', () => {
 		const descriptor = upcastPartial<ICustomViewDescriptor>({ id: 'inbox', openNewSession: async () => { hosted++; } });
 		const activeCustomView = observableValue<ICustomViewDescriptor | undefined>('customView', descriptor);
 		instantiationService.stub(ICustomViewService, { activeCustomView });
+		instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
 		instantiationService.stub(ISessionsService, {
 			activeSession: constObservable(undefined),
 			openNewSession: async () => { opened++; return { session: undefined, trustDeclined: false }; },
