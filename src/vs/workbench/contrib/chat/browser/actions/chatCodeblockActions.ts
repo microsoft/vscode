@@ -216,7 +216,7 @@ export function registerChatCodeBlockActions(): DisposableStore {
 		}
 	}));
 
-	CopyAction?.addImplementation(50000, 'chat-codeblock', (accessor) => {
+	const copyImplementation = CopyAction?.addImplementation(50000, 'chat-codeblock', (accessor) => {
 		// get active code editor
 		const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		if (!editor) {
@@ -301,6 +301,9 @@ export function registerChatCodeBlockActions(): DisposableStore {
 		reportCopy();
 		return false;
 	});
+	if (copyImplementation) {
+		store.add(copyImplementation);
+	}
 
 	store.add(registerAction2(class SmartApplyInEditorAction extends ChatCodeBlockAction {
 
