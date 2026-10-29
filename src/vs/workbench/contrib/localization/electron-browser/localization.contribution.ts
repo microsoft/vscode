@@ -215,6 +215,9 @@ class NativeLocalizationWorkbenchContribution extends BaseLocalizationWorkbenchC
 	}
 
 	private async isLocaleInstalled(locale: string): Promise<boolean> {
+		if (locale === 'en') {
+			return true;
+		}
 		const installed = await this.extensionManagementService.getInstalled();
 		return installed.some(i => !!i.manifest.contributes?.localizations?.length
 			&& i.manifest.contributes.localizations.some(l => locale.startsWith(l.languageId.toLowerCase())));
