@@ -240,6 +240,7 @@ suite('LocalModel requestRouter', () => {
 			evaluate({ ...A2_RESPONSE, selected_model: { id: 'example-coder-local' } }),
 			evaluate(A2_RESPONSE),
 			evaluate({ ...withoutFallback, fallback_model: fallback }),
+			evaluate({ ...A2_RESPONSE, cloud_fallback_model: { id: 'cloud-model' } }),
 			evaluate(withoutFallback),
 			evaluate({ ...A2_RESPONSE, cloud_fallback_model: { id: 'cloud-model', supported_endpoints: ['/responses'] } }),
 			evaluate({ ...A2_RESPONSE, cloud_fallback_model: { id: 'other-local', supported_endpoints: ['/chat/completions'] } }),
@@ -248,6 +249,7 @@ suite('LocalModel requestRouter', () => {
 		], [
 			'notOurs',
 			'reissue:otherLocalModel',
+			'patch',
 			'patch',
 			'patch',
 			'reissue:noFallback',
