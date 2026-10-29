@@ -241,7 +241,7 @@ suite('SyncedCustomizationBundler', () => {
 
 	for (const hasName of [true, false]) {
 		test(`preserves colliding agent files and their ${hasName ? 'authored' : 'file-derived'} names`, async () => {
-			const bundler = createBundler();
+			const bundler = createBundler('test-agent', { preserveAgentFileCollisions: true });
 			const files = await Promise.all(['first', 'second'].map(async extensionId => ({
 				uri: await seedFile(`/extensions/${extensionId}/reviewer.agent.md`, `${hasName ? '---\nname: Reviewer\n---\n' : ''}${extensionId}`),
 				type: PromptsType.agent,
@@ -281,6 +281,30 @@ suite('SyncedCustomizationBundler', () => {
 			});
 		});
 	}
+
+	test('preserves legacy flat selections and nonces for uniquely named Copilot agents', async () => {
+		const files = await Promise.all(['reviewer', 'planner'].map(async name => ({
+			uri: await seedFile(`/extension/${name}.agent.md`, `---\nname: ${name}\n---\nPrompt`),
+			type: PromptsType.agent,
+			source: AICustomizationSources.extension,
+		})));
+		const legacy = createBundler('legacy');
+		const before = await legacy.bundle(files);
+		const selections = files.map(file => legacy.getSyncedUri(file.uri)?.toString());
+		const copilot = createBundler('legacy', { preserveAgentFileCollisions: true });
+		const after = await copilot.bundle(files);
+		assert.deepStrictEqual({
+			nonce: after?.ref.nonce,
+			selections: files.map(file => copilot.getSyncedUri(file.uri)?.toString()),
+		}, { nonce: before?.ref.nonce, selections });
+	});
+
+	test('keeps the existing flat agent layout for consumers that do not opt in', async () => {
+		const source = await seedFile('/extension/reviewer.agent.md', 'Reviewer');
+		const bundler = createBundler('native-layout');
+		await bundler.bundle([{ uri: source, type: PromptsType.agent, source: AICustomizationSources.extension }]);
+		assert.strictEqual(bundler.getSyncedUri(source)?.path, '/native-layout/agents/reviewer.agent.md');
+	});
 
 	test('bundles SKILL.md files into per-skill subdirectories', async () => {
 		const bundler = createBundler();
@@ -1192,7 +1216,7 @@ suite('SyncedCustomizationBundler', () => {
 			firstOrigin: source.toString(),
 			oldSource: undefined,
 			replacementOrigin: replacement.toString(),
-			sameDestination: false,
+			sameDestination: true,
 			missing: undefined,
 		});
 	});

@@ -185,12 +185,16 @@ function getCustomAgentHooks(md: MarkdownNode): CustomAgentConfig['hooks'] {
 	return hooks.length > 0 ? Object.fromEntries(hooks) : undefined;
 }
 
+function customAgentDescription(name: string, description?: string): string {
+	return (description ? `${name}: ${description}` : name).replace(/\s+/g, ' ').trim();
+}
+
 /**
  * Converts parsed plugin agents into the SDK's `customAgents` config.
  *
  * Each agent file is read and (when present) its YAML frontmatter is parsed:
  *  - `name` is derived from the resource URI; `displayName` retains the authored name.
- *  - `description` is forwarded verbatim.
+ *  - `description` includes the authored name on one line so the model can discover the agent.
  *  - Extension-qualified `tools` references are translated to their SDK registration names;
  *    an empty / missing array becomes `null` so the SDK grants the agent access to all tools.
  *  - `reasoning-effort` is forwarded when it is a supported runtime value.
@@ -213,6 +217,7 @@ export async function toSdkCustomAgents(
 				configs.push({
 					name: agent.sdkName ?? getSdkCustomAgentName(agent.uri),
 					displayName: agent.name,
+					description: customAgentDescription(agent.name),
 					prompt: raw,
 				});
 			} else {
@@ -234,7 +239,7 @@ export async function toSdkCustomAgents(
 				configs.push({
 					name: agent.sdkName ?? getSdkCustomAgentName(agent.uri),
 					displayName,
-					...(description ? { description } : {}),
+					description: customAgentDescription(displayName, description),
 					...(model ? { model } : {}),
 					...(isCustomAgentReasoningEffort(reasoningEffort) ? { reasoningEffort } : {}),
 					tools: tools && tools.length > 0 ? tools : null,
@@ -612,30 +617,32 @@ export function parsedPluginsEqual(a: readonly ComparablePlugin[], b: readonly C
 			const rootPattern = roots.length
 				? new RegExp(`(?<![\\w/\\\\.-])(?:${roots.map(escapeRegExpCharacters).join('|')})(?=$|[/\\\\\\s"'\\x60);|&<>:])`, 'g')
 				: undefined;
-			return JSON.stringify({
-				format: p.format,
-				nonce: p.nonce,
-				sourceUri: p.sourceUri?.toString(),
-				hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
-				mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration, defaultCwd: m.defaultCwd?.toString() })),
-				skills: p.skills.map(s => ({
-					uri: s.uri.toString(),
-					name: s.name,
-					disableModelInvocation: s.disableModelInvocation,
-					disableUserInvocation: s.disableUserInvocation,
-				})),
-				agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
-				instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
-			}, (_key, value) => {
-				// Tagged segments distinguish a relocated root from literal placeholder text.
-				if (rootPattern && typeof value === 'string') {
-					const segments = value.split(rootPattern);
-					if (segments.length > 1) {
-						return { pluginRootRelative: segments };
+			return {
+				sourceUri: p.agents.length > 0 ? p.sourceUri?.toString() : undefined,
+				configuration: JSON.stringify({
+					format: p.format,
+					nonce: p.nonce,
+					hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
+					mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration, defaultCwd: m.defaultCwd?.toString() })),
+					skills: p.skills.map(s => ({
+						uri: s.uri.toString(),
+						name: s.name,
+						disableModelInvocation: s.disableModelInvocation,
+						disableUserInvocation: s.disableUserInvocation,
+					})),
+					agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
+					instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
+				}, (_key, value) => {
+					// Tagged segments distinguish a relocated root from literal placeholder text.
+					if (rootPattern && typeof value === 'string') {
+						const segments = value.split(rootPattern);
+						if (segments.length > 1) {
+							return { pluginRootRelative: segments };
+						}
 					}
-				}
-				return value;
-			});
+					return value;
+				}),
+			};
 		}));
 	};
 	return serialize(a) === serialize(b);

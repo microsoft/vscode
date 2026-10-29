@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -42,6 +43,74 @@ const labelService = upcastPartial<ILabelService>({ getUriLabel: resource => res
 
 suite('AgentCustomizationItemProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps case-distinct host agent URIs in their declared plugin sources', async () => {
+		const agents: AgentCustomization[] = ['Reviewer', 'reviewer'].map(id => ({
+			type: CustomizationType.Agent, id, uri: `other-host:/agents/${id}`, name: 'Reviewer',
+		}));
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomAgents() { return agents; }
+			override getCustomizations(): readonly Customization[] {
+				return agents.map((agent, index) => ({
+					type: CustomizationType.Plugin, id: `plugin-${index}`, uri: `other-host:/plugin/${index}`, name: `source-${index}`, children: [agent],
+				}));
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'remote', undefined, undefined, upcastPartial<IFileService>({}), new NullLogService(),
+			new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
+		assert.deepStrictEqual(result.map(agent => ({ id: agent.id, source: agent.source.label })), [
+			{ id: agents[0].uri, source: 'Plugin: source-0' },
+			{ id: agents[1].uri, source: 'Plugin: source-1' },
+		]);
+	});
+
+	test('does not treat a case-distinct host agent as a client draft', async () => {
+		const agents: AgentCustomization[] = ['Reviewer', 'reviewer'].map(id => ({
+			type: CustomizationType.Agent, id, uri: `other-host:/agents/${id}`, name: 'Reviewer',
+		}));
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomAgents() { return agents; }
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'remote', undefined, undefined, upcastPartial<IFileService>({}), new NullLogService(),
+			new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		provider.setDraftCustomAgents(observableValue<readonly AgentCustomization[]>('draft', [agents[0]]));
+		const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
+		assert.deepStrictEqual(result.map(agent => agent.source.label), ['VS Code', 'Agent Host']);
+	});
+
+	test('retains agents and logs failures when optional extension label discovery fails', async () => {
+		class TestLogService extends NullLogService {
+			warnings = 0;
+			override warn(): void { this.warnings++; }
+		}
+		const prompts = makePromptsService();
+		prompts.listPromptFilesForStorage = async () => { throw new Error('Extension discovery failed'); };
+		const log = new TestLogService();
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'local', undefined, undefined, upcastPartial<IFileService>({}), log,
+			new NullAgentHostCustomizationService(), prompts, labelService,
+		));
+		provider.setDraftCustomAgents(observableValue<readonly AgentCustomization[]>('draft', [
+			{ type: CustomizationType.Agent, id: 'agent', uri: 'other-host:/agent', name: 'Reviewer' },
+		]));
+		const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
+		assert.deepStrictEqual({ ids: result.map(agent => agent.id), warnings: log.warnings }, { ids: ['other-host:/agent'], warnings: 1 });
+	});
+
+	test('does not turn cancelled extension discovery into a successful agent list', async () => {
+		const prompts = makePromptsService();
+		prompts.listPromptFilesForStorage = async () => { throw new CancellationError(); };
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'local', undefined, undefined, upcastPartial<IFileService>({}), new NullLogService(),
+			new NullAgentHostCustomizationService(), prompts, labelService,
+		));
+		await assert.rejects(() => provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None), isCancellationError);
+	});
 
 	function extensionFile(name: string, displayName?: string): IExtensionPromptPath {
 		return {

@@ -48,6 +48,77 @@ suite('Copilot SDK - native agent launch', function () {
 	});
 
 	for (const mode of ['copilot-cli', 'empty'] as const) {
+		test(`${mode} resume: preserves a saved flat-layout selection registered with an authored SDK name`, async () => {
+			const root = URI.file(join(home, 'legacy-bundle'));
+			const uri = URI.joinPath(root, 'agents', 'reviewer.agent.md');
+			await mkdir(join(root.fsPath, 'agents'), { recursive: true });
+			await writeFile(uri.fsPath, '---\nname: Reviewer\n---\nLegacy prompt.');
+			const opens: string[] = [];
+			client = new class extends CopilotClient {
+				override async createSession(config: SessionConfig): Promise<CopilotSession> {
+					opens.push('create');
+					return super.createSession(config);
+				}
+				override async resumeSession(id: string, config: ResumeSessionConfig): Promise<CopilotSession> {
+					opens.push('resume');
+					return super.resumeSession(id, config);
+				}
+			}({
+				mode, baseDirectory: home, useLoggedInUser: false,
+				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
+					PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
+					COPILOT_TELEMETRY_ENABLED: 'false',
+				})),
+			});
+			await client.start();
+			const providers = [{ name: 'local', type: 'openai' as const, wireApi: 'completions' as const, baseUrl: 'http://127.0.0.1:1/v1' }];
+			const models = [{ id: 'legacy-test-model', provider: 'local' }];
+			const sessionId = generateUuid();
+			const original = await client.createSession({
+				sessionId, workingDirectory: home, model: 'legacy-test-model', providers, models,
+				availableTools: [],
+				customAgents: [{ name: 'Reviewer', displayName: 'Reviewer', prompt: 'Legacy prompt.' }], agent: 'Reviewer',
+			});
+			const before = (await original.rpc.agent.getCurrent()).agent?.id;
+			await original.disconnect();
+			const directory = join(home, 'session-state', sessionId);
+			await mkdir(directory, { recursive: true });
+			await writeFile(join(directory, 'events.jsonl'), buildSessionEventLogFromTurns([{
+				id: generateUuid(), message: { text: 'Retained question', origin: { kind: MessageKind.User } },
+				responseParts: [{ id: generateUuid(), kind: ResponsePartKind.Markdown, content: 'Retained answer' }],
+				state: TurnState.Complete, usage: undefined,
+			}], { sessionId, workingDirectory: home }));
+			const fileService = upcastPartial<IFileService>({
+				readFile: async resource => upcastPartial<IFileContent>({ value: VSBuffer.wrap(await readFile(resource.fsPath)) }),
+			});
+			const launcher = createTestLauncher(undefined, {}, undefined, undefined, undefined, undefined, fileService);
+			stub(launcher, 'resolveByokSessionConfig').resolves({ providers, models });
+			const snapshot = {
+				discoveredAgents: [],
+				plugins: [{
+					format: PluginFormat.Copilot, nonce: 'legacy-content', resourceDir: root, sourceUri: URI.parse('client-customizations:/legacy'),
+					agents: [toParsedAgent({ uri, name: 'Reviewer' })], skills: [], hooks: [], instructions: [], mcpServers: [],
+				}],
+				additionalRootInstructions: [], tools: [], mcpServers: {},
+			};
+			const wrapper = await launcher.launch({
+				kind: 'resume', client, sessionId, workingDirectory: URI.file(home), snapshot,
+				resolvedAgentName: getCopilotAgentSelectionName(snapshot, uri.toString()),
+				fallback: { model: { id: 'legacy-test-model' } },
+				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+			}, testRuntime);
+			try {
+				assert.deepStrictEqual({ before, after: (await wrapper.session.rpc.agent.getCurrent()).agent?.id, opens }, {
+					before: 'Reviewer', after: getSdkCustomAgentName(uri, snapshot.plugins[0]), opens: ['create', 'resume'],
+				});
+			} finally {
+				wrapper.dispose();
+			}
+		});
+	}
+
+	for (const mode of ['copilot-cli', 'empty'] as const) {
 		for (const { kind, sharedBundle } of (['create', 'resume', 'recover'] as const).flatMap(kind => [false, true].map(sharedBundle => ({ kind, sharedBundle })))) {
 			test(`${mode} ${kind}: distinguishes and switches forwarded agents with identical display names from ${sharedBundle ? 'one bundle' : 'different plugins'}`, async () => {
 				const uris = [0, 1].map(index => URI.file(join(home, `source-${index}`, 'shared.agent.md')));

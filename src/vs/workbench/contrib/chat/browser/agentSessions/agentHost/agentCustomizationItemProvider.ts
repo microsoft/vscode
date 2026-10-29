@@ -5,6 +5,7 @@
 
 import { raceCancellation, raceTimeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
@@ -12,7 +13,7 @@ import { shorten } from '../../../../../../base/common/labels.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { autorun, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { basename, dirname, extUri, extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, type CustomizationDisabledReason } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { isAgentBuiltinCustomizationUri } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -29,7 +30,7 @@ import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js
 import { AgentCustomizationContentExpander } from './agentCustomizationContentExpander.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { type ISyncedCustomizationOrigin } from './syncedCustomizationBundler.js';
-import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage as PromptStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IAgentSource, ICustomAgent, IPromptPath, IPromptsService, PromptsStorage as PromptStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatModeKind } from '../../../common/constants.js';
 import { localize } from '../../../../../../nls.js';
@@ -420,7 +421,15 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	}
 
 	private async getAgentSourceLabels(sessionResource: URI, agents: readonly AgentCustomization[], token: CancellationToken): Promise<readonly (string | undefined)[]> {
-		const extensionFiles = await this._promptsService.listPromptFilesForStorage(PromptsType.agent, PromptStorage.extension, token);
+		let extensionFiles: readonly IPromptPath[] = [];
+		try {
+			extensionFiles = await this._promptsService.listPromptFilesForStorage(PromptsType.agent, PromptStorage.extension, token);
+		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			this._logService.warn('[AgentCustomizationItemProvider] Failed to resolve extension source labels', error);
+		}
 		const extensionLabels = new Map<string, string>();
 		const extensionIdsByUri = new ResourceMap<string>();
 		for (const file of extensionFiles) {
@@ -445,8 +454,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				return undefined;
 			}
 			const uri = URI.parse(agent.uri);
-			const published = containers.find(candidate => candidate.children?.some(child => child.type === CustomizationType.Agent && extUriBiasedIgnorePathCase.isEqual(URI.parse(child.uri), uri)));
-			const isDraft = drafts.some(candidate => extUriBiasedIgnorePathCase.isEqual(URI.parse(candidate.uri), uri));
+			const published = containers.find(candidate => candidate.children?.some(child => child.type === CustomizationType.Agent && isEqual(URI.parse(child.uri), uri)));
+			const isDraft = drafts.some(candidate => isEqual(URI.parse(candidate.uri), uri));
 			const origin = origins.get(agent);
 			const extensionId = (origin?.source === AICustomizationSources.extension ? origin.extensionId : undefined)
 				?? (isDraft ? extensionIdsByUri.get(uri) : undefined);
@@ -454,7 +463,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				? localize('agentSource.extension', "Extension: {0}", extensionLabels.get(ExtensionIdentifier.toKey(extensionId)) ?? extensionId)
 				: undefined;
 			const draftContainers = !published && isDraft
-				? containers.filter(candidate => candidate.type === CustomizationType.Plugin && extUriBiasedIgnorePathCase.isEqualOrParent(uri, URI.parse(candidate.uri)))
+				? containers.filter(candidate => candidate.type === CustomizationType.Plugin && extUri.isEqualOrParent(uri, URI.parse(candidate.uri)))
 				: [];
 			const container = published ?? (draftContainers.length === 1 ? draftContainers[0] : undefined);
 			if (container?.type === CustomizationType.Plugin) {

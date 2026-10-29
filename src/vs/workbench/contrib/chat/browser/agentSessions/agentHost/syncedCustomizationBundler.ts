@@ -172,6 +172,8 @@ export interface ISyncableMcpServer {
 }
 
 export interface ISyncedCustomizationBundlerOptions {
+	/** Separates colliding agent filenames without changing paths for uniquely named agents. */
+	readonly preserveAgentFileCollisions?: boolean;
 	/**
 	 * Bundles standalone customizations: user and workspace skills and agents,
 	 * and the MCP servers that VS Code forwards. The bundle is marked so that a
@@ -200,7 +202,7 @@ interface IBundleResult {
  * .mcp.json        ← MCP servers configured in VS Code
  * rules/          ← instruction files
  * commands/       ← prompt files
- * agents/         ← URI-scoped agent files, listed explicitly in the manifest
+ * agents/         ← agent files, optionally namespaced when filenames collide
  * skills/         ← skill directories
  * ```
  *
@@ -216,6 +218,7 @@ export class SyncedCustomizationBundler extends Disposable {
 	private readonly _fileOperationLimiter = this._register(new DrainingFileOperationLimiter());
 	private readonly _authority: string;
 	private readonly _standalone: boolean;
+	private readonly _preserveAgentFileCollisions: boolean;
 	private _lastNonce: string | undefined;
 	private _lastRef: IBundleResult | undefined;
 	private _isDisposed = false;
@@ -232,6 +235,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		super();
 		this._authority = authority;
 		this._standalone = options?.standalone === true;
+		this._preserveAgentFileCollisions = options?.preserveAgentFileCollisions === true;
 		agentHostFileSystemService.ensureSyncedCustomizationProvider();
 	}
 
@@ -283,6 +287,15 @@ export class SyncedCustomizationBundler extends Disposable {
 			return undefined;
 		}
 
+		const agentFileCounts = new Map<string, number>();
+		if (this._preserveAgentFileCollisions) {
+			for (const file of syncable) {
+				if (file.type === PromptsType.agent) {
+					const name = basename(file.uri).toLowerCase();
+					agentFileCounts.set(name, (agentFileCounts.get(name) ?? 0) + 1);
+				}
+			}
+		}
 		const entries: { sourceUri: URI; destUri: URI; hashKey: string; content?: string }[] = [];
 		const agentPaths: string[] = [];
 		const originByDest = new ResourceMap<ISyncedCustomizationOrigin>();
@@ -324,7 +337,7 @@ export class SyncedCustomizationBundler extends Disposable {
 						`${dir}/${skillDirName}/${relativePath}`,
 					);
 				}
-			} else if (file.type === PromptsType.agent) {
+			} else if (file.type === PromptsType.agent && (agentFileCounts.get(fileName.toLowerCase()) ?? 0) > 1) {
 				const sourceHash = new StringSHA1();
 				sourceHash.update(file.uri.toString());
 				const path = `${dir}/${sourceHash.digest()}/${fileName}`;
