@@ -805,6 +805,43 @@ suite('SessionArchiveNudge', () => {
 		assert.deepStrictEqual(states, [true, false]);
 	});
 
+	test('keeps a continued chat suggestion suppressed after another chat shows its own pull requests, including after reload', () => {
+		const session = createSession();
+		const nestedChat = upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: '/nested' }),
+			status: observableValue<SessionStatus>('nestedStatus', SessionStatus.Completed),
+			workspace: observableValue<ISessionWorkspace | undefined>('nestedWorkspace', undefined),
+		});
+		session.chats.set([nestedChat], undefined);
+		session.artifacts.set([artifact(1), artifact(2, { chat: nestedChat.resource })], undefined);
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		context.setPullRequest(2, GitHubPullRequestState.Merged);
+		const main = context.createNudge();
+		main.markShown();
+		context.setChatRequest(session, 'turn-2');
+		const nested = context.createNudge(constObservable(nestedChat));
+		const visible = (mainNudge: SessionArchiveNudge, nestedNudge: SessionArchiveNudge) => ({ main: !!mainNudge.options.get(), nested: !!nestedNudge.options.get() });
+		const states = [visible(main, nested)];
+		nested.markShown();
+		states.push(visible(main, nested));
+		main.dispose();
+		nested.dispose();
+		context.reloadService();
+		const reloadedMain = context.createNudge();
+		const reloadedNested = context.createNudge(constObservable(nestedChat));
+		states.push(visible(reloadedMain, reloadedNested));
+		context.setChatRequest(session, 'nested-turn', nestedChat.resource);
+		states.push(visible(reloadedMain, reloadedNested));
+
+		assert.deepStrictEqual(states, [
+			{ main: false, nested: true },
+			{ main: false, nested: true },
+			{ main: false, nested: true },
+			{ main: false, nested: false },
+		]);
+	});
+
 	test('continuation is isolated per session and does not override explicit dismissal', () => {
 		const first = createSession('first');
 		const second = createSession('second');

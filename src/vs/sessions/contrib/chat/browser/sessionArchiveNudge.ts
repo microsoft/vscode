@@ -65,6 +65,11 @@ interface ISessionArchiveNudgeImpression {
 	readonly lastRequestIds: Record<string, string | undefined>;
 	readonly shownAt: number;
 	readonly continued: boolean;
+	/**
+	 * Pull requests already suppressed by an earlier continuation. Another chat's suggestion records a new
+	 * impression without showing these again. Absent from impressions stored before this field existed.
+	 */
+	readonly continuedPullRequestKeys?: readonly string[];
 }
 
 export interface ISessionArchiveNudgeService {
@@ -171,8 +176,8 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 	}
 
 	hasContinued(session: ISession, pullRequestKeys: readonly string[], reader: IReader | undefined): boolean {
-		const impression = this._getImpression(session, reader);
-		return !!impression?.continued && pullRequestKeys.every(key => impression.pullRequestKeys.includes(key));
+		const continuedKeys = getContinuedPullRequestKeys(this._getImpression(session, reader));
+		return pullRequestKeys.length > 0 && pullRequestKeys.every(key => continuedKeys.has(key));
 	}
 
 	shouldShowCompact(reader: IReader | undefined): boolean {
@@ -196,6 +201,7 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 				lastRequestIds,
 				shownAt: Date.now(),
 				continued: false,
+				continuedPullRequestKeys: [...getContinuedPullRequestKeys(impression)],
 			} satisfies ISessionArchiveNudgeImpression, StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
 		if (!this._shown.has(state.session.sessionId)) {
@@ -290,6 +296,10 @@ export class SessionArchiveNudgeContribution {
 	static readonly ID = 'workbench.contrib.sessionArchiveNudge';
 
 	constructor(@ISessionArchiveNudgeService _service: ISessionArchiveNudgeService) { }
+}
+
+function getContinuedPullRequestKeys(impression: ISessionArchiveNudgeImpression | undefined): ReadonlySet<string> {
+	return new Set([...(impression?.continuedPullRequestKeys ?? []), ...(impression?.continued ? impression.pullRequestKeys : [])]);
 }
 
 function isSessionAvailableForArchiveNudge(session: ISession, reader: IReader | undefined): boolean {
