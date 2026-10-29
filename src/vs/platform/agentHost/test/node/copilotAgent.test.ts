@@ -739,7 +739,7 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 		};
 		readonly models: { readonly list: CopilotModelsList };
 		readonly managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
-		readonly plugins: Pick<CopilotPlugins, 'install' | 'uninstall'> & {
+		readonly plugins: Pick<CopilotPlugins, 'list' | 'install' | 'uninstall'> & {
 			readonly marketplaces: Pick<CopilotPluginMarketplaces, 'list' | 'add' | 'browse' | 'remove' | 'refresh'>;
 		};
 		readonly extensions: {
@@ -788,6 +788,7 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
 type ManagedSettingsResolveResult = Awaited<ReturnType<CopilotClient['rpc']['managedSettings']['resolve']>>;
 
 class TestCopilotClient implements ITestCopilotClient {
+	readonly installedPlugins: Awaited<ReturnType<CopilotPlugins['list']>>['plugins'] = [];
 	mcpConfigListResult: Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>> = { servers: {} };
 	managedSettingsResolution: ManagedSettingsResolveResult = {
 		resolved: { source: 'none', serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] },
@@ -886,6 +887,7 @@ class TestCopilotClient implements ITestCopilotClient {
 			}
 		},
 		plugins: {
+			list: async () => ({ plugins: this.installedPlugins }),
 			install: async params => {
 				this.pluginInstallRequests.push(params);
 				return {} as Awaited<ReturnType<CopilotPluginsInstall>>;
@@ -2080,6 +2082,43 @@ suite('CopilotAgent', () => {
 				{ name: 'spark@copilot-plugins', directSourceId: undefined },
 				{ name: 'direct', directSourceId: 'source-id' },
 			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('merges plugin inventories using canonical installation identities', async () => {
+		const client = new TestCopilotClient([]);
+		const timeline = { name: 'session-timeline', marketplace: '', enabled: true, directSourceId: 'local-timeline' };
+		const first = { name: 'duplicate', marketplace: '', enabled: true, directSourceId: 'first-source' };
+		const second = { name: 'duplicate', marketplace: '', enabled: false, directSourceId: 'second-source' };
+		const box = { name: 'box', marketplace: 'claude-plugins-official', enabled: false };
+		client.installedPlugins.push(timeline, first, second, box);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const builtin = { name: 'builtin', marketplace: '', enabled: true, source: 'builtin' };
+		const localBox = { name: 'box', marketplace: '', enabled: true };
+		const sessionOnly = { name: 'duplicate', marketplace: '', enabled: true, directSourceId: 'session-source' };
+		try {
+			const cold = await agent['_listInstalledPlugins']('plugin-completions');
+			setDefaultSessionStub(agent, 'plugin-completions', {
+				listInstalledPlugins: async () => [
+					{ name: timeline.name, marketplace: '', enabled: true },
+					{ name: timeline.name, marketplace: '', enabled: true },
+					{ name: first.name, marketplace: '', enabled: true },
+					first,
+					{ ...box, enabled: true, managed: true },
+					builtin,
+					localBox,
+					sessionOnly,
+					sessionOnly,
+				],
+			});
+			const live = await agent['_listInstalledPlugins']('plugin-completions');
+
+			assert.deepStrictEqual({ cold, live }, {
+				cold: [timeline, first, second, box],
+				live: [timeline, first, second, { ...box, enabled: true, managed: true }, builtin, localBox, sessionOnly],
+			});
 		} finally {
 			await disposeAgent(agent);
 		}

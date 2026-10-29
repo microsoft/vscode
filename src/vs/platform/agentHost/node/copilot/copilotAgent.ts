@@ -5439,11 +5439,27 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return installedPlugins;
 		}
 		const sessionPlugins = await session.listInstalledPlugins();
-		const sessionPluginIds = new Set(sessionPlugins.map(plugin => JSON.stringify([plugin.name, plugin.marketplace, plugin.directSourceId])));
-		return [
-			...sessionPlugins,
-			...installedPlugins.filter(plugin => !sessionPluginIds.has(JSON.stringify([plugin.name, plugin.marketplace, plugin.directSourceId]))),
-		];
+		const pluginKey = (plugin: (typeof installedPlugins)[number]) =>
+			JSON.stringify([plugin.name, plugin.marketplace, plugin.directSourceId, plugin.source]);
+		const plugins = new Map(installedPlugins.map(plugin => [pluginKey(plugin), plugin]));
+		for (const plugin of sessionPlugins) {
+			// Session listings can omit the direct source identity retained by the global installation record.
+			const installations = plugin.source !== 'builtin' && plugin.directSourceId === undefined
+				? installedPlugins.filter(installed => installed.source !== 'builtin'
+					&& installed.name === plugin.name && installed.marketplace === plugin.marketplace)
+				: [];
+			if (installations.length > 1) {
+				continue;
+			}
+			const installed = installations[0];
+			const key = pluginKey(installed ?? plugin);
+			const merged = { ...plugins.get(key), ...plugin };
+			if (installed?.directSourceId !== undefined) {
+				merged.directSourceId = installed.directSourceId;
+			}
+			plugins.set(key, merged);
+		}
+		return [...plugins.values()];
 	}
 
 	private async _listPluginMarketplacePlugins(sessionId: string): Promise<readonly { readonly name: string; readonly marketplace: string }[]> {

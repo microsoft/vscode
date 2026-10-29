@@ -598,9 +598,51 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			}, {
 				uninstall: ['azure@awesome-copilot', 'direct-plugin', 'duplicate@marketplace-one', 'duplicate@marketplace-two', 'elasticsearch@awesome-copilot'],
 				update: ['elasticsearch@awesome-copilot'],
-				enable: ['azure', 'duplicate@marketplace-two'],
-				disable: ['builtin-plugin', 'duplicate@marketplace-one', 'elasticsearch'],
+				enable: ['azure@awesome-copilot', 'duplicate@marketplace-two'],
+				disable: ['builtin-plugin', 'duplicate@marketplace-one', 'elasticsearch@awesome-copilot'],
 				requestedSessionIds: ['abc', 'abc', 'abc', 'abc'],
+			});
+		});
+
+		test('keeps distinct installations qualified and omits ambiguous direct mutations', async () => {
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getSessionCustomizations: async () => [],
+				getInstalledPlugins: async () => [
+					{ name: 'box', marketplace: 'claude-plugins-official', enabled: true },
+					{ name: 'box', marketplace: 'another-marketplace', enabled: false },
+					{ name: 'box', marketplace: '', directSourceId: 'local-box', enabled: true },
+					{ name: 'session-timeline', marketplace: '', directSourceId: 'local-timeline', enabled: true },
+					{ name: 'duplicate', marketplace: '', directSourceId: 'first-source', enabled: true },
+					{ name: 'duplicate', marketplace: '', directSourceId: 'second-source', enabled: true },
+				],
+			});
+			const complete = async (command: string) => {
+				const text = `/plugin ${command} `;
+				return (await provider.provideCompletionItems({
+					kind: CompletionItemKind.UserMessage, channel: session, text, offset: text.length,
+				}, { chat: undefined }, CancellationToken.None)).map(item => ({ text: item.insertText, label: item.attachment?.label }));
+			};
+
+			assert.deepStrictEqual({
+				update: await complete('update'),
+				uninstall: await complete('uninstall'),
+				enable: await complete('enable'),
+				disable: await complete('disable'),
+			}, {
+				update: [
+					{ text: 'box', label: 'box' },
+					{ text: 'box@another-marketplace', label: 'box@another-marketplace' },
+					{ text: 'box@claude-plugins-official', label: 'box@claude-plugins-official' },
+					{ text: 'session-timeline', label: 'session-timeline' },
+				],
+				uninstall: [
+					{ text: 'box', label: 'box' },
+					{ text: 'box@another-marketplace', label: 'box@another-marketplace' },
+					{ text: 'box@claude-plugins-official', label: 'box@claude-plugins-official' },
+					{ text: 'session-timeline', label: 'session-timeline' },
+				],
+				enable: [{ text: 'box@another-marketplace', label: 'box@another-marketplace' }],
+				disable: [{ text: 'box@claude-plugins-official', label: 'box@claude-plugins-official' }],
 			});
 		});
 
